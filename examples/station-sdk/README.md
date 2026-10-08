@@ -39,13 +39,19 @@ negative values and booleans masquerading as integers reject before encoding.
 ## Query messages v1
 
 A separate Table/query example uses type `transit.examples.query`, version 1,
-with prefix `54 53 51 01` (ASCII `TSQ`, version 1). Tags `Initialize` (1), `Rows`
-(3) and `Start` (4) have no following bytes. `Insert` (2) carries an eight-byte
-signed little-endian key, a one-byte nullable marker (0 = null, 1 = present) and,
-when present, an eight-byte signed little-endian value. Encoded size is 5, 14 or
-22 bytes. `Initialize | Insert | Rows` belong to the service; `Start` belongs to
-the requester. Native verified result completion is a separate handler event,
-never decoded as one of these application messages.
+with prefix `54 53 51 01` (ASCII `TSQ`, version 1). Initialize (1), Rows (3), Start
+(4), Advance (5) and NotReady (6) have no following bytes. Insert (2) and Update
+(7) carry an eight-byte signed little-endian key, a one-byte nullable marker
+(0 = null, 1 = present) and, when present, an eight-byte signed little-endian
+value. Delete (8) carries only the signed key. Encoded sizes are 5, 13, 14 or 22
+bytes. Service roles accept Initialize, Insert, Rows, Advance, Update and Delete;
+the requester accepts Start and NotReady. Native verified result completion is
+a separate event, never an application message.
+
+The [queued Table contract](TABLES.md) defines durable operation identities,
+continuations, the four-column schema, private-turn bounds and compact outcome
+records. It identifies its implementation and fixtures separately from runtime
+qualification.
 
 All decoders require exact prefix/version, known tag, exact length and marker.
 Reject truncated/trailing data and unsupported versions rather than guessing a

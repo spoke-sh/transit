@@ -19,12 +19,12 @@ separate runs. No TPC software download, server or credential is required.
 Python orchestrates and verifies; Fuze/Station execute in Zig through public
 package imports. SQLite and PyArrow are independent test oracles, not runtime
 engines. Temporary oracle databases and Arrow verification files are removed
-after the run; reports preserve the actual output/progress and proposal records.
+after the run; reports preserve the actual output/progress and decoded candidate records.
 
 `--samples` is 1–100, `--rows` is 0–1,000,000, `--page-rows` is 1–8,
 `--seed` is uint32, `--iterations` is 1–1000, and `--compile-iterations` is
 1–1,000,000. Defaults are five samples, 8192 rows, eight rows per page, seed 42,
-ten executions and 2000 compilations/proposals. The per-process timeout defaults
+ten executions and 2000 compilations/candidate builds. The per-process timeout defaults
 to 120 seconds; `--timeout` accepts 1–3600 seconds. Large combinations can exceed
 it; a timeout fails the run and does not manufacture a throughput result.
 
@@ -37,7 +37,7 @@ report left by a hard kill is incomplete. Never infer success from file existenc
 
 ## Workload and measurement boundaries
 
-`manifest.json` owns the 33 executable components, nine rejection probes, pinned
+`manifest.json` owns the 33 executable components, nine capability probes, pinned
 specification references and full-workload inventory. Every workload entry has
 its common schema and driver blockers; additional requirements are suite-level
 prerequisites, not an exhaustive per-query operator audit. TPC-DS entries count
@@ -46,7 +46,7 @@ each blocked unit, plus all eleven maintenance functions. TPC-E includes the
 setup-only Trade-Cleanup separately from timed transaction mixes.
 
 The inventory is intentionally independent from component completion. Removing
-an operation, accepting a blocker probe or changing a component result fails
+an operation, changing a capability probe expectation or changing a component result fails
 review checks. Promoting coverage requires real full-workload implementations and
 oracles; deleting a blocker label is insufficient.
 
@@ -64,7 +64,8 @@ signed or unsigned. Every run verifies both names and types before reporting
 timings. These components do not promote full-workload coverage.
 
 The separate `just test::sql-benchmark` probe keeps its default thirteen-case
-compiler/aggregate workload unchanged for frozen-control comparisons. Pass
+compiler/aggregate workload size. Table declaration and mutation compilation now
+use general typed plans; frozen controls must implement the same workload contract. Pass
 `--profile count-values` for the new COUNT(column) cost profile: all six native
 scalar types, all-value and mixed null/missing/value pages, and both COUNT forms.
 It records compilation separately from 8192-row execution with checkpoint
@@ -85,8 +86,7 @@ serve as controls for a profile they do not implement.
 repeated typed binding as separate phases across all six native scalar types.
 Each bound plan must have the exact canonical bytes of its equivalent literal
 query before measurement. Preparation is outside the binding interval, and both
-template/bound owners are released. The existing thirteen-case default remains
-the unchanged-workload control. This profile measures pure Fuze costs only;
+template/bound owners are released. The thirteen-case default includes general typed DDL/DML compilation. This profile measures pure Fuze costs only;
 complete source-definition checks, authorization, transport and admission are
 outside it. It does not imply that preparing once is beneficial for one query.
 
@@ -100,13 +100,18 @@ its timed loop. Reports include scanned/selected/output counts and completion.
 The point-filter component scans synthetic pages; it does not measure the native
 primary-key index. Generation and page work remain bounded as row count grows.
 
-Mutation compilation is timed separately from applying its typed plan to a fresh
-private Station turn. Each proposal sees the same descriptor, row 1 = 50 and row
-2 = null. INSERT proposes rows 3–5; UPDATE proposes row 1 = 42; DELETE proposes
-row 2 removal. Oracles verify affected counts and all four mutation slots using
-independent little/big-endian bytes. Nothing commits or persists; iteration does
-not accumulate accepted rows. Declaration compilation is followed by an untimed
-schema compatibility and canonical SQL check; it does not publish a catalog.
+Mutation compilation is timed separately from building an immutable typed Table
+candidate. Each candidate sees the same schema, row 1 = 50 and row 2 = null.
+INSERT adds rows 3–5; UPDATE sets row 1 = 42; DELETE removes row 2. SQLite executes
+the statement independently and verifies matched/changed counts and complete
+final rows. Candidate timing includes bounded overlay allocation, row/index
+construction and decoded result traversal. Nothing commits or persists;
+iterations do not accumulate accepted rows. `build_candidate` is distinct from
+historical `propose_mutation` timing over fixed native cells. General declaration
+compilation is followed by exact neutral schema validation, including primary
+key, stable columns, types, defaults and nullability; it does not publish a catalog.
+Decimal, wide-schema and compound-predicate probes expect acceptance. Unsupported
+operators still require exact error matches; neither outcome promotes a full suite.
 
 There is one verification process, one unrecorded warm-up process and the requested
 sample processes. Summaries give min/median/max nanoseconds per iteration, never

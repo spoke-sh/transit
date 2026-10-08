@@ -12,10 +12,10 @@ import sys
 import tempfile
 import pyarrow as pa
 from fuze_file_query import descriptor, cell_bytes
-from fuze_types import DEFINITION, TAGS
+from fuze_types import DEFINITION, TAGS, KINDS
 
-CLI = str(Path(sys.argv[1]).resolve())
-BRIDGE = str(Path(sys.argv[2]).resolve())
+CLI = None
+BRIDGE = None
 ROOT = Path(__file__).resolve().parents[1]
 CASES = 0
 
@@ -86,7 +86,7 @@ def arrow_cell(array, i, typ):
         assert kind == 0 and not value[i].is_valid
         return bytes([state])
     if state == 2:
-        assert not value[i].is_valid and kind in TAGS.values()
+        assert not value[i].is_valid and kind in KINDS.values()
         return bytes([2, kind])
     if state == 3:
         assert kind == TAGS[next(iter(typ))]
@@ -137,11 +137,14 @@ def recursive_cases():
         ({'list': {'type': {'int64': {}}, 'nullable': True}}, {'value': {'list': [atom('signed', '1'), {'null': {}}, {'type_error': 'utf8'}]}}),
         ({'json': {}}, {'value': {'json': '{"n":9007199254740993,"id":"001"}'}}),
     ]
+    cases.extend(({'int64': {}}, {'type_error': kind}) for kind in ('unknown', 'null_value', 'text', 'character'))
     return cases
 
 
 def main():
-    global CASES
+    global CASES, CLI, BRIDGE
+    CLI = str(Path(sys.argv[1]).resolve())
+    BRIDGE = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='transit-logical-arrow-', dir='/var/tmp') as directory:
         work = Path(directory)
         for case in json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/types.json').read_text())['cases']:

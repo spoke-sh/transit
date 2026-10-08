@@ -1,110 +1,189 @@
 package io.transit.sdk.station;
 
 import com.google.gson.*;
-import io.transit.client.TransitException;
+import io.transit.client.ResourceRef;
 import io.transit.sdk.station.Types.*;
 import static io.transit.client.internal.Values.*;
+import static io.transit.sdk.station.Logical.fields;
+import java.math.BigInteger;
 import java.util.*;
 
-public final class Table<T> {
-    /** Closed family of supported native cells; nullability belongs to Row. */
-    public static final class Cell<T> {
-        private final String name;
-        private final Class<T> type;
-        private Cell(String name, Class<T> type) { this.name = name; this.type = type; }
-        public String wireName() { return name; }
-        JsonObject encode(T value, int bound) {
-            if (value == null) return obj("null", obj());
-            if (!type.isInstance(value)) throw new IllegalArgumentException("Wrong Table cell type");
-            Object encoded = switch (name) {
-                case "int64" -> Long.toString((Long) value);
-                case "boolean" -> value;
-                case "utf8" -> text((String) value, bound);
-                case "binary" -> HexFormat.of().formatHex(bytes(((Bytes) value).copy(), bound));
-                default -> throw new IllegalStateException("Unknown cell");
-            };
-            return obj(name, encoded);
+/** General application-owned Tables. Each mutation step prepares one private turn. */
+public final class Table {
+    private static final JsonObject ACTION = resource("/io/transit/sdk/station/schemas.json").getAsJsonObject("GrowingAction");
+    private static final int ACTION_BYTES = Catalog.limit("handler_action_bytes");
+    private static JsonObject saved(String data, String tag) {
+        text(data, ACTION_BYTES);
+        int depth = 0; boolean quoted = false, escaped = false;
+        for (int i = 0; i < data.length(); i++) {
+            char c = data.charAt(i);
+            if (quoted) { if (escaped) escaped = false; else if (c == '\\') escaped = true; else if (c == '"') quoted = false; }
+            else if (c == '"') quoted = true;
+            else if (c == '{' || c == '[') { if (++depth > 96) throw incompatible("saved-table-depth"); }
+            else if (c == '}' || c == ']') { if (--depth < 0) throw incompatible("saved-table-depth"); }
         }
-        T decode(JsonElement wire, int bound) {
-            JsonObject value = object(wire);
-            if (value.has("null")) return null;
-            if (!value.has(name)) throw incompatible("table-cell-type");
-            Object decoded = switch (name) {
-                case "int64" -> NativeValues.signed(value.get(name));
-                case "boolean" -> bool(value.get(name));
-                case "utf8" -> text(string(value.get(name)), bound);
-                case "binary" -> new Bytes(unhex(value.get(name), bound));
-                default -> throw new IllegalStateException("Unknown cell");
-            };
-            return type.cast(decoded);
+        if (quoted || depth != 0) throw incompatible("saved-table-json");
+        JsonObject value = object(new Gson().fromJson(data, JsonElement.class));
+        if (!value.toString().equals(data)) throw incompatible("saved-table-canonical");
+        JsonObject envelope = obj("table", obj(tag, value)); text(envelope.toString(), ACTION_BYTES);
+        io.transit.client.internal.Schema.require(ACTION, envelope);
+        return value;
+    }
+    private static Bytes exact(JsonElement value, int size) {
+        byte[] decoded = unhex(value, size);
+        if (decoded.length != size || !HexFormat.of().formatHex(decoded).equals(string(value))) throw incompatible("table-bytes");
+        return new Bytes(decoded);
+    }
+    private static JsonElement raw(Turn turn, String tag, JsonElement value, String expected) {
+        return fields(fields(turn.raw(obj("table", obj(tag, value))), "table").get("table"), expected).get(expected);
+    }
+    private static void sameResource(Turn turn, JsonObject value) {
+        ResourceRef expected = new ResourceRef(number(value.get("realm"), 1), number(value.get("resource"), 1));
+        if (!turn.resource.equals(expected)) throw NativeValues.handlerError("foreign-table-resource");
+    }
+    public record RowIdentity(Bytes bytes) {
+        public RowIdentity { Objects.requireNonNull(bytes); if (bytes.copy().length != 20) throw new IllegalArgumentException("Expected a 20-byte row identity"); }
+        public RowIdentity(byte[] bytes) { this(new Bytes(bytes)); }
+    }
+    public record Row(RowIdentity identity, List<Logical.Cell> cells) {
+        public Row { Objects.requireNonNull(identity); cells = Logical.owned(cells, 128); if (cells.isEmpty()) throw new IllegalArgumentException("Expected row cells"); }
+    }
+    public record Basis(ResourceRef resource, long revision, BigInteger object, Bytes head) {
+        public Basis { Objects.requireNonNull(resource); counter(revision, 1); Catalog.positive(object); if (head.copy().length != 32) throw new IllegalArgumentException("Expected Table head digest"); }
+    }
+    public record Page(List<Row> rows, Optional<Cursor> next) {
+        public Page { rows = Logical.owned(rows, 8); Objects.requireNonNull(next); }
+    }
+    public enum CreationState { BUILDING, APPLIED }
+    public record Creation(CreationState state, long admittedInput, OptionalLong completedInput) {}
+    public enum MutationState { BUILDING, APPLIED, REJECTED, CANCELLED }
+    public enum Route { POINT, STATEMENT, ALTER }
+    public enum Rejection { NONE, ROW_EXISTS, ROW_IDENTITY_EXISTS, NULL_NOT_ALLOWED, MISSING_REQUIRED_FIELD, CHARACTER_LIMIT_EXCEEDED, OVERFLOW, INEXACT }
+    public enum WitnessSource { INPUT, STORED, WITHHELD }
+    public record Witness(WitnessSource source, Optional<RowIdentity> row, BigInteger column, String text, boolean truncated) {}
+    public record MutationStatus(Reference reference, MutationState state, Route route, long admittedInput,
+        OptionalLong completedInput, Optional<Catalog.Counts> counts, Rejection rejection, Optional<Witness> witness) {}
+    static MutationStatus status(JsonElement value) {
+        JsonObject v = fields(value, "reference", "state", "route", "admitted_input", "completed_input", "counts", "rejection", "witness");
+        MutationState state = Logical.variant(MutationState.class, v.get("state"));
+        Route route = Logical.variant(Route.class, v.get("route")); Rejection rejection = Logical.variant(Rejection.class, v.get("rejection"));
+        long admitted = number(v.get("admitted_input"), 1);
+        OptionalLong completed = v.get("completed_input").isJsonNull() ? OptionalLong.empty() : OptionalLong.of(number(v.get("completed_input"), 1));
+        if ((completed.isEmpty() != (state == MutationState.BUILDING)) || (completed.isPresent() && completed.getAsLong() < admitted) || ((rejection != Rejection.NONE) != (state == MutationState.REJECTED))) throw incompatible("table-mutation-completion");
+        Optional<Catalog.Counts> counts = Optional.empty();
+        if (!v.get("counts").isJsonNull()) {
+            JsonObject c = fields(v.get("counts"), "matched", "changed"); counts = Optional.of(new Catalog.Counts(NativeValues.wide(c.get("matched"), false), NativeValues.wide(c.get("changed"), false)));
+        }
+        if (counts.isPresent() != (state == MutationState.APPLIED)) throw incompatible("table-mutation-counts");
+        Optional<Witness> witness = Optional.empty();
+        if (!v.get("witness").isJsonNull()) {
+            JsonObject w = fields(v.get("witness"), "source", "row", "column", "text", "truncated");
+            witness = Optional.of(new Witness(Logical.variant(WitnessSource.class, w.get("source")), w.get("row").isJsonNull() ? Optional.empty() : Optional.of(new RowIdentity(exact(w.get("row"), 20))),
+                NativeValues.wide(w.get("column"), false), text(string(w.get("text")), 256), bool(w.get("truncated"))));
+        }
+        return new MutationStatus(Reference.load(v.get("reference").toString()), state, route, admitted, completed, counts, rejection, witness);
+    }
+    public static final class Reference {
+        private final String data;
+        private Reference(String data) { this.data = data; }
+        public static Reference load(String data) {
+            JsonObject value = saved(data, "status");
+            if (!string(value.get("definition")).equals(Catalog.DEFINITION)) throw incompatible("table-definition");
+            new ResourceRef(number(value.get("realm"), 1), number(value.get("resource"), 1));
+            NativeValues.wide(value.get("object"), true); NativeValues.wide(value.get("operation"), true); exact(value.get("digest"), 32);
+            return new Reference(data);
+        }
+        public String save() { return data; }
+        private Optional<MutationStatus> read(Turn turn, String tag) {
+            JsonObject request = object(new Gson().fromJson(data, JsonElement.class)); sameResource(turn, request);
+            return turn.access(tag.equals("status"), () -> {
+                JsonElement value = raw(turn, tag, request, "mutation"); if (value.isJsonNull()) return Optional.empty();
+                MutationStatus result = Table.status(value);
+                if (!new Gson().fromJson(result.reference().save(), JsonElement.class).equals(request)) throw incompatible("foreign-table-outcome");
+                return Optional.of(result);
+            });
+        }
+        public Optional<MutationStatus> status(Turn turn) { return read(turn, "status"); }
+        public MutationStatus cancel(Turn turn) { return read(turn, "cancel").orElseThrow(() -> incompatible("missing-cancelled-table-mutation")); }
+    }
+    public static final class Mutation {
+        private final String data;
+        private Mutation(String data) { this.data = data; }
+        public static Mutation prepare(ResourceRef resource, long principal, BigInteger operation, Catalog.Schema schema, Catalog.Mutation mutation) {
+            Objects.requireNonNull(resource); counter(principal, 0); Catalog.positive(operation);
+            return load(obj("realm", resource.realm(), "resource", resource.resource(), "principal", principal, "operation", operation.toString(), "schema", schema.wire(), "mutation", mutation.wire()).toString());
+        }
+        public static Mutation load(String data) {
+            JsonObject value = saved(data, "mutate"); CatalogValues.schema(value.get("schema")); CatalogValues.mutation(value.get("mutation"));
+            new ResourceRef(number(value.get("realm"), 1), number(value.get("resource"), 1)); NativeValues.wide(value.get("operation"), true);
+            return new Mutation(data);
+        }
+        public String save() { return data; }
+        public Catalog.Schema schema() { return CatalogValues.schema(object(new Gson().fromJson(data, JsonElement.class)).get("schema")); }
+        public BigInteger operation() { return NativeValues.wide(object(new Gson().fromJson(data, JsonElement.class)).get("operation"), true); }
+        public MutationStatus step(Turn turn) {
+            JsonObject request = object(new Gson().fromJson(data, JsonElement.class)); sameResource(turn, request);
+            return turn.access(false, () -> {
+                MutationStatus result = status(raw(turn, "mutate", request, "mutation")); JsonObject identity = object(new Gson().fromJson(result.reference().save(), JsonElement.class));
+                for (String key : List.of("realm", "resource", "principal", "operation")) if (!identity.get(key).equals(request.get(key))) throw incompatible("foreign-table-outcome");
+                if (!identity.get("object").equals(object(request.get("schema")).get("object"))) throw incompatible("foreign-table-outcome");
+                return result;
+            });
         }
     }
-    public static final Cell<Long> INT64 = new Cell<>("int64", Long.class);
-    public static final Cell<Boolean> BOOLEAN = new Cell<>("boolean", Boolean.class);
-    public static final Cell<String> UTF8 = new Cell<>("utf8", String.class);
-    public static final Cell<Bytes> BINARY = new Cell<>("binary", Bytes.class);
-    public record Schema<T>(long id, Cell<T> cell, String keyName, String valueName) {
-        public Schema {
-            if (id < 1 || id > 0xffffffffL) throw new IllegalArgumentException("Table ID exceeds its bound");
-            Objects.requireNonNull(cell); text(keyName, 256); text(valueName, 256);
-        }
-        public Schema(long id, Cell<T> cell) { this(id, cell, "id", "value"); }
-    }
-    public record Row<T>(long key, T value) {}
     private final Turn turn;
-    private final Schema<T> schema;
+    private final Catalog.Schema schema;
     private final ReadVersion version;
     private final Basis basis;
-    private Table(Turn turn, Schema<T> schema, ReadVersion version, Basis basis) { this.turn = turn; this.schema = schema; this.version = version; this.basis = basis; }
-    static <T> Table<T> open(Turn turn, Schema<T> schema, ReadVersion version) {
-        Objects.requireNonNull(schema);
-        JsonObject request = obj("id", schema.id());
-        if (version != null) request.add("version", NativeValues.wire(version));
-        JsonObject actual = object(turn.raw(obj("table_schema", request)).get("schema"));
-        if (!string(actual.get("key_name")).equals(schema.keyName()) || !string(actual.get("value_name")).equals(schema.valueName()) ||
-            !string(actual.get("value_type")).equals(schema.cell().wireName())) throw new TransitException(TransitException.Kind.HANDLER, -1, "TableSchemaChanged", "table-schema");
-        return new Table<>(turn, schema, version, NativeValues.basis(actual.get("basis"), turn.process.realm()));
+    private Table(Turn turn, Catalog.Schema schema, ReadVersion version, Basis basis) { this.turn = turn; this.schema = schema; this.version = version; this.basis = basis; }
+    static Table open(Turn turn, BigInteger object, ReadVersion version) {
+        Catalog.positive(object);
+        JsonObject value = fields(raw(turn, "schema", obj("object", object.toString(), "version", version == null ? null : NativeValues.wire(version)), "schema"), "schema", "basis");
+        Catalog.Schema schema = CatalogValues.schema(value.get("schema")); JsonObject b = fields(value.get("basis"), "resource", "revision", "object", "head");
+        Basis basis = new Basis(new ResourceRef(turn.process.realm(), number(b.get("resource"), 1)), number(b.get("revision"), 1), NativeValues.wide(b.get("object"), true), exact(b.get("head"), 32));
+        if (!schema.object().equals(object) || !basis.object().equals(object)) throw incompatible("foreign-table-definition");
+        return new Table(turn, schema, version, basis);
     }
-    public Schema<T> schema() { return schema; }
+    static Creation create(Turn turn, Catalog.Schema schema, Catalog.TableLimits limits) {
+        JsonObject value = fields(raw(turn, "create", obj("realm", turn.resource.realm(), "resource", turn.resource.resource(), "schema", schema.wire(), "limits", limits.wire()), "created"), "state", "admitted_input", "completed_input");
+        CreationState state = Logical.variant(CreationState.class, value.get("state")); long admitted = number(value.get("admitted_input"), 1), completed = number(value.get("completed_input"), 0);
+        if ((completed == 0) != (state == CreationState.BUILDING) || (completed != 0 && completed < admitted)) throw incompatible("table-creation-completion");
+        return new Creation(state, admitted, completed == 0 ? OptionalLong.empty() : OptionalLong.of(completed));
+    }
+    public Catalog.Schema schema() { return schema; }
     public Basis basis() { return basis; }
-    private JsonObject request() {
-        JsonObject result = obj("id", schema.id());
-        if (version != null) result.add("version", NativeValues.wire(version));
-        return result;
+    private JsonObject source() { return obj("object", schema.object().toString(), "version", version == null ? null : NativeValues.wire(version)); }
+    private void checkBasis(JsonElement value) {
+        JsonObject b = fields(fields(value, "schema", "basis").get("basis"), "resource", "revision", "object", "head");
+        if (number(b.get("resource"), 1) != basis.resource().resource() || number(b.get("revision"), 1) != basis.revision() || !NativeValues.wide(b.get("object"), true).equals(basis.object()) || !exact(b.get("head"), 32).equals(basis.head())) throw incompatible("changed-table-basis");
     }
-    private Row<T> row(JsonElement wire) {
-        JsonObject value = object(wire);
-        return new Row<>(NativeValues.signed(value.get("key")), schema.cell().decode(value.get("value"), turn.limit("table_cell_bytes")));
+    private static Row row(JsonElement value) {
+        JsonObject v = fields(value, "identity", "cells"); JsonArray cells = v.getAsJsonArray("cells");
+        if (cells.isEmpty() || cells.size() > 128) throw incompatible("table-row-width");
+        return new Row(new RowIdentity(exact(v.get("identity"), 20)), cells.asList().stream().map(Logical::cellFromWire).toList());
     }
-    public Optional<Row<T>> get(long key) {
+    private Optional<Row> readRow(String tag, JsonObject request) {
         return turn.access(true, () -> {
-            JsonObject request = request(); request.addProperty("key", Long.toString(key));
-            JsonElement value = turn.raw(obj(version == null ? "table_get" : "version_table_get", request)).get("row");
-            return value.isJsonNull() ? Optional.empty() : Optional.of(row(value));
+            JsonObject value = fields(raw(turn, tag, request, "row"), "definition", "row"); checkBasis(value.get("definition"));
+            return value.get("row").isJsonNull() ? Optional.empty() : Optional.of(row(value.get("row")));
         });
     }
-    public void insert(Row<T> row) { write("insert", row); }
-    public void update(Row<T> row) { write("update", row); }
-    public void upsert(Row<T> row) { write("upsert", row); }
-    private void writable() { if (version != null) throw NativeValues.handlerError("retained-table-read-only"); }
-    private void write(String mode, Row<T> row) {
-        turn.access(false, () -> {
-            writable(); Objects.requireNonNull(row);
-            turn.raw(obj("table_write", obj("id", schema.id(), "mode", mode, "row", obj("key", Long.toString(row.key()), "value", schema.cell().encode(row.value(), turn.limit("table_cell_bytes"))))));
-            return null;
-        });
+    public Optional<Row> get(RowIdentity identity) { return readRow("get", obj("source", source(), "identity", HexFormat.of().formatHex(identity.bytes().copy()))); }
+    public Optional<Row> getKey(List<Logical.Cell> key) {
+        if (key.isEmpty() || key.size() > 128) throw new IllegalArgumentException("Expected primary-key cells"); JsonArray values = new JsonArray(); key.forEach(v -> values.add(Logical.cellWire(v)));
+        return readRow("get_key", obj("source", source(), "key", values));
     }
-    public void delete(long key) {
-        turn.access(false, () -> { writable(); turn.raw(obj("table_delete", obj("id", schema.id(), "key", Long.toString(key)))); return null; });
-    }
-    public Page<Row<T>> page() { return page(null); }
-    public Page<Row<T>> page(Cursor cursor) {
+    public Page page() { return page(null, 8); }
+    public Page page(Cursor cursor, int limit) {
+        if (limit < 1 || limit > 8) throw new IllegalArgumentException("Expected one to eight rows"); if (cursor != null) text(cursor.opaque(), 2048);
         return turn.access(true, () -> {
-            JsonObject request = request(); request.add("cursor", json(cursor == null ? null : cursor.opaque()));
-            JsonObject result = object(turn.raw(obj("table_page", request)).get("rows"));
-            List<Row<T>> rows = new ArrayList<>();
-            for (JsonElement value : result.getAsJsonArray("rows")) if (!value.isJsonNull()) rows.add(row(value));
-            return new Page<>(rows, NativeValues.cursor(result.get("next")), NativeValues.basis(result.get("basis"), turn.process.realm()));
+            JsonObject value = fields(raw(turn, "page", obj("source", source(), "cursor", cursor == null ? null : cursor.opaque(), "limit", limit), "page"), "definition", "rows", "next"); checkBasis(value.get("definition"));
+            JsonArray rows = value.getAsJsonArray("rows"); if (rows.size() > limit) throw incompatible("table-page-bound");
+            return new Page(rows.asList().stream().map(Table::row).toList(), Optional.ofNullable(NativeValues.cursor(value.get("next"))));
         });
+    }
+    public Mutation prepare(long principal, BigInteger operation, Catalog.Mutation mutation) {
+        turn.check(); if (version != null) throw NativeValues.handlerError("retained-table-read-only");
+        return Mutation.prepare(basis.resource(), principal, operation, schema, mutation);
     }
 }

@@ -47,6 +47,13 @@ order. `installed` means all native provisioning receipts have been checkpointed
 or a completed application command. Poll status until `installed` is true and
 all roles are `ready` before continuing with the connection-export steps.
 
+Application-enabled neighborhoods configure their dedicated courier to deliver
+all pending recorded outputs in the realm. This includes application self-messages
+and inter-role messages after new PIDs are installed. It walks bounded native
+output pages and retains an exact uncertain delivery request; worker and resource
+grants remain separate. Neighborhoods without application hosting use the built-in
+query owner/requester destination list.
+
 A declaration names roles, executable artifacts, compatibility contracts,
 configuration, resources, named associations, explicit grants, callers and
 initial domain frames. Relative artifact paths resolve against the declaration
@@ -64,13 +71,17 @@ transit app connect --config /absolute/local-transit/management.yaml \
   --application work-items --caller writer --output writer.json
 transit app connect --config /absolute/local-transit/management.yaml \
   --application work-items --caller inspector --output inspector.json
+transit app connect --config /absolute/local-transit/management.yaml \
+  --application work-items --caller operator --output operator.json
+./zig-out/bin/work-items operator.json prepare-table initial-table.json 1
 ./zig-out/bin/work-items inspector.json inspect
 ./zig-out/bin/work-items writer.json put put-1.json 1 0
 ```
 
-The initial `inspect` must observe the initialized domain head before the first
-write. If initialization is still pending, retry the read; physical readiness
-does not imply that the initialization frame has committed.
+The initial Table preparation reconciles the already submitted creation operation
+and waits for its published domain outcome before the first write. Repeat that
+command with the same recovery file after an uncertain response. Physical
+readiness and native input consumption do not establish Table completion.
 
 Connection files contain endpoint, named bindings and a private seed-file
 reference. They contain no realm-root or worker key. Do not publish these files
@@ -131,6 +142,8 @@ SIGINT/SIGTERM stop and join owned children; manager SIGKILL triggers the Linux
 parent-death contract. Restart the same server configuration without
 `--initialize`. Worker-only interruption restarts its required dependency closure.
 Storage/authority interruption restarts the pinned neighborhood on retained disk.
+Temporary authority liveness-read failures require three consecutive failed
+observations before restarting live roles; current denials fail immediately.
 An explicitly denied app is reported `failed`; automatic recovery does not
 restore its rights. Inspect the named failure and retained evidence before an
 operator repair. v1 has no automatic permission-repair or history-reset command.

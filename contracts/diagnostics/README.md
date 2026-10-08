@@ -59,7 +59,7 @@ establishes all transitive runtime behavior.
 
 
 `outcomes.json` owns reviewed semantic expectations for retained query failures,
-mutation phases/reasons/input rejections, catalog receipts/input dispositions,
+mutation phases/reasons/input rejections, general Table DDL/DML phases and input dispositions,
 serving waits/input rejections, Follow stops, exchange capture closure, native
 effect phases/closures and publication phases/input rejections. Shared migration progress and input rejections are included. Each family names
 its actual source enum or closed classification registry, projection, context, disclosure and recovery contract.
@@ -133,11 +133,11 @@ remain covered by their real adapter proofs. A passing shared-cause matrix does
 not certify unrelated adapter startup/configuration or arbitrary library errors.
 
 The mutation and catalog caller registries cover their selected bridge, client,
-request/record and catalog inspection/model owners. Independent read/dispatch
+request/record owners and the general Table intent, typed-value and catalog
+inspection owners. Independent read/dispatch
 projections distinguish authority rejection from operation identity conflict,
 retain exact selected read targets, and preserve uncertainty after dispatch.
-Transport truncation records an unrecorded origin rather than inventing a remote
-outcome. Native ABI tests exercise real refused status reads; this mapping scope
+Transport truncation never supplies a remote outcome or invents an origin. Native ABI tests exercise real refused status reads; this mapping scope
 does not certify every transitive framework or application handler error.
 
 Board inspection combines its finite registry with the shared query caller
@@ -199,3 +199,11 @@ failures preserve their cause under an explicit read boundary even when the OS
 error set is open. The actual CLI checks absent input/schema paths. Unqualified
 `EndOfStream` is truncated input; only recorded gzip-decompression context
 classifies it as invalid gzip. These distinctions do not change result stdout.
+
+General Table grammar cases use `TableDdl` and `TableDml` with explicit captured
+schemas. The offline declaration profile covers KV and Document separately.
+DDL defaults and DML values preserve typed temporal, UUID, JSON and recursive
+value failures through SQL diagnostics; malformed JSON is validated while its
+original literal span is available. Repeated keys in a compiled multi-row intent
+remain a runtime uniqueness obligation, with atomic rejection in the Table
+publication proofs. Grammar acceptance never establishes publication.

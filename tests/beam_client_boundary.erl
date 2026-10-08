@@ -9,6 +9,7 @@ main() ->
     case Mode of
         "missing" -> {error, #transit_error{kind = incompatible_native}} = transit_client:open(Config);
         "normal" ->
+            ok = beam_schema_values:run(),
             lists:foreach(fun(Name) ->
                 {error, #transit_error{kind = incompatible_native}} = transit_client:open(Config#transit_config{native_host = filename:join(Directory, Name)})
             end, ["bad-version", "fraction", "duplicate", "oversized", "partial", "invalid-utf8", "invalid-status"]),

@@ -8,76 +8,65 @@ owns authorization, wire encodings, admission, cancellation and limits.
 
 `UnifiedClient` owns signed description, finite upload, frozen submission,
 committed-input observation, status, cancellation and verified result pages.
+`describe` checks current catalog metadata as well as permission: renamed,
+replaced or retired declarations cannot masquerade as the live schema.
+`authorize` checks current rights for exact upload recovery and retained results
+without rebinding their captured schema.
 `UnifiedBehavior.Requester` binds one query principal/source and admits one active
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
 
-This package imports Station's and Document's public modules and has no kernel, storage or
+`TableQuery` executes [general typed Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
+through the catalog's signed connection, without a separately configured source
+or requester per Table. It owns a leased snapshot, typed plan and bounded native
+entry cache. Pull scans acquire at most eight immutable row references together,
+prefetch their bounded headers/chunks, and decode one owned row at a time.
+Stopping at LIMIT does not allocate the remaining row values. Each output is one owned logical row; current catalog and native
+authorization precede disclosure, including completion and empty output. Explicit
+request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
+foreign-language routes retain their separately admitted profiles.
+
+`TableSource` provides canonical schema-bound declarations and bounded owned pages
+over supplied captured/retained readers. It checks a separately authenticated
+principal's current catalog rights before and after each page, preserving the
+original schema/root through ALTER, DROP and name reuse. Complete composite-key
+equality uses the existing collision-safe index. Its
+[source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
+keeps retention, requester-policy mapping and durable result publication with the
+host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
+current rights before returning owned logical Arrow rows.
+`UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
+target maps a requester process to a catalog principal within one scope and
+owner. It permits resolving new Table objects without installing a per-Table
+policy; every page still requires current catalog inspect/read rights. Policy
+installation belongs to the authorized owner, and a changed mapping advances its
+revision. Native durable admission and result verification use this adapter and the
+canonical logical plan/Arrow codecs. `CatalogQueryOwner` composes the Table
+lifecycle owner with query dispatch; its administrator installs explicit
+requester delegation without creating a worker or policy per Table. See
+[catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
+
+`TableAssistance` reads current catalog metadata, derives continuations from the
+same general Table parsers and checks the metadata/policy revision again before
+returning. It bounds source searches to 128 pages and eight suggestions while
+retaining only one page. The terminal reacquires suggestions before accepting
+an edit. Completion is read-only and does not prepare or dispatch SQL.
+
+This package imports Station's, Catalog's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a
 leased public snapshot in the client; durable execution runs in the separately
 hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
-`TableMutationRequest` encodes owned, definition-bound requests over the shared
-Table mutation plan and Station Table codecs. It can produce an immutable
-publication reference without admission or execution. `TableMutationAdmission`
-composes explicit principal/Table policies, immutable upload staging and a
-terminal result with the row proposal in one private Station turn. Applications
-retain the full immutable publication reference in every staged or control command;
-the owner rejects changed resource, length or digest even for terminal results.
-Applications must install its policy through their authorized configuration path and opt into
-its external-cast dispatch. The query host offers an explicit `table_writer`
-role; read-query roles and public query clients still reject writes. No read permission implicitly enables mutation dispatch.
-See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
-
-`TableMutationClient` supplies the shared Zig caller for applications that expose
-that owner: current metadata/SQL compilation, canonical saved signed commands,
-explicit submission, input observation, status and bounded upload resumption.
-`prepareNew` rejects namespace collisions in its preparation batch. `progress`
-checks mailbox advancement before returning both input disposition and mutation
-status from one authorized resource cut. `prepareNextResult` preserves terminal
-evidence acquired during successor selection. These composed Zig helpers avoid
-redundant reads; the neutral caller's individual actions keep their contracts.
-`waitObserve` and `waitProgress` use a bounded notification hint after observing
-the same exact input pending. They retain only its scheduling position and wait
-at most 50 ms per native wait, with current checks after wake/timeout. Exhausted
-wait admission uses bounded backoff followed by an ordinary authorized read.
-The console and neutral SDK `observe` action use these helpers. A timeout is
-not completion, and observation never resubmits a command. `observe` and
-`progress` remain available for immediate current reads.
-It retains full request identity across caller and writer recovery. Preparing the
-next step requires reconciling the preceding exact command first; a native send
-receipt is admission, and only a terminal mutation status establishes the result.
-The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
-defines these APIs and the required current grants. `TableMutationWriter`
-composes guarded initialization, policy changes and durable rejected-input
-dispositions for the explicit host role. Read-query routes do not dispatch
-mutations. `TableMutationBridge` supplies owned neutral actions/results
-over the same caller, including exact compiled-reference validation and opaque
-saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
-keeps full-width namespaces and conflicting signed keys out of JSON numbers.
-Rejected INSERT status includes the actual key and one-based input row from the
-rejecting execution, retained atomically with the outcome. The
-[native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
-exposes these actions through an explicit profile.
-[Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
-The CLI's explicit `mutate` commands use the same bridge and saved-command rules.
-
-`TableQueryWriter` composes the query source and mutation writer for one typed
-Table. Its guarded two-turn initializer freezes the complete configuration,
-creates metadata, then atomically installs independent query/mutation policies
-and marks the host ready. Each turn stays within four mutations. It cannot adopt
-an existing standalone owner. The [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md)
-defines readiness, authenticated continuations, conditional policy changes and
-the visibility of intermediate metadata to native readers. Component tests cover
-initialization and routing. `just test::table-query-writer` exercises both
-initialization commits through disk recovery and interleaves durable/interactive
-queries with CLI mutations; the proof ledger records the measured scope.
+`CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
+operations. Administrator initialization and conditional requester delegation
+are separate bounded commits. Query access uses each requester's explicit mapped
+catalog principal and current read rights; mutation permissions remain independent.
+See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; `just test::table-mutation` exercises an explicit
-mutation application against native authority and disk-backed Ursula, including
+is `just test::unified-query`; `just test::typed-tables` exercises general Table DDL/DML against native authority and disk-backed Ursula, including
 exact frozen recovery, writer fencing and current grants.
 [Tests](../../../tests/README.md) record evidence and interface limits.
 
@@ -90,7 +79,7 @@ Discard each source-page arena before requesting another page. The CLI bounds
 that arena at 1 MiB. The session caches at most 64 immutable point entries,
 including absent entries; current policy and native access remain uncached.
 
-`UnifiedSource.pagePlanned` can use a Table primary-key point/range access path;
+`UnifiedSource.page` can use a complete Table primary-key equality lookup;
 Fuze still evaluates the original predicate. Neither optimization changes the
 bound source basis. Native leases bound abandoned sessions, and a failed read
 never reopens a new cut. The [interactive contract](../../../contracts/INTERACTIVE_QUERY_V1.md)
@@ -101,12 +90,10 @@ The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
-`TableQueryWriter` supplies the local server's empty Table and independent query
-and mutation policies. Its recorded initializer and self continuation publish the
-Table and ready configuration in two bounded turns. Restart preserves that
-configuration and current policy, including revocation. See the
-[combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md) and
-[local server guide](../../../apps/transit-cli/docs/server.md).
+The local server initializes the catalog and requester, installs query delegation,
+and creates its default Table through an explicit recoverable catalog operation.
+Restart preserves recorded configuration and current policy, including revocation.
+See the [local server guide](../../../apps/transit-cli/docs/server.md).
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.
 `UnifiedClient.prepareSql` and `bindSql` check current access before and after
@@ -275,21 +262,9 @@ precede disclosure; no later source read reconstructs a failing row. KV keys use
 bounded hex, Table keys preserve signed width, and Document expansion identifies
 elements by counter/replica. These local details do not change durable job records.
 
-`MutationDiagnostic` projects authorized mutation statuses and rejected input
-dispositions into owned diagnostic values. Statuses retain the original conflict
-key/row and policy or descriptor mismatch evidence. `bound` verifies the original
-immutable request before adding its column name. Terminal results and rejected
-inputs retain distinct recovery guidance; projection never reads current rows or
-changes work. See the [mutation record contract](../../../contracts/TABLE_MUTATION_V1.md#record-and-command-encodings).
-
-`TableMutationBridge.Status.diagnostic` and `.Disposition.diagnostic` carry these
-projections through the ABI, native port, CLI and all SDK models. The bridge's
-`rejection` response retains the complete checked input disposition, including
-principal, native input and payload commitment, separately from mutation status.
-
-`MutationDiagnostic.codes` defines finite caller causes separately from durable
-mutation outcomes. Failed status reads preserve the exact supplied publication
-reference's namespace and resource, qualified by the connection realm. A failed
-read does not prove absence, rejection or cancellation. Native authority conflict
-is distinct from mutation identity conflict; ABI and CLI details retain its native
-cause. Unknown sends still require reconciliation of the original signed command.
+Native source hosts use separate 1 MiB source/plan decoding and 4 MiB logical
+Arrow workspaces. Exhausting either explicit buffer closes that query with
+`adapter_memory_budget` or `arrow_workspace_budget`, retaining its identity and
+releasing its captured source pin. Host/storage allocation failures keep their
+original infrastructure meaning. No required-byte measurement is invented.
+Table persistence limits and query transport working sets are independent.

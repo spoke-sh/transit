@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import importlib
 from pathlib import Path
-import struct
 from types import TracebackType
 from typing import Any
 
@@ -15,8 +14,26 @@ from transit_client._worker import Worker, owned_await
 from transit_client.errors import IncompatibleNative, UnsupportedCapability, native_error
 from transit_client.types import integer, owned_bytes
 from .document import DocumentReference
-from .query import Comparison, Aggregate
 from .turn import ReadVersion
+from . import logical_values as logical
+from .logical_values import Descriptor as Type, Atom as Scalar, Cell as Cell
+from .catalog_values import Metadata, Schema
+
+class Aggregate(Enum):
+    ROWS = 'rows'
+    COUNT = 'count'
+    SUM = 'sum'
+    COUNT_VALUES = 'count_values'
+
+
+class Comparison(Enum):
+    EQ = 'eq'
+    NE = 'ne'
+    LT = 'lt'
+    LE = 'le'
+    GT = 'gt'
+    GE = 'ge'
+
 
 U64_MAX = (1 << 64)-1
 
@@ -25,7 +42,7 @@ def _wide(value: int, name: str, minimum: int = 0) -> int:
     return integer(value, name, minimum=minimum, maximum=U64_MAX)
 
 
-class Type(Enum):
+class DecoderType(Enum):
     INT64 = 'int64'
     UINT64 = 'uint64'
     FLOAT64 = 'float64'
@@ -42,89 +59,45 @@ class State(Enum):
     CONFLICT = 'conflict'
 
 
-@dataclass(frozen=True, slots=True)
-class Scalar:
-    type: Type
-    value: int | float | bool | str | bytes = field(repr=False)
-    def _wire(self) -> object:
-        value = self.value
-        if self.type is Type.INT64:
-            return {'int64': str(integer(value, 'int64', minimum=-(1 << 63), maximum=(1 << 63)-1))}
-        if self.type is Type.UINT64: return {'uint64': str(integer(value, 'uint64', minimum=0, maximum=U64_MAX))}
-        if self.type is Type.FLOAT64:
-            if type(value) is not float: raise TypeError('Expected float')
-            return {'float_bits': struct.pack('<d', value).hex()}
-        if self.type is Type.BOOLEAN:
-            if type(value) is not bool: raise TypeError('Expected bool')
-            return {'boolean': value}
-        if self.type is Type.UTF8:
-            if not isinstance(value, str): raise TypeError('Expected text')
-            owned_bytes(value.encode(), 4096)
-            return {'utf8': value}
-        if self.type is Type.BINARY:
-            if not isinstance(value, bytes): raise TypeError('Expected bytes')
-            return {'binary': owned_bytes(value, 4096).hex()}
-        raise TypeError('Expected query Type')
-
-
-def _scalar(value: dict[str, Any]) -> Scalar:
-    if len(value) != 1: raise IncompatibleNative('Invalid scalar variant')
-    kind, data = next(iter(value.items()))
-    if kind == 'float_bits':
-        result = Scalar(Type.FLOAT64, struct.unpack('<d', bytes.fromhex(data))[0])
-    else:
-        datatype = Type(kind)
-        result = Scalar(datatype, int(data) if datatype in (Type.INT64, Type.UINT64)
-            else bytes.fromhex(data) if datatype is Type.BINARY else data)
-    result._wire()
+def _scalar_wire(value: Scalar) -> object:
+    result = logical.atom_wire(value)
+    if 'utf8' in result: owned_bytes(result['utf8'].encode('utf-8'), 4096)
+    if 'binary' in result and len(result['binary']) > 8192: raise ValueError('Query literal exceeds its 4096-byte bound')
     return result
 
 
-@dataclass(frozen=True, slots=True)
-class Alternative:
-    counter: int
-    replica: int
-    state: State
-    value: Scalar | None = None
-    actual_kind: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Cell:
-    state: State
-    value: Scalar | None = None
-    actual_kind: str | None = None
-    alternatives: tuple[Alternative, ...] = ()
-
-
-def _cell(value: dict[str, Any]) -> Cell:
-    if len(value) != 1: raise IncompatibleNative('Invalid cell variant')
-    kind, data = next(iter(value.items()))
-    state = State(kind)
-    if state is State.VALUE: return Cell(state, value=_scalar(data))
-    if state is State.TYPE_ERROR: return Cell(state, actual_kind=str(data))
-    if state is State.CONFLICT:
-        alternatives = []
-        for item in data:
-            cell = _cell(item['value'])
-            if cell.state not in (State.VALUE, State.NULL, State.TYPE_ERROR):
-                raise IncompatibleNative('Invalid conflict alternative')
-            alternatives.append(Alternative(_wide(int(item['counter']), 'counter', 1),
-                _wide(int(item['replica']), 'replica', 1), cell.state, cell.value, cell.actual_kind))
-        return Cell(state, alternatives=tuple(alternatives))
-    return Cell(state)
+def _name(value: str) -> str:
+    owned_bytes(value.encode('utf-8'), 255)
+    if not value or '\0' in value: raise ValueError('Expected a nonempty UTF-8 query name without NUL')
+    return value
 
 
 @dataclass(frozen=True, slots=True)
 class Column:
     name: str
     type: Type
-    def _wire(self) -> object: return {'name': self.name, 'type': self.type.value}
+    nullable: bool = False
+    optional: bool = False
+    def _wire(self) -> object:
+        return dict(name=_name(self.name), type=logical.type_wire(self.type), nullable=self.nullable, optional=self.optional)
+
+
+def _column(value: dict[str, Any]) -> Column:
+    return Column(_name(value['name']), logical.type_from_wire(value['type']), value['nullable'], value['optional'])
+
+
+@dataclass(frozen=True, slots=True)
+class DecoderColumn:
+    name: str
+    type: DecoderType
+    def _wire(self) -> object:
+        owned_bytes(self.name.encode('utf-8'), 32)
+        return dict(name=self.name, type=self.type.value)
 
 
 @dataclass(frozen=True, slots=True)
 class Decoder:
-    type: Type
+    type: DecoderType
     version: int = 1
     def _wire(self) -> object: return {'type': self.type.value, 'version': integer(self.version, 'decoder version', maximum=255)}
 
@@ -142,13 +115,23 @@ class KVSource:
 
 @dataclass(frozen=True, slots=True)
 class TableSource:
-    resource: ResourceRef
-    table: int
-    names: tuple[str, str]
-    value_type: Type
+    owner: ProcessRef
+    metadata: Metadata
+    schema: Schema
+    def __post_init__(self) -> None:
+        if not isinstance(self.owner, ProcessRef) or not isinstance(self.metadata, Metadata) or not isinstance(self.schema, Schema):
+            raise TypeError('Expected a catalog Table definition and owner')
+        if self.owner.realm != self.resource.realm or self.schema.object_id != self.metadata.object_id:
+            raise ValueError('Table source requires one catalog identity and realm')
+    @property
+    def resource(self) -> ResourceRef: return self.metadata.scope.resource
     def _wire(self) -> object:
+        m = self.metadata
+        row_type = logical.StructureType(tuple(logical.Field(c.name, c.type, c.nullable, False) for c in self.schema.columns))
         return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
-            'id': integer(self.table, 'table', maximum=(1 << 32)-1), 'names': self.names, 'value_type': self.value_type.value}}}
+            'scope': m.scope._wire(), 'owner': self.owner.pid, 'object': str(m.object_id),
+            'metadata': {'id': str(m.revision), 'spec': {'format': 0x54434d01, 'length': m.commitment.bytes,
+                'digest': list(bytes.fromhex(m.commitment.digest))}}, 'row_type': logical.type_wire(row_type)}}}
 
 
 class ProjectionMode(Enum):
@@ -160,7 +143,7 @@ class ProjectionMode(Enum):
 
 @dataclass(frozen=True, slots=True)
 class Projection:
-    column: Column
+    column: DecoderColumn
     path: tuple[str, ...] = ()
     relative: bool = False
     mode: ProjectionMode = ProjectionMode.SCALAR
@@ -195,7 +178,7 @@ class IsState:
     column: int
     state: State
     def _wire(self) -> object:
-        return {'state': {'column': integer(self.column, 'column', minimum=0, maximum=7), 'value': self.state.value}}
+        return {'state': {'column': integer(self.column, 'column', minimum=0, maximum=127), 'value': self.state.value}}
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,8 +187,8 @@ class Compare:
     comparison: Comparison
     value: Scalar
     def _wire(self) -> object:
-        return {'compare': {'column': integer(self.column, 'column', minimum=0, maximum=7),
-            'op': self.comparison.value, 'value': self.value._wire()}}
+        return {'compare': {'column': integer(self.column, 'column', minimum=0, maximum=127),
+            'op': self.comparison.value, 'value': _scalar_wire(self.value)}}
 
 
 class PredicateOperator(Enum):
@@ -243,17 +226,17 @@ class Plan:
     aggregate: Aggregate = Aggregate.ROWS
     output_names: tuple[str | None, ...] | None = None
     def _wire(self) -> object:
+        if not isinstance(self.aggregate, Aggregate): raise TypeError('Expected a query aggregate')
         if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare, PredicateProgram)):
             raise TypeError('Expected a query predicate')
-        if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 8:
-            raise TypeError('Expected one to eight immutable projection indices')
+        if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 128:
+            raise TypeError('Expected one to 128 immutable projection indices')
         if self.output_names is not None and (not isinstance(self.output_names, tuple) or len(self.output_names) != len(self.projection)):
             raise TypeError('Output names must match the projection width')
         if self.output_names is not None:
             for name in self.output_names:
-                if name is not None and (not isinstance(name, str) or len(name.encode('utf-8')) > 32):
-                    raise TypeError('Expected an output name of at most 32 bytes')
-        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=7) for v in self.projection],
+                if name is not None: _name(name)
+        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=127) for v in self.projection],
             'output_names': self.output_names,
             'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
             'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}
@@ -286,14 +269,14 @@ def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
     """Decode one owned segment through Zig; this does not establish permission."""
     value = _codec({'inspect_arrow': {'columns': [column._wire() for column in columns],
         'rows': integer(rows, 'rows', minimum=0, maximum=8), 'ipc': owned_bytes(ipc, 65536).hex()}}, native_directory)
-    return tuple(tuple(_cell(cell) for cell in row) for row in value['rows'])
+    return tuple(tuple(logical.cell_from_wire(cell) for cell in row) for row in value['rows'])
 
 
 @dataclass(frozen=True, slots=True)
 class Bundle:
     """Validated canonical bytes; preparing this value does not admit work."""
     data: bytes = field(repr=False)
-    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 16384))
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25069))
     @classmethod
     def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
         result = _codec({'prepare': {'source': source._wire(), 'plan': plan._wire(), 'limits': budgets._wire()}}, native_directory)
@@ -420,7 +403,7 @@ def _inspected_atom(value: dict[str, Any]) -> InspectedState | InspectedComparis
         return InspectedState(v['column'], State(v['value']))
     if 'compare' in value:
         v = value['compare']
-        return InspectedComparison(v['column'], Comparison(v['op']), Type(v['type']))
+        return InspectedComparison(v['column'], Comparison(v['op']), logical.type_from_wire(v['type']))
     raise IncompatibleNative('Invalid inspected atom')
 
 
@@ -495,7 +478,7 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
     result: SourceDescription | TableListing | Explanation
     if len(details) != 1: raise IncompatibleNative('Invalid SQL inspection variant')
     if 'description' in details:
-        result = SourceDescription(tuple(Column(v['name'], Type(v['type'])) for v in details['description']['columns']))
+        result = SourceDescription(tuple(_column(v) for v in details['description']['columns']))
     elif 'tables' in details:
         result = TableListing(tuple(details['tables']))
     elif 'explanation' in details:
@@ -507,7 +490,7 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
         limits = plan['budgets']
         result = Explanation(operators, inspected, tuple(plan['projection']),
             None if plan['limit'] is None else _wide(int(plan['limit']), 'limit'), Aggregate(plan['aggregate']),
-            tuple(Column(v['name'], Type(v['type'])) for v in plan['columns']),
+            tuple(_column(v) for v in plan['columns']),
             Budgets(*(int(limits[name]) for name in ('pages', 'segments', 'result_bytes'))))
     else: raise IncompatibleNative('Invalid SQL inspection variant')
     source_digest, schema_digest = bytes(value['contract']), bytes(value['schema'])
@@ -517,18 +500,18 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
 
 
 def _inspection_request(source: Source, name: str, sql: str, budgets: Budgets) -> object:
-    owned_bytes(name.encode(), 32)
+    _name(name)
     owned_bytes(sql.encode(), 4096)
     return {'inspect': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()}, 'sql': sql}}
 
 
 def _compilation_request(source: Source, name: str, sql: str, budgets: Budgets,
                          parameters: tuple[Scalar, ...] | None) -> object:
-    owned_bytes(name.encode(), 32)
+    _name(name)
     owned_bytes(sql.encode(), 4096)
-    if parameters is not None and (not isinstance(parameters, tuple) or len(parameters) > 3):
-        raise ValueError('Expected at most three parameter scalars in a tuple')
-    values = None if parameters is None else [value._wire() for value in parameters]
+    if parameters is not None and (not isinstance(parameters, tuple) or len(parameters) > 65):
+        raise ValueError('Expected at most 65 logical parameter atoms in a tuple')
+    values = None if parameters is None else [_scalar_wire(value) for value in parameters]
     return {'compile': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()},
                         'sql': sql, 'parameters': values}}
 
@@ -546,6 +529,7 @@ class Manifest:
     revision: int
     source_digest: bytes
     schema_digest: bytes
+    source_head: bytes
     plan_digest: bytes
     pages: int
     scanned: int
@@ -583,14 +567,14 @@ def _page(v: dict[str, Any], realm: int) -> Page:
     original = data['source']
     manifest = Manifest(integer(data['job'], 'job'), ReadVersion(original['pid'], original['input'], original['index']),
         ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
-        owned_bytes(bytes.fromhex(data['request']), 72), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
-        bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
+        owned_bytes(bytes.fromhex(data['request']), 72), basis['cut']['kind'], ResourceRef(realm, basis['cut']['resource']), integer(basis['cut']['revision'], 'revision', minimum=0),
+        bytes(basis['contract']), bytes(basis['schema']), bytes(basis['cut']['head']), bytes(data['plan']),
         _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'), _wide(int(data['value_count']), 'value count'),
         _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
         None if data['sum'] is None else integer(int(data['sum']), 'sum', minimum=-(1 << 63), maximum=(1 << 63)-1), data['finished'], bytes(data['chain']))
-    if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.plan_digest, manifest.chain)):
+    if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.source_head, manifest.plan_digest, manifest.chain)):
         raise IncompatibleNative('Invalid manifest commitment')
-    return Page(manifest, tuple(Column(item['name'], Type(item['type'])) for item in v['columns']),
+    return Page(manifest, tuple(_column(item) for item in v['columns']),
         _wide(int(v['ordinal']), 'ordinal'), integer(v['rows'], 'rows', minimum=0, maximum=8),
         owned_bytes(bytes.fromhex(v['ipc']), 65536), None if v['next'] is None else Cursor(v['next']))
 

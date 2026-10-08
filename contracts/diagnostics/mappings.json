@@ -3,11 +3,17 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
-        "packages/zig/transit-fuze/src/Declaration.zig"
+        "packages/zig/transit-fuze/src/Declaration.zig",
+        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-fuze/src/TableSchema.zig",
+        "packages/zig/transit-fuze/src/TableEvolution.zig",
+        "packages/zig/transit-fuze/src/TableDml.zig",
+        "packages/zig/transit-fuze/src/TableSelect.zig",
+        "packages/zig/transit-fuze/src/LogicalPrepared.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -30,9 +36,25 @@
         {
           "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
           "name": "caller diagnostics distinguish local rejection, unknown send and failed status inspection"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/SqlDiagnostic.zig",
+          "name": "general Table literal failures keep typed causes and original locations"
         }
       ],
       "exceptions": [
+        {
+          "source": "packages/zig/transit-fuze/src/TableDml.zig",
+          "cause": "WriteFailed",
+          "disposition": "control_flow",
+          "reason": "Typed intent encoding retries the small scratch buffer with the bounded value envelope. A full-envelope failure projects MutationBatchTooLarge; scratch exhaustion is not a transport or SQL syntax failure.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/table_dml_test.zig",
+              "name": "typed intent binds complete rows, predicates and assignment semantics"
+            }
+          ]
+        },
         {
           "source": "packages/zig/transit-fuze/src/Sql.zig",
           "cause": "IncompleteSql",
@@ -62,6 +84,18 @@
               "name": "cursor ranges replace whole tokens and reject split UTF-8 or protected lexical context"
             }
           ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+          "cause": "WriteFailed",
+          "disposition": "control_flow",
+          "reason": "The fixed default-value encoding buffer catches WriteFailed and reports TableSchemaTooLarge before a compiled schema is returned. Caller-owned codec output buffers remain a separate pure encoding boundary.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/table_schema_test.zig",
+              "name": "oversized typed defaults report the schema limit before encoding"
+            }
+          ]
         }
       ],
       "codes": {
@@ -73,25 +107,13 @@
           "code": "sql.comment_too_deep",
           "category": "limit"
         },
-        "DeclarationTooManyColumns": {
-          "code": "sql.declaration_too_many_columns",
-          "category": "limit"
-        },
         "DuplicateColumn": {
           "code": "sql.duplicate_column",
           "category": "binding"
         },
-        "DuplicateMutationKey": {
-          "code": "sql.duplicate_mutation_key",
-          "category": "constraint"
-        },
         "DuplicateProjection": {
           "code": "sql.duplicate_projection",
           "category": "binding"
-        },
-        "ImmutablePrimaryKey": {
-          "code": "sql.immutable_primary_key",
-          "category": "constraint"
         },
         "InvalidBinaryLiteral": {
           "code": "sql.invalid_binary_literal",
@@ -185,10 +207,6 @@
           "code": "sql.non_finite_value",
           "category": "binding"
         },
-        "NotTableDeclaration": {
-          "code": "sql.not_table_declaration",
-          "category": "unsupported"
-        },
         "NullPrimaryKey": {
           "code": "sql.null_primary_key",
           "category": "constraint"
@@ -241,12 +259,12 @@
           "code": "sql.unknown_source",
           "category": "binding"
         },
-        "UnspecifiedNullability": {
-          "code": "sql.unspecified_nullability",
-          "category": "binding"
-        },
         "UnsupportedAggregate": {
           "code": "sql.unsupported_aggregate",
+          "category": "unsupported"
+        },
+        "UnsupportedSchema": {
+          "code": "sql.unsupported_schema",
           "category": "unsupported"
         },
         "UnsupportedAggregateLimit": {
@@ -285,24 +303,304 @@
           "code": "sql.unsupported_statement",
           "category": "unsupported"
         },
-        "UnsupportedTableColumnCount": {
-          "code": "sql.unsupported_table_column_count",
+        "DuplicateMapKey": {
+          "code": "sql.duplicate_map_key",
+          "category": "constraint"
+        },
+        "InvalidLiteral": {
+          "code": "sql.invalid_literal",
+          "category": "binding"
+        },
+        "InvalidMapKey": {
+          "code": "sql.invalid_map_key",
+          "category": "constraint"
+        },
+        "InvalidRowWidth": {
+          "code": "sql.invalid_row_width",
+          "category": "binding"
+        },
+        "InvalidTypeParameters": {
+          "code": "sql.invalid_type_parameters",
+          "category": "binding"
+        },
+        "NullableMapKey": {
+          "code": "sql.nullable_map_key",
+          "category": "constraint"
+        },
+        "TypeBudgetExceeded": {
+          "code": "sql.type_budget_exceeded",
+          "category": "limit"
+        },
+        "ValueBudgetExceeded": {
+          "code": "sql.value_budget_exceeded",
+          "category": "limit"
+        },
+        "UnknownSqlType": {
+          "code": "sql.unknown_sql_type",
           "category": "unsupported"
         },
-        "UnsupportedTableKey": {
-          "code": "sql.unsupported_table_key",
+        "UnknownUnionAlternative": {
+          "code": "sql.unknown_union_alternative",
+          "category": "binding"
+        },
+        "UnsupportedNestedCharacterLimit": {
+          "code": "sql.unsupported_nested_character_limit",
           "category": "unsupported"
         },
-        "UnsupportedTableNullability": {
-          "code": "sql.unsupported_table_nullability",
+        "ConflictingTimeZone": {
+          "code": "sql.conflicting_time_zone",
+          "category": "binding"
+        },
+        "InvalidCharacterLimit": {
+          "code": "sql.invalid_character_limit",
+          "category": "binding"
+        },
+        "InvalidDecimal": {
+          "code": "sql.invalid_decimal",
+          "category": "binding"
+        },
+        "UnsupportedBinaryLength": {
+          "code": "sql.unsupported_binary_length",
           "category": "unsupported"
         },
-        "UnsupportedTableType": {
-          "code": "sql.unsupported_table_type",
+        "UnsupportedCharacterPadding": {
+          "code": "sql.unsupported_character_padding",
           "category": "unsupported"
         },
-        "UnsupportedSchema": {
-          "code": "sql.unsupported_schema",
+        "UnsupportedFloatPrecision": {
+          "code": "sql.unsupported_float_precision",
+          "category": "unsupported"
+        },
+        "UnsupportedTemporalPrecision": {
+          "code": "sql.unsupported_temporal_precision",
+          "category": "unsupported"
+        },
+        "UnsupportedTimeZoneType": {
+          "code": "sql.unsupported_time_zone_type",
+          "category": "unsupported"
+        },
+        "DuplicateColumnConstraint": {
+          "code": "sql.duplicate_column_constraint",
+          "category": "constraint"
+        },
+        "DuplicatePrimaryKeyColumn": {
+          "code": "sql.duplicate_primary_key_column",
+          "category": "constraint"
+        },
+        "InvalidPrimaryKey": {
+          "code": "sql.invalid_primary_key",
+          "category": "constraint"
+        },
+        "MultiplePrimaryKeys": {
+          "code": "sql.multiple_primary_keys",
+          "category": "constraint"
+        },
+        "NullablePrimaryKey": {
+          "code": "sql.nullable_primary_key",
+          "category": "constraint"
+        },
+        "TableNotFound": {
+          "code": "sql.table_not_found",
+          "category": "binding"
+        },
+        "TableSchemaRequired": {
+          "code": "sql.table_schema_required",
+          "category": "binding"
+        },
+        "UnsupportedAlterTable": {
+          "code": "sql.unsupported_alter_table",
+          "category": "unsupported"
+        },
+        "UnsupportedCascade": {
+          "code": "sql.unsupported_cascade",
+          "category": "unsupported"
+        },
+        "UnsupportedSchemaConversion": {
+          "code": "sql.unsupported_schema_conversion",
+          "category": "unsupported"
+        },
+        "UnsupportedTableConstraint": {
+          "code": "sql.unsupported_table_constraint",
+          "category": "unsupported"
+        },
+        "InvalidSchemaTransition": {
+          "code": "sql.invalid_schema_transition",
+          "category": "integrity"
+        },
+        "PrimaryKeyColumnRequired": {
+          "code": "sql.primary_key_column_required",
+          "category": "constraint"
+        },
+        "ReusedColumnIdentity": {
+          "code": "sql.reused_column_identity",
+          "category": "integrity"
+        },
+        "RowBufferTooSmall": {
+          "code": "sql.row_buffer_too_small",
+          "category": "limit"
+        },
+        "CharacterLimitExceeded": {
+          "code": "sql.character_limit_exceeded",
+          "category": "constraint"
+        },
+        "DuplicateAssignment": {
+          "code": "sql.duplicate_assignment",
+          "category": "constraint"
+        },
+        "DuplicateColumnIdentity": {
+          "code": "sql.duplicate_column_identity",
+          "category": "integrity"
+        },
+        "InvalidColumnIdentity": {
+          "code": "sql.invalid_column_identity",
+          "category": "integrity"
+        },
+        "InvalidKeyWidth": {
+          "code": "sql.invalid_key_width",
+          "category": "binding"
+        },
+        "InvalidTableDefault": {
+          "code": "sql.invalid_table_default",
+          "category": "binding"
+        },
+        "InvalidTableSchemaEncoding": {
+          "code": "sql.invalid_table_schema_encoding",
+          "category": "integrity"
+        },
+        "InvalidTableSchemaIdentity": {
+          "code": "sql.invalid_table_schema_identity",
+          "category": "integrity"
+        },
+        "NoPrimaryKey": {
+          "code": "sql.no_primary_key",
+          "category": "binding"
+        },
+        "TableConflict": {
+          "code": "sql.table_conflict",
+          "category": "constraint"
+        },
+        "TableSchemaTooLarge": {
+          "code": "sql.table_schema_too_large",
+          "category": "limit"
+        },
+        "TableTypeError": {
+          "code": "sql.table_type_error",
+          "category": "constraint"
+        },
+        "UnsupportedPrimaryKeyType": {
+          "code": "sql.unsupported_primary_key_type",
+          "category": "unsupported"
+        },
+        "UnsupportedTableSchemaDefinition": {
+          "code": "sql.unsupported_table_schema_definition",
+          "category": "unsupported"
+        },
+        "MissingRequiredField": {
+          "code": "sql.missing_required_field",
+          "category": "constraint"
+        },
+        "NullNotAllowed": {
+          "code": "sql.null_not_allowed",
+          "category": "constraint"
+        },
+        "Overflow": {
+          "code": "sql.overflow",
+          "category": "constraint"
+        },
+        "Inexact": {
+          "code": "sql.inexact",
+          "category": "constraint"
+        },
+        "InvalidArrayLength": {
+          "code": "sql.invalid_array_length",
+          "category": "constraint"
+        },
+        "PredicateTooDeep": {
+          "code": "sql.predicate_too_deep",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "sql.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "InvalidQuerySchema": {
+          "code": "sql.invalid_query_schema",
+          "category": "binding"
+        },
+        "PlanTooLarge": {
+          "code": "sql.plan_too_large",
+          "category": "limit"
+        },
+        "InvalidIntegerEncoding": {
+          "code": "sql.invalid_integer_encoding",
+          "category": "binding"
+        },
+        "InvalidDate": {
+          "code": "sql.invalid_date",
+          "category": "binding"
+        },
+        "InvalidTime": {
+          "code": "sql.invalid_time",
+          "category": "binding"
+        },
+        "InvalidTimestamp": {
+          "code": "sql.invalid_timestamp",
+          "category": "binding"
+        },
+        "InvalidUuid": {
+          "code": "sql.invalid_uuid",
+          "category": "binding"
+        },
+        "MapKeyOrder": {
+          "code": "sql.map_key_order",
+          "category": "constraint"
+        },
+        "InvalidJson": {
+          "code": "sql.invalid_json",
+          "category": "binding"
+        },
+        "SyntaxError": {
+          "code": "sql.invalid_json_syntax",
+          "category": "binding"
+        },
+        "UnexpectedEndOfInput": {
+          "code": "sql.incomplete_json",
+          "category": "binding"
+        },
+        "DuplicateField": {
+          "code": "sql.duplicate_field",
+          "category": "constraint"
+        },
+        "InvalidFieldCount": {
+          "code": "sql.invalid_field_count",
+          "category": "binding"
+        },
+        "InvalidFieldName": {
+          "code": "sql.invalid_field_name",
+          "category": "binding"
+        },
+        "InvalidUnion": {
+          "code": "sql.invalid_union",
+          "category": "binding"
+        },
+        "JsonByteBudgetExceeded": {
+          "code": "sql.json_byte_budget",
+          "category": "limit"
+        },
+        "JsonDepthExceeded": {
+          "code": "sql.json_depth",
+          "category": "limit"
+        },
+        "JsonFieldBudgetExceeded": {
+          "code": "sql.json_fields",
+          "category": "limit"
+        },
+        "JsonTokenBudgetExceeded": {
+          "code": "sql.json_tokens",
+          "category": "limit"
+        },
+        "UnorderedType": {
+          "code": "sql.unordered_type",
           "category": "unsupported"
         }
       }
@@ -426,6 +724,18 @@
               "name": "migration configuration and transform faults remain unresolved without changing decisions"
             }
           ]
+        },
+        {
+          "source": "packages/zig/transit-station-app/src/Migration.zig",
+          "cause": "InvalidApplicationRecord",
+          "disposition": "internal_invariant",
+          "reason": "Malformed stored step identity or inconsistent frozen arguments/digest are corruption, not a terminal caller rejection. Preserve the pending step and prior turn proposal without invoking the transform.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-station-app/src/migration_test.zig",
+              "name": "corrupt staged migration evidence stays unresolved before caller attribution"
+            }
+          ]
         }
       ],
       "tests": [
@@ -451,7 +761,8 @@
         "packages/zig/transit-query/src/Bundle.zig",
         "packages/zig/transit-query/src/SourceDefinition.zig",
         "packages/zig/transit-query/src/SqlCompilation.zig",
-        "packages/zig/transit-query/src/SqlTemplate.zig"
+        "packages/zig/transit-query/src/SqlTemplate.zig",
+        "packages/zig/transit-query/src/TableQuery.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -468,7 +779,13 @@
       ],
       "overrides": [
         "EndOfStream",
-        "AuthorityTransportDenied"
+        "AuthorityTransportDenied",
+        "CatalogDenied",
+        "CatalogOwnerChanged",
+        "CatalogConfigurationChanged",
+        "CatalogNotInitialized",
+        "TableNotFound",
+        "SourceDefinitionTooLarge"
       ],
       "shared_codes": true,
       "profile": "Non-SQL query caller attempts, with recorded query-failure and native transport classifiers; SQL compilation retains its own boundary",
@@ -951,6 +1268,82 @@
         "AuthorityTransportDenied": {
           "code": "query.transport_denied",
           "category": "unavailable"
+        },
+        "QueryResultBudget": {
+          "code": "query.result_budget",
+          "category": "limit"
+        },
+        "QueryPageBudget": {
+          "code": "query.snapshot_read_budget",
+          "category": "limit"
+        },
+        "FailedQuery": {
+          "code": "query.failed_execution",
+          "category": "lifecycle"
+        },
+        "CatalogDenied": {
+          "code": "query.catalog_read_denied",
+          "category": "access"
+        },
+        "CatalogOwnerChanged": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict"
+        },
+        "CatalogNotInitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "query.table_absent",
+          "category": "lifecycle"
+        },
+        "InvalidTableIndex": {
+          "code": "query.invalid_table_index",
+          "category": "integrity"
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict"
+        },
+        "IncompatibleDefinition": {
+          "code": "query.definition_mismatch",
+          "category": "integrity"
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict"
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "query.unknown_source",
+          "category": "binding"
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit"
         }
       },
       "exceptions": [],
@@ -1415,273 +1808,26 @@
       ]
     },
     {
-      "id": "mutation-caller",
-      "owners": [
-        "packages/zig/transit-query/src/TableMutationBridge.zig",
-        "packages/zig/transit-query/src/TableMutationClient.zig",
-        "packages/zig/transit-query/src/TableMutationRequest.zig",
-        "packages/zig/transit-query/src/TableMutationRecords.zig"
-      ],
-      "exclude": [],
-      "registry": "packages/zig/transit-query/src/MutationCodes.zig",
-      "projection": "packages/zig/transit-query/src/MutationDiagnostic.zig",
-      "shared_codes": true,
-      "profile": "Explicit mutation caller local preparation, current reads and exact signed submission",
-      "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
-      "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
-      "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
-      "context": "Original mutation publication reference",
-      "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
-      "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
-      "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
-      "codes": {
-        "MutationDenied": {
-          "code": "mutation.access_denied",
-          "category": "access"
-        },
-        "MutationPrincipalMismatch": {
-          "code": "mutation.access_denied",
-          "category": "access"
-        },
-        "AccessDenied": {
-          "code": "mutation.access_denied",
-          "category": "access"
-        },
-        "MutationWriterUnavailable": {
-          "code": "mutation.writer_unavailable",
-          "category": "unavailable"
-        },
-        "ResourceUnavailable": {
-          "code": "mutation.writer_unavailable",
-          "category": "unavailable"
-        },
-        "MutationBusy": {
-          "code": "mutation.writer_busy",
-          "category": "lifecycle"
-        },
-        "MutationIdentityConflict": {
-          "code": "mutation.identity_conflict",
-          "category": "conflict"
-        },
-        "StaleMutationPolicy": {
-          "code": "mutation.stale_policy",
-          "category": "conflict"
-        },
-        "MutationSourceChanged": {
-          "code": "mutation.source_changed",
-          "category": "conflict"
-        },
-        "TableSchemaChanged": {
-          "code": "mutation.source_changed",
-          "category": "conflict"
-        },
-        "MutationNotFound": {
-          "code": "mutation.target_missing",
-          "category": "lifecycle"
-        },
-        "TableNotFound": {
-          "code": "mutation.target_missing",
-          "category": "lifecycle"
-        },
-        "MutationNotActive": {
-          "code": "mutation.upload_not_active",
-          "category": "lifecycle"
-        },
-        "MutationUploadClosed": {
-          "code": "mutation.upload_not_active",
-          "category": "lifecycle"
-        },
-        "InvalidMutationPrepared": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidMutationConnection": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidTableMutationRequest": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidMutationCommand": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidMutationPlan": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidQueryInteger": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidHex": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidColumnName": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidMutationColumns": {
-          "code": "mutation.invalid_command",
-          "category": "binding"
-        },
-        "InvalidMutationRecord": {
-          "code": "mutation.invalid_record",
-          "category": "integrity"
-        },
-        "SignatureVerificationFailed": {
-          "code": "mutation.invalid_signature",
-          "category": "integrity"
-        },
-        "IncompatibleDefinition": {
-          "code": "mutation.incompatible_definition",
-          "category": "integrity"
-        },
-        "OutOfMemory": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "Unavailable": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionRefused": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionResetByPeer": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "ConnectionTimedOut": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "Timeout": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "Canceled": {
-          "code": "mutation.unavailable",
-          "category": "unavailable"
-        },
-        "Conflict": {
-          "code": "mutation.authority_conflict",
-          "category": "conflict"
-        },
-        "Rejected": {
-          "code": "mutation.authority_rejected",
-          "category": "conflict"
-        },
-        "AuthorityTimeout": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "AuthorityUnavailable": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "NameServerFailure": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "NetworkUnreachable": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "HostUnreachable": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "HttpConnectionClosing": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "ReadFailed": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "WriteFailed": {
-          "code": "mutation.transport_unavailable",
-          "category": "unavailable"
-        },
-        "EndOfStream": {
-          "code": "mutation.read_truncated",
-          "category": "unavailable"
-        },
-        "InvalidResourceRead": {
-          "code": "mutation.invalid_resource_read",
-          "category": "integrity"
-        },
-        "InvalidAuthorityResponse": {
-          "code": "mutation.invalid_authority_response",
-          "category": "integrity"
-        },
-        "InvalidFrame": {
-          "code": "mutation.invalid_frame",
-          "category": "integrity"
-        },
-        "InvalidDocumentInteger": {
-          "code": "mutation.invalid_integer",
-          "category": "binding"
-        },
-        "DocumentEncodingCapacity": {
-          "code": "mutation.invalid_encoding_length",
-          "category": "binding"
-        },
-        "InvalidCharacter": {
-          "code": "mutation.invalid_hex",
-          "category": "binding"
-        },
-        "InvalidPublicationReference": {
-          "code": "mutation.invalid_reference",
-          "category": "binding"
-        },
-        "InvalidPublicationFormat": {
-          "code": "mutation.invalid_reference",
-          "category": "binding"
-        },
-        "InvalidPublicationDescriptor": {
-          "code": "mutation.invalid_upload_record",
-          "category": "integrity"
-        },
-        "NoPreparedMutation": {
-          "code": "mutation.no_prepared_command",
-          "category": "lifecycle"
-        },
-        "AuthorityTransportDenied": {
-          "code": "mutation.transport_denied",
-          "category": "unavailable"
-        }
-      },
-      "exceptions": [],
-      "tests": [
-        {
-          "source": "packages/zig/transit-query/src/MutationDiagnostic.zig",
-          "name": "every mutation caller cause preserves failed-read and dispatch evidence"
-        }
-      ]
-    },
-    {
       "id": "catalog-caller",
       "owners": [
-        "packages/zig/transit-catalog/src/Bridge.zig",
-        "packages/zig/transit-catalog/src/Client.zig",
-        "packages/zig/transit-catalog/src/Inspection.zig",
+        "packages/zig/transit-catalog/src/TableBridge.zig",
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableIntent.zig",
+        "packages/zig/transit-catalog/src/TableValues.zig",
+        "packages/zig/transit-catalog/src/TableTyped.zig",
         "packages/zig/transit-catalog/src/Model.zig",
-        "packages/zig/transit-catalog/src/Records.zig"
+        "packages/zig/transit-catalog/src/Records.zig",
+        "packages/zig/transit-catalog/src/Inspection.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/CallerCodes.zig",
-      "projection": "packages/zig/transit-catalog/src/Diagnostic.zig",
+      "projection": "packages/zig/transit-catalog/src/TableAttempt.zig",
       "shared_codes": true,
       "profile": "Explicit catalog caller local preparation, current reads and exact signed submission",
       "stage": "Compile/prepare/read/submit at the actual dispatch boundary",
       "outcome": "No-send attempts are not_submitted; failed reads are not_applicable; unconfirmed sends are unknown; native rejection is not a terminal domain outcome",
       "durable_evidence": "Original saved transport identity is retained after dispatch; caller-selected status identity proves no existence or outcome",
-      "context": "Original catalog CREATE request operation and scope",
+      "context": "Exact saved general Table intent and connection; name lookup has no selected operation identity",
       "disclosure": "Caller context and currently authorized records only; credentials and inaccessible stored content are excluded",
       "recovery": "Failed reads can retry only the read; exact uncertain submission retains resume target; no fresh work or invented cancellation",
       "propagation": "Original SQL compiler evidence wins. Native transport, record and frame failures are explicit; remaining unexpected implementation errors preserve outcome uncertainty as internal failures.",
@@ -1885,13 +2031,85 @@
         "AuthorityTransportDenied": {
           "code": "catalog.transport_denied",
           "category": "unavailable"
+        },
+        "TableIntentNotLoaded": {
+          "code": "table.intent_not_loaded",
+          "category": "lifecycle"
+        },
+        "InvalidTableIntent": {
+          "code": "table.invalid_intent",
+          "category": "binding"
+        },
+        "TableNotFound": {
+          "code": "table.not_found",
+          "category": "binding"
+        },
+        "TableUploadClosed": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "TableUploadNotFound": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "TableUploadNotReady": {
+          "code": "table.upload_state",
+          "category": "lifecycle"
+        },
+        "InvalidCatalogReceipt": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidTableHead": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "InvalidTableStatus": {
+          "code": "table.invalid_evidence",
+          "category": "integrity"
+        },
+        "CatalogOperationNotFound": {
+          "code": "catalog.operation_not_found",
+          "category": "lifecycle"
+        },
+        "TableWriteNotFound": {
+          "code": "table.operation_not_found",
+          "category": "lifecycle"
+        },
+        "MessageTooLarge": {
+          "code": "table.command_too_large",
+          "category": "limit"
+        },
+        "UnsupportedStatement": {
+          "code": "table.unsupported_statement",
+          "category": "unsupported"
+        },
+        "InvalidMutationColumns": {
+          "code": "table.invalid_columns",
+          "category": "binding"
+        },
+        "InvalidMutationPlan": {
+          "code": "table.invalid_plan",
+          "category": "binding"
+        },
+        "MutationBatchTooLarge": {
+          "code": "table.batch_too_large",
+          "category": "limit"
+        },
+        "PredicateTooLarge": {
+          "code": "table.predicate_too_large",
+          "category": "limit"
         }
       },
       "exceptions": [],
       "tests": [
         {
-          "source": "packages/zig/transit-catalog/src/Diagnostic.zig",
-          "name": "every catalog caller cause preserves failed-read and dispatch evidence"
+          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
+          "name": "general caller failures retain read and dispatch evidence"
+        },
+        {
+          "source": "packages/zig/transit-catalog/src/TableAttempt.zig",
+          "name": "exact historical inconsistencies require integrity inspection without new declaration advice"
         }
       ]
     },
@@ -1951,7 +2169,14 @@
         "Rejected",
         "ResourceUnavailable",
         "WriteFailed",
-        "AuthorityTransportDenied"
+        "AuthorityTransportDenied",
+        "CatalogDenied",
+        "CatalogOwnerChanged",
+        "CatalogConfigurationChanged",
+        "CatalogNotInitialized",
+        "TableNotFound",
+        "IncompatibleDefinition",
+        "SourceDefinitionTooLarge"
       ],
       "profile": "Board authorized read-only inspection",
       "stage": "Read",
@@ -2517,6 +2742,78 @@
         "AuthorityTransportDenied": {
           "code": "inspection.transport_denied",
           "category": "unavailable"
+        },
+        "QueryResultBudget": {
+          "code": "query.result_budget",
+          "category": "limit"
+        },
+        "QueryPageBudget": {
+          "code": "query.snapshot_read_budget",
+          "category": "limit"
+        },
+        "FailedQuery": {
+          "code": "query.failed_execution",
+          "category": "lifecycle"
+        },
+        "CatalogDenied": {
+          "code": "query.catalog_read_denied",
+          "category": "access"
+        },
+        "CatalogOwnerChanged": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict"
+        },
+        "CatalogNotInitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "query.table_absent",
+          "category": "lifecycle"
+        },
+        "InvalidTableIndex": {
+          "code": "query.invalid_table_index",
+          "category": "integrity"
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict"
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict"
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "query.unknown_source",
+          "category": "binding"
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit"
         }
       },
       "exceptions": [],
@@ -2691,9 +2988,28 @@
         "FlightIntegerOutOfRange": {
           "code": "flight.integer_out_of_range",
           "category": "unsupported"
+        },
+        "IncompatibleDefinition": {
+          "code": "flight.incompatible_definition",
+          "category": "integrity"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-flight/src/Metadata.zig",
+          "cause": "InvalidQuerySchema",
+          "disposition": "mapped_boundary",
+          "reason": "Logical schema shape failures retain the shared query diagnostic through the Flight adapter.",
+          "projection": "packages/zig/transit-query/src/ApiCodes.zig",
+          "code": "query.invalid_schema",
+          "tests": [
+            {
+              "source": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
+              "name": "Flight preserves shared caller semantics and separates corrupt results from invalid input"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-flight/src/DiagnosticDetail.zig",
@@ -3092,9 +3408,50 @@
         "AuthorityTransportDenied": {
           "code": "serving.transport_denied",
           "category": "unavailable"
+        },
+        "CatalogDenied": {
+          "code": "reactive.catalog_denied",
+          "category": "access"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "CatalogDefinitionChanged",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "CatalogSourceChanged",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-serving/src/TableWatch.zig",
+          "cause": "TableRetired",
+          "disposition": "control_flow",
+          "reason": "The captured catalog source no longer names the same live definition. TableWatch catches this cause and returns mapped ReactiveResetRequired; it never follows the replacement metadata or discloses through a stale grant.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-serving/src/watch_test.zig",
+              "name": "staged mutation notifications retain old rows until publication and current catalog denial wins over metadata drift"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-serving/src/ServingDiagnostic.zig",
@@ -3110,6 +3467,8 @@
         "apps/transit-cli/FileQuery.zig",
         "packages/zig/transit-fuze/src/FileFraming.zig",
         "packages/zig/transit-fuze/src/FileQuery.zig",
+        "packages/zig/transit-fuze/src/LogicalQuery.zig",
+        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
         "packages/zig/transit-fuze/src/FileSource.zig",
         "packages/zig/transit-fuze/src/BoundedJson.zig",
         "packages/zig/transit-fuze/src/DescriptorJson.zig",
@@ -3635,6 +3994,14 @@
         "UnsupportedAtomType": {
           "code": "file.unsupported_atom_type",
           "category": "unsupported"
+        },
+        "InvalidColumnCount": {
+          "code": "file.invalid_row_shape",
+          "category": "integrity"
+        },
+        "PlanTooLarge": {
+          "code": "file.plan_too_large",
+          "category": "limit"
         }
       }
     }

@@ -95,22 +95,27 @@ static bool before_handle(Turn &turn, const Config &cfg, Shared &shared) {
 static bool table_extra(Turn &turn, const Config &cfg, bool rows, bool initialize) {
     const auto saved = cfg.output + "/version.txt";
     if (rows) {
-        auto table = turn.table(table_schema); std::optional<Cursor> cursor; size_t count = 0, pages = 0;
+        auto table = turn.table(table_schema.object); std::optional<Cursor> cursor; size_t count = 0, pages = 0;
         do {
             auto page = table.page(cursor ? &*cursor : nullptr); assert(page.entries.size() <= 8); ++pages;
-            assert(page.basis->resource.resource == table.basis().resource.resource && page.basis->revision == table.basis().revision);
-            if (!count) { assert(page.entries.front().key == INT64_MIN && !page.entries.front().value); }
+            assert(table.schema().object==1 && table.schema().columns.size()==4);
+            for(const auto &row:page.entries) {
+                assert(row.cells.size()==4);
+                assert(row.cells[2].encode()==table_schema.columns[2].default_value->encode());
+                assert(row.cells[3].encode()==table_schema.columns[3].default_value->encode());
+            }
+            if (!count && !page.entries.empty()) { assert(page.entries.front().cells[0].encode()==signed_cell(INT64_MIN).encode() && page.entries.front().cells[1].state()==TRANSIT_LOGICAL_NULL); }
             count += page.entries.size(); cursor = std::move(page.next);
         } while (cursor);
-        assert(count == 41 && pages == 6); const auto version = turn.retain();
+        assert(count == 41 && pages >= 6); const auto version = turn.retain();
         write_text(saved, std::to_string(version.pid) + " " + std::to_string(version.input) + " " + std::to_string(version.index));
-        turn.table(table_schema).update({INT64_MIN, 17}); return true;
+        return true;
     }
     if (initialize && fs::exists(saved)) {
         ReadVersion version{}; unsigned index; std::ifstream file(saved); file >> version.pid >> version.input >> index; assert(file && index <= 255); version.index = index;
-        assert(turn.table(table_schema).get(INT64_MIN)->value == 17);
-        const auto source = turn.source(version); auto table = source.table(table_schema);
-        assert(!table.get(INT64_MIN)->value); assert(table.page().entries.size() == 8); assert(source.state().page().entries.size() <= 8);
+        assert(turn.table(table_schema.object).get_key({signed_cell(INT64_MIN)})->cells[1].encode()==signed_cell(17).encode());
+        const auto source = turn.source(version); auto table = source.table(table_schema.object);
+        assert(table.get_key({signed_cell(INT64_MIN)})->cells[1].state()==TRANSIT_LOGICAL_NULL); assert(table.page().entries.size() == 8); assert(source.state().page().entries.size() <= 8);
         turn.release(version); return true;
     }
     return false;
@@ -127,6 +132,13 @@ static bool query_extra(Turn &turn, const Config &cfg) {
     const auto reader = turn.result(correlation); assert(reader.manifest().rows == 41);
     write_text(cfg.output + "/ready", ""); wait_file(cfg.output + "/continue"); reader.segment(0); return true;
 }
+static void negative_result(Turn &turn, const QueryFailure &failure) {
+    assert(failure.origin.kind == TRANSIT_ORIGIN_PROCESS && failure.result > 0);
+    assert(failure.correlation == turn.state().require(request_key));
+    assert(!turn.state().find(total_key));
+    turn.state().put(total_key, uint64_t{1});
+    turn.state().put(observed_key, static_cast<uint64_t>(failure.reason));
+}
 template<class M> class Instrumented : public Handler<M> {
     std::unique_ptr<Handler<M>> inner_;
     const Config &cfg_;
@@ -142,6 +154,7 @@ public:
         if constexpr (std::is_same_v<M, QueryStart>) if (query_extra(turn, cfg_)) return;
         inner_->handle(turn, input);
     }
+    void handle_query_failure(Turn &turn, const QueryFailure &failure) override { negative_result(turn, failure); }
     void handle_result(Turn &turn, const ResultComplete &complete) override {
         inner_->handle_result(turn, complete); save_manifest(cfg_, turn.result(complete.correlation).manifest());
     }
@@ -191,7 +204,9 @@ public:
                 if (self.cfg_.role == "table" && input->kind == TRANSIT_INPUT_CAST) { const auto &message = *static_cast<const transit_query_message *>(input->value); if (table_extra(turn, self.cfg_, message.tag == TRANSIT_QUERY_ROWS, message.tag == TRANSIT_QUERY_INITIALIZE)) return; }
                 if (self.cfg_.role == "query" && query_extra(turn, self.cfg_)) return;
                 check(self.inner_.message(self.inner_.context, pointer, input)); }); }, nullptr,
-            [](void *context, transit_station_turn *pointer, const transit_station_incoming *input) { return callback([&] { auto &self = *static_cast<CController *>(context); assert(self.inner_.result); check(self.inner_.result(self.inner_.context, pointer, input)); Turn turn(pointer); save_manifest(self.cfg_, turn.result(input->correlation).manifest()); }); }};
+            [](void *context, transit_station_turn *pointer, const transit_station_incoming *input) { return callback([&] { auto &self = *static_cast<CController *>(context); assert(self.inner_.result); check(self.inner_.result(self.inner_.context, pointer, input)); Turn turn(pointer); save_manifest(self.cfg_, turn.result(input->correlation).manifest()); }); },
+            [](void *, transit_station_turn *pointer, const transit_station_query_failure *value) { return callback([&] { Turn turn(pointer);
+                negative_result(turn, {value->position, value->origin, value->correlation, value->result, static_cast<QueryFailureReason>(value->reason)}); }); }};
         transit_station_options options{cfg.mode.size() >= 6 && cfg.mode.substr(cfg.mode.size() - 6) == "-block" ? TRANSIT_FAILURE_BLOCK_INPUT : TRANSIT_FAILURE_STOP, TRANSIT_RECOVERY_PERSIST_BEFORE_DISPATCH, this,
             [](void *context, const transit_station_mutation *mutation) { return callback([&] { static_cast<CController *>(context)->store_->before_dispatch(FrozenMutation(mutation)); }); },
             [](void *context, const char *identity, transit_sdk_confirmation receipt) { return callback([&] { static_cast<CController *>(context)->store_->confirmed(identity, receipt); }); }};
@@ -225,10 +240,16 @@ static Bytes from_hex(const std::string &text) {
 }
 static Bytes roundtrip(const std::string &kind, const Bytes &bytes) {
 #ifdef TRANSIT_TEST_C_API
+    if(kind=="queue") return c_roundtrip(transit_example_table_queue_codec(),bytes);
+    if(kind=="work") return c_roundtrip(transit_example_table_work_codec(),bytes);
+    if(kind=="outcome") return c_roundtrip(transit_example_table_outcome_codec(),bytes);
     if (kind == "u64") return c_roundtrip(transit_example_u64_codec(), bytes);
     if (kind == "counter") { try { return c_roundtrip(transit_example_counter_codec(), bytes); } catch (const Error &) { return c_roundtrip(transit_example_requester_codec(), bytes); } }
     try { return c_roundtrip(transit_example_query_codec(), bytes); } catch (const Error &) { return c_roundtrip(transit_example_query_start_codec(), bytes); }
 #else
+    if(kind=="queue") return queue_codec->encode(queue_codec->decode(bytes));
+    if(kind=="work") return work_codec->encode(work_codec->decode(bytes));
+    if(kind=="outcome") return outcome_codec->encode(outcome_codec->decode(bytes));
     if (kind == "u64") return U64Codec{}.encode(U64Codec{}.decode(bytes));
     if (kind == "counter") { try { return CounterCodec{}.encode(CounterCodec{}.decode(bytes)); } catch (const Error &) { return RequesterCodec{}.encode(RequesterCodec{}.decode(bytes)); } }
     try { return QueryCodec{}.encode(QueryCodec{}.decode(bytes)); } catch (const Error &) { return QueryStartCodec{}.encode(QueryStartCodec{}.decode(bytes)); }

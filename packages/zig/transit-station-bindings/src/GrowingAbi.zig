@@ -57,8 +57,12 @@ pub const Capabilities = struct {
     value_bytes: u32 = p.Value.max_bytes,
     message_bytes: u32 = s.Frame.max_payload,
     key_bytes: u32 = p.Growth.key_bytes,
-    table_cell_bytes: u32 = s.fuze.model.max_cell_bytes,
-    table_name_bytes: u32 = @typeInfo(@FieldType(s.fuze.model.Name, "bytes")).array.len,
+    table_columns: u32 = s.fuze.TableSchema.max_columns,
+    table_row_bytes: u32 = s.fuze.TableRow.max_bytes,
+    table_page_rows: u32 = s.TableReader.max_page_rows,
+    table_action_bytes: u32 = p.max_body,
+    table_result_bytes: u32 = @import("TableBridge.zig").max_result_bytes,
+    table_resumable_mutations: bool = true,
     page_entries: u32 = p.Growth.page_size,
     turn_mutations: u32 = p.Growth.turn_mutations,
     turn_outputs: u32 = p.Growth.turn_outputs,
@@ -70,7 +74,7 @@ pub const Event = struct {
     generation: u64,
     scope: ?u64 = null,
     initializing: bool = false,
-    input: ?struct { position: u64, origin: p.Growth.Origin, kind: s.Frame.Kind, correlation: []const u8, payload: p.Value } = null,
+    input: ?struct { position: u64, origin: p.Growth.Origin, kind: s.Frame.Kind, correlation: []const u8, payload: p.Value, query_failure: ?s.Query.ResultFailure = null } = null,
     resource: ?u64 = null,
     resource_revision: ?u64 = null,
     pending_kind: ?s.GenServer.PendingKind = null,
@@ -143,7 +147,7 @@ pub fn create(abi_version: u32, url: [*]const u8, url_len: usize, seed: *const [
             destroy(@ptrCast(server));
             return .out_of_memory;
         };
-        server.behavior.query = .{ .workspace = server.workspace.?, .cancellation = &server.cancellation };
+        server.behavior.query = .{ .allocator = allocator, .workspace = server.workspace.?, .cancellation = &server.cancellation };
     }
     out.* = @ptrCast(server);
     return .ok;
@@ -187,7 +191,7 @@ fn eventWithAllocator(alloc: std.mem.Allocator, server: *Impl, out: *?*base.Buff
         const frame = s.Frame.decode(turn.delivery.input.value) catch |err| return base.failure(err, out);
         result.scope = server.scope;
         result.initializing = server.behavior.initializing;
-        result.input = .{ .position = turn.delivery.input.position, .origin = turn.delivery.input.origin, .kind = frame.kind, .correlation = std.fmt.bufPrint(&correlation, "{d}", .{frame.correlation}) catch unreachable, .payload = frame.payload };
+        result.input = .{ .position = turn.delivery.input.position, .origin = turn.delivery.input.origin, .kind = frame.kind, .correlation = std.fmt.bufPrint(&correlation, "{d}", .{frame.correlation}) catch unreachable, .payload = frame.payload, .query_failure = if (frame.kind == .result_failed) s.Query.ResultFailure.decode(frame.payload) catch |err| return base.failure(err, out) else null };
         result.resource = turn.view.resource;
         result.resource_revision = turn.view.revision;
     }
@@ -251,6 +255,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     defer server.busy.store(false, .release);
     if (server.scope == null or server.scope.? != scope) return .not_ready;
     const turn = if (server.behavior.ready) |*value| value else return .not_ready;
+    s.fuze.Types.Json.preflight(json[0..len], .{ .bytes = p.max_body, .depth = 96, .tokens = p.max_body + 1 }) catch |err| return base.failure(err, out);
     const parsed = std.json.parseFromSlice(actions.Action, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();
     if (parsed.value.requiresQuery() and server.behavior.query == null) return base.failure(error.UnsupportedQuery, out);
@@ -258,7 +263,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     const before = turn.decision;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    const result = actions.apply(arena.allocator(), turn, parsed.value) catch |err| {
+    const result = actions.apply(&arena, turn, parsed.value) catch |err| {
         turn.decision = before; // Sticky read_error deliberately survives rollback.
         return failure(server, err, false, out);
     };

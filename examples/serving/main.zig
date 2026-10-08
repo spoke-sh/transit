@@ -90,7 +90,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer if (live_scratch.len != 0) init.gpa.free(live_scratch);
     const resources: s.client.ResourceReader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key };
     var live: serving.LiveService = .{ .configuration = if (config.role == .live_ingress) config.role.live_ingress else undefined, .resources = resources, .scratch = live_scratch, .upper_ms = 0 };
-    var application: Application = .{ .configuration = if (config.role == .application) config.role.application else undefined };
+    var application: Application = .{ .allocator = init.gpa, .configuration = if (config.role == .application) config.role.application else undefined };
     const queries = config.role == .application and config.role.application.queries;
     const adapter: []u8 = if (queries) try init.gpa.alloc(u8, serving.query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (adapter.len != 0) init.gpa.free(adapter);

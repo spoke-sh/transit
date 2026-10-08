@@ -123,3 +123,6 @@ export class Codec {
     return bridge(this).close();
   }
 }
+
+export type { Descriptor, Field, Element, ScalarKind, Atom, Cell } from "./logical-values.ts";
+export type { Value as CellValue } from "./logical-values.ts";

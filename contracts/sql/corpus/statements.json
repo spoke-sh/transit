@@ -2173,11 +2173,6 @@
       "postgres": true
     },
     {
-      "id": "excluded-8",
-      "sql": "SELECT * FROM items WHERE value IS NOT NULL",
-      "postgres": true
-    },
-    {
       "id": "excluded-9",
       "sql": "SELECT * FROM items WHERE id IN (1,2)",
       "postgres": true
@@ -2328,5 +2323,11 @@
     "SHOW CONNECTIONS;",
     "DESCRIBE orders;",
     "EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;"
+  ],
+  "table_select": [
+    {
+      "id": "table-is-not-null",
+      "sql": "SELECT * FROM items WHERE value IS NOT NULL"
+    }
   ]
 }

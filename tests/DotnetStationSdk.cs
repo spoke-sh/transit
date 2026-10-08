@@ -50,26 +50,26 @@ static class Proof
         public void Confirmed(OperationIdentity identity, MutationReceipt receipt) { }
     }
     sealed class TableProof(ProcessRef peer, string output) : TableService(peer) {
-        Table<long?>? escaped; Source? source;
+        Table? escaped; Source? source;
         public override void OnMessage(Turn turn, Incoming<IQueryMessage> input) {
             string saved = Path.Combine(output, "version.json");
             if (input is Cast<IQueryMessage> { Value: Rows }) {
-                Table<long?> table = turn.Table(StateKeys.Table); escaped = table;
-                Cursor? cursor = null; List<TableRow<long?>> rows = []; int pages = 0;
-                do { var page = table.Page(cursor); Check(page.Entries.Count <= 8 && page.Basis == table.Basis); rows.AddRange(page.Entries); pages++; cursor = page.Cursor; } while (cursor is not null);
-                Check(rows.Count == 41 && pages == 6 && rows[0].Key == long.MinValue && rows[0].Value is null);
+                Table table = turn.Table(StateKeys.Table.ObjectId); escaped = table; Check(table.Schema == StateKeys.Table);
+                Cursor? cursor = null; List<TableRow> rows = []; int pages = 0;
+                do { var page = table.Page(cursor); Check(page.Rows.Count <= 8 && turn.Table(StateKeys.Table.ObjectId).Basis == table.Basis); rows.AddRange(page.Rows); pages++; cursor = page.Next; } while (cursor is not null);
+                Check(rows.Count == 41 && pages == 6 && rows[0].Cells[0] == StateKeys.Signed(long.MinValue) && rows[0].Cells[1] is Logical.Null);
+                Check(rows.All(row => row.Cells.Skip(2).SequenceEqual(StateKeys.Table.Columns.Skip(2).Select(c => c.DefaultValue))));
                 var version = turn.Retain(); Write(saved, new() { ["pid"] = version.Pid, ["input"] = version.Input, ["index"] = version.Index });
-                table.Update(new(long.MinValue, 17));
-            } else if (input.Value is Transit.Sdk.Examples.Initialize && File.Exists(saved)) {
+            } else if (input is Cast<IQueryMessage> { Value: Transit.Sdk.Examples.Initialize } && File.Exists(saved)) {
                 var record = Read(saved); var version = new ReadVersion(Number(record, "pid"), Number(record, "input"), checked((byte)Number(record, "index")));
-                Check(turn.Table(StateKeys.Table).Get(long.MinValue)!.Value == 17);
-                source = turn.OpenVersion(version); Check(source.Table(StateKeys.Table).Get(long.MinValue)!.Value is null);
-                Check(source.Table(StateKeys.Table).Page().Entries.Count == 8 && source.State.Page().Entries.Count <= 8); turn.Release(version);
+                Check(turn.Table(StateKeys.Table.ObjectId).GetKey([StateKeys.Signed(long.MinValue)])!.Cells[1] == StateKeys.Signed(17));
+                source = turn.OpenVersion(version); Check(source.Table(StateKeys.Table.ObjectId).GetKey([StateKeys.Signed(long.MinValue)])!.Cells[1] is Logical.Null);
+                Check(source.Table(StateKeys.Table.ObjectId).Page().Rows.Count == 8 && source.State.Page().Entries.Count <= 8); turn.Release(version);
             } else base.OnMessage(turn, input);
         }
-        public void Expired() { if (escaped is not null) Expect(ErrorKind.TurnExpired, () => escaped.Get(0)); if (source is not null) Expect(ErrorKind.TurnExpired, () => _ = source.State); }
+        public void Expired() { if (escaped is not null) Expect(ErrorKind.TurnExpired, () => escaped.Get(new RowIdentity(new byte[20]))); if (source is not null) Expect(ErrorKind.TurnExpired, () => _ = source.State); }
     }
-    sealed class QueryProof : QueryRequester {
+    sealed class QueryProof : QueryRequester, IHandler<IQueryMessage> {
         readonly string output; readonly List<IpcSegment> owned; ResultReader? escaped;
         public QueryProof(ProcessRef peer, string output) : this(peer, output, []) { }
         QueryProof(ProcessRef peer, string output, List<IpcSegment> owned) : base(peer, owned.Add) { this.output = output; this.owned = owned; }
@@ -78,6 +78,12 @@ static class Proof
             if (File.Exists(saved)) { var reader = turn.Result(ulong.Parse(Text(Read(saved), "correlation"))); Check(reader.Manifest().Rows == 41);
                 File.WriteAllText(Path.Combine(output, "ready"), ""); WaitFile(Path.Combine(output, "continue")); reader.Segment(0);
             } else base.OnMessage(turn, input);
+        }
+        public void OnQueryFailure(Turn turn, QueryFailure failure) {
+            Check(failure.Correlation == turn.State.Require(StateKeys.Request) && failure.Result > 0);
+            Check(turn.State.Find(StateKeys.Total) is null);
+            turn.State.Put(StateKeys.Total, 1UL);
+            turn.State.Put(StateKeys.Observed, (ulong)failure.Reason + 1);
         }
         public override void OnResult(Turn turn, ResultComplete complete) {
             base.OnResult(turn, complete); escaped = turn.Result(complete.Correlation); var manifest = escaped.Manifest();
@@ -110,25 +116,36 @@ static class Proof
         }
     }
     static void Roundtrip<T>(ICodec<T> codec, byte[] bytes) where T : notnull => Check(codec.Encode(codec.Decode(bytes)).AsSpan().SequenceEqual(bytes));
+    static void TableCases<T>(string name, ICodec<T> codec, JsonObject fixtures) where T : notnull {
+        foreach (var item in fixtures["valid"]!.AsArray()) {
+            var value = item!.AsObject(); if (Text(value, "codec") == name) Roundtrip(codec, Convert.FromHexString(Text(value, "hex")));
+        }
+        foreach (var item in fixtures["invalid"]!.AsArray()) {
+            var value = item!.AsObject(); if (Text(value, "codec") != name) continue;
+            bool rejected = false; try { codec.Decode(Convert.FromHexString(Text(value, "hex"))); } catch (ArgumentException) { rejected = true; }
+            Check(rejected);
+        }
+    }
     static void BoundaryProof() {
         // Exercise the installed generated contract, including distinctions that
         // convenience Find/Page APIs must never collapse to absence/completion.
         using var resource = typeof(Runner<>).Assembly.GetManifestResourceStream("transit.station.contract.json")!;
         var schemas = JsonNode.Parse(resource)!["schemas"]!.AsObject();
-        var valid = typeof(SdkClient).Assembly.GetType("Transit.Client.Internal.Schema")!.GetMethod("Valid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var valid = typeof(SdkClient).Assembly.GetType("Transit.Client.Internal.Schema")!.GetMethod("Valid",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            binder: null, types: [typeof(JsonObject), typeof(JsonNode)], modifiers: null)!;
         bool Accept(JsonNode schema, string json) => (bool)valid.Invoke(null, [schema, JsonNode.Parse(json)])!;
         var result = schemas["GrowingResult"]!;
         Check(Accept(result, "{\"value\":null}") && !Accept(result, "{}") && !Accept(result, "{\"value\":0}"));
-        var page = result["oneOf"]!.AsArray().Single(branch => branch!["properties"]!["page"] is not null)!["properties"]!["page"]!;
-        Check(Accept(page, "{\"entries\":[null,null,null,null,null,null,null,null],\"next\":null}"));
-        Check(!Accept(page, "{\"entries\":[null,null,null,null,null,null,null,null]}") && !Accept(page, "{\"entries\":[null,null,null,null,null,null,null,null],\"next\":1}"));
+        Check(Accept(result, "{\"page\":{\"entries\":[null,null,null,null,null,null,null,null],\"next\":null}}"));
+        Check(!Accept(result, "{\"page\":{\"entries\":[null,null,null,null,null,null,null,null]}}") && !Accept(result, "{\"page\":{\"entries\":[null,null,null,null,null,null,null,null],\"next\":1}}"));
         var number = schemas["GrowingEvent"]!["properties"]!["pid"]!;
         Check(Accept(number, "1") && !Accept(number, "1.00000000000000000000000000001") && !Accept(number, "1e999999999") && !Accept(number, "1e-999999999"));
     }
     static async Task CodecsProof(JsonObject cfg) {
         BoundaryProof();
         var counter = new Codecs.CounterCodec(typeof(Add), typeof(Read), typeof(Start), typeof(Total));
-        var query = new Codecs.QueryCodec(typeof(Transit.Sdk.Examples.Initialize), typeof(Insert), typeof(Rows), typeof(Start));
+        var query = new Codecs.QueryCodec(typeof(Transit.Sdk.Examples.Initialize), typeof(Insert), typeof(Rows), typeof(Start), typeof(Advance), typeof(NotReady), typeof(Update), typeof(Delete));
         var fixtures = Read(Text(cfg, "fixtures"));
         foreach (var item in fixtures["valid"]!.AsArray()) {
             var fixture = item!.AsObject(); byte[] bytes = Convert.FromHexString(Text(fixture, "hex"));
@@ -146,6 +163,8 @@ static class Proof
             try { switch (Text(fixture, "codec")) { case "u64": Codecs.U64.Decode(bytes); break; case "counter": counter.Decode(bytes); break; case "query": query.Decode(bytes); break; default: throw new Exception("Unknown fixture"); } }
             catch (ArgumentException) { rejected = true; } Check(rejected);
         }
+        var tableFixtures = Read(Text(cfg, "table_fixtures"));
+        TableCases("queue", TableWork.QueueCodec, tableFixtures); TableCases("work", TableWork.WorkCodec, tableFixtures); TableCases("outcome", TableWork.OutcomeCodec, tableFixtures);
         var value = new Add((1UL << 53) + 1); byte[] expected = new byte[26]; "STN1"u8.CopyTo(expected); expected[4] = 1; BinaryPrimitives.WriteUInt64LittleEndian(expected.AsSpan(5), 0); Codecs.Counter.Encode(value).CopyTo(expected, 13);
         byte[] frame = await SdkStation.EncodeCastAsync<ICounterMessage>(value, Codecs.Counter); Check(expected.AsSpan().SequenceEqual(frame));
         Expect(ErrorKind.IncompatibleNative, () => SdkStation.EncodeCastAsync<ICounterMessage>(value, Codecs.Counter, Path.Combine(Path.GetDirectoryName(Text(cfg, "fixtures"))!, "bad-station-version")).GetAwaiter().GetResult());
@@ -529,6 +548,7 @@ static class Proof
     }
 
     public static async Task Main(string[] args) {
+        if (args.Length == 1 && args[0] == "handler-tables") { HandlerTables.Run(); return; }
         string mode = args[0], path = args[1]; var cfg = Read(path);
         Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "native_v1");
         if (mode.StartsWith("document-", StringComparison.Ordinal)) { await DocumentProof(mode,cfg); return; }

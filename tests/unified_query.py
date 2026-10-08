@@ -195,7 +195,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     'EXPLAIN SELECT value FROM items WHERE ' + 'NOT '*63 + 'value IS NULL;')]
                 program_predicates = [
                     {'program': [{'atom': {'state': {'column': 'value', 'value': 'null'}}},
-                        {'atom': {'compare': {'column': 'value', 'op': 'eq', 'type': 'utf8'}}},
+                        {'atom': {'compare': {'column': 'value', 'op': 'eq', 'type': {'utf8': {}}}}},
                         {'disjunction': {}}, {'negate': {}},
                         {'atom': {'state': {'column': 'value', 'value': 'value'}}}, {'conjunction': {}}]},
                     {'program': [{'atom': {'state': {'column': 'value', 'value': 'null'}}}] + [{'negate': {}}]*63},
@@ -216,17 +216,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             plan = expected['explanation']
                             if plan['aggregate'] == 'count_values':
                                 assert plan['projection'] == ['value']
-                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
+                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
                                 assert plan['operators'] == (['scan', 'limit', 'count_values'] if 'LIMIT 0' in action['inspect']['sql'] else ['scan', 'count_values'])
                             elif plan['aggregate'] == 'count':
-                                assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
+                                assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
                             elif 'state' in plan['predicate']:
                                 assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}
                                 assert plan['operators'] == ['scan', 'filter', 'limit', 'project']
                                 if 'AS "Result"' in action['inspect']['sql']:
                                     assert plan['projection'] == ['value', 'value']
-                                    assert plan['columns'] == [{'name': name, 'type': 'utf8'} for name in ('Result', 'copy')]
-                            else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project']
+                                    assert plan['columns'] == [{'name': name, 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'} for name in ('Result', 'copy')]
+                            else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project'], plan
                 for action, predicate in zip(program_requests, program_predicates, strict=True):
                     expected = None
                     for owner in program_inspectors:
@@ -235,7 +235,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         assert value['source_kind'] == kind and 'redacted-literal' not in json.dumps(value)
                         plan = value['details']['explanation']
                         assert plan['predicate'] == predicate and plan['operators'] == ['scan', 'filter', 'project']
-                        assert plan['columns'] == [{'name': 'value', 'type': 'utf8'}] and plan['limit'] is None
+                        assert plan['columns'] == [{'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'}] and plan['limit'] is None
                         if expected is None: expected = value
                         assert value == expected
                 print(f"Unified {kind}: Boolean inspection including 64 instructions agrees across {len(program_inspectors)} enabled native/port/SDK callers", flush=True)
@@ -252,7 +252,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 from unified_parameters import compile_requests, rejected as compilation_rejected
                 compilers = (native, port_client, *(caller for caller in callers if caller.compilation))
                 compilation_requests = compile_requests(compilers, scope, kind, root, fault, capability_owners=(native, port_client))
-                print(f"Unified {kind}: parameter compilation agrees across {len(compilers)} native/port/SDK callers with literal and frozen typed-plan bytes; no dispatch", flush=True)
+                print(f"Unified {kind}: parameter compilation agrees across {len(compilers)} native/port/SDK callers with literal SQL and frozen bundle bytes; no dispatch", flush=True)
                 uploader = callers[0] if callers else native
                 try:
                     upload(uploader, root)
@@ -342,7 +342,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 assert kind == "document" or len(actual) > 32
                 manifest = final["manifest"]
                 assert manifest["job"]["correlation"] == status["correlation"]
-                assert manifest["checkpoint"]["progress"]["basis"]["kind"] == kind
+                assert manifest["checkpoint"]["cut"]["kind"] == kind
                 assert manifest["checkpoint"]["bytes"] == total
                 verify(native, port_client, root, final['ordinal']+1)
                 for owner in callers: verify(owner, owner, root, final['ordinal']+1)

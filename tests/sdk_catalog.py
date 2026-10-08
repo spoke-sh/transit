@@ -19,11 +19,19 @@ def install(root, languages):
     root.mkdir()
     # Matching, independently generated neutral evidence for decoder ownership
     # tests. The authority schedules below verify live owner projections.
-    diagnostic = json.loads((ROOT / 'packages/zig/transit-catalog/src/fixtures/catalog-neutral-v1.json').read_text())['receipt']['diagnostic']
-    diagnostic['identity']['realm'] = '46'
-    diagnostic['facts'][0]['value']['unsigned'] = '7'
-    diagnostic['facts'][3]['value']['unsigned'] = str((1 << 32) - 1)
-    diagnostic['actions'][0]['target']['realm'] = '46'
+    definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    identity = dict(domain='mutation', id=str(2**64-1), realm='46', resource='7', sequence=None)
+    def fact(field, origin, kind, value):
+        return dict(field=field, origin=origin, availability='provided', value={kind: value})
+    diagnostic = dict(version=1, definition=definition, code='table.applied', category='lifecycle',
+        stage='execute', outcome='applied', evidence='domain_status',
+        message='The original Table operation completed. Later inspection or output failures cannot undo its outcome.',
+        cause=None, identity=identity, location=None,
+        facts=[fact('object', 'owner', 'unsigned', str(2**64-1)),
+               fact('operation', 'caller', 'text', 'insert'),
+               fact('native_input', 'owner', 'unsigned', '7'),
+               fact('affected_rows', 'execution', 'unsigned', '1')] + [None]*12,
+        actions=[dict(kind='inspect_status', target=identity)] + [None]*3)
     (root / 'diagnostic.json').write_text(json.dumps(diagnostic))
     factories = []
     for language in languages:
@@ -165,6 +173,7 @@ def install_ruby(target):
     values = target / 'values.rb'
     shutil.copy2(ROOT / 'tests/ruby_catalog_sdk.rb', script)
     shutil.copy2(ROOT / 'tests/ruby_catalog_values.rb', values)
+    shutil.copy2(ROOT / 'tests/ruby_schema_values.rb', target / 'schema_values.rb')
     subprocess.run(['ruby', str(values)], env=environment, cwd=target, check=True)
     def create(url, connection, state):
         config = target / 'client.json'
@@ -174,49 +183,21 @@ def install_ruby(target):
 
 
 class CatalogCConsumer(Consumer):
-    def read(self):
-        result = super().read()
-        value = result.get('value', {})
-        if 'prepared_hex' in value:
-            encoded = value.pop('prepared_hex')
-            value['prepared'] = bytes.fromhex(encoded).decode() if encoded is not None else None
-        return result
-
     def send(self, action):
         name, value = next(iter(action.items()))
-        def scope(v): return f"{v['realm']} {v['resource']} {v['catalog']}"
-        def request(v):
-            names = [v['name'], *v['schema']['names']]
-            assert all(name.isascii() and name.isidentifier() and len(name) <= 16 for name in names)
-            return f"{scope(v['scope'])} {v['operation']} {v['object']} {v['table']} {' '.join(names)} {v['schema']['value_type']}"
-        if name == 'compile': command = f"compile {value['sql'].encode().hex()} {value['operation']} {value['object']} {value['table']}"
-        elif name == 'prepare_initialize': command = f"initialize {scope(value['scope'])} {value['owner']} {value['administrator']}"
-        elif name == 'prepare_create': command = 'create ' + request(value)
-        elif name == 'prepare_policy':
-            v = value['policy']; command = f"policy {scope(v['scope'])} {v['principal']} {v['revision']} {int(v['inspect'])} {int(v['create'])} {value['expected_revision']}"
-        elif name == 'submit': command = 'submit ' + value.encode().hex()
-        elif name in ('observe', 'input_disposition'): command = f"{name} {value['prepared'].encode().hex()} {value['input']}"
-        elif name == 'status': command = 'status ' + request(value)
-        elif name == 'lookup':
-            assert value.isascii() and value.isidentifier() and len(value) <= 16
-            command = 'lookup ' + value
-        elif name == 'definition': command = f"definition {value['object']} {value['revision']}"
-        elif name == 'list':
-            if value is None: command = 'list'
-            else:
-                assert value['after'].isascii() and value['after'].isidentifier() and len(value['after']) <= 16
-                command = f"list {value['definition']} {scope(value['scope'])} {value['resource_revision']} {value['after']}"
+        if name == 'scenario':
+            command = f"scenario {value['index']}"
         else:
-            assert name in ('capabilities', 'describe', 'close')
+            assert name == 'close'
             command = name
         self.child.stdin.write(command + '\n'); self.child.stdin.flush()
 
 
-def install_c(target, language):
+def install_c(target, language, packages=ROOT / '.cache/bindings/c'):
     target.mkdir()
     prefix = target / 'installed'
     artifacts = {}
-    for source in sorted((ROOT / '.cache/bindings/c').glob('*.tar.gz')):
+    for source in sorted(packages.glob('*.tar.gz')):
         if source.name.startswith('transit-sdk-examples-'): continue
         artifact = target / source.name
         shutil.copy2(source, artifact)
@@ -233,19 +214,22 @@ def install_c(target, language):
     executable = target / 'consumer'
     subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), *flags, '-lpthread', '-o', str(executable)], cwd=target, env=environment, check=True)
     if language == 'cpp':
-        for name in ('Client', 'Compiled', 'Prepared'):
+        for name in ('Client', 'Compiled', 'Prepared', 'SavedIntent'):
             source.write_text(f'#include <transit/catalog.hpp>\nvoid copy(transit::sdk::station::catalog::{name} &value) {{ auto other = value; }}')
             rejected = subprocess.run(['zig', 'c++', '-std=c++17', '-fsyntax-only', str(source), f'-I{prefix / "include"}'], cwd=target, env=environment, capture_output=True, text=True)
             assert rejected.returncode and 'deleted' in rejected.stderr
     source.unlink(); (target / 'catalog_sdk_io.h').unlink()
+    if language == 'cpp':
+        from c_catalog_values import run
+        run(target / 'faults', prefix, flags, environment)
     def create(url, connection, state):
         s = connection['scope']
-        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog'])]
+        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog']), str(state)]
         return CatalogCConsumer(arguments, environment, target)
     return language, create
 
 
-def install_java(target):
+def install_java(target, packages=ROOT / '.cache/bindings/java'):
     target.mkdir()
     library = target / 'lib'
     library.mkdir()
@@ -253,16 +237,17 @@ def install_java(target):
     for name in ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'gson'):
         filename = f'{name}-{"2.12.1" if name == "gson" else "0.2.0"}.jar'
         destination = library / filename
-        shutil.copy2(ROOT / '.cache/bindings/java' / filename, destination)
+        shutil.copy2(packages / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
-    sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java')]
+    sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java', 'JavaLogicalValues.java', 'JavaSchemaValues.java')]
     for source in sources: shutil.copy2(ROOT / 'tests' / source.name, source)
     classes = target / 'classes'
     classes.mkdir()
     subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(library / '*'), '-d', str(classes), *map(str, sources)], cwd=target, env=environment, check=True)
     for source in sources: source.unlink()
+    subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', str(classes) + os.pathsep + str(library / '*'), 'JavaSchemaValues'], cwd=target, env=environment, check=True)
     faults = target / 'faults'
     faults.mkdir()
     with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
@@ -280,7 +265,7 @@ def install_java(target):
     return 'java', create
 
 
-def install_dotnet(target):
+def install_dotnet(target, packages=ROOT / '.cache/bindings/dotnet'):
     import xml.etree.ElementTree as ET
     target.mkdir()
     source = target / 'source'
@@ -291,7 +276,7 @@ def install_dotnet(target):
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
         name = f'{package}.0.2.0.nupkg'
         destination = feed / name
-        shutil.copy2(ROOT / '.cache/bindings/dotnet' / name, destination)
+        shutil.copy2(packages / name, destination)
         artifacts[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
@@ -306,7 +291,7 @@ def install_dotnet(target):
     ET.SubElement(sources, 'clear')
     ET.SubElement(sources, 'add', key='local-built', value=str(feed))
     ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
-    for name in ('DotnetCatalogSdk.cs', 'DotnetCatalogValues.cs'):
+    for name in ('DotnetCatalogSdk.cs', 'DotnetCatalogValues.cs', 'DotnetLogicalValues.cs', 'DotnetSchemaValues.cs'):
         shutil.copy2(ROOT / 'tests' / name, source / name)
     subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], cwd=source, env=environment, check=True)
     app = target / 'app'
@@ -321,7 +306,7 @@ def install_dotnet(target):
     return 'dotnet', create
 
 
-def install_beam(target, language):
+def install_beam(target, language, packages=ROOT / '.cache/bindings/beam'):
     target.mkdir()
     library = target / 'lib'
     library.mkdir()
@@ -333,13 +318,13 @@ def install_beam(target, language):
     for name in names:
         filename = f'{name}-0.2.0.tar.gz'
         path = target / filename
-        shutil.copy2(ROOT / '.cache/bindings/beam' / filename, path)
+        shutil.copy2(packages / filename, path)
         artifacts[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
         with tarfile.open(path) as archive: archive.extractall(library, filter='data')
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     environment = {k:v for k,v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
     environment.update(ERL_LIBS=str(library), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
-    for name in ('beam_catalog_controller.erl', 'beam_catalog_values.erl'):
+    for name in ('beam_catalog_controller.erl', 'beam_catalog_values.erl', 'beam_schema_values.erl', 'beam_logical_values.erl'):
         source = target / name
         shutil.copy2(ROOT / 'tests' / name, source)
         subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], cwd=target, env=environment, check=True)

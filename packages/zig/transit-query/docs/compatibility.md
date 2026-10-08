@@ -12,9 +12,9 @@ endpoint. It validates the verified native result before producing primitive Arr
 | Surface | Current query v1 |
 | --- | --- |
 | Source | Declared KV decoders, exact Table schema, or accepted Document reference/projections |
-| Plan/result identity | `UQS1` source, `FZP1` plan, `UQB1` bundle, `UQM1` manifest |
-| Submission | Finite authenticated Publication upload; 16 KiB canonical bundle, 128-byte parts |
-| Values | Six scalar types and five explicit cell states in nested Arrow |
+| Plan/result identity | `UQS1` source, `FQP1` plan, `UQB1` bundle, `UQM1` manifest |
+| Submission | Finite authenticated Publication upload; 25,069-byte canonical bundle, 128-byte parts |
+| Values | All logical type families and five explicit cell states in nested Arrow |
 | Reads | Current authorized publication reads with ordered digest/row/byte verification |
 | Shell | `transit query CONFIG`; explicit frozen bundle/token recovery |
 | Board | Separate `query` credentials; one configured source and budgets |
@@ -29,7 +29,7 @@ cursors confer authority. Host/provider placement does not change a contract.
 | Source | Scalar values | Exceptional states and ordering | SQL declaration |
 | --- | --- | --- | --- |
 | KV | Binary, UTF-8, little-endian int64/uint64, finite float64, canonical boolean byte | Invalid declared decoding yields type error; bytewise key order | Explicit prefix and independently versioned key/value decoders |
-| Table | Existing exact key/value schema; adapter validates it | Nullable value, signed primary-key order | Exact Table identity/schema |
+| Table | Up to 128 typed columns, including recursive descriptors | Nullability/defaults from the immutable schema; internal RowID order | Catalog scope, owner, stable object, immutable metadata and full row type |
 | Document | Accepted scalar paths, bounded materialized text, optional list expansion and element IDs | Missing/null/type error/conflict stay distinct; accepted sequence order, including empty continuation pages | Exact document/epoch/type/change-format/revision and declared projections |
 
 All native Arrow columns use a non-null struct with state, actual kind, nullable
@@ -42,11 +42,10 @@ client support for primitive Arrow alone is insufficient.
 
 The typed plan supports bounded Boolean programs over comparisons and cell-state
 tests, ordered projection, limit, row/value counts and checked int64 sum. Native SQL shares
-that parser and lowering: star or one to eight named columns, comparisons/state
+that parser and lowering: star or one to 128 named columns, comparisons/state
 tests combined with NOT, AND, OR and parentheses, row output, `COUNT(*)`, `COUNT(column)` and int64
 `SUM`. Programs contain at most 64 instructions, preserve null/missing unknown
-and evaluate atoms eagerly in source order with the first error retained. Uint64/float64
-comparisons use explicit string literals with `::uint64`/`::float64`. `IS NULL`
+and evaluate atoms eagerly in source order with the first error retained. Typed literals bind to the referenced column; exact integer/decimal values avoid floating conversion. `IS NULL`
 selects only explicit null, and comparison to a NULL literal rejects. There are
 no general casts, joins, sort,
 general pushdown, rewrites, continuous queries or implicit application decoders.
@@ -58,8 +57,8 @@ carry no captured query basis and perform no admission. Connector catalog
 listings remain unsupported, and Flight SQL retains its separate metadata
 operations. See [SQL inspection](../../../../contracts/SQL_INSPECTION_V1.md).
 
-The engine advances eight rows per page with at most eight columns. Scalars are
-bounded at 4096 bytes; Arrow segments at 64 KiB with 4 MiB caller-owned workspace.
+The engine advances eight rows per page with at most 128 columns. KV/Document decoder scalars are
+bounded at 4096 bytes; typed Table values follow the logical codec bounds; Arrow segments at 64 KiB with 4 MiB caller-owned workspace.
 Document adapters add bounded path/list/text traversal; source hosts allocate a
 1 MiB adapter arena. Total accepted work is governed by explicit current-policy
 page/segment/byte budgets and durable progress, not a fixed resident row count.

@@ -1,14 +1,14 @@
 """Scoped, synchronous handler operations backed by the growing native turn."""
 from __future__ import annotations
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 import threading
-from typing import Any, Generic, TypeVar, cast, TYPE_CHECKING, Protocol
+from typing import Any, TypeVar, TYPE_CHECKING, Protocol
 from transit_client import ProcessRef, ResourceRef
 from transit_client.types import integer, owned_bytes, MAX_BODY
 from transit_client.errors import Busy, Closed, HandlerError, MissingValue, TurnExpired, UnsupportedCapability
 from ._growing import Growing
-from .models import Basis, Codec, Found, Key, KVEntry, Page, Reply, WaitPolicy, encoded, decoded
+from .table import Table, TableSchema, TableLimits, TableCreation
+from .models import Codec, Found, Key, KVEntry, Page, Reply, WaitPolicy, encoded, decoded
 if TYPE_CHECKING:
     from .query import QueryJob, QueryPlan, ResultReader
     from .http import PreparedHttpRequest, HttpOutcome, HttpFollowupReason
@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
 T = TypeVar('T')
 U64_MAX = (1 << 64) - 1
-I64_MIN, I64_MAX = -(1 << 63), (1 << 63) - 1
 
 
 class StopSignal(Protocol):
@@ -64,65 +63,6 @@ class ReadVersion:
         return {'pid': self.pid, 'input': self.input, 'index': self.index}
 
 
-class CellType(Enum):
-    INT64 = 'int64'
-    BOOLEAN = 'boolean'
-    UTF8 = 'utf8'
-    BINARY = 'binary'
-
-
-type Cell = int | bool | str | bytes | None
-C = TypeVar('C', bound=Cell)
-
-
-@dataclass(frozen=True, slots=True)
-class TableSchema(Generic[C]):
-    id: int
-    value_type: CellType
-    key_name: str = 'id'
-    value_name: str = 'value'
-    def __post_init__(self) -> None:
-        integer(self.id, 'table ID', maximum=(1 << 32) - 1)
-        if not isinstance(self.value_type, CellType):
-            raise TypeError('Expected CellType')
-        if not isinstance(self.key_name, str) or not isinstance(self.value_name, str):
-            raise TypeError('Table names must be text')
-
-    @classmethod
-    def int64(cls, id: int, key_name: str = 'id', value_name: str = 'value') -> TableSchema[int]:
-        return TableSchema(id, CellType.INT64, key_name, value_name)
-
-
-@dataclass(frozen=True, slots=True)
-class Row(Generic[C]):
-    key: int
-    value: C = field(repr=False)
-    def __post_init__(self) -> None:
-        integer(self.key, 'row key', minimum=I64_MIN, maximum=I64_MAX)
-
-
-def _cell(value: Cell, kind: CellType, limit: int) -> object:
-    if value is None: return {'null': {}}
-    if kind is CellType.INT64:
-        return {'int64': str(integer(value, 'cell', minimum=I64_MIN, maximum=I64_MAX))}
-    if kind is CellType.BOOLEAN and type(value) is bool: return {'boolean': value}
-    if kind is CellType.UTF8 and isinstance(value, str):
-        if len(value) > limit or len(value.encode()) > limit:
-            raise ValueError('Cell exceeds the native UTF-8 byte bound')
-        return {'utf8': value}
-    if kind is CellType.BINARY and isinstance(value, bytes): return {'binary': owned_bytes(value, limit).hex()}
-    raise TypeError('Cell does not match its Table schema')
-
-
-def _value(cell: dict[str, Any]) -> Cell:
-    if 'null' in cell: return None
-    if 'int64' in cell: return int(cell['int64'])
-    if 'boolean' in cell: return bool(cell['boolean'])
-    if 'utf8' in cell: return str(cell['utf8'])
-    if 'binary' in cell: return bytes.fromhex(cell['binary'])
-    raise ValueError('Unknown native cell')
-
-
 class State:
     def __init__(self, turn: Turn, version: ReadVersion | None = None) -> None:
         self._turn, self._version = turn, version
@@ -167,64 +107,14 @@ class State:
         return Page(entries, page['next'])
 
 
-class Table(Generic[C]):
-    def __init__(self, turn: Turn, schema: TableSchema[C], version: ReadVersion | None = None) -> None:
-        self._turn, self.schema, self._version = turn, schema, version
-        request: dict[str, object] = {'id': schema.id}
-        if version is not None:
-            request['version'] = version._wire()
-        actual = turn._apply({'table_schema': request})['schema']
-        if (actual['key_name'], actual['value_name'], actual['value_type']) != (schema.key_name, schema.value_name, schema.value_type.value):
-            raise HandlerError('Table schema differs from the requested public type', code='TableSchemaChanged')
-        self.basis = Basis(ResourceRef(turn.process.realm, actual['basis']['resource']), actual['basis']['revision'], bytes(actual['basis']['schema']))
-
-    def get(self, key: int) -> Row[C | None] | None:
-        integer(key, 'row key', minimum=I64_MIN, maximum=I64_MAX)
-        request: dict[str, object] = {'id': self.schema.id, 'key': str(key)}
-        name = 'table_get'
-        if self._version is not None:
-            request['version'] = self._version._wire()
-            name = 'version_table_get'
-        row = self._turn._apply({name: request})['row']
-        return None if row is None else Row(int(row['key']), cast(C | None, _value(row['value'])))
-
-    def _write(self, mode: str, row: Row[C] | Row[None] | Row[C | None]) -> None:
-        self._turn._check()
-        if self._version is not None:
-            raise HandlerError('Retained Tables are read-only')
-        if not isinstance(row, Row):
-            raise TypeError('Expected Row')
-        self._turn._apply({'table_write': {'id': self.schema.id, 'mode': mode,
-                                          'row': {'key': str(row.key), 'value': _cell(row.value, self.schema.value_type, self._turn._native.caps['table_cell_bytes'])}}})
-
-    def insert(self, row: Row[C] | Row[None] | Row[C | None]) -> None: self._write('insert', row)
-    def update(self, row: Row[C] | Row[None] | Row[C | None]) -> None: self._write('update', row)
-    def upsert(self, row: Row[C] | Row[None] | Row[C | None]) -> None: self._write('upsert', row)
-
-    def delete(self, key: int) -> None:
-        self._turn._check()
-        if self._version is not None:
-            raise HandlerError('Retained Tables are read-only')
-        self._turn._apply({'table_delete': {'id': self.schema.id, 'key': str(integer(key, 'row key', minimum=I64_MIN, maximum=I64_MAX))}})
-
-    def page(self, cursor: str | None = None) -> Page[Row[C | None]]:
-        cursor = _cursor(cursor)
-        request: dict[str, object] = {'id': self.schema.id, 'cursor': cursor}
-        if self._version is not None:
-            request['version'] = self._version._wire()
-        result = self._turn._apply({'table_page': request})['rows']
-        basis = Basis(ResourceRef(self._turn.process.realm, result['basis']['resource']), result['basis']['revision'], bytes(result['basis']['schema']))
-        return Page(tuple(Row(int(row['key']), cast(C | None, _value(row['value']))) for row in result['rows'] if row is not None), result['next'], basis)
-
-
 class Source:
     def __init__(self, turn: Turn, identity: ReadVersion) -> None:
         self._turn, self.identity = turn, identity
         self.state = State(turn, identity)
 
-    def table(self, schema: TableSchema[C]) -> Table[C]:
+    def table(self, object_id: int) -> Table:
         self._turn._check()
-        return Table(self._turn, schema, self.identity)
+        return Table(self._turn, object_id, self.identity)
 
 
 class Turn:
@@ -399,22 +289,12 @@ class Turn:
             'reference': owned_bytes(request.reference, 145).hex()}})
         return int(result['correlation'])
 
-    def table(self, schema: TableSchema[C]) -> Table[C]:
+    def table(self, object_id: int) -> Table:
         self._check()
-        if not isinstance(schema, TableSchema):
-            raise TypeError('Expected TableSchema')
-        return Table(self, schema)
+        return Table(self, object_id)
 
-    def create_table(self, schema: TableSchema[C]) -> Table[C]:
-        self._check()
-        if not isinstance(schema, TableSchema):
-            raise TypeError('Expected TableSchema')
-        for name in (schema.key_name, schema.value_name):
-            if len(name) > self._native.caps['table_name_bytes']:
-                raise ValueError('Table name exceeds the native bound')
-        self._apply({'table_create': {'id': schema.id, 'key_name': schema.key_name,
-                                     'value_name': schema.value_name, 'value_type': schema.value_type.value}})
-        return self.table(schema)
+    def create_table(self, schema: TableSchema, limits: TableLimits) -> TableCreation:
+        return Table.create(self, schema, limits)
 
     def retain(self) -> ReadVersion:
         return ReadVersion(**self._apply({'retain': {}})['version'])
@@ -430,20 +310,19 @@ class Turn:
             raise TypeError('Expected ReadVersion')
         self._apply({'release': identity._wire()})
 
-    def allow_query(self, peer: ProcessRef, table: TableSchema[C], *, expected_revision: int, allow: bool) -> None:
+    def allow_query(self, peer: ProcessRef, object_id: int, *, expected_revision: int, allow: bool) -> None:
         pid = self._peer(peer)
-        integer(expected_revision, 'policy revision', minimum=0)
-        if type(allow) is not bool:
-            raise TypeError('allow must be boolean')
-        self._apply({'query_policy': {'peer': pid, 'table': table.id, 'expected_revision': expected_revision, 'allow': allow}})
+        integer(object_id, 'Table object', maximum=U64_MAX)
+        integer(expected_revision, 'policy revision', minimum=0, maximum=U64_MAX)
+        if type(allow) is not bool: raise TypeError('allow must be boolean')
+        self._apply({'query_policy': {'peer': pid, 'table': str(object_id), 'expected_revision': str(expected_revision), 'allow': allow}})
 
-    def start_query(self, table: TableSchema[C], plan: QueryPlan) -> QueryJob:
+    def start_query(self, object_id: int, plan: QueryPlan) -> QueryJob:
         from .query import QueryJob, QueryPlan
         self._check()
-        if not isinstance(plan, QueryPlan):
-            raise TypeError('Expected QueryPlan')
-        self.table(table)  # Validate the public type against the captured native schema.
-        result = self._apply({'query_start': {'id': table.id, 'plan': plan._wire(self._native.caps['table_cell_bytes'])}})['query']
+        if not isinstance(plan, QueryPlan): raise TypeError('Expected QueryPlan')
+        integer(object_id, 'Table object', maximum=U64_MAX)
+        result = self._apply({'query_start': {'id': str(object_id), 'plan': plan._wire()}})['query']
         return QueryJob(result['result'], int(result['correlation']), ReadVersion(**result['source']))
 
     def close_query(self, result: int, *, reason: str = 'cancelled') -> None:

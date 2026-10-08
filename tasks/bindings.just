@@ -25,15 +25,21 @@ native:
 # Qualify every implemented language; enter nix develop .#bindings first.
 test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
 
+# Requires the installed language artifacts from the corresponding *-build tasks.
+# C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
+query-failures *args: build
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_query_failures.py {{args}}
+
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
     cd packages/ts/transit-client && vp check
-    vp exec --filter @transit/client node --test src/errors.test.ts
+    vp exec --filter @transit/client node --test src/errors.test.ts src/port.test.ts
     # Station imports the package's emitted declarations and runtime exports.
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -41,6 +47,8 @@ python-build: build
 
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
+    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_handler_tables.py
+    PYTHONPATH=packages/python/transit-client:packages/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
     PYTHONPATH=packages/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict packages/python/transit-native-client/transit_native_client packages/python/transit-native-station/transit_native_station packages/python/transit-client/transit_client
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
@@ -49,8 +57,7 @@ python-test: python-build
     zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
-    just test::table-mutation --sdk python
-    just test::catalog --sdk python
+    just test::typed-tables --sdk python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -62,7 +69,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker
@@ -70,8 +77,7 @@ node-sdk-test: node-build
     zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
-    just test::table-mutation --sdk node
-    just test::catalog --sdk node
+    just test::typed-tables --sdk node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build
@@ -101,8 +107,7 @@ rust-sdk-test: rust-build
     zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
-    just test::table-mutation --sdk rust
-    just test::catalog --sdk rust
+    just test::typed-tables --sdk rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -110,6 +115,7 @@ ruby-build: build
 
 # Syntax checks and installed public Ruby client/authority schedules.
 ruby-sdk-test: ruby-build
+    ruby -Ipackages/ruby/transit-client/lib -Ipackages/ruby/transit-station/lib tests/ruby_handler_tables.rb
     ruby -c packages/ruby/transit-client/lib/transit/client.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/values.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/worker.rb
@@ -121,7 +127,8 @@ ruby-sdk-test: ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/turn.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/table.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/query.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/mutations.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/catalog_values.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/logical.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/runner.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
@@ -133,8 +140,7 @@ ruby-sdk-test: ruby-build
     zig build transit-station-grpc-worker
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
-    just test::table-mutation --sdk ruby
-    just test::catalog --sdk ruby
+    just test::typed-tables --sdk ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
@@ -153,8 +159,12 @@ c-sdk-test: c-build
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
-    just test::table-mutation --sdk c --sdk cpp
-    just test::catalog --sdk c --sdk cpp
+    just test::typed-tables --sdk c --sdk cpp
+    python3 -B tests/c_logical_values.py .cache/bindings/c
+
+# Qualify owned recursive models through installed C11 and C++17 consumers.
+logical-c: c-build
+    python3 -B tests/c_logical_values.py .cache/bindings/c
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build
@@ -166,35 +176,42 @@ java-sdk-test: java-build
     python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
-    just test::table-mutation --sdk java
-    just test::catalog --sdk java
+    just test::typed-tables --sdk java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
 dotnet-build: build
     python3 -B bindings/build_dotnet.py .cache/bindings/dotnet
 
+# Qualify owned recursive .NET logical models in an isolated package consumer.
+logical-dotnet: dotnet-build
+    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
+
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
+    python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
     zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
-    just test::table-mutation --sdk dotnet
-    just test::catalog --sdk dotnet
+    just test::typed-tables --sdk dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
     python3 -B bindings/build_beam.py .cache/bindings/beam
 
+# Qualify recursive logical models from installed Erlang and Elixir artifacts.
+logical-beam: beam-build
+    python3 -B tests/beam_logical_values.py .cache/bindings/beam
+
 # Compile clean Erlang consumers and execute both public BEAM language schedules.
 beam-sdk-test: beam-build
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex
+    python3 -B tests/beam_logical_values.py .cache/bindings/beam
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
     zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
-    just test::table-mutation --sdk erlang --sdk elixir
-    just test::catalog --sdk erlang --sdk elixir
+    just test::typed-tables --sdk erlang --sdk elixir
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -269,45 +286,6 @@ document-beam: beam-build
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
-# Installed Python sync/async mutation clients and exact saved receipt recovery.
-mutation-python: python-build
-    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
-    just test::table-mutation --sdk python
-
-# Installed TypeScript mutation client, runtime validation and exact saved recovery.
-mutation-node: node-build
-    cd packages/ts/transit-station-sdk && vp check
-    vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/mutations.test.ts
-    just test::table-mutation --sdk node
-
-# Installed Ruby immutable mutation callers, joined ownership and exact retry.
-mutation-ruby: ruby-build
-    ruby -c packages/ruby/transit-station/lib/transit/station/mutations.rb
-    just test::table-mutation --sdk ruby
-
-# Installed Rust mutation caller, exclusive borrows and retained exact recovery.
-mutation-rust: rust-build
-    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
-    just test::table-mutation --sdk rust
-
-# Installed C11/C++17 mutation callers, owned buffers and exact recovery.
-mutation-c: c-build
-    just test::table-mutation --sdk c --sdk cpp
-
-# Installed Java mutation caller with immutable values and bounded futures.
-mutation-java: java-build
-    just test::table-mutation --sdk java
-
-# Installed .NET mutation caller with immutable values and joined async ownership.
-mutation-dotnet: dotnet-build
-    just test::table-mutation --sdk dotnet
-
-# Installed Erlang/Elixir callers over the shared owned BEAM worker and native port.
-mutation-beam: beam-build
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/mutations.ex tests/elixir_mutation_adapter.ex
-    just test::table-mutation --sdk erlang --sdk elixir
-
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
@@ -362,35 +340,37 @@ unified-codecs: python-build node-build ruby-build rust-build c-build java-build
 # Installed Python sync/async catalog clients and exact saved command recovery.
 catalog-python: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
-    just test::catalog --sdk python
+    just test::typed-tables --sdk python
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
 catalog-node: node-build node-check
-    just test::catalog --sdk node
+    just test::typed-tables --sdk node
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
 catalog-rust: rust-build
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
-    just test::catalog --sdk rust
+    just test::typed-tables --sdk rust
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
 catalog-ruby: ruby-build
+    ruby -c packages/ruby/transit-station/lib/transit/station/catalog_values.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/logical.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
-    just test::catalog --sdk ruby
+    just test::typed-tables --sdk ruby
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
 catalog-c: c-build
-    just test::catalog --sdk c --sdk cpp
+    just test::typed-tables --sdk c --sdk cpp
 
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: java-build
-    just test::catalog --sdk java
+    just test::typed-tables --sdk java
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
 catalog-dotnet: dotnet-build
-    just test::catalog --sdk dotnet
+    just test::typed-tables --sdk dotnet
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
 catalog-beam: beam-build
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
-    just test::catalog --sdk erlang --sdk elixir
+    just test::typed-tables --sdk erlang --sdk elixir

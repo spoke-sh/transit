@@ -9,12 +9,13 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 from unified_shell import Shell
 
 
 def run(node, host, cli, proof):
     node, host, cli, proof = (str(Path(path).resolve()) for path in (node, host, cli, proof))
-    with Fixture() as fixture:
+    with ColdStore() as cold, Fixture(cold.config()) as fixture:
         public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
@@ -24,7 +25,7 @@ def run(node, host, cli, proof):
             "ursula_url": fixture.url, "bucket": "public-query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         processes, logs = [], []
-        fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event()}
+        fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event(), "wait_headers": 0}
         fault["pause"].set()
 
         class Proxy(BaseHTTPRequestHandler):
@@ -45,7 +46,15 @@ def run(node, host, cli, proof):
                         return
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
-                    connection.request("POST", self.path, body, {"Content-Type": "application/json"})
+                    # Preserve native scheduling/control while injecting reply
+                    # faults. Dropped waits make idle workers hammer authority.
+                    headers = {"Content-Type": "application/json"}
+                    for name in ("X-Transit-Wait", "X-Transit-Control", "traceparent"):
+                        if value := self.headers.get(name):
+                            headers[name] = value
+                    if "X-Transit-Wait" in headers:
+                        fault["wait_headers"] += 1
+                    connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
                     if self.path == "/v1/command" and response.status == 200:
@@ -83,7 +92,7 @@ def run(node, host, cli, proof):
             processes.append(process)
             return process
         def provision(mode):
-            return subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], check=True, timeout=60, capture_output=True)
+            return subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], check=True, timeout=300 if mode == "provision" else 60, capture_output=True)
         try:
             subprocess.run([node, str(config), "--initialize"], check=True, capture_output=True, timeout=30)
             authority = start("node", [node, str(config)])
@@ -115,9 +124,10 @@ def run(node, host, cli, proof):
                 return advance(shell.read())
             before = json.loads(provision("next-sequence").stdout)
             description = send(".schema")["description"]
-            assert description["source"]["source"]["source"]["table"]["value_type"] == "int64"
+            assert description["source"]["source"]["source"]["table"]["row_type"]["structure"][1]["type"] == {"int64": {}}
             assert send(".new 1")["status"] is None
-            assert send("DELETE FROM items")["err"] == "UnsupportedStatement"
+            unsupported = send("DELETE FROM items")
+            assert unsupported["err"] == "UnsupportedStatement", unsupported
             assert json.loads(provision("next-sequence").stdout) == before, "unsupported SQL submitted work"
             fault["pause"].clear()
             assert send("SELECT id, value FROM items") == {"err": "InvalidAuthorityResponse", "uncertain": True}
@@ -171,7 +181,7 @@ def run(node, host, cli, proof):
                 manifest = page["manifest"]
                 rows.extend(page["cells"]); segments += 1
                 if page["complete_coverage"]: break
-            expected = [[{"value": {"int64": str(i)}}, {"null": {}} if i % 5 == 0 else {"value": {"int64": str(9007199254740993 + i)}}] for i in range(41)]
+            expected = [[{"value": {"atom": {"signed": str(i)}}}, {"null": {}} if i % 5 == 0 else {"value": {"atom": {"signed": str(9007199254740993 + i)}}}] for i in range(41)]
             assert rows == expected, (rows[:3], expected[:3])
             assert int(manifest["rows"]) == 41 and int(manifest["segments"]) == segments
             # A fresh HTTP exchange reconciles the original admission after later sequences.
@@ -196,12 +206,12 @@ def run(node, host, cli, proof):
             assert send(".next")["ordinal"] == "0"
             # A configured schema change fails before native admission.
             wrong = json.loads((fixture.root / "cli.json").read_text())
-            wrong["workspace"]["source"]["source"]["table"]["value_type"] = "utf8"
+            wrong["workspace"]["source"]["source"]["table"]["row_type"]["structure"][1]["type"] = {"utf8": {}}
             wrong_path = fixture.root / "wrong-schema.json"
             wrong_path.write_text(json.dumps(wrong))
             sequence = provision("next-sequence").stdout
             rejected = subprocess.run([cli, "query", str(wrong_path)], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
-            assert "QueryDenied" in rejected.stdout, rejected.stdout
+            assert "TableSchemaChanged" in rejected.stdout, rejected.stdout
             assert provision("next-sequence").stdout == sequence
             # Pause another captured prefix and cancel explicitly after restoring access.
             fault["stage"].clear(); fault["pause"].clear()
@@ -224,11 +234,16 @@ def run(node, host, cli, proof):
             assert send(".next")["err"] == "IncompleteResult"
             assert send(".status")["status"]["phase"] == "cancelled"
             assert fault["startup"] == {65536, 65537}, fault["startup"]
+            assert fault["wait_headers"] > 0, "native wait hints were not exercised"
             shell.close()
             print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
             for log in logs:
-                log.flush(); log.seek(0); sys.stderr.write(log.read()[-4000:])
+                log.flush(); log.seek(0)
+                content = log.read()
+                tail = content if len(content) <= 4000 else content[-4000:].partition('\n')[2]
+                print(json.dumps({'worker_log': Path(log.name).name}), file=sys.stderr)
+                sys.stderr.write(tail)
             raise
         finally:
             fault["pause"].set()

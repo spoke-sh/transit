@@ -19,6 +19,12 @@ recovery; applications needing exact crash retry supply persistence hooks.
 block consuming owned original IPC segments. Its side effects need their own
 replay/idempotency policy. Full-width integers and nullable rows stay exact.
 
+The Table service follows the [durable FIFO contract](../TABLES.md), with four
+typed columns, text and list defaults, explicit creation quotas, and queued
+insert/update/delete commands. Each self continuation advances the original
+mutation by one bounded step. Terminal outcomes and queue progress commit within
+four writes; queries receive NotReady while accepted work remains pending.
+
 `just bindings::ruby-sdk-test` installs all five gems outside the repository,
 checks shared codec fixtures, invokes both CLI roles across ownership replacement,
 and proves retained Tables and six query segments with independent PyArrow after

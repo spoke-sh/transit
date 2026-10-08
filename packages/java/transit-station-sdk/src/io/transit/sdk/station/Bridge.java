@@ -17,10 +17,6 @@ final class Bridge implements Worker.State<Void> {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
     }
-    static Bridge mutation(ClientConfig client, Credential credential, Mutations.Connection connection) {
-        return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "mutation_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
-    }
     static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
@@ -42,7 +38,11 @@ final class Bridge implements Worker.State<Void> {
         if (!"0.2.0".equals(Client.class.getPackage().getImplementationVersion())) throw incompatible("client-sdk-version");
         JsonObject schemas = resource("/io/transit/sdk/client/schemas.json");
         resource("/io/transit/sdk/station/schemas.json").entrySet().forEach(entry -> schemas.add(entry.getKey(), entry.getValue()));
-        port = new Port("station", nativeHost, config, schemas, "HostRequest");
+        JsonObject limits = resource("/io/transit/sdk/station/contract.json").getAsJsonObject("limits");
+        port = config.has("catalog_client")
+            ? new Port("station", nativeHost, config, schemas, "HostRequest", limits.get("catalog_line_bytes").getAsInt(), 96)
+            : new Port("station", nativeHost, config, schemas, "HostRequest",
+                Math.toIntExact(number(io.transit.client.internal.Values.CONTRACT.getAsJsonObject("limits").get("host_line_bytes"), 1)), 96);
         try {
             JsonObject hello = object(port.request(obj("hello", obj()), "hello"));
             if (!hello.keySet().equals(Set.of("host_version", "station_version", "transit_version"))) throw incompatible("station-version");
@@ -90,9 +90,6 @@ final class Bridge implements Worker.State<Void> {
     }
     JsonObject unifiedQuery(JsonObject action, boolean mutation) {
         return object(port.request(obj("unified_query", action), "unified-query", mutation, "UnifiedQueryResult"));
-    }
-    JsonObject tableMutation(JsonObject action) {
-        return object(port.request(obj("table_mutation", action), "table-mutation", action.has("submit"), "TableMutationResult"));
     }
     JsonObject catalog(JsonObject action) {
         return object(port.request(obj("catalog", action), "catalog", action.has("submit"), "CatalogResult"));

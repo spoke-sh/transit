@@ -36,9 +36,6 @@ import type {
   UnifiedQueryAction,
   UnifiedQueryResult,
   UnifiedQueryConfig,
-  TableMutationAction,
-  TableMutationResult,
-  TableMutationConfig,
   CatalogAction,
   CatalogResult,
   CatalogConfig,
@@ -68,7 +65,12 @@ async function openPort(config: object, override?: string): Promise<Port> {
   }
   const requestValidator = validation.HostRequest;
   if (!requestValidator) throw new IncompatibleNative("Missing generated Station schema");
-  const port = await Port.open(executable, config, requestValidator);
+  const port = await Port.open(
+    executable,
+    config,
+    requestValidator,
+    "catalog_client" in config ? contract.limits.catalog_line_bytes : undefined,
+  );
   try {
     const hello = record(await port.request({ hello: {} }, { phase: "hello" }));
     if (
@@ -356,55 +358,6 @@ export class QueryBridge {
   }
 }
 
-export class MutationBridge {
-  readonly #port: Port;
-  private constructor(port: Port) {
-    this.#port = port;
-  }
-  static async open(
-    url: string,
-    seedFile: string,
-    config: TableMutationConfig,
-    nativeHost?: string,
-  ): Promise<MutationBridge> {
-    const port = await openPort({ url, seed_file: seedFile, mutation_client: config }, nativeHost);
-    try {
-      const bridge = new MutationBridge(port);
-      const value = await bridge.call({ capabilities: {} });
-      if (!("capabilities" in value))
-        throw new IncompatibleNative("Expected mutation capabilities");
-      const caps = value.capabilities;
-      if (
-        caps.version !== 1 ||
-        caps.max_rows !== 3 ||
-        caps.max_request_bytes !== 799 ||
-        caps.max_saved_bytes !== 8192 ||
-        !caps.insert ||
-        !caps.update_primary_key ||
-        !caps.delete_primary_key
-      )
-        throw new UnsupportedCapability("Native mutation client lacks the bounded Table profile");
-      return bridge;
-    } catch (error) {
-      await port.close();
-      throw error;
-    }
-  }
-  async call(action: TableMutationAction): Promise<TableMutationResult> {
-    return (await this.#port.request(
-      { table_mutation: action },
-      {
-        phase: "table-mutation",
-        mutation: "submit" in action,
-        validator: validation.TableMutationResult,
-      },
-    )) as TableMutationResult;
-  }
-  close(): Promise<void> {
-    return this.#port.close();
-  }
-}
-
 /** Explicit catalog caller; shared schemas validate its port boundary. */
 export class CatalogBridge {
   readonly #port: Port;
@@ -427,14 +380,12 @@ export class CatalogBridge {
       if (
         caps.version !== 1 ||
         caps.definition !== contract.definition ||
-        caps.table_columns !== 2 ||
-        caps.max_saved_bytes !== 8192 ||
-        !caps.initialize ||
-        !caps.create_table ||
-        !caps.conditional_policy ||
-        !caps.current_metadata
+        caps.max_columns !== 128 ||
+        caps.max_rows !== 1024 ||
+        caps.max_prepared_bytes !== 8192 ||
+        caps.resident_intents !== 1
       )
-        throw new UnsupportedCapability("Native catalog client lacks the named Table profile");
+        throw new UnsupportedCapability("Native catalog client lacks the general Table profile");
       return bridge;
     } catch (error) {
       await port.close();

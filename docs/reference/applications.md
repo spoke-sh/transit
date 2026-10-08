@@ -119,8 +119,9 @@ claiming a terminal caller rejection.
 - [Compiler package](../../packages/zig/transit-station-app/README.md): real parse/format/schema/module commands and native APIs.
 - [Browser package](../../packages/ts/transit-application/README.md): generated runtime validation, scoped signing and proposal recovery.
 
-The application declaration compiler handles application definitions. State
-declarations have their own offline compiler, and compatible empty Tables publish
-through explicit catalog callers. Connector DDL and SQL privileges remain
-grammar-only; the query console does not execute administration. See the
+The application declaration compiler handles application definitions. KV and
+Document declarations have an offline compiler. Table CREATE/ALTER/DROP uses
+shared typed DDL compilation and publishes through authorized catalog callers,
+including a console with a configured catalog. Connector DDL and SQL privileges
+remain grammar-only. See the
 [SQL grammar surface](sql/grammar-surface.md) for implemented and planned forms.

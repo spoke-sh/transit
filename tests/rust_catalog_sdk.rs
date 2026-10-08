@@ -1,191 +1,289 @@
+//! Installed Rust general Table lifecycle, owned values and exact saved recovery.
 use serde_json::{Value, json};
+use std::os::unix::fs::OpenOptionsExt;
 use std::{
     fs,
     io::{self, BufRead, Write},
+    path::Path,
+    time::{Duration, Instant},
 };
-use transit_client::{ClientConfig, Credential, ErrorKind, ProcessRef, ResourceRef, Result};
-use transit_station_sdk::{CellType, catalog as m};
+use transit_client::{ClientConfig, Credential, ProcessRef, ResourceRef, Result};
+use transit_station_sdk::{catalog as m, logical as l};
 fn text<'a>(v: &'a Value, key: &str) -> &'a str {
     v[key].as_str().unwrap()
 }
 fn number(v: &Value, key: &str) -> u64 {
     v[key].as_u64().unwrap()
 }
-fn wide(v: &Value, key: &str) -> u64 {
-    text(v, key).parse().unwrap()
-}
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|v| format!("{v:02x}")).collect()
-}
-fn tag(value: impl std::fmt::Debug) -> String {
-    let mut result = String::new();
-    for (i, c) in format!("{value:?}").chars().enumerate() {
-        if i > 0 && c.is_uppercase() {
-            result.push('_');
-        }
-        result.extend(c.to_lowercase());
-    }
-    result
-}
-fn scope(v: &Value) -> Result<m::Scope> {
-    m::Scope::new(
-        ResourceRef::new(number(v, "realm"), number(v, "resource"))?,
-        wide(v, "catalog"),
-    )
-}
-fn scope_json(v: m::Scope) -> Value {
-    json!({"realm":v.resource().realm(),"resource":v.resource().resource(),"catalog":v.catalog().to_string()})
-}
-fn configuration(v: &Value) -> Result<m::Configuration> {
-    let s = scope(&v["scope"])?;
-    m::Configuration::new(
-        s,
-        ProcessRef::new(s.resource().realm(), number(v, "owner"))?,
-        number(v, "administrator"),
-    )
-}
-fn configuration_json(v: &m::Configuration) -> Value {
-    json!({"scope":scope_json(v.scope()),"owner":v.owner().pid(),"administrator":v.administrator()})
-}
-fn policy(v: &Value) -> Result<m::Policy> {
-    m::Policy::new(
-        scope(&v["scope"])?,
-        number(v, "principal"),
-        wide(v, "revision"),
-        v["inspect"].as_bool().unwrap(),
-        v["create"].as_bool().unwrap(),
-    )
-}
-fn policy_json(v: &m::Policy) -> Value {
-    json!({"scope":scope_json(v.scope()),"principal":v.principal(),"revision":v.revision().to_string(),"inspect":v.inspect(),"create":v.create()})
-}
-fn request(v: &Value) -> Result<m::CreateTable> {
-    let schema = &v["schema"];
-    let kind = match text(schema, "value_type") {
-        "int64" => CellType::Int64,
-        "boolean" => CellType::Boolean,
-        "utf8" => CellType::Utf8,
-        "binary" => CellType::Binary,
-        _ => panic!("Invalid fixture type"),
-    };
-    let names = schema["names"].as_array().unwrap();
-    m::CreateTable::new(
-        scope(&v["scope"])?,
-        wide(v, "operation"),
-        wide(v, "object"),
-        number(v, "table").try_into().unwrap(),
-        text(v, "name").into(),
-        m::Schema::new(
-            [
-                names[0].as_str().unwrap().into(),
-                names[1].as_str().unwrap().into(),
-            ],
-            kind,
+fn connect(config: &Value) -> Result<m::Client> {
+    let c = &config["connection"];
+    let s = &c["scope"];
+    let realm = number(s, "realm");
+    m::Client::open(
+        ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
+        Credential::new(realm, number(c, "principal"), text(config, "seed_file"))?,
+        m::Connection::new(
+            ProcessRef::new(realm, number(c, "owner"))?,
+            m::Scope::new(
+                ResourceRef::new(realm, number(s, "resource"))?,
+                text(s, "catalog").parse().unwrap(),
+            )?,
         )?,
     )
 }
-fn request_json(v: &m::CreateTable) -> Value {
-    json!({"scope":scope_json(v.scope()),"operation":v.operation().to_string(),"object":v.object().to_string(),"table":v.table(),"name":v.name(),"schema":{"names":v.schema().names(),"value_type":tag(v.schema().value_type())}})
+fn persist(path: &Path, data: &[u8]) {
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(path)
+        .unwrap();
+    file.write_all(data).unwrap();
+    file.sync_all().unwrap();
 }
-fn definition_json(v: m::Definition) -> Value {
-    json!({"scope":scope_json(v.scope),"object":v.object.to_string(),"revision":v.revision.to_string(),"name":v.name,
-        "source":{"table":{"id":v.source.table,"schema":{"names":v.source.schema.names(),"value_type":tag(v.source.schema.value_type())}}},
-        "principal":v.principal,"operation":v.operation.to_string(),"input":v.input})
+fn finish(client: &mut m::Client, compiled: m::Compiled, path: &Path) -> Result<m::Outcome> {
+    persist(
+        &path.join("intent.json"),
+        &serde_json::to_vec(
+            &json!({"definition":compiled.saved.definition(),"bytes":compiled.saved.bytes()}),
+        )
+        .unwrap(),
+    );
+    let reference = compiled.intent.reference;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        assert!(
+            Instant::now() < deadline,
+            "Table operation exceeded its budget"
+        );
+        match client.next(&reference)? {
+            m::Next::Terminal(outcome) => return Ok(outcome),
+            m::Next::Running => continue,
+            m::Next::UploadCancelled => panic!("Unexpected upload cancellation"),
+            m::Next::Send(prepared) => {
+                persist(&path.join("step.json"), prepared.data().as_bytes());
+                let position = client.submit(&prepared)?.position.get();
+                persist(&path.join("receipt.json"), position.to_string().as_bytes());
+                loop {
+                    assert!(
+                        Instant::now() < deadline,
+                        "Table progress exceeded its budget"
+                    );
+                    match client.progress(&reference, &prepared, position, true)? {
+                        m::Progress::Pending => continue,
+                        m::Progress::Processed {
+                            disposition,
+                            outcome,
+                            ..
+                        } => {
+                            assert!(disposition.is_none(), "{disposition:?}");
+                            if let Some(outcome) = outcome {
+                                if outcome.terminal {
+                                    return Ok(outcome);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
-fn cursor_json(v: &m::Cursor) -> Value {
-    json!({"definition":v.definition(),"scope":scope_json(v.scope()),"resource_revision":v.resource_revision(),"after":v.after()})
+fn atom(value: l::Atom) -> l::Cell {
+    l::Cell::Value(l::CellValue::Atom(value))
 }
-fn call(client: &mut m::Client, action: &Value) -> Result<Value> {
-    Ok(if action.get("capabilities").is_some() {
-        let v = client.capabilities()?;
-        json!({"capabilities":{"version":v.version,"definition":v.definition,"initialize":v.initialize,"create_table":v.create_table,"conditional_policy":v.conditional_policy,"current_metadata":v.current_metadata,"max_saved_bytes":v.max_saved_bytes,"table_columns":v.table_columns}})
-    } else if action.get("describe").is_some() {
-        let v = client.describe()?;
-        json!({"description":{"configuration":configuration_json(&v.configuration),"policy":policy_json(&v.policy),"resource_revision":v.resource_revision}})
-    } else if let Some(v) = action.get("lookup") {
-        json!({"definition":client.lookup(v.as_str().unwrap())?.map(definition_json)})
-    } else if let Some(v) = action.get("definition") {
-        json!({"definition":client.definition(wide(v,"object"),wide(v,"revision"))?.map(definition_json)})
-    } else if let Some(v) = action.get("list") {
-        let cursor = if v.is_null() {
-            None
-        } else {
-            Some(m::Cursor::new(
-                text(v, "definition").into(),
-                scope(&v["scope"])?,
-                number(v, "resource_revision"),
-                text(v, "after").into(),
-            )?)
-        };
-        let v = client.list(cursor.as_ref())?;
-        let mut entries: Vec<Value> = v.entries.into_iter().map(definition_json).collect();
-        entries.resize(8, Value::Null);
-        json!({"page":{"resource_revision":v.resource_revision,"entries":entries,"next":v.next.as_ref().map(cursor_json)}})
-    } else if let Some(v) = action.get("compile") {
-        let v = client.compile_sql(
-            text(v, "sql"),
-            wide(v, "operation"),
-            wide(v, "object"),
-            number(v, "table").try_into().unwrap(),
-        )?;
-        json!({"compiled":{"request":request_json(v.request()),"canonical":hex(v.canonical())}})
-    } else if let Some(v) = action.get("prepare_initialize") {
-        json!({"prepared":client.prepare_initialize(&configuration(v)?)?.data()})
-    } else if let Some(v) = action.get("prepare_create") {
-        json!({"prepared":client.prepare_create(&request(v)?)?.data()})
-    } else if let Some(v) = action.get("prepare_policy") {
-        json!({"prepared":client.prepare_policy(&m::PolicyChange::new(wide(v,"expected_revision"),policy(&v["policy"])?))?.data()})
-    } else if let Some(v) = action.get("submit") {
-        let prepared = m::Prepared::from_data(v.as_str().unwrap().into())?;
-        let original = prepared.data().to_owned();
-        let result = client.submit(&prepared);
-        assert_eq!(prepared.data(), original);
-        json!({"receipt":{"position":result?.position.get()}})
-    } else if let Some(v) = action.get("observe") {
-        json!({"observation":tag(client.observe(&m::Prepared::from_data(text(v,"prepared").into())?,number(v,"input"))?)})
-    } else if let Some(v) = action.get("input_disposition") {
-        json!({"disposition":client.input_disposition(&m::Prepared::from_data(text(v,"prepared").into())?,number(v,"input"))?.map(|v|json!({"scope":scope_json(v.scope),"origin":tag(v.origin),"principal":v.principal,"input":v.input,"payload":hex(&v.payload),"outcome":tag(v.outcome),"diagnostic":v.diagnostic}))})
-    } else if let Some(v) = action.get("status") {
-        json!({"status":client.status(&request(v)?)?.map(|v|json!({"request":request_json(&v.request),"principal":v.principal,"input":v.input,"outcome":tag(v.outcome),"diagnostic":v.diagnostic}))})
-    } else {
-        panic!("Unsupported catalog action")
-    })
+fn assignment(column: u64, value: l::Cell) -> m::Assignment {
+    m::Assignment {
+        column,
+        value: m::AssignmentValue::Cell(value),
+    }
+}
+fn scenario(mut client: m::Client, config: &Value, path: &Path, index: u64) -> Result<Value> {
+    let base = 1100 + index * 100;
+    let original_object = 12001 + index * 10;
+    let name = format!("sdk_people_{index}");
+    let ids = |offset| m::Identity::new(base + offset, base + offset + 100000).unwrap();
+    let description = client.describe()?;
+    assert_eq!(description.configuration.scope, client.connection().scope());
+    assert_eq!(
+        description.policy.principal,
+        number(&config["connection"], "principal")
+    );
+    let compiled=client.compile_sql(&format!("CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))"),ids(0),Some(original_object))?;
+    assert_eq!(
+        finish(&mut client, compiled, path)?.phase,
+        m::Phase::Applied
+    );
+    let original = client.lookup(&name)?.unwrap();
+    assert_eq!(original.schema.columns.len(), 3);
+    assert!(matches!(
+        original.schema.columns[1].datatype,
+        l::Descriptor::Structure(_)
+    ));
+    let payload = l::Cell::Value(l::CellValue::Structure(vec![
+        atom(l::Atom::Binary(vec![0, 128, 255])),
+        atom(l::Atom::Utf8("東京".into())),
+    ]));
+    let amount = atom(l::Atom::Decimal(123456789012345678901234567890));
+    let insert = client.prepare(
+        &name,
+        ids(1),
+        &m::Operation::Mutate {
+            basis: original.metadata.basis(),
+            mutation: m::Mutation::Insert {
+                rows: vec![vec![
+                    assignment(3, amount.clone()),
+                    assignment(1, atom(l::Atom::Signed(1))),
+                    assignment(2, payload),
+                ]],
+            },
+        },
+    )?;
+    let saved = insert.saved.clone();
+    let applied = finish(&mut client, insert, path)?;
+    assert_eq!(
+        applied.counts,
+        Some(m::Counts {
+            matched: 1,
+            changed: 1
+        })
+    );
+    let predicate = vec![m::Predicate::Compare {
+        column: 1,
+        op: m::CompareOperator::Eq,
+        value: l::Atom::Signed(1),
+    }];
+    let update = client.prepare(
+        &name,
+        ids(2),
+        &m::Operation::Mutate {
+            basis: original.metadata.basis(),
+            mutation: m::Mutation::Update {
+                assignments: vec![assignment(3, amount)],
+                predicate: Some(predicate.clone()),
+            },
+        },
+    )?;
+    assert_eq!(
+        finish(&mut client, update, path)?.counts,
+        Some(m::Counts {
+            matched: 1,
+            changed: 0
+        })
+    );
+    let altered = client.prepare(
+        &name,
+        ids(3),
+        &m::Operation::Alter {
+            basis: original.metadata.basis(),
+            change: m::Change::Add {
+                name: "enabled".into(),
+                datatype: l::Descriptor::Scalar(l::ScalarType::Boolean),
+                nullable: false,
+                default: Some(atom(l::Atom::Boolean(true))),
+                max_characters: None,
+            },
+        },
+    )?;
+    assert_eq!(finish(&mut client, altered, path)?.phase, m::Phase::Applied);
+    assert!(
+        client
+            .prepare(
+                &name,
+                ids(4),
+                &m::Operation::Drop {
+                    basis: Some(original.metadata.basis()),
+                    if_exists: false
+                }
+            )
+            .is_err()
+    );
+    let current = client.lookup(&name)?.unwrap();
+    let deleted = client.prepare(
+        &name,
+        ids(5),
+        &m::Operation::Mutate {
+            basis: current.metadata.basis(),
+            mutation: m::Mutation::Delete {
+                predicate: Some(predicate),
+            },
+        },
+    )?;
+    assert_eq!(
+        finish(&mut client, deleted, path)?.counts,
+        Some(m::Counts {
+            matched: 1,
+            changed: 1
+        })
+    );
+    let dropped = client.prepare(
+        &name,
+        ids(6),
+        &m::Operation::Drop {
+            basis: Some(current.metadata.basis()),
+            if_exists: false,
+        },
+    )?;
+    assert_eq!(finish(&mut client, dropped, path)?.phase, m::Phase::Applied);
+    let replacement = client.compile_sql(
+        &format!("CREATE TABLE {name} (replacement TEXT)"),
+        ids(7),
+        Some(original_object + 1),
+    )?;
+    assert_eq!(
+        finish(&mut client, replacement, path)?.phase,
+        m::Phase::Applied
+    );
+    client.close()?;
+    let mut client = connect(config)?;
+    let loaded = client.load(&m::SavedIntent::new(
+        saved.definition().into(),
+        saved.bytes().to_vec(),
+    )?)?;
+    assert_eq!(loaded.object, original_object);
+    assert_eq!(client.status(&loaded.reference)?.outcome, Some(applied));
+    assert_eq!(
+        client.lookup(&name)?.unwrap().metadata.object,
+        original_object + 1
+    );
+    let historical = client
+        .definition(original_object, original.metadata.revision)?
+        .unwrap();
+    assert_eq!(historical.metadata, original.metadata);
+    assert_eq!(historical.schema, original.schema);
+    assert!(client.definition(original_object, 999)?.is_none());
+    assert!(!client.list(None)?.entries.is_empty());
+    client.close()?;
+    Ok(
+        json!({"profile":"installed-rust-general-table","original_object":original_object.to_string(),"replacement_object":(original_object+1).to_string(),"counts":{"matched":"1","changed":"1"}}),
+    )
 }
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let config: Value = serde_json::from_slice(&fs::read(std::env::args().nth(1).unwrap())?)?;
-    let c = &config["connection"];
-    let s = scope(&c["scope"])?;
-    let connection = m::Connection::new(
-        ProcessRef::new(s.resource().realm(), number(c, "owner"))?,
-        s,
-    )?;
-    let mut client = m::Client::open(
-        ClientConfig::growing(text(&config, "url"))?.with_timeout(10000)?,
-        Credential::new(
-            s.resource().realm(),
-            number(c, "principal"),
-            text(&config, "seed_file"),
-        )?,
-        connection,
-    )?;
-    println!("{}", json!({"ready":true}));
+    let path = std::env::args().nth(1).unwrap();
+    let path = Path::new(&path);
+    let config: Value = serde_json::from_slice(&fs::read(path)?)?;
+    let mut client = Some(connect(&config)?);
+    println!("{{\"ready\":true}}");
     io::stdout().flush()?;
     for line in io::stdin().lock().lines() {
         let action: Value = serde_json::from_str(&line?)?;
         if action.get("close").is_some() {
             break;
         }
-        let output = match call(&mut client, &action) {
-            Ok(value) => json!({"status":0,"value":value}),
-            Err(error) => {
-                json!({"status":error.status.unwrap_or(if error.kind==ErrorKind::UnknownOutcome {6} else {1}),"value":{"err":error.code,"diagnostic":error.diagnostic,"diagnostic_invalid":error.diagnostic_invalid}})
-            }
-        };
-        println!("{output}");
+        let value = scenario(
+            client.take().unwrap(),
+            &config,
+            path.parent().unwrap(),
+            number(&action["scenario"], "index"),
+        )?;
+        println!("{}", json!({"status":0,"value":value}));
         io::stdout().flush()?;
     }
-    client.close()?;
-    println!("{}", json!({"closed":true}));
-    io::stdout().flush()?;
+    if let Some(client) = client {
+        client.close()?;
+    }
+    println!("{{\"closed\":true}}");
     Ok(())
 }

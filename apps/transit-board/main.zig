@@ -8,6 +8,7 @@ const client = @import("transit_client");
 const api = @import("transit_board_api");
 const assets = @import("assets");
 const growing = @import("Growing.zig");
+const query_api = @import("transit_query");
 const i = client.protocol.Growth.Inspection;
 const Config = struct {
     upstream: []const u8,
@@ -172,7 +173,7 @@ const Server = struct {
         if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
-        const parsed = std.json.parseFromSlice(api.UnifiedQueryRequest, arena.allocator(), body, .{}) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const parsed = query_api.Values.parse(api.UnifiedQueryRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
         var upstream = client.Client.init(arena.allocator(), self.io, self.config.upstream);
         defer upstream.deinit();
         upstream.timeout_ms = self.config.upstream_timeout_ms;
@@ -206,7 +207,7 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .native_v1, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 49152, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
+            return self.json(req, .ok, api.Capabilities{ .profile = .native_v1, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = query_api.Workspace.max_request_bytes, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
         }
         if (participation) |selection| {
             const result = growing.participation(&upstream, self.config.realm, self.config.principal, key, selection) catch |err| return self.queryFailure(req, &upstream, err);
@@ -266,7 +267,7 @@ const Server = struct {
             if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (query_route) 49152 else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
@@ -636,7 +637,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len != 2) return error.ExpectedBoardConfig;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(16384));
     defer init.gpa.free(bytes);
-    var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
+    var parsed = try query_api.Values.parse(Config, init.gpa, bytes);
     defer parsed.deinit();
     const config = parsed.value;
     if (config.principal == 0 or config.principal > client.protocol.max_counter or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;

@@ -16,7 +16,7 @@ A domain separates publication budgets, descriptors, chunks and cursors belongin
 to independently composed framework owners. It is part of immutable identity,
 not authorization. Domain zero is invalid. Domains are application=1,
 query request=2, query result=3, Table mutation=4, Document=5, exchange capture=6,
-application definition=7. Values 8–65535 are
+application definition=7, typed Table records=8, Table catalog metadata=9. Values 10–65535 are
 reserved; application-defined domains use values from 65536 through uint32 max.
 The generic storage primitive validates the nonzero domain without interpreting
 its contents. An owning typed interface checks its expected domain.

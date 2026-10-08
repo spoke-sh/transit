@@ -67,7 +67,7 @@ fn mutations(turn: Turn) usize {
     return count;
 }
 test "independent migration layouts bind full-width identities and exact step arguments" {
-    const F = struct { failure: root.MigrationFailure.Record, failure_hex: p.Value, witness: root.MigrationFailure.Witness, witness_hex: p.Value, version: u8, plan: M.Plan, plan_hex: p.Value, step: M.Step, step_digest: [32]u8, progress: M.Progress, progress_hex: p.Value, receipt: M.Receipt, receipt_hex: p.Value, key_hex: p.Value };
+    const F = struct { failure: root.MigrationFailure.Record, failure_hex: p.Value, witness: root.MigrationFailure.Witness, witness_hex: p.Value, version: u8, plan: M.Plan, plan_hex: p.Value, step: M.Step, step_digest: [32]u8, pending: M.Pending, pending_hex: p.Value, progress: M.Progress, progress_hex: p.Value, receipt: M.Receipt, receipt_hex: p.Value, key_hex: p.Value };
     const fixture = try p.Json.parseFromSlice(F, t.allocator, @embedFile("fixtures/migration-v1.json"));
     defer fixture.deinit();
     const value = fixture.value;
@@ -81,7 +81,7 @@ test "independent migration layouts bind full-width identities and exact step ar
     turn.delivery.input.position = value.failure.input;
     try t.expectEqualDeep(value.failure, try root.MigrationFailure.capture(&turn, "MigrationStepConflict", value.failure.plan, value.failure.ordinal, 4));
     try (try root.MigrationFailure.project(9, 49, 7, value.failure, value.witness, root.MigrationFailure.classification("MigrationStepConflict").?)).validate();
-    inline for (.{ .{ "plan", "plan_hex", 'A', M.Plan }, .{ "progress", "progress_hex", 'G', M.Progress }, .{ "receipt", "receipt_hex", 'S', M.Receipt }, .{ "failure", "failure_hex", 'e', root.MigrationFailure.Record }, .{ "witness", "witness_hex", 'f', root.MigrationFailure.Witness } }) |item| {
+    inline for (.{ .{ "plan", "plan_hex", 'A', M.Plan }, .{ "pending", "pending_hex", 'T', M.Pending }, .{ "progress", "progress_hex", 'G', M.Progress }, .{ "receipt", "receipt_hex", 'S', M.Receipt }, .{ "failure", "failure_hex", 'e', root.MigrationFailure.Record }, .{ "witness", "witness_hex", 'f', root.MigrationFailure.Witness } }) |item| {
         const encoded = @field(value, item[1]);
         try t.expect(encoded.eql(try root.Records.encode(item[2], @field(value, item[0]))));
         try t.expectEqualDeep(@field(value, item[0]), try root.Records.decode(item[3], item[2], encoded));
@@ -317,4 +317,216 @@ test "migration configuration and transform faults remain unresolved without cha
     } = .{};
     try t.expectError(error.MigrationCursorTooLarge, owner().apply(&input, .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 }, &bad_transform));
     try t.expectEqualDeep(original, input.decision);
+}
+
+const StagedDomain = struct {
+    calls: usize = 0,
+    terminal: bool = false,
+    activate: bool = false,
+    fail: bool = false,
+    overflow: bool = false,
+    original: u64 = 0,
+    pub fn stage(self: *@This(), turn: *Turn, _: M.Plan, previous: M.Progress, pending: M.Pending) !?M.Transition {
+        self.calls += 1;
+        if (!previous.cursor.eql(pending.step.arguments)) return error.StaleDomainCursor;
+        try t.expectEqual(self.original, pending.input);
+        const count: usize = if (!self.terminal or self.overflow) 4 else if (self.activate) 1 else 2;
+        for (0..count) |i| {
+            const key: [2]u8 = .{ 's', @intCast(i) };
+            try turn.write(try p.Value.init(&key), try p.Value.init(if (self.terminal) "published" else "staged"));
+        }
+        if (self.fail) return error.DomainFailure;
+        return if (!self.terminal) null else if (self.activate) .{ .activate = {} } else .{ .advance = try p.Value.init("cursor") };
+    }
+};
+
+test "staged migration freezes admission before domain work and completes atomically" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    const step: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var domain: StagedDomain = .{};
+    var admission = try store.turn(44);
+    const admission_before = admission.decision;
+    const input = admission.delivery.input.position;
+    domain.original = input;
+    try t.expectEqual(@as(?M.Receipt, null), try owner().stage(&admission, step, &domain));
+    try t.expectEqual(1, mutations(admission));
+    try t.expectEqual(0, domain.calls);
+    const admission_decision = admission.decision;
+    admission.decision = admission_before;
+    _ = try owner().stage(&admission, step, &domain);
+    try t.expectEqualDeep(admission_decision, admission.decision);
+    try store.commit(&admission);
+    var read = try store.turn(44);
+    try t.expectEqualDeep(M.Pending{ .step = step, .digest = try owner().stepDigest((try owner().plan(&read, step.plan)).?, step), .input = input }, (try owner().pending(&read, step)).?);
+    try t.expectEqual(@as(?M.Receipt, null), try owner().receipt(&read, step));
+    var changed = step;
+    changed.arguments = try p.Value.init("changed");
+    try t.expectError(error.MigrationStepConflict, owner().stage(&read, changed, &domain));
+    try t.expectEqual(0, domain.calls);
+    for (0..3) |_| {
+        var staging = try store.turn(44);
+        const staging_before = staging.decision;
+        _ = try owner().stage(&staging, step, &domain);
+        try t.expectEqual(4, mutations(staging));
+        const decision = staging.decision;
+        staging.decision = staging_before;
+        _ = try owner().stage(&staging, step, &domain);
+        try t.expectEqualDeep(decision, staging.decision);
+        try store.commit(&staging);
+        try t.expectEqual(1, (try owner().progress(&read, step.plan)).next.value);
+        try t.expectEqual(@as(?M.Receipt, null), try owner().receipt(&read, step));
+    }
+    domain.terminal = true;
+    domain.overflow = true;
+    var completion = try store.turn(44);
+    const completion_before = completion.decision;
+    try t.expectError(error.MutationBudgetExceeded, owner().stage(&completion, step, &domain));
+    try t.expectEqual(0, mutations(completion));
+    domain.overflow = false;
+    domain.fail = true;
+    try t.expectError(error.DomainFailure, owner().stage(&completion, step, &domain));
+    try t.expectEqual(0, mutations(completion));
+    domain.fail = false;
+    const result = (try owner().stage(&completion, step, &domain)).?;
+    try t.expectEqual(input, result.input);
+    try t.expectEqual(completion.delivery.input.position, result.progress.input);
+    try t.expectEqual(4, mutations(completion));
+    const decision = completion.decision;
+    completion.decision = completion_before;
+    try t.expectEqualDeep(result, (try owner().stage(&completion, step, &domain)).?);
+    try t.expectEqualDeep(decision, completion.decision);
+    try store.commit(&completion);
+    const calls = domain.calls;
+    try t.expectEqualDeep(result, (try owner().stage(&read, step, &domain)).?);
+    try t.expectEqual(@as(?M.Pending, null), try owner().pending(&read, step));
+    try t.expectEqual(calls, domain.calls);
+    try t.expectEqual(0, mutations(read));
+    const finish: M.Step = .{ .plan = step.plan, .ordinal = .{ .value = 2 }, .operation = 2, .arguments = result.progress.cursor };
+    var activate = try store.turn(44);
+    domain.original = activate.delivery.input.position;
+    try t.expectEqual(@as(?M.Receipt, null), try owner().stage(&activate, finish, &domain));
+    try store.commit(&activate);
+    activate = try store.turn(44);
+    domain.activate = true;
+    const activated = (try owner().stage(&activate, finish, &domain)).?;
+    try t.expectEqual(M.Phase.applied, activated.progress.phase);
+    try t.expectEqual(4, mutations(activate));
+    try store.commit(&activate);
+    try t.expectEqual(2, (try owner().head(&read)).epoch.value);
+}
+
+test "staged migration checks current authority and retains abandoned admission" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    const step: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var domain: StagedDomain = .{};
+    var admit = try store.turn(44);
+    domain.original = admit.delivery.input.position;
+    _ = try owner().stage(&admit, step, &domain);
+    try store.commit(&admit);
+    var failed = try store.turn(45);
+    try t.expectError(error.MigrationDenied, owner().stage(&failed, step, &domain));
+    var revoke = try store.turn(33);
+    try owner().setPolicy(&revoke, 44, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .migrate = false });
+    try store.commit(&revoke);
+    failed = try store.turn(44);
+    try t.expectError(error.MigrationDenied, owner().stage(&failed, step, &domain));
+    try t.expectEqual(0, domain.calls);
+    var restore = try store.turn(33);
+    try owner().setPolicy(&restore, 44, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .migrate = true });
+    try store.commit(&restore);
+    for (1..7) |offset| {
+        failed = try store.turn(44);
+        try failed.write(try p.Value.init("prior"), try p.Value.init("retained"));
+        const before = failed.decision;
+        store.fail_at = store.reads + offset;
+        try t.expectError(error.Unavailable, owner().stage(&failed, step, &domain));
+        try t.expectEqualDeep(before, failed.decision);
+        store.fail_at = null;
+    }
+    try t.expectEqual(0, domain.calls);
+    var abandon = try store.turn(44);
+    _ = try owner().abandon(&abandon, step.plan);
+    try store.commit(&abandon);
+    failed = try store.turn(44);
+    try t.expectError(error.MigrationNotActive, owner().stage(&failed, step, &domain));
+    try t.expect((try owner().pending(&failed, step)) != null);
+    try t.expectEqual(@as(?M.Receipt, null), try owner().receipt(&failed, step));
+    try t.expectEqual(0, domain.calls);
+}
+
+test "only owner self messages continue an admitted migration under current policy" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    const step: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var domain: StagedDomain = .{};
+    var continuation = try store.turn(44);
+    try t.expectError(error.MigrationDenied, owner().continueStage(&continuation, step, &domain));
+    continuation.delivery.input.origin = .{ .process = .{ .pid = 99, .turn = 1, .output = 1 } };
+    try t.expectError(error.MigrationDenied, owner().continueStage(&continuation, step, &domain));
+    continuation.delivery.input.origin.process.pid = continuation.delivery.pid;
+    try t.expectError(error.MigrationDenied, owner().continueStage(&continuation, step, &domain));
+    var admission = try store.turn(44);
+    domain.original = admission.delivery.input.position;
+    _ = try owner().stage(&admission, step, &domain);
+    try store.commit(&admission);
+    _ = try owner().continueStage(&continuation, step, &domain);
+    try t.expectEqual(4, mutations(continuation));
+    try store.commit(&continuation);
+    var revoke = try store.turn(33);
+    try owner().setPolicy(&revoke, 44, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .migrate = false });
+    try store.commit(&revoke);
+    const before = continuation.decision;
+    try t.expectError(error.MigrationDenied, owner().continueStage(&continuation, step, &domain));
+    try t.expectEqualDeep(before, continuation.decision);
+    try t.expectEqual(1, domain.calls);
+}
+
+test "corrupt staged migration evidence stays unresolved before caller attribution" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store);
+    var begin = try store.turn(44);
+    _ = try owner().begin(&begin, proposal(7));
+    try store.commit(&begin);
+    const step: M.Step = .{ .plan = .{ .value = 7 }, .ordinal = .{ .value = 1 }, .operation = 1 };
+    var domain: StagedDomain = .{};
+    var admit = try store.turn(44);
+    _ = try owner().stage(&admit, step, &domain);
+    try store.commit(&admit);
+    var read = try store.turn(44);
+    const original = (try owner().pending(&read, step)).?;
+    const address = M.key(9, 'S', 7, 1);
+    for (0..5) |variant| {
+        var corrupt = original;
+        switch (variant) {
+            0 => corrupt.input = 0,
+            1 => corrupt.step.ordinal.value = 2,
+            2 => corrupt.digest[0] ^= 1,
+            3 => corrupt.step.operation = 0,
+            4 => corrupt.step.arguments = try p.Value.init("corrupt"),
+            else => unreachable,
+        }
+        try store.entries.put(address, try root.Records.encode('T', corrupt));
+        var failed = try store.turn(44);
+        try failed.write(try p.Value.init("prior"), try p.Value.init("retained"));
+        const before = failed.decision;
+        try t.expectError(error.InvalidApplicationRecord, owner().stage(&failed, step, &domain));
+        try t.expectEqualDeep(before, failed.decision);
+        try t.expectEqual(0, domain.calls);
+    }
+    try t.expect(!root.MigrationFailure.expected(error.InvalidApplicationRecord));
 }

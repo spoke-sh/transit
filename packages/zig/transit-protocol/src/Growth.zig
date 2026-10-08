@@ -5,8 +5,34 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.compact-pages-8x32.2026-10-04.
-pub const Definition = enum { @"57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82" };
+/// SHA-256 of transit.native.v1.general-typed-tables.schema-lifecycle.query-failures.compact-index.catalog-dml.2026-10-07.
+pub const Definition = enum {
+    b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032,
+
+    fn spelling(bytes: []const u8) !Definition {
+        if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
+        return current_definition;
+    }
+    // Generic JSON enums accept numeric strings as ordinal tags. A contract
+    // fingerprint must match its exact spelling, never enum ordinal zero.
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !Definition {
+        const token = try source.nextAllocMax(allocator, .alloc_if_needed, options.max_value_len.?);
+        defer switch (token) {
+            .allocated_string, .allocated_number => |bytes| allocator.free(bytes),
+            else => {},
+        };
+        return switch (token) {
+            .string, .allocated_string => |bytes| spelling(bytes),
+            else => error.InvalidEnumTag,
+        };
+    }
+    pub fn jsonParseFromValue(_: std.mem.Allocator, value: std.json.Value, _: std.json.ParseOptions) !Definition {
+        return switch (value) {
+            .string => |bytes| spelling(bytes),
+            else => error.InvalidEnumTag,
+        };
+    }
+};
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -114,7 +140,20 @@ pub const Command = union(enum) {
 };
 pub const Collection = struct { pid: Id, id: Id, kind: enum { output, effect, payload, resource, process } };
 pub const Request = struct { version: u32 = version, definition: Definition = current_definition, realm: Id, principal: Id, sequence: u64, command: Command };
-pub const SignedRequest = struct { request: Request, signature: [64]u8 };
+pub const SignedRequest = struct {
+    request: Request,
+    signature: [64]u8,
+    pub fn jsonStringify(self: @This(), out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try @import("SignedEnvelope.zig").write(self, out);
+    }
+    pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "request");
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").parse(@This(), "request", allocator, source, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, value: std.json.Value, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").fromValue(@This(), "request", allocator, value, options);
+    }
+};
 pub const Origin = union(enum) {
     external: struct { principal: Id, policy_revision: u64 },
     process: struct { pid: Id, turn: Id, output: Id },
@@ -248,7 +287,20 @@ pub const Query = struct {
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
-pub const SignedQuery = struct { query: Query, signature: [64]u8 };
+pub const SignedQuery = struct {
+    query: Query,
+    signature: [64]u8,
+    pub fn jsonStringify(self: @This(), out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try @import("SignedEnvelope.zig").write(self, out);
+    }
+    pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "query");
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").parse(@This(), "query", allocator, source, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, value: std.json.Value, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").fromValue(@This(), "query", allocator, value, options);
+    }
+};
 pub fn Batch(comptime T: type, comptime Cursor: type) type {
     return struct { entries: [page_size]?T = @splat(null), next: ?Cursor = null };
 }
@@ -584,6 +636,106 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
     }
 }
 
+test "contract definitions reject numeric enum aliases in both JSON decoders" {
+    const t = std.testing;
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "null", "false", "[]", "{}" }) |bytes| {
+        try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
+        const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+        defer value.deinit();
+        try t.expectError(error.InvalidEnumTag, std.json.parseFromValue(Definition, t.allocator, value.value, .{}));
+    }
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, current_definition, .{});
+    defer t.allocator.free(bytes);
+    const typed = try std.json.parseFromSlice(Definition, t.allocator, bytes, .{});
+    defer typed.deinit();
+    try t.expectEqual(current_definition, typed.value);
+    const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer value.deinit();
+    const decoded = try std.json.parseFromValue(Definition, t.allocator, value.value, .{});
+    defer decoded.deinit();
+    try t.expectEqual(current_definition, decoded.value);
+}
+
+test "signed wire envelopes require definitions and preserve strict JSON shapes" {
+    const t = std.testing;
+    inline for (.{
+        .{ SignedRequest, "request", SignedRequest{ .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try .init("x") } } }, .signature = @splat(0) } },
+        .{ SignedRequest, "request", SignedRequest{ .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .runtime_intent = .{ .pid = 3, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } } }, .signature = @splat(0) } },
+        .{ SignedQuery, "query", SignedQuery{ .query = .{ .realm = 42, .principal = 0, .kind = .{ .open_snapshot = .{ .resource = 7, .nonce = @splat(105) } } }, .signature = @splat(0) } },
+    }) |case| {
+        const T = case[0];
+        // Real native senders and saved-work owners use ordinary std.json.
+        // UTF-8-compatible byte arrays must still survive the strict decoder.
+        const bytes = try std.json.Stringify.valueAlloc(t.allocator, case[2], .{});
+        defer t.allocator.free(bytes);
+        const parsed = try std.json.parseFromSlice(T, t.allocator, bytes, .{});
+        defer parsed.deinit();
+        try t.expectEqualDeep(case[2], parsed.value);
+        const wrapped = try std.json.Stringify.valueAlloc(t.allocator, .{ .saved = case[2] }, .{});
+        defer t.allocator.free(wrapped);
+        const recovered = try std.json.parseFromSlice(struct { saved: T }, t.allocator, wrapped, .{});
+        defer recovered.deinit();
+        try t.expectEqualDeep(case[2], recovered.value.saved);
+        var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+        defer tree.deinit();
+        const arena = tree.arena.allocator();
+        const body = tree.value.object.getPtr(case[1]).?;
+        const definition = body.object.get("definition").?;
+        try t.expect(body.object.swapRemove("definition"));
+        try t.expectError(error.MissingField, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        const missing = try std.json.Stringify.valueAlloc(t.allocator, tree.value, .{});
+        defer t.allocator.free(missing);
+        try t.expectError(error.MissingField, std.json.parseFromSlice(T, t.allocator, missing, .{}));
+        try t.expectError(error.MissingField, p.Json.parseFromSlice(T, t.allocator, missing));
+        const saved = try std.fmt.allocPrint(t.allocator, "{{\"signed\":{s}}}", .{missing});
+        defer t.allocator.free(saved);
+        try t.expectError(error.MissingField, std.json.parseFromSlice(struct { signed: T }, t.allocator, saved, .{}));
+        for ([_][]const u8{ "0", "previous-v1-definition" }) |foreign| {
+            try body.object.put(arena, "definition", .{ .string = foreign });
+            try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        }
+        try body.object.put(arena, "definition", definition);
+        const signature = tree.value.object.get("signature").?;
+        try body.object.put(arena, "unknown", .{ .bool = true });
+        try t.expectError(error.UnknownField, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        try t.expect(body.object.swapRemove("unknown"));
+        try tree.value.object.put(arena, "signature", .{ .string = &@as([64]u8, @splat(105)) });
+        try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        if (T == SignedQuery) {
+            try tree.value.object.put(arena, "signature", signature);
+            const snapshot = body.object.getPtr("kind").?.object.getPtr("open_snapshot").?;
+            try snapshot.object.put(arena, "nonce", .{ .string = "iiiiiiiiiiiiiiii" });
+            try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
+        }
+    }
+    // This is unsigned authoring input, not a saved or received signed request.
+    const authored = try std.json.parseFromSlice(Query, t.allocator, "{\"realm\":42,\"principal\":0,\"kind\":{\"identity\":{}}}", .{});
+    defer authored.deinit();
+    try t.expectEqual(current_definition, authored.value.definition);
+}
+
+test "signed schema reflection requires the same explicit definition as decoding" {
+    const t = std.testing;
+    inline for (.{ .{ SignedRequest, "request" }, .{ SignedQuery, "query" } }) |case| {
+        inline for (.{ false, true }) |recursive| {
+            var output: std.Io.Writer.Allocating = .init(t.allocator);
+            defer output.deinit();
+            var out: std.json.Stringify = .{ .writer = &output.writer };
+            if (recursive) try p.Schema.writeRecursive(case[0], &out, .{ .safe_integers = true }) else try p.Schema.write(case[0], &out, .{ .safe_integers = true });
+            const schema = try std.json.parseFromSlice(std.json.Value, t.allocator, output.written(), .{});
+            defer schema.deinit();
+            const root = if (recursive) schema.value.object.get("$defs").?.object.get("T0").? else schema.value;
+            const body = root.object.get("properties").?.object.get(case[1]).?.object;
+            var found = false;
+            for (body.get("required").?.array.items) |name| {
+                if (std.mem.eql(u8, "definition", name.string)) found = true;
+            }
+            try t.expect(found);
+            try t.expect(body.get("x-transit-defaults").?.object.get("definition") == null);
+        }
+    }
+}
+
 test "native responses require the current contract definition even with a v1 label" {
     const t = std.testing;
     const missing = "{\"version\":1,\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
@@ -595,6 +747,8 @@ test "native responses require the current contract definition even with a v1 la
     const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
+        // Fixed two-column Tables, before general schema/lifecycle and ABI cutover.
+        "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
         // Pre-compact immutable page definition.
         "9d3f4b28d873a0f082bca76aca29ae36f7d4afe9b337484a161323819cd67db9",
         // Previous publication input dispositions omitted retained typed witnesses.
@@ -802,8 +956,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("2232d3230a1786f1d92999b85764d2d10f126370469fadc2508c7853e9d56ba0", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("e078496c4aedda37d75a662e2c99baed338acff008d63dde1ddf1308d48d93f3", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("fbf5789bbc6950c78f88e8aa52719ee7d15901fd4210e994d327ef7a7a766051", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("8905b56c2635276e47fc21cdc82ff1183642ec2404d7d04c65508b44d97ccdc6", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

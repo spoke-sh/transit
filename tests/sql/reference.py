@@ -109,7 +109,8 @@ def antlr_ast(sql, *, template=False):
             return negation(ctx.negation()) + [{'op': 'not'}]
         if ctx.predicate():
             return disjunction(ctx.predicate().disjunction())
-        return [atom(ctx.predicateAtom())]
+        result = [atom(ctx.predicateAtom())]
+        return result + [{'op': 'not'}] if ctx.predicateAtom().NOT() else result
 
     def conjunction(ctx):
         return join_program([negation(part) for part in ctx.negation()], 'and')
@@ -210,8 +211,8 @@ def pg_ast(sql):
                 return args[0] + [{'op': 'not'}]
             return join_program(args, {'AND_EXPR': 'and', 'OR_EXPR': 'or'}[boolean['boolop']])
         if 'NullTest' in where:
-            assert where['NullTest'].get('nulltesttype', 'IS_NULL') == 'IS_NULL'
-            return [{'column': col(where['NullTest']['arg']), 'op': 'is_null'}]
+            result = [{'column': col(where['NullTest']['arg']), 'op': 'is_null'}]
+            return result + [{'op': 'not'}] if where['NullTest'].get('nulltesttype') == 'IS_NOT_NULL' else result
         expr = where['A_Expr']
         op = expr['name'][0]['String']['sval']
         return [{'column': col(expr['lexpr']), 'op': {'=': 'eq', '<>': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[op], 'literal': const(expr['rexpr'])}]

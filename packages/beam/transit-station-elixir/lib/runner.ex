@@ -17,7 +17,12 @@ defmodule Transit.Station.Sdk.Handler do
               Transit.Station.Sdk.ResultComplete.t(),
               term()
             ) :: {:ok, term()} | {:error, term()}
-  @optional_callbacks initialize: 2, handle_control: 3, handle_result: 3
+  @callback handle_query_failure(
+              Transit.Station.Sdk.Turn.t(),
+              Transit.Station.Sdk.QueryFailure.t(),
+              term()
+            ) :: {:ok, term()} | {:error, term()}
+  @optional_callbacks initialize: 2, handle_control: 3, handle_result: 3, handle_query_failure: 3
 end
 
 defmodule Transit.Station.Sdk.RecoveryStore do
@@ -44,6 +49,13 @@ defmodule Transit.Station.Sdk.HandlerAdapter do
 
   def handle_control(turn, input, {handler, state}),
     do: wrap(handler, handler.handle_control(Value.convert(turn), Value.convert(input), state))
+
+  def handle_query_failure(turn, input, {handler, state}),
+    do:
+      wrap(
+        handler,
+        handler.handle_query_failure(Value.convert(turn), Value.convert(input), state)
+      )
 
   def handle_result(turn, input, {handler, state}),
     do: wrap(handler, handler.handle_result(Value.convert(turn), Value.convert(input), state))

@@ -1,431 +1,195 @@
-"""Typed catalog callers; Zig owns compilation, authority, signatures and recovery."""
+"""Typed general Tables; Zig owns compilation, authority, signatures and recovery."""
 from __future__ import annotations
 import ctypes as c
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, TypeVar
-
-from transit_client import ProcessRef, ResourceRef
+from typing import Any, Callable, Generic, TypeVar
 from transit_client._native import Library, encode, seed
 from transit_client._worker import Worker, owned_await
 from transit_client.errors import IncompatibleNative, UncertainOperation, UnsupportedCapability, native_error
 from transit_client.types import integer, owned_bytes
-from .turn import CellType
+from . import catalog_values as v
+from .catalog_values import (
+    Scope as Scope,
+    Connection as Connection,
+    TableLimits as TableLimits,
+    Configuration as Configuration,
+    Rights as Rights,
+    Policy as Policy,
+    PolicyChange as PolicyChange,
+    Column as Column,
+    Schema as Schema,
+    Identity as Identity,
+    Basis as Basis,
+    Metadata as Metadata,
+    MetadataCommitment as MetadataCommitment,
+    Head as Head,
+    Entry as Entry,
+    Definition as Definition,
+    HistoricalDefinition as HistoricalDefinition,
+    Cursor as Cursor,
+    Page as Page,
+    Reference as Reference,
+    SavedIntent as SavedIntent,
+    Prepared as Prepared,
+    Kind as Kind,
+    Intent as Intent,
+    Compiled as Compiled,
+    Phase as Phase,
+    Counts as Counts,
+    Outcome as Outcome,
+    UploadPhase as UploadPhase,
+    Upload as Upload,
+    State as State,
+    DispositionOutcome as DispositionOutcome,
+    Disposition as Disposition,
+    Observation as Observation,
+    NextKind as NextKind,
+    Next as Next,
+    Progress as Progress,
+    Default as Default,
+    Assignment as Assignment,
+    BooleanOperator as BooleanOperator,
+    CellState as CellState,
+    CompareOperator as CompareOperator,
+    StatePredicate as StatePredicate,
+    Comparison as Comparison,
+    Insert as Insert,
+    Update as Update,
+    Delete as Delete,
+    AddColumn as AddColumn,
+    DropColumn as DropColumn,
+    RenameColumn as RenameColumn,
+    SetDefault as SetDefault,
+    SetNullable as SetNullable,
+    SetType as SetType,
+    Create as Create,
+    Alter as Alter,
+    Rename as Rename,
+    Drop as Drop,
+    Mutate as Mutate,
+    Control as Control,
+    DependencyKind as DependencyKind,
+    Dependency as Dependency,
+    Capabilities as Capabilities,
+    Description as Description,
+    Predicate as Predicate,
+    Mutation as Mutation,
+    Change as Change,
+    Operation as Operation,
+)
 
 T = TypeVar('T')
-_MAX_U64 = (1 << 64) - 1
-
-
-def _wide(value: object, name: str, minimum: int = 1) -> int:
-    return integer(value, name, minimum=minimum, maximum=_MAX_U64)
-
-
-def _text(value: object, limit: int) -> str:
-    if not isinstance(value, str) or not value: raise ValueError('Expected nonempty text')
-    owned_bytes(value.encode(), limit)
-    return value
-
-
-def _boolean(value: object) -> bool:
-    if type(value) is not bool: raise ValueError('Expected boolean')
-    return value
-
-
-def _name(value: object) -> str:
-    name = _text(value, 16)
-    if not name.isascii() or not (name[0].isalpha() or name[0] == '_') or not all(c.isalnum() or c == '_' for c in name):
-        raise ValueError('Expected an ASCII catalog name')
-    return name
-
-
-@dataclass(frozen=True, slots=True)
-class Scope:
-    resource: ResourceRef
-    catalog: int
-    def __post_init__(self) -> None:
-        if not isinstance(self.resource, ResourceRef): raise TypeError('Expected resource reference')
-        _wide(self.catalog, 'catalog')
-    def _wire(self) -> dict[str, object]:
-        return dict(realm=self.resource.realm, resource=self.resource.resource, catalog=str(self.catalog))
-
-
-@dataclass(frozen=True, slots=True)
-class Connection:
-    owner: ProcessRef
-    scope: Scope
-    def __post_init__(self) -> None:
-        if self.owner.realm != self.scope.resource.realm: raise ValueError('Catalog connection must use one realm')
-    def _wire(self, principal: int) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, principal=integer(principal, 'principal', minimum=0))
-
-
-@dataclass(frozen=True, slots=True)
-class Configuration:
-    scope: Scope
-    owner: ProcessRef
-    administrator: int
-    def __post_init__(self) -> None:
-        Connection(self.owner, self.scope)
-        integer(self.administrator, 'administrator')
-    def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, administrator=self.administrator)
-
-
-@dataclass(frozen=True, slots=True)
-class Schema:
-    names: tuple[str, str]
-    value_type: CellType
-    def __post_init__(self) -> None:
-        if len(self.names) != 2 or not isinstance(self.value_type, CellType): raise ValueError('Expected two-column Table schema')
-        object.__setattr__(self, 'names', (_text(self.names[0], 16), _text(self.names[1], 16)))
-    def _wire(self) -> object: return dict(names=list(self.names), value_type=self.value_type.value)
-
-
-@dataclass(frozen=True, slots=True)
-class CreateTable:
-    scope: Scope
-    operation: int
-    object_id: int
-    table: int
-    name: str
-    schema: Schema
-    def __post_init__(self) -> None:
-        if not isinstance(self.scope, Scope) or not isinstance(self.schema, Schema): raise TypeError('Expected catalog scope and schema')
-        _wide(self.operation, 'operation'); _wide(self.object_id, 'object')
-        integer(self.table, 'table', maximum=(1 << 32) - 1)
-        _text(self.name, 16)
-    def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), operation=str(self.operation), object=str(self.object_id), table=self.table, name=self.name, schema=self.schema._wire())
-
-
-@dataclass(frozen=True, slots=True)
-class Compiled:
-    request: CreateTable
-    canonical: bytes = field(repr=False)
-    def __post_init__(self) -> None:
-        if not isinstance(self.request, CreateTable): raise TypeError('Expected creation request')
-        object.__setattr__(self, 'canonical', owned_bytes(self.canonical, 256))
-        if not self.canonical: raise ValueError('Empty canonical creation request')
-
-
-@dataclass(frozen=True, slots=True)
-class Policy:
-    scope: Scope
-    principal: int
-    revision: int
-    inspect: bool
-    create: bool
-    def __post_init__(self) -> None:
-        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
-        integer(self.principal, 'principal', minimum=0)
-        _wide(self.revision, 'policy revision')
-        _boolean(self.inspect); _boolean(self.create)
-    def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), principal=self.principal, revision=str(self.revision), inspect=self.inspect, create=self.create)
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyChange:
-    expected_revision: int
-    policy: Policy
-    def __post_init__(self) -> None:
-        _wide(self.expected_revision, 'expected revision', 0)
-        if not isinstance(self.policy, Policy): raise TypeError('Expected catalog policy')
-    def _wire(self) -> object: return dict(expected_revision=str(self.expected_revision), policy=self.policy._wire())
-
-
-@dataclass(frozen=True, slots=True)
-class Prepared:
-    """Opaque owned signed bytes; persist unchanged before attempting submission."""
-    data: bytes = field(repr=False)
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'data', owned_bytes(self.data, 8192))
-        if not self.data: raise ValueError('Empty saved catalog command')
-        self.data.decode('utf-8', errors='strict')
-
-
-class Observation(Enum):
-    PENDING = 'pending'
-    PROCESSED = 'processed'
-
-
-class Outcome(Enum):
-    APPLIED = 'applied'
-    NAME_CONFLICT = 'name_conflict'
-    OBJECT_CONFLICT = 'object_conflict'
-    TABLE_CONFLICT = 'table_conflict'
-
-
-class Origin(Enum):
-    EXTERNAL = 'external'
-    PROCESS = 'process'
-    EFFECT = 'effect'
-
-
-class DispositionOutcome(Enum):
-    INITIALIZED = 'initialized'
-    POLICY_APPLIED = 'policy_applied'
-    INVALID_COMMAND = 'invalid_command'
-    DENIED = 'denied'
-    IDENTITY_CONFLICT = 'identity_conflict'
-    STALE_POLICY = 'stale_policy'
-
-
-@dataclass(frozen=True, slots=True)
-class Capabilities:
-    version: int
-    definition: str
-    initialize: bool
-    create_table: bool
-    conditional_policy: bool
-    current_metadata: bool
-    max_saved_bytes: int
-    table_columns: int
-
-
-@dataclass(frozen=True, slots=True)
-class Description:
-    configuration: Configuration
-    policy: Policy
-    resource_revision: int
-
-
-@dataclass(frozen=True, slots=True)
-class TableSource:
-    table: int
-    schema: Schema
-    def __post_init__(self) -> None:
-        integer(self.table, 'table', maximum=(1 << 32) - 1)
-        if not isinstance(self.schema, Schema): raise TypeError('Expected Table schema')
-
-
-@dataclass(frozen=True, slots=True)
-class Definition:
-    scope: Scope
-    object_id: int
-    revision: int
-    name: str
-    source: TableSource
-    principal: int
-    operation: int
-    input: int
-    def __post_init__(self) -> None:
-        if not isinstance(self.scope, Scope) or not isinstance(self.source, TableSource): raise TypeError('Expected catalog scope and Table source')
-        _wide(self.object_id, 'object'); _wide(self.revision, 'definition revision'); _wide(self.operation, 'operation')
-        _name(self.name)
-        integer(self.principal, 'principal', minimum=0); integer(self.input, 'input')
-
-
-@dataclass(frozen=True, slots=True)
-class Cursor:
-    """Exact local continuation; all fields are required when restoring it."""
-    definition: str
-    scope: Scope
-    resource_revision: int
-    after: str
-    def __post_init__(self) -> None:
-        _hex(self.definition, 32, True)
-        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
-        integer(self.resource_revision, 'resource revision')
-        _name(self.after)
-    def _wire(self) -> object:
-        return dict(definition=self.definition, scope=self.scope._wire(), resource_revision=self.resource_revision, after=self.after)
-
-
-@dataclass(frozen=True, slots=True)
-class Page:
-    resource_revision: int
-    entries: tuple[Definition, ...]
-    next: Cursor | None
-    def __post_init__(self) -> None:
-        integer(self.resource_revision, 'resource revision')
-        if len(self.entries) > 8 or not all(isinstance(entry, Definition) for entry in self.entries): raise ValueError('Expected at most eight definitions')
-        object.__setattr__(self, 'entries', tuple(self.entries))
-        for previous, entry in zip(self.entries, self.entries[1:]):
-            if previous.scope != entry.scope or previous.name >= entry.name: raise ValueError('Expected ordered definitions in one scope')
-        if self.next is not None:
-            if not isinstance(self.next, Cursor) or not self.entries: raise ValueError('Continuation requires a last definition')
-            last = self.entries[-1]
-            if self.next.scope != last.scope or self.next.after != last.name or self.next.resource_revision != self.resource_revision:
-                raise ValueError('Continuation does not match the page')
-
-
-@dataclass(frozen=True, slots=True)
-class Receipt:
-    request: CreateTable
-    principal: int
-    input: int
-    outcome: Outcome
-    diagnostic: dict[str, Any]
-
-
-@dataclass(frozen=True, slots=True)
-class Disposition:
-    scope: Scope
-    origin: Origin
-    principal: int
-    input: int
-    payload: bytes
-    outcome: DispositionOutcome
-    diagnostic: dict[str, Any]
-
-
-def _object(value: object, fields: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != set(fields.split()): raise ValueError('Unexpected catalog response fields')
-    return value
-
-
-def _decimal(value: object, minimum: int = 1) -> int:
-    if not isinstance(value, str) or not 1 <= len(value) <= 20 or not value.isascii() or not value.isdigit(): raise ValueError('Expected canonical decimal string')
-    result = _wide(int(value), 'catalog integer', minimum)
-    if str(result) != value: raise ValueError('Expected canonical decimal string')
-    return result
-
-
-def _scope(value: object) -> Scope:
-    v = _object(value, 'realm resource catalog')
-    return Scope(ResourceRef(v['realm'], v['resource']), _decimal(v['catalog']))
-
-
-def _configuration(value: object) -> Configuration:
-    v = _object(value, 'scope owner administrator'); scope = _scope(v['scope'])
-    return Configuration(scope, ProcessRef(scope.resource.realm, v['owner']), v['administrator'])
-
-
-def _policy(value: object) -> Policy:
-    v = _object(value, 'scope principal revision inspect create')
-    return Policy(_scope(v['scope']), v['principal'], _decimal(v['revision']), v['inspect'], v['create'])
-
-
-def _request(value: object) -> CreateTable:
-    v = _object(value, 'scope operation object table name schema')
-    s = _object(v['schema'], 'names value_type')
-    if not isinstance(s['names'], list) or len(s['names']) != 2: raise ValueError('Expected two column names')
-    schema = Schema((s['names'][0], s['names'][1]), CellType(s['value_type']))
-    return CreateTable(_scope(v['scope']), _decimal(v['operation']), _decimal(v['object']), v['table'], v['name'], schema)
-
-
-def _definition(value: object) -> Definition | None:
-    if value is None: return None
-    v = _object(value, 'scope object revision name source principal operation input')
-    table = _object(_object(v['source'], 'table')['table'], 'id schema')
-    s = _object(table['schema'], 'names value_type')
-    if not isinstance(s['names'], list) or len(s['names']) != 2: raise ValueError('Expected two column names')
-    names = (_name(s['names'][0]), _name(s['names'][1]))
-    if names[0] == names[1]: raise ValueError('Expected distinct column names')
-    source = TableSource(table['id'], Schema(names, CellType(s['value_type'])))
-    return Definition(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), v['name'], source,
-                      v['principal'], _decimal(v['operation']), v['input'])
-
-
-def _resolved(value: object, scope: Scope, *, name: str | None = None, object_id: int | None = None, revision: int | None = None) -> Definition | None:
-    result = _definition(value)
-    if result is not None and (result.scope != scope or (name is not None and result.name != name) or
-        (object_id is not None and result.object_id != object_id) or (revision is not None and result.revision != revision)):
-        raise ValueError('Definition does not match its requested identity')
-    return result
-
-
-def _page(value: object, scope: Scope, definition: str, previous: Cursor | None) -> Page:
-    v = _object(value, 'resource_revision entries next')
-    if not isinstance(v['entries'], list) or len(v['entries']) != 8: raise ValueError('Expected eight optional definition slots')
-    entries: list[Definition] = []
-    ended = False
-    for item in v['entries']:
-        entry = _definition(item)
-        if entry is None: ended = True
-        else:
-            if ended or entry.scope != scope: raise ValueError('Page has a hole or foreign scope')
-            entries.append(entry)
-    cursor = None
-    if v['next'] is not None:
-        c = _object(v['next'], 'definition scope resource_revision after')
-        if c['definition'] != definition: raise ValueError('Foreign cursor definition')
-        cursor = Cursor(c['definition'], _scope(c['scope']), c['resource_revision'], c['after'])
-    page = Page(v['resource_revision'], tuple(entries), cursor)
-    if previous is not None and (page.resource_revision != previous.resource_revision or
-        (page.entries and page.entries[0].name <= previous.after)):
-        raise ValueError('Response does not continue the requested page')
-    return page
-
-
-def _hex(value: object, limit: int, exact: bool = False) -> bytes:
-    text = _text(value, limit * 2)
-    result = owned_bytes(bytes.fromhex(text), limit)
-    if result.hex() != text or (exact and len(result) != limit): raise ValueError('Expected canonical hexadecimal bytes')
-    return result
-
-
-def _compiled(value: object) -> Compiled:
-    v = _object(value, 'request canonical')
-    return Compiled(_request(v['request']), _hex(v['canonical'], 256))
-
-
-def _description(value: object) -> Description:
-    v = _object(value, 'configuration policy resource_revision')
-    return Description(_configuration(v['configuration']), _policy(v['policy']), integer(v['resource_revision'], 'resource revision', minimum=0))
-
-
-def _receipt(value: object) -> Receipt | None:
-    if value is None: return None
-    v = _object(value, 'request principal input outcome diagnostic')
-    return Receipt(_request(v['request']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), Outcome(v['outcome']), v['diagnostic'])
-
-
-def _disposition(value: object) -> Disposition | None:
-    if value is None: return None
-    v = _object(value, 'scope origin principal input payload outcome diagnostic')
-    return Disposition(_scope(v['scope']), Origin(v['origin']), integer(v['principal'], 'principal', minimum=0), integer(v['input'], 'input'), _hex(v['payload'], 32, True), DispositionOutcome(v['outcome']), v['diagnostic'])
-
-
-def _prepared(value: object) -> Prepared: return Prepared(_text(value, 8192).encode())
-
-
-def _capabilities(value: object) -> Capabilities:
-    v = _object(value, 'version definition initialize create_table conditional_policy current_metadata max_saved_bytes table_columns')
-    definition = _hex(v['definition'], 32, True).hex()
-    return Capabilities(integer(v['version'], 'version', maximum=255), definition, _boolean(v['initialize']), _boolean(v['create_table']), _boolean(v['conditional_policy']), _boolean(v['current_metadata']), integer(v['max_saved_bytes'], 'saved bytes', maximum=65535), integer(v['table_columns'], 'columns', maximum=255))
-
-
-def _decode(decoder: Callable[[Any], T], value: object, recovery: bytes = b'') -> T:
-    try: return decoder(value)
-    except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
-        if recovery: raise UncertainOperation(recovery=recovery, phase='catalog_response') from None
-        raise IncompatibleNative('Invalid catalog response from native implementation') from None
-    except MemoryError:
-        if recovery: raise UncertainOperation(recovery=recovery, phase='catalog_response') from None
-        raise
-
-
-def _compile(sql: str, operation: int, object_id: int, table: int) -> object:
-    return {'compile': dict(sql=_text(sql, 4096), operation=str(_wide(operation, 'operation')), object=str(_wide(object_id, 'object')), table=integer(table, 'table', maximum=(1 << 32) - 1))}
-
-
-def _input(kind: str, prepared: Prepared, position: int) -> object:
-    return {kind: dict(prepared=prepared.data.decode(), input=integer(position, 'input'))}
-
-
-def _list(cursor: Cursor | None) -> object:
-    if cursor is not None and not isinstance(cursor, Cursor): raise TypeError('Expected catalog cursor')
-    return {'list': None if cursor is None else cursor._wire()}
-
-
-def _exact(object_id: int, revision: int) -> object:
-    return {'definition': dict(object=str(_wide(object_id, 'object')), revision=str(_wide(revision, 'definition revision')))}
+
+
+@dataclass(frozen=True)
+class _Request(Generic[T]):
+    data: bytes
+    field: str
+    decode: Callable[[Any], T]
+    recovery: bytes = b''
+
+
+def _request(action: object, field: str, decoder: Callable[[Any], T], recovery: bytes = b'') -> _Request[T]:
+    # Freeze all arguments before queued/async work can outlive its caller.
+    return _Request(owned_bytes(encode(action), v.LIMITS['catalog_action_bytes']), field, decoder, recovery)
+
+
+def _empty(value: object) -> None:
+    v._object(value, '')
+
+
+def _input(prepared: Prepared, position: int) -> dict[str, object]:
+    if not isinstance(prepared, Prepared): raise TypeError('Expected exact prepared command')
+    return dict(prepared=prepared.data.decode(), input=integer(position, 'input'))
+
+
+class _Queries:
+    def __init__(self, connection: Connection, principal: int) -> None:
+        self.connection, self.principal = connection, principal
+
+    def capabilities(self) -> _Request[Capabilities]:
+        return _request({'capabilities': {}}, 'capabilities', v._capabilities)
+
+    def describe(self) -> _Request[Description]:
+        return _request({'describe': {}}, 'description', lambda value: v._description(value, self.connection, self.principal))
+
+    def lookup(self, name: str) -> _Request[Definition | None]:
+        return _request({'lookup': v._name(name)}, 'definition', lambda value: v._resolved(value, self.connection.scope, name))
+
+    def definition(self, object_id: int, revision: int) -> _Request[HistoricalDefinition | None]:
+        return _request({'definition': dict(object=str(v._wide(object_id)), revision=str(v._wide(revision)))}, 'historical',
+                        lambda value: v._historical(value, self.connection.scope, object_id, revision))
+
+    def list(self, cursor: Cursor | None = None) -> _Request[Page]:
+        if cursor is not None and (not isinstance(cursor, Cursor) or cursor.scope != self.connection.scope): raise ValueError('Foreign catalog cursor')
+        return _request({'list': None if cursor is None else cursor._wire()}, 'page', lambda value: v._page(value, self.connection.scope, cursor))
+
+    def compile_sql(self, sql: str, identity: Identity, create_object: int | None = None) -> _Request[Compiled]:
+        if not isinstance(identity, Identity): raise TypeError('Expected operation identity')
+        return _request({'compile': dict(sql=v._text(sql, 4096), identity=identity._wire(), create_object=None if create_object is None else str(v._wide(create_object)))}, 'compiled',
+                        lambda value: v._compiled(value, self.connection, self.principal, identity, None if create_object is None else Kind.CREATE, create_object))
+
+    def prepare(self, name: str, identity: Identity, action: Operation) -> _Request[Compiled]:
+        if not isinstance(identity, Identity): raise TypeError('Expected operation identity')
+        kind, object_id, operation = v._operation(action)
+        return _request({'prepare': dict(definition=v.DEFINITION, identity=identity._wire(), name=v._name(name), action=operation)}, 'compiled',
+                        lambda value: v._compiled(value, self.connection, self.principal, identity, kind, object_id))
+
+    def load(self, saved: SavedIntent) -> _Request[Intent]:
+        if not isinstance(saved, SavedIntent): raise TypeError('Expected saved Table intent')
+        return _request({'load': saved._wire()}, 'loaded', lambda value: v._intent(value, self.connection, self.principal))
+
+    def forget(self, intent: Reference) -> _Request[None]:
+        return _request({'forget': intent._wire()}, 'forgotten', _empty)
+
+    def next(self, intent: Reference) -> _Request[Next]:
+        return _request({'next': intent._wire()}, 'next', v._next)
+
+    def status(self, intent: Reference) -> _Request[State]:
+        return _request({'status': intent._wire()}, 'state', v._state)
+
+    def prepare_resume(self, intent: Reference) -> _Request[Prepared]:
+        return _request({'prepare_resume': intent._wire()}, 'prepared', v._prepared)
+
+    def prepare_control(self, intent: Reference, control: Control) -> _Request[Prepared]:
+        return _request({'prepare_control': dict(intent=intent._wire(), control=v._enum(control, Control))}, 'prepared', v._prepared)
+
+    def prepare_initialize(self, configuration: Configuration) -> _Request[Prepared]:
+        return _request({'prepare_initialize': configuration._wire()}, 'prepared', v._prepared)
+
+    def prepare_policy(self, change: PolicyChange) -> _Request[Prepared]:
+        return _request({'prepare_policy': change._wire()}, 'prepared', v._prepared)
+
+    def prepare_dependency(self, dependency: Dependency, present: bool) -> _Request[Prepared]:
+        return _request({'prepare_dependency': dependency._wire(present)}, 'prepared', v._prepared)
+
+    def submit(self, prepared: Prepared) -> _Request[int]:
+        if not isinstance(prepared, Prepared): raise TypeError('Expected exact prepared command')
+        return _request({'submit': prepared.data.decode()}, 'receipt', lambda value: integer(v._object(value, 'position')['position'], 'position'), prepared.data)
+
+    def observe(self, prepared: Prepared, position: int, *, wait: bool = False) -> _Request[Observation]:
+        return _request({'wait_observe' if v._boolean(wait) else 'observe': _input(prepared, position)}, 'observation', Observation)
+
+    def input_disposition(self, prepared: Prepared, position: int) -> _Request[Disposition | None]:
+        return _request({'input_disposition': _input(prepared, position)}, 'disposition', v._disposition)
+
+    def progress(self, intent: Reference, prepared: Prepared, position: int, *, wait: bool = False) -> _Request[Progress]:
+        return _request({'wait_progress' if v._boolean(wait) else 'progress': dict(intent=intent._wire(), **_input(prepared, position))}, 'progress', v._progress)
 
 
 class Client:
-    """One owned worker with bounded admission; no implicit retries or provisioning."""
+    """One owned worker and one intent; persist intent and every exact step before send."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
                  timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
-        self._connection = connection
+        if not isinstance(connection, Connection): raise TypeError('Expected catalog connection')
+        self._queries = _Queries(connection, integer(principal, 'principal', minimum=0))
         self._api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
         self._handle = c.c_void_p()
         self._worker = Worker(self._api.contract['minimum_stack_bytes'])
         def create() -> None:
-            endpoint = _text(url, 2048).encode()
+            endpoint = v._text(url, 2048).encode()
             config = encode(dict(connection=connection._wire(principal), timeout_ms=integer(timeout_ms, 'timeout', maximum=60000)))
             key = seed(seed_file)
             try:
@@ -435,54 +199,101 @@ class Client:
         try:
             self._worker.call(create)
             caps = self.capabilities()
-            if caps.version != 1 or caps.definition != self._api.contract['definition'] or caps.table_columns != 2 or caps.max_saved_bytes != 8192 or not all((caps.initialize, caps.create_table, caps.conditional_policy, caps.current_metadata)):
-                raise UnsupportedCapability('Native catalog client lacks the named Table profile')
+            if (caps.version != 1 or caps.definition != v.DEFINITION or caps.max_columns != 128 or caps.max_rows != 1024 or
+                caps.max_sql_bytes != 4096 or caps.max_intent_bytes != v.LIMITS['catalog_intent_bytes'] or
+                caps.max_action_bytes != v.LIMITS['catalog_action_bytes'] or caps.max_prepared_bytes != v.LIMITS['catalog_prepared_bytes'] or caps.resident_intents != 1):
+                raise UnsupportedCapability('Native catalog client lacks the general Table profile')
         except BaseException:
             self.close()
             raise
 
     @property
-    def connection(self) -> Connection: return self._connection
+    def connection(self) -> Connection: return self._queries.connection
 
-    def _invoke(self, action: object, field_name: str, decoder: Callable[[Any], T], recovery: bytes) -> T:
-        data = encode(action)
+    def _diagnostics(self, value: object) -> None:
+        # Validate success-path evidence using the same owner as error envelopes.
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == 'diagnostic':
+                    data = encode(child)
+                    if not isinstance(child, dict) or len(data) > 32768 or self._api.validate_diagnostic(data, len(data)) != 1: raise ValueError('Invalid Table diagnostic')
+                elif isinstance(child, dict): self._diagnostics(child)
+
+    def _invoke(self, request: _Request[T]) -> T:
         try:
-            result = self._api.call('station_catalog_call', self._handle, data, len(data), recovery=recovery)
-        except (ValueError, TypeError):
-            if recovery: raise UncertainOperation(recovery=recovery, phase='catalog_response') from None
-            raise IncompatibleNative('Malformed catalog response') from None
+            value = self._api.call('station_catalog_call', self._handle, request.data, len(request.data), recovery=request.recovery)
+            self._diagnostics(value)
+            return request.decode(v._object(value, request.field)[request.field])
+        except (ValueError, TypeError, KeyError, AttributeError, OverflowError, RecursionError):
+            if request.recovery: raise UncertainOperation(recovery=request.recovery, phase='catalog_response') from None
+            raise IncompatibleNative('Invalid catalog response from native implementation') from None
         except MemoryError:
-            if recovery: raise UncertainOperation(recovery=recovery, phase='catalog_response') from None
+            if request.recovery: raise UncertainOperation(recovery=request.recovery, phase='catalog_response') from None
             raise
-        return _decode(lambda v: decoder(_object(v, field_name)[field_name]), result, recovery)
 
-    def _call(self, action: object, field_name: str, decoder: Callable[[Any], T], recovery: bytes = b'') -> T:
-        return self._worker.call(lambda: self._invoke(action, field_name, decoder, recovery))
+    def _call(self, request: _Request[T]) -> T:
+        return self._worker.call(lambda: self._invoke(request))
 
-    def capabilities(self) -> Capabilities: return self._call({'capabilities': {}}, 'capabilities', _capabilities)
-    def describe(self) -> Description: return self._call({'describe': {}}, 'description', _description)
+    def capabilities(self) -> Capabilities:
+        return self._call(self._queries.capabilities())
+
+    def describe(self) -> Description:
+        return self._call(self._queries.describe())
+
     def lookup(self, name: str) -> Definition | None:
-        return self._call({'lookup': _name(name)}, 'definition', lambda v: _resolved(v, self.connection.scope, name=name))
-    def definition(self, object_id: int, revision: int) -> Definition | None:
-        return self._call(_exact(object_id, revision), 'definition', lambda v: _resolved(v, self.connection.scope, object_id=object_id, revision=revision))
-    def list(self, cursor: Cursor | None = None) -> Page:
-        return self._call(_list(cursor), 'page', lambda v: _page(v, self.connection.scope, self._api.contract['definition'], cursor))
-    def compile_sql(self, sql: str, operation: int, object_id: int, table: int) -> Compiled:
-        return self._call(_compile(sql, operation, object_id, table), 'compiled', _compiled)
+        return self._call(self._queries.lookup(name))
+
+    def definition(self, object_id: int, revision: int) -> HistoricalDefinition | None:
+        return self._call(self._queries.definition(object_id, revision))
+
+    def list(self, cursor: Cursor | None=None) -> Page:
+        return self._call(self._queries.list(cursor))
+
+    def compile_sql(self, sql: str, identity: Identity, create_object: int | None=None) -> Compiled:
+        return self._call(self._queries.compile_sql(sql, identity, create_object))
+
+    def prepare(self, name: str, identity: Identity, action: Operation) -> Compiled:
+        return self._call(self._queries.prepare(name, identity, action))
+
+    def load(self, saved: SavedIntent) -> Intent:
+        return self._call(self._queries.load(saved))
+
+    def forget(self, intent: Reference) -> None:
+        return self._call(self._queries.forget(intent))
+
+    def next(self, intent: Reference) -> Next:
+        return self._call(self._queries.next(intent))
+
+    def status(self, intent: Reference) -> State:
+        return self._call(self._queries.status(intent))
+
+    def prepare_resume(self, intent: Reference) -> Prepared:
+        return self._call(self._queries.prepare_resume(intent))
+
+    def prepare_control(self, intent: Reference, control: Control) -> Prepared:
+        return self._call(self._queries.prepare_control(intent, control))
+
     def prepare_initialize(self, configuration: Configuration) -> Prepared:
-        return self._call({'prepare_initialize': configuration._wire()}, 'prepared', _prepared)
-    def prepare_create(self, request: CreateTable) -> Prepared:
-        return self._call({'prepare_create': request._wire()}, 'prepared', _prepared)
+        return self._call(self._queries.prepare_initialize(configuration))
+
     def prepare_policy(self, change: PolicyChange) -> Prepared:
-        return self._call({'prepare_policy': change._wire()}, 'prepared', _prepared)
+        return self._call(self._queries.prepare_policy(change))
+
+    def prepare_dependency(self, dependency: Dependency, present: bool) -> Prepared:
+        return self._call(self._queries.prepare_dependency(dependency, present))
+
     def submit(self, prepared: Prepared) -> int:
-        return self._call({'submit': prepared.data.decode()}, 'receipt', lambda v: integer(_object(v, 'position')['position'], 'position'), prepared.data)
-    def observe(self, prepared: Prepared, position: int) -> Observation:
-        return self._call(_input('observe', prepared, position), 'observation', Observation)
+        return self._call(self._queries.submit(prepared))
+
+    def observe(self, prepared: Prepared, position: int, *, wait: bool=False) -> Observation:
+        return self._call(self._queries.observe(prepared, position, wait=wait))
+
     def input_disposition(self, prepared: Prepared, position: int) -> Disposition | None:
-        return self._call(_input('input_disposition', prepared, position), 'disposition', _disposition)
-    def status(self, request: CreateTable) -> Receipt | None:
-        return self._call({'status': request._wire()}, 'status', _receipt)
+        return self._call(self._queries.input_disposition(prepared, position))
+
+    def progress(self, intent: Reference, prepared: Prepared, position: int, *, wait: bool=False) -> Progress:
+        return self._call(self._queries.progress(intent, prepared, position, wait=wait))
+
     def _destroy(self) -> None:
         self._api.lib.station_catalog_destroy(self._handle)
         self._handle = c.c_void_p()
@@ -498,32 +309,69 @@ class AsyncClient:
         self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory)
     @property
     def connection(self) -> Connection: return self._owner.connection
-    async def _call(self, action: object, field_name: str, decoder: Callable[[Any], T], recovery: bytes = b'') -> T:
-        return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(action, field_name, decoder, recovery)))
-    async def capabilities(self) -> Capabilities: return await self._call({'capabilities': {}}, 'capabilities', _capabilities)
-    async def describe(self) -> Description: return await self._call({'describe': {}}, 'description', _description)
+    async def _call(self, request: _Request[T]) -> T:
+        return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(request)))
+
+    async def capabilities(self) -> Capabilities:
+        return await self._call(self._owner._queries.capabilities())
+
+    async def describe(self) -> Description:
+        return await self._call(self._owner._queries.describe())
+
     async def lookup(self, name: str) -> Definition | None:
-        return await self._call({'lookup': _name(name)}, 'definition', lambda v: _resolved(v, self.connection.scope, name=name))
-    async def definition(self, object_id: int, revision: int) -> Definition | None:
-        return await self._call(_exact(object_id, revision), 'definition', lambda v: _resolved(v, self.connection.scope, object_id=object_id, revision=revision))
-    async def list(self, cursor: Cursor | None = None) -> Page:
-        return await self._call(_list(cursor), 'page', lambda v: _page(v, self.connection.scope, self._owner._api.contract['definition'], cursor))
-    async def compile_sql(self, sql: str, operation: int, object_id: int, table: int) -> Compiled:
-        return await self._call(_compile(sql, operation, object_id, table), 'compiled', _compiled)
+        return await self._call(self._owner._queries.lookup(name))
+
+    async def definition(self, object_id: int, revision: int) -> HistoricalDefinition | None:
+        return await self._call(self._owner._queries.definition(object_id, revision))
+
+    async def list(self, cursor: Cursor | None=None) -> Page:
+        return await self._call(self._owner._queries.list(cursor))
+
+    async def compile_sql(self, sql: str, identity: Identity, create_object: int | None=None) -> Compiled:
+        return await self._call(self._owner._queries.compile_sql(sql, identity, create_object))
+
+    async def prepare(self, name: str, identity: Identity, action: Operation) -> Compiled:
+        return await self._call(self._owner._queries.prepare(name, identity, action))
+
+    async def load(self, saved: SavedIntent) -> Intent:
+        return await self._call(self._owner._queries.load(saved))
+
+    async def forget(self, intent: Reference) -> None:
+        return await self._call(self._owner._queries.forget(intent))
+
+    async def next(self, intent: Reference) -> Next:
+        return await self._call(self._owner._queries.next(intent))
+
+    async def status(self, intent: Reference) -> State:
+        return await self._call(self._owner._queries.status(intent))
+
+    async def prepare_resume(self, intent: Reference) -> Prepared:
+        return await self._call(self._owner._queries.prepare_resume(intent))
+
+    async def prepare_control(self, intent: Reference, control: Control) -> Prepared:
+        return await self._call(self._owner._queries.prepare_control(intent, control))
+
     async def prepare_initialize(self, configuration: Configuration) -> Prepared:
-        return await self._call({'prepare_initialize': configuration._wire()}, 'prepared', _prepared)
-    async def prepare_create(self, request: CreateTable) -> Prepared:
-        return await self._call({'prepare_create': request._wire()}, 'prepared', _prepared)
+        return await self._call(self._owner._queries.prepare_initialize(configuration))
+
     async def prepare_policy(self, change: PolicyChange) -> Prepared:
-        return await self._call({'prepare_policy': change._wire()}, 'prepared', _prepared)
+        return await self._call(self._owner._queries.prepare_policy(change))
+
+    async def prepare_dependency(self, dependency: Dependency, present: bool) -> Prepared:
+        return await self._call(self._owner._queries.prepare_dependency(dependency, present))
+
     async def submit(self, prepared: Prepared) -> int:
-        return await self._call({'submit': prepared.data.decode()}, 'receipt', lambda v: integer(_object(v, 'position')['position'], 'position'), prepared.data)
-    async def observe(self, prepared: Prepared, position: int) -> Observation:
-        return await self._call(_input('observe', prepared, position), 'observation', Observation)
+        return await self._call(self._owner._queries.submit(prepared))
+
+    async def observe(self, prepared: Prepared, position: int, *, wait: bool=False) -> Observation:
+        return await self._call(self._owner._queries.observe(prepared, position, wait=wait))
+
     async def input_disposition(self, prepared: Prepared, position: int) -> Disposition | None:
-        return await self._call(_input('input_disposition', prepared, position), 'disposition', _disposition)
-    async def status(self, request: CreateTable) -> Receipt | None:
-        return await self._call({'status': request._wire()}, 'status', _receipt)
+        return await self._call(self._owner._queries.input_disposition(prepared, position))
+
+    async def progress(self, intent: Reference, prepared: Prepared, position: int, *, wait: bool=False) -> Progress:
+        return await self._call(self._owner._queries.progress(intent, prepared, position, wait=wait))
+
     async def close(self) -> None: await self._owner._worker.aclose(self._owner._destroy)
     async def __aenter__(self) -> AsyncClient: return self
     async def __aexit__(self, kind: type[BaseException] | None, value: BaseException | None, traceback: TracebackType | None) -> None: await self.close()

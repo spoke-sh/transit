@@ -2,21 +2,22 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Diagnostic = @import("Diagnostic.zig");
-pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, @"prepare-initialize", @"prepare-create", @"prepare-policy", submit, observe, disposition, status };
-pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, table: ?[]const u8 = null, input: ?[]const u8 = null };
-pub const Options = struct { mode: Mode, flags: Flags = .{}, table: u32 = 0, input: u64 = 0, help: bool = false };
+pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, prepare, next, @"prepare-initialize", @"prepare-policy", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, observe, disposition, progress, status };
+pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, namespace: ?[]const u8 = null, intent: ?[]const u8 = null, input: ?[]const u8 = null };
+pub const Options = struct { mode: Mode, flags: Flags = .{}, input: u64 = 0, help: bool = false };
 fn preparation(mode: Mode) bool {
-    return mode == .@"prepare-initialize" or mode == .@"prepare-create" or mode == .@"prepare-policy";
+    return mode == .@"prepare-initialize" or mode == .@"prepare-policy" or mode == .@"prepare-dependency" or mode == .@"prepare-resume" or mode == .next or mode == .cancel or mode == .cleanup or mode == .@"cancel-upload" or mode == .@"collect-upload";
 }
 fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "config")) return mode != .capabilities;
     if (std.mem.eql(u8, field, "file")) return mode != .capabilities and mode != .describe and mode != .lookup and mode != .definition;
-    if (std.mem.eql(u8, field, "output")) return mode == .compile or preparation(mode) or mode == .list;
-    if (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "table")) return mode == .compile;
+    if (std.mem.eql(u8, field, "output")) return mode == .compile or mode == .prepare or preparation(mode) or mode == .list;
+    if (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "namespace")) return mode == .compile;
     if (std.mem.eql(u8, field, "object")) return mode == .compile or mode == .definition;
     if (std.mem.eql(u8, field, "revision")) return mode == .definition;
     if (std.mem.eql(u8, field, "name")) return mode == .lookup;
-    if (std.mem.eql(u8, field, "input")) return mode == .observe or mode == .disposition;
+    if (std.mem.eql(u8, field, "input")) return mode == .observe or mode == .disposition or mode == .progress;
+    if (std.mem.eql(u8, field, "intent")) return mode == .progress;
     return false;
 }
 pub fn usage(mode: Mode) []const u8 {
@@ -26,9 +27,17 @@ pub fn usage(mode: Mode) []const u8 {
         .lookup => "transit catalog lookup --config PATH --name NAME",
         .definition => "transit catalog definition --config PATH --object ID --revision ID",
         .list => "transit catalog list --config PATH [--file PREVIOUS_PAGE] [--output PAGE]",
-        .compile => "transit catalog compile --config PATH --operation ID --object ID --table ID --file SQL --output COMPILED",
+        .compile => "transit catalog compile --config PATH --operation ID --namespace ID [--object NEW_OBJECT] --file SQL --output COMPILED",
         .@"prepare-initialize" => "transit catalog prepare-initialize --config PATH --file CONFIGURATION --output PREPARED",
-        .@"prepare-create" => "transit catalog prepare-create --config PATH --file COMPILED --output PREPARED",
+        .prepare => "transit catalog prepare --config PATH --file TYPED_REQUEST --output COMPILED",
+        .next => "transit catalog next --config PATH --file COMPILED --output STEP",
+        .@"prepare-resume" => "transit catalog prepare-resume --config PATH --file COMPILED --output PREPARED",
+        .cancel => "transit catalog cancel --config PATH --file COMPILED --output PREPARED",
+        .cleanup => "transit catalog cleanup --config PATH --file COMPILED --output PREPARED",
+        .@"cancel-upload" => "transit catalog cancel-upload --config PATH --file COMPILED --output PREPARED",
+        .@"collect-upload" => "transit catalog collect-upload --config PATH --file COMPILED --output PREPARED",
+        .@"prepare-dependency" => "transit catalog prepare-dependency --config PATH --file DEPENDENCY_CHANGE --output PREPARED",
+        .progress => "transit catalog progress --config PATH --intent COMPILED --file PREPARED --input POSITION",
         .@"prepare-policy" => "transit catalog prepare-policy --config PATH --file POLICY_CHANGE --output PREPARED",
         .submit => "transit catalog submit --config PATH --file PREPARED",
         .observe => "transit catalog observe --config PATH --file PREPARED --input POSITION",
@@ -74,23 +83,19 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
             }
         }
         if (!found) return diagnostic.invalidArgument("unexpected input");
-        if (std.mem.eql(u8, args[i], "--operation") or std.mem.eql(u8, args[i], "--object") or std.mem.eql(u8, args[i], "--revision")) {
-            const value = c.Bridge.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive uint64 integer");
+        if (std.mem.eql(u8, args[i], "--operation") or std.mem.eql(u8, args[i], "--object") or std.mem.eql(u8, args[i], "--revision") or std.mem.eql(u8, args[i], "--namespace")) {
+            const value = c.TableValues.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive uint64 integer");
             if (value == 0) return diagnostic.invalidOption("must be a canonical positive uint64 integer");
-        } else if (std.mem.eql(u8, args[i], "--table")) {
-            const value = c.Bridge.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical integer from 1 through 4294967295");
-            if (value == 0 or value > std.math.maxInt(u32)) return diagnostic.invalidOption("must be a canonical integer from 1 through 4294967295");
-            result.table = @intCast(value);
         } else if (std.mem.eql(u8, args[i], "--input")) {
-            result.input = c.Bridge.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive native position");
+            result.input = c.TableValues.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive native position");
             c.Model.nativeId(result.input) catch return diagnostic.invalidOption("must be a canonical positive native position");
         } else if (std.mem.eql(u8, args[i], "--name")) {
-            _ = c.fuze.model.Name.init(args[i + 1]) catch return diagnostic.invalidOption("requires a name of 1 through 16 ASCII letters, digits or underscores, starting with a letter or underscore");
+            _ = c.TableMetadata.Name.init(args[i + 1]) catch return diagnostic.invalidOption("requires a name of 1 through 255 UTF-8 bytes without NUL");
         }
         i += 2;
     }
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        const optional = mode == .list and (std.mem.eql(u8, field, "file") or std.mem.eql(u8, field, "output"));
+        const optional = (mode == .list and (std.mem.eql(u8, field, "file") or std.mem.eql(u8, field, "output"))) or (mode == .compile and std.mem.eql(u8, field, "object"));
         if (!result.help and allowed(mode, field) and !optional and @field(result.flags, field) == null) {
             diagnostic.atArgument(null, "--" ++ field);
             diagnostic.usage = usage(mode);
@@ -106,7 +111,7 @@ pub fn help(io: std.Io, mode: Mode) !void {
     const out = &writer.interface;
     try out.print("Usage: {s}\n\nOptions:\n  --help  Show this help\n", .{usage(mode)});
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "revision")) "ID  Positive uint64 definition revision" else if (comptime std.mem.eql(u8, field, "name")) "NAME  Exact catalog name, at most 16 ASCII characters" else if (comptime std.mem.eql(u8, field, "table")) "ID  Positive uint32 physical Table" else "POSITION  Receipt position for this exact saved command") ++ "\n");
+        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "revision")) "ID  Positive uint64 definition revision" else if (comptime std.mem.eql(u8, field, "name")) "NAME  Exact UTF-8 catalog name, at most 255 bytes" else if (comptime std.mem.eql(u8, field, "namespace")) "ID  Positive uint64 upload namespace" else if (comptime std.mem.eql(u8, field, "intent")) "PATH  Original compiled intent" else "POSITION  Receipt position for this exact saved command") ++ "\n");
     }
     try out.writeAll("\nOnly submit sends a command. Save each prepared artifact before submitting.\nA receipt is admission; observe processing and read status or disposition.\nConfiguration and recovery: apps/transit-cli/docs/catalog.md\n");
     try out.flush();

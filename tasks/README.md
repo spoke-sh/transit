@@ -37,6 +37,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all five lane reports at the same committed revision |
+| `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
@@ -81,8 +82,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
 | `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
-| `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
-| `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies; optionally use installed mutation SDKs |
+| `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise separate catalog initialization/delegation, lost receipts and disk recovery, retained query cuts across same-namespace Table mutations, and independent query/write policies; optionally use installed catalog SDKs |
 | `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |
 | `just test::catalog-growth` | Create 65 additional Tables on disk with eight resident pages; check nine ordered metadata pages, changed cursors, current disclosure rights and node/store restart; larger counts use `test::catalog --grow N` |
 | `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
@@ -93,15 +93,9 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just bindings::catalog-java` | Build/install Java JARs; verify immutable values, exact catalog recovery, uncertain replies and joined native-port cancellation |
 | `just bindings::catalog-dotnet` | Build/install .NET NuGets; verify immutable values, exact catalog recovery, strict receipt decoding and joined native ABI read cancellation |
 | `just bindings::catalog-beam` | Build/install Erlang/Elixir OTP applications; verify immutable values, exact catalog recovery, malformed replies and joined waiting-process loss |
-| `just bindings::mutation-python` | Build and install Python wheels outside the checkout; prove sync/async mutation caller replacement, exact retry and current denial through the shared native schedule |
-| `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
-| `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |
-| `just bindings::mutation-java` | Install Java JARs outside the checkout; verify immutable values, full-width mutation identity and exact caller replacement recovery |
-| `just bindings::mutation-dotnet` | Restore installed NuGet packages outside the checkout; verify immutable values, asynchronous disposal and exact mutation recovery |
-| `just bindings::mutation-beam` | Install Erlang/Elixir OTP artifacts outside the checkout; verify immutable recovery values, full-width namespaces and current status denial |
-| `just bindings::mutation-ruby` | Build and install Ruby gems outside the checkout; prove immutable requests, full-width namespace recovery and current read denial |
-| `just bindings::mutation-node` | Build and install TypeScript packages outside the checkout; check owned mutation values, runtime response validation and exact receipt recovery with a full-width namespace |
 | `just test::sql-grammar`, `just test::sql-rewrites` | Regenerate the SQL reference parser, compare covered PostgreSQL ASTs, and type-check named Lean proofs with pinned optional tools |
+| `just test::table-ddl-sql` | Compare general Table DDL with independent aliases, defaults, keys, schema bytes and selected evolution semantics |
+| `just test::table-dml-sql` | Compare general Table DML with independent PostgreSQL/ANTLR ASTs and exact typed intent bytes; no native admission claim |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
@@ -122,15 +116,18 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
+| `just test::node-recovery` | Qualifies read-only retained startup through provider connection loss and unavailability, finite exhaustion, and denied/missing/genesis rejection |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `nix develop .#bindings -c just bindings::sdk-interop` | Builds public SDK/example artifacts, installs external consumers and qualifies ten different-language counter/query pairs; writes a local timing record |
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
+| `just test::serving-counter` | Typed counter queue, frozen deltas, lost turns, overflow and output-budget rollback |
 | `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
+| `just test::table-schema` | Independent Table schema bytes, stable column identities, typed defaults, nullable omission and row constraints |
 | `just test::file-query` | Real CSV/JSONL file/stdin/gzip queries, independent exact results, quotas, cancellation, immutable capture and bounded process memory |
 | `just test::file-benchmark --output PATH` | Pinned DuckDB file/discovery/execution comparison matrix in the benchmarks shell; raw reports and explicit metric scopes |
 | `just test::logical-codec`, `just bindings::logical-test` | Exact logical native/port codecs and installed Python/TypeScript owners, generated recursive schemas, hashes and Arrow |
@@ -164,6 +161,11 @@ lane appears exactly once and completes successfully with available cache eviden
 Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
+
+The bindings job has a 240-minute execution cap. The [recorded task durations](../tests/verification/results/m46-clean-task-coverage-2026-10-07.json)
+total about 184 minutes across clean checkouts, separately from hosted setup.
+This cap includes toolchain setup and leaves room for the complete matrix. Individual
+proof deadlines and the separately recorded feedback budgets remain unchanged.
 
 The growing query fixture allows 600 seconds for complete result delivery over
 physical disk and 180 seconds for each other phase. Delivery includes hundreds

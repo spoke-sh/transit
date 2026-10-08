@@ -1,9 +1,10 @@
 # Fuze logical Arrow v1
 
-This contract defines local logical-value IPC export from `transit_fuze.LogicalArrow`
-and `transit file-query --output arrow`. Native durable query results retain the
-six-scalar [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
-int64 profile. This export does not broaden their source or type admission.
+This contract defines logical-value IPC export from `transit_fuze.LogicalArrow`
+and `transit file-query --output arrow`, and canonical segment decoding through
+`transit_fuze.LogicalInspect`. Native durable query results use this encoding
+through the [unified query contract](UNIFIED_QUERY_V1.md); Flight retains its own
+int64 output profile. Each source and transport owns its admission bounds.
 
 ## Schema and physical representations
 
@@ -18,7 +19,9 @@ not preserve every logical distinction.
 Each root field is a non-null Arrow struct containing `state:uint8`, `kind:uint8`,
 nullable `value:PAYLOAD`, and non-null `alternatives:list<ALTERNATIVE>`. State IDs
 are missing 0, null 1, type-error 2, value 3, conflict 4. Kind is the logical tag
-for a value or actual type-error tag, and zero otherwise. These kind semantics
+for a value or observed type-error kind, and zero otherwise. Type-error kind zero
+means unknown; observed null/Document text/character use 28/29/30. These are not
+descriptor tags. These kind semantics
 belong to this explicitly identified logical profile. A non-value has a null
 payload; only conflicts have nonempty alternatives. An alternative is a non-null
 struct of `counter:uint64`, `replica:uint64`, `state:uint8`, `kind:uint8` and nullable
@@ -69,7 +72,9 @@ are not raised to fit a value. Nested wrappers and conflict payloads consume
 metadata even when the corresponding value array is empty.
 
 `encode` returns a complete schema/batch/end stream borrowed from caller output;
-all internal Arrow ownership ends before return. Discard output on error.
+all internal Arrow ownership ends before return. Discard output on error. Exhausting the fixed encoding workspace reports
+`ArrowWorkspaceExceeded`, separately from any host allocator failure. The codec
+performs no external I/O or allocation through a host allocator.
 `messages` can select schema, batch and end messages. A host may concatenate them
 only for the same frozen schema, and may emit end only after verified completion.
 There are no dictionary batches or hidden cross-call metadata/value caches.
@@ -86,6 +91,45 @@ does not establish a completed query. No JSON records are mixed into this stream
 `--batch-rows` selects 1–8 rows, default 8. If a batch exceeds workspace/segment
 capacity, the host splits that same ordered batch; a single oversized row fails.
 It never changes schema, drops a row or restarts discovery. The caller releases
-all owned rows after export or error. IPC import into logical values, logical C
-data/stream export, Flight and SDK Arrow extensions are separate capabilities;
-this contract currently admits local IPC export only.
+all owned rows after export or error.
+
+## Canonical segment decoding
+
+`LogicalInspect.decode` accepts exactly one complete plain schema/batch/end segment
+from `LogicalArrow.encode`, with a supplied logical schema and expected row count.
+It compares the canonical schema bytes, including both mandatory definitions,
+before the IPC reader interprets input metadata. Different field names, types,
+nullability, metadata or definitions reject. This is not a general third-party
+Arrow importer: file-query streams with discovery metadata, multiple record
+batches, dictionary batches and concatenated streams are outside this admission.
+
+Decode enforces the same eight-row, 64-KiB segment and 4-MiB workspace limits.
+It validates Arrow structure and the logical state/kind/payload relationships,
+ordered conflict identities, map keys and complete row budgets. Recursive cells
+consume one shared logical value budget per row. Inactive union wrappers must be
+canonical missing; they do not consume the selected logical branch's node budget.
+Missing end markers, incomplete input, extra batches and trailing bytes reject.
+
+The returned `Batch` owns its descriptor, rows, names and all variable-width
+values independently of input and workspace. Call `deinit` on success; failure
+releases partial ownership and provides no batch. Workspace must not alias input.
+Decoding establishes no authorization, publication or captured-source evidence.
+The neutral ABI's logical IPC import, logical C data/stream export, Flight and
+SDK Arrow extensions remain separate capabilities.
+
+`LogicalInspect.infer` accepts the same plain canonical envelope without a
+separately supplied logical schema. A bounded, nonrecursive reader visits only
+the Arrow Message/Schema metadata tables and their two required key/value pairs.
+It does not traverse physical field trees. It requires `transit.definition` and
+`transit.logical_schema` in canonical order, validates the embedded logical
+codec under its existing byte/depth/node bounds, and compares the complete
+canonical schema prefix before invoking the Arrow reader. Missing/duplicate/
+extra metadata, foreign definitions, invalid offsets and changed schema bytes
+reject. Discovery-evidence metadata is outside this plain-segment profile.
+
+The inferred descriptor owns its data and includes the observed row count;
+`infer` alone does not validate all cell values or whole-result completion.
+`LogicalInspect.segment` follows inference with complete cell decoding and
+expected-row validation, then returns the logical schema fingerprint. Release
+inferred owners with `deinit`. All existing segment/workspace/value limits apply;
+self-description cannot establish source authority or honest computation.

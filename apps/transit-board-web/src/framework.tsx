@@ -24,16 +24,18 @@ function Declaration({ lens }: { lens: Lens }) {
   if ("table" in d)
     return (
       <>
-        <h3>Table {d.table.id}</h3>
+        <h3>Table {text(d.table.object)}</h3>
         <p>
-          Schema v{d.table.schema_version} ·{" "}
-          {d.table.columns
-            .map((c) => `${text(c.name)}: ${c.data_type}${c.nullable ? " (nullable)" : ""}`)
-            .join(" · ")}
+          Head revision {text(d.table.revision)} · {text(d.table.rows)} recorded rows ·{" "}
+          {d.table.retired ? "Retired" : "Active"}
+        </p>
+        {d.table.pending !== null && <p>Pending operation {text(d.table.pending)}</p>}
+        <p>
+          Schema record {text(d.table.schema.record)} · {d.table.schema.bytes} bytes
         </p>
         <p>
-          Source schema fingerprint:{" "}
-          <code>{d.table.fingerprint.map((b) => b.toString(16).padStart(2, "0")).join("")}</code>
+          Schema publication digest:{" "}
+          <code>{d.table.schema.digest.map((b) => b.toString(16).padStart(2, "0")).join("")}</code>
         </p>
       </>
     );
@@ -78,25 +80,6 @@ function Declaration({ lens }: { lens: Lens }) {
             Explicit successor: <Pid id={d.child.successor} />
           </p>
         )}
-      </>
-    );
-  if ("query" in d)
-    return (
-      <>
-        <h3>
-          {d.query.direction === "outgoing" ? "Captured" : "Received"} Arrow result {d.query.id}
-        </h3>
-        <p>
-          {d.query.phase} · correlation {text(d.query.correlation)} · {d.query.rows} rows /{" "}
-          {d.query.bytes} bytes
-        </p>
-        <p>
-          Table {d.query.table} ·{" "}
-          <Link to="/resources" search={{ resource: d.query.source_resource }}>
-            source resource {d.query.source_resource}
-          </Link>{" "}
-          at revision {d.query.source_revision} · destination <Pid id={d.query.destination} />
-        </p>
       </>
     );
   if ("wait" in d)

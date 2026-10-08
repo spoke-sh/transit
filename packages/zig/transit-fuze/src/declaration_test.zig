@@ -4,19 +4,15 @@ const d = f.Declaration;
 const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 
-test "state declarations own names and preserve unspecified nullability" {
-    var text = "create table Items (id INT64 NOT NULL, value UTF8, enabled BOOL NULL, body BINARY)".*;
+test "offline KV definitions own names and canonical review text" {
+    var text = "create kv Items (UTF8)".*;
     const definition = try d.compile(&text);
     @memset(&text, '?');
     try std.testing.expectEqualStrings("items", definition.name.slice());
-    try expect(definition.body.table[0].?.nullability == .not_null);
-    try expect(definition.body.table[1].?.nullability == .unspecified);
-    try expect(definition.body.table[2].?.nullability == .null);
-    try expect(definition.body.table[3].?.type == .binary);
-    try expectError(error.UnsupportedTableColumnCount, definition.tableSchema());
+    try expect(definition.body.kv == .utf8);
     var output: [512]u8 = undefined;
     const formatted = try definition.format(&output);
-    try std.testing.expectEqualStrings("CREATE TABLE \"items\" (\"id\" INT64 NOT NULL, \"value\" UTF8, \"enabled\" BOOL NULL, \"body\" BINARY);", formatted);
+    try std.testing.expectEqualStrings("CREATE KV \"items\" (UTF8);", formatted);
     try expect(std.meta.eql(definition, try d.compile(formatted)));
 }
 
@@ -27,8 +23,6 @@ test "state declarations normalize syntax and preserve quoted identity" {
         "CREATE KV flags (BOOL)",
         "CREATE KV counters (INT64)",
         "CREATE KV bodies (BINARY)",
-        "CREATE TABLE \"TABLE\" (\"NULL\" INT64, \"null\" BINARY NULL)",
-        "CREATE TABLE eight (a INT64,b BOOL,c UTF8,d BINARY,e INT64,f BOOL,g UTF8,h BINARY)",
     }) |text| {
         const definition = try d.compile(text);
         var first: [512]u8 = undefined;
@@ -38,35 +32,11 @@ test "state declarations normalize syntax and preserve quoted identity" {
         try expect(std.meta.eql(definition, restored));
         try std.testing.expectEqualStrings(formatted, try restored.format(&second));
         try expectError(error.UnsupportedStatement, f.Sql.parse(formatted));
-        try expect((try f.Sql.parseMutation(formatted)) == null);
         try expect((try f.Sql.parseInspection(formatted)) == null);
         try expectError(error.WriteFailed, definition.format(first[0 .. formatted.len - 1]));
     }
     try expect((try f.Sql.parseDeclaration("SELECT * FROM items")) == null);
     try expectError(error.UnsupportedStatement, d.compile("SELECT * FROM items"));
-}
-
-test "Table capability requires explicit current key and value nullability" {
-    inline for (.{ .{ "INT64", f.model.Type.int64 }, .{ "BOOL", f.model.Type.boolean }, .{ "UTF8", f.model.Type.utf8 }, .{ "BINARY", f.model.Type.binary } }) |pair| {
-        const definition = try d.compile("CREATE TABLE items (key INT64 NOT NULL, value " ++ pair[0] ++ " NULL)");
-        const schema = try definition.tableSchema();
-        try expect(schema.value_type == pair[1]);
-        const plan = try f.TableMutation.compile("INSERT INTO items (key,value) VALUES (1,NULL)", .{ .name = definition.name, .schema = schema });
-        try plan.validate();
-        try expect(plan.operation.insert[0].?.value == .null);
-    }
-    for ([_]struct { []const u8, anyerror }{
-        .{ "CREATE TABLE items (id INT64 NOT NULL)", error.UnsupportedTableColumnCount },
-        .{ "CREATE TABLE items (id INT64, value UTF8 NULL)", error.UnspecifiedNullability },
-        .{ "CREATE TABLE items (id INT64 NOT NULL, value UTF8)", error.UnspecifiedNullability },
-        .{ "CREATE TABLE items (id UTF8 NOT NULL, value UTF8 NULL)", error.UnsupportedTableKey },
-        .{ "CREATE TABLE items (id INT64 NULL, value UTF8 NULL)", error.UnsupportedTableKey },
-        .{ "CREATE TABLE items (id INT64 NOT NULL, value UTF8 NOT NULL)", error.UnsupportedTableNullability },
-        .{ "CREATE KV settings (UTF8)", error.NotTableDeclaration },
-        .{ "CREATE DOCUMENT notebook", error.NotTableDeclaration },
-    }) |case| {
-        try expectError(case[1], (try d.compile(case[0])).tableSchema());
-    }
 }
 
 test "state declarations reject incomplete, ambiguous and oversized input" {
@@ -91,24 +61,26 @@ test "state declarations reject incomplete, ambiguous and oversized input" {
     try expectError(error.CommentTooDeep, d.compile(writer.buffered()));
 }
 
-test "typed declarations enforce contiguous columns and canonical owned names" {
-    const original = try d.compile("CREATE TABLE items (id INT64 NOT NULL,value INT64 NULL)");
+test "typed offline declarations enforce canonical owned names" {
+    const original = try d.compile("CREATE DOCUMENT items");
     var changed = original;
-    changed.body.table[0] = null;
-    try expectError(error.InvalidColumnCount, changed.validate());
-    changed = original;
-    changed.body.table[2] = changed.body.table[1];
-    changed.body.table[1] = null;
-    try expectError(error.InvalidColumnCount, changed.validate());
-    changed = original;
-    changed.body.table[1].?.name = changed.body.table[0].?.name;
-    try expectError(error.DuplicateColumn, changed.validate());
-    changed = original;
     changed.name.len = 255;
     try expectError(error.InvalidColumnName, changed.validate());
     changed = original;
-    changed.body.table[1].?.name.bytes[15] = 'x';
+    changed.name.bytes[15] = 'x';
     try expectError(error.InvalidColumnName, changed.validate());
     var output: [512]u8 = undefined;
     try expectError(error.InvalidColumnName, changed.format(&output));
+}
+
+test "general Table declarations have one parser and schema owner" {
+    const text = "CREATE TABLE people(id INTEGER PRIMARY KEY, name VARCHAR(40), amount DECIMAL(18,2), tags LIST(UTF8))";
+    try expectError(error.UnsupportedDeclaration, d.compile(text));
+    var definition = try f.TableDdl.compile(std.testing.allocator, text, null, null);
+    defer definition.deinit();
+    const schema = try definition.statement.create.bind(9);
+    try expect(schema.columns[0].type == .int32 and !schema.columns[0].nullable);
+    try expect(schema.columns[1].nullable and schema.columns[1].max_characters == 40);
+    try expect(schema.columns[2].type == .decimal and schema.columns[3].type == .list);
+    try expect(schema.columns.len == 4 and schema.primary_key.len == 1);
 }

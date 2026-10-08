@@ -67,7 +67,7 @@ struct RunnerState {
         const uint64_t scope = raw.number(event, "scope");
         const transit_station_turn_info info{process, {process.realm, raw.number(event, "resource")}, raw.number(event, "resource_revision", true), raw.boolean(event, "initializing")};
         auto input = incoming(raw, event, process.realm);
-        std::unique_ptr<transit_station_turn, decltype(&transit_station_turn_release)> turn(new transit_station_turn(bridge, stop, scope, info, input), transit_station_turn_release);
+        std::unique_ptr<transit_station_turn, decltype(&transit_station_turn_release)> turn(new transit_station_turn(&bridge, stop, scope, info, input), transit_station_turn_release);
         const auto error = boundary([&] {
             if (stop) return;
             std::unique_ptr<transit_station_value> value;
@@ -75,8 +75,25 @@ struct RunnerState {
                 value = decode(codec, unhex(raw.field(event, "input/payload", true), bridge.local.caps.message), bridge.local.caps.message);
                 input.value = value->data;
             }
+            transit_station_query_failure negative{};
+            if (input.kind == TRANSIT_INPUT_RESULT_FAILED) {
+                negative.position = input.position; negative.origin = input.origin; negative.correlation = input.correlation;
+                negative.result = raw.number(event, "input/query_failure/result");
+                const auto reason = raw.field(event, "input/query_failure/reason", true);
+                if (reason == "result_too_large") negative.reason = TRANSIT_QUERY_FAILURE_RESULT_TOO_LARGE;
+                else if (reason == "workspace_exceeded") negative.reason = TRANSIT_QUERY_FAILURE_WORKSPACE_EXCEEDED;
+                else if (reason == "overflow") negative.reason = TRANSIT_QUERY_FAILURE_OVERFLOW;
+                else if (reason == "cancelled") negative.reason = TRANSIT_QUERY_FAILURE_CANCELLED;
+                else if (reason == "denied") negative.reason = TRANSIT_QUERY_FAILURE_DENIED;
+                else fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "query-failure-reason");
+            }
             if (info.initializing && handler.initialize) callback_result(handler.initialize(handler.context, turn.get()));
             if (stop) return;
+            if (input.kind == TRANSIT_INPUT_RESULT_FAILED) {
+                if (!handler.query_failure) fail(TRANSIT_SDK_HANDLER_ERROR, "unhandled-query-failure");
+                callback_result(handler.query_failure(handler.context, turn.get(), &negative));
+                return;
+            }
             auto callback = input.kind <= TRANSIT_INPUT_REPLY ? handler.message : input.kind == TRANSIT_INPUT_RESULT_COMPLETE ? handler.result : handler.control;
             if (!callback) fail(TRANSIT_SDK_HANDLER_ERROR, "unhandled-input");
             callback_result(callback(handler.context, turn.get(), &input));

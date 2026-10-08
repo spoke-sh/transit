@@ -48,6 +48,19 @@ identities and every value/null/type-error alternative; it cannot choose a winne
 Nested values obey the same state rules. Values borrow explicitly owned input or
 allocator storage. Releasing that owner invalidates borrowed children.
 
+Type-error evidence uses `Types.Kind`, separately from descriptor `Types.Tag`.
+Every logical kind retains its descriptor tag ID. Additional observed kinds are
+`unknown` (0), `null_value` (28), Document `text` (29) and Document `character`
+(30). An unknown decoder failure must not invent an actual scalar type. These
+extra names cannot declare a column or payload type. Document `text` evidence is
+distinct from the SQL TEXT alias, which declares UTF-8. A type error remains a
+type error even when its observed kind is unknown or null.
+
+`Values.fromQuery` validates and converts the six-scalar source profile into
+logical cells, retaining all five states, every observed kind, complete ordered
+conflict identities and exact scalar bits. Copied bytes and alternatives belong
+to the supplied arena, which the caller releases after success or failure.
+
 Typed equality requires equal logical descriptors. Integers compare exactly;
 finite floats compare numerically, so signed zeros are equal and hash identically.
 Decimal coefficients compare at their declared scale without binary floating point.
@@ -126,6 +139,20 @@ boolean nullable byte then child type; arrays prepend u32 length. Maps encode
 key type then the value's nullable byte/type. Integers are little-endian.
 
 `FVL1` is magic, u16 `FTY1` length and bytes, root flags, then one typed cell.
+The component's `encodeBound`/`decodeBound` helpers use exactly that final cell
+payload when an enclosing versioned record already binds an exact immutable
+descriptor and flags. Bound payloads contain no standalone type or definition
+claim and are not an alternative FVL1 decoder. The enclosing owner must verify
+its schema binding before decoding, with no current-schema or fallback inference.
+The same recursive validation and 2 MiB encoded-value bound apply. Decoded cells
+and bytes belong to the supplied request arena, including allocations retained
+by a failed parse; releasing that arena releases all of them.
+`Types.decodeInto`, `Type.cloneInto` and `Types.Codec.decodeBoundInto` expose the
+same checks using a caller-supplied arena allocator for an enclosing request.
+They return no independent owner: the caller releases that arena after either
+success or failure. Their bytes, type/value bounds and definition checks are
+identical to the separately owned entry points. Callers must not retain their
+returned slices beyond that arena's lifetime.
 Cell states are 0 missing, 1 null, 2 type-error plus actual type tag, 3 value,
 4 conflict. Conflict is u8 count and ordered alternatives, each u64 counter,
 u64 replica and state 1/2/3 with its corresponding payload. Scalar integers use
@@ -186,7 +213,7 @@ Fields have `name`, `type`, `nullable` and `optional`; omitted flags default to
 false. Element nullability also defaults to false. Logical validation and
 descriptor fingerprints are identical to the binary codec.
 
-`CELL` has exactly one of `missing:{}`, `null:{}`, `type_error:TAG`,
+`CELL` has exactly one of `missing:{}`, `null:{}`, `type_error:KIND`,
 `value:VALUE`, or `conflict:[ALTERNATIVE...]`. Alternatives carry canonical
 decimal-string `counter`/`replica` and a `value` cell restricted to null, type
 error or value. `VALUE` selects `atom`, `structure`, `list`, `array`, `map`,

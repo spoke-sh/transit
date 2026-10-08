@@ -19,14 +19,16 @@ const Session = client.Session;
 const View = p.Growth.View;
 const Decision = Session.Decision;
 pub const Observer = u64;
+pub const read_cache_entries = 64;
 delivery: Session.Delivery,
 view: View,
 reader: Reader,
 read_error: ?anyerror = null,
 decision: Decision,
 resource_deadline_ms: ?u64 = null,
-// Fixed resident bound, scoped to this exact captured view. Absence is cached too.
-read_cache: [p.Growth.page_size]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+// One bounded metadata/row working set, independent of durable cardinality.
+// A native prefetch still requests at most one eight-key protocol page.
+read_cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
 cache_view: ?View = null,
 cache_next: usize = 0,
 
@@ -47,6 +49,10 @@ pub const Committed = struct {
         try p.State.key(key);
         return self.turn.readCommitted(key);
     }
+    pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+        try self.check();
+        try self.turn.prefetch(keys);
+    }
     pub fn page(self: *@This(), after: ?p.Value) !Page {
         try self.check();
         return self.turn.pageCommitted(after);
@@ -61,10 +67,28 @@ pub fn committed(self: *Turn) Committed {
 pub const Retained = struct {
     turn: *Turn,
     view: p.Growth.ReadVersion,
+    cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+    cache_view: ?p.Growth.ReadVersion = null,
+    cache_next: usize = 0,
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try p.Growth.validateKey(key);
+        if (self.turn.read_error) |err| return err;
+        try self.turn.dependVersion(self.view.id);
+        if (self.turn.reader.cache_reads) {
+            if (self.cache_view == null or !std.meta.eql(self.cache_view.?, self.view)) {
+                self.cache = @splat(null);
+                self.cache_next = 0;
+                self.cache_view = self.view;
+            }
+            for (self.cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
+        }
         const result = try self.fetch(key, null);
-        return if (result.entries[0]) |entry| entry.value else null;
+        const value = if (result.entries[0]) |entry| entry.value else null;
+        if (self.turn.reader.cache_reads) {
+            self.cache[self.cache_next] = .{ .key = key, .value = value };
+            self.cache_next = (self.cache_next + 1) % self.cache.len;
+        }
+        return value;
     }
     pub fn page(self: *@This(), after: ?p.Value) !Page {
         if (after) |key| try p.Growth.validateKey(key);
@@ -226,6 +250,14 @@ fn readCommitted(self: *Turn, key: p.Value) !?p.Value {
         self.checkCache();
         for (self.read_cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
     }
+    return self.readCommittedFresh(key);
+}
+/// Reacquire one captured key through the source, even when its value is cached
+/// or privately overwritten. Native readers recheck current access on this call.
+/// A failed acquisition poisons the turn and cannot fall back to cached bytes.
+pub fn readCommittedFresh(self: *Turn, key: p.Value) !?p.Value {
+    try p.State.key(key);
+    if (self.read_error) |err| return err;
     const value = self.reader.read(self.reader.context, self.view, key) catch |err| {
         self.read_error = err;
         return err;
@@ -404,6 +436,7 @@ test "captured cache preserves private precedence, absence, poison and view boun
     var committed_source = turn.committed();
     try std.testing.expectEqual(null, try committed_source.read(key));
     source.fail = true;
+    try std.testing.expectError(error.Unavailable, turn.readCommittedFresh(key));
     try std.testing.expectError(error.Unavailable, turn.read(try p.Value.init("b")));
     try std.testing.expectError(error.Unavailable, turn.read(key));
     try std.testing.expectError(error.Unavailable, turn.validate());
@@ -415,4 +448,35 @@ test "captured cache preserves private precedence, absence, poison and view boun
     next.view.revision += 1;
     _ = try next.read(key);
     try std.testing.expectEqual(4, source.reads);
+}
+
+test "captured metadata working set is bounded and survives more than one read page" {
+    const t = std.testing;
+    var source: @import("TestStore.zig") = .{};
+    for (0..read_cache_entries + 1) |i| source.entries[i] = .{ .key = p.Value.integer(@intCast(i)), .value = p.Value.integer(@intCast(i)), .revision = 0 };
+    var turn = try source.turn(.{});
+    turn.reader.cache_reads = true;
+    for (0..2) |_| for (0..read_cache_entries) |i| {
+        const value = (try turn.read(p.Value.integer(@intCast(i)))).?;
+        try t.expectEqual(@as(i64, @intCast(i)), try value.asInteger());
+    };
+    try t.expectEqual(read_cache_entries, source.reads);
+    _ = try turn.read(p.Value.integer(read_cache_entries));
+    _ = try turn.read(p.Value.integer(0));
+    try t.expectEqual(read_cache_entries + 2, source.reads);
+    try turn.put(p.Value.integer(4), p.Value.integer(-4));
+    try t.expectEqual(@as(i64, -4), try (try turn.read(p.Value.integer(4))).?.asInteger());
+    var committed_source = turn.committed();
+    try t.expectEqual(@as(i64, 4), try (try committed_source.read(p.Value.integer(4))).?.asInteger());
+    source.fail = true;
+    try t.expectError(error.Unavailable, turn.read(p.Value.integer(100)));
+    try t.expectError(error.Unavailable, turn.read(p.Value.integer(4)));
+    try t.expectError(error.Unavailable, turn.validate());
+    source.fail = false;
+    var next = try source.turn(.{});
+    next.reader.cache_reads = true;
+    _ = try next.read(p.Value.integer(4));
+    try t.expectEqual(read_cache_entries + 4, source.reads);
+    const oversized: [p.Growth.page_size + 1]p.Value = @splat(p.Value.integer(0));
+    try t.expectError(error.MutationBudgetExceeded, next.prefetch(&oversized));
 }

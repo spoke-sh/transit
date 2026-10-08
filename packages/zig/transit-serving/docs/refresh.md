@@ -6,7 +6,11 @@ input guard together, initialize privately, and provision caller, worker and
 resource grants before exposing ingress. Standalone `Service` rejects refreshes.
 PID-scoped reads also require optional cross-resource associations installed
 before activation; these confer no resource grant or lifetime ownership.
-The initial profile is a published int64 Table, not a continuous SQL evaluator.
+The source is a published catalog Table with two INT64 columns and a primary
+key on the first. The scheduler checks caller catalog inspect/read rights as
+well as native and service authority. It uses the native Table-head entry
+revision as its watermark, including possible-change reservations before row
+publication.
 
 `follow` selects a completed, retained query and an open caller session. The
 owner verifies its actual manifest/current policy and matches the captured
@@ -78,7 +82,7 @@ clock inputs can release recorded spacing after a scheduler exists. Thus an idle
 metadata-only view does not pay for query wakeup/delivery cycles.
 
 Each view retains its first scheduling stop as a finite reason, original committed
-input and bounded witness. The record fits 251 bytes including the maximum watch
+input and bounded witness. The record fits 250 bytes including the maximum watch
 key and witness. Closing or expiring a session records its stop in the same turn,
 before removing the active slot; it does not cancel selected work. Cancelled or
 retired query uploads stop progress before separate bounded cleanup. Only actual
@@ -95,6 +99,9 @@ witnesses record the comparison clock, the maximum of the committed observer
 sample and conservative host bound; recorded expiry and an observed deadline
 remain distinct. Missing retained query evidence is explicit, never reconstructed
 from a later source read.
+Current caller catalog inspect/read rights protect this status even when its
+source has been renamed or dropped. The service reader's own identity cannot
+substitute for those rights.
 
 Reader diagnostics name the original failed check: principal/PID equality,
 required native permission bits, source/requester writer or lifecycle, or template

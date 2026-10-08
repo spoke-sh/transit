@@ -28,3 +28,21 @@ end
 defmodule Transit.SdkExamples.Rows do
   defstruct []
 end
+
+defmodule Transit.SdkExamples.Advance do
+  defstruct []
+end
+
+defmodule Transit.SdkExamples.NotReady do
+  defstruct []
+end
+
+defmodule Transit.SdkExamples.Update do
+  @enforce_keys [:key]
+  defstruct [:key, value: nil]
+end
+
+defmodule Transit.SdkExamples.Delete do
+  @enforce_keys [:key]
+  defstruct [:key]
+end

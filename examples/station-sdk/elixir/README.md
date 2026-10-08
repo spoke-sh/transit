@@ -8,6 +8,13 @@ replies or completed results. Query consumption streams owned IPC; its external
 effects need application idempotency. Codecs preserve full-width integers and
 reject unsupported versions, lengths, tags, roles and null markers.
 
+The Table service implements the shared [durable FIFO contract](../TABLES.md)
+using native Elixir application codecs. Its four-column schema includes UTF8 and
+LIST defaults. Creation and insert/update/delete preserve original input identities
+through bounded self continuations and process replacement. It records terminal
+outcomes before removing work, while keeping the four-write budget. Busy query
+calls receive an authenticated NotReady reply; callers can explicitly Start later.
+
 Build with `nix develop .#bindings -c just bindings::beam-build`. Extract the
 Elixir examples and their public client/Station and native OTP dependencies into
 an ordinary library directory. Run the installed executable module:
@@ -22,5 +29,5 @@ Each role has its own config with `url`, `profile: "native_v1"`, `realm`,
 ownership and a `data` association first; delivery belongs to the deployment.
 The CLI explicitly selects `:fresh_ownership`, stops on uncertainty and requires
 fencing/reconciliation after host loss. Select persisted recovery for exact retry.
-Both roles and the Table/query handlers pass M11's installed-artifact authority
+Both roles and the Table/query handlers pass the installed-artifact authority
 schedule. See the [test guide](../../../tests/README.md).

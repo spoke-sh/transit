@@ -30,7 +30,9 @@ module Transit
           executable = NativeStation::HOST
         end
         schemas = Internal::SCHEMAS.merge(JSON.parse(File.binread(File.join(__dir__, 'schemas.json'))))
-        @port = Internal::Port.new(executable, configuration, schemas, 'HostRequest')
+        limits = JSON.parse(File.binread(File.join(__dir__, 'contract.json'))).fetch('limits')
+        line_bound = configuration.key?('catalog_client') ? limits.fetch('catalog_line_bytes') : Internal::LIMITS.fetch('host_line_bytes')
+        @port = Internal::Port.new(executable, configuration, schemas, 'HostRequest', line_bound: line_bound)
         begin
           hello = port.request({ 'hello' => {} }, phase: :hello)
           unless hello == { 'host_version' => 1, 'station_version' => 1, 'transit_version' => 1 }
@@ -64,9 +66,6 @@ module Transit
       end
       def unified_query(action)
         port.request({ 'unified_query' => action }, phase: :unified_query, mutation: action.key?('submit'), response: 'UnifiedQueryResult')
-      end
-      def table_mutation(action)
-        port.request({ 'table_mutation' => action }, phase: :table_mutation, mutation: action.key?('submit'), response: 'TableMutationResult')
       end
       def catalog(action)
         port.request({ 'catalog' => action }, phase: :catalog, mutation: action.key?('submit'), response: 'CatalogResult')

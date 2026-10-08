@@ -2,7 +2,8 @@
 
 The Flight gateway serves finite, read-only Table queries using Fuze and the
 existing durable query requester. Each gateway serves a single configured
-Table with two int64 columns (nullable value). It uses the current
+Table with an immutable catalog definition. Results support up to 128 int64
+columns, preserving declared nullability, plus checked int64 COUNT outputs. It uses the current
 KV/Table/Document query v1 interface and adapts verified Table cells to ordinary
 Arrow columns. Missing, conflicted and mistyped cells reject.
 
@@ -55,6 +56,12 @@ invalid input maps to INVALID_ARGUMENT. Allocation/transport failure maps to
 UNAVAILABLE and preserves any earlier work. Flight ticket, sequence and protobuf
 validation keep their specific profile diagnostics. These failed attempts do
 not replace a retained domain outcome or an already unknown submission.
+
+Schema and catalog metadata requests validate the configured immutable Table
+definition against the current catalog. ALTER or DROP requires publication of
+an updated definition before those requests can describe the successor. Exact
+query retries and retained tickets keep their original definition and remain
+subject to current authorization.
 
 ## Connect with ADBC
 

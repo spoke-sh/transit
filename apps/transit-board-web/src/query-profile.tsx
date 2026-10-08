@@ -1,3 +1,4 @@
+import { logicalTypeText } from "@rey/transit-query-client";
 import { cellStates, pageProfile, type ResultPage } from "@rey/transit-query-client";
 
 export function QueryProfile({ page }: { page: ResultPage }) {
@@ -8,7 +9,7 @@ export function QueryProfile({ page }: { page: ResultPage }) {
       <p>
         Exact counts for {page.evidence.rows} visible rows on page{" "}
         {BigInt(page.evidence.ordinal) + 1n} of the same verified result. Query{" "}
-        {manifest.correlation}; source revision {manifest.basis.revision}. This page is not a
+        {manifest.correlation}; source revision {manifest.basis.cut.revision}. This page is not a
         population sample or a whole-source summary.
       </p>
       <table aria-label="Visible page cell-state profile">
@@ -24,7 +25,7 @@ export function QueryProfile({ page }: { page: ResultPage }) {
           {pageProfile(page).map((column) => (
             <tr key={column.name}>
               <th>
-                {column.name} · {column.type}
+                {column.name} · {logicalTypeText(column.type)}
               </th>
               {cellStates.map((state) => (
                 <td key={state}>

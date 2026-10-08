@@ -79,7 +79,7 @@ public final class Runner<T> implements AutoCloseable {
                 String kind = string(input.get("kind"));
                 long position = number(input.get("position"), 1);
                 Origin origin = NativeValues.origin(input.get("origin"), process.realm());
-                Incoming<T> message = null; Control control = null; ResultComplete result = null;
+                Incoming<T> message = null; Control control = null; ResultComplete result = null; QueryFailure queryFailure = null;
                 switch (kind) {
                     case "cast", "call", "reply" -> {
                         T value = NativeValues.decode(codec, unhex(input.get("payload"), bridge.limit("message_bytes")), bridge.limit("message_bytes"));
@@ -91,6 +91,11 @@ public final class Runner<T> implements AutoCloseable {
                     }
                     case "cancel", "timeout" -> control = new Control(kind.equals("cancel") ? ControlKind.CANCEL : ControlKind.TIMEOUT,
                         position, origin, NativeValues.wide(input.get("correlation"), true));
+                    case "result_failed" -> {
+                        JsonObject failed = object(input.get("query_failure"));
+                        queryFailure = new QueryFailure(position, origin, NativeValues.wide(input.get("correlation"), true),
+                            number(failed.get("result"), 1), QueryFailureReason.valueOf(string(failed.get("reason")).toUpperCase(java.util.Locale.ROOT)));
+                    }
                     case "result_complete" -> result = new ResultComplete(position, origin, NativeValues.wide(input.get("correlation"), true));
                     default -> throw NativeValues.handlerError("unsupported-input");
                 }
@@ -98,6 +103,7 @@ public final class Runner<T> implements AutoCloseable {
                 if (bool(event.get("initializing")) && !stop.stopped()) handler.initialize(turn);
                 if (!stop.stopped()) {
                     if (control != null) handler.onControl(turn, control);
+                    else if (queryFailure != null) handler.onQueryFailure(turn, queryFailure);
                     else if (result != null) handler.onResult(turn, result);
                     else handler.onMessage(turn, Objects.requireNonNull(message));
                 }

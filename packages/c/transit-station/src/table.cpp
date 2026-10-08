@@ -1,103 +1,148 @@
-#include "internal.hpp"
+#include "table_internal.hpp"
 using namespace transit::sdk::station_detail;
 using namespace transit::sdk::internal;
-namespace transit::sdk::station_detail {
-const char *cell_name(transit_station_cell_kind kind) {
-    switch (kind) {
-        case TRANSIT_CELL_INT64: return "int64"; case TRANSIT_CELL_BOOLEAN: return "boolean";
-        case TRANSIT_CELL_UTF8: return "utf8"; case TRANSIT_CELL_BINARY: return "binary";
-        default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "cell-type");
-    }
+namespace t = transit::sdk::table_detail;
+namespace l = transit::sdk::logical_detail;
+namespace c = transit::sdk::catalog_detail;
+namespace {
+std::string source(const transit_station_table &table) {
+    return "{\"object\":" + quote(decimal(table.schema.object)) + ",\"version\":" + (table.retained ? version(*table.retained) : "null") + "}";
 }
-std::string cell_wire(transit_station_cell cell, size_t bound) {
-    switch (cell.kind) {
-        case TRANSIT_CELL_NULL: return "{\"null\":{}}";
-        case TRANSIT_CELL_INT64: return "{\"int64\":" + quote(signed_decimal(cell.integer)) + "}";
-        case TRANSIT_CELL_BOOLEAN: return std::string("{\"boolean\":") + (cell.boolean ? "true}" : "false}");
-        case TRANSIT_CELL_UTF8: { const auto bytes = copy(cell.bytes, bound); return "{\"utf8\":" + quote(std::string(bytes.begin(), bytes.end())) + "}"; }
-        case TRANSIT_CELL_BINARY: return "{\"binary\":" + quote(hex(copy(cell.bytes, bound))) + "}";
-    }
-    fail(TRANSIT_SDK_INVALID_ARGUMENT, "cell-type");
+std::unique_ptr<transit_station_row> read_row(transit_station_turn &owner, const transit_station_table &table, const char *tag, const std::string &payload) {
+    const auto result = t::apply(owner, tag, payload, "row"); result.fields({"definition", "row"}); t::check_basis(result.at("definition"), table);
+    if (result.at("row").is_null()) return {}; return t::row(result.at("row"), table.schema.column_count);
 }
-void schema_check(const transit_station_table_schema &schema, const Caps &caps) {
-    require(schema.id, "table-id"); cell_name(schema.value_type);
-    require(!text(schema.key_name, caps.name).empty() && !text(schema.value_name, caps.name).empty(), "table-names");
-}
-std::unique_ptr<transit_station_table> capture_table(transit_station_turn &turn, const transit_station_table_schema &schema, const transit_station_read_version *retained) {
-    const auto &caps = turn.bridge->local.caps; schema_check(schema, caps);
-    const auto value = turn_apply(turn, "{\"table_schema\":{\"id\":" + decimal(schema.id) + ",\"version\":" + (retained ? version(*retained) : "null") + "}}");
-    const auto &raw = turn.bridge->local.raw;
-    if (raw.number(value, "schema/id") != schema.id || raw.field(value, "schema/key_name", true) != schema.key_name || raw.field(value, "schema/value_name", true) != schema.value_name ||
-        raw.field(value, "schema/value_type", true) != cell_name(schema.value_type)) fail(TRANSIT_SDK_HANDLER_ERROR, "captured-table-schema");
-    return std::make_unique<transit_station_table>(turn, schema.id, schema.value_type, basis(raw, value, "schema/basis", turn.info.process.realm), retained);
-}
-transit_station_row read_row(const Raw &raw, const Bytes &json, const std::string &path, size_t bound, transit_station_cell_kind type) {
-    transit_station_row row{}; row.key = signed_number(raw, json, path + "/key");
-    const auto cell = path + "/value/";
-    if (exists(raw, json, cell + "null")) return row;
-    row.kind = type;
-    switch (type) {
-        case TRANSIT_CELL_INT64: row.integer = signed_number(raw, json, cell + "int64"); break;
-        case TRANSIT_CELL_BOOLEAN: row.boolean = raw.boolean(json, cell + "boolean"); break;
-        case TRANSIT_CELL_UTF8: row.bytes = station_detail::json(raw.field(json, cell + "utf8", true)); break;
-        case TRANSIT_CELL_BINARY: row.bytes = unhex(raw.field(json, cell + "binary", true), bound); break;
-        default: fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "cell-type");
-    }
-    if (row.bytes.size() > bound) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "cell-bound"); return row;
+std::optional<transit_station_table_status> read_status(transit_station_turn &owner, const transit_station_table_reference &reference, const char *tag) {
+    const auto wire = l::encode(t::reference_wire(reference), t::bound);
+    require(t::same_resource(owner.info.resource, reference.resource), "foreign-table-resource");
+    const auto result = t::apply(owner, tag, wire, "mutation"); if (result.is_null()) return {};
+    const auto status = t::status(result); require(t::same_reference(status.reference, reference), "table-status-reference"); return status;
 }
 }
 extern "C" {
-transit_sdk_error transit_station_table_open(transit_station_turn *turn, const transit_station_table_schema *schema, const transit_station_read_version *source, transit_station_table **out) {
+transit_sdk_error transit_station_table_open(transit_station_turn *turn, uint64_t object, const transit_station_read_version *retained, transit_station_table **out) {
     if (out) *out = nullptr;
-    return with_turn(turn, true, [&](auto &owner) { require(schema && out, "table-open"); *out = capture_table(owner, *schema, source).release(); });
+    return with_turn(turn, true, [&](auto &owner) {
+        require(object && out, "table-open");
+        const auto result = t::apply(owner, "schema", "{\"object\":" + quote(decimal(object)) + ",\"version\":" + (retained ? version(*retained) : "null") + "}", "schema");
+        result.fields({"schema", "basis"}); auto table = std::make_unique<transit_station_table>(owner);
+        table->schema = c::schema(result.at("schema"), table->arena); table->basis = t::basis(result.at("basis"), owner.info.process.realm);
+        require(table->schema.object == object && table->basis.object == object && t::same_resource(table->basis.resource, owner.info.resource), "table-object");
+        if (retained) table->retained = *retained; *out = table.release();
+    });
 }
-transit_sdk_error transit_station_table_create(transit_station_turn *turn, const transit_station_table_schema *schema, transit_station_table **out) {
+transit_sdk_error transit_station_table_create(transit_station_turn *turn, const transit_station_catalog_schema *schema, const transit_station_catalog_limits *limits, transit_station_table_creation *out) {
+    if (out) *out = {};
+    return with_turn(turn, false, [&](auto &owner) {
+        require(schema && limits && out && limits->record_bytes && limits->staging_bytes && limits->staging_records, "table-create");
+        const auto payload = "{\"realm\":" + decimal(owner.info.resource.realm) + ",\"resource\":" + decimal(owner.info.resource.resource) + ",\"schema\":" + c::schema_wire(*schema) +
+            ",\"limits\":{\"record_bytes\":" + decimal(limits->record_bytes) + ",\"staging_bytes\":" + quote(decimal(limits->staging_bytes)) + ",\"staging_records\":" + decimal(limits->staging_records) + "}}";
+        *out = t::creation(t::apply(owner, "create", payload, "created"));
+    });
+}
+transit_sdk_error transit_station_table_schema(transit_station_table *table, const transit_station_catalog_schema **out) {
     if (out) *out = nullptr;
-    return with_turn(turn, true, [&](auto &owner) { require(schema && out, "table-create"); schema_check(*schema, owner.bridge->local.caps);
-        turn_apply(owner, "{\"table_create\":{\"id\":" + decimal(schema->id) + ",\"key_name\":" + quote(schema->key_name) + ",\"value_name\":" + quote(schema->value_name) + ",\"value_type\":" + quote(cell_name(schema->value_type)) + "}}");
-        *out = capture_table(owner, *schema, nullptr).release(); });
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &) { require(out, "table-schema"); *out = &table->schema; });
 }
-transit_sdk_error transit_station_table_basis(transit_station_table *table, transit_station_basis *out) {
-    return with_turn(table ? table->turn : nullptr, false, [&](auto &) { require(out, "table-basis"); *out = table->basis; });
+transit_sdk_error transit_station_table_read_basis(transit_station_table *table, transit_station_table_basis *out) {
+    if (out) *out = {};
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &) { require(out, "table-basis"); *out = table->basis; });
 }
-transit_sdk_error transit_station_table_get(transit_station_table *table, int64_t key, transit_station_row **out) {
+transit_sdk_error transit_station_table_get(transit_station_table *table, transit_station_row_identity identity, transit_station_row **out) {
     if (out) *out = nullptr;
-    return with_turn(table ? table->turn : nullptr, true, [&](auto &owner) { require(out, "table-get");
-        const auto action = table->retained ? "{\"version_table_get\":{\"version\":" + version(*table->retained) + "," : "{\"table_get\":{";
-        const auto value = turn_apply(owner, action + "\"id\":" + decimal(table->id) + ",\"key\":" + quote(signed_decimal(key)) + "}}");
-        const auto &raw = owner.bridge->local.raw;
-        if (raw.field(value, "row") != "null") *out = new transit_station_row(read_row(raw, value, "row", owner.bridge->local.caps.cell, table->type)); });
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &owner) {
+        require(out, "table-get"); *out = read_row(owner, *table, "get", "{\"source\":" + source(*table) + ",\"identity\":" + quote(hex(Bytes(identity.bytes, identity.bytes + 20))) + "}").release();
+    });
 }
-transit_sdk_error transit_station_table_write(transit_station_table *table, transit_station_write_mode mode, transit_station_row_view row) {
-    return with_turn(table ? table->turn : nullptr, false, [&](auto &owner) {
-        require(!table->retained, "retained-table-write"); require(row.value.kind == TRANSIT_CELL_NULL || row.value.kind == table->type, "table-cell-type");
-        const char *name = mode == TRANSIT_WRITE_INSERT ? "insert" : mode == TRANSIT_WRITE_UPDATE ? "update" : mode == TRANSIT_WRITE_UPSERT ? "upsert" : nullptr;
-        require(name, "table-write-mode");
-        turn_apply(owner, "{\"table_write\":{\"id\":" + decimal(table->id) + ",\"mode\":" + quote(name) + ",\"row\":{\"key\":" + quote(signed_decimal(row.key)) + ",\"value\":" + cell_wire(row.value, owner.bridge->local.caps.cell) + "}}}"); });
-}
-transit_sdk_error transit_station_table_delete(transit_station_table *table, int64_t key) {
-    return with_turn(table ? table->turn : nullptr, false, [&](auto &owner) { require(!table->retained, "retained-table-write");
-        turn_apply(owner, "{\"table_delete\":{\"id\":" + decimal(table->id) + ",\"key\":" + quote(signed_decimal(key)) + "}}"); });
-}
-transit_sdk_error transit_station_table_page(transit_station_table *table, const transit_station_cursor *after, transit_station_page **out) {
+transit_sdk_error transit_station_table_get_key(transit_station_table *table, const transit_logical_cell_view *cells, size_t count, transit_station_row **out) {
     if (out) *out = nullptr;
-    return with_turn(table ? table->turn : nullptr, true, [&](auto &owner) { require(out, "table-page");
-        const auto value = turn_apply(owner, "{\"table_page\":{\"id\":" + decimal(table->id) + ",\"version\":" + (table->retained ? version(*table->retained) : "null") + ",\"cursor\":" + cursor(after) + "}}");
-        const auto &raw = owner.bridge->local.raw; const auto &caps = owner.bridge->local.caps; const auto array = raw.field(value, "rows/rows");
-        if (array.empty() || array.front() != '[' || exists(raw, value, "rows/rows/" + decimal(caps.page))) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "table-page-bound");
-        auto page = std::make_unique<transit_station_page>(); page->table = true;
-        for (size_t i = 0; i < caps.page; ++i) {
-            const auto path = "rows/rows/" + decimal(i); if (!exists(raw, value, path)) break;
-            if (raw.field(value, path) != "null") page->rows.push_back(read_row(raw, value, path, caps.cell, table->type));
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &owner) {
+        require(out && cells && count && count <= 128 && count == table->schema.primary_key_count, "table-get-key");
+        std::string key = "[";
+        for (size_t i = 0; i < count; ++i) {
+            if (i) key += ','; require(key.size() < t::bound, "table-action-bound"); key += l::encode(l::cell_json(cells[i]), t::bound - key.size());
         }
-        page->next = next_cursor(raw, value, "rows/next"); page->basis = basis(raw, value, "rows/basis", owner.info.process.realm); *out = page.release(); });
+        *out = read_row(owner, *table, "get_key", "{\"source\":" + source(*table) + ",\"key\":" + key + "]}").release();
+    });
 }
-transit_sdk_error transit_station_page_row(const transit_station_page *page, size_t index, transit_station_row_view *out) {
-    return boundary([&] { require(page && out && page->table && index < page->rows.size(), "page-row"); *out = page->rows[index].view(); });
+transit_sdk_error transit_station_table_page_read(transit_station_table *table, const transit_station_cursor *after, size_t limit, transit_station_table_page **out) {
+    if (out) *out = nullptr;
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &owner) {
+        require(out && limit && limit <= 8 && limit <= owner.bridge->local.caps.table_page, "table-page-limit");
+        if (after) require(!after->value.empty() && after->value.size() <= 2048, "table-cursor");
+        const auto result = t::apply(owner, "page", "{\"source\":" + source(*table) + ",\"cursor\":" + cursor(after) + ",\"limit\":" + decimal(limit) + "}", "page");
+        result.fields({"definition", "rows", "next"}); t::check_basis(result.at("definition"), *table);
+        auto page = std::make_unique<transit_station_table_page>();
+        for (const auto &row : result.at("rows").array(limit)) page->rows.push_back(t::row(row, table->schema.column_count));
+        if (!result.at("next").is_null()) {
+            page->next = result.at("next").string(); require(!page->next->empty() && page->next->size() <= 2048, "table-cursor");
+        }
+        *out = page.release();
+    });
 }
 transit_sdk_error transit_station_row_inspect(const transit_station_row *row, transit_station_row_view *out) {
-    return boundary([&] { require(row && out, "row"); *out = row->view(); });
+    if (out) *out = {}; return boundary([&] { require(row && out, "table-row"); *out = row->value; });
 }
 void transit_station_row_destroy(transit_station_row *row) { delete row; }
+size_t transit_station_table_page_size(const transit_station_table_page *page) { return page ? page->rows.size() : 0; }
+transit_sdk_error transit_station_table_page_row(const transit_station_table_page *page, size_t index, transit_station_row_view *out) {
+    if (out) *out = {}; return boundary([&] { require(page && out && index < page->rows.size(), "table-page-row"); *out = page->rows[index]->value; });
+}
+transit_sdk_error transit_station_table_page_next(const transit_station_table_page *page, transit_station_cursor **out) {
+    if (out) *out = nullptr; return boundary([&] { require(page && out, "table-page-next"); if (page->next) *out = new transit_station_cursor{*page->next}; });
+}
+void transit_station_table_page_destroy(transit_station_table_page *page) { delete page; }
+transit_sdk_error transit_station_table_fail_read(transit_station_table *table, transit_sdk_error error) {
+    return with_turn(table ? table->turn : nullptr, true, [&](auto &) {
+        require(error.kind != TRANSIT_SDK_OK, "table-read-failure"); throw Failure{error};
+    });
+}
 void transit_station_table_destroy(transit_station_table *table) { delete table; }
+transit_sdk_error transit_station_table_mutation_prepare(transit_sdk_resource resource, uint64_t principal, uint64_t operation, const transit_station_catalog_schema *schema, const transit_station_table_mutation_spec *spec, transit_station_table_mutation **out) {
+    if (out) *out = nullptr;
+    return boundary([&] { require(schema && spec && out, "table-prepare"); *out = t::prepare(resource, principal, operation, *schema, *spec).release(); });
+}
+transit_sdk_error transit_station_table_prepare(transit_station_table *table, uint64_t principal, uint64_t operation, const transit_station_table_mutation_spec *spec, transit_station_table_mutation **out) {
+    if (out) *out = nullptr;
+    return with_turn(table ? table->turn : nullptr, false, [&](auto &) {
+        require(out && spec && !table->retained, "table-prepare"); *out = t::prepare(table->basis.resource, principal, operation, table->schema, *spec).release();
+    });
+}
+transit_sdk_error transit_station_table_mutation_import(transit_sdk_bytes bytes, transit_station_table_mutation **out) {
+    if (out) *out = nullptr; return boundary([&] { require(out, "table-mutation-import"); *out = t::load(bytes).release(); });
+}
+transit_sdk_error transit_station_table_mutation_bytes(const transit_station_table_mutation *mutation, transit_sdk_bytes *out) {
+    if (out) *out = {}; return boundary([&] { require(mutation && out, "table-mutation-bytes"); *out = {reinterpret_cast<const uint8_t *>(mutation->bytes.data()), mutation->bytes.size()}; });
+}
+transit_sdk_error transit_station_table_mutation_schema(const transit_station_table_mutation *mutation, const transit_station_catalog_schema **out) {
+    if (out) *out = nullptr; return boundary([&] { require(mutation && out, "table-mutation-schema"); *out = &mutation->schema; });
+}
+transit_sdk_error transit_station_table_mutation_step(transit_station_turn *turn, const transit_station_table_mutation *mutation, transit_station_table_status *out) {
+    if (out) *out = {};
+    return with_turn(turn, false, [&](auto &owner) {
+        require(mutation && out && t::same_resource(mutation->resource, owner.info.resource), "table-mutation-resource");
+        const auto result = t::status(t::apply(owner, "mutate", mutation->bytes, "mutation")); const auto &r = result.reference;
+        require(t::same_resource(r.resource, mutation->resource) && r.object == mutation->schema.object && r.principal == mutation->principal && r.operation == mutation->operation, "table-mutation-identity"); *out = result;
+    });
+}
+void transit_station_table_mutation_destroy(transit_station_table_mutation *mutation) { delete mutation; }
+transit_sdk_error transit_station_table_reference_import(transit_sdk_bytes bytes, transit_station_table_reference *out) {
+    if (out) *out = {};
+    return boundary([&] {
+        require(out, "table-reference-import"); const auto value = l::parse(bytes, t::bound); const auto encoded = l::encode(value, t::bound);
+        require(encoded.size() == bytes.size && std::equal(encoded.begin(), encoded.end(), reinterpret_cast<const char *>(bytes.data)), "table-saved-canonical");
+        (void)t::action("status", encoded); *out = t::reference(value);
+    });
+}
+transit_sdk_error transit_station_table_reference_export(const transit_station_table_reference *reference, transit_sdk_buffer *out) {
+    if (out) *out = {}; return boundary([&] { require(reference && out, "table-reference-export"); *out = owned(json(l::encode(t::reference_wire(*reference), t::bound))); });
+}
+transit_sdk_error transit_station_table_status_read(transit_station_turn *turn, const transit_station_table_reference *reference, bool *found, transit_station_table_status *out) {
+    if (out) *out = {}; if (found) *found = false;
+    return with_turn(turn, true, [&](auto &owner) { require(reference && found && out, "table-status"); const auto result = read_status(owner, *reference, "status"); if (result) { *out = *result; *found = true; } });
+}
+transit_sdk_error transit_station_table_cancel(transit_station_turn *turn, const transit_station_table_reference *reference, transit_station_table_status *out) {
+    if (out) *out = {};
+    return with_turn(turn, false, [&](auto &owner) { require(reference && out, "table-cancel"); const auto result = read_status(owner, *reference, "cancel"); require(result.has_value(), "table-cancel-result"); *out = *result; });
+}
 }

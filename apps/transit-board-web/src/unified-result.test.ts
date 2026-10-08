@@ -10,9 +10,7 @@ const manifest: ResultPage["evidence"]["manifest"] = {
   policy_revision: "1",
   request: "00",
   basis: {
-    kind: "table",
-    resource: 6,
-    revision: 7,
+    cut: { kind: "table", resource: 6, revision: 7, head: Array(32).fill(0) },
     contract: Array(32).fill(0),
     schema: Array(32).fill(0),
   },
@@ -32,13 +30,13 @@ function page(n: number): ResultPage {
   return {
     evidence: {
       manifest,
-      columns: [{ name: "id", type: "int64" }],
+      columns: [{ name: "id", type: { int64: {} }, nullable: true, optional: true }],
       ordinal: String(n),
       rows: 1,
       ipc: "00",
       next: n === 2 ? null : String(n + 1),
     },
-    cells: [[{ value: { int64: String(n) } }]],
+    cells: [[{ value: { atom: { signed: String(n) } } }]],
   };
 }
 test("complete verification discards prefixes before the current-authority visible reread", async () => {
@@ -56,7 +54,7 @@ test("complete verification discards prefixes before the current-authority visib
     read,
   );
   expect(calls).toEqual([null, "1", "2", null]);
-  expect(result.cells).toEqual([[{ value: { int64: "0" } }]]);
+  expect(result.cells).toEqual([[{ value: { atom: { signed: "0" } } }]]);
 });
 test("denial between verification and reread yields no candidate", async () => {
   let calls = 0;

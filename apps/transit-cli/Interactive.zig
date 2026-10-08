@@ -4,7 +4,7 @@ const q = @import("transit_query");
 const Console = @import("Console.zig").Console;
 const Signals = @import("Signals.zig");
 const Timing = @import("Timing.zig");
-const m = q.fuze.Unified;
+const f = q.fuze;
 
 pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     const statement = request.sql;
@@ -19,18 +19,18 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     timing.enter(.compile);
-    const source = try console.config.source.native(allocator);
+    const source = try console.config.?.source.native(allocator);
     // Ordinary SQL keeps its pure compile path. Explicit bindings use the
     // shared compiler's current-access checks; opening still validates authority
     // independently before acquiring any data.
     var binding: q.fuze.Sql.Binding = .{};
     const bundle = if (request.parameters != null) compiled: {
-        const result = (q.Workspace.applyDiagnostic(allocator, console.client, console.config, .{ .compile = request }, &binding) catch |err| {
+        const result = (q.Workspace.applyDiagnostic(allocator, console.client.?, console.config.?, .{ .compile = request }, &binding) catch |err| {
             console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
             return err;
         }).compiled;
         break :compiled try q.Bundle.decode(allocator, try q.Values.unhex(allocator, result.bundle, q.Bundle.max_bytes));
-    } else q.Bundle.fromSqlDiagnostic(allocator, source, try .init(console.config.name), statement, try console.config.limits.native(), &binding) catch |err| {
+    } else q.Bundle.fromSqlDiagnostic(allocator, source, console.config.?.name, statement, try console.config.?.limits.native(), &binding) catch |err| {
         console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
         return err;
     };
@@ -38,13 +38,13 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     timing.enter(.open);
     var nonce: [16]u8 = undefined;
     try console.init.io.randomSecure(&nonce);
-    var query = try q.Interactive.open(console.client, bundle, nonce);
+    var query = try q.Interactive.open(console.client.?, bundle, nonce, allocator);
     defer query.close() catch {};
-    const workspace = try allocator.alloc(u8, m.Arrow.working_bytes);
-    const arrow = try allocator.alloc(u8, m.Arrow.segment_bytes);
+    const workspace = try allocator.alloc(u8, f.LogicalArrow.working_bytes);
+    const arrow = try allocator.alloc(u8, f.LogicalArrow.segment_bytes);
     const presentation = try allocator.alloc(u8, 1048576);
     const adapter = try allocator.alloc(u8, q.UnifiedBehavior.adapter_bytes);
-    var columns: [m.max_columns]m.Column = undefined;
+    var columns: [q.SourceDefinition.max_columns]f.Types.Field = undefined;
     const schema = try query.schema(&columns);
     var ordinal: u64 = 0;
     var emitted_rows: u64 = 0;
@@ -56,7 +56,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         defer page_arena.deinit();
         const page_allocator = page_arena.allocator();
         var source_memory: std.heap.FixedBufferAllocator = .init(adapter);
-        const segment = query.next(console.client, source_memory.allocator(), workspace, arrow, &Signals.cancellation) catch |err| {
+        const segment = query.next(console.client.?, source_memory.allocator(), workspace, arrow, &Signals.cancellation) catch |err| {
             try interrupted();
             console.diagnostic.envelope = query.diagnostic;
             if (console.diagnostic.envelope) |*detail| {
@@ -68,20 +68,16 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         try interrupted();
         timing.enter(.render);
         var out: std.Io.Writer = .fixed(presentation);
-        const batch = try page_allocator.create(m.Inspect.Batch);
-        batch.* = .{ .count = 0, .columns = @intCast(schema.columns.len) };
-        if (segment) |part| try m.Inspect.decode(schema, part.bytes, part.rows, workspace, page_allocator, batch);
+        var batch: ?f.LogicalInspect.Batch = null;
+        defer if (batch) |*decoded| decoded.deinit();
+        if (segment) |part| batch = try f.LogicalInspect.decode(page_allocator, schema, part.bytes, part.rows, workspace);
         if (segment == null and !query.complete()) continue;
+        const count = if (batch) |decoded| decoded.rows.len else 0;
         if (console.session.format == .table) {
-            if (segment != null) try @import("Results.zig").table(page_allocator, &out, schema, batch);
+            if (batch) |*decoded| try @import("Results.zig").table(page_allocator, &out, schema, decoded);
         } else {
-            const rows = try page_allocator.alloc([]q.Values.Cell, batch.count);
-            for (rows, 0..) |*cells, i| {
-                const native = try batch.row(i);
-                cells.* = try page_allocator.alloc(q.Values.Cell, native.cells.len);
-                for (cells.*, native.cells) |*cell, value| cell.* = try q.Values.Cell.fromNative(page_allocator, value);
-            }
-            try std.json.Stringify.value(.{ .profile = "interactive_v1", .session = query.source.snapshot.id, .basis = query.progress.basis, .ordinal = try q.document.JsonValues.decimal(page_allocator, ordinal), .columns = try q.Values.foreignColumns(page_allocator, schema), .cells = rows, .rows = try q.document.JsonValues.decimal(page_allocator, query.progress.rows), .complete_coverage = query.complete() }, .{ .escape_unicode = true }, &out);
+            const rows = if (batch) |*decoded| try q.Values.rows(page_allocator, decoded) else &.{};
+            try std.json.Stringify.value(.{ .profile = "interactive_v1", .session = query.source.snapshot.id, .basis = query.basis, .ordinal = try q.document.JsonValues.decimal(page_allocator, ordinal), .columns = try q.Values.foreignColumns(page_allocator, schema), .cells = rows, .rows = try q.document.JsonValues.decimal(page_allocator, query.progress.rows), .complete_coverage = query.complete() }, .{ .escape_unicode = true }, &out);
             try out.writeByte('\n');
         }
         if (query.complete()) {
@@ -93,7 +89,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         try interrupted();
         try @import("Output.zig").write(console.init, console.out, out.buffered());
         ordinal += 1;
-        emitted_rows += batch.count;
+        emitted_rows += count;
     }
     console.query_running = false;
 }

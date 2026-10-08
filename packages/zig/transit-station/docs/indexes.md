@@ -1,6 +1,6 @@
 # Immutable ordered indexes
 
-`ImmutableIndex` is the M17 building block for paged Document materialization over
+`ImmutableIndex` provides paged immutable materialization over
 [Publication](publications.md). The [v1 format](../../../../contracts/STATION_INDEX_V1.md)
 fixes ordered node encoding and immutable references. It does not implement CRDTs,
 Document acceptance, permissions, checkpoints or automatic reclamation.
@@ -13,8 +13,15 @@ replacement returns the existing root without writing nodes. Empty values are
 valid; missing keys return null. Consumers represent tombstones explicitly and
 rebuild under their own compaction policy; the index does not erase history.
 
+`remove` copies the selected key's path, prunes empty branches and collapses
+single-child root paths. Missing keys retain the same root and allocate no new
+nodes. Older roots remain readable. Failed candidate writes never modify the
+accepted root; the composing owner retains publication and cleanup authority.
+
 Keys are 1–128 bytes, values 0–256 bytes, fanout eight and levels 0–31. Serialized
-nodes never exceed 4096 bytes. Traversal has no heap allocation; bounded recursive frames hold nodes/paths,
+nodes never exceed 4096 bytes. Canonical key prefixes and zero-byte masks reduce
+physical bytes without changing key ordering, full identities or commitments.
+Decoding uses fixed scratch buffers and rejects noncanonical or oversized input. Traversal has no heap allocation; bounded recursive frames hold nodes/paths,
 independently of the number of retained nodes and roots. Publication adapters
 cache at most eight verified 4096-byte node bodies for the exact source basis.
 Every cache hit still opens the publication descriptor through its source and

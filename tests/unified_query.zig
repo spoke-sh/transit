@@ -5,11 +5,12 @@ const s = @import("transit_station");
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(46);
 const Combined = @import("table_query_writer_support.zig");
+const Catalog = @import("catalog_query_support.zig");
 const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
-const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, expiry_at_ms: ?u64 = null, compound: bool = false };
+const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, source: q.Values.Source, expiry_at_ms: ?u64 = null, compound: bool = false };
 const path = [_]q.document.Model.Name{q.document.Model.Name.init("items") catch unreachable};
 const optional_path = [_]q.document.Model.Name{q.document.Model.Name.init("optional") catch unreachable};
 const projections = [_]q.SourceDefinition.Projection{
@@ -21,25 +22,17 @@ const projections = [_]q.SourceDefinition.Projection{
 fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
     return .{ .resource = resource, .source = switch (kind) {
         .kv => .{ .kv = .{ .prefix = try p.Value.init("k"), .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } },
-        .table => .{ .table = .{ .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .utf8 } } },
+        .table => return error.CatalogDefinitionRequired,
         .document => .{ .document = .{ .reference = .{ .resource = resource, .document = 17, .epoch = 1, .type_revision = 1, .revision = document_count + 1 }, .expand = &path, .projections = &projections } },
     } };
 }
-fn bundle(config: Config) !q.Bundle {
-    const selected: u8 = if (config.kind == .document) 0 else 1;
-    var names: [q.fuze.Unified.max_columns]?q.fuze.Unified.Name = @splat(null);
-    names[0] = try .init("Result");
-    const comparison: @FieldType(q.fuze.Unified.Plan.Atom, "compare") = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } };
+fn bundle(config: Config, allocator: std.mem.Allocator) !q.Bundle {
+    const source = try config.source.native(allocator);
+    const projection = if (config.kind == .document) "value AS \"Result\",counter,replica,optional" else "value AS \"Result\"";
     const ceiling = if (config.kind == .document) "東京🙂/" ++ @as([64]u8, @splat('x')) ++ "/10" else "東京🙂/" ++ @as([128]u8, @splat('x')) ++ "/39";
-    const predicate: q.fuze.Unified.Plan.Predicate = if (config.compound) .{ .program = try q.fuze.Unified.PredicateProgram.Owned.init(&.{
-        .{ .atom = .{ .compare = comparison } },
-        .{ .atom = .{ .compare = .{ .column = selected, .op = .ge, .value = .{ .utf8 = ceiling } } } },
-        .{ .atom = .{ .state = .{ .column = selected, .value = .null } } },
-        .disjunction,
-        .negate,
-        .conjunction,
-    }) } else .{ .compare = comparison };
-    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .output_names = names, .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = predicate }, .limits = budgets };
+    const clause = if (config.compound) try std.fmt.allocPrint(allocator, " AND NOT (value >= '{s}' OR value IS NULL)", .{ceiling}) else "";
+    const sql = try std.fmt.allocPrint(allocator, "SELECT {s} FROM items WHERE value <> '{s}'{s}", .{ projection, @as([512]u8, @splat('x')), clause });
+    return q.Bundle.fromSql(allocator, source, "items", sql, budgets);
 }
 fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
     const bytes: [128]u8 = @splat('x');
@@ -56,9 +49,7 @@ const Seed = struct {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         switch (self.kind) {
             .kv => {},
-            .table => {
-                _ = try s.Table.create(turn, 1, (try definition(.table, turn.view.resource)).source.table.schema);
-            },
+            .table => {},
             .document => try (q.document.Service{ .resource = turn.view.resource, .document = 17 }).create(turn, 1, .{ .record_bytes = 4096, .staging_bytes = 4096, .staging_records = 1 }),
         }
     }
@@ -96,11 +87,11 @@ const Seed = struct {
         if (command == -7 or command == -8) {
             var limits = budgets;
             limits.pages = if (command == -7) 999 else 1000;
-            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -7) 2 else 3, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
+            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -7) 2 else 3, .allow = true, .limits = limits, .target = .{ .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) } });
             return;
         }
         if (command == -2 or command == -3) {
-            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
+            try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .target = .{ .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) } });
             if (command == -2) {
                 var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = 65536, .resources = undefined, .adapter = &.{}, .workspace = &.{}, .cancellation = undefined };
                 const handler = source.interface();
@@ -120,40 +111,15 @@ const Seed = struct {
         for (first..@min(first + 4, self.rows)) |index| {
             var bytes: [220]u8 = undefined;
             const text = try value(index, &bytes, 128);
-            if (self.kind == .table) {
-                const table = try s.Table.open(turn, 1);
-                try table.insert(turn, .{ .key = @intCast(index), .value = .{ .utf8 = try .init(text) } });
-            } else {
-                var key: [9]u8 = undefined;
-                key[0] = 'k';
-                std.mem.writeInt(u64, key[1..9], index, .big);
-                try turn.put(try p.Value.init(&key), try p.Value.init(text));
-            }
+            if (self.kind != .kv) return error.CatalogDefinitionRequired;
+            var key: [9]u8 = undefined;
+            key[0] = 'k';
+            std.mem.writeInt(u64, key[1..9], index, .big);
+            try turn.put(try p.Value.init(&key), try p.Value.init(text));
         }
     }
 };
-fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
-    const started = std.Io.Clock.awake.now(init.io);
-    var steps: usize = 0;
-    while (steps < 20) {
-        const step = server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000) catch |err| {
-            if (!s.client.Client.unavailable(err) or started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 10000) return err;
-            // Match the actual host: retry frozen pending bytes, or discard
-            // only an unsent private read candidate before polling again.
-            if (server.pending == null and server.ready != null) try server.discard();
-            try init.io.sleep(.fromMilliseconds(25), .awake);
-            continue;
-        };
-        steps += 1;
-        switch (step) {
-            .committed => return,
-            .blocked => return server.handler_error orelse error.Blocked,
-            .idle => return error.NoInput,
-            .progress => {},
-        }
-    }
-    return error.StepBudgetExceeded;
-}
+const drive = Catalog.drive;
 fn file(init: std.process.Init, directory: []const u8, name: []const u8) ![]const u8 {
     return std.fmt.allocPrint(init.arena.allocator(), "{s}/{s}", .{ directory, name });
 }
@@ -230,8 +196,21 @@ pub fn main(init: std.process.Init) !void {
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         var seed: Seed = .{ .kind = kind, .rows = rows, .peer = requester.pid, .requests = requester.resource };
         const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
-        try admin.send(writer.pid, -1);
-        try drive(init, &server, handler);
+        const table_config = Catalog.configuration(writer.resource, writer.pid);
+        var table_owner: ?*q.CatalogQueryOwner = null;
+        var source_definition: q.SourceDefinition = undefined;
+        if (kind == .table) {
+            try Catalog.grant(&admin, table_config);
+            table_owner = try Catalog.owner(init, &transport, table_config);
+            server.input_guard = table_owner.?.guard();
+            server.failure_policy = .stop;
+            var catalog_client = try Catalog.caller(&transport, table_config);
+            source_definition = try Catalog.initialize(init, &admin, &server, table_owner.?.interface(), &catalog_client, table_config, rows);
+        } else {
+            try admin.send(writer.pid, -1);
+            try drive(init, &server, handler);
+            source_definition = try definition(kind, writer.resource);
+        }
         if (kind == .document) {
             for (1..document_count + 2) |job| {
                 try admin.send(writer.pid, @intCast(10000 + job));
@@ -244,7 +223,7 @@ pub fn main(init: std.process.Init) !void {
                     } else return error.DocumentDidNotFinish;
                 }
             }
-        } else {
+        } else if (kind == .kv) {
             for (0..(rows + 3) / 4) |index| {
                 try admin.send(writer.pid, @intCast(index * 4));
                 try drive(init, &server, handler);
@@ -256,6 +235,7 @@ pub fn main(init: std.process.Init) !void {
             // unowned. Record/retry a deliberate seed barrier before installing
             // the late finite request resource; never mutate topology under an
             // active writer or broaden its PID-scoped grant.
+            server.input_guard = null;
             seed.freeze = true;
             try admin.send(writer.pid, -4);
             drive(init, &server, handler) catch |err| {
@@ -282,8 +262,14 @@ pub fn main(init: std.process.Init) !void {
             server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
             try drive(init, &server, handler);
         }
-        try admin.send(writer.pid, -2);
-        try drive(init, &server, handler);
+        if (table_owner) |catalog_owner| {
+            server.input_guard = catalog_owner.guard();
+            _ = try Catalog.delegate(&transport, table_config, requester.pid, requester.resource, budgets, 1);
+            try drive(init, &server, catalog_owner.interface());
+        } else {
+            try admin.send(writer.pid, -2);
+            try drive(init, &server, handler);
+        }
         var requests = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
         var behavior: q.UnifiedBehavior.Requester = .{ .principal = 1234, .source = writer.pid };
         _ = try transport.submit(try p.Growth.sign(.{ .realm = 46, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } } }, caller_key));
@@ -291,16 +277,20 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .expiry_at_ms = expiry_at_ms, .compound = std.mem.eql(u8, command, "provision-compound") };
+        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .source = try q.Values.Source.fromNative(init.arena.allocator(), source_definition), .expiry_at_ms = expiry_at_ms, .compound = std.mem.eql(u8, command, "provision-compound") };
         try save(init, directory, "client.json", client_config);
-        try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), try definition(kind, connection.resource)), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
+        try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = client_config.source, .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
         var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
-        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try (try bundle(client_config)).encode(&bundle_bytes) });
-        try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try (try bundle(client_config, init.arena.allocator())).encode(&bundle_bytes) });
+        if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .catalog = table_config } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
         try save(init, directory, "requester.json", .{ .url = url, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = try keyFile(init, directory, "requester.seed", 9), .activation_directory = directory, .role = .{ .unified_requester = behavior } });
         try save(init, directory, "courier.json", .{ .url = url, .realm = 46, .principal = 65538, .seed_file = try keyFile(init, directory, "courier.seed", 11), .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return print(init, connection);
+    }
+    if (std.mem.startsWith(u8, command, "combined-")) {
+        const selected = try std.json.parseFromSlice(q.UnifiedClient.Connection, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "combined-connection.json"), init.arena.allocator(), .limited(4096)), .{});
+        return Combined.execute(init, url, &transport, &admin, directory, command, selected.value);
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
@@ -308,11 +298,21 @@ pub fn main(init: std.process.Init) !void {
         if (!std.mem.eql(u8, command, "lower-policy") and !std.mem.eql(u8, command, "restore-policy") and config.kind != .kv) return error.ExpectedKvSource;
         const process = (try admin.query(.{ .process = config.connection.source })).body.process.process;
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = config.connection.source, .generation = process.generation, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+        if (config.kind == .table) {
+            const table_config = Catalog.configuration(config.connection.resource, config.connection.source);
+            const owner = try Catalog.owner(init, &transport, table_config);
+            server.input_guard = owner.guard();
+            server.failure_policy = .stop;
+            var limits = budgets;
+            const restore = std.mem.eql(u8, command, "restore-policy");
+            limits.pages = if (restore) 1000 else 999;
+            _ = try Catalog.delegate(&transport, table_config, config.connection.requester, config.connection.requests, limits, if (restore) 3 else 2);
+            return drive(init, &server, owner.interface());
+        }
         var seed: Seed = .{ .kind = config.kind, .peer = config.connection.requester, .requests = config.connection.requests };
         try admin.send(config.connection.source, if (std.mem.eql(u8, command, "restore-policy")) -8 else if (std.mem.eql(u8, command, "lower-policy")) -7 else if (std.mem.eql(u8, command, "invalidate-kv")) -5 else -6);
         return drive(init, &server, .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle });
     }
-    if (std.mem.startsWith(u8, command, "combined-")) return Combined.execute(init, &transport, &admin, directory, command, config.connection);
     if (std.mem.eql(u8, command, "age")) {
         if (args.len != 5) return error.Usage;
         const entries = try std.fmt.parseInt(usize, args[4], 10);
@@ -334,18 +334,16 @@ pub fn main(init: std.process.Init) !void {
     var client: q.UnifiedClient = .{ .wire = &transport, .connection = config.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
     if (std.mem.eql(u8, command, "compile-count")) {
         if (args.len != 5) return error.Usage;
-        const source = try definition(config.kind, config.connection.resource);
-        var columns: [q.fuze.Unified.max_columns]q.fuze.Unified.Column = undefined;
-        const plan = try q.fuze.Unified.Sql.plan(init.arena.allocator(), args[4], .{ .name = try .init("items"), .schema = try source.schema(&columns) });
-        if (plan.aggregate != .count_values) return error.ExpectedValueCount;
+        const source = try config.source.native(init.arena.allocator());
+        const result = try q.Bundle.fromSql(init.arena.allocator(), source, "items", args[4], budgets);
+        if (result.plan.aggregate != .count_values) return error.ExpectedValueCount;
         var bytes: [q.Bundle.max_bytes]u8 = undefined;
-        const result: q.Bundle = .{ .source = source, .plan = plan, .limits = budgets };
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "count-bundle.bin"), .data = try result.encode(&bytes) });
         return;
     }
     if (std.mem.eql(u8, command, "upload")) {
         for (0..1000) |_| {
-            const pending = (try client.prepareNext(1, try bundle(config))) orelse return print(init, (try client.status(1)).?);
+            const pending = (try client.prepareNext(1, try bundle(config, init.arena.allocator()))) orelse return print(init, (try client.status(1)).?);
             try save(init, directory, "pending.json", pending);
             try observe(init, &client, try client.submit(pending));
         }
@@ -433,15 +431,16 @@ pub fn main(init: std.process.Init) !void {
             else => return err,
         };
         const cursor: ?q.UnifiedResult.Cursor = if (saved) |bytes| (try std.json.parseFromSlice(q.UnifiedResult.Cursor, init.arena.allocator(), bytes, .{})).value else null;
-        const workspace = try init.arena.allocator().alloc(u8, q.fuze.Unified.Arrow.working_bytes);
-        var bytes: [q.fuze.Unified.Arrow.segment_bytes]u8 = undefined;
-        var decoded: q.fuze.Unified.Inspect.Batch = undefined;
+        const workspace = try init.arena.allocator().alloc(u8, q.fuze.LogicalArrow.working_bytes);
+        var bytes: [q.fuze.LogicalArrow.segment_bytes]u8 = undefined;
+        var decoded: q.fuze.LogicalInspect.Batch = undefined;
         const page = try client.page(1, cursor, init.arena.allocator(), workspace, &bytes, &decoded);
+        defer decoded.deinit();
         const ordinal = if (cursor) |previous| previous.ordinal else 0;
         const path_name = try std.fmt.allocPrint(init.arena.allocator(), "result-{d}.arrow", .{ordinal});
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, path_name), .data = page.arrow });
         if (page.next) |next| try save(init, directory, "cursor.json", next);
-        return print(init, .{ .rows = decoded.count, .ordinal = ordinal, .complete = page.next == null, .manifest = page.manifest });
+        return print(init, .{ .rows = decoded.rows.len, .ordinal = ordinal, .complete = page.next == null, .manifest = page.manifest });
     }
     if (std.mem.eql(u8, command, "versions")) {
         if (args.len != 4 and args.len != 6) return error.Usage;

@@ -1,96 +1,128 @@
 # Tables and materialization
 
-A Station Table is typed application state over one durable resource. A fenced
-writer commits row changes with input progress and outputs. Readers use current
-authorization and an explicit source/revision basis; a Table handle is not a
-permission or an independent database connection.
+A Table is typed application state in an explicitly configured catalog over one
+durable resource. The catalog owner controls schema changes and row publication.
+Native grants and current catalog permissions apply independently; a name,
+retained snapshot or cached schema grants neither access nor execution rights.
+
+The [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+routes CREATE, ALTER, DROP, INSERT, UPDATE, DELETE and supported SELECT statements
+through that catalog. An authorized new Table is discoverable without editing a
+per-Table connection file or starting another writer. Provisioning the resource,
+assigning its owner and granting permissions remain explicit operations.
+
+## Schemas and identities
+
+Tables contain 1–128 ordered named columns with the shared
+[logical types](sql/types.md). Omitted nullability means nullable. A declared
+single or composite PRIMARY KEY implies NOT NULL; column position creates no
+constraint. Without a primary key, stable internal row identities preserve
+duplicate rows. These identities are separate from user-visible identity columns,
+which SQL does not provide.
+
+Object and column identities survive rename. Dropping and recreating a name
+allocates a new identity. Immutable metadata and schema revisions bind prepared
+plans, saved operations and retained readers to their original meaning.
+Unsupported or incompatible definitions reject before execution; stored data
+and accepted work are never silently reset or decoded as another profile.
+
+Defaults apply to omitted INSERT fields and explicit DEFAULT assignments.
+Explicit NULL stays NULL and must satisfy nullability. Ordinary Table cells
+store values or SQL NULL. Nested optional members may be missing; stored type
+errors and conflicts are rejected at every depth. A Table can store a type
+without supporting every comparison, aggregate or transport for it.
+
+Schemas are bounded by 64 KiB of encoded metadata and shared descriptor/default
+budgets. Variable values use bounded immutable chunks. Operation and resident
+memory bounds do not impose a fixed total Table or catalog cardinality.
 
 ## Mutation and visibility
 
-Table helpers encode schema-aware values into the resource's key/value model.
-Validate column types and operation budgets before proposing a batch. Accepted
-mutations within one turn become visible together with its consumed input and
-outputs. A failed proposal cannot expose half the batch.
+[INSERT](sql/insert.md), [UPDATE](sql/update.md) and [DELETE](sql/delete.md) bind
+complete typed intent to the original object and metadata. Inspect, read,
+create, insert, update, delete, alter and drop are separate catalog rights.
+Successful SELECT or CREATE does not grant a mutation right.
 
-Applications can explicitly expose bounded SQL INSERT, primary-key UPDATE and
-DELETE through the [Table mutation owner](../../contracts/TABLE_MUTATION_V1.md).
-The supplied host has explicit writer and combined query/writer roles, with shared signed Zig and
-[native ABI/port callers](../../packages/zig/transit-station-bindings/docs/table-mutations.md).
-Native admission receipts and terminal row results remain separate.
-Its shared Zig client prepares and saves signed commands, resumes immutable
-uploads and reads durable outcomes under current grants. A separate mutation
-policy controls each caller; read-query access alone cannot enable writes.
-The console executes these statements through a `writes.table` route, supplied
-automatically for the local server's `items` Table and explicitly for other connections;
-`.help INSERT` explains configuration and recovery. Board, Flight SQL and
-language SDK read-query routes do not admit mutations. Console and typed mutation
-SDKs use the shared mutation owner.
+Small point changes can publish their row, index, head and terminal outcome in
+four native writes. Larger changes stage bounded work and freeze the source
+basis. Readers see the old head until the complete successor and original
+operation outcome publish atomically. A bad later row, duplicate key or failed
+constraint never exposes a successful statement prefix. Concurrent conflicting
+writes and DDL are fenced while that work is pending.
 
-Failed status reads keep the original mutation namespace and resource as caller
-context. They do not prove that the mutation is absent, rejected or cancelled.
-Diagnostics distinguish an authority rejection from a mutation identity conflict
-and retain the native cause when available. Retry advice for a failed read never
-authorizes a new mutation; an uncertain send retains its exact signed command.
+Matched and changed row counts come from the committed outcome. An unchanged
+UPDATE can match a row while changing none. Changed means different canonical
+stored bytes, including JSON text and floating zero sign; it does not imply
+that JSON has a SQL equality operator.
 
-The [combined Table owner](../../contracts/TABLE_QUERY_WRITER_V1.md) initializes
-one empty typed Table, then atomically enables its separately configured query
-and mutation policies. Its two durable phases each fit four mutations. Query
-admission retains a source cut, so later row changes cannot alter an accepted
-finite query's results. New queries see newly captured cuts. Current query
-policy and native grants still control disclosure of retained results.
+Admission receipts, processed inputs and applied domain outcomes are distinct.
+After an uncertain send, reconcile the original saved work with `.status` and
+`.resume`. Repeating SQL creates new work. Cancellation can close pending work;
+it cannot undo an applied operation. Revoking execution permission does not
+erase outcomes or make uncertain work safe to repeat. Current inspection rights
+still control outcome disclosure.
 
-Growing Table rows use the resource's ordered key/value index, with encoded
-primary keys and a separate schema descriptor. Arrow is the query interchange
-and result representation; the Table's persistent rows are not columnar Arrow
-row groups. The finite query path reads bounded row pages before applying its
-supported filters and projections. Interactive queries use direct primary-key
-lookup for `WHERE id = ...` (using the declared key name), seek to lower bounds
-for `>`/`>=`, and stop after upper bounds for `<`/`<=`. These access paths apply
-only to the non-null int64 primary key. The original Fuze predicate still runs;
-value predicates and `!=` use the ordinary bounded scan.
+The one-mutated-resource boundary remains. Multiple Tables, independently
+captured sources and catalog names do not establish cross-resource transactions.
 
-Persistent columnar blocks and block-statistics pruning are planned for
-scan-heavy workloads. Current primary-key seeks serve selective operational reads. They are not supplied by
-Arrow output alone. See the [workload priorities](workloads.md) and
-[performance characteristics](performance.md) for the current evidence.
+## Schema lifecycle and retained reads
 
-The underlying one-mutated-resource boundary remains. Multiple Table helpers
-or independently captured sources do not create a multi-resource transaction or
-global snapshot. Larger changes require an explicit publication/workflow contract,
-not silently splitting one promised atomic batch across turns.
+[CREATE TABLE](sql/create-table.md) publishes the name, immutable definition and
+empty head. [ALTER TABLE](sql/alter-table.md) supports column and Table renames,
+column addition/removal, defaults, nullability and selected exact type changes.
+Metadata-only changes and complete row/index rewrites have separate execution
+paths. Existing rows must satisfy every tightened constraint before publication.
+Changing a default does not rewrite earlier values.
 
-Legacy Table APIs retain their fixed bounds. Growing APIs access retained rows
-and framework records through bounded pages. Use the selected package API and
-authority capabilities; no implicit migration upgrades older state.
+[DROP TABLE](sql/drop-table.md) removes the live name and retires its object/head
+under RESTRICT semantics. Registered blocking dependencies prevent DROP;
+historical references do not make a name live. Applications install dependency
+records explicitly. The registry does not discover arbitrary external users.
 
-## Materialize a stream
+Already captured readers retain their original schema and cut, subject to
+current authorization and their own lifetimes. New admissions cannot substitute
+a dropped/recreated object. Exact operation receipts remain reconcilable after
+rename, ALTER or DROP. An exact historical definition contains its accepted
+metadata and schema, without claiming a current live head.
 
-An application can consume mailbox input, update its Table and advance input
-progress in the same turn. After recovery it resumes from accepted progress;
-it must not apply an already consumed input again under a fresh identity.
-Domain event decoding, validation and aggregation belong in that application.
-
-Backlog stays durable when a worker is slow. Bound each batch and page, retain
-control capacity and expose blocked progress. Retention does not become finite
-because a materialization falls behind. Current rows can outlive old input
-history when a validated checkpoint preserves recovery.
+DROP does not physically erase retained data. Cleanup reclaims only qualified
+rejected/cancelled candidate storage, preserves identity floors and receipts,
+and remains separate from accepted-history retention.
 
 ## Query and observe
 
-The finite v1 Table query profile has a declared int64 key and nullable scalar
-value. Query v1 adds wider declared schemas/source adapters, not unrestricted
-SQL. Source revision and data watermark have different meanings: data progress
-can exclude framework bookkeeping writes. A reply must identify the basis it
-actually used.
+Finite Table queries bind the full logical row schema and return typed values.
+A complete primary-key equality or conjunction can use the collision-safe
+index. Partial keys, inequalities and additional predicates use the qualified
+finite scan; the complete Fuze predicate still runs. Rows are stored as immutable
+row records and indexes, not columnar Arrow row groups. Arrow is an interchange
+format and does not itself supply scan pruning.
 
-[SQL](sql.md) compiles into typed Fuze plans. Results use bounded Arrow batches
-with complete-result verification; an initial page is not the whole result.
-[Reactive watches](reactive.md) provide int64 Table notifications and exact
-snapshot refresh. Continuous materialized SQL is unsupported.
+Finite query pages acquire at most eight row references together. Publication
+headers are validated before bounded chunk prefetch, and each decoded row retains
+its schema, digest and identity checks. Interactive pull scans decode one row
+at a time from those references, so a selected LIMIT does not allocate the
+remaining values. Current authorization still precedes every output. This storage
+page size is separate from execution-vector design.
 
-For APIs use [Station](../../packages/zig/transit-station/README.md) and the
-[query host](../../apps/transit-query-host/README.md). Exact contracts are
-[Tables v1](../../contracts/STATION_V1.md),
-[query v1](../../contracts/UNIFIED_QUERY_V1.md) and
-[query v1](../../contracts/STATION_QUERY_V1.md). [State](state.md),
-[queries](queries.md) and [Arrow](arrow.md) explain shared lifetime rules.
+Each [interactive query](queries.md) captures an explicit source basis and checks
+current authorization before disclosure. Durable query jobs separately retain
+their source and publish verified result segments. An initial result page is
+an incomplete prefix. Catalog schema caches retain no permission.
+
+[Reactive watches](reactive.md) have an explicit two-INT64-column snapshot
+transport profile. Rich finite Table values do not widen that transport,
+continuous SQL, Flight SQL or future joins and grouping implicitly.
+
+## Materialize a stream
+
+Applications materializing streams own domain decoding, validation and progress.
+Staged changes need durable operation identities and publication boundaries;
+recovery must never turn one accepted input into another mutation identity.
+Backlog remains durable and retention defaults to unlimited.
+
+See the [schema](../../contracts/TABLE_SCHEMA_V1.md),
+[data/publication](../../contracts/TABLE_DATA_V1.md),
+[DDL](../../contracts/TABLE_DDL_V1.md), [DML](../../contracts/TABLE_DML_V1.md)
+and [catalog query owner](../../contracts/CATALOG_QUERY_OWNER_V1.md) contracts,
+and the [catalog component guide](../../packages/zig/transit-catalog/docs/table-metadata.md).

@@ -30,8 +30,14 @@ jobs, accepted references and readers with exclusive runner borrows.
 The [unified query guide](docs/UNIFIED_QUERY.md) covers explicit v1 sources,
 persisted commands, exclusive caller ownership and owned nested Arrow results.
 
-The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes, owned
-request references, borrowed prepared commands and exact durable recovery.
+The [catalog guide](docs/CATALOG.md) covers general typed schemas, DDL/DML,
+historical metadata, policy and owned saved-intent recovery.
 
-The [catalog guide](docs/CATALOG.md) covers typed initialization, conditional
-policy, named Table creation and owned saved-command recovery.
+The [handler Table guide](docs/TABLES.md) describes owned typed rows, retained
+reads and explicit resumable mutation steps.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

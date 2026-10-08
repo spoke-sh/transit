@@ -51,16 +51,17 @@ test "neutral compilation fixtures retain exact scalar bytes and ordinary bundle
         try t.expectEqual(2, client.reads);
         const definition = try case.request.scope.source.native(alloc);
         const limits = try case.request.scope.limits.native();
-        const explicit: q.Bundle = .{ .source = definition, .plan = try case.plan.native(alloc), .limits = limits };
-        const literal = try q.Bundle.fromSql(alloc, definition, try .init(case.request.scope.name), case.literal_sql, limits);
+        var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
+        const schema = try definition.schema(&columns);
+        const explicit: q.Bundle = .{ .source = definition, .plan = try case.plan.native(alloc, schema, try definition.fingerprint()), .limits = limits };
+        const literal = try q.Bundle.fromSql(alloc, definition, case.request.scope.name, case.literal_sql, limits);
         var bytes: [q.Bundle.max_bytes]u8 = undefined;
         const actual = try v.unhex(alloc, result.bundle, q.Bundle.max_bytes);
         try t.expectEqualSlices(u8, try explicit.encode(&bytes), actual);
         try t.expectEqualSlices(u8, try literal.encode(&bytes), actual);
-        const returned: q.Bundle = .{ .source = try result.source.native(alloc), .plan = try result.plan.native(alloc), .limits = try result.limits.native() };
+        const returned: q.Bundle = .{ .source = try result.source.native(alloc), .plan = try result.plan.native(alloc, schema, try definition.fingerprint()), .limits = try result.limits.native() };
         try t.expectEqualSlices(u8, try returned.encode(&bytes), actual);
         try t.expectEqualSlices(u8, &try definition.fingerprint(), &result.contract);
-        var columns: [m.max_columns]m.Column = undefined;
         try t.expectEqualSlices(u8, &try (try definition.schema(&columns)).fingerprint(), &result.schema);
 
         // The generated neutral envelopes and workspace share the same values.
@@ -89,7 +90,7 @@ fn owned(allocator: std.mem.Allocator) !void {
     try t.expectEqualStrings("owned", result.plan.predicate.compare.value.utf8);
     const restored = try q.Bundle.decode(alloc, try v.unhex(alloc, result.bundle, q.Bundle.max_bytes));
     try t.expectEqualStrings("body", restored.source.source.document.projections[0].path[0].slice());
-    try t.expectEqualStrings("owned", restored.plan.predicate.compare.value.utf8);
+    try t.expectEqualStrings("owned", restored.plan.predicate.compare.value.bytes);
     const foreign = try std.json.Stringify.valueAlloc(alloc, q.Bridge.Result{ .compiled = result }, .{});
     _ = try std.json.parseFromSlice(q.Bridge.Result, alloc, foreign, .{});
 }
@@ -132,11 +133,11 @@ test "neutral compilation validates binding shape and does not reinterpret ordin
     var client: ReadOnlyClient = .{};
     request.parameters = &.{};
     try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.apply(alloc, &client, request));
-    request.parameters = &.{ .{ .int64 = "0" }, .{ .int64 = "2" } };
+    request.parameters = &.{ .{ .signed = "0" }, .{ .signed = "2" } };
     try t.expectError(error.TypeMismatch, q.SqlCompilation.apply(alloc, &client, request));
-    request.parameters = &.{ .{ .int64 = "0" }, .{ .uint64 = "02" } };
-    try t.expectError(error.InvalidDocumentInteger, q.SqlCompilation.apply(alloc, &client, request));
-    request.parameters = &.{ .{ .int64 = "0" }, .{ .uint64 = "2" }, .{ .uint64 = "3" }, .{ .uint64 = "4" } };
+    request.parameters = &.{ .{ .signed = "0" }, .{ .unsigned = "02" } };
+    try t.expectError(error.InvalidIntegerEncoding, q.SqlCompilation.apply(alloc, &client, request));
+    request.parameters = &.{ .{ .signed = "0" }, .{ .unsigned = "2" }, .{ .unsigned = "3" }, .{ .unsigned = "4" } };
     try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.apply(alloc, &client, request));
     request.parameters = null;
     try t.expectError(error.UnboundParameters, q.SqlCompilation.apply(alloc, &client, request));
@@ -151,15 +152,30 @@ test "neutral compilation retains original parameter context without admitting w
     const fixtures = (try std.json.parseFromSlice(Fixture, alloc, fixture_bytes, .{})).value;
     var request = fixtures.cases[0].request;
     request.sql = "SELECT value FROM items WHERE value = $1 LIMIT $2";
-    request.parameters = &.{ .{ .int64 = "1" }, .{ .uint64 = "02" } };
+    request.parameters = &.{ .{ .signed = "1" }, .{ .unsigned = "02" } };
     var client: ReadOnlyClient = .{};
     var detail: q.fuze.Sql.Binding = .{};
-    try t.expectError(error.InvalidDocumentInteger, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
+    try t.expectError(error.InvalidIntegerEncoding, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
     try t.expectEqual(@as(usize, 1), client.reads);
     try t.expectEqual(@as(?u32, 2), detail.parameter);
     try t.expectEqualStrings("uint64", detail.expected.?);
-    const diagnostic = q.fuze.SqlDiagnostic.bound(request.sql, error.InvalidDocumentInteger, true, detail).?;
+    const diagnostic = q.fuze.SqlDiagnostic.bound(request.sql, error.InvalidIntegerEncoding, true, detail).?;
     try t.expect(std.mem.indexOf(u8, diagnostic.detail[0..diagnostic.detail_len], "02") != null);
+    for ([_]struct { value: v.Scalar, preview: []const u8 }{
+        .{ .value = .{ .signed = "2" }, .preview = "2" },
+        .{ .value = .{ .signed = "-170141183460469231731687303715884105728" }, .preview = "-170141183460469231731687303715884105728" },
+        .{ .value = .{ .timestamp_micros = "-1" }, .preview = "-1 microseconds since epoch" },
+        .{ .value = .{ .interval = .{ .months = "1", .days = "2", .nanos = "3" } }, .preview = "1 months, 2 days, 3 ns" },
+        .{ .value = .{ .interval = .{ .months = "1", .days = "bad\x1b\n", .nanos = "3" } }, .preview = "days: \"bad\\x1b\\x0a\"" },
+    }) |case| {
+        request.parameters = &.{ .{ .signed = "1" }, case.value };
+        const before = client.reads;
+        if (q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail)) |_| return error.AcceptedWrongParameter else |_| {}
+        try t.expectEqual(before + 1, client.reads);
+        try t.expectEqual(@as(?u32, 2), detail.parameter);
+        try t.expectEqualStrings(case.preview, detail.literal[0..detail.literal_len]);
+        try t.expectEqualStrings(@tagName(case.value), detail.actual.?);
+    }
     request.parameters = &.{};
     try t.expectError(error.ParameterCountMismatch, q.SqlCompilation.applyDiagnostic(alloc, &client, request, &detail));
     try t.expectEqual(@as(?usize, 2), detail.expected_count);

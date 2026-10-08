@@ -2,18 +2,18 @@
 //! upload, progress, result publication or principal sequence is created here.
 const std = @import("std");
 const q = @import("root.zig");
-const m = q.fuze.Unified;
+const f = q.fuze;
 const g = q.protocol.Growth;
 const Self = @This();
 bundle: q.Bundle,
 source: q.wire.SnapshotReader,
-progress: m.Stream.Progress,
-columns: [m.max_columns]m.Column,
-column_count: usize,
+progress: f.LogicalStream.Progress,
+basis: q.Basis,
 cursor: q.UnifiedSource.Cursor = .{},
 bytes: u64 = 0,
 cache: [64]?Cached = @splat(null),
 cache_slot: usize = 0,
+table_nodes: q.station.ImmutableIndex.Cache = .{},
 current: ?q.wire.ResourceReader.Batch = null,
 range: ?g.SnapshotRead.Range = null,
 range_entries: [g.SnapshotRead.range_entries]?g.Entry = @splat(null),
@@ -22,22 +22,34 @@ range_index: usize = 0,
 range_available: bool = false,
 diagnostic: ?q.protocol.Diagnostic = null,
 
-pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !Self {
+pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator: std.mem.Allocator) !Self {
     try bundle.validate();
-    if (client.snapshot_support == null) client.snapshot_support = try q.wire.SnapshotReader.support(client.resources());
-    const support = client.snapshot_support.?;
+    if (client.snapshot_support == null) _ = try client.batchSupport();
+    const support = client.snapshot_support orelse return error.InteractiveQueriesUnavailable;
     const request = try opening(client, bundle, nonce);
     var acquired = try support.acquire(request);
     errdefer acquired.reader.close() catch {};
     if (acquired.reader.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
-    const description = try client.interactiveDescription(bundle.source, acquired.result);
+    const description = try client.interactiveDescription(bundle.source, request.current, acquired.result);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, acquired.reader.view.revision), try bundle.source.schema(&columns));
-    var result: Self = .{ .bundle = bundle, .source = acquired.reader, .progress = .start(bound), .columns = columns, .column_count = bound.schema.columns.len, .range = request.range };
+    var result: Self = .{ .bundle = bundle, .source = acquired.reader, .progress = undefined, .basis = undefined, .range = request.range };
     result.current = q.UnifiedClient.interactiveBatch(request.current[0].?, acquired.result.current[0].?);
     for (request.points, acquired.result.points) |key, value| if (key) |requested| result.remember(requested, value);
     if (request.range != null) result.acceptRange(acquired.result);
+    var data: CachedReader = .{ .session = &result, .view = result.source.view };
+    const grant = (try q.UnifiedCapture.policy(&result.current.?, client.connection.requester)) orelse return error.QueryDenied;
+    // The opening snapshot is the admission cut. Current policy is checked
+    // independently before any schema or row is disclosed.
+    // Table admission resolves the complete live schema at the authorization
+    // batch's exact revision; that bounded batch alone is not a schema reader.
+    result.basis = if (bundle.source.source == .table) table: {
+        var current = (try client.batchSupport()).cached(result.current.?);
+        break :table try (try bundle.source.source.table.capture(allocator, &data, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
+    } else try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
+    result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
+    const metadata = try client.interactiveMetadata(bundle.source);
+    const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = metadata });
+    _ = try client.interactiveDescription(bundle.source, metadata, refreshed);
     return result;
 }
 pub fn close(self: *Self) !void {
@@ -46,13 +58,12 @@ pub fn close(self: *Self) !void {
 pub fn complete(self: *const Self) bool {
     return self.progress.finished != null;
 }
-pub fn schema(self: *const Self, columns: *[m.max_columns]m.Column) !m.Schema {
-    var source_columns: [m.max_columns]m.Column = undefined;
-    return self.bundle.plan.outputSchema(try self.bundle.source.schema(&source_columns), columns);
+pub fn schema(self: *const Self, columns: *[q.SourceDefinition.max_columns]f.Types.Field) !f.Types.Type {
+    return self.bundle.plan.outputSchema(columns);
 }
 /// Returned bytes borrow output; decoded source memory belongs to this page's
 /// allocator. The caller must discard that arena before requesting another page.
-pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator, workspace: []u8, output: []u8, cancellation: *const q.fuze.execution.Cancellation) !?m.Stream.Segment {
+pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator, workspace: []u8, output: []u8, cancellation: *const q.fuze.execution.Cancellation) !?f.LogicalStream.Segment {
     self.diagnostic = null;
     if (self.complete()) return error.QueryComplete;
     if (self.progress.pages >= self.bundle.limits.pages) {
@@ -63,17 +74,21 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     self.source.cancellation = cancellation;
     var batch: q.UnifiedSource.Batch = undefined;
     var data: CachedReader = .{ .session = self, .view = self.source.view };
+    const bound = try self.bundle.bind(try self.basis.fingerprint());
+    const grant = (try q.UnifiedCapture.policy(&self.current.?, client.connection.requester)) orelse return error.QueryDenied;
+    const principal = try grant.principal(self.bundle.source);
     if (self.bundle.plan.limit == 0) {
-        batch = .{ .basis = self.progress.basis, .ordinal = self.cursor.ordinal, .next = .{ .done = true } };
+        try q.UnifiedSource.checkCurrent(self.bundle.source, &self.current.?, principal);
+        batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };
     } else {
-        try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &self.current.?, allocator, &batch);
+        try q.UnifiedSource.page(self.bundle.source, bound, self.basis, self.cursor, &data, &self.current.?, principal, allocator, &batch);
     }
-    const bound: m.Plan.Bound = .{ .plan = self.bundle.plan, .basis = self.progress.basis, .schema = .{ .columns = self.columns[0..self.column_count] }, .fingerprint = self.progress.plan };
-    var failure: ?m.Stream.Failure = null;
-    const candidate = m.Stream.stepDiagnostic(bound, self.progress, batch.engine(), workspace, output, cancellation, &failure) catch |err| {
+    defer batch.deinit();
+    var failure: ?f.LogicalStream.Failure = null;
+    const candidate = f.LogicalStream.step(bound, self.progress, batch.engine(), workspace, output, cancellation, &failure) catch |err| {
         if (failure) |evidence| {
-            // A failure bypasses successful-page disclosure. Recheck current
-            // access before exposing a source key or retained execution basis.
+            // A failed computation still needs fresh authorization before keys
+            // or the retained execution basis can enter a diagnostic.
             if (self.diagnosticAllowed(client)) self.diagnostic = q.ExecutionDiagnostic.local(err, bound, &batch, evidence) catch null;
         }
         return err;
@@ -92,7 +107,7 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     const current_policy = policy: {
         const metadata = try client.interactiveMetadata(self.bundle.source);
         const validated = try self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata, .finish = candidate.progress.finished != null });
-        const description = try client.interactiveDescription(self.bundle.source, validated);
+        const description = try client.interactiveDescription(self.bundle.source, metadata, validated);
         self.current = q.UnifiedClient.interactiveBatch(metadata[0].?, validated.current[0].?);
         break :policy description;
     };
@@ -107,7 +122,7 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
 fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {
     const metadata = client.interactiveMetadata(self.bundle.source) catch return false;
     const validated = self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata }) catch return false;
-    const permitted = client.interactiveDescription(self.bundle.source, validated) catch return false;
+    const permitted = client.interactiveDescription(self.bundle.source, metadata, validated) catch return false;
     return permitted.limits.permits(self.bundle.limits);
 }
 
@@ -128,23 +143,8 @@ fn opening(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !g.Snapsho
         .kv => |kv| request.range = .{ .prefix = if (kv.prefix.len == 0) null else kv.prefix },
         .document => |document| request.points[0] = (try document.reference.identity().service()).key('v', document.reference.revision),
         .table => |table| {
-            request.points[0] = q.station.Table.descriptorKey(table.id);
-            const prefix = try q.protocol.Value.init(q.station.Table.rowKey(table.id, 0).data[0..6]);
-            request.range = .{ .prefix = prefix, .after = prefix };
-            if (bundle.plan.predicate == .compare) {
-                const comparison = bundle.plan.predicate.compare;
-                if (comparison.column == 0 and comparison.value == .int64) switch (comparison.op) {
-                    .eq => {
-                        request.points[1] = q.station.Table.rowKey(table.id, comparison.value.int64);
-                        request.range = null;
-                    },
-                    .gt => request.range.?.after = q.station.Table.rowKey(table.id, comparison.value.int64),
-                    .ge => if (comparison.value.int64 != std.math.minInt(i64)) {
-                        request.range.?.after = q.station.Table.rowKey(table.id, comparison.value.int64 - 1);
-                    },
-                    else => {},
-                };
-            }
+            request.points[0] = q.catalog.Records.key(table.scope.catalog, 'c', 0, 0);
+            request.points[1] = q.station.TableHead.key(table.object);
         },
     }
     if (request.range != null and bundle.plan.predicate == .all) if (bundle.plan.limit) |limit| {
@@ -157,6 +157,9 @@ const Cached = struct { key: q.protocol.Value, entry: ?q.protocol.Growth.Entry }
 const CachedReader = struct {
     session: *Self,
     view: @FieldType(q.wire.SnapshotReader, "view"),
+    pub fn tableIndexCache(self: *@This()) *q.station.ImmutableIndex.Cache {
+        return &self.session.table_nodes;
+    }
     pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
         return if (try self.entry(key)) |value| value.value else null;
     }

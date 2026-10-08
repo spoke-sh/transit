@@ -81,6 +81,8 @@ public sealed record Call<T>(T Value, ulong Position, Origin Origin, ulong Corre
 public sealed record Reply<T>(T Value, ulong Position, Origin Origin, ulong Correlation) : Incoming<T>(Value, Position, Origin) where T : notnull;
 public enum ControlKind { Cancel, Timeout }
 public sealed record Control(ControlKind Kind, ulong Position, Origin Origin, ulong Correlation);
+public enum QueryFailureReason { ResultTooLarge, WorkspaceExceeded, Overflow, Cancelled, Denied }
+public sealed record QueryFailure(ulong Position, Origin Origin, ulong Correlation, ulong Result, QueryFailureReason Reason);
 public sealed record ResultComplete(ulong Position, Origin Origin, ulong Correlation);
 public sealed record Budgets(uint Mutations, uint Outputs, uint Views, uint RetainedReads, uint Retains, uint Releases);
 public sealed record ReadVersion
@@ -130,6 +132,7 @@ public interface IHandler<T> where T : notnull
     void Initialize(Turn turn) { }
     void OnMessage(Turn turn, Incoming<T> input);
     void OnControl(Turn turn, Control input) => throw new TransitException(ErrorKind.Handler, "unhandled-control");
+    void OnQueryFailure(Turn turn, QueryFailure input) => throw new TransitException(ErrorKind.Handler, "unhandled-query-failure");
     void OnResult(Turn turn, ResultComplete input) => throw new TransitException(ErrorKind.Handler, "unhandled-result");
 }
 public interface IRecoveryStore

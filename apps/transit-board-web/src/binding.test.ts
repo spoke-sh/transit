@@ -19,10 +19,9 @@ const compiled = { source: { resource: 6, source: { table: {} } }, contract: dig
   { compiled: unknown }
 >["compiled"];
 const page = (contract: number[], resource = 6) =>
-  ({ evidence: { manifest: { basis: { resource, kind: "table", contract } } } }) as Extract<
-    UnifiedQueryResponse,
-    { page: unknown }
-  >["page"];
+  ({
+    evidence: { manifest: { basis: { cut: { resource, kind: "table" }, contract } } },
+  }) as Extract<UnifiedQueryResponse, { page: unknown }>["page"];
 test("unified declaration rejects old contracts and foreign source results", () => {
   unifiedContract(binding, compiled);
   unifiedPage(binding, page(digest));

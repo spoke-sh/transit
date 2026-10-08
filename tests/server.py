@@ -18,6 +18,7 @@ import urllib.request
 
 from cold_storage import minio_binary
 from storage import free_port
+from table_console import TableConsole, atom, results as table_results
 
 
 def children(pid):
@@ -155,14 +156,10 @@ class Fixture:
     def console_config(self):
         # Explicit remote-connection fixture from the observed allocation receipts.
         done = self.record()['provision']
-        return dict(version=1, profile='unified_v1', execution='durable', transport='loopback', url=self.url,
+        return dict(version=1, profile='catalog_v1', execution='interactive', transport='loopback', url=self.url,
                     seed_file=str(self.installation/'caller.seed'),
-                    recovery_file=str(self.installation/'console-recovery.json'),
-                    connection=dict(realm=self.config['realm'], principal=10, requester=done[0],
-                                    requests=done[1], source=done[4], resource=done[5]),
-                    workspace=dict(name='items', source=dict(version=1, resource=done[5],
-                        source=dict(table=dict(id=1, names=['id', 'value'], value_type='int64'))),
-                        limits=dict(pages='1000', segments='128', result_bytes='1048576')))
+                    catalog=dict(scope=dict(realm=self.config['realm'], resource=done[5], catalog=1),
+                                 owner=done[4], principal=10))
 
     def console(self, text, expected=0):
         result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
@@ -170,14 +167,14 @@ class Fixture:
         assert result.returncode == expected, result
         if expected:
             return result
-        return [json.loads(line) for line in result.stdout.splitlines()]
+        return table_results(json.loads(line) for line in result.stdout.splitlines())
 
     def revoke_table_writes(self):
         from server_application_faults import ExistingKey, native, post
         key = ExistingKey(self.root, self.installation / 'caller.seed')
         port, realm = self.config['ports']['node'], self.config['realm']
         done = self.record()['provision']
-        address = (b'\0Mp' + struct.pack('>QQ', 10, 1)).hex()
+        address = (b'\0C' + struct.pack('>Q', 1) + b'p' + struct.pack('>QQ', 10, 0)).hex()
 
         def query(kind):
             return post(port, '/v1/query', native(key, realm, 10, kind))
@@ -187,10 +184,10 @@ class Fixture:
             return bytes.fromhex(result['body']['read_entries']['entries'][0]['value'])
 
         current = policy()
-        assert current[:4] == b'TML1' and current[-1] == 7
-        revision = struct.unpack_from('<Q', current, 16)[0]
-        revoked = current[:16] + struct.pack('<Q', revision + 1) + current[24:-1] + b'\0'
-        payload = b'TMG1' + struct.pack('<QQ', done[5], revision) + revoked
+        assert current[:5] == b'TCA1P' and current[-8:] == bytes([1]*8)
+        revision = struct.unpack_from('<Q', current, 69)[0]
+        revoked = current[:69] + struct.pack('<Q', revision + 1) + bytes([1, 1, 1, 0, 0, 0, 1, 1])
+        payload = current[:37] + struct.pack('<Q', revision) + revoked[37:]
         frame = (b'STN1\1' + bytes(8) + payload).hex()
         sequence = query({'capabilities': {}})['principal_sequence'] + 1
         post(port, '/v1/command', native(key, realm, 10, {'send': dict(pid=done[4], value=frame)}, sequence))
@@ -229,22 +226,19 @@ def run(cli, node, host):
         local_transcript(fixture.cli, fixture.root)
         original = fixture.record()
         fixture.refusal("another server manages this installation")
-        from console import Console
-        shell = Console(fixture.cli, cwd=fixture.root)
+        shell = TableConsole(fixture.cli, cwd=fixture.root)
         try:
-            assert shell.call('.schema')['description']['source']['capabilities']['table']
+            assert shell.call('.schema')['tables'] == ['items']
             page = shell.call('SELECT COUNT(*) FROM items;')
-            assert page['complete_coverage'] and page['rows'] == '1', page
-            assert page['cells'][0][0]['value']['uint64'] == '0', page
+            assert page['complete']['rows'] == '1' and atom(page, 'unsigned') == '0', page
             # Reuse protocol support, but retire idle transport sockets and open
             # an independent snapshot after the listener's idle deadline.
             time.sleep(1.2)
             again = shell.call('SELECT COUNT(*) FROM items;')
-            assert again['session'] != page['session'] and again['complete_coverage']
+            assert atom(again, 'unsigned') == '0', again
             values = shell.call('SELECT COUNT(value) AS present FROM items;')
-            assert values['session'] != again['session'] and values['complete_coverage'], values
-            assert values['columns'] == [{'name': 'present', 'type': 'uint64'}], values
-            assert values['cells'] == [[{'value': {'uint64': '0'}}]], values
+            assert values['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}], values
+            assert atom(values, 'unsigned') == '0', values
             shell.close()
         finally:
             if shell.process.poll() is None:
@@ -258,14 +252,13 @@ def run(cli, node, host):
                                   'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;\n'
                                   'UPDATE items SET value = 101 WHERE id = 1;\n'
                                   'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
-        assert [row['mutation']['affected_rows'] for row in results if 'mutation' in row] == [2, 1, 1], results
+        assert [row['table_operation']['counts'] for row in results if 'table_operation' in row] == [dict(matched='2', changed='2'), dict(matched='1', changed='1'), dict(matched='1', changed='1')], results
         assert len(results) == 9, results
         for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
-            assert page['profile'] == 'interactive_v1' and page['complete_coverage'] and page['rows'] == '1', page
-            assert page['columns'] == [{'name': 'present', 'type': 'uint64'}], page
-            assert page['cells'] == [[{'value': {'uint64': count}}]], page
-        assert len({json.dumps(page['session'], sort_keys=True) for page in results[1:6]}) == 5, results
-        assert results[-1]['cells'][0][0]['value']['int64'] == '101', results
+            assert page['complete']['rows'] == '1', page
+            assert page['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}], page
+            assert atom(page, 'unsigned') == count, page
+        assert atom(results[-1], 'signed') == '101', results
         print("Transit server independent console: nullable value/row counts, aliases and derived LIMIT/zero counts passed", flush=True)
         recovery = fixture.installation / 'console-writes.json'
         assert recovery.stat().st_mode & 0o777 == 0o600
@@ -275,9 +268,18 @@ def run(cli, node, host):
         denied = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '-c',
                                  'INSERT INTO items (id, value) VALUES (9, 900)'], capture_output=True, text=True, timeout=15)
         assert denied.returncode == 1 and 'ConsoleWriterRequired' in denied.stderr, denied
+        read = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json',
+                               '-c', 'SELECT * FROM items'], capture_output=True, text=True, timeout=15)
+        assert read.returncode == 0, read
+        rows = table_results(json.loads(line) for line in read.stdout.splitlines())
+        assert rows and rows[0]['rows'], rows
+        info = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json'],
+                              input='.info\n', capture_output=True, text=True, timeout=15)
+        assert info.returncode == 0 and json.loads(info.stdout)['profile'] == 'catalog_v1', info
+        assert json.loads(info.stdout)['writes_configured'] is False
         # Kill a console after native admission while the owner cannot process
         # its input. A new console must resume the same saved operation.
-        source_pid = next(pid for pid in children(fixture.process.pid) if 'table_query_writer' in command(pid))
+        source_pid = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
         os.kill(source_pid, signal.SIGSTOP)
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
                                     'INSERT INTO items (id, value) VALUES (3, 300)'],
@@ -286,8 +288,8 @@ def run(cli, node, host):
             deadline = time.monotonic() + 20
             while True:
                 saved_write = json.loads(recovery.read_text())
-                operation = saved_write.get('operation', {}).get('mutation', {})
-                if not saved_write['complete'] and operation.get('input') is not None:
+                operation = saved_write['operation']
+                if not saved_write['complete'] and saved_write['input'] is not None:
                     break
                 assert pending.poll() is None and time.monotonic() < deadline, 'write was not admitted'
                 time.sleep(.05)
@@ -319,20 +321,21 @@ def run(cli, node, host):
         assert fixture.record()["provision"] == original["provision"]
         fixture.console('.status\n')
         assert json.loads(recovery.read_text())['operation'] == saved_write['operation']
-        resumed = fixture.console('.resume\n')[-1]['mutation']
-        assert resumed['id'] == str(operation['namespace']) and resumed['phase'] == 'applied' and resumed['affected_rows'] == 1, resumed
-        assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "2"
+        resumed = fixture.console('.resume\n')[-1]['table_operation']
+        assert json.loads(recovery.read_text())['operation'] == operation
+        assert resumed['phase'] == 'applied' and resumed['counts'] == dict(matched='1', changed='1'), resumed
+        assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        for role in ("table_query_writer", "/transit-node ", "ursula server"):
+        for role in ('"catalog":', "/transit-node ", "ursula server"):
             fixture.kill_role(role)
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
-            assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "2"
-            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['mutation']['affected_rows'] == 1
+            assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
+            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['table_operation']['counts'] == dict(matched='1', changed='0')
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
@@ -361,12 +364,28 @@ def run(cli, node, host):
                 fixture.stop()
                 fixture.start()
                 fixture.ready()
+            prior_recovery = recovery.read_bytes()
             denied = fixture.console('INSERT INTO items (id, value) VALUES (4, 400);\n', expected=1)
-            assert 'MutationDenied' in denied.stderr and not denied.stdout, denied
-            assert fixture.console('SELECT COUNT(*) FROM items;\n')[-1]['cells'][0][0]['value']['uint64'] == '2'
+            assert 'CatalogDenied' in denied.stderr and not denied.stdout, denied
+            assert recovery.read_bytes() == prior_recovery, 'Preparation denial installed active saved work'
+            assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
+        # The initialized default is a real catalog object. Startup must not
+        # manufacture it again after an intentional DROP/name reuse.
+        fixture.console('DROP TABLE items;\n')
+        fixture.stop()
+        fixture.start()
+        fixture.ready()
+        assert all('items' not in page['tables'] for page in fixture.console('SHOW TABLES;\n'))
+        fixture.console('CREATE TABLE items (name TEXT);\n')
+        schema = fixture.console('DESCRIBE items;\n')[-1]['table']
+        assert [column['name'] for column in schema['columns']] == ['name'], schema
+        fixture.stop()
+        fixture.start()
+        fixture.ready()
+        assert fixture.console('DESCRIBE items;\n')[-1]['table'] == schema
         # A stopped child cannot process SIGTERM. Force the supervisor's timed
         # SIGKILL path and join its pipe drainers before closing their handles.
-        source = next(pid for pid in children(fixture.process.pid) if "table_query_writer" in command(pid))
+        source = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
         os.kill(source, signal.SIGSTOP)
         fixture.stop()
         success = True

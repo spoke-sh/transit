@@ -37,9 +37,9 @@
       "test::growing-service",
       "test::public-query",
       "test::publication",
-      "test::table-mutation",
       "test::table-query-writer",
       "test::catalog",
+      "test::typed-tables",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",
@@ -218,7 +218,8 @@
       "bindings::catalog-beam",
       "test::catalog-growth",
       "bindings::rust-lifetime",
-      "test::grpc-control"
+      "test::grpc-control",
+      "bindings::query-failures"
     ]
   },
   "nested_tasks": {

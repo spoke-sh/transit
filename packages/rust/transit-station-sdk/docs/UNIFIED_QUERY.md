@@ -3,12 +3,16 @@
 The public `unified` module exposes v1 KV/Table/accepted Document sources, plans,
 explicit finite budgets and owned nested Arrow results. Shared Zig implements
 validation, signatures, admission observation and result verification. Rust owns
-typed values, allocation and native-worker lifetimes. Existing Table v1 APIs
-remain available; importing the crate performs no work or credential access.
+typed values, allocation and native-worker lifetimes. Importing the crate
+performs no work or credential access.
 
 Construct `Source::KV` with versioned key/value `Decoder`s, `Source::Table` with
-an exact table/schema, or `Source::Document` with an accepted reference and
-bounded projections. `Bundle::prepare` validates them and returns canonical owned
+a catalog `Metadata`, `Schema` and owner `ProcessRef`, or `Source::Document` with an accepted reference and
+bounded projections with `DecoderColumn` declarations. Query `Type`, `Scalar`
+and cell types reuse the shared logical models; `Column` has a descriptor and
+explicit nullable/optional flags. `DecoderType` retains the six-scalar KV/Document
+profile. The native query owner verifies the metadata commitment and current
+catalog rights. `Bundle::prepare` validates them and returns canonical owned
 bytes. This local operation grants no access and admits no work.
 
 `Predicate::Program(Vec<PredicateInstruction>)` accepts one to 64 owned postfix
@@ -33,7 +37,7 @@ under the client's exclusive mutable borrow. `parameters` is `Option<&[Scalar]>`
 The result owns its bytes independently of the borrowed source and bindings.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -66,15 +70,18 @@ persistence/submission/observation sequence. Dropping a host wait does not cance
 accepted work.
 
 `page(namespace, cursor.as_ref())` returns one owned IPC segment, exact typed
-manifest provenance and optional continuation. Every read rechecks current grants
+manifest provenance including the retained source-head digest, and optional
+continuation. Every read rechecks current grants
 and lifecycle. Retain a cursor only with its connection/namespace; it grants no
 permission. Failure cannot advance the borrowed cursor. None next establishes
 verified complete coverage. A page's `decode` uses shared Zig to preserve five
 cell states and ordered conflict IDs. The optional pinned Arrow 59.1.0 feature
 adds `to_arrow`, retaining the nested state/alternative schema.
 
-Bounds are 16 KiB per bundle, eight rows/columns per batch, 4 KiB per scalar and
-64 KiB per IPC segment. Full-width counters, integers and float bits survive the
+Bounds are 25,069 bytes per bundle, eight rows and 128 result columns per batch,
+4 KiB per predicate byte literal and 64 KiB per IPC segment. KV sources have two
+columns and Document projections remain bounded to eight. Source/output names
+are nonempty UTF-8 of at most 255 bytes without NUL. Full-width counters, integers and float bits survive the
 foreign representation. Native response conversion rejects unsupported shapes.
 
 `nix develop .#bindings --command just bindings::unified-rust table` builds fresh

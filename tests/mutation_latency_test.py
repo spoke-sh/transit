@@ -48,6 +48,39 @@ class Evidence(unittest.TestCase):
             self.assertTrue(evidence['truncated'])
             self.assertEqual(evidence['restarts'], ['ChildExited'] * 4)
 
+    def test_typed_query_requires_matching_complete_cut_and_keeps_timing(self):
+        for corrupt in (False, True):
+            with self.subTest(corrupt=corrupt):
+                basis = dict(object='19', revision='7')
+                frames = [dict(profile='table_snapshot_v1', complete_coverage=False,
+                               basis=basis, plan='original', schema={'columns': []}),
+                          dict(complete_coverage=False, row={'value': {'structure': [
+                              {'value': {'atom': {'unsigned': '41'}}}]}}),
+                          dict(complete_coverage=True, complete=dict(rows='1', basis=basis,
+                               plan='changed' if corrupt else 'original'))]
+                script = """import sys,time
+sys.stdin.readline()
+sys.stderr.write(%r);sys.stderr.flush()
+for message in %r:
+ for part in (message[:5],message[5:]):
+  sys.stdout.write(part);sys.stdout.flush();time.sleep(.01)
+sys.stdin.readline()
+""" % (json.dumps({'timing': {'phases': {'fetch': 7}, 'total': 7}}) + '\n',
+         [json.dumps(frame) + '\n' for frame in frames])
+                shell = Console.__new__(Console)
+                shell.process = subprocess.Popen([sys.executable, '-c', script], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                shell.buffers = [bytearray(), bytearray()]
+                try:
+                    if corrupt:
+                        with self.assertRaises(AssertionError): shell.call('SELECT COUNT(*) FROM items')
+                    else:
+                        result, measurement = shell.call('SELECT COUNT(*) FROM items')
+                        self.assertEqual(result['rows'][0][0]['value']['atom']['unsigned'], '41')
+                        self.assertEqual(measurement['phase_ms'], {'fetch': 7})
+                finally:
+                    shell.close()
+
     def test_fragmented_failure_keeps_cause_and_deferred_timing(self):
         for timing_first in (False, True):
             with self.subTest(timing_first=timing_first):

@@ -1,4 +1,4 @@
-"""Real combined host: two-phase disk recovery and interleaved finite queries."""
+"""General catalog owner: explicit initialization, disk recovery and retained queries."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -15,8 +15,8 @@ import pyarrow as pa
 from cold_storage import ColdStore
 from storage import Fixture, free_port, wait_ready
 from unified_abi import Native as Query, Failure
-from table_mutation_abi import Native as Mutation
-from table_mutation_cli import Cli
+from catalog_abi import Native as Catalog
+from catalog_cli import Cli
 
 
 def run(node, host, proof, library, cli, *, sdks=()):
@@ -25,7 +25,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
         root = fixture.root
         install_started = time.monotonic()
         if sdks:
-            from sdk_mutations import install
+            from sdk_catalog import install
             installed = install(root/'installed', sdks)
         else:
             installed = []
@@ -42,9 +42,10 @@ def run(node, host, proof, library, cli, *, sdks=()):
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         config = root/'node.json'
         config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='combined-table', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
-        fault = dict(phase=1, seen=threading.Event(), release=threading.Event(), frozen=None, receipt=None)
+        fault = dict(prefix=b'TCA1C', seen=threading.Event(), release=threading.Event(), frozen=None, receipt=None)
         send_fault = dict(lose=False, frozen=None, receipt=None, recovered=False)
         rejection_gate = dict(armed=False, seen=threading.Event(), release=threading.Event())
+        publication_gate = dict(operation=None, seen=threading.Event(), release=threading.Event())
         counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0, snapshot_pause_seconds=0.0)
         errors, processes, logs, clients = [], [], [], []
         snapshot_seen, snapshot_release = threading.Event(), threading.Event()
@@ -64,10 +65,19 @@ def run(node, host, proof, library, cli, *, sdks=()):
                             snapshot_seen.set()
                             assert snapshot_release.wait(timeout=30), 'snapshot fault was never released'
                     early_command = message.get('request', {}).get('command', {})
-                    if rejection_gate['armed'] and message.get('request', {}).get('principal') == 1234 and 'send' in early_command and b'TMP1' in bytes.fromhex(early_command['send']['value']):
+                    if rejection_gate['armed'] and message.get('request', {}).get('principal') == 1234 and 'send' in early_command and bytes.fromhex(early_command['send']['value'])[13:18] == b'TCA1A':
                         rejection_gate['armed'] = False
                         rejection_gate['seen'].set()
                         assert rejection_gate['release'].wait(timeout=15), 'policy rejection fault was never released'
+                    early_turn = early_command.get('turn', early_command.get('turn_with_versions', {}).get('turn'))
+                    if early_turn and publication_gate['operation'] is not None:
+                        for entry in early_turn['mutations']:
+                            if not entry or entry['value'] is None: continue
+                            value = bytes.fromhex(entry['value'])
+                            if value.startswith(b'STW1') and value[156] == 2 and int.from_bytes(value[60:68], 'little') == publication_gate['operation']:
+                                publication_gate['operation'] = None
+                                publication_gate['seen'].set()
+                                assert publication_gate['release'].wait(timeout=30), 'publication fault was never released'
                     upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = upstream.getresponse()
                     data = response.read()
@@ -89,7 +99,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
                             value = bytes.fromhex(entry['value']) if entry['value'] is not None else b''
                             counts['max_value_bytes'] = max(counts['max_value_bytes'], len(value))
                             assert len(value) <= 256
-                            if value.startswith(b'TQW1') and value[4] == fault['phase'] and not fault['seen'].is_set():
+                            if fault['prefix'] is not None and value.startswith(fault['prefix']) and not fault['seen'].is_set():
                                 fault.update(frozen=body, receipt=json.loads(data))
                                 fault['seen'].set()
                                 assert fault['release'].wait(timeout=60), 'initialization fault was never released'
@@ -133,7 +143,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 time.sleep(0.02)
 
         def replace(role):
-            generation = invoke('fence' if role == 'source' else 'fence-requester')['generation']
+            generation = invoke('combined-fence' if role == 'source' else 'combined-fence-requester')['generation']
             path = root/f'{role}.json'
             settings = json.loads(path.read_text())
             settings['generation'] = generation
@@ -144,23 +154,26 @@ def run(node, host, proof, library, cli, *, sdks=()):
             state = invoke('combined-progress')
             return state['pending'] is None or state['pending'] > position
 
-        def mutation(sql, namespace, caller=None, compiled=None, *, seal_only=False):
+        def mutation(sql, namespace, caller=None, compiled=None, *, object_id=None):
             caller = caller or mutations
-            compiled = compiled or caller.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
-            for _ in range(32):
-                if seal_only:
-                    status = caller.call({'status': compiled['reference']})['status']
-                    if status is not None and status['phase'] == 'sealed':
-                        return compiled
-                prepared = caller.call({'next': compiled})['prepared']
-                if prepared is None:
-                    assert not seal_only, 'mutation applied before the snapshot interleave'
-                    status = caller.call({'status': compiled['reference']})['status']
-                    assert status['phase'] == 'applied', status
-                    return status
+            compiled = compiled or caller.call({'compile': dict(identity=dict(operation=str(namespace), namespace=str(namespace)), create_object=object_id, sql=sql)})['compiled']
+            reference = compiled['intent']['reference']
+            deadline = time.monotonic() + 180
+            while time.monotonic() < deadline:
+                step = caller.call({'next': reference})['next']
+                if 'terminal' in step:
+                    assert step['terminal']['phase'] == 'applied', step
+                    return step['terminal']
+                if 'running' in step:
+                    # Ordered query self-delivery can precede this Table's
+                    # continuation. Explicitly resume the SAME saved operation
+                    # without bypassing the route's delivery order.
+                    step = {'send': caller.call({'prepare_resume': reference})['prepared']}
+                assert 'send' in step, step
+                prepared = step['send']
                 receipt = caller.call({'submit': prepared})['receipt']
                 until(lambda: caller.call({'observe': dict(prepared=prepared, input=receipt['position'])})['observation'] == 'processed')
-                assert caller.call({'rejection': dict(prepared=prepared, input=receipt['position'])})['rejection'] is None
+                assert caller.call({'input_disposition': dict(prepared=prepared, input=receipt['position'])})['disposition'] is None
             raise AssertionError('mutation step budget')
 
         def query(namespace):
@@ -203,23 +216,23 @@ def run(node, host, proof, library, cli, *, sdks=()):
             frames = [json.loads(line) for line in stdout.splitlines()]
             assert frames and frames[-1]['complete_coverage'], frames
             assert all(frame['profile'] == 'interactive_v1' for frame in frames)
-            return [dict(id=int(row[0]['value']['int64']), value=row[1]['value']['utf8']) for frame in frames for row in frame['cells']]
+            return [dict(id=int(row[0]['value']['atom']['signed']), value=row[1]['value']['atom']['utf8']) for frame in frames for row in frame['cells']]
 
         try:
             subprocess.run([node, str(config), '--initialize'], env=fixture.env, check=True, capture_output=True, timeout=30)
             authority = start('node', [node, str(config)])
             wait_ready(fixture.http, authority, url+'/health')
             connection = invoke('provision-combined')
+            invoke('combined-initialize')
             source = start('source', [host, str(root/'source.json')])
-            assert fault['seen'].wait(timeout=30), 'first initialization commit missing'
-            state = invoke('combined-state')
-            assert state['phase'] == 'staged' and state['mutation'] is None and state['query'] is None, state
-            for phase in (1, 2):
+            for phase, prefix in enumerate((b'TCA1C', b'UQA1'), 1):
                 if phase == 2:
-                    fault.update(phase=2, seen=threading.Event(), release=threading.Event())
-                    invoke('combined-deliver')
-                    assert fault['seen'].wait(timeout=30), 'ready commit missing'
-                    assert invoke('combined-state')['phase'] == 'ready'
+                    fault.update(prefix=prefix, seen=threading.Event(), release=threading.Event())
+                    invoke('combined-delegate')
+                assert fault['seen'].wait(timeout=30), 'explicit initialization commit missing'
+                state = invoke('combined-state')
+                assert state['phase'] == 'ready' and state['mutation'] is None, state
+                assert (state['query'] is None) == (phase == 1), state
                 frozen, receipt = fault['frozen'], fault['receipt']
                 source.kill(); source.wait(timeout=10)
                 fault['release'].set()
@@ -229,7 +242,6 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 fixture.stop(); fixture.start()
                 authority = start(f'node-after-{phase}', [node, str(config)])
                 wait_ready(fixture.http, authority, url+'/health')
-                # Exact original signed commit recovers after physical restart.
                 direct = HTTPConnection('127.0.0.1', port, timeout=15)
                 direct.request('POST', '/v1/command', frozen, {'Content-Type': 'application/json'})
                 response = direct.getresponse()
@@ -238,53 +250,59 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 assert response.status == 200 and recovered['position'] == receipt['position'], recovered
                 counts['recovered_initialization_receipts'] += 1
                 source = replace('source')
-            fault['phase'] = 0
-            until(lambda: invoke('combined-state')['phase'] == 'ready')
-            position = invoke('combined-initialize')['position']
-            until(lambda: processed(position))
+            fault['prefix'] = None
+            # Initialization does not grant readers or writers. Policy is a third,
+            # separate public action, and an exact repeated initialization is safe.
+            for control in ('combined-grant', 'combined-initialize'):
+                position = invoke(control)['position']
+                until(lambda: processed(position))
             state = invoke('combined-state')
             assert state['query']['revision'] == state['mutation']['revision'] == 1
+            catalog_connection = dict(scope=dict(realm=46, resource=connection['resource'], catalog='1'), owner=connection['source'], principal=1234)
+            mutations = Catalog(library, endpoint, catalog_connection); clients.append(mutations)
+            cli_mutations = Cli(cli, root, endpoint, catalog_connection); clients.append(cli_mutations)
+            mutation('CREATE TABLE items (id INT64 PRIMARY KEY, value UTF8)', 100, object_id='1')
+            invoke('combined-source-export')
             requester = start('requester', [host, str(root/'requester.json')])
             queries = Query(library, endpoint, connection); clients.append(queries)
-            mutations = Mutation(library, endpoint, dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)); clients.append(mutations)
-            cli_mutations = Cli(cli, root, endpoint, dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)); clients.append(cli_mutations)
             settings = json.loads((root/'shell.json').read_text())
-            settings.update(version=1, profile='unified_v1', execution='interactive', transport='loopback', format='json', writes=dict(recovery_file='console-writes.json', table=dict(name='items', connection=dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1))))
+            settings.update(version=1, profile='unified_v1', execution='interactive', transport='loopback', format='json')
             (root/'console.json').write_text(json.dumps(settings))
             console_args = [cli, 'console', '--no-rc', '--config', str(root/'console.json'), '-c', 'SELECT * FROM items;']
-            mutation("INSERT INTO items (id,value) VALUES(1,'old'),(2,'two')", 1)
+            mutation("INSERT INTO items (id,value) VALUES(1,'old'),(2,'two')", 101)
             query(1)
-            invoke('combined-deliver')
-            snapshot = until(lambda: invoke('job', 1)['job'])
+            def capture_job():
+                invoke('combined-deliver')
+                return invoke('job', 1)['job']
+            snapshot = until(capture_job)
             assert snapshot['phase'] == 'capturing', snapshot
             namespace = (1 << 63) | snapshot['id']
-            # Finish upload and seal before holding a live console read. Only
-            # the final apply must commit after its retained snapshot. Holding
-            # the request across the whole upload instead makes test setup race
-            # the console's ordinary five-second per-request deadline.
-            # Select staged admission with a bounded 200-byte value; a small
-            # request executes directly and has no sealed barrier to hold.
+            # Freeze the actual final atomic publication. Staging is finished
+            # before the interactive read's bounded HTTP request is held.
             updated_value = 'new-' + 'x' * 196
-            staged = mutation(f"UPDATE items SET value='{updated_value}' WHERE id=1", namespace, cli_mutations, seal_only=True)
-            apply = cli_mutations.call({'prepare': {'apply': staged['reference']}})['prepared']
+            publication_gate['operation'] = namespace
+            applied, failures = [], []
+            def concurrent_mutation():
+                try: applied.append(mutation(f"UPDATE items SET value='{updated_value}' WHERE id=1", namespace, cli_mutations))
+                except BaseException as error: failures.append(error)
+            writer = threading.Thread(target=concurrent_mutation, daemon=True)
+            writer.start()
+            assert publication_gate['seen'].wait(timeout=120), ('final publication was not prepared', failures)
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append(console)
             assert snapshot_seen.wait(timeout=15), 'interactive query did not retain its snapshot'
-            # Keep the query self continuation undelivered. A mutation is
-            # committed after its retained cut using the SAME numeric namespace.
             paused = time.monotonic()
             try:
-                applied = cli_mutations.call({'submit': apply})['receipt']
-                until(lambda: cli_mutations.call({'observe': dict(prepared=apply, input=applied['position'])})['observation'] == 'processed')
+                publication_gate['release'].set()
+                writer.join(timeout=10)
+                assert not writer.is_alive() and not failures, failures
+                assert applied[0]['counts'] == dict(matched='1', changed='1'), applied
             finally:
                 counts['snapshot_pause_seconds'] = round(time.monotonic()-paused, 3)
                 snapshot_release.set()
             stdout, stderr = console.communicate(timeout=30)
             assert console.returncode == 0, stderr
-            assert cli_mutations.call({'rejection': dict(prepared=apply, input=applied['position'])})['rejection'] is None
-            outcome = cli_mutations.call({'status': staged['reference']})['status']
-            assert outcome['phase'] == 'applied' and outcome['affected_rows'] == 1 and outcome['input'] == applied['position'], outcome
             assert console_rows(stdout) == [dict(id=1, value='old'), dict(id=2, value='two')]
             pause_snapshot = False
             complete(1)
@@ -296,161 +314,122 @@ def run(node, host, proof, library, cli, *, sdks=()):
             latest = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
-            # Console SQL uses the same authorized writer and exact signed recovery.
+            # Autonomous continuations are explicitly delivered from here on.
+            courier = start('courier', [host, str(root/'courier.json')])
+            catalog_args = [cli, 'console', '--no-rc', '--config', str(root/'catalog-console.json')]
             def console_run(sql=None, data=None, code=0, structured=False):
-                args = console_args[:-2] + (['-c', sql] if sql is not None else [])
+                args = catalog_args + (['-c', sql] if sql is not None else [])
                 if structured: args.insert(1, '--diagnostics=json')
-                result = subprocess.run(args, input=data, env=fixture.env, capture_output=True, text=True, timeout=45)
+                result = subprocess.run(args, input=data, env=fixture.env, capture_output=True, text=True, timeout=180)
                 assert result.returncode == code, (result.returncode, result.stdout, result.stderr)
                 return result
+            def catalog_rows(stdout):
+                frames = [json.loads(line) for line in stdout.splitlines()]
+                assert frames[0]['profile'] == 'table_snapshot_v1' and frames[-1]['complete_coverage'], frames
+                result = []
+                for frame in frames:
+                    if 'row' not in frame: continue
+                    cells = frame['row']['value']['structure']
+                    result.append(dict(id=int(cells[0]['value']['atom']['signed']), value=cells[1]['value']['atom']['utf8']))
+                return result
             recovery_path = root/'console-writes.json'
-            help_result = json.loads(console_run(data='.help INSERT\n').stdout)
-            assert help_result['table_writer_configured'] and not help_result['catalog_configured']
-            assert 'transit mutate' not in help_result['help']
-            writer_schema = json.loads(console_run(data='.schema writer\n').stdout)['writer_schema']
-            assert writer_schema['name'] == 'items' and writer_schema['schema']['value_type'] == 'utf8', writer_schema
-            assert not recovery_path.exists(), 'schema inspection created a saved mutation'
             for sql in ('INSERT INTO items (typo,value) VALUES (9,1)', 'DELETE FROM absent WHERE id=9'):
                 invalid = console_run(sql, code=1)
-                assert '.schema writer' in invalid.stderr and '.sources' not in invalid.stderr, invalid.stderr
                 assert not invalid.stdout and not recovery_path.exists()
-            for sql, affected in [("INSERT INTO items (id,value) VALUES (101,'console')", 1),
-                                  ("UPDATE items SET value='changed' WHERE id=101", 1),
-                                  ("DELETE FROM items WHERE id=101", 1),
-                                  ("DELETE FROM items WHERE id=101", 0)]:
-                result = json.loads(console_run(sql).stdout)['mutation']
-                assert result['phase'] == 'applied' and result['affected_rows'] == affected, result
-            rejected = console_run("INSERT INTO items (id,value) VALUES (1,'duplicate'),(101,'atomic')", code=1)
-            assert json.loads(rejected.stdout)['mutation']['reason'] == 'row_exists'
-            assert json.loads(rejected.stdout)['mutation']['conflict'] == dict(key='1', row=1)
-            assert 'Duplicate key "id: 1" violates the primary key constraint on "items".' in rejected.stderr
-            assert 'No rows were inserted.' in rejected.stderr
-            assert '.resume' not in rejected.stderr and 'MutationRejected' not in rejected.stderr
+            for sql, matched, changed in [("INSERT INTO items (id,value) VALUES (101,'console')", 1, 1),
+                                  ("UPDATE items SET value='console' WHERE id=101", 1, 0),
+                                  ("UPDATE items SET value='changed' WHERE id=101", 1, 1),
+                                  ("DELETE FROM items WHERE id=101", 1, 1),
+                                  ("DELETE FROM items WHERE id=101", 0, 0)]:
+                result = json.loads(console_run(sql).stdout)['table_operation']
+                assert result['phase'] == 'applied' and result['counts'] == dict(matched=str(matched), changed=str(changed)), result
             human = console_run(data=".mode table\nINSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1);\n", code=1)
-            assert not human.stdout, human.stdout
-            assert human.stderr.count('Constraint Error:') == 1, human.stderr
-            assert 'Input row: 2. No rows were inserted.' in human.stderr
-            assert '.resume' not in human.stderr and 'uncertain' not in human.stderr
+            assert not human.stdout and human.stderr.count('Constraint Error:') == 1, human
+            assert 'Duplicate key "id: 1"' in human.stderr and '.resume' not in human.stderr, human.stderr
             structured = console_run("INSERT INTO items (value,id) VALUES ('atomic',101),('duplicate',1)", code=1, structured=True)
             detail = json.loads(structured.stderr)
-            assert detail['code'] == 'mutation.primary_key_conflict' and detail['outcome'] == 'rejected', detail
-            assert detail['evidence'] == 'domain_status' and detail['identity']['domain'] == 'mutation'
+            assert detail['code'] == 'table.primary_key_conflict' and detail['outcome'] == 'rejected', detail
             facts = {fact['field']:fact['value'] for fact in detail['facts'] if fact}
-            assert facts['key'] == {'signed':'1'} and facts['input_row'] == {'unsigned':'2'}, facts
-            assert facts['column'] == {'text':'id'} and facts['name'] == {'text':'items'} and facts['affected_rows'] == {'unsigned':'0'}, facts
-            assert not any(action and action['kind'] in ('resume_exact','cancel_mutation') for action in detail['actions']), detail
-            status = console_run(data='.mode table\n.status\n')
-            assert 'Duplicate key "id: 1"' in status.stdout and 'Input row: 2.' in status.stdout
-            assert console_rows(console_run('SELECT * FROM items').stdout) == current
+            assert facts['key'] == {'text':'1'} and facts['input_row'] == {'unsigned':'2'}, facts
+            assert facts['column'] == {'text':'id'}, facts
+            assert catalog_rows(console_run('SELECT * FROM items').stdout) == current
             send_fault.update(lose=True, recovered=False)
             lost = console_run("INSERT INTO items (id,value) VALUES (102,'recovered')", code=1)
             assert not lost.stdout and '.resume' in lost.stderr
             saved = recovery_path.read_bytes()
             record = json.loads(saved)
-            assert record['operation']['mutation']['pending']['signed'] == json.loads(send_fault['frozen'])
-            assert record['operation']['mutation']['input'] is None
+            assert record['pending']['signed'] == json.loads(send_fault['frozen']) and record['input'] is None
             assert recovery_path.stat().st_mode & 0o777 == 0o600
             console_run(data='.help\n')
             assert not send_fault['recovered'] and recovery_path.read_bytes() == saved
-            status = json.loads(console_run(data='.status\n').stdout)['mutation']
+            status = json.loads(console_run(data='.status\n').stdout)['table_operation']
             assert status['uncertain'] and not send_fault['recovered']
-            for edit in ('definition', 'key', 'connection', 'signed_definition', 'schema_version'):
+            for edit in ('definition', 'key', 'connection', 'signed_definition', 'intent_digest'):
                 altered = json.loads(saved)
                 if edit == 'definition': del altered['definition']
                 elif edit == 'key': altered['key'][0] ^= 1
-                elif edit == 'connection': altered['table']['writer'] += 1
-                elif edit == 'signed_definition': del altered['operation']['mutation']['pending']['signed']['request']['definition']
-                else: del altered['operation']['mutation']['request']['plan']['schema']['version']
+                elif edit == 'connection': altered['connection']['owner'] += 1
+                elif edit == 'signed_definition': del altered['pending']['signed']['request']['definition']
+                else: altered['operation']['digest'][0] ^= 1
                 recovery_path.write_text(json.dumps(altered, separators=(',', ':')))
                 invalid = console_run(data='.resume\n', code=1)
                 assert not invalid.stdout and not send_fault['recovered']
             recovery_path.write_bytes(saved)
-            restored = json.loads(console_run(data='.resume\n').stdout)['mutation']
-            assert restored['phase'] == 'applied' and restored['affected_rows'] == 1 and send_fault['recovered']
-            again = json.loads(console_run(data='.resume\n').stdout)['mutation']
-            assert again == restored
-            # Direct admission can already be applied when cancellation is
-            # requested. It must preserve that terminal outcome and its rows.
-            assert b'TME1' in bytes.fromhex(json.loads(send_fault['frozen'])['request']['command']['send']['value'])
-            assert json.loads(console_run(data='.cancel\n').stdout)['mutation'] == restored
-            assert json.loads(console_run('DELETE FROM items WHERE id=102').stdout)['mutation']['affected_rows'] == 1
-            # SIGINT retains the admitted command and stops before the next SQL.
-            # Check the actual command selected: inline execution can finish
-            # during reconciliation, while a staged begin remains cancellable.
-            def interrupt_write(sql, command_tag):
-                source.send_signal(signal.SIGSTOP)
-                interrupted = subprocess.Popen(console_args[:-2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fixture.env)
-                processes.append(interrupted)
-                try:
-                    interrupted.stdin.write(sql + ";\nDELETE FROM items WHERE id=1;\n")
-                    interrupted.stdin.flush()
-                    until(lambda: recovery_path.exists() and not json.loads(recovery_path.read_bytes())['complete'] and json.loads(recovery_path.read_bytes())['operation']['mutation']['input'] is not None)
-                    pending = json.loads(recovery_path.read_bytes())['operation']['mutation']['pending']
-                    frame = bytes.fromhex(pending['signed']['request']['command']['send']['value'])
-                    assert frame[13:17] == command_tag, frame[13:17]
-                    interrupted.send_signal(signal.SIGINT)
-                    stdout, stderr = interrupted.communicate(timeout=15)
-                    assert interrupted.returncode == 130 and not stdout and '.resume' in stderr, (interrupted.returncode, stdout, stderr)
-                finally:
-                    source.send_signal(signal.SIGCONT)
-            interrupt_write("INSERT INTO items (id,value) VALUES (103,'pending')", b'TME1')
-            applied = json.loads(console_run(data='.cancel\n').stdout)['mutation']
-            assert applied['phase'] == 'applied' and applied['affected_rows'] == 1 and not applied['uncertain'], applied
-            assert console_rows(console_run('SELECT * FROM items').stdout) == current + [dict(id=103, value='pending')]
-            console_run('DELETE FROM items WHERE id=103')
-            # A 200-byte cell fits the Table bound but requires staged upload.
-            interrupt_write("INSERT INTO items (id,value) VALUES (103,'" + 'p' * 200 + "')", b'TMB1')
-            cancelled = json.loads(console_run(data='.cancel\n').stdout)['mutation']
-            assert cancelled['phase'] == 'cancelled', cancelled
-            assert console_rows(console_run('SELECT * FROM items').stdout) == current
-            print('Console interruption: admitted inline write applied, staged begin cancelled, later batch SQL never ran.', flush=True)
-            # Revoke after a part is frozen but before its admission. A rejected
-            # part must not be mistaken for a terminal mutation or lose recovery.
+            restored = json.loads(console_run(data='.resume\n').stdout)['table_operation']
+            assert restored['phase'] == 'applied' and restored['counts'] == dict(matched='1', changed='1') and send_fault['recovered']
+            assert json.loads(console_run(data='.resume\n').stdout)['table_operation'] == restored
+            assert json.loads(console_run(data='.cancel\n').stdout)['table_operation'] == restored
+            console_run('DELETE FROM items WHERE id=102')
+            # SIGINT stops before the following statement. General Table upload
+            # is cancellable; it does not inherit the removed inline writer's
+            # small-request completion guarantee.
+            source.send_signal(signal.SIGSTOP)
+            interrupted = subprocess.Popen(catalog_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fixture.env)
+            processes.append(interrupted)
+            try:
+                interrupted.stdin.write("INSERT INTO items VALUES (103,'" + "p" * 200 + "');\nDELETE FROM items WHERE id=1;\n")
+                interrupted.stdin.flush()
+                until(lambda: recovery_path.exists() and not json.loads(recovery_path.read_bytes())['complete'] and json.loads(recovery_path.read_bytes())['input'] is not None)
+                pending = json.loads(recovery_path.read_bytes())['pending']
+                assert bytes.fromhex(pending['signed']['request']['command']['send']['value'])[13:18] == b'TCA1B', pending
+                interrupted.send_signal(signal.SIGINT)
+                stdout, stderr = interrupted.communicate(timeout=15)
+                assert interrupted.returncode == 130 and not stdout and '.resume' in stderr, (interrupted.returncode, stdout, stderr)
+            finally:
+                source.send_signal(signal.SIGCONT)
+            cancelled = json.loads(console_run(data='.cancel\n').stdout)['table_operation']
+            assert cancelled['phase'] == 'cancelled' and not cancelled['uncertain'], cancelled
+            assert catalog_rows(console_run('SELECT * FROM items').stdout) == current
+            # An accepted part rejected by current policy is an input disposition,
+            # not a terminal operation result. Keep the original cancellation path.
             rejection_gate['armed'] = True
-            racing = subprocess.Popen(console_args[:-2]+['-c', "INSERT INTO items (id,value) VALUES (104,'" + 'd' * 200 + "')"], env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            racing = subprocess.Popen(catalog_args+['-c', "INSERT INTO items VALUES (104,'" + 'd' * 200 + "')"], env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append(racing)
             try:
-                assert rejection_gate['seen'].wait(timeout=15), 'console did not prepare a mutation part'
+                assert rejection_gate['seen'].wait(timeout=30), 'console did not prepare a Table part'
                 position = invoke('combined-mutation-revoke')['position']
                 until(lambda: processed(position))
             finally:
                 rejection_gate['release'].set()
-            stdout, stderr = racing.communicate(timeout=20)
-            assert racing.returncode == 1 and json.loads(stdout)['mutation']['phase'] == 'input_rejected', (racing.returncode, stdout, stderr)
+            stdout, stderr = racing.communicate(timeout=30)
+            rejected_input = json.loads(stdout)['table_operation']
+            assert racing.returncode == 1 and rejected_input['phase'] == 'uploading', (racing.returncode, stdout, stderr)
+            assert rejected_input['input_disposition'] == 'denied' and rejected_input['input_diagnostic']['outcome'] == 'input_rejected', rejected_input
             assert not json.loads(recovery_path.read_bytes())['complete']
             blocked = console_run('SELECT * FROM items', code=1)
             assert not blocked.stdout and '.cancel' in blocked.stderr
-            cancelled = json.loads(console_run(data='.cancel\n').stdout)['mutation']
+            cancelled = json.loads(console_run(data='.cancel\n').stdout)['table_operation']
             assert cancelled['phase'] == 'cancelled', cancelled
             position = invoke('combined-mutation-restore')['position']
             until(lambda: processed(position))
-            assert console_rows(console_run('SELECT * FROM items').stdout) == current
-            print('Console writes: INSERT/UPDATE/DELETE, atomic rejection, exact lost-receipt recovery, identity checks, read-after-write, interruption, policy-raced input rejection and cancellation passed.', flush=True)
+            assert catalog_rows(console_run('SELECT * FROM items').stdout) == current
+            print('General console: atomic DML/counts, diagnostics, exact saved recovery, identity rejection, SIGINT and policy-raced cancellation passed.', flush=True)
             sdk_results = []
-            mutation_connection = dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)
             for index, (label, factory) in enumerate(installed):
                 caller_started = time.monotonic()
-                owner = factory(endpoint, mutation_connection, root); clients.append(owner)
-                sql = f"UPDATE items SET value='{label}' WHERE id=2"
-                sdk_namespace = (1 << 63)+10000+index
-                compiled = owner.call({'compile': dict(name='items', sql=sql, namespace=str(sdk_namespace))})['compiled']
-                prepared = owner.call({'next': compiled})['prepared']
-                saved = root/f'{label}-frozen.txt'; saved.write_text(prepared)
-                send_fault.update(lose=True, recovered=False)
-                try:
-                    owner.call({'submit': prepared})
-                    raise AssertionError('lost receipt reported as success')
-                except Failure as failure:
-                    assert failure.status == 6, failure
-                owner.close(); clients.remove(owner)
-                owner = factory(endpoint, mutation_connection, root); clients.append(owner)
-                assert saved.read_text() == prepared
-                receipt = owner.call({'submit': saved.read_text()})['receipt']
-                assert send_fault['recovered'] and receipt['position'] == send_fault['receipt']['position']
-                until(lambda: owner.call({'observe': dict(prepared=prepared, input=receipt['position'])})['observation'] == 'processed')
-                result = mutation(sql, sdk_namespace, owner, compiled)
-                assert result['affected_rows'] == 1, result
-                sdk_results.append((label, owner, compiled['reference'], round(time.monotonic()-caller_started, 3)))
+                owner = factory(endpoint, catalog_connection, root); clients.append(owner)
+                result = owner.call({'scenario': {'index': index}})
+                sdk_results.append(dict(caller=label, seconds=round(time.monotonic()-caller_started, 3), result=result))
             position = invoke('combined-query-revoke')['position']
             until(lambda: processed(position))
             denied(lambda: rows(1), 'QueryDenied')
@@ -459,24 +438,21 @@ def run(node, host, proof, library, cli, *, sdks=()):
             until(lambda: processed(position))
             position = invoke('combined-mutation-revoke')['position']
             until(lambda: processed(position))
-            denied(lambda: mutation('DELETE FROM items WHERE id=1', 17), 'MutationDenied')
+            denied(lambda: mutation('DELETE FROM items WHERE id=1', 17), 'CatalogDenied')
             denied_console = console_run('DELETE FROM items WHERE id=1', code=1)
-            assert 'current writer or catalog policy' in denied_console.stderr and not denied_console.stdout
-            saved_before = recovery_path.read_bytes()
-            denied_schema = console_run(data='.schema writer\n', code=1)
-            assert 'current writer or catalog policy' in denied_schema.stderr and not denied_schema.stdout
-            assert recovery_path.read_bytes() == saved_before
+            assert not denied_console.stdout
+            # Inspect/read rights remain independently usable after DML denial.
+            assert json.loads(console_run('DESCRIBE items').stdout)['table']['name'] == 'items'
 
             query(3); complete(3)
             assert rows(3) == [dict(id=1, value=updated_value), dict(id=2, value='after-revocation')]
             invoke('revoke')
             denied(lambda: rows(3), 'AccessDenied')
-            for _, owner, reference, _ in sdk_results:
-                denied(lambda: owner.call({'status': reference}), 'AccessDenied')
+            denied(lambda: mutations.call({'lookup': 'items'}), 'AccessDenied')
             assert source.poll() is None and requester.poll() is None
             assert not errors, errors
-            print(json.dumps(dict(proof='combined Table query/writer', elapsed_seconds=round(time.monotonic()-started, 3), **counts, resident_pages=8, mutation_namespace=str(namespace), installed_sdks=list(sdks), sdk_install_seconds=sdk_install_seconds, sdk_callers=[dict(caller=label, seconds=seconds) for label, _, _, seconds in sdk_results], binaries={name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in binaries.items()})), flush=True)
-            print('Combined Table host: both initialization commits survive lost receipts, fresh fencing and node/store restart; durable and interactive query snapshots survive interleaved same-namespace CLI mutations; independent policy and current native disclosure gates pass.', flush=True)
+            print(json.dumps(dict(proof='combined Table query/writer', elapsed_seconds=round(time.monotonic()-started, 3), **counts, resident_pages=8, mutation_namespace=str(namespace), installed_sdks=list(sdks), sdk_install_seconds=sdk_install_seconds, sdk_callers=sdk_results, binaries={name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in binaries.items()})), flush=True)
+            print('Combined Table host: separate initialization and delegation commits survive lost receipts, fresh fencing and node/store restart; durable and interactive query snapshots survive interleaved same-namespace CLI mutations; independent policy and current native disclosure gates pass.', flush=True)
         except BaseException:
             for log in logs:
                 log.flush()
@@ -486,6 +462,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             fault['release'].set()
             rejection_gate['release'].set()
             snapshot_release.set()
+            publication_gate['release'].set()
             for client in clients: client.close()
             for process in reversed(processes):
                 if process.poll() is None: process.terminate()

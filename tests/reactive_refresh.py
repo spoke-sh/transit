@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import struct
 import time
+from serving_table import watch as table_watch, query_bytes, query_policy
 from reactive import reactive
 from serving import post, submit
 
@@ -89,22 +90,16 @@ def run(env, _tls):
         drained(ingress)
         wait(lambda: env['read']('status', operation)['stage'] == 'completed')
 
-    schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-    cast(ingress, reactive(0, struct.pack('<QQQQIB', 0, 1, application, resource, 1, 13) + b'data-progress' + schema + b'\1'))
+    cast(ingress, reactive(0, table_watch(env['counter_definition'], application)))
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
-    # Independent Table declaration and FZP1 all-rows plan; no SQL recompile.
-    table = b'TBL1\1\2id\5count'
-    source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
+    # Independent schema-bound Table declaration and FQP1 plan.
     limits = struct.pack('<QQQ', 100, 100, 1048576)
-    declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + limits)
+    source, declaration, bundle = query_bytes(env['counter_definition'], application, limits)
+    cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=1, allow=True))
     drained(application)
     mutate(1)
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
-    plan = b'FZP1' + definition + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0'
-    bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
     digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
         part = bundle[offset:offset+256]
@@ -121,7 +116,12 @@ def run(env, _tls):
         cast(ingress, b'UQS1' + struct.pack('<Q', namespace), principal)
         drained(ingress)
         cast(ingress, b'UQX1' + struct.pack('<Q', namespace), principal)
-        wait(lambda: (current := status(namespace)) is not None and current[76] == 4)
+        def completed():
+            current = status(namespace)
+            if current is None: return False
+            assert current[76] < 5, ('template terminal failure', current[76], current[85:].hex())
+            return current[76] == 4
+        wait(completed)
 
     complete_template(1)
     now = int(time.time() * 1000)
@@ -213,7 +213,7 @@ def run(env, _tls):
     leases[3] = identity, now + 28000
     selected = dict(session=identity, generation=command({'follow': dict(session=identity, expected=0, template='2', limit=1)}, refresh=True))
     assert view(selected)['starts'] == 0
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 2) + declaration + b'\0' + limits)
+    cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=2, allow=False))
     drained(application)
     mutate(4)
     command({'invalidate': selected}, refresh=True)
@@ -224,7 +224,7 @@ def run(env, _tls):
     assert failed['query_diagnostic']['code'] == 'query.policy_denied', failed
     assert failed['query_diagnostic']['outcome'] == 'rejected', failed
     assert failed['query_diagnostic']['identity']['id'] == failed['view']['namespace'], failed
-    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 3) + declaration + b'\1' + limits)
+    cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=3, allow=True))
     drained(application)
     restored = client({'refresh_status': selected})['refresh_status']
     assert restored['diagnostic'] == failed['diagnostic'], restored

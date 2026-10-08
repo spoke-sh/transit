@@ -134,13 +134,21 @@ pub const Source = struct {
 pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
     try initialized(turn, 'v', try configuration(peer, initializer));
     if (frame.kind == .cast and external(turn, initializer) and frame.payload.eql(try wire.Command.encode(.initialize))) return;
-    var fixed = std.heap.FixedBufferAllocator.init(adapter);
+    return dispatch(turn, frame, peer, resources, adapter, workspace, cancellation);
+}
+/// Catalog composition uses the durable per-requester policy. No process ID is
+/// reinterpreted as a catalog principal; Capture validates the explicit mapping.
+pub fn dispatchCatalogSource(turn: *Turn, frame: s.Frame, catalog: q.catalog.TableCatalogRecords.Configuration, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
+    try q.CatalogQueryOwner.check(catalog, turn);
+    return dispatch(turn, frame, null, resources, adapter, workspace, cancellation);
+}
+fn dispatch(turn: *Turn, frame: s.Frame, peer: ?u64, resources: anytype, adapter: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation) !void {
     const origin = s.Frame.source(turn.delivery.input) catch 0;
     if (frame.kind == .call) {
-        if (origin != peer) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
+        if (origin == 0 or (peer != null and origin != peer.?)) return turn.reply(try q.QueryFailure.fromError(error.UnexpectedQueryPeer, .admission).?.encode());
         const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try q.QueryFailure.fromError(error.InvalidPublicationReference, .admission).?.encode());
         var diagnostic: ?q.QueryFailure = null;
-        _ = q.UnifiedCapture.startDiagnostic(turn, ref, resources, fixed.allocator(), &diagnostic) catch |err| {
+        _ = q.UnifiedCapture.startBoundedDiagnostic(turn, ref, resources, adapter, &diagnostic) catch |err| {
             if (turn.read_error != null) return err;
             const failure = diagnostic orelse q.QueryFailure.fromError(err, .admission) orelse return err;
             return turn.reply(try failure.encode());
@@ -148,15 +156,15 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
         return;
     }
     if (frame.kind == .cancel) {
-        if (origin != peer) return rejected(turn, "UnexpectedQueryPeer");
-        const index = (try turn.read(r.key('i', peer, frame.correlation))) orelse return;
+        if (origin == 0 or (peer != null and origin != peer.?)) return rejected(turn, "UnexpectedQueryPeer");
+        const index = (try turn.read(r.key('i', origin, frame.correlation))) orelse return;
         try q.UnifiedCapture.close(turn, try q.UnifiedRecords.readIdentity(index), .cancelled);
         return;
     }
     if (frame.kind != .cast or origin != turn.delivery.pid) return rejected(turn, "UnexpectedQueryContinuation");
     const continuation = try r.Continuation.decode(frame.payload);
     var diagnostic: ?q.QueryFailure = null;
-    _ = q.UnifiedCapture.advanceDiagnostic(turn, continuation, resources, fixed.allocator(), workspace, cancellation, &diagnostic) catch |err| {
+    _ = q.UnifiedCapture.advanceBoundedDiagnostic(turn, continuation, resources, adapter, workspace, cancellation, &diagnostic) catch |err| {
         if (turn.read_error != null) return err;
         const failure = diagnostic orelse q.QueryFailure.fromError(err, .execution) orelse return err;
         return q.UnifiedCapture.closeFailure(turn, continuation.job, failure);

@@ -7,26 +7,8 @@ ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = ROOT / 'packages/zig/transit-query/api/workspace.schema.json'
 
 
-def ts(schema):
-    if '$ref' in schema:
-        return schema['$ref'].rsplit('/', 1)[-1]
-    if 'const' in schema:
-        return json.dumps(schema['const'])
-    if 'oneOf' in schema or 'anyOf' in schema:
-        return '(' + ' | '.join(ts(item) for item in schema.get('oneOf', schema.get('anyOf'))) + ')'
-    if 'enum' in schema:
-        return ' | '.join(json.dumps(item) for item in schema['enum'])
-    kind = schema['type']
-    if kind in ('integer', 'number'):
-        return 'number'
-    if kind in ('null', 'boolean', 'string'):
-        return kind
-    if kind == 'array':
-        return f"Array<{ts(schema['items'])}>"
-    if kind == 'object':
-        return '{ ' + '; '.join(f"{json.dumps(key)}{'' if key in schema.get('required', []) else '?'}: {ts(value)}"
-                                for key, value in schema.get('properties', {}).items()) + ' }'
-    raise ValueError(kind)
+sys.path.insert(0, str(ROOT / "bindings"))
+from schema_types import declarations_at
 
 
 def clean(value):
@@ -40,7 +22,7 @@ def clean(value):
 schema = json.loads(SCHEMA.read_text())
 outputs = {
     'types.ts': '// Generated from owning Zig query workspace types; do not edit.\n'
-                + '\n'.join(f'export type {name} = {ts(value)};' for name, value in schema['$defs'].items()) + '\n',
+                + declarations_at({f'#/$defs/{name}': (name, value) for name, value in schema['$defs'].items()}),
     'schema.json': json.dumps(clean(schema), separators=(',', ':')) + '\n',
 }
 for name, content in outputs.items():

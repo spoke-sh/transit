@@ -14,11 +14,11 @@ import tempfile
 import time
 import uuid
 
-from server import Fixture, minio_binary
+from server import Fixture, minio_binary, children, command
 
 
 def inside(mount, cli, node, host):
-    from console import Console
+    from table_console import TableConsole, atom
     from server_faults import response
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Fixture(cli, node, host, parent=mount)
@@ -37,20 +37,23 @@ def inside(mount, cli, node, host):
         config["seed_file"] = str(fixture.installation / "caller.seed")
         # Client intent persistence is independent of the provider volume being
         # filled. Both remain explicitly configured private paths.
-        config["recovery_file"] = "/proof/client-recovery.json"
+        config["writes"] = {"recovery_file": "/proof/client-recovery.json"}
         console_path = Path("/proof/console.json")
         console_path.write_text(json.dumps(config))
-        shell = Console(fixture.cli, console_path)
-        shell.process.stdin.write(b"SELECT COUNT(*) FROM items;\n"); shell.process.stdin.flush()
+        owner = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
+        os.kill(owner, signal.SIGSTOP)
+        shell = TableConsole(fixture.cli, console_path)
+        shell.process.stdin.write(b"INSERT INTO items (id, value) VALUES (1, 100);\n"); shell.process.stdin.flush()
         deadline = time.monotonic() + 30
         while True:
-            record_path = Path(config["recovery_file"])
+            record_path = Path(config["writes"]["recovery_file"])
             if record_path.exists():
                 accepted = json.loads(record_path.read_text())
-                if accepted["input"] is not None or accepted["complete"]:
+                if accepted["input"] is not None:
                     break
-            assert time.monotonic() < deadline, "query receipt was not persisted"
+            assert time.monotonic() < deadline, "mutation receipt was not persisted"
             time.sleep(.005)
+        assert not accepted['complete'] and accepted['operation'] is not None
         os.kill(shell.process.pid, signal.SIGSTOP)
         available = os.statvfs(mount).f_bavail * os.statvfs(mount).f_frsize
         # Match the physical-capacity foundation: retain 4 MiB for bounded
@@ -67,6 +70,10 @@ def inside(mount, cli, node, host):
             else:
                 raise AssertionError("Expected actual ext4 ENOSPC")
         probe.unlink()
+        # Let the admitted Table owner encounter provider pressure. The console
+        # keeps its original persisted receipt/intent outside the filled volume.
+        os.kill(owner, signal.SIGCONT)
+        time.sleep(3)
         # Read/control attempts stay finite even while provider writes refuse.
         attempt = time.monotonic()
         try:
@@ -81,21 +88,25 @@ def inside(mount, cli, node, host):
         for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr):
             stream.close()
         shell = None
-        recovery = json.loads(Path(config["recovery_file"]).read_text())
-        assert recovery["namespace"] == accepted["namespace"] and recovery["bundle"]
+        recovery = json.loads(record_path.read_text())
+        assert recovery["operation"] == accepted["operation"] and recovery["input"] == accepted["input"]
         fixture.stop()
         filler.unlink()
         reserve.unlink()
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        shell = Console(fixture.cli, console_path)
-        page = shell.call(".resume")
-        assert page["complete_coverage"] and page["cells"][0][0]["value"]["uint64"] == "0", page
+        shell = TableConsole(fixture.cli, console_path)
+        outcome = shell.call(".resume")['table_operation']
+        assert outcome['phase'] == 'applied' and outcome['counts'] == dict(matched='1', changed='1'), outcome
+        assert json.loads(record_path.read_text())['operation'] == accepted['operation']
+        assert atom(shell.call('SELECT COUNT(*) FROM items;'), 'unsigned') == '1'
+        row = shell.call('SELECT id, value FROM items;')['rows'][0]
+        assert [cell['value']['atom']['signed'] for cell in row] == ['1', '100'], row
         shell.close()
         shell = None
         fixture.stop()
-        print(f"Transit server physical capacity: accepted query, real ENOSPC, finite control/shutdown and exact recovery passed in {time.monotonic()-started:.2f}s", flush=True)
+        print(f"Transit server physical capacity: accepted Table mutation, real ENOSPC, finite control/shutdown and exact identity/count recovery passed in {time.monotonic()-started:.2f}s", flush=True)
     finally:
         if shell is not None:
             if shell.process.poll() is None:

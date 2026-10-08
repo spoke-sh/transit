@@ -28,7 +28,9 @@ corruption or authorize submitting the SQL again.
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document
-projection, with one to eight declared columns and finite execution budgets.
+projection with finite execution budgets. General Table declarations bind an
+immutable catalog definition and admit up to 128 columns. KV has two explicit
+decoders; Document projections retain their independent eight-column bound.
 Durable callers upload the finite plan bundle through bounded commands.
 Flight exposes a Table subset with primitive int64 output; the adapter verifies
 captured query cells before conversion.
@@ -124,6 +126,13 @@ Digests, ordered segment coverage and the complete manifest establish a result.
 A decoded page, transport success or initial status alone cannot establish the
 whole answer. See [stream flow control](streams.md#flow-control).
 
+Native query hosts bound source decoding to 1 MiB and logical Arrow encoding to
+4 MiB per active step. Exhaustion records a specific query memory-budget failure,
+discards the candidate and releases its source pin. It does not stop the source
+owner or remove stored rows. Storage and general allocator failures remain
+infrastructure errors. These working-set limits are independent of Table value
+and encoded-result limits.
+
 ## Finite draft evaluation
 
 A Table workspace can explicitly open a draft generation with one to eight
@@ -201,6 +210,13 @@ interactive query recovery, not the durability of accepted application state.
 Existing callers explicitly requesting durable captured jobs keep their recovery
 contract. A session does not require a new durable PID or principal.
 
+Table admission resolves catalog metadata and the complete schema at an exact
+resource revision. Repeated metadata lookups share a bounded 64-entry scratch
+cache for that observation; eviction fetches the record again. This cache does
+not retain permissions across operations. Current authorization is interpreted
+using the exact keys requested for that observation, and a fresh check precedes
+schema or result disclosure.
+
 Interactive execution failures identify the first failing scan row, source column
 and operation. Predicate failures include the zero-based postfix instruction;
 eager evaluation reports a later failing atom even when an earlier atom would
@@ -261,3 +277,16 @@ footer. Reconnecting starts new statements; `execution: durable` explicitly
 selects the captured-query/recovery console behavior.
 [Workload priorities](workloads.md) and [measured costs](performance.md) explain
 the rationale and the shared storage work needed alongside this lifecycle.
+
+
+### Handler query failures
+
+Station handler queries deliver deterministic output/workspace exhaustion and
+arithmetic overflow as typed negative results. Explicit cancellation and policy
+denial also carry a reason. The framework authenticates the recorded source and
+correlation, preserves any received prefix as incomplete evidence, and invokes
+only the first terminal callback. Application message codecs do not decode these
+frames. Storage, allocation and local cancellation failures still abort private
+work; they do not manufacture a terminal result. See the
+[handler query contract](../../contracts/STATION_QUERY_V1.md) for framing,
+wait closure, retained evidence and duplicate handling.

@@ -1,3 +1,4 @@
+import { logicalTypeText } from "@rey/transit-query-client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   BoardError,
@@ -391,7 +392,7 @@ export function UnifiedWorkspace({
     const result = draftLive.result;
     if (!result || !visible || document.hidden) return;
     try {
-      if (result.page.evidence.manifest.basis.resource !== resource) mismatch();
+      if (result.page.evidence.manifest.basis.cut.resource !== resource) mismatch();
       if (binding) unifiedPage(binding, result.page);
     } catch (cause) {
       setPage(null);
@@ -712,7 +713,7 @@ export function UnifiedWorkspace({
             <ul>
               {source.columns.map((c) => (
                 <li key={c.name}>
-                  {c.name}: {c.type}
+                  {c.name}: {logicalTypeText(c.type)}
                 </li>
               ))}
             </ul>
@@ -779,9 +780,10 @@ export function UnifiedWorkspace({
               <QueryProfile page={page} />
               <h3>Verified complete result · page {BigInt(page.evidence.ordinal) + 1n}</h3>
               <p>
-                Source {page.evidence.manifest.basis.kind} · resource{" "}
-                {page.evidence.manifest.basis.resource} · revision{" "}
-                {page.evidence.manifest.basis.revision} · {page.evidence.manifest.rows} total rows.
+                Source {page.evidence.manifest.basis.cut.kind} · resource{" "}
+                {page.evidence.manifest.basis.cut.resource} · revision{" "}
+                {page.evidence.manifest.basis.cut.revision} · {page.evidence.manifest.rows} total
+                rows.
               </p>
               <p>
                 Contract{" "}
@@ -803,7 +805,7 @@ export function UnifiedWorkspace({
                   {page.cells.map((row, i) => (
                     <tr key={i}>
                       {row.map((cell, c) => (
-                        <td key={c}>{unifiedCellText(cell)}</td>
+                        <td key={c}>{unifiedCellText(cell, page.evidence.columns[c]!.type)}</td>
                       ))}
                     </tr>
                   ))}

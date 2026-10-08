@@ -23,7 +23,7 @@ Configuration is the generated `HostConfig` in Station's
 
 The key is 64 hexadecimal characters. Provision identity/grants/ownership before
 starting a behavior; this executable does not allocate them. Omitting `growing_server`,
-`query_client`, `mutation_client` and `catalog_client` creates a raw client port
+`query_client` and `catalog_client` creates a raw client port
 without reading a Station credential. Raw request
 preparation takes an explicit key path. The host performs no credential discovery.
 
@@ -92,21 +92,14 @@ Prepared requests and result continuations are opaque strings. Retain the exact
 prepared string before dispatch; replacing a child process cannot resolve an
 uncertain submission or renew a revoked grant.
 
-The independent `mutation_client` profile uses an explicit realm/principal,
-writer/resource and Table connection. Its `table_mutation` actions delegate to
-the [mutation caller ABI](../../packages/zig/transit-station-bindings/docs/table-mutations.md).
-It cannot be combined with query, server or local-codec profiles. Current grants
-and the writer’s separate policy remain required; the profile does not provision
-resources or infer a write target.
-
 The independent `catalog_client` profile exposes `catalog` actions through the
 [catalog caller ABI](../../packages/zig/transit-station-bindings/docs/catalog.md).
 It uses an explicit scope, owner and principal; catalog IDs use decimal strings.
 Local compilation and signed preparation remain distinct from submission and
-durable publication. This profile cannot combine with query, mutation, server
+durable publication. This profile cannot combine with query, server
 or local-codec profiles. Catalog JSON shapes are validated before dispatch.
 
-`shutdown` explicitly destroys all Station, query, mutation, catalog and raw-client handles,
+`shutdown` explicitly destroys all Station, query, catalog and raw-client handles,
 then responds with `{"closed":true}` and exits without waiting for stdin EOF.
 This works in authority and local-codec modes. Await the acknowledgement and
 successful child exit when joining cleanup; loss of either is a cleanup failure.

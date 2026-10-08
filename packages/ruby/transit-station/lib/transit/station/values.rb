@@ -134,6 +134,7 @@ module Transit
     Reply = Data.define(:value, :position, :origin, :correlation)
     Control = Data.define(:kind, :position, :origin, :correlation)
     ResultComplete = Data.define(:position, :origin, :correlation)
+    QueryFailure = Data.define(:position, :origin, :correlation, :result, :reason)
     class FrozenMutation
       attr_reader :identity, :purpose, :input_position
       def initialize(identity, purpose, input_position, bytes)

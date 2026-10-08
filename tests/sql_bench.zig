@@ -37,7 +37,10 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(.{ .phase = "compile", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
-    const mutation_target: f.TableMutation.Target = .{ .name = try f.model.Name.init("items"), .schema = .{ .names = .{ try f.model.Name.init("id"), try f.model.Name.init("value") }, .value_type = .int64 } };
+    const mutation_schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &.{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "value", .type = .int64 },
+    }, .primary_key = &.{1} };
     for ([_][]const u8{
         "INSERT INTO items (id,value) VALUES(1,2),(2,NULL),(3,-9223372036854775808)",
         "UPDATE items SET value=12 WHERE id=9223372036854775807",
@@ -45,11 +48,13 @@ pub fn main(init: std.process.Init) !void {
     }, 0..) |sql, case| {
         const start = std.Io.Clock.awake.now(init.io);
         for (0..iterations) |_| {
-            const plan = try f.TableMutation.compile(sql, mutation_target);
-            std.mem.doNotOptimizeAway(plan);
+            allocator.reset();
+            var compiled = try f.TableDml.compile(allocator.allocator(), sql, "items", mutation_schema, null);
+            defer compiled.deinit();
+            std.mem.doNotOptimizeAway(compiled.plan);
         }
         const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
-        try std.json.Stringify.value(.{ .phase = "compile_mutation", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
+        try std.json.Stringify.value(.{ .phase = "compile_mutation", .contract = "general-table-ddl-dml", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     for ([_][]const u8{
@@ -60,11 +65,17 @@ pub fn main(init: std.process.Init) !void {
     }, 0..) |sql, case| {
         const start = std.Io.Clock.awake.now(init.io);
         for (0..iterations) |_| {
-            const definition = try f.Declaration.compile(sql);
-            std.mem.doNotOptimizeAway(definition);
+            allocator.reset();
+            if (std.mem.startsWith(u8, sql, "CREATE TABLE")) {
+                var definition = try f.TableDdl.compile(allocator.allocator(), sql, null, null);
+                defer definition.deinit();
+                std.mem.doNotOptimizeAway(definition.statement);
+            } else {
+                std.mem.doNotOptimizeAway(try f.Declaration.compile(sql));
+            }
         }
         const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
-        try std.json.Stringify.value(.{ .phase = "compile_declaration", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
+        try std.json.Stringify.value(.{ .phase = "compile_declaration", .contract = "general-table-ddl-dml", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
@@ -161,15 +172,16 @@ const CompilationClient = struct {
 /// results, including two stub description checks. No signing/network latency.
 fn parameterCallers(init: std.process.Init) !void {
     const values = [_]m.Scalar{ .{ .int64 = -1 }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = true }, .{ .utf8 = "it's 東京" }, .{ .binary = "\x00\xff" } };
-    const literals = [_][]const u8{ "-1", "'18446744073709551615'::uint64", "'-0.0'::float64", "TRUE", "'it''s 東京'", "'\\x00ff'::bytea" };
+    const literals = [_][]const u8{ "-1", "18446744073709551615", "-0.0", "TRUE", "'it''s 東京'", "X'00ff'" };
     var output: [4096]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &output);
     var memory: [65536]u8 = undefined;
     var arena = std.heap.FixedBufferAllocator.init(&memory);
     const iterations = 10000;
-    for (values, literals) |value, literal| {
+    const foreign_values = [_]q.Values.Scalar{ .{ .signed = "-1" }, .{ .unsigned = "18446744073709551615" }, .{ .float_bits = "0000000000000080" }, .{ .boolean = true }, .{ .utf8 = "it's 東京" }, .{ .binary = "00ff" } };
+    for (values, literals, foreign_values) |value, literal, foreign_value| {
         const ordinary = try std.fmt.allocPrint(init.arena.allocator(), "SELECT value AS chosen FROM items WHERE value >= {s} LIMIT 1024", .{literal});
-        const parameters_wire = [_]q.Values.Scalar{ try q.Values.Scalar.fromNative(init.arena.allocator(), value), .{ .uint64 = "1024" } };
+        const parameters_wire = [_]q.Values.Scalar{ foreign_value, .{ .unsigned = "1024" } };
         const scope: q.SqlInspection.Scope = .{ .name = "items", .source = .{ .resource = 7, .source = .{ .kv = .{ .prefix = "646174612f", .key = .{ .type = .int64 }, .value = .{ .type = std.meta.activeTag(value) } } } }, .limits = .{ .pages = "100", .segments = "100", .result_bytes = "1048576" } };
         const literal_request: q.SqlCompilation.Request = .{ .scope = scope, .sql = ordinary };
         const parameter_request: q.SqlCompilation.Request = .{ .scope = scope, .sql = "SELECT value AS chosen FROM items WHERE value >= $1 LIMIT $2", .parameters = &parameters_wire };

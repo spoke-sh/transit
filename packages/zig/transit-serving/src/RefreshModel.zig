@@ -81,7 +81,7 @@ test "refresh records and full-width namespaces preserve existing frame bounds" 
     try t.expect(bytes.len <= root.station.Frame.max_payload);
     try t.expectEqual(@as(u16, 231), bytes.len);
     try t.expectEqualDeep(command, (try root.Model.Command.decode(bytes)).refresh);
-    const view: View = .{ .principal = 65536, .session = scope, .generation = 9, .source = .{ .revision = 1, .target = 8, .resource = 9, .table = 1, .progress_key = try p.Value.init(&@as([32]u8, @splat(1))), .schema = @splat(5) }, .template = command.follow.view.template, .namespace = .{ .value = 1 << 63 }, .dirty = 11, .covered = 10, .limit = max_starts };
+    const view: View = .{ .principal = 65536, .session = scope, .generation = 9, .source = .{ .revision = 1, .target = 8, .resource = 9, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(5) }, .template = command.follow.view.template, .namespace = .{ .value = 1 << 63 }, .dirty = 11, .covered = 10, .limit = max_starts };
     const stored = try root.Codec.encode('G', view);
     try t.expect(stored.len <= p.Value.max_bytes);
     try t.expectEqualDeep(view, try root.Codec.decode(View, 'G', stored));

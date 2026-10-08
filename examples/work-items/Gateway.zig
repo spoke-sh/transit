@@ -104,8 +104,13 @@ fn acquirePublished(self: *Self, allocator: std.mem.Allocator, wire: *client.Cli
     return app.Host.published(allocator, .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.inspection.principal, .key = self.inspection_key }, self.config.application.scope);
 }
 fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, current: bool, diagnostic: *?app.protocol.Diagnostic) !q.Workspace.Config {
-    const owner: W = .{ .configuration = self.config.data };
-    var definition = try owner.source(1);
+    const owner: W = .{ .allocator = allocator, .configuration = self.config.data };
+    const resources: client.ResourceReader = .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.query.connection.principal, .key = self.query_key };
+    var reader = try resources.open(self.config.data.resource);
+    const selected_table = if (current) try owner.selected(&reader) else 1;
+    var table_source = try owner.source(&reader, self.config.query.connection.principal, selected_table);
+    defer table_source.deinit();
+    const definition = table_source.definition;
     if (current) {
         var interface = try self.published(allocator, wire, diagnostic);
         defer interface.deinit();
@@ -116,12 +121,9 @@ fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, cu
             binding = candidate.source.query;
         };
         const selected = binding orelse return error.InvalidApplicationProgram;
-        const resources: client.ResourceReader = .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.query.connection.principal, .key = self.query_key };
-        var reader = try resources.open(self.config.data.resource);
         const head = try (try owner.ledger()).head(&reader);
-        definition = try owner.source(try owner.selected(&reader));
         const contract = try definition.fingerprint();
-        if (selected.resource != definition.resource or selected.source_kind != .table or selected.profile != .unified_v1 or !std.mem.eql(u8, selected.name, "items") or !std.mem.eql(u8, &selected.schema, &contract) or !std.mem.eql(u8, &head.contract, &contract)) return error.QueryIdentityMismatch;
+        if (selected.resource != definition.resource or selected.source_kind != .table or selected.profile != .unified_v1 or !std.mem.eql(u8, selected.name, "items") or !std.mem.eql(u8, &selected.schema, &contract) or !std.mem.eql(u8, &head.contract, &try owner.contract(selected_table))) return error.QueryIdentityMismatch;
     }
     return .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = self.config.query.limits };
 }
@@ -163,7 +165,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
     if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse return error.InvalidOrigin, self.config.public_origin)) return error.InvalidOrigin;
     if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidRequest;
     const application = std.mem.eql(u8, target, "/api/v1/application");
-    const body = request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(if (application) app.Host.max_body_bytes else 49152)) catch return error.InvalidRequest;
+    const body = request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(if (application) app.Host.max_body_bytes else q.Workspace.max_request_bytes)) catch return error.InvalidRequest;
     if (application) {
         const input = app.protocol.Json.parseFromSlice(app.Host.Request, alloc, body) catch |err| {
             diagnostic.* = app.HostDiagnostic.input(err) catch null;

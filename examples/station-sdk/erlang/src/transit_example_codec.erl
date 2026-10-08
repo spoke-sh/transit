@@ -12,6 +12,11 @@ encode(query, {insert, Key, Value}) when is_integer(Key), Key >= -92233720368547
     is_integer(Value), Value >= -9223372036854775808, Value =< 9223372036854775807 -> {ok, <<"TSQ", 1, 2, Key:64/little-signed, 1, Value:64/little-signed>>};
 encode(query, rows) -> {ok, <<"TSQ", 1, 3>>};
 encode(query, start) -> {ok, <<"TSQ", 1, 4>>};
+encode(query, advance) -> {ok, <<"TSQ", 1, 5>>};
+encode(query, not_ready) -> {ok, <<"TSQ", 1, 6>>};
+encode(query, {update, Key, Value}) -> case encode(query, {insert, Key, Value}) of
+    {ok, <<"TSQ", 1, 2, Rest/binary>>} -> {ok, <<"TSQ", 1, 7, Rest/binary>>}; Error -> Error end;
+encode(query, {delete, Key}) when is_integer(Key), Key >= -9223372036854775808, Key =< 9223372036854775807 -> {ok, <<"TSQ", 1, 8, Key:64/little-signed>>};
 encode(_, _) -> {error, invalid_application_value}.
 decode(u64, <<"TSU", 1, Value:64/little-unsigned>>) -> {ok, Value};
 decode(counter, <<"TSC", 1, 1, Value:64/little-unsigned>>) -> {ok, {add, Value}};
@@ -23,6 +28,11 @@ decode(query, <<"TSQ", 1, 2, Key:64/little-signed, 0>>) -> {ok, {insert, Key, nu
 decode(query, <<"TSQ", 1, 2, Key:64/little-signed, 1, Value:64/little-signed>>) -> {ok, {insert, Key, Value}};
 decode(query, <<"TSQ", 1, 3>>) -> {ok, rows};
 decode(query, <<"TSQ", 1, 4>>) -> {ok, start};
+decode(query, <<"TSQ", 1, 5>>) -> {ok, advance};
+decode(query, <<"TSQ", 1, 6>>) -> {ok, not_ready};
+decode(query, <<"TSQ", 1, 7, Rest/binary>>) -> case decode(query, <<"TSQ", 1, 2, Rest/binary>>) of
+    {ok, {insert, Key, Value}} -> {ok, {update, Key, Value}}; Error -> Error end;
+decode(query, <<"TSQ", 1, 8, Key:64/little-signed>>) -> {ok, {delete, Key}};
 decode(_, _) -> {error, malformed_application_payload}.
 allowed(counter, {add, _}) -> true;
 allowed(counter, read) -> true;
@@ -32,6 +42,10 @@ allowed(reply, {total, _}) -> true;
 allowed(query_service, initialize) -> true;
 allowed(query_service, {insert, _, _}) -> true;
 allowed(query_service, rows) -> true;
+allowed(query_service, advance) -> true;
+allowed(query_service, {update, _, _}) -> true;
+allowed(query_service, {delete, _}) -> true;
 allowed(query_requester, start) -> true;
+allowed(query_requester, not_ready) -> true;
 allowed(u64, Value) -> is_integer(Value) andalso Value >= 0 andalso Value =< 18446744073709551615;
 allowed(_, _) -> false.

@@ -149,6 +149,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     sql_test.addArtifactArg(mutation_sql);
+    const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });
+    table_dml_sql.addFileArg(b.path("tests/sql/mutations.py"));
+    table_dml_sql.addArtifactArg(mutation_sql);
+    table_dml_sql.has_side_effects = true;
+    table_dml_sql.stdio = .inherit;
+    b.step("test-table-dml-sql", "Compare general Table DML with independent typed plan semantics").dependOn(&table_dml_sql.step);
     const declaration_sql = b.addExecutable(.{ .name = "transit-declaration-sql-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_declaration.zig"),
         .target = target,
@@ -156,6 +162,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(declaration_sql);
+    const table_ddl_sql = b.addSystemCommand(&.{ "python3", "-B" });
+    table_ddl_sql.addFileArg(b.path("tests/sql/declarations.py"));
+    table_ddl_sql.addArtifactArg(declaration_sql);
+    table_ddl_sql.has_side_effects = true;
+    table_ddl_sql.stdio = .inherit;
+    b.step("test-table-ddl-sql", "Compare general Table DDL with independent grammar/schema semantics").dependOn(&table_ddl_sql.step);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
@@ -178,6 +190,16 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    const counter_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("examples/serving/counter_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_serving", .module = serving.module("transit_serving") }},
+    }) });
+    const counter_test = b.addRunArtifact(counter_tests);
+    test_step.dependOn(&counter_test.step);
+    b.step("test-serving-counter", "Check staged typed counter writes and original replies").dependOn(&counter_test.step);
+
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") } } });
     const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
@@ -244,16 +266,6 @@ pub fn build(b: *std.Build) void {
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
-    const mutation_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    mutation_contract_test.addFileArg(b.path("tests/table_mutation_contract.py"));
-    mutation_contract_test.has_side_effects = true;
-    mutation_contract_test.stdio = .inherit;
-    test_step.dependOn(&mutation_contract_test.step);
-    const catalog_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    catalog_contract_test.addFileArg(b.path("tests/catalog_contract.py"));
-    catalog_contract_test.has_side_effects = true;
-    catalog_contract_test.stdio = .inherit;
-    test_step.dependOn(&catalog_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -733,6 +745,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
+    b.step("logical-arrow-proof", "Install the canonical logical Arrow fixture producer").dependOn(&b.addInstallArtifact(logical_arrow_proof, .{}).step);
+    unified_codec_test.addArtifactArg(logical_arrow_proof);
     const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
     logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
     logical_arrow_test.addArtifactArg(query_shell);
@@ -750,7 +764,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, query_shell }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
@@ -863,6 +877,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     const growing_service = b.addSystemCommand(&.{ "python3", "-B" });
+    const node_recovery = b.addSystemCommand(&.{ "python3", "-B" });
+    node_recovery.addFileArg(b.path("tests/node_recovery.py"));
+    node_recovery.addArtifactArg(node_artifact);
+    node_recovery.addArtifactArg(growing_client);
+    node_recovery.has_side_effects = true;
+    node_recovery.stdio = .inherit;
+    b.step("test-node-recovery", "Qualify read-only retained startup through transient storage faults").dependOn(&node_recovery.step);
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);
@@ -958,6 +979,7 @@ pub fn build(b: *std.Build) void {
     work_items_native.addArtifactArg(node_artifact);
     work_items_native.addArtifactArg(work_items);
     work_items_native.addArtifactArg(work_items_proof);
+    work_items_native.addArtifactArg(query_host);
     work_items_native.has_side_effects = true;
     work_items_native.stdio = .inherit;
     b.step("test-work-items", "Qualify the actual Table migration worker through disk recovery").dependOn(&work_items_native.step);
@@ -1003,44 +1025,24 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
-    const catalog_proof = b.addExecutable(.{ .name = "transit-catalog-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/catalog_native.zig"),
+    const typed_table_proof = b.addExecutable(.{ .name = "transit-typed-table-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/typed_table_native.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
-    build_test_step.dependOn(&catalog_proof.step);
-    const catalog_native = b.addSystemCommand(&.{ "python3", "-B" });
-    catalog_native.addFileArg(b.path("tests/catalog_native.py"));
-    catalog_native.addArtifactArg(node_artifact);
-    catalog_native.addArtifactArg(catalog_proof);
-    catalog_native.addArtifactArg(query_host);
-    catalog_native.addArtifactArg(station_host);
-    catalog_native.addArtifactArg(station_bindings.artifact("transit_station"));
-    catalog_native.addArtifactArg(query_shell);
-    catalog_native.addPassthruArgs();
-    catalog_native.has_side_effects = true;
-    catalog_native.stdio = .inherit;
-    b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);
-    const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/table_mutation_native.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
-    }) });
-    build_test_step.dependOn(&mutation_proof.step);
-    const mutation_native_test = b.addSystemCommand(&.{ "python3", "-B" });
-    mutation_native_test.addFileArg(b.path("tests/table_mutation_native.py"));
-    mutation_native_test.addArtifactArg(node_artifact);
-    mutation_native_test.addArtifactArg(mutation_proof);
-    mutation_native_test.addArtifactArg(query_host);
-    mutation_native_test.addArtifactArg(station_host);
-    mutation_native_test.addArtifactArg(station_bindings.artifact("transit_station"));
-    mutation_native_test.addArtifactArg(query_shell);
-    mutation_native_test.addPassthruArgs();
-    mutation_native_test.has_side_effects = true;
-    mutation_native_test.stdio = .inherit;
-    b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);
+    build_test_step.dependOn(&typed_table_proof.step);
+    const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
+    typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
+    typed_table_native.addArtifactArg(node_artifact);
+    typed_table_native.addArtifactArg(typed_table_proof);
+    typed_table_native.addArtifactArg(query_host);
+    typed_table_native.addArtifactArg(query_shell);
+    typed_table_native.addArtifactArg(station_host);
+    typed_table_native.addPassthruArgs();
+    typed_table_native.has_side_effects = true;
+    typed_table_native.stdio = .inherit;
+    b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
     combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
     combined_table_test.addArtifactArg(node_artifact);
@@ -1102,7 +1104,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("examples/station-ledger/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
     }) });
     const install_ledger = b.addInstallArtifact(station_ledger, .{});
     b.step("example-station-ledger", "Install the Station ledger example").dependOn(&install_ledger.step);

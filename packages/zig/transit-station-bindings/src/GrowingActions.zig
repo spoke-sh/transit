@@ -24,37 +24,15 @@ fn publishedGrpcRequest(turn: *s.Turn, wire: p.Value) !void {
     const body = try publication.open(turn, grpc.RequestRecord.batch_id);
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.batchSpec())) return error.InvalidGrpcRequestReference;
 }
-pub const Plan = struct {
-    projection: enum { both, key, value } = .both,
-    limit: ?[]const u8 = null,
-    aggregate: s.fuze.Unified.Plan.Aggregate = .rows,
-    predicate: union(enum) { all, is_null: u8, compare: struct { column: u8, op: s.fuze.Unified.Plan.Comparison, value: a.Cell } } = .all,
-    fn native(self: *const Plan) !s.fuze.Unified.Plan {
-        return .{ .projection = switch (self.projection) {
-            .both => if (self.aggregate == .count) &.{0} else &.{ 0, 1 },
-            .key => &.{0},
-            .value => &.{1},
-        }, .aggregate = self.aggregate, .limit = if (self.limit) |limit| try std.fmt.parseInt(u64, limit, 10) else null, .predicate = switch (self.predicate) {
-            .all => .all,
-            .is_null => |column| .{ .state = .{ .column = column, .value = .null } },
-            .compare => |comparison| .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = switch (comparison.value) {
-                .null => return error.UnsupportedNullComparison,
-                .int64 => |value| .{ .int64 = try std.fmt.parseInt(i64, value, 10) },
-                .boolean => |value| .{ .boolean = value },
-                .utf8 => |value| if (value.len <= s.fuze.model.max_cell_bytes) .{ .utf8 = value } else return error.CellTooLarge,
-                .binary => if (self.predicate.compare.value.binary.len <= s.fuze.model.max_cell_bytes) .{ .binary = self.predicate.compare.value.binary.slice() } else return error.CellTooLarge,
-            } } },
-        } };
-    }
-};
+pub const Plan = @import("transit_query").Values.Plan;
 pub const Manifest = struct {
     result: u64,
     source: u64,
     destination: u64,
     correlation: []const u8,
-    table: u32,
+    table: []const u8,
     policy_revision: []const u8,
-    basis: s.fuze.Unified.Basis,
+    basis: q.records.Basis,
     plan: [32]u8,
     segments: []const u8,
     bytes: []const u8,
@@ -63,6 +41,7 @@ pub const Manifest = struct {
     schema: [32]u8,
 };
 pub const Action = union(enum) {
+    table: @import("TableBridge.zig").Action,
     document: @import("DocumentBridge.zig").Action,
     budgets: void,
     get: p.Value,
@@ -73,18 +52,11 @@ pub const Action = union(enum) {
     reply: p.Value,
     cancel: []const u8,
     effect: p.Value,
-    table_create: @FieldType(a.BasicAction, "table_create"),
-    table_get: @FieldType(a.BasicAction, "table_get"),
-    table_write: @FieldType(a.BasicAction, "table_write"),
-    table_delete: @FieldType(a.BasicAction, "table_delete"),
     page: ?[]const u8,
-    table_page: struct { id: u32, cursor: ?[]const u8 = null, version: ?p.Growth.ReadVersionId = null },
-    table_schema: struct { id: u32, version: ?p.Growth.ReadVersionId = null },
     retain: void,
     release: p.Growth.ReadVersionId,
     version_get: struct { id: p.Growth.ReadVersionId, key: p.Value },
     version_page: struct { id: p.Growth.ReadVersionId, cursor: ?[]const u8 = null },
-    version_table_get: struct { version: p.Growth.ReadVersionId, id: u32, key: []const u8 },
     registry_create: u32,
     registry_grant: struct { scope: u32, subject: s.Registry.Subject, lookup: bool, mutate: bool },
     registry_handle: void,
@@ -92,7 +64,7 @@ pub const Action = union(enum) {
     supervisor_register: s.Supervisor.Child,
     supervisor_observe: void,
     query_policy: @FieldType(a.BasicAction, "query_policy"),
-    query_start: struct { id: u32, plan: Plan = .{} },
+    query_start: struct { id: []const u8, plan: Plan },
     query_close: struct { result: u64, reason: enum { cancelled, denied } },
     query_completed: []const u8,
     query_segment: struct { correlation: []const u8, ordinal: []const u8 },
@@ -120,6 +92,7 @@ pub const Action = union(enum) {
     }
 };
 pub const Result = union(enum) {
+    table: @import("TableBridge.zig").Result,
     document: @import("DocumentBridge.zig").Result,
     budgets: struct { mutations: u32, outputs: u32, views: u32, retained_reads: u32, retains: u32, releases: u32 },
     none,
@@ -129,16 +102,13 @@ pub const Result = union(enum) {
     publication: s.Publication.Outcome,
     collected: bool,
     staged: bool,
-    row: ?a.Row,
-    schema: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: s.fuze.model.Type, basis: s.fuze.model.Basis },
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
-    rows: struct { basis: s.fuze.model.Basis, rows: [p.Growth.page_size]?a.Row, next: ?[]const u8 },
     version: p.Growth.ReadVersionId,
     query: struct { result: u64, correlation: []const u8, source: p.Growth.ReadVersionId },
     manifest: Manifest,
     segment: struct { result: u64, ordinal: []const u8, rows: u8, bytes: u16, digest: [32]u8, ipc: []const u8 },
 };
-const Cursor = struct { source: @FieldType(s.Table.Cursor, "source"), resource: u64, revision: u64, after: p.Value };
+const Cursor = struct { source: s.TableReader.Cut, resource: u64, revision: u64, after: p.Value };
 
 fn parseCursor(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
     if (bytes.len == 0 or bytes.len > 2048) return error.InvalidCursor;
@@ -156,27 +126,11 @@ fn page(allocator: std.mem.Allocator, source: anytype, encoded: ?[]const u8) !Re
     const batch = try source.page(if (cursor) |saved| saved.after else null);
     return .{ .page = .{ .entries = batch.entries, .next = if (batch.next) |after| try std.json.Stringify.valueAlloc(allocator, Cursor{ .source = identity, .resource = source.view.resource, .revision = source.view.revision, .after = after }, .{}) else null } };
 }
-fn tablePage(allocator: std.mem.Allocator, source: anytype, id: u32, encoded: ?[]const u8) !Result {
-    const table = try s.Table.open(source, id);
-    const cursor = if (encoded) |bytes| try parseCursor(s.Table.Cursor, allocator, bytes) else null;
-    const batch = try table.page(source, cursor);
-    var rows: [p.Growth.page_size]?a.Row = @splat(null);
-    for (rows[0..batch.len], batch.rows[0..batch.len]) |*out, row| out.* = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) };
-    return .{ .rows = .{ .basis = batch.basis, .rows = rows, .next = if (batch.next) |next| try std.json.Stringify.valueAlloc(allocator, next, .{}) else null } };
-}
-fn tableSchema(allocator: std.mem.Allocator, source: anytype, id: u32) !Result {
-    const table = try s.Table.open(source, id);
-    return .{ .schema = .{
-        .id = table.id,
-        .key_name = try allocator.dupe(u8, table.schema.names[0].slice()),
-        .value_name = try allocator.dupe(u8, table.schema.names[1].slice()),
-        .value_type = table.schema.value_type,
-        .basis = .{ .resource = source.view.resource, .revision = source.view.revision, .schema = try table.schema.fingerprint() },
-    } };
-}
-pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
+pub fn apply(arena: *std.heap.ArenaAllocator, turn: *s.Turn, action: Action) !Result {
+    const allocator = arena.allocator();
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
+        .table => |value| return .{ .table = try @import("TableBridge.zig").apply(arena, turn, value) },
         .registry_create => |scope| try s.Registry.create(turn, scope),
         .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, grant.subject, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
         .registry_handle => try s.Registry.handle(turn, try s.Frame.decode(turn.delivery.input.value)),
@@ -241,20 +195,6 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
         },
         .page => |cursor| return page(allocator, turn, cursor),
-        .table_page => |request| {
-            if (request.version) |id| {
-                var source = try turn.openVersion(id);
-                return tablePage(allocator, &source, request.id, request.cursor);
-            }
-            return tablePage(allocator, turn, request.id, request.cursor);
-        },
-        .table_schema => |request| {
-            if (request.version) |id| {
-                var source = try turn.openVersion(id);
-                return tableSchema(allocator, &source, request.id);
-            }
-            return tableSchema(allocator, turn, request.id);
-        },
         .retain => return .{ .version = try turn.retain() },
         .release => |id| try turn.release(id),
         .version_get => |request| {
@@ -265,15 +205,13 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
             var source = try turn.openVersion(request.id);
             return page(allocator, &source, request.cursor);
         },
-        .version_table_get => |request| {
-            var source = try turn.openVersion(request.version);
-            const table = try s.Table.open(&source, request.id);
-            const row = (try table.get(&source, try std.fmt.parseInt(i64, request.key, 10))) orelse return .{ .row = null };
-            return .{ .row = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) } };
-        },
-        .query_policy => |grant| try q.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
+        .query_policy => |grant| try q.setPolicy(turn, grant.peer, try unsigned(grant.table), try unsigned(grant.expected_revision), grant.allow),
         .query_start => |request| {
-            const job = try q.start(turn, try s.Table.open(turn, request.id), try request.plan.native());
+            var table = try s.TableReader.open(allocator, turn, try unsigned(request.id));
+            defer table.deinit();
+            var fields: [s.fuze.TableSchema.max_columns]s.fuze.Types.Field = undefined;
+            const plan = try request.plan.native(allocator, try table.schema.schema.rowType(&fields), table.basis.head);
+            const job = try q.start(turn, &table, plan);
             return .{ .query = .{ .result = job.result, .correlation = try a.decimal(allocator, job.correlation), .source = job.source } };
         },
         .query_close => |request| switch (request.reason) {
@@ -288,7 +226,7 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
                 .source = (try turn.waiting(correlation)).?.target,
                 .destination = complete.destination,
                 .correlation = try a.decimal(allocator, complete.correlation),
-                .table = complete.table,
+                .table = try a.decimal(allocator, complete.table),
                 .policy_revision = try a.decimal(allocator, complete.policy_revision),
                 .basis = complete.basis,
                 .plan = complete.plan,

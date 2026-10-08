@@ -1,0 +1,109 @@
+//! Pure, single-revision schema transitions and row rewrites. A successful
+//! schema transition is not proof that existing rows satisfy tighter rules.
+const std = @import("std");
+const s = @import("TableSchema.zig");
+const t = @import("Types.zig");
+const Cell = t.Values.Cell;
+pub const Change = union(enum) {
+    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null },
+    drop: s.ColumnId,
+    rename: struct { column: s.ColumnId, name: []const u8 },
+    default: struct { column: s.ColumnId, value: ?Cell },
+    nullable: struct { column: s.ColumnId, value: bool },
+    type: struct { column: s.ColumnId, type: t.Type, max_characters: ?u32 = null },
+};
+pub const Work = enum { metadata, validate_rows, rewrite_rows };
+pub const Transition = struct {
+    before: s.Schema,
+    after: s.Schema,
+    work: Work,
+    rebuild_key: bool,
+    /// Scratch and returned cells borrow before/after schemas and source values.
+    /// Publish only after every source row has passed under a frozen source cut.
+    pub fn row(self: Transition, values: []const Cell, output: []Cell) ![]const Cell {
+        return self.rowDetailed(values, output, null);
+    }
+    pub fn rowDetailed(self: Transition, values: []const Cell, output: []Cell, failure: ?*?s.ColumnId) ![]const Cell {
+        if (failure) |column| column.* = null;
+        try self.before.validateRow(values);
+        try self.after.validate();
+        if (self.before.object != self.after.object or self.after.revision != try std.math.add(u64, self.before.revision, 1)) return error.InvalidSchemaTransition;
+        if (output.len < self.after.columns.len) return error.RowBufferTooSmall;
+        const result = output[0..self.after.columns.len];
+        for (self.after.columns, result) |column, *cell| {
+            const index = self.before.index(column.id) catch |err| {
+                if (err != error.UnknownColumn) return err;
+                if (column.id < self.before.next_column) return error.ReusedColumnIdentity;
+                cell.* = column.initial();
+                continue;
+            };
+            cell.* = convert(values[index], self.before.columns[index].type, column.type) catch |err| {
+                if (failure) |selected| selected.* = column.id;
+                return err;
+            };
+        }
+        try self.after.validateRowDetailed(result, failure);
+        return result;
+    }
+};
+/// Produces a borrowed successor. Storage owns the frozen source cut, complete
+/// validation/rewrite, indexes, concurrent-write fence and conditional head swap.
+pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column) !Transition {
+    try before.validate();
+    var after = before;
+    after.revision = try std.math.add(u64, before.revision, 1);
+    @memcpy(columns[0..before.columns.len], before.columns);
+    var count = before.columns.len;
+    var key_changed = false;
+    var validate_rows = false;
+    switch (change) {
+        .add => |column| {
+            if (count == columns.len) return error.InvalidColumnCount;
+            after.next_column = try std.math.add(u64, before.next_column, 1);
+            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters };
+            count += 1;
+        },
+        .drop => |id| {
+            for (before.primary_key) |key| if (key == id) return error.PrimaryKeyColumnRequired;
+            const index = try before.index(id);
+            std.mem.copyForwards(s.Column, columns[index .. count - 1], columns[index + 1 .. count]);
+            count -= 1;
+        },
+        .rename => |value| columns[try before.index(value.column)].name = value.name,
+        .default => |value| columns[try before.index(value.column)].default = value.value,
+        .nullable => |value| columns[try before.index(value.column)].nullable = value.value,
+        .type => |value| {
+            const column = &columns[try before.index(value.column)];
+            if (!try castSupported(column.type, value.type)) return error.UnsupportedSchemaConversion;
+            if (column.default) |cell| column.default = try convert(cell, column.type, value.type);
+            for (before.primary_key) |id| if (id == column.id and !try column.type.eql(value.type)) {
+                key_changed = true;
+            };
+            validate_rows = column.max_characters != value.max_characters;
+            column.type = value.type;
+            column.max_characters = value.max_characters;
+        },
+    }
+    after.columns = columns[0..count];
+    try after.validate();
+    const physical_change = !std.mem.eql(u8, &try before.layoutFingerprint(), &try after.layoutFingerprint());
+    return .{ .before = before, .after = after, .work = if (physical_change) .rewrite_rows else if (validate_rows) .validate_rows else .metadata, .rebuild_key = key_changed };
+}
+/// Exact numeric casts only. A supported pair still requires per-value overflow
+/// and precision checks. No implicit text/temporal/nested conversion is admitted.
+pub fn castSupported(from: t.Type, to: t.Type) !bool {
+    if (try from.eql(to)) return true;
+    const from_integer = t.Semantics.integer(from) != null;
+    const to_integer = t.Semantics.integer(to) != null;
+    if ((from_integer or from == .decimal) and (to_integer or to == .decimal)) return true;
+    return (from_integer or from == .float32 or from == .float64) and (to == .float32 or to == .float64);
+}
+fn convert(cell: Cell, from: t.Type, to: t.Type) !Cell {
+    if (try from.eql(to) or cell == .null) return cell;
+    if (!try castSupported(from, to) or cell != .value or cell.value != .atom) return error.UnsupportedSchemaConversion;
+    return .{ .value = .{ .atom = try t.Semantics.cast(cell.value.atom, from, to, .reject) } };
+}
+
+test {
+    _ = @import("table_evolution_test.zig");
+}

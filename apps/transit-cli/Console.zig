@@ -1,6 +1,7 @@
 //! Console presentation around the existing native v1 query session.
 const std = @import("std");
 const q = @import("transit_query");
+const c = @import("transit_catalog");
 const u = @import("Unified.zig");
 const Options = @import("Options.zig");
 const Diagnostic = @import("Diagnostic.zig");
@@ -11,18 +12,20 @@ const Signals = @import("Signals.zig");
 const sql_input = q.fuze.SqlInput;
 pub const Config = struct {
     version: u8,
-    profile: enum { unified_v1 },
+    profile: enum { unified_v1, catalog_v1 },
     url: []const u8,
     transport: enum { loopback, tls_system, tls_ca },
     ca_file: ?[]const u8 = null,
     seed_file: []const u8,
-    connection: q.UnifiedClient.Connection,
-    workspace: q.Workspace.Config,
+    connection: ?q.UnifiedClient.Connection = null,
+    workspace: ?q.Workspace.Config = null,
+    catalog: ?c.TableClient.Connection = null,
     request_timeout_ms: u32 = 5000,
     format: Options.Format = .table,
     recovery_file: ?[]const u8 = null,
     execution: enum { interactive, durable } = .interactive,
     writes: ?Writes.Config = null,
+    table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
 };
 fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
     const Installation = @import("server/Installation.zig");
@@ -37,17 +40,15 @@ fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), d
     };
     if (record.version != 1 or !record.complete or !record.genesis_observed) return diagnostic.invalidField("installation", "is not initialized", "Wait for transit server to finish starting.");
     inline for (.{ 0, 1, 4, 5 }) |index| if (record.provision[index] == null or record.provision[index].? == 0) return diagnostic.invalidField("installation", "has incomplete resource identities", null);
-    const c = Installation.connectionFrom(record, topology.realm);
+    const native = Installation.connectionFrom(record, topology.realm);
     return .{
         .version = 1,
-        .profile = .unified_v1,
+        .profile = .catalog_v1,
         .url = try @import("server/Provider.zig").url(allocator, topology.ports.gateway),
         .transport = .loopback,
         .seed_file = "caller.seed",
-        .connection = c,
-        .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, try Installation.tableFor(c).definition()), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) },
-        .recovery_file = "console-recovery.json",
-        .writes = .{ .recovery_file = "console-writes.json", .table = .{ .name = "items", .connection = Installation.writerFor(c) } },
+        .catalog = .{ .scope = Installation.catalogFor(native).scope, .owner = native.source, .principal = native.principal },
+        .writes = .{ .recovery_file = "console-writes.json" },
     };
 }
 fn path(allocator: std.mem.Allocator, base: []const u8, relative: []const u8) ![]const u8 {
@@ -70,19 +71,36 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
         .tls_system => if (!std.mem.eql(u8, uri.scheme, "https") or config.ca_file != null) return error.InvalidEndpoint,
         .tls_ca => if (!std.mem.eql(u8, uri.scheme, "https") or config.ca_file == null) return error.InvalidEndpoint,
     }
-    inline for (@typeInfo(q.UnifiedClient.Connection).@"struct".field_names) |field| if (@field(config.connection, field) == 0) {
-        diagnostic.field = "connection." ++ field;
-        return error.InvalidConfiguration;
-    };
-    diagnostic.field = "workspace.source / connection.resource";
-    const source = try config.workspace.source.native(allocator);
-    if (source.resource != config.connection.resource) return error.InvalidConfiguration;
-    diagnostic.field = "workspace.limits";
-    _ = try config.workspace.limits.native();
-    diagnostic.field = "workspace.name";
-    _ = try q.fuze.Unified.Name.init(config.workspace.name);
-    diagnostic.field = "writes";
-    if (config.writes) |writes| try Writes.validateConfig(writes, config.connection);
+    switch (config.profile) {
+        .catalog_v1 => {
+            diagnostic.field = "catalog";
+            try (config.catalog orelse return error.InvalidConfiguration).validate();
+            if (config.connection != null or config.workspace != null or config.recovery_file != null) return error.InvalidConfiguration;
+            diagnostic.field = "execution";
+            if (config.execution != .interactive) return error.UnsupportedConstruct;
+            diagnostic.field = "table_limits";
+            try config.table_limits.validate();
+            diagnostic.field = "writes.recovery_file";
+            if (config.writes) |writes| try Writes.validateConfig(writes);
+        },
+        .unified_v1 => {
+            diagnostic.field = "connection / workspace";
+            const connection_ = config.connection orelse return error.InvalidConfiguration;
+            const workspace = config.workspace orelse return error.InvalidConfiguration;
+            if (config.catalog != null or config.writes != null) return error.InvalidConfiguration;
+            inline for (@typeInfo(q.UnifiedClient.Connection).@"struct".field_names) |field| if (@field(connection_, field) == 0) {
+                diagnostic.field = "connection." ++ field;
+                return error.InvalidConfiguration;
+            };
+            diagnostic.field = "workspace.source / connection.resource";
+            const source = try workspace.source.native(allocator);
+            if (source.resource != connection_.resource) return error.InvalidConfiguration;
+            diagnostic.field = "workspace.limits";
+            _ = try workspace.limits.native();
+            diagnostic.field = "workspace.name";
+            _ = try q.fuze.Unified.Name.init(workspace.name);
+        },
+    }
     diagnostic.field = null;
 }
 pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
@@ -103,7 +121,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     const Input = @import("SqlInput.zig");
     const parameters: ?Input.Parameters = if (options.parameters) |file| Input.read(Input.Parameters, init, allocator, file) catch |err| {
         diagnostic.atFile(file);
-        diagnostic.setFailure(err, "cannot read SQL parameter input", "Use a JSON array of at most three exact query scalar values. --parameters requires -c SQL.");
+        diagnostic.setFailure(err, "cannot read SQL parameter input", "Use a JSON array of at most 65 exact query scalar values. --parameters requires -c SQL.");
         return error.InvalidQueryInput;
     } else null;
     var base: []const u8 = undefined;
@@ -126,7 +144,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
             error.InvalidRequestTimeout => diagnostic.invalidField("request_timeout_ms", "must be an integer from 1 through 60000", null),
             error.InvalidEndpoint => diagnostic.invalidField("url / transport / ca_file", "must select a matching endpoint and trust profile", "Loopback uses http://127.0.0.1 or http://[::1]; TLS uses https. Omit userinfo, query and fragment; tls_ca requires ca_file."),
             else => failure: {
-                diagnostic.setFailure(err, "invalid console configuration", "Correct the named field; connection identities must be nonzero and match the workspace source.");
+                diagnostic.setFailure(err, "invalid console configuration", "Correct the named field. catalog_v1 requires catalog and interactive execution; unified_v1 requires matching connection and workspace fields.");
                 break :failure error.InvalidConfiguration;
             },
         };
@@ -144,15 +162,19 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         wire.http.now = now;
     }
     diagnostic.field = "seed_file";
-    var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = q.wire.readKey(init.gpa, init.io, try path(allocator, base, config.seed_file)) catch |err| {
+    var key = q.wire.readKey(init.gpa, init.io, try path(allocator, base, config.seed_file)) catch |err| {
         diagnostic.setFailure(err, "cannot load the console signing credential", "Check seed_file relative to the configuration file and its permissions; do not print or paste the seed.");
         return error.InvalidCredentialFile;
-    } };
+    };
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+    var client: ?q.UnifiedClient = if (config.connection) |selected| .{ .wire = &wire, .connection = selected, .key = key } else null;
+    defer if (client) |*selected| std.crypto.secureZero(u8, std.mem.asBytes(&selected.key));
+    var catalog: ?c.TableClient = if (config.catalog) |selected| .{ .transport = &wire, .connection = selected, .key = key } else null;
+    defer if (catalog) |*selected| std.crypto.secureZero(u8, std.mem.asBytes(&selected.key));
     diagnostic.field = "recovery_file";
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     var session: u.Session = .{ .format = if ((preferences.format orelse config.format) == .json) .json else .table, .interrupted = Signals.interrupted };
     defer session.clear();
-    var recovery: ?Recovery = if (config.execution == .durable and config.recovery_file != null) try Recovery.open(init, try path(allocator, base, config.recovery_file.?), &client, &session) else null;
+    var recovery: ?Recovery = if (config.execution == .durable and config.recovery_file != null) try Recovery.open(init, try path(allocator, base, config.recovery_file.?), &client.?, &session) else null;
     defer if (recovery) |*file| file.close();
     if (recovery) |*file| {
         session.checkpoint_context = file;
@@ -172,7 +194,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var writes: ?Writes = if (config.writes) |writes_config| open: {
         const write_path = try path(allocator, base, writes_config.recovery_file);
         if (config.recovery_file) |query_file| if (std.mem.eql(u8, write_path, try path(allocator, base, query_file))) return error.InvalidWriteConfiguration;
-        break :open try Writes.open(init, write_path, writes_config, &client);
+        break :open try Writes.open(init, write_path, &catalog.?);
     } else null;
     defer if (writes) |*writer| writer.close();
     if (writes) |*writer| if (writer.unresolved() and session.namespace != null and !session.complete) return error.UnresolvedSubmission;
@@ -182,7 +204,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
-    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null };
+    var console: Console = .{ .init = init, .session = &session, .wire = &wire, .client = if (client) |*selected| selected else null, .catalog = if (catalog) |*selected| selected else null, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null, .table_limits = config.table_limits };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.executeWithParameters(sql, parameters);
@@ -213,11 +235,14 @@ pub fn isMeta(text: []const u8) bool {
 pub const Console = struct {
     init: std.process.Init,
     session: *u.Session,
-    client: *q.UnifiedClient,
-    config: q.Workspace.Config,
+    wire: *q.wire.Client,
+    client: ?*q.UnifiedClient,
+    catalog: ?*c.TableClient = null,
+    config: ?q.Workspace.Config,
     out: *std.Io.Writer,
     recovery: ?*Recovery,
     writes: ?*Writes = null,
+    table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
     write_running: bool = false,
     write_preparing: bool = false,
     batch: bool,
@@ -230,6 +255,10 @@ pub const Console = struct {
     query_running: bool = false,
     active_query: ?u64 = null,
     query_interrupted: bool = false,
+    pub fn assist(self: *Console, allocator: std.mem.Allocator, request: q.Assistance.Request) !q.Assistance.Response {
+        if (self.catalog) |catalog| return q.TableAssistance.complete(allocator, catalog, request);
+        return (try q.Workspace.apply(allocator, self.client.?, self.config.?, .{ .assist = request })).assistance;
+    }
     pub fn execute(self: *Console, raw: []const u8) !bool {
         return self.executeWithParameters(raw, null);
     }
@@ -308,40 +337,41 @@ pub const Console = struct {
             if (try Input.commandPath(arena.allocator(), text)) |file|
                 return self.query(try Input.read(Input.Request, self.init, arena.allocator(), file));
         }
-        if (self.writes) |writer| if (writer.catalog) |*catalog| {
-            if (std.mem.eql(u8, text, ".tables")) return @import("ConsoleCatalog.zig").inspect(self, catalog, null);
-            if (!isMeta(text)) if (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) |inspection_sql| switch (inspection_sql) {
-                .show => |kind| if (kind == .tables) {
-                    return @import("ConsoleCatalog.zig").inspect(self, catalog, null);
-                },
-                .describe => |name| return @import("ConsoleCatalog.zig").inspect(self, catalog, name),
-                else => {},
-            };
-        };
+        if (self.catalog) |catalog| if (try @import("ConsoleCatalog.zig").command(self, catalog, text)) return;
         if (!isMeta(text)) {
             var syntax_timing = @import("Timing.zig").start(self.init, self.preferences.timing);
             errdefer self.finishTiming(&syntax_timing);
-            if ((q.fuze.Sql.parseMutation(text) catch |err| return self.sqlFailure(text, err)) != null) {
+            var names: std.heap.ArenaAllocator = .init(self.init.gpa);
+            defer names.deinit();
+            var parser = q.fuze.SqlTyped.init(names.allocator(), text, null) catch |err| return self.sqlFailure(text, err);
+            if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
                 self.write_running = true;
                 const writer = self.writes orelse return error.ConsoleWriterRequired;
                 syntax_timing.enabled = false;
                 return writer.start(self, text, .mutation);
             }
-            if (q.fuze.Sql.parseDeclaration(text) catch |err| return self.sqlFailure(text, err)) |declaration| {
-                if (declaration.body == .table) {
-                    self.write_running = true;
-                    _ = declaration.tableSchema() catch |err| return self.sqlFailure(text, err);
-                    const writer = self.writes orelse return error.ConsoleCatalogRequired;
-                    syntax_timing.enabled = false;
-                    return writer.start(self, text, .declaration);
+            if (parser.word("CREATE") or parser.word("ALTER") or parser.word("DROP")) {
+                const create = parser.word("CREATE");
+                try parser.advance();
+                if (!parser.word("TABLE")) return self.sqlFailure(text, error.UnsupportedStatement);
+                if (create) {
+                    var location: q.fuze.Sql.Location = .{};
+                    var declaration = q.fuze.TableDdl.compile(names.allocator(), text, null, &location) catch |err| {
+                        self.diagnostic.sql = q.fuze.SqlDiagnostic.tableDdl(text, err, location);
+                        return err;
+                    };
+                    declaration.deinit();
                 }
-                return self.sqlFailure(text, error.UnsupportedStatement);
+                self.write_running = true;
+                const writer = self.writes orelse return error.ConsoleCatalogRequired;
+                syntax_timing.enabled = false;
+                return writer.start(self, text, .declaration);
             }
             const inspection_ = q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err);
             if (inspection_) |statement| if (statement == .show and statement.show != .tables) return self.sqlFailure(text, error.UnsupportedCatalog);
             if (self.writes) |writer| if (writer.unresolved() and inspection_ == null) return error.UnresolvedSubmission;
         }
-        if (self.writes) |writer| if (writer.record.operation != null and (std.mem.eql(u8, text, ".resume") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) {
+        if (self.writes) |writer| if (writer.storage.record.operation != null and (std.mem.eql(u8, text, ".resume") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) {
             // A saved write owns these commands until replaced by a new query.
             self.write_running = !std.mem.eql(u8, text, ".status");
             if (std.mem.eql(u8, text, ".resume")) return writer.recover(self);
@@ -370,7 +400,7 @@ pub const Console = struct {
         if (isMeta(text)) {
             try self.dispatch(text, arena.allocator());
         } else {
-            const result = (q.Workspace.apply(arena.allocator(), self.client, self.config, .{ .inspect = .{ .sql = text } }) catch |err| return self.sqlFailure(text, err)).inspection;
+            const result = (q.Workspace.apply(arena.allocator(), self.client.?, self.config.?, .{ .inspect = .{ .sql = text } }) catch |err| return self.sqlFailure(text, err)).inspection;
             if (self.session.format == .json) try self.json(.{ .inspection = result }) else try self.inspection(result);
         }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
@@ -378,6 +408,7 @@ pub const Console = struct {
     }
     fn query(self: *Console, request: @import("SqlInput.zig").Request) !void {
         if (self.writes) |writer| if (writer.unresolved()) return error.UnresolvedSubmission;
+        if (self.catalog) |catalog| return @import("ConsoleTableQuery.zig").sql(self, catalog, request);
         return if (self.interactive) @import("Interactive.zig").sql(self, request) else @import("Execute.zig").sql(self, request);
     }
     pub fn json(self: *Console, value: anytype) !void {
@@ -420,13 +451,16 @@ pub const Console = struct {
         self.diagnostic.atArgument(null, null);
         self.diagnostic.file = null;
         self.diagnostic.field = null;
-        if (self.writes) |writer| if (writer.failed) return self.diagnostic.fail(error.ConsoleRecoveryWriteFailed, "cannot persist write recovery", "Stop using this signing credential until the original recovery file can be read and reconciled. No successor command was sent.");
+        if (self.writes) |writer| if (writer.storage.failed) return self.diagnostic.fail(error.ConsoleRecoveryWriteFailed, "cannot persist write recovery", "Stop using this signing credential until the original recovery files can be read and reconciled. No successor command was sent.");
+        if (!self.write_preparing) if (self.writes) |writer| if (writer.unresolved()) {
+            self.diagnostic.envelope = writer.unresolvedDiagnostic(err) catch null;
+            return err;
+        };
         switch (err) {
             error.InvalidQueryInput => return self.diagnostic.fail(err, "invalid SQL query input", "Use .execute FILE with a JSON object containing sql and optional parameters, or --parameters FILE with an array of exact scalar values."),
-            error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most three scalar bindings per input file."),
-            error.ConsoleWriterRequired => return self.diagnostic.fail(err, "Table mutation syntax is supported; no writer is configured for this console", "Use .help INSERT for syntax and writes.table connection settings. A query connection does not grant writes."),
-            error.ConsoleCatalogRequired => return self.diagnostic.fail(err, "CREATE TABLE syntax is supported; no catalog is configured for this console", "Use .help CREATE TABLE for the supported schema and writes.catalog connection settings."),
-            error.CatalogCancellationUnsupported => return self.diagnostic.fail(err, "CREATE TABLE cannot be cancelled after submission", "Use .status or .resume to reconcile the saved creation. Disconnecting or interrupting does not undo it."),
+            error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most 65 scalar bindings per input file."),
+            error.ConsoleWriterRequired => return self.diagnostic.fail(err, if (self.catalog != null) "Table writes are not configured for this console" else "no Table catalog is configured for this console", "Use .help INSERT for syntax, catalog settings and writes.recovery_file. A query connection does not grant writes."),
+            error.ConsoleCatalogRequired => return self.diagnostic.fail(err, if (self.catalog != null) "Table writes are not configured for this console" else "no Table catalog is configured for this console", "Use .help CREATE TABLE for the supported schema, catalog settings and writes.recovery_file."),
             error.CatalogNameNotFound => return self.diagnostic.fail(err, "the configured catalog has no Table with that name", "Use SHOW TABLES or .tables to list catalog definitions. .schema describes the configured query source."),
             error.CatalogCursorChanged => return self.diagnostic.fail(err, "the catalog changed during listing", "Discard the partial listing and run SHOW TABLES again to read one consistent revision."),
             error.NoQuery, error.NoSavedWrite => return self.diagnostic.fail(err, "this connection has no saved operation to recover", "Use .help for supported SQL. .status and .resume inspect or recover previously saved work."),
@@ -436,10 +470,6 @@ pub const Console = struct {
             else => {},
         }
         if (self.write_preparing) return self.diagnostic.fail(err, "write preparation failed; no new command was submitted", "Correct the preparation error before submitting a new statement.");
-        if (self.writes != null and self.writes.?.unresolved()) {
-            self.diagnostic.envelope = self.writes.?.unresolvedDiagnostic(err) catch null;
-            return err;
-        }
         if (self.interactive and err == error.ConsoleInterrupted) {
             self.diagnostic.summary = null;
             self.diagnostic.cause = null;
@@ -462,7 +492,7 @@ pub const Console = struct {
             self.next_connection = try self.init.arena.allocator().dupe(u8, file);
             return;
         }
-        if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source, .timing = self.preferences.timing, .timing_source = self.preferences.timing_source });
+        if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.wire.url, .format = self.session.format, .format_source = self.preferences.format_source, .timing = self.preferences.timing, .timing_source = self.preferences.timing_source });
         if (std.mem.eql(u8, text, ".timer")) return error.InvalidTimingCommand;
         if (std.mem.startsWith(u8, text, ".timer ") or std.mem.startsWith(u8, text, ".timer\t")) {
             self.preferences.timing = Preferences.onOff(text[7..]) catch return error.InvalidTimingCommand;
@@ -470,9 +500,9 @@ pub const Console = struct {
             return;
         }
         if (std.mem.eql(u8, text, ".tables")) {
-            const description = try q.Workspace.apply(allocator, self.client, self.config, .describe);
+            const description = try q.Workspace.apply(allocator, self.client.?, self.config.?, .describe);
             if (self.session.format == .json) return self.json(description);
-            return self.out.print("{s}\n", .{self.config.name});
+            return self.out.print("{s}\n", .{self.config.?.name});
         }
         if (std.mem.startsWith(u8, text, ".mode ")) {
             const format = std.meta.stringToEnum(Options.Format, std.mem.trim(u8, text[6..], " \t")) orelse return error.UnsupportedFormat;
@@ -483,30 +513,36 @@ pub const Console = struct {
         if (std.mem.eql(u8, text, ".cancel")) {
             if (self.recovery == null) return error.ConsoleRecoveryRequired;
             const id = self.session.namespace orelse return error.NoQuery;
-            try u.settle(self.init, self.session, self.client);
-            self.session.pending = try self.client.prepare(.{ .cancel = id });
+            try u.settle(self.init, self.session, self.client.?);
+            self.session.pending = try self.client.?.prepare(.{ .cancel = id });
             self.session.length = 0;
-            try u.settle(self.init, self.session, self.client);
-            const status = (try self.client.status(id)) orelse return error.QueryUploadNotFound;
+            try u.settle(self.init, self.session, self.client.?);
+            const status = (try self.client.?.status(id)) orelse return error.QueryUploadNotFound;
             if (self.session.format == .json) return self.json(.{ .query = id, .cancellation_requested = true, .phase = status.phase });
             return self.out.print("Query {d}: cancellation requested (status: {s}).\n", .{ id, @tagName(status.phase) });
         }
+        if (std.mem.eql(u8, text, ".info") and self.catalog != null) {
+            const catalog = self.catalog.?;
+            const description = try catalog.describe();
+            if (self.session.format == .json) return self.json(.{ .profile = "catalog_v1", .connection = catalog.connection, .description = description, .limits = self.table_limits, .writes_configured = self.writes != null });
+            return self.out.print("Table catalog {d}; resource {d}; revision {d}\nPolicy revision: {d}; writes configured: {s}\n", .{ catalog.connection.scope.catalog, catalog.connection.scope.resource, description.resource_revision, description.policy.revision, if (self.writes != null) "yes" else "no" });
+        }
         if (std.mem.eql(u8, text, ".info")) {
             const id = self.session.namespace;
-            const status = if (id) |value| try self.client.status(value) else null;
+            const status = if (id) |value| try self.client.?.status(value) else null;
             if (status != null and status.?.phase == .complete) {
-                const page = (try q.Workspace.apply(allocator, self.client, self.config, .{ .page = .{ .namespace = try q.document.JsonValues.decimal(allocator, id.?), .cursor = null } })).page;
+                const page = (try q.Workspace.apply(allocator, self.client.?, self.config.?, .{ .page = .{ .namespace = try q.document.JsonValues.decimal(allocator, id.?), .cursor = null } })).page;
                 return self.json(.{ .namespace = id, .uncertain = self.session.pending != null, .manifest = page.evidence.manifest });
             }
-            return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
+            return u.command(self.init, self.session, self.client.?, self.config.?, text, allocator, self.out);
         }
         if (std.mem.eql(u8, text, ".status") and self.session.format == .table) {
-            if (self.session.namespace) |id| if (try self.client.status(id)) |status| if (status.failure != null) {
+            if (self.session.namespace) |id| if (try self.client.?.status(id)) |status| if (status.failure != null) {
                 return (@import("QueryDiagnostic.zig"){ .namespace = id, .phase = status.phase, .failure = status.failure }).render(self.out);
             };
         }
         if (std.mem.eql(u8, text, ".schema writer")) return (self.writes orelse return error.ConsoleWriterRequired).describe(self);
-        if (std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".status")) return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
+        if (std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".status")) return u.command(self.init, self.session, self.client.?, self.config.?, text, allocator, self.out);
         return error.UnknownConsoleCommand;
     }
 
@@ -562,5 +598,5 @@ pub const Console = struct {
     }
 };
 pub fn denied(err: anyerror) bool {
-    return err == error.AccessDenied or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired;
+    return err == error.AccessDenied or err == error.CatalogDenied or err == error.CatalogOwnerChanged or err == error.CatalogConfigurationChanged or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired;
 }

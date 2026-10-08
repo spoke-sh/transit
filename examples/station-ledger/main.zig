@@ -1,7 +1,8 @@
 //! Reference Station caller. Credentials and provider placement stay outside
 //! handlers; all state and messages use the public Transit protocol.
 const std = @import("std");
-const station = @import("transit_station");
+const query = @import("transit_query");
+const station = query.station;
 const handler = @import("handler.zig");
 const wire = station.client;
 const telemetry = wire.observability.telemetry;
@@ -17,6 +18,8 @@ const Config = struct {
     destination: ?u64 = null,
     observer: ?u64 = null,
     registry: ?u64 = null,
+    source_resource: ?u64 = null,
+    peer_resource: ?u64 = null,
 };
 
 pub fn main(init: std.process.Init) !void {
@@ -62,15 +65,25 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .key = key,
     }, config.association);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&behavior.session.key));
-    var application: handler.Application = .{ .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry };
-    var workspace: [station.fuze.execution.working_bytes]u8 = undefined;
-    const cancellation = station.fuze.execution.Cancellation.init(false);
-    behavior.query = .{ .workspace = &workspace, .cancellation = &cancellation };
+    const resources: wire.ResourceReader = .{ .wire = &client, .realm = config.realm, .principal = config.principal, .key = key };
+    var application: handler.Application = .{ .allocator = init.gpa, .resources = resources, .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry, .source_resource = config.source_resource, .peer_resource = config.peer_resource };
+    const enabled = config.role == .ledger and config.destination != null;
+    const adapter: []u8 = if (enabled) try init.gpa.alloc(u8, query.UnifiedBehavior.adapter_bytes) else &.{};
+    defer if (enabled) init.gpa.free(adapter);
+    const workspace: []u8 = if (enabled) try init.gpa.alloc(u8, query.fuze.Unified.Arrow.working_bytes) else &.{};
+    defer if (enabled) init.gpa.free(workspace);
+    const cancellation = query.fuze.execution.Cancellation.init(false);
+    if (enabled) application.capture = .{ .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {
-            error.AccessDenied, error.Rejected, error.Conflict, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
+            error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
             else => {
+                if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {
+                    if (client.last_rejection != .StaleStateResource and client.last_rejection != .QueryExpired and client.last_rejection != .StateViewExpired) return err;
+                    if (client.last_rejection == .StateViewExpired) behavior.view_id = null;
+                    if (behavior.ready != null) try behavior.discard();
+                } else if (wire.Client.unavailable(err) and behavior.pending == null and behavior.ready != null) try behavior.discard();
                 diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
                 try init.io.sleep(.fromMilliseconds(100), .awake);
                 continue;

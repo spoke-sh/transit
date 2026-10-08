@@ -76,36 +76,39 @@ states instead of flattening them into an empty value.
 ## Record sensor observations with Python
 
 Think of an int64 key as an observation sequence and its nullable int64 value as
-a reading in an application-defined integer unit. The executable example calls
-these fields `key` and `value`; it is a finite Table service, not a sensor adapter.
-Declare units and validate source coordinates before adapting it to real input.
+a reading in an application-defined integer unit. The executable example also
+stores a UTF-8 label and a list of integer tags. Declare units and validate source
+coordinates before adapting this finite Table service to real input.
 
 The [complete Python service](../../examples/station-sdk/python/transit_sdk_examples/query.py)
-creates its Table, grants one requester query access, and handles typed input:
+persists mutation commands in a FIFO and resumes their bounded Table steps through
+recorded self messages. It starts queries once creation and queued writes finish:
 
 <!-- source-excerpt: examples/station-sdk/python/transit_sdk_examples/query.py -->
 ```python
-class TableService:
-    def __init__(self, requester: ProcessRef) -> None:
-        self.requester = requester
-    def initialize(self, turn: Turn) -> None:
-        turn.create_table(TABLE)
-        turn.allow_query(self.requester, TABLE, expected_revision=0, allow=True)
-    def handle(self, turn: Turn, incoming: Incoming[Initialize | Insert | Rows]) -> None:
-        value = incoming.value
-        if isinstance(incoming, Cast) and isinstance(value, Initialize):
-            pass
-        elif isinstance(incoming, Cast) and isinstance(value, Insert):
-            turn.table(TABLE).insert(Row(value.key, value.value))
-        elif isinstance(incoming, Call) and isinstance(value, Rows):
-            turn.start_query(TABLE, QueryPlan(limit=2**64-1))
+def handle(self, turn: Turn, incoming: Incoming[Initialize | Insert | Rows | Advance | Update | Delete]) -> None:
+    value = incoming.value
+    if isinstance(incoming, Cast) and isinstance(value, (Initialize, Insert, Update, Delete)):
+        self._enqueue(turn, incoming.position, value)
+    elif isinstance(incoming, Cast) and isinstance(value, Advance):
+        if incoming.origin.kind != 'process' or incoming.origin.process != turn.process:
+            raise HandlerError('Table continuation requires its recorded self output')
+        self._drive(turn)
+    elif isinstance(incoming, Call) and isinstance(value, Rows):
+        queue = self._queue(turn)
+        if not queue.ready or queue.head:
+            turn.reply(NotReady(), codec=query_reply_codec)
         else:
-            raise HandlerError('Unexpected Table message')
+            turn.start_query(TABLE.object_id, QueryPlan(Plan((0, 1, 2, 3), limit=2**64-1)))
+    else:
+        raise HandlerError('Unexpected Table message')
 ```
 
-`TABLE` is `TableSchema.int64(1)` in the complete source. The public codecs reject
-malformed messages and out-of-range integers. The runner commits the inserted
-row with input progress; a handler field is not the durable Table. An effectively
+`TABLE` defines four stable column identities, a declared primary key, and defaults
+for `label` and `tags`. The public codecs reject malformed messages and out-of-range
+integers. Original command identities and terminal outcomes survive replacement;
+a handler field is not the durable Table. The [shared Table workflow](../../examples/station-sdk/TABLES.md)
+explains queue records, NotReady replies and explicit query retry. An effectively
 unlimited row count does not remove page and execution bounds.
 
 The [Python example guide](../../examples/station-sdk/python/README.md) explains

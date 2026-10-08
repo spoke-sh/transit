@@ -17,15 +17,40 @@ pub const Options = struct {
     /// Opt-in host collection bound. Kernel wire contracts keep fixed arrays;
     /// domain validation can impose a stricter per-field limit on host slices.
     sequence_max_length: ?usize = null,
+    /// Override only the next slice dimension, preserving child collection bounds.
+    sequence_outer_max_length: ?usize = null,
 };
 /// A public owner can narrow or extend one sequence field without changing
 /// neighboring collections or the caller's other schema options.
-fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
+pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
     var result = options;
     if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
         result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
     }
+    if (comptime @hasDecl(T, "json_schema_outer_sequence_bounds") and @hasField(@TypeOf(T.json_schema_outer_sequence_bounds), name)) {
+        result.sequence_outer_max_length = @field(T.json_schema_outer_sequence_bounds, name);
+    }
+    if (comptime @hasDecl(T, "json_schema_text_bounds") and @hasField(@TypeOf(T.json_schema_text_bounds), name)) {
+        result.text_max_length = @field(T.json_schema_text_bounds, name);
+    }
     return result;
+}
+pub fn sequenceItems(comptime options: Options) Options {
+    var result = options;
+    result.sequence_outer_max_length = null;
+    return result;
+}
+/// Reflect recursive host values with local references. The selected options
+/// and each owner's field bounds remain part of the referenced type identity.
+pub fn writeRecursive(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
+    return @import("RecursiveSchema.zig").write(T, out, options);
+}
+/// Embed a recursive schema at a known JSON pointer in a larger contract.
+pub fn writeRecursiveAt(comptime T: type, out: *std.json.Stringify, comptime options: Options, comptime base: []const u8) std.Io.Writer.Error!void {
+    return @import("RecursiveSchema.zig").writeAt(T, out, options, base);
+}
+test {
+    _ = @import("RecursiveSchema.zig");
 }
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
@@ -33,6 +58,7 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         if (options.diagnostic_reference) |name| return out.write(.{ .@"$ref" = name });
     }
     if (comptime @typeInfo(T) == .@"struct") {
+        if (comptime @hasDecl(T, "json_schema_type")) return write(T.json_schema_type, out, options);
         if (comptime @hasDecl(T, "jsonSchema")) return T.jsonSchema(out);
     }
     try out.beginObject();
@@ -55,11 +81,11 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
                 try field(out, "type", "string");
                 try field(out, "maxLength", options.text_max_length);
             } else {
-                const bound = options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound");
+                const bound = options.sequence_outer_max_length orelse (options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound"));
                 try field(out, "type", "array");
                 try field(out, "maxItems", bound);
                 try out.objectField("items");
-                try write(info.child, out, options);
+                try write(info.child, out, sequenceItems(options));
             }
         },
         .bool => try field(out, "type", "boolean"),

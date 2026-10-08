@@ -108,6 +108,13 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
         std.crypto.secureZero(u8, bytes);
         allocator.free(bytes);
     }
+    const query = @import("transit_query");
+    query.fuze.Types.Json.preflight(bytes, .{ .bytes = limit, .depth = query.Values.json_limits.depth, .tokens = limit + 1 }) catch |err| switch (err) {
+        // Preserve the normal scanner's exact syntax coordinates. Its recursion
+        // is reached only after the independent depth/size guard has passed.
+        error.InvalidJson => {},
+        else => return self.invalidFieldCause(err, "configuration", "does not satisfy the JSON decoding bounds or UTF-8 encoding", null),
+    };
     var scanner = std.json.Scanner.initCompleteInput(allocator, bytes);
     defer scanner.deinit();
     var location: std.json.Scanner.Diagnostics = .{};
@@ -198,7 +205,13 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         };
         try self.style.text(out, .failure, "error:");
         try out.writeByte(' ');
-        return diagnostic.renderStyled(out, self.style);
+        try diagnostic.renderStyled(out, self.style);
+        if (std.mem.indexOf(u8, diagnostic.hint, ".help") == null) switch (diagnostic.route) {
+            .declaration => try self.style.hint(out, "Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE for syntax.\n"),
+            .mutation => try self.style.hint(out, "Use .help INSERT, .help UPDATE or .help DELETE for syntax.\n"),
+            else => {},
+        };
+        return;
     }
     if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timer on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };

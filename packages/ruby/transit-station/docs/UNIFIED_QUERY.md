@@ -6,8 +6,11 @@ through one joined native worker; Ruby contains no query execution or protocol
 implementation. Import starts no process or credential access.
 
 Use `KVSource` with explicit versioned `Decoder` values, `TableSource` with its
-exact table/schema, or `DocumentSource` with an accepted `DocumentReference` and
-bounded `Projection` values. `Bundle.prepare(source, plan, budgets)` validates
+catalog `Metadata`, `Schema` and owner `ProcessRef`, or `DocumentSource` with an accepted `DocumentReference` and
+bounded `Projection` values with `DecoderColumn` declarations. Table columns
+reuse logical descriptors with explicit nullable/optional flags; `Scalar` is the
+shared `Logical::Atom` type. The native owner verifies the metadata commitment
+and current catalog rights when admitting a Table query. `Bundle.prepare(source, plan, budgets)` validates
 and creates canonical bytes without admitting work. All wide values use Ruby
 `Integer`; binary strings and returned bytes are copied and frozen.
 
@@ -31,7 +34,7 @@ the generated schema, including the complete tagged variants.
 The resulting bytes are copied and frozen.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -63,16 +66,20 @@ submission and observation sequence. Interrupting a Ruby wait does not cancel
 accepted work; closing joins the worker before destroying the native owner.
 
 After completion, `page(namespace, cursor)` returns an immutable page with owned
-IPC, typed manifest provenance and optional next `Cursor`. Every page rechecks
+IPC, typed manifest provenance including the retained source-head digest and optional next `Cursor`. Every page rechecks
 current source/request grants and lifecycle. A cursor is verification progress,
 not permission; save it only with the same connection and namespace. Read failure
 does not advance it. Nil next establishes verified whole-result coverage.
 
 `Page#decode` and `Unified.decode_arrow(columns, ipc, rows)` return typed cells
 through shared Zig. Missing, null, type error, value and conflict remain distinct;
-alternatives retain their original ordered assignment identities. Scalar bounds
-are 4 KiB, batches have at most eight rows/columns, bundles at most 16 KiB and IPC
-segments at most 64 KiB. No optional Ruby Arrow dependency is selected; original
+results reuse the `Logical` cell classes, and alternatives retain their original
+ordered assignment identities. Predicate byte literals are bounded to 4 KiB.
+Batches have at most eight rows and 128 result columns; KV has two source
+columns and Document projections remain bounded to eight. Source/output names
+are nonempty UTF-8 strings of at most 255 bytes without NUL. Bundles are bounded
+to 25,069 bytes and IPC segments to 64 KiB. Nested values and exact 128-bit
+integers retain their shared logical representation. No optional Ruby Arrow dependency is selected; original
 owned IPC remains available to an application-selected consumer.
 
 `nix develop .#bindings --command just bindings::unified-ruby kv` builds fresh

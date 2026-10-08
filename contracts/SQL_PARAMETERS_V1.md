@@ -136,3 +136,55 @@ caller execution, authorization, durability or named prepared-statement support.
 The parameter-template predicate has one comparison or cell-state test.
 Boolean programs are rejected by this entry point before binding; ordinary
 SQL retains its Boolean predicate grammar.
+
+## General logical template compiler
+
+`LogicalPrepared` is the Fuze compiler for schema-bound logical SELECT templates.
+It shares `TableSelect` syntax and the typed predicate compiler, including AND,
+OR, NOT, exact cell-state tests, source/output aliases and the finite derived
+filter/limit/aggregate form. `$n` is accepted only as a complete right comparison
+operand or input LIMIT value. Ordinary Table parsing and `Syntax.bind` reject
+unresolved parameters. No SQL text is constructed from binding values.
+
+`init(allocator, text, name, row_type, basis, diagnostic)` owns the complete source
+name, recursive row descriptor, parsed syntax and ordered parameter types. The
+caller supplies an immutable source basis; Fuze supplies no lookup or permission.
+The ordinary SQL byte limit is checked before copying input or allocating the
+schema. The maximum ordinal derives from the 64-instruction predicate machine
+plus the LIMIT site (65); every ordinal through the greatest used index must
+occur. The predicate instruction/depth limits also apply, so the ordinal bound
+does not promise 65 simultaneous comparison sites. `$01` and `$1` share a slot.
+Repeated slots require equal complete descriptors, including decimal precision
+and scale or civil/UTC timestamp qualification.
+
+`parameterTypes()` borrows logical descriptors. `bind(allocator, name, row_type,
+basis, atoms, diagnostic)` checks the exact original source binding, descriptor
+and name, then checks count and every atom against its inferred descriptor. Its
+owned `LogicalPlanCodec.Owned` result survives destruction of the template,
+source metadata and supplied atom bytes. Allocation failure returns no owner.
+A changed immutable basis requires explicit preparation of a new template;
+rebinding never changes accepted or uncertain work.
+
+Comparison parameters cover the scalar families admitted by logical predicates:
+all signed/unsigned integer widths through 128 bits, finite float32/64, decimal,
+boolean, UTF-8, binary, date, time, civil/UTC timestamp and UUID. LIMIT uses uint64.
+Bindings use `Types.Values.Atom` directly; integer sign, exact width bounds,
+float32 representability, decimal coefficient range and temporal limits remain
+checked. This interface has no NULL, missing, conflict or source-error parameter
+variant. Interval, JSON and recursive container comparisons remain unsupported;
+those columns can still be projected or used with their admitted state/count
+operations. Parameterization does not add comparison or aggregate capabilities.
+
+Each variable-width comparison operand is limited to 4096 bytes. All repeated
+values and output names also fit the existing 8192-byte plan identity budget.
+Exhausting that budget reports `PlanTooLarge`; a caller-supplied codec output
+buffer that is too small still reports its own `WriteFailed`. Compiler diagnostics
+retain the failing ordinal and up to three source occurrence offsets. No unbound
+logical-template wire format or durable registry is introduced. The bound plan
+uses canonical `FQP1` and its original source binding.
+
+This compiler does not itself extend the neutral compilation operation, SDKs,
+Flight, Board or console parameter routes described above. Those owners must
+admit the shared logical descriptors and values when integrating this compiler.
+The separate reference `parameterTemplate` remains the documented six-scalar
+entry until its consumers and corpus are migrated together.

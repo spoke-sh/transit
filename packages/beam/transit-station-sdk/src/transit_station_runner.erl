@@ -195,6 +195,18 @@ input(State, Input) ->
             Tag = case K of <<"cast">> -> cast; <<"call">> -> call; <<"reply">> -> reply end,
             Correlation = case Tag of cast -> undefined; _ -> transit_sdk_value:wide(maps:get(<<"correlation">>, Input)) end,
             {handle_message, #transit_incoming{kind = Tag, value = Value, position = Position, origin = Origin, correlation = Correlation}};
+        <<"result_failed">> ->
+            Failed = maps:get(<<"query_failure">>, Input),
+            Reason = case maps:get(<<"reason">>, Failed) of
+                <<"result_too_large">> -> result_too_large;
+                <<"workspace_exceeded">> -> workspace_exceeded;
+                <<"overflow">> -> overflow;
+                <<"cancelled">> -> cancelled;
+                <<"denied">> -> denied
+            end,
+            {handle_query_failure, #transit_query_failure{position = Position, origin = Origin,
+                correlation = transit_sdk_value:wide(maps:get(<<"correlation">>, Input)),
+                result = maps:get(<<"result">>, Failed), reason = Reason}};
         <<"result_complete">> -> {handle_result, #transit_result_complete{position = Position, origin = Origin, correlation = transit_sdk_value:wide(maps:get(<<"correlation">>, Input))}};
         K when K =:= <<"cancel">>; K =:= <<"timeout">> ->
             Tag = case K of <<"cancel">> -> cancel; _ -> timeout end,

@@ -16,8 +16,9 @@ def generate():
     def case(name, body, wire):
         cases.append(dict(command={'reactive': {name: body}}, hex=(b'SV1c\x05' + wire).hex()))
 
-    source = dict(revision=1, target=88, resource=8, table=1, progress_key=b'data-progress'.hex(), schema=[5] * 32, published=True)
-    case('publish', dict(expected=0, source=source), b'\0' + struct.pack('<QQQQIB', 0, 1, 88, 8, 1, 13) + b'data-progress' + bytes([5]) * 32 + b'\1')
+    full = (1 << 64) - 1
+    source = dict(revision=1, target=88, resource=8, realm=49, catalog=str(full), object=str(full-1), metadata_revision=str(full-2), metadata_length=436, metadata_digest=[5] * 32, published=True)
+    case('publish', dict(expected=0, source=source), b'\0' + struct.pack('<8QI', 0, 1, 88, 8, 49, full, full-1, full-2, 436) + bytes([5]) * 32 + b'\1')
     case('observe_clock', 1000, b'\1' + struct.pack('<Q', 1000))
     case('open', dict(session=7, source_revision=1, lease_before_ms=5000), b'\2' + struct.pack('<QQQ', 7, 1, 5000))
     case('attach', dict(identity=identity, expected=2, nonce=[8] * 16), b'\3' + struct.pack('<QQQ', 7, 10, 2) + bytes([8]) * 16)

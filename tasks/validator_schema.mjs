@@ -4,7 +4,10 @@ export function shareValidatorSchemas(ajv, schemas) {
   const counts = new Map();
   const references = new Map();
   const definitions = new Map();
-  let nestedPointer = false;
+  const protectedAncestors = new WeakSet();
+  const pointers = [];
+  const documents = new Map();
+  let unknownScope = false;
   const maps = new Set(["properties", "$defs", "patternProperties"]);
   const lists = new Set(["anyOf", "oneOf", "allOf", "prefixItems"]);
   const singles = new Set([
@@ -44,21 +47,23 @@ export function shareValidatorSchemas(ajv, schemas) {
       : null;
   }
 
-  function count(schema) {
+  function count(schema, root) {
     if (typeof schema !== "object" || schema === null) return schema;
+    // A nested resource introduces another reference scope. Leave such input
+    // unchanged until its scope graph is supported explicitly.
+    if (schema !== root && typeof schema.$id === "string") unknownScope = true;
     if (typeof schema.$ref === "string") {
-      const fragment = schema.$ref.split("#")[1];
-      if (fragment?.startsWith("/") && !/^\/\$defs\/[^/]+$/.test(fragment)) nestedPointer = true;
+      if (schema.$ref.includes("#")) pointers.push({ root, reference: schema.$ref });
     }
     const key = keyOf(schema);
     if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-    children(schema, count);
+    children(schema, (child) => count(child, root));
     return schema;
   }
   function rewrite(schema) {
     if (typeof schema !== "object" || schema === null) return schema;
     const key = keyOf(schema);
-    const shared = key && counts.get(key) > 1;
+    const shared = key && counts.get(key) > 1 && !protectedAncestors.has(schema);
     if (shared && references.has(key)) return { $ref: references.get(key) };
     const rewritten = children(schema, rewrite);
     if (!shared) return rewritten;
@@ -67,10 +72,37 @@ export function shareValidatorSchemas(ajv, schemas) {
     definitions.set(id, rewritten);
     return { $ref: id };
   }
-  for (const schema of Object.values(schemas)) count(schema);
-  // A pointer into a type's interior relies on its original tree shape. Our
-  // reflected contracts reference named roots; leave other schemas untouched.
-  if (nestedPointer) return schemas;
+  for (const [name, schema] of Object.entries(schemas)) {
+    documents.set(name, schema);
+    if (typeof schema.$id === "string") documents.set(schema.$id, schema);
+    count(schema, schema);
+  }
+  if (unknownScope) return schemas;
+  for (const { root, reference } of pointers) {
+    const separator = reference.indexOf("#");
+    const document = reference.slice(0, separator);
+    let path;
+    try {
+      const fragment = decodeURIComponent(reference.slice(separator + 1));
+      if (!fragment.startsWith("/")) continue;
+      path = fragment
+        .slice(1)
+        .split("/")
+        .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"));
+    } catch {
+      return schemas;
+    }
+    let node = document ? documents.get(document) : root;
+    if (!node) return schemas;
+    // Keep every ancestor in place so the original pointer remains resolvable.
+    // Its target may become a reference to a shared validator; JSON Schema
+    // resolves that reference normally. Siblings can still share closed types.
+    for (const part of path) {
+      if (typeof node !== "object" || node === null || !Object.hasOwn(node, part)) return schemas;
+      protectedAncestors.add(node);
+      node = node[part];
+    }
+  }
   const rewritten = Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => [
       name,

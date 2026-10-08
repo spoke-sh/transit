@@ -39,6 +39,10 @@ def run(node, cli, library, artifacts):
                 shutil.copy2(root / 'tests/beam_client_boundary.erl', boundary)
                 subprocess.run(['erlc', '-Werror', '-o', str(classes), str(boundary)], env=environment, cwd=target, check=True)
                 boundary.unlink()
+                schema = target / 'beam_schema_values.erl'
+                shutil.copy2(root / 'tests/beam_schema_values.erl', schema)
+                subprocess.run(['erlc', '-Werror', '-o', str(classes), str(schema)], env=environment, cwd=target, check=True)
+                schema.unlink()
                 check_command = ['erl', '-noshell', '-pa', str(classes), '-s', 'beam_client_boundary', 'main', '-extra', str(target)]
                 native = lib / 'transit_native_client-0.2.0'
                 hidden = target / 'native.saved'

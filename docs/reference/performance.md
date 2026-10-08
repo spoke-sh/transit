@@ -293,7 +293,13 @@ acknowledgement, define completion.
 Controls vary retained rows (`--rows`) separately from retained mutation history
 (`--age`), one/three-row INSERT, existing/same-value/absent UPDATE and DELETE,
 resident cache pages, fixed worker polling, idle gaps and concurrent independent
-readers. Each experiment has a one-second idle counter interval. Optional
+readers. Each experiment has a one-second idle counter interval.
+`--schema-profile wide` uses 32 columns with 30 fixed synthetic text defaults;
+`--schema-profile nested` adds a struct containing text and a nullable text list.
+Both verify every additional typed value after each measured mutation and record
+their DROP/CREATE setup timings separately. The default `narrow` profile preserves
+the two-column workload for comparisons with earlier implementations; wider
+profiles are separate storage controls, not matched historical baselines. Optional
 `--instrument` proxies add overhead; compare them separately from ordinary
 latency runs. Opt-in native diagnostics report complete per-attempt work and
 provider counters independently of sampled logs. Lock waits can overlap across
@@ -308,11 +314,18 @@ keeps the last acknowledged input until an atomic next-request or completion
 checkpoint replaces it. A restored checkpoint can discover a completed outcome
 without sending another mutation.
 
-The small-request path uses one send, one captured view and one committed turn.
-Requests up to 223 canonical bytes avoid the begin/part/seal/apply sequence.
-Batched captured reads, an eight-key turn-local cache and compatible catalog
-write batches reduce additional requests and page copies while retaining current
-authorization and atomic outcome checks. The console attributes local compilation,
+General Table commands that fit a Station frame avoid upload. Small point writes
+can publish the row, final index, head and outcome in one four-write turn; larger
+values and indexes require staged publication. A 128-bit primary-key lookup prefix
+keeps two keyed rows in one inline index, while full typed-key comparison and
+256-bit node/row commitments retain equality and integrity checks. Finite INSERT
+builds up to eight rows within the existing candidate record/byte budget and
+stages only the final reachable records. Neither optimization increases native
+values, write slots or collection cardinality limits.
+
+Batched reads and a 64-entry captured-turn cache reduce repeated metadata work.
+Native prefetch remains eight keys; cache entries cannot outlive their captured
+turn or mask a poisoned read. The console attributes local compilation,
 preparation, native send, processing wait, result reads and every recovery-file
 save to their respective timing phases. `submit` no longer absorbs the entire
 write lifecycle.
@@ -321,6 +334,22 @@ The [executed mutation evidence](../../tests/README.md#durable-table-mutation-la
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
+The [general Table comparison](../../tests/mutation_latency/results/2026-10-07/README.md)
+records higher mutation latency and request amplification than the earlier
+fixed-column storage profile. It also measures wide/nested values and retained
+data with a concurrent reader. The record separates ordinary timings,
+instrumented counts and failed setups;
+general type support does not establish the earlier performance budgets.
+The measured general-schema costs are accepted as the current baseline. For the
+41-row configured-source Table fixture with 64 resident authority pages and no
+setup aging, regression ceilings are 75 requests for scan/COUNT and scalar
+ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for primary-key equality, 20 for its
+COUNT, and 11 for metadata inspection. Explicit bindings add ten requests.
+These ceilings apply to that fixture; they are not latency promises or allowances
+for arbitrary schema/cardinality growth. The earlier failed-budget reports remain
+part of the evidence. [Further optimization](https://github.com/rupurt/rey/issues/76)
+tracks metadata reuse, bounded batch disclosure and immutable-record/publication
+costs while preserving authority, recovery and resource bounds.
 Idle workers use bounded authorized waits on the observed process or output
 position. Waits release the authority lock, have separate admission capacity,
 and revalidate current authorization after a publication or timeout. Notifications

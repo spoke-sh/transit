@@ -11,7 +11,7 @@ TurnGuard::TurnGuard(transit_station_turn *turn) {
     if (*turn->stop) fail(TRANSIT_SDK_CLOSED, "local-stop");
     if (turn->poison.kind != TRANSIT_SDK_OK) throw Failure{turn->poison};
 }
-Bytes turn_apply(transit_station_turn &turn, const std::string &action) { return turn.bridge->apply(turn.scope, action); }
+Bytes turn_apply(transit_station_turn &turn, const std::string &action) { require(turn.bridge, "turn-transport"); return turn.bridge->apply(turn.scope, action); }
 void peer(const transit_station_turn &turn, transit_sdk_process value) {
     process(value); require(value.realm == turn.info.process.realm, "peer-realm");
 }
@@ -111,16 +111,13 @@ transit_sdk_error transit_station_cursor_export(const transit_station_cursor *cu
     if (out) *out = {}; return boundary([&] { require(cursor && out, "cursor-export"); *out = owned(json(cursor->value)); });
 }
 void transit_station_cursor_destroy(transit_station_cursor *cursor) { delete cursor; }
-size_t transit_station_page_size(const transit_station_page *page) { return !page ? 0 : page->table ? page->rows.size() : page->entries.size(); }
+size_t transit_station_page_size(const transit_station_page *page) { return !page ? 0 : page->entries.size(); }
 transit_sdk_error transit_station_page_next(const transit_station_page *page, transit_station_cursor **out) {
     if (out) *out = nullptr; return boundary([&] { require(page && out, "page-next"); if (page->next) *out = new transit_station_cursor{*page->next}; });
 }
 transit_sdk_error transit_station_page_kv(const transit_station_page *page, size_t index, transit_station_kv_entry *out) {
-    return boundary([&] { require(page && out && !page->table && index < page->entries.size(), "page-entry");
+    return boundary([&] { require(page && out && index < page->entries.size(), "page-entry");
         const auto &entry = page->entries[index]; *out = {view(entry.key), view(entry.value), entry.revision}; });
-}
-transit_sdk_error transit_station_page_basis(const transit_station_page *page, transit_station_basis *out) {
-    return boundary([&] { require(page && out && page->table, "page-basis"); *out = page->basis; });
 }
 void transit_station_page_destroy(transit_station_page *page) { delete page; }
 }

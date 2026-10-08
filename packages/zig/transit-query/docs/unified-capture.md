@@ -1,13 +1,15 @@
 # Unified source capture
 
 `UnifiedCapture` implements the source-owned v1 state machine in ordinary growing
-Station turns. Public requester/client/host wiring is still in progress. Its
+Station turns. Its
 [contract](../../../../contracts/UNIFIED_QUERY_V1.md) owns versions and limits;
 component tests alone do not qualify disk or process recovery.
 
 Configure a revisioned `UnifiedRecords.Policy` with the permitted peer PID,
-request resource, exact `Bundle.declaration(source)` digest and explicit maximum
-input pages, segments and result bytes. Reusing a revision with different policy
+request resource, a declaration or catalog target, and explicit maximum input
+pages, segments and result bytes. A catalog target records scope, owner and an
+explicit principal whose current inspect/read rights are checked at every page.
+New Table admissions bind their immutable metadata and complete logical row type. Reusing a revision with different policy
 rejects. Document declarations permit another accepted revision only within the
 same epoch, type, identity, change format and projection.
 
@@ -66,5 +68,20 @@ access and source policy are rechecked after decoding, before return; denial
 invalidates the entire candidate page. Previously returned bytes remain disclosed.
 Callers must discard partial buffers on error. Arrow bytes borrow the supplied
 output buffer; scalar strings and schema columns use the caller's result allocator.
-Keep the decoded `Batch` at its final address because conflict alternatives borrow
-its fixed arrays. No whole-result allocation or new source pin is needed.
+The `LogicalInspect.Batch` owns its descriptor and recursive rows. Call `deinit`
+on each successful page before reusing its output slot; error returns free partial
+decoding and invalidate the candidate. No whole-result allocation or new source pin is needed.
+
+## Catalog ownership
+
+`CatalogQueryOwner` composes `TableBehavior` with the same durable query engine.
+Initialize the catalog using its exact administrator command, then install a
+`PolicyChange` for each requester process. These are separate bounded decisions;
+initialization does not grant query delegation. One owner routes queries and DML
+for all authorized Tables in its namespace. Current catalog read and mutation
+rights remain independent.
+
+A query policy maps a requester PID to an explicit catalog principal. Submitted
+SQL and source declarations cannot choose that principal. Cancellation uses the
+original requester's correlation index, and only native self inputs can advance
+jobs. See the [owner contract](../../../../contracts/CATALOG_QUERY_OWNER_V1.md).

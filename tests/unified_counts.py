@@ -39,11 +39,14 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
                     for item in turn.get('mutations', []):
                         if not item or not bytes.fromhex(item['key']).startswith(b'\0Uc') or item['value'] is None: continue
                         checkpoint = bytes.fromhex(item['value'])
-                        assert checkpoint[:8] == b'UQC1FZS1'
-                        # Independently decode the public FZS1 wire layout:
-                        # magic/kind/resource/revision/three digests, six u64s.
-                        pages, scanned, selected, counted, segments, rows = struct.unpack_from('<6Q', checkpoint, 4 + 117)
-                        if selected and checkpoint[4 + 174] == 0:
+                        assert checkpoint[:4] == b'UQC1'
+                        # UQC1: magic, kind, resource/revision u64s and head.
+                        # FQS1: magic, binding/plan digests, six u64 counters,
+                        # optional sum (tag + i64), finish tag.
+                        progress_offset = 4 + 1 + 8 + 8 + 32
+                        assert checkpoint[progress_offset:progress_offset + 4] == b'FQS1'
+                        pages, scanned, selected, counted, segments, rows = struct.unpack_from('<6Q', checkpoint, progress_offset + 68)
+                        if selected and checkpoint[progress_offset + 125] == 0:
                             assert pages and 0 < selected < 10 and counted == selected and segments == rows == 0
                             gate.update(armed=False, attempt=body, checkpoint=checkpoint,
                                         counters=(pages, scanned, selected, counted, segments, rows))
@@ -104,8 +107,9 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
         snapshot = invoke('job', namespace, direct=True)
         assert snapshot['job']['phase'] == 'capturing'
         progress = snapshot['checkpoint']['progress']
-        assert tuple(progress[field] for field in ('pages', 'scanned', 'selected', 'value_count', 'segments', 'rows')) == gate['counters']
-        assert progress['finished'] is None and progress['sum'] is None
+        counters = progress['counters']
+        assert (progress['pages'], counters['scanned'], counters['selected'], counters['value_count'], progress['segments'], progress['rows']) == gate['counters']
+        assert progress['finished'] is None and counters['sum'] is None
         try:
             native.call({'page': dict(namespace=namespace)})
             raise AssertionError('partial COUNT exposed a result')
@@ -144,7 +148,7 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
         restart('count-recovered', before_workers=persisted, after_stop=release.set)
         ipc = result('100', 10, 10)
         assert lost['retries'] and not gate['timeout']
-        print(f'Unified {kind} COUNT: partial {before["checkpoint"]["progress"]["value_count"]}/10, exact saved upload, worker/node/store replacement and {len(owners)} result/manifest consumers passed.', flush=True)
+        print(f'Unified {kind} COUNT: partial {before["checkpoint"]["progress"]["counters"]["value_count"]}/10, exact saved upload, worker/node/store replacement and {len(owners)} result/manifest consumers passed.', flush=True)
 
         invoke('revoke', direct=True)
         for owner in owners:

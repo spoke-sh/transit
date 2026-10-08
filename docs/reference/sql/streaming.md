@@ -1,7 +1,7 @@
 # Streaming and effects
 
 Transit has durable streams, application materialization and recorded connector
-effects. SQL currently executes finite reads. The transport of a result in
+effects. SQL executes finite reads and explicitly routed Table DDL/DML. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -11,7 +11,7 @@ several batches does not make that query continuous.
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
-| Maintain application state from messages | Application consumes input and mutates a Table in the same turn | No `CREATE MATERIALIZED VIEW` |
+| Maintain application state from messages | Application freezes input identity and publishes complete Table changes with durable progress | No `CREATE MATERIALIZED VIEW` |
 | Refresh a displayed query | Int64 Table watch invalidation and finite snapshot refresh | No `SUBSCRIBE` or continuous `SELECT` |
 | Dispatch external work | Recorded intent, authorized attempt and captured outcome | `CREATE SINK` is grammar only; no query-to-sink binding |
 
@@ -36,7 +36,8 @@ read rights even when a source or connection name is known.
 ## Materialization and observation
 
 An application can [materialize mailbox input](../tables.md#materialize-a-stream)
-by advancing input progress and committing Table mutations together. The
+by binding durable input identity to its staged operation and publishing the
+complete Table successor with its recorded outcome. The
 application owns decoding and transformation. Fuze does not install a maintained
 query graph or automatically recompute Tables after upstream changes.
 

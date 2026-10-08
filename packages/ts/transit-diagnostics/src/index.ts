@@ -129,7 +129,16 @@ function validEvidence(d: Diagnostic): boolean {
         !(d.outcome === "closed_unknown" && action.kind === "reconcile_effect")
       )
         return false;
-      if (action.kind === "cancel_mutation" && action.target.domain !== "mutation") return false;
+      if (
+        action.kind === "cancel_mutation" &&
+        action.target.domain !== "mutation" &&
+        !(
+          action.target.domain === "catalog" &&
+          d.outcome === "pending" &&
+          d.evidence === "domain_status"
+        )
+      )
+        return false;
       if (action.kind === "reconcile_effect" && action.target.domain !== "effect") return false;
       if (action.target.domain === "effect" && action.kind !== "reconcile_effect") return false;
     }

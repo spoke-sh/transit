@@ -28,7 +28,8 @@ The ordinary worker configuration is described in the [README](../README.md).
 Two optional, mutually exclusive roles compose existing native handlers:
 
 - `query_peer` is the requester PID. The data owner accepts administrator-issued
-  query policy only for that peer and its current Table contract. Query capture
+  query policy only for that peer, its catalog scope and the configured
+  administrator's catalog rights. Query capture
   initialization is a separate turn from data initialization, preserving the
   four-mutation boundary. The worker needs current read access and an association
   to the requester's resource, in addition to its own resource grant.
@@ -53,7 +54,9 @@ The gateway configuration contains:
 Inspector and query identities must differ. Operators sign shared native
 application commands themselves. The gateway does not contain an administrator
 key. Its private deployment admits the browser; native resource grants, query
-policy and publication policy are checked independently.
+policy, catalog inspect/read and publication policy are checked independently.
+The gateway resolves the active Table from its published catalog metadata; it
+never constructs a physical source commitment from a Table name alone.
 
 `GET /api/v1/interface` reads the current publication.
 `POST /api/v1/application` exposes the shared signed operator host.
@@ -65,7 +68,7 @@ accepted work's recovery path.
 
 The gateway has four data request slots and two control slots, a five-second
 HTTP deadline and a 3.5-second upstream deadline. Request bodies are bounded to
-48 KiB for queries or 512 KiB for operator publication; JSON output is bounded
+64 KiB for queries or 512 KiB for operator publication; JSON output is bounded
 to 1 MiB. Query signing is serialized; pre-dispatch contention returns 429.
 Credentials and payloads are excluded from telemetry. Native placement is not
 an OS sandbox.
@@ -87,7 +90,8 @@ ordered coverage and rereads the visible page against current authority. The
 UI preserves full-width IDs and labels its source revision and visible page.
 An interface change clears the old page; policy denial clears protected state.
 
-For the selected schema evolution, copy and verify the target Table while
+For the selected schema evolution, explicitly prepare the empty target, then
+copy and verify it while
 writes are paused, activate its epoch, update source query policy, publish the
 compatible interface, then explicitly release writes. These are separate owner
 commits, not a cross-resource transaction. See [migration](migration.md).

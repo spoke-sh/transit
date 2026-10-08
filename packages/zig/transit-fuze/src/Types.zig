@@ -42,6 +42,55 @@ pub const Tag = enum(u8) {
     tagged_union,
     json,
 };
+/// Observed source kinds are evidence, not admissible logical descriptors.
+/// Logical kinds retain Tag's IDs; the extra cases preserve decoder/Document
+/// distinctions without inventing a scalar type or losing an unknown cause.
+pub const Kind = enum(u8) {
+    unknown = 0,
+    int64 = 1,
+    uint64,
+    float64,
+    boolean,
+    utf8,
+    binary,
+    int8,
+    int16,
+    int32,
+    int128,
+    uint8,
+    uint16,
+    uint32,
+    uint128,
+    float32,
+    decimal,
+    date,
+    time,
+    timestamp,
+    interval,
+    uuid,
+    structure,
+    list,
+    array,
+    map,
+    tagged_union,
+    json,
+    null_value,
+    text,
+    character,
+    pub fn fromTag(tag: Tag) Kind {
+        return @fromBackingInt(@backingInt(tag));
+    }
+    pub fn fromQuery(kind: Query.Kind) Kind {
+        return switch (kind) {
+            inline else => |value| @field(Kind, @tagName(value)),
+        };
+    }
+};
+comptime {
+    for (@typeInfo(Tag).@"enum".field_names, @typeInfo(Tag).@"enum".field_values) |name, value| {
+        if (@backingInt(@field(Kind, name)) != value) @compileError("Logical source kinds must preserve descriptor tag IDs");
+    }
+}
 pub const Decimal = struct { precision: u8, scale: u8 };
 pub const Timestamp = enum(u8) { civil, utc };
 pub const Element = struct { type: *const Type, nullable: bool = false };
@@ -49,6 +98,7 @@ pub const Array = struct { element: Element, length: u32 };
 pub const Map = struct { key: *const Type, value: Element };
 pub const Field = struct { name: []const u8, type: Type, nullable: bool = false, optional: bool = false };
 pub const Type = union(Tag) {
+    pub const json_schema_sequence_bounds = .{ .structure = 256, .tagged_union = 256 };
     int64,
     uint64,
     float64,
@@ -120,15 +170,20 @@ pub const Type = union(Tag) {
     /// Validate and own every descriptor child/name without a wire round trip.
     /// The canonical encoder still checks the independent encoded-byte bound.
     pub fn clone(self: Type, allocator: std.mem.Allocator) !Decoded {
+        var arena: std.heap.ArenaAllocator = .init(allocator);
+        errdefer arena.deinit();
+        const value = try self.cloneInto(arena.allocator());
+        return .{ .arena = arena, .type = value };
+    }
+    /// Compose within an existing request arena. The caller owns every success
+    /// and partial-failure allocation; no independent owner is returned.
+    pub fn cloneInto(self: Type, arena: std.mem.Allocator) !Type {
         try self.validate(.{});
         var buffer: [256]u8 = undefined;
         var encoded: std.Io.Writer.Discarding = .init(&buffer);
         try writeType(self, &encoded.writer);
         if (encoded.fullCount() > max_encoding_bytes - 5 - definition.len) return error.WriteFailed;
-        var arena: std.heap.ArenaAllocator = .init(allocator);
-        errdefer arena.deinit();
-        const value = try cloneType(arena.allocator(), self);
-        return .{ .arena = arena, .type = value };
+        return cloneType(arena, self);
     }
     pub fn fingerprint(self: Type) ![32]u8 {
         var buffer: [max_encoding_bytes]u8 = undefined;
@@ -291,18 +346,25 @@ fn cloneElement(allocator: std.mem.Allocator, element: Element) !Element {
     return .{ .type = child, .nullable = element.nullable };
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    errdefer arena.deinit();
+    const value = try decodeInto(arena.allocator(), bytes);
+    return .{ .arena = arena, .type = value };
+}
+/// Validate the same canonical descriptor into a caller-owned request arena.
+/// The arena owns every returned slice and any allocation preceding a failure.
+pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Type {
     if (bytes.len > max_encoding_bytes) return error.TypeBudgetExceeded;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "FTY1")) return error.InvalidTypeEncoding;
     if (!std.mem.eql(u8, try reader.take(try reader.takeByte()), definition)) return error.IncompatibleDefinition;
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    errdefer arena.deinit();
     var budget: Budget = .{ .limits = .{} };
-    const value = try readType(arena.allocator(), &reader, 0, &budget);
+    const value = try readType(arena, &reader, 0, &budget);
     if (reader.bufferedLen() != 0) return error.InvalidTypeEncoding;
     try value.validate(.{});
-    return .{ .arena = arena, .type = value };
+    return value;
 }
+
 fn readType(allocator: std.mem.Allocator, reader: *std.Io.Reader, depth: usize, budget: *Budget) anyerror!Type {
     try budget.node(depth);
     const kind = std.enums.fromInt(Tag, try reader.takeByte()) orelse return error.InvalidTypeEncoding;

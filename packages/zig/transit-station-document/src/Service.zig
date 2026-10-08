@@ -197,8 +197,7 @@ pub fn reject(self: Self, turn: *Turn, id: u64) !void {
 /// Every page reopens a retained Document revision under a fresh current source.
 /// A revision is a reference, not a grant; retirement and policy floors are live.
 pub fn open(self: Self, source: anytype, revision: u64) !Document {
-    comptime requireCurrent(@TypeOf(source));
-    const h = try self.live(source);
+    const h = try self.liveCurrent(source);
     if (revision < h.floor) return error.DocumentHistoryGap;
     if (revision > h.state.revision) return error.DocumentRevisionNotAccepted;
     const doc = try records.openSnapshot((try source.read(self.key('v', revision))) orelse return error.DocumentHistoryGap);
@@ -225,6 +224,15 @@ pub fn acceptedChange(self: Self, turn: anytype, revision: u64) !m.Change {
 fn requireCurrent(comptime T: type) void {
     if (T != *Turn and T != *station.client.ResourceReader.Reader and T != *station.client.ResourceReader.Batch and T != *const station.client.ResourceReader.Batch) @compileError("Document lifecycle reads require a current turn or public ResourceReader, never a retained source");
 }
+fn liveCurrent(self: Self, source: anytype) !records.Head {
+    comptime requireCurrent(@TypeOf(source));
+    // Small indexes can fit completely in a Turn's captured cache. A new
+    // disclosure must still consult native authority after grant revocation.
+    if (@TypeOf(source) == *Turn) {
+        if (source.reader.cache_reads) _ = try source.readCommittedFresh(self.key('h', 0));
+    }
+    return self.live(source);
+}
 pub const Resynchronization = struct {
     document: u64,
     epoch: u64,
@@ -238,8 +246,7 @@ pub const Resynchronization = struct {
 /// Supplies a fresh accepted basis. Tentative old edits remain unaccepted; the
 /// caller chooses new edits/identities after reconciling with this revision.
 pub fn resynchronize(self: Self, turn: anytype, replica: u64) !Resynchronization {
-    comptime requireCurrent(@TypeOf(turn));
-    const h = try self.live(turn);
+    const h = try self.liveCurrent(turn);
     var reader: Index.Reader(@TypeOf(turn)) = .{ .publication = self.publication(), .source = turn };
     return .{ .document = self.document, .epoch = h.state.epoch, .type_revision = h.state.type_revision, .revision = h.state.revision, .floor = h.floor, .replica = replica, .previous_counter = try h.state.replicaCounter(&reader, replica), .clock = try h.state.clock(&reader) };
 }

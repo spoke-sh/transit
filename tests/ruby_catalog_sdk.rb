@@ -3,96 +3,113 @@ require 'json'
 require 'transit/station'
 $stdout.sync = true
 M = Transit::Station::Catalog
-cfg = JSON.parse(File.binread(ARGV.fetch(0)))
+L = Transit::Station::Logical
 raise 'Catalog caller did not load installed gem' unless Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(ENV.fetch('GEM_HOME'))
 
-def scope(v)
-  M::Scope.new(resource: Transit::ResourceRef.new(realm: v.fetch('realm'), resource: v.fetch('resource')),
-    catalog: Integer(v.fetch('catalog'), 10))
+def connect(config)
+  c = config.fetch('connection'); s = c.fetch('scope')
+  scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: s.fetch('realm'), resource: s.fetch('resource')), catalog: Integer(s.fetch('catalog'), 10))
+  connection = M::Connection.new(owner: Transit::ProcessRef.new(realm: s.fetch('realm'), pid: c.fetch('owner')), scope: scope)
+  M::Client.new(Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000),
+    Transit::Credential.new(realm: s.fetch('realm'), principal: c.fetch('principal'), seed_file: config.fetch('seed_file')), connection)
 end
-def scope_json(v) = { realm: v.resource.realm, resource: v.resource.resource, catalog: v.catalog.to_s }
-def configuration(v)
-  s = scope(v.fetch('scope'))
-  M::Configuration.new(scope: s, owner: Transit::ProcessRef.new(realm: s.resource.realm, pid: v.fetch('owner')),
-    administrator: v.fetch('administrator'))
+
+def persist(path, bytes)
+  File.open(path, 'wb', 0o600) { |file| file.write(bytes); file.flush; file.fsync }
 end
-def configuration_json(v) = { scope: scope_json(v.scope), owner: v.owner.pid, administrator: v.administrator }
-def policy(v)
-  M::Policy.new(scope: scope(v.fetch('scope')), principal: v.fetch('principal'), revision: Integer(v.fetch('revision'), 10),
-    can_inspect: v.fetch('inspect'), can_create: v.fetch('create'))
-end
-def policy_json(v) = { scope: scope_json(v.scope), principal: v.principal, revision: v.revision.to_s, inspect: v.can_inspect, create: v.can_create }
-def request(v)
-  schema = v.fetch('schema')
-  M::CreateTable.new(scope: scope(v.fetch('scope')), operation: Integer(v.fetch('operation'), 10), object: Integer(v.fetch('object'), 10),
-    table: v.fetch('table'), name: v.fetch('name'), schema: M::Schema.new(names: schema.fetch('names'), value_type: schema.fetch('value_type').to_sym))
-end
-def request_json(v)
-  { scope: scope_json(v.scope), operation: v.operation.to_s, object: v.object.to_s, table: v.table, name: v.name,
-    schema: { names: v.schema.names, value_type: v.schema.value_type } }
-end
-def prepared(v) = M::Prepared.new(data: v)
-def cursor(v)
-  v && M::Cursor.new(definition: v.fetch('definition'), scope: scope(v.fetch('scope')), resource_revision: v.fetch('resource_revision'), after: v.fetch('after'))
-end
-def cursor_json(v) = v && { definition: v.definition, scope: scope_json(v.scope), resource_revision: v.resource_revision, after: v.after }
-def definition_json(v)
-  v && { scope: scope_json(v.scope), object: v.object.to_s, revision: v.revision.to_s, name: v.name,
-    source: { table: { id: v.source.table, schema: { names: v.source.schema.names, value_type: v.source.schema.value_type } } },
-    principal: v.principal, operation: v.operation.to_s, input: v.input }
-end
-def call(client, action)
-  name, v = action.first
-  case name
-  when 'capabilities'
-    r = client.capabilities
-    { capabilities: { version: r.version, definition: r.definition, initialize: r.initialize_catalog,
-      create_table: r.create_table, conditional_policy: r.conditional_policy, current_metadata: r.current_metadata,
-      max_saved_bytes: r.max_saved_bytes, table_columns: r.table_columns } }
-  when 'describe'
-    r = client.describe
-    { description: { configuration: configuration_json(r.configuration), policy: policy_json(r.policy), resource_revision: r.resource_revision } }
-  when 'lookup' then { definition: definition_json(client.lookup(v)) }
-  when 'definition' then { definition: definition_json(client.definition(Integer(v.fetch('object'), 10), Integer(v.fetch('revision'), 10))) }
-  when 'list'
-    r = client.list(cursor(v))
-    { page: { resource_revision: r.resource_revision, entries: r.entries.map { |entry| definition_json(entry) } + [nil] * (8-r.entries.length), next: cursor_json(r.next) } }
-  when 'compile'
-    r = client.compile_sql(v.fetch('sql'), Integer(v.fetch('operation'), 10), Integer(v.fetch('object'), 10), v.fetch('table'))
-    { compiled: { request: request_json(r.request), canonical: r.canonical.unpack1('H*') } }
-  when 'prepare_initialize' then { prepared: client.prepare_initialize(configuration(v)).data }
-  when 'prepare_create' then { prepared: client.prepare_create(request(v)).data }
-  when 'prepare_policy'
-    { prepared: client.prepare_policy(M::PolicyChange.new(expected_revision: Integer(v.fetch('expected_revision'), 10), policy: policy(v.fetch('policy')))).data }
-  when 'submit' then { receipt: { position: client.submit(prepared(v)) } }
-  when 'observe' then { observation: client.observe(prepared(v.fetch('prepared')), v.fetch('input')) }
-  when 'input_disposition'
-    r = client.input_disposition(prepared(v.fetch('prepared')), v.fetch('input'))
-    { disposition: r && { scope: scope_json(r.scope), origin: r.origin, principal: r.principal, input: r.input,
-      payload: r.payload.unpack1('H*'), outcome: r.outcome, diagnostic: r.diagnostic } }
-  when 'status'
-    r = client.status(request(v))
-    { status: r && { request: request_json(r.request), principal: r.principal, input: r.input, outcome: r.outcome, diagnostic: r.diagnostic } }
-  else raise 'Unsupported catalog test action'
+
+def finish(client, compiled, directory)
+  persist(File.join(directory, 'intent.json'), JSON.generate(definition: compiled.saved.definition, bytes: compiled.saved.bytes.unpack1('H*')))
+  reference = compiled.intent.reference
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 120
+  loop do
+    raise 'Table operation exceeded its budget' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+    step = client.next(reference)
+    return step.outcome if step.kind == :terminal
+    next if step.kind == :running
+    raise 'Unexpected upload cancellation' unless step.kind == :send
+    persist(File.join(directory, 'step.json'), step.prepared.data)
+    position = client.submit(step.prepared)
+    persist(File.join(directory, 'receipt.json'), JSON.generate(position: position))
+    loop do
+      raise 'Table progress exceeded its budget' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      progress = client.progress(reference, step.prepared, position, wait: true)
+      next if progress.observation == :pending
+      raise "Unexpected input disposition #{progress.disposition}" unless progress.disposition.nil?
+      return progress.outcome if progress.outcome&.terminal
+      break
+    end
   end
 end
-c = cfg.fetch('connection'); s = scope(c.fetch('scope'))
-connection = M::Connection.new(owner: Transit::ProcessRef.new(realm: s.resource.realm, pid: c.fetch('owner')), scope: s)
-config = Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1, timeout_ms: 10000)
-credential = Transit::Credential.new(realm: s.resource.realm, principal: c.fetch('principal'), seed_file: cfg.fetch('seed_file'))
-M::Client.open(config, credential, connection) do |client|
+
+def atom(kind, value) = L::Present.new(value: L::Atom.new(kind: kind, value: value))
+def assignment(column, value) = M::Assignment.new(column: column, value: value)
+def check(value)
+  raise 'Installed Table assertion failed' unless value
+end
+
+def scenario(client, config, directory, index)
+  base = 1100 + index * 100; object = 12001 + index * 10; name = "sdk_people_#{index}"
+  identity = ->(offset) { M::Identity.new(operation: base + offset, namespace: base + offset + 100000) }
+  description = client.describe
+  check(description.configuration.scope == client.connection.scope && description.policy.principal == config.fetch('connection').fetch('principal'))
+  compiled = client.compile_sql("CREATE TABLE #{name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", identity.call(0), object)
+  check(finish(client, compiled, directory).phase == :applied)
+  original = client.lookup(name)
+  check(original.schema.columns.length == 3 && original.schema.columns[1].type.is_a?(L::Structure))
+  payload = L::Present.new(value: L::Sequence.new(kind: :structure, cells: [atom(:binary, [0, 128, 255].pack('C*')), atom(:utf8, '東京')]))
+  amount = atom(:decimal, 123456789012345678901234567890)
+  insert = client.prepare(name, identity.call(1), M::Mutate.new(basis: original.metadata.basis,
+    mutation: M::Insert.new(rows: [[assignment(3, amount), assignment(1, atom(:signed, 1)), assignment(2, payload)]])))
+  applied = finish(client, insert, directory)
+  check(applied.counts == M::Counts.new(matched: 1, changed: 1))
+  predicate = [M::Comparison.new(column: 1, op: :eq, value: L::Atom.new(kind: :signed, value: 1))]
+  unchanged = client.prepare(name, identity.call(2), M::Mutate.new(basis: original.metadata.basis,
+    mutation: M::Update.new(assignments: [assignment(3, amount)], predicate: predicate)))
+  check(finish(client, unchanged, directory).counts == M::Counts.new(matched: 1, changed: 0))
+  alter = client.prepare(name, identity.call(3), M::Alter.new(basis: original.metadata.basis,
+    change: M::AddColumn.new(name: 'enabled', type: L::Scalar.new(kind: :boolean), nullable: false, default: atom(:boolean, true))))
+  check(finish(client, alter, directory).phase == :applied)
+  begin
+    client.prepare(name, identity.call(4), M::Drop.new(basis: original.metadata.basis))
+  rescue Transit::Error
+    # The native caller rejects this exact stale basis before staging work.
+  else
+    raise 'Stale metadata retargeted Table work'
+  end
+  current = client.lookup(name)
+  delete = client.prepare(name, identity.call(5), M::Mutate.new(basis: current.metadata.basis, mutation: M::Delete.new(predicate: predicate)))
+  check(finish(client, delete, directory).counts == M::Counts.new(matched: 1, changed: 1))
+  check(finish(client, client.prepare(name, identity.call(6), M::Drop.new(basis: current.metadata.basis)), directory).phase == :applied)
+  check(finish(client, client.compile_sql("CREATE TABLE #{name} (replacement TEXT)", identity.call(7), object + 1), directory).phase == :applied)
+  client.close
+  replacement = connect(config)
+  begin
+    saved = insert.saved
+    loaded = replacement.load(M::SavedIntent.new(definition: saved.definition, bytes: saved.bytes))
+    check(loaded.object == object)
+    check(replacement.status(loaded.reference).outcome == applied)
+    check(replacement.lookup(name).metadata.object == object + 1)
+    historical = replacement.definition(object, original.metadata.revision)
+    check(historical.metadata == original.metadata && historical.schema == original.schema && !historical.respond_to?(:head))
+    check(replacement.definition(object, 999).nil?)
+    check(!replacement.list.entries.empty?)
+  ensure
+    replacement.close
+  end
+  { profile: 'installed-ruby-general-table', original_object: object.to_s, replacement_object: (object + 1).to_s, counts: { matched: '1', changed: '1' } }
+end
+
+path = ARGV.fetch(0); config = JSON.parse(File.binread(path)); client = connect(config)
+begin
   puts JSON.generate(ready: true)
   $stdin.each_line do |line|
     action = JSON.parse(line)
     break if action.key?('close')
-    begin
-      puts JSON.generate(status: 0, value: call(client, action))
-    rescue Transit::Error => error
-      if error.is_a?(M::Uncertain)
-        raise 'Uncertainty lost the original command' unless error.prepared.data == action.fetch('submit')
-      end
-      puts JSON.generate(status: error.status, value: { err: error.code, diagnostic: error.diagnostic, diagnostic_invalid: error.diagnostic_invalid })
-    end
+    result = scenario(client, config, File.dirname(path), action.fetch('scenario').fetch('index'))
+    puts JSON.generate(status: 0, value: result)
   end
+ensure
+  client.close
 end
 puts JSON.generate(closed: true)

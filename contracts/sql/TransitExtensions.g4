@@ -38,22 +38,31 @@ predicate: disjunction;
 disjunction: conjunction (OR conjunction)*;
 conjunction: negation (AND negation)*;
 negation: NOT negation | LPAREN predicate RPAREN | predicateAtom;
-predicateAtom: columnReference (IS cellState | comparison literal);
+predicateAtom: columnReference (IS NOT? cellState | comparison literal);
 cellState: NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT;
 comparison: EQ | NE | LT | LE | GT | GE;
-literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?;
+literal
+    : signedInteger | signedNumber | TRUE | FALSE | NULL_ | MISSING
+    | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?
+    | (X | DATE | TIME | TIMESTAMP | UUID | JSON) STRING
+    | (STRUCT | LIST | ARRAY | MAP | INTERVAL) LPAREN (literal (COMMA literal)*)? RPAREN
+    | UNION LPAREN identifier COMMA literal RPAREN
+    ;
+signedNumber: (PLUS | MINUS)? NUMBER;
 signedInteger: (PLUS | MINUS)? INTEGER;
 limitClause: LIMIT INTEGER;
 
-// Execution requires an explicitly integrated application writer. Query
-// transports reject these forms; this grammar conveys no write permission.
+// All mutations bind to a configured catalog and its current permissions.
+// Literal/descriptor parsing conveys neither row validity nor execution rights.
 mutationStatement
-    : INSERT INTO identifier LPAREN identifier COMMA identifier RPAREN
+    : INSERT INTO identifier (LPAREN identifier (COMMA identifier)* RPAREN)?
       VALUES mutationRow (COMMA mutationRow)*
-    | UPDATE identifier SET columnReference EQ literal WHERE columnReference EQ literal
-    | DELETE FROM identifier WHERE columnReference EQ literal
+    | UPDATE identifier SET assignment (COMMA assignment)* whereClause?
+    | DELETE FROM identifier whereClause?
     ;
-mutationRow: LPAREN literal COMMA literal RPAREN;
+assignment: columnReference EQ mutationValue;
+mutationValue: DEFAULT | literal;
+mutationRow: LPAREN mutationValue (COMMA mutationValue)* RPAREN;
 
 
 // ---- Parser rules -----------------------------------------------------
@@ -63,6 +72,8 @@ extensionStatement
     | createSource
     | createSink
     | createTable
+    | alterTable
+    | dropTable
     | createDocument
     | createKv
     | grantStatement
@@ -114,31 +125,46 @@ secretRef
     : SECRET LPAREN STRING RPAREN
     ;
 
-// CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);
-// A relational spelling of Table.create/table_create; see
-// docs/history/QUERY_LANGUAGE.md's noted prerequisite (today's Table is fixed at
-// exactly two columns, so a real multi-column CREATE TABLE needs that
-// model to grow first — this rule states the target shape, not current
-// support).
+// General typed schemas; constraints, aliases and parameter values are checked
+// by the shared compiler. Storage/operator/transport admission remains separate.
 createTable
-    : CREATE TABLE identifier LPAREN columnDef (COMMA columnDef)* RPAREN
+    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN
     ;
-
-columnDef
-    : identifier dataType nullability?
-    ;
-
-nullability
-    : NOT NULL_
-    | NULL_
-    ;
+tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN;
+columnDef: identifier dataType columnConstraint*;
+columnConstraint: nullability | DEFAULT literal | PRIMARY KEY;
+nullability: NOT NULL_ | NULL_;
 
 dataType
-    : INT64
-    | BOOL
-    | UTF8
-    | BINARY
+    : scalarTypeName (LPAREN INTEGER (COMMA INTEGER)? RPAREN)? ((WITH | WITHOUT) TIME ZONE)?
+    | (STRUCT | UNION) LPAREN typeField (COMMA typeField)* RPAREN
+    | LIST LPAREN dataType nullability? RPAREN
+    | ARRAY LPAREN dataType nullability? COMMA INTEGER RPAREN
+    | MAP LPAREN dataType nullability? COMMA dataType nullability? RPAREN
     ;
+// Unknown scalar names/parameter combinations produce attributed binding errors.
+// Quoted type names are not aliases. INT8 retains Transit's eight-bit meaning.
+scalarTypeName
+    : IDENTIFIER | INT64 | UINT64 | FLOAT64 | BOOL | UTF8 | BINARY | BYTEA
+    | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL
+    | DOUBLE PRECISION? | CHARACTER VARYING
+    ;
+typeField: identifier dataType nullability? OPTIONAL?;
+
+alterTable
+    : ALTER TABLE identifier (
+        ADD COLUMN? columnDef
+      | DROP COLUMN? identifier RESTRICT?
+      | RENAME COLUMN? identifier TO identifier
+      | RENAME TO identifier
+      | ALTER COLUMN? identifier (
+          SET DEFAULT literal | DROP DEFAULT
+        | SET NOT NULL_ | DROP NOT NULL_
+        | (SET DATA)? TYPE dataType
+        )
+      )
+    ;
+dropTable: DROP TABLE (IF EXISTS)? identifier RESTRICT?;
 
 // Proposed DDL over M17's Document model; M17 does not implement SQL DDL.
 createDocument
@@ -200,6 +226,9 @@ asOfClause
 identifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     | INSERT | UPDATE | DELETE | SET | VALUES
+    | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
+    | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
+    | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -223,6 +252,38 @@ CONFLICT: 'CONFLICT';
 UINT64: 'UINT64';
 FLOAT64: 'FLOAT64';
 EXPLAIN: 'EXPLAIN';
+ALTER: 'ALTER';
+DROP: 'DROP';
+ADD: 'ADD';
+COLUMN: 'COLUMN';
+RENAME: 'RENAME';
+RESTRICT: 'RESTRICT';
+DEFAULT: 'DEFAULT';
+PRIMARY: 'PRIMARY';
+KEY: 'KEY';
+IF: 'IF';
+EXISTS: 'EXISTS';
+DATA: 'DATA';
+TYPE: 'TYPE';
+STRUCT: 'STRUCT';
+LIST: 'LIST';
+ARRAY: 'ARRAY';
+MAP: 'MAP';
+UNION: 'UNION';
+OPTIONAL: 'OPTIONAL';
+WITHOUT: 'WITHOUT';
+ZONE: 'ZONE';
+X: 'X';
+DATE: 'DATE';
+TIME: 'TIME';
+TIMESTAMP: 'TIMESTAMP';
+UUID: 'UUID';
+JSON: 'JSON';
+INTERVAL: 'INTERVAL';
+DOUBLE: 'DOUBLE';
+PRECISION: 'PRECISION';
+CHARACTER: 'CHARACTER';
+VARYING: 'VARYING';
 INSERT: 'INSERT';
 UPDATE: 'UPDATE';
 DELETE: 'DELETE';
@@ -278,6 +339,7 @@ SEMI: ';';
 
 IDENTIFIER: [a-z_][a-z0-9_]*;
 QUOTED_IDENTIFIER: '"' ('""' | ~["\u0000])+ '"';
+NUMBER: [0-9]+ ('.' [0-9]+ ([e] [+-]? [0-9]+)? | [e] [+-]? [0-9]+);
 INTEGER: [0-9]+;
 PARAMETER: '$' [0-9]+;
 // standard_conforming_strings=on: doubled quotes escape a quote; backslashes

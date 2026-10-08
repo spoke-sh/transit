@@ -1,9 +1,9 @@
 """Build independent Java JARs/POMs with pinned direct dependencies and native resources."""
 from pathlib import Path
+import argparse
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
 
 
-def build(output, names):
+def build(output, names, native_prefix=ROOT / 'zig-out'):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     gson = Path(os.environ['TRANSIT_GSON_JAR'])
@@ -41,7 +41,7 @@ def build(output, names):
                 family = name.removeprefix('transit-native-')
                 target = classes / 'io/transit' / f'native{family}'
                 assert (target / 'version').read_text() == VERSION + '\n'
-                shutil.copy2(ROOT / 'zig-out/bin' / f'transit-{family}-host', target)
+                shutil.copy2(native_prefix / 'bin' / f'transit-{family}-host', target)
             sources = sorted((source / 'src').rglob('*.java'))
             if sources:
                 subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', os.pathsep.join(classpath), '-d', str(classes), *map(str, sources)], check=True)
@@ -57,4 +57,9 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/java'])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('packages', nargs='*')
+    parser.add_argument('--native-prefix', type=Path, default=ROOT / 'zig-out')
+    args = parser.parse_args()
+    build(args.output, args.packages or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/java'], args.native_prefix.resolve())

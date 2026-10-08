@@ -4,8 +4,11 @@ import { UnifiedQueryResponse as validate } from '../packages/ts/transit-board-c
 const value = JSON.parse(readFileSync(0, 'utf8'));
 for (const [tag, data] of Object.entries(value)) assert(validate({ [tag]: data }), `${tag}: ${JSON.stringify(validate.errors)}`);
 const changed = structuredClone(value.page);
-changed.cells[0][0] = { value: { int64: 9007199254740994 } };
+changed.cells[0][0] = { value: { atom: { signed: 9007199254740994 } } };
 assert(!validate({ page: changed }), 'numeric int64 must never replace a lossless string');
+const legacy = structuredClone(value.page);
+legacy.cells[0][0] = { value: { int64: '9007199254740994' } };
+assert(!validate({ page: legacy }), 'superseded scalar envelopes must reject');
 const incomplete = structuredClone(value.page);
 incomplete.cells = Array(9).fill(incomplete.cells[0]);
 assert(!validate({ page: incomplete }), 'bounded owned row count is required');

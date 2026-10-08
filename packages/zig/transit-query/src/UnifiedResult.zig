@@ -4,7 +4,8 @@ const std = @import("std");
 const q = @import("root.zig");
 const s = q.station;
 const r = q.UnifiedRecords;
-const m = q.fuze.Unified;
+const f = q.fuze;
+const t = f.Types;
 const Ref = s.PublicationReference;
 pub const Expected = struct {
     resource: u64,
@@ -16,9 +17,8 @@ pub const Expected = struct {
 pub const Open = struct {
     manifest: r.Manifest,
     bundle: q.Bundle,
-    pub fn outputSchema(self: Open, columns: *[m.max_columns]m.Column) !m.Schema {
-        var input: [m.max_columns]m.Column = undefined;
-        return self.bundle.plan.outputSchema(try self.bundle.source.schema(&input), columns);
+    pub fn outputSchema(self: Open, columns: *[q.SourceDefinition.max_columns]t.Field) !t.Type {
+        return self.bundle.plan.outputSchema(columns);
     }
 };
 fn checkReference(reference: Ref, expected: Expected) !void {
@@ -34,8 +34,8 @@ fn live(reference: Ref, expected: Expected, opened: Open, source: anytype) !void
     var reader = try source.open(reference.resource);
     if (!std.meta.eql(try q.UnifiedCapture.job(&reader, job.id), job) or job.phase != .complete) return error.ResultUnavailable;
     const grant = (try q.UnifiedCapture.permitted(&reader, job)) orelse return error.QueryDenied;
-    if (opened.bundle.source.resource != reference.resource or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(opened.bundle.source)) or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
-    try q.UnifiedSource.checkCurrent(opened.bundle.source, &reader);
+    if (opened.bundle.source.resource != reference.resource or !grant.limits.permits(opened.bundle.limits)) return error.QueryDenied;
+    try q.UnifiedSource.checkCurrent(opened.bundle.source, &reader, try grant.principal(opened.bundle.source));
     const descriptor = try reference.publication().inspect(&reader, reference.record);
     if (descriptor.state != .published or descriptor.publisher != expected.source or !std.meta.eql(descriptor.spec, reference.spec)) return error.ResultUnavailable;
     try q.Bundle.checkPublisher(job.request, source, job.destination);
@@ -51,9 +51,7 @@ pub fn open(reference: Ref, expected: Expected, source: anytype, allocator: std.
     const bundle = try q.Bundle.decode(allocator, try manifest.job.request.read(source, request_bytes));
     const opened: Open = .{ .manifest = manifest, .bundle = bundle };
     try live(reference, expected, opened, source);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, manifest.checkpoint.progress.basis.revision), try bundle.source.schema(&columns));
-    try manifest.checkpoint.progress.validate(bound);
+    _ = try manifest.checkpoint.bound(bundle);
     const progress = manifest.checkpoint.progress;
     if (progress.pages > bundle.limits.pages or progress.segments > bundle.limits.segments or manifest.checkpoint.bytes > bundle.limits.result_bytes or (progress.finished == .source_end and !manifest.checkpoint.cursor.done)) return error.InvalidQueryManifest;
     return opened;
@@ -67,15 +65,16 @@ pub const Cursor = struct {
 };
 pub const Page = struct {
     manifest: r.Manifest,
+    basis: q.Basis,
     next: ?Cursor,
     arrow: []const u8,
-    schema: m.Schema,
-    plan: m.Plan,
+    schema: t.Type,
+    plan: f.LogicalQuery.Plan,
 };
 /// decoded must be at its final address; strings/columns belong to allocator,
 /// Arrow bytes borrow output. Any error invalidates all output storage. A null
 /// continuation proves complete ordered row/byte/digest coverage.
-pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype, allocator: std.mem.Allocator, workspace: []u8, output: []u8, decoded: *m.Inspect.Batch) !Page {
+pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype, allocator: std.mem.Allocator, workspace: []u8, output: []u8, decoded: *f.LogicalInspect.Batch) !Page {
     const opened = try open(reference, expected, source, allocator);
     const manifest = opened.manifest;
     var next: Cursor = cursor orelse .{ .reference = reference };
@@ -90,9 +89,10 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     if (!std.mem.eql(u8, &digest, &segment.arrow_digest)) return error.InvalidResultDigest;
-    var columns: [m.max_columns]m.Column = undefined;
+    var columns: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try opened.outputSchema(&columns);
-    try m.Inspect.decode(schema, bytes, segment.rows, workspace, allocator, decoded);
+    decoded.* = try f.LogicalInspect.decode(allocator, schema, bytes, segment.rows, workspace);
+    errdefer decoded.deinit();
     next.ordinal = try std.math.add(u64, next.ordinal, 1);
     next.rows = try std.math.add(u64, next.rows, segment.rows);
     next.bytes = try std.math.add(u64, next.bytes, bytes.len);
@@ -103,7 +103,7 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
     try live(reference, expected, opened, source);
-    return .{ .manifest = manifest, .next = if (complete) null else next, .arrow = bytes, .schema = .{ .columns = try allocator.dupe(m.Column, schema.columns) }, .plan = opened.bundle.plan };
+    return .{ .manifest = manifest, .basis = try manifest.checkpoint.basis(opened.bundle.source), .next = if (complete) null else next, .arrow = bytes, .schema = try schema.cloneInto(allocator), .plan = opened.bundle.plan };
 }
 
 fn completeCoverage(cursor: Cursor, rows: u64, bytes: u64, chain: [32]u8) !void {

@@ -6,7 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Client, ProcessRef, ResourceRef, Busy, Closed, CodecError, TurnExpired, ReadFailed, StaleOwnership, AccessDenied, ProcessRetired, HandlerError } from '@transit/client';
 import { Activation, Runner, ReadVersion, IpcSegment, encodeCast, Key, prepareHttp, decodeHttpReply, HttpOutcome, grpcMethod, prepareGrpc, decodeGrpcReply, GrpcOutcome } from '@transit/station';
 import { Counter, Requester, TableService, QueryRequester, TABLE, TOTAL, counter, query, u64Codec,
-  counterCodec, requesterCodec, queryServiceCodec, queryRequesterCodec } from '@transit/sdk-examples';
+  counterCodec, requesterCodec, queryServiceCodec, queryRequesterCodec, queueCodec, workCodec, outcomeCodec } from '@transit/sdk-examples';
 
 const [mode, path] = process.argv.slice(2);
 const cfg = JSON.parse(await readFile(path, 'utf8'));
@@ -28,7 +28,7 @@ async function main() {
     for (let i = 0; i < 6; i++) {
       const value = JSON.parse(await readFile(`${cfg.output}/${i}.segment`, 'utf8'), revived);
       const original = new Uint8Array(await readFile(`${cfg.output}/${i}.arrow`));
-      const segment = new IpcSegment(value.manifest, value.ordinal, value.rows, new Uint8Array(value.digest), original, 8192);
+      const segment = new IpcSegment(value.manifest, value.ordinal, value.rows, new Uint8Array(value.digest), original, 65535);
       const table = toArrow(segment);
       original.fill(0);
       segment.ipc.fill(0);
@@ -38,12 +38,17 @@ async function main() {
     for (const row of rows) for (const cell of [row.id, row.value]) {
       assert.equal(cell.alternatives.length, 0);
       assert.ok(cell.state === 1 || cell.state === 3);
-      assert.equal(cell.kind, cell.state === 1 ? 7 : 1);
+      assert.equal(cell.kind, cell.state === 1 ? 0 : 1);
       if (cell.state === 1) assert.equal(cell.value, null);
     }
     assert.equal(rows[0].id.value, -(1n << 63n)); assert.equal(rows[0].value.value, 17n);
     assert.equal(rows[1].value.value, (1n << 63n) - 1n); assert.equal(rows[2].value.value, (1n << 53n) + 1n);
     assert.equal(rows[5].value.state, 1);
+    for (const row of rows) {
+      assert.equal(row.label.state, 3); assert.equal(row.label.value, 'example');
+      assert.equal(row.tags.state, 3);
+      assert.deepEqual([...row.tags.value].map(cell => [cell.state, cell.kind, cell.value]), [[3, 1, 1n], [3, 1, 2n]]);
+    }
     return;
   }
   if (mode === 'codecs') {
@@ -55,12 +60,20 @@ async function main() {
       assert.deepEqual(codec.encode(value), bytes);
       if (item.codec === 'u64') assert.equal(value, BigInt(item.value));
       else {
-        assert.equal(value.kind, item.variant.toLowerCase());
+        assert.equal(value.kind, item.variant[0].toLowerCase() + item.variant.slice(1));
         for (const name of ['key', 'value']) if (name in item) assert.equal(value[name], item[name] === null ? null : BigInt(item[name]));
       }
     }
     for (const item of fixtures.invalid) assert.throws(() => codecs[item.codec].decode(new Uint8Array(Buffer.from(item.hex, 'hex'))));
     for (const invalid of [true, -1n, 1n << 64n, 1]) assert.throws(() => u64Codec.encode(invalid));
+    const tableFixtures = JSON.parse(await readFile(cfg.table_fixtures, 'utf8'));
+    const tableCodecs = {queue: queueCodec, work: workCodec, outcome: outcomeCodec};
+    for (const item of tableFixtures.valid) {
+      const codec = tableCodecs[item.codec], bytes = new Uint8Array(Buffer.from(item.hex, 'hex'));
+      assert.deepEqual(codec.encode(codec.decode(bytes)), bytes);
+    }
+    for (const item of tableFixtures.invalid)
+      assert.throws(() => tableCodecs[item.codec].decode(new Uint8Array(Buffer.from(item.hex, 'hex'))));
     const value = { kind: 'add', value: (1n << 53n) + 1n };
     assert.deepEqual(await encodeCast(value, counterCodec), new Uint8Array(Buffer.concat([Buffer.from('STN1'), Buffer.from([1]), Buffer.alloc(8), counter.encode(value)])));
     const fixture = JSON.parse(await readFile(cfg.http_fixtures, 'utf8'));
@@ -104,24 +117,27 @@ async function main() {
         const saved = `${cfg.output}/version.json`;
         if (input.kind === 'cast' && input.value.kind === 'rows') {
           let cursor, rows = [], pages = 0;
-          const table = await turn.table(TABLE);
+          const table = await turn.table(TABLE.objectId);
+          assert.deepEqual(table.schema.columns, TABLE.columns);
           do {
             const page = await table.page(cursor);
-            assert.ok(page.entries.length <= 8); assert.deepEqual(page.basis, table.basis);
-            rows.push(...page.entries); pages++; cursor = page.next;
+            assert.ok(page.rows.length <= 8); assert.deepEqual((await turn.table(TABLE.objectId)).basis, table.basis);
+            rows.push(...page.rows); pages++; cursor = page.next;
           } while (cursor !== undefined);
           assert.equal(rows.length, 41); assert.equal(pages, 6);
-          assert.deepEqual(rows[0], { key: -(1n << 63n), value: null });
+          const signed = value => ({state: 'value', value: {kind: 'atom', atom: {kind: 'signed', value}}});
+          assert.deepEqual(rows[0].cells.slice(0, 2), [signed(-(1n << 63n)), {state: 'null'}]);
+          for (const row of rows) assert.deepEqual(row.cells.slice(2), TABLE.columns.slice(2).map(c => c.default));
           const version = await turn.retain();
           await writeFile(saved, JSON.stringify(version));
-          await table.update({ key: -(1n << 63n), value: 17n });
-        } else if (input.value.kind === 'initialize' && existsSync(saved)) {
+        } else if (input.kind === 'cast' && input.value.kind === 'initialize' && existsSync(saved)) {
           const value = JSON.parse(await readFile(saved, 'utf8'));
           const version = new ReadVersion(value.pid, value.input, value.index);
-          assert.equal((await (await turn.table(TABLE)).get(-(1n << 63n))).value, 17n);
-          const source = turn.openVersion(version), table = await source.table(TABLE);
-          assert.equal((await table.get(-(1n << 63n))).value, null);
-          assert.equal((await table.page()).entries.length, 8);
+          const signed = value => ({state: 'value', value: {kind: 'atom', atom: {kind: 'signed', value}}});
+          assert.deepEqual((await (await turn.table(TABLE.objectId)).getKey([signed(-(1n << 63n))])).cells[1], signed(17n));
+          const source = turn.openVersion(version), table = await source.table(TABLE.objectId);
+          assert.deepEqual((await table.getKey([signed(-(1n << 63n))])).cells[1], {state: 'null'});
+          assert.equal((await table.page()).rows.length, 8);
           assert.ok((await source.state.page()).entries.length <= 8);
           await turn.release(version);
         } else await super.handle(turn, input);
@@ -142,6 +158,14 @@ async function main() {
           while (!existsSync(`${cfg.output}/continue`)) { assert.ok(Date.now() < deadline); await delay(10); }
           await reader.segment(0n);
         } else await super.handle(turn, input);
+      }
+      async handleQueryFailure(turn, failure) {
+        assert.equal(failure.origin.kind, 'process'); assert.equal(failure.origin.process.pid, peer.pid);
+        assert.equal(failure.correlation, await turn.state.require(new Key(new TextEncoder().encode('request'), u64Codec)));
+        assert.ok(failure.result > 0); assert.equal(await turn.state.find(TOTAL), undefined);
+        const reason = ['result_too_large','workspace_exceeded','overflow','cancelled','denied'].indexOf(failure.reason) + 1;
+        assert.ok(reason > 0); await turn.state.put(TOTAL, 1n);
+        await turn.state.put(new Key(new TextEncoder().encode('observed'), u64Codec), BigInt(reason));
       }
       async handleResult(turn, reader) {
         await super.handleResult(turn, reader);

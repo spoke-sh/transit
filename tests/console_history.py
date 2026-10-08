@@ -43,7 +43,7 @@ def check(binary, signal_gate):
             'version': 1, 'profile': 'unified_v1', 'transport': 'loopback',
             'url': f'http://127.0.0.1:{trap.getsockname()[1]}', 'seed_file': 'caller.seed',
             'connection': dict(zip(('realm', 'principal', 'source', 'resource', 'requester', 'requests'), range(1, 7))),
-            'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'id': 1, 'names': ['key', 'value'], 'value_type': 'int64'}}},
+            'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'kv': {'prefix': '6b', 'key': {'type': 'binary'}, 'value': {'type': 'utf8'}}}},
                           'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}},
         }))
         history = home / '.transit_history'

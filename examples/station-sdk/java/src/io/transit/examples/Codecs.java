@@ -67,6 +67,14 @@ public final class Codecs {
                 case Initialize initialize -> output('Q', 5, 1).array();
                 case Rows rows -> output('Q', 5, 3).array();
                 case Start start -> output('Q', 5, 4).array();
+                case Advance advance -> output('Q', 5, 5).array();
+                case NotReady notReady -> output('Q', 5, 6).array();
+                case Delete delete -> output('Q', 13, 8).putLong(delete.key()).array();
+                case Update update -> {
+                    ByteBuffer bytes = output('Q', update.value() == null ? 14 : 22, 7).putLong(update.key()).put((byte) (update.value() == null ? 0 : 1));
+                    if (update.value() != null) bytes.putLong(update.value());
+                    yield bytes.array();
+                }
                 case Insert insert -> {
                     ByteBuffer bytes = output('Q', insert.value() == null ? 14 : 22, 2).putLong(insert.key()).put((byte) (insert.value() == null ? 0 : 1));
                     if (insert.value() != null) bytes.putLong(insert.value());
@@ -76,12 +84,15 @@ public final class Codecs {
         }
         @Override public QueryMessage decode(byte[] bytes) {
             ByteBuffer buffer = input(bytes, 'Q', 5, 22);
-            QueryMessage value = switch (buffer.get()) {
+            byte tag = buffer.get();
+            QueryMessage value = switch (tag) {
                 case 1 -> new Initialize(); case 3 -> new Rows(); case 4 -> new Start();
-                case 2 -> {
+                case 5 -> new Advance(); case 6 -> new NotReady(); case 8 -> new Delete(buffer.getLong());
+                case 2, 7 -> {
                     long key = buffer.getLong(); byte marker = buffer.get();
                     if (marker != 0 && marker != 1) throw new IllegalArgumentException("Invalid nullable marker");
-                    yield new Insert(key, marker == 0 ? null : buffer.getLong());
+                    Long cell = marker == 0 ? null : buffer.getLong();
+                    yield tag == 2 ? new Insert(key, cell) : new Update(key, cell);
                 }
                 default -> throw new IllegalArgumentException("Unknown query message");
             };
@@ -92,6 +103,7 @@ public final class Codecs {
     public static final Codec<CounterMessage> COUNTER = new CounterCodec(Set.of(Add.class, Read.class));
     public static final Codec<CounterMessage> REQUESTER = new CounterCodec(Set.of(Start.class, Total.class));
     public static final Codec<CounterMessage> REPLY = new CounterCodec(Set.of(Total.class));
-    public static final Codec<QueryMessage> QUERY_SERVICE = new QueryCodec(Set.of(Initialize.class, Insert.class, Rows.class));
-    public static final Codec<QueryMessage> QUERY_REQUESTER = new QueryCodec(Set.of(Start.class));
+    public static final Codec<QueryMessage> QUERY_SERVICE = new QueryCodec(Set.of(Initialize.class, Insert.class, Rows.class, Advance.class, Update.class, Delete.class));
+    public static final Codec<QueryMessage> QUERY_REQUESTER = new QueryCodec(Set.of(Start.class, NotReady.class));
+    public static final Codec<QueryMessage> QUERY_REPLY = new QueryCodec(Set.of(NotReady.class));
 }

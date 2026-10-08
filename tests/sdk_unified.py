@@ -14,7 +14,7 @@ import tomllib
 
 import pyarrow
 from unified_abi import Failure
-from unified_codec import arrow_fixture, boolean_bundle_fixtures
+from unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,7 +69,9 @@ class Consumer:
 
 def install(root, languages):
     root.mkdir()
-    _, rows, _, ipc = arrow_fixture()
+    # The independent PyArrow fixture retains the production canonical schema.
+    subprocess.run(['zig', 'build', 'logical-arrow-proof', '-Doptimize=ReleaseSafe', '--prefix', str(root/'producer')], cwd=ROOT, check=True)
+    _, rows, _, ipc = arrow_fixture(str(root/'producer/bin/transit-logical-arrow-proof'))
     (root/'arrow.ipc').write_bytes(bytes.fromhex(ipc(rows)))
     (root/'empty.ipc').write_bytes(bytes.fromhex(ipc([])))
     bad = copy.deepcopy(rows); bad[0]['int64']['value'] = 1
@@ -78,6 +80,8 @@ def install(root, languages):
     fixtures = dict(bundles=str(root/'bundles.json'), arrow=str(root/'arrow.ipc'), empty=str(root/'empty.ipc'), malformed=str(root/'malformed.ipc'))
     (root/'boolean.json').write_text(json.dumps(boolean_bundle_fixtures()))
     fixtures['boolean'] = str(root/'boolean.json')
+    nested_arrow_fixture(root/'producer/bin/transit-logical-arrow-proof', root/'nested.ipc')
+    fixtures['nested'] = str(root/'nested.ipc')
     (root/'fixtures.json').write_text(json.dumps(fixtures))
     factories = []
     for language in languages:
@@ -126,9 +130,9 @@ def install(root, languages):
     return factories
 
 
-def install_node(root, fixtures):
+def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node'):
     root.mkdir()
-    dependencies = {f'@transit/{name}': 'file:' + str(ROOT/'.cache/bindings/node'/f'transit-{name}-0.2.0.tgz')
+    dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.2.0.tgz')
         for name in ('client', 'native-client', 'station', 'native-station')}
     manifest = dict(private=True, type='module', packageManager=json.loads((ROOT/'package.json').read_text())['packageManager'],
         dependencies={**dependencies, 'apache-arrow': '21.2.0'}, pnpm=dict(overrides=dependencies))
@@ -146,12 +150,12 @@ def install_node(root, fixtures):
     return open_callers
 
 
-def install_ruby(root, fixtures):
+def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby'):
     root.mkdir()
     default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
     env.update(GEM_HOME=str(root/'gems'), GEM_PATH=f'{root / "gems"}:{default}')
-    files = [ROOT/'.cache/bindings/ruby'/name for name in (
+    files = [packages/name for name in (
         'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
         'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem')]
     subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=root, check=True, stdout=subprocess.DEVNULL)
@@ -165,11 +169,11 @@ def install_ruby(root, fixtures):
     return open_callers
 
 
-def install_rust(root, fixtures):
+def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/rust'):
     root.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in names:
-        with tarfile.open(ROOT/'.cache/bindings/rust'/f'{name}-0.2.0.crate') as archive:
+        with tarfile.open(packages/f'{name}-0.2.0.crate') as archive:
             archive.extractall(root/'vendor', filter='data')
     (root/'src').mkdir()
     shutil.copyfile(ROOT/'tests/rust_unified_sdk.rs', root/'src/main.rs')
@@ -241,10 +245,10 @@ class CConsumer(Consumer):
         return result
 
 
-def install_c(root, fixtures, language):
+def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c'):
     root.mkdir()
     prefix = root/'installed'
-    for artifact in sorted((ROOT/'.cache/bindings/c').glob('*.tar.gz')):
+    for artifact in sorted(packages.glob('*.tar.gz')):
         with tarfile.open(artifact) as archive: archive.extractall(prefix, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}
     env['PKG_CONFIG_PATH'] = str(prefix/'lib/pkgconfig')
@@ -275,11 +279,11 @@ def install_c(root, fixtures, language):
     return open_callers
 
 
-def install_java(root, fixtures):
+def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java'):
     root.mkdir(); lib = root/'lib'; lib.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
-        shutil.copy2(ROOT/'.cache/bindings/java'/name, lib/name)
+        shutil.copy2(packages/name, lib/name)
     env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
     source = root/'JavaUnifiedSdk.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
     classes = root/'classes'; classes.mkdir()
@@ -294,11 +298,11 @@ def install_java(root, fixtures):
     return open_callers
 
 
-def install_dotnet(root, fixtures):
+def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet'):
     import xml.etree.ElementTree as ET
     root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-        name = f'{package}.0.2.0.nupkg'; shutil.copy2(ROOT/'.cache/bindings/dotnet'/name, feed/name)
+        name = f'{package}.0.2.0.nupkg'; shutil.copy2(packages/name, feed/name)
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
     env.update(NUGET_PACKAGES=str(root/'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
     project = source/'Consumer.csproj'
@@ -322,12 +326,12 @@ def install_dotnet(root, fixtures):
     return open_callers
 
 
-def install_beam(root, fixtures, language):
+def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam'):
     root.mkdir(); lib = root/'lib'; lib.mkdir(); classes = root/'classes'; classes.mkdir()
     names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
     if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
     for name in names:
-        with tarfile.open(ROOT/'.cache/bindings/beam'/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
+        with tarfile.open(packages/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST')}
     env.update(ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     sources = ['beam_unified_controller.erl'] + (['beam_unified_adapter.erl'] if language == 'erlang' else [])

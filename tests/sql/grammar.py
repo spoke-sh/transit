@@ -65,6 +65,8 @@ def check():
     for case in data['select']:
         actual = antlr_ast(case['sql'])
         assert actual == pg_ast(case['sql']), (case['id'], actual, pg_ast(case['sql']))
+    for case in data.get('table_select', []):
+        assert antlr_ast(case['sql']) == pg_ast(case['sql']), case
     for case in data['reject']:
         try:
             tree(case['sql'])

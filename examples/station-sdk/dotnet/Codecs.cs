@@ -68,12 +68,18 @@ public static class Codecs
             Role(value);
             byte[] bytes = value switch {
                 Initialize => Output(81, 5, 1), Insert insert => Output(81, insert.Value is null ? 14 : 22, 2),
-                Rows => Output(81, 5, 3), Start => Output(81, 5, 4), _ => throw new ArgumentException("Unknown query message")
+                Rows => Output(81, 5, 3), Start => Output(81, 5, 4), Advance => Output(81, 5, 5), NotReady => Output(81, 5, 6),
+                Update update => Output(81, update.Value is null ? 14 : 22, 7), Delete => Output(81, 13, 8), _ => throw new ArgumentException("Unknown query message")
             };
             if (value is Insert row) {
                 BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(5), row.Key); bytes[13] = row.Value is null ? (byte)0 : (byte)1;
                 if (row.Value is { } cell) BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(14), cell);
             }
+            if (value is Update updateRow) {
+                BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(5), updateRow.Key); bytes[13] = updateRow.Value is null ? (byte)0 : (byte)1;
+                if (updateRow.Value is { } cell) BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(14), cell);
+            }
+            if (value is Delete deleted) BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(5), deleted.Key);
             return bytes;
         }
         public IQueryMessage Decode(byte[] bytes)
@@ -81,8 +87,11 @@ public static class Codecs
             Input(bytes, 81, 5, 22);
             IQueryMessage value = (bytes[4], bytes.Length) switch {
                 (1, 5) => new Initialize(), (3, 5) => new Rows(), (4, 5) => new Start(),
+                (5, 5) => new Advance(), (6, 5) => new NotReady(), (8, 13) => new Delete(BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(5))),
                 (2, 14) when bytes[13] == 0 => new Insert(BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(5)), null),
                 (2, 22) when bytes[13] == 1 => new Insert(BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(5)), BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(14))),
+                (7, 14) when bytes[13] == 0 => new Update(BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(5)), null),
+                (7, 22) when bytes[13] == 1 => new Update(BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(5)), BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(14))),
                 _ => throw new ArgumentException("Malformed query message")
             };
             Role(value); return value;
@@ -92,6 +101,7 @@ public static class Codecs
     public static ICodec<ICounterMessage> Counter { get; } = new CounterCodec(typeof(Add), typeof(Read));
     public static ICodec<ICounterMessage> Requester { get; } = new CounterCodec(typeof(Start), typeof(Total));
     public static ICodec<ICounterMessage> Reply { get; } = new CounterCodec(typeof(Total));
-    public static ICodec<IQueryMessage> QueryService { get; } = new QueryCodec(typeof(Initialize), typeof(Insert), typeof(Rows));
-    public static ICodec<IQueryMessage> QueryRequester { get; } = new QueryCodec(typeof(Start));
+    public static ICodec<IQueryMessage> QueryService { get; } = new QueryCodec(typeof(Initialize), typeof(Insert), typeof(Rows), typeof(Advance), typeof(Update), typeof(Delete));
+    public static ICodec<IQueryMessage> QueryRequester { get; } = new QueryCodec(typeof(Start), typeof(NotReady));
+    public static ICodec<IQueryMessage> QueryReply { get; } = new QueryCodec(typeof(NotReady));
 }

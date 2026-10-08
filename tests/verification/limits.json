@@ -56,7 +56,7 @@
       "symbol": "max_body",
       "expression": "256 * 1024",
       "classification": "operation",
-      "meaning": "HTTP input parsing budget."
+      "meaning": "HTTP input, private handler action and complete handler Table response budget; independent of native Table row and durable cardinality bounds."
     },
     {
       "source": "packages/zig/transit-station-bindings/src/Abi.zig",
@@ -203,12 +203,12 @@
       "symbol": "max_plan_bytes",
       "expression": "8192",
       "classification": "encoding",
-      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts additionally require one 256-byte native value; other clients upload plans explicitly."
+      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts use the separate 512-byte FQP1 profile; other clients upload plans explicitly."
     },
     {
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
       "symbol": "segment_bytes",
-      "expression": "8192",
+      "expression": "std.math.maxInt(u16)",
       "classification": "operation",
       "meaning": "One independently encoded/captured Arrow segment; a query has a growing segment catalog."
     },
@@ -336,42 +336,77 @@
       "symbol": "segment_bytes",
       "expression": "64 * 1024",
       "classification": "operation",
-      "meaning": "General nested Arrow segment ceiling. Station Table delivery imposes its separate 8192-byte operation bound."
+      "meaning": "General nested Arrow segment ceiling. Station Table delivery uses u16 lengths and admits aligned segments up to 65528 bytes."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Sql.zig",
-      "symbol": "max_mutation_rows",
-      "expression": "3",
-      "classification": "operation",
-      "meaning": "Literal rows in one atomic Table statement; leaves one fresh-turn mutation slot for an application outcome and does not bound stored Table size."
-    },
-    {
-      "source": "packages/zig/transit-fuze/src/TableMutation.zig",
-      "symbol": "max_rows",
-      "expression": "sql.max_mutation_rows",
-      "classification": "operation",
-      "meaning": "Typed mutation batch shares the SQL operation bound; retained collection cardinality remains independent."
-    },
-    {
-      "source": "packages/zig/transit-query/src/TableMutationRequest.zig",
-      "symbol": "max_bytes",
-      "expression": "4 + 32 + 8 * 3 + 4 + 1 + 39 + 2 + f.TableMutation.max_rows * (8 + 1 + f.model.max_cell_bytes + 2)",
-      "classification": "operation",
-      "meaning": "799-byte maximum canonical request for three full-width Table rows and exact target/schema; immutable publication stages larger-than-envelope requests without enlarging a native turn."
-    },
-    {
-      "source": "packages/zig/transit-fuze/src/Declaration.zig",
+      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
       "symbol": "max_columns",
-      "expression": "@import(\"Unified.zig\").max_columns",
+      "expression": "128",
       "classification": "operation",
-      "meaning": "At most eight columns in one offline state definition; not a bound on total catalog objects or durable history."
+      "meaning": "At most 128 columns in one general Table schema; independent of total catalog objects and durable row cardinality."
     },
     {
-      "source": "packages/zig/transit-catalog/src/Client.zig",
+      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+      "symbol": "max_bytes",
+      "expression": "65536",
+      "classification": "encoding",
+      "meaning": "Maximum canonical bytes in one general Table schema, including nested descriptors and typed defaults; not a limit on total Tables or rows."
+    },
+    {
+      "source": "packages/zig/transit-catalog/src/TableClient.zig",
       "symbol": "max_saved_bytes",
       "expression": "8192",
       "classification": "encoding",
       "meaning": "Complete owned canonical saved catalog command; bounds one recovery artifact, not retained operation receipts or catalog cardinality."
+    },
+    {
+      "source": "packages/zig/transit-catalog/src/TableIntent.zig",
+      "symbol": "max_bytes",
+      "expression": "prefix_bytes + Meta.max_bytes + Schema.max_bytes + Command.max_bytes",
+      "classification": "operation",
+      "meaning": "Exact saved general Table intent includes its original schema and bounded command. It is independent of retained Table/cardinality; staged commands retain this identity."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableStatement.zig",
+      "symbol": "max_insert_batch",
+      "expression": "8",
+      "classification": "working-set",
+      "meaning": "Finite INSERT scheduling batch; uses the existing private candidate record/byte ceilings and native four-write turns, independent of query vectors and total Table size."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_nodes",
+      "expression": "3 * (2 * (Index.max_level + 1) + 1)",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_records",
+      "expression": "max_nodes + 1",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableCandidate.zig",
+      "symbol": "max_bytes",
+      "expression": "max_nodes * Index.node_bytes + f.TableRow.max_bytes",
+      "classification": "working-set",
+      "meaning": "Private point or finite batch overlay budget derived from maximum-depth index edits and a bounded row. Intermediates stay private and durable candidates remain paged."
+    },
+    {
+      "source": "packages/zig/transit-station/src/TableReader.zig",
+      "symbol": "max_page_rows",
+      "expression": "p.Growth.page_size",
+      "classification": "operation",
+      "meaning": "One general handler read owns at most eight individually bounded decoded rows; neither Table cardinality nor query execution vectors are bounded by this storage page."
+    },
+    {
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "symbol": "max_plan_bytes",
+      "expression": "2 * p.Value.max_bytes",
+      "classification": "operation",
+      "meaning": "Frozen logical plan in at most two cells; job plus correlation index preserves four native admission writes. Larger accepted logical plans require a different explicit upload protocol."
     }
   ],
   "identities": [
@@ -587,9 +622,9 @@
     },
     {
       "status": "segmented",
-      "meaning": "An 8192-byte segment is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
+      "meaning": "A 65535-byte segment buffer is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
-      "anchor": "pub const segment_bytes = 8192;",
+      "anchor": "pub const segment_bytes = std.math.maxInt(u16);",
       "replaces": {
         "source": "packages/zig/transit-station/src/Query.zig",
         "symbol": "max_bytes"
@@ -669,7 +704,7 @@
       },
       "status": "segmented",
       "source": "packages/zig/transit-query/src/Bundle.zig",
-      "anchor": "pub const max_bytes = 16384;",
+      "anchor": "pub const max_bytes = header_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;",
       "meaning": "Durable plans use a finite uploaded bundle rather than a whole-plan mailbox frame."
     }
   ]

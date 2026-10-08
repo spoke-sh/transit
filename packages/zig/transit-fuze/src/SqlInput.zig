@@ -76,7 +76,8 @@ pub const Scan = struct {
 };
 
 /// Bounded lexical colors with roles supplied by the production parser. Every
-/// statement is parsed once; malformed suffixes keep only lexical evidence.
+/// statement is parsed by the applicable owners; malformed suffixes retain
+/// lexical evidence. No schema lookup or execution is implicit.
 /// This is local presentation, not validation, capability discovery or binding.
 pub fn classify(text: []const u8, roles: []sql.TokenRole) void {
     @memset(roles, .unknown);
@@ -105,9 +106,34 @@ pub fn classify(text: []const u8, roles: []sql.TokenRole) void {
 fn classifyStatement(text: []const u8, roles: []sql.TokenRole) void {
     var parsed: [sql.max_statement_bytes]sql.TokenRole = undefined;
     sql.classifyTokens(text, parsed[0..text.len]);
+    classifyTable(text, parsed[0..text.len]);
     for (roles, parsed[0..text.len]) |*role, contextual| if (contextual != .unknown) {
         role.* = contextual;
     };
+}
+
+// General Table grammar uses arena-owned syntax. A fixed workspace bounds this
+// presentation path independently of execution allocations; exhaustion preserves
+// the prefix already classified and the lexical roles on the remaining suffix.
+const classification_bytes = 256 * 1024;
+fn classifyTable(text: []const u8, roles: []sql.TokenRole) void {
+    var workspace: [classification_bytes]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&workspace);
+    classifyTableWithAllocator(text, roles, fixed.allocator()) catch {};
+}
+fn classifyTableWithAllocator(text: []const u8, roles: []sql.TokenRole, allocator: std.mem.Allocator) !void {
+    const Parser = @import("SqlTyped.zig");
+    var parser = try Parser.init(allocator, text, null);
+    parser.roles = roles;
+    const explain = try parser.takeWord("EXPLAIN");
+    if (explain or parser.word("SELECT")) {
+        _ = try @import("TableSelect.zig").syntax(&parser, null);
+    } else if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
+        _ = try @import("TableDml.zig").syntax(&parser, null);
+    } else if (parser.word("CREATE") or parser.word("ALTER") or parser.word("DROP")) {
+        _ = try @import("TableDdl.zig").syntax(&parser, null);
+    } else return;
+    try parser.finish();
 }
 
 /// First explicit terminator outside quotes/comments; returned end includes ';'.
@@ -226,9 +252,9 @@ test "highlighting covers aggregate templates casts derived inputs and Boolean p
 }
 
 test "highlighting covers mutation declaration and inspection parser roots" {
-    try expectRoles("INSERT INTO update (value, missing) VALUES (-1, TRUE), (2, NULL); UPDATE update SET value = '\\x00ff'::bytea WHERE missing = +2; DELETE FROM update WHERE value = 1;", &.{
-        .{ "INSERT", .keyword }, .{ "INTO", .keyword },      .{ "update", .identifier }, .{ "value", .identifier }, .{ "missing", .identifier }, .{ "VALUES", .keyword },  .{ "-1", .number },     .{ "TRUE", .literal },       .{ "2", .number },  .{ "NULL", .literal },
-        .{ "UPDATE", .keyword }, .{ "update", .identifier }, .{ "SET", .keyword },       .{ "value", .identifier }, .{ "'\\x00ff'", .literal },  .{ "bytea", .type_name }, .{ "WHERE", .keyword }, .{ "missing", .identifier }, .{ "+2", .number }, .{ "DELETE", .keyword },
+    try expectRoles("INSERT INTO update (value, missing) VALUES (-1, TRUE), (2, NULL); UPDATE update SET value = X'00ff' WHERE missing = +2; DELETE FROM update WHERE value = 1;", &.{
+        .{ "INSERT", .keyword }, .{ "INTO", .keyword },      .{ "update", .identifier }, .{ "value", .identifier }, .{ "missing", .identifier }, .{ "VALUES", .keyword }, .{ "-1", .number },     .{ "TRUE", .literal },       .{ "2", .number },  .{ "NULL", .literal },
+        .{ "UPDATE", .keyword }, .{ "update", .identifier }, .{ "SET", .keyword },       .{ "value", .identifier }, .{ "X", .type_name },        .{ "'00ff'", .literal }, .{ "WHERE", .keyword }, .{ "missing", .identifier }, .{ "+2", .number }, .{ "DELETE", .keyword },
         .{ "FROM", .keyword },   .{ "update", .identifier }, .{ "WHERE", .keyword },     .{ "value", .identifier }, .{ "1", .number },
     });
     try expectRoles("CREATE TABLE update (value INT64 NOT NULL, missing UTF8 NULL); CREATE KV value (BINARY); CREATE DOCUMENT explain; CREATE KV conflict (BOOL);", &.{
@@ -269,4 +295,66 @@ test "highlighting keeps incomplete tokens inert and confines malformed suffixes
     const statement = "SELECT value FROM items WHERE value IS VALUE;";
     const maximum = statement ++ @as([sql.max_statement_bytes - statement.len]u8, @splat(' '));
     try expectRoles(maximum, &.{ .{ "SELECT", .keyword }, .{ "value", .identifier }, .{ "FROM", .keyword }, .{ "items", .identifier }, .{ "WHERE", .keyword }, .{ "value", .identifier }, .{ "IS", .keyword }, .{ "VALUE", .keyword } });
+}
+
+test "general Table highlighting follows aliases nested type and literal positions" {
+    for (@import("SqlTypes.zig").aliases) |entry| {
+        var buffer: [256]u8 = undefined;
+        const text = try std.fmt.bufPrint(&buffer, "CREATE TABLE people (id {s});", .{entry.name});
+        // Multiword spellings have unclassified whitespace between type tokens.
+        var words = std.mem.tokenizeScalar(u8, entry.name, ' ');
+        const first = words.next().?;
+        if (words.next()) |second| {
+            try expectRoles(text, &.{ .{ "CREATE", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "id", .identifier }, .{ first, .type_name }, .{ second, .type_name } });
+        } else try expectRoles(text, &.{ .{ "CREATE", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "id", .identifier }, .{ first, .type_name } });
+    }
+    try expectRoles("CREATE TABLE people (payload STRUCT(decimal DECIMAL(18,2), tags LIST(TEXT)) DEFAULT STRUCT(1.25,LIST('a',NULL)), PRIMARY KEY(payload));", &.{
+        .{ "CREATE", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "payload", .identifier }, .{ "STRUCT", .type_name }, .{ "decimal", .identifier }, .{ "DECIMAL", .type_name }, .{ "18", .number }, .{ "2", .number }, .{ "tags", .identifier }, .{ "LIST", .type_name }, .{ "TEXT", .type_name }, .{ "DEFAULT", .keyword }, .{ "STRUCT", .function }, .{ "1.25", .number }, .{ "LIST", .function }, .{ "'a'", .literal }, .{ "NULL", .literal }, .{ "PRIMARY", .keyword }, .{ "KEY", .keyword }, .{ "payload", .identifier },
+    });
+    try expectRoles("INSERT INTO people (map, union) VALUES (MAP(2,'two',1,NULL), UNION(chosen,ARRAY(-1,2)));", &.{
+        .{ "INSERT", .keyword }, .{ "INTO", .keyword }, .{ "people", .identifier }, .{ "map", .identifier }, .{ "union", .identifier }, .{ "VALUES", .keyword }, .{ "MAP", .function }, .{ "2", .number }, .{ "'two'", .literal }, .{ "1", .number }, .{ "NULL", .literal }, .{ "UNION", .function }, .{ "chosen", .identifier }, .{ "ARRAY", .function }, .{ "-1", .number }, .{ "2", .number },
+    });
+    try expectRoles("UPDATE people SET amount=- /* note */ 1.25e-3, created=DATE '2000-02-29', bytes=X'00ff', duration=INTERVAL(1,2,3) WHERE amount IS NOT TYPE_ERROR;", &.{
+        .{ "UPDATE", .keyword }, .{ "people", .identifier }, .{ "SET", .keyword }, .{ "amount", .identifier }, .{ "-", .number }, .{ "/* note */", .comment }, .{ "1.25e-3", .number }, .{ "created", .identifier }, .{ "DATE", .type_name }, .{ "'2000-02-29'", .literal }, .{ "bytes", .identifier }, .{ "X", .type_name }, .{ "'00ff'", .literal }, .{ "duration", .identifier }, .{ "INTERVAL", .function }, .{ "1", .number }, .{ "2", .number }, .{ "3", .number }, .{ "WHERE", .keyword }, .{ "amount", .identifier }, .{ "IS", .keyword }, .{ "NOT", .keyword }, .{ "TYPE_ERROR", .keyword },
+    });
+}
+
+test "general ALTER DROP and EXPLAIN consume contextual grammar without metadata" {
+    try expectRoles("ALTER TABLE alter RENAME COLUMN rename TO renamed; DROP TABLE IF EXISTS alter RESTRICT;", &.{
+        .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "alter", .identifier }, .{ "RENAME", .keyword }, .{ "COLUMN", .keyword }, .{ "rename", .identifier }, .{ "TO", .keyword }, .{ "renamed", .identifier }, .{ "DROP", .keyword }, .{ "TABLE", .keyword }, .{ "IF", .keyword }, .{ "EXISTS", .keyword }, .{ "alter", .identifier }, .{ "RESTRICT", .keyword },
+    });
+    try expectRoles("ALTER TABLE people ADD COLUMN amount DECIMAL(18,2) DEFAULT 12.50; ALTER TABLE people ALTER COLUMN amount SET DEFAULT -1.25;", &.{
+        .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "ADD", .keyword }, .{ "COLUMN", .keyword }, .{ "amount", .identifier }, .{ "DECIMAL", .type_name }, .{ "18", .number }, .{ "2", .number }, .{ "DEFAULT", .keyword }, .{ "12.50", .number }, .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "ALTER", .keyword }, .{ "COLUMN", .keyword }, .{ "amount", .identifier }, .{ "SET", .keyword }, .{ "DEFAULT", .keyword }, .{ "-1.25", .number },
+    });
+    try expectRoles("ALTER TABLE people ALTER COLUMN amount SET DATA TYPE DOUBLE PRECISION; ALTER TABLE people ALTER COLUMN amount DROP NOT NULL;", &.{
+        .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "ALTER", .keyword }, .{ "COLUMN", .keyword }, .{ "amount", .identifier }, .{ "SET", .keyword }, .{ "DATA", .keyword }, .{ "TYPE", .keyword }, .{ "DOUBLE", .type_name }, .{ "PRECISION", .type_name }, .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "ALTER", .keyword }, .{ "COLUMN", .keyword }, .{ "amount", .identifier }, .{ "DROP", .keyword }, .{ "NOT", .keyword }, .{ "NULL", .keyword },
+    });
+    try expectRoles("EXPLAIN SELECT p.amount FROM people AS p WHERE p.amount >= -1.25e+3;", &.{
+        .{ "EXPLAIN", .keyword }, .{ "SELECT", .keyword }, .{ "p", .identifier }, .{ "amount", .identifier }, .{ "FROM", .keyword }, .{ "people", .identifier }, .{ "AS", .keyword }, .{ "p", .identifier }, .{ "WHERE", .keyword }, .{ "p", .identifier }, .{ "amount", .identifier }, .{ "-1.25e+3", .number },
+    });
+    try expectRoles("ALTER TABLE people ALTER COLUMN payload SET DEFAULT STRUCT(1, LIST('a", &.{
+        .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "people", .identifier }, .{ "ALTER", .keyword }, .{ "COLUMN", .keyword }, .{ "payload", .identifier }, .{ "SET", .keyword }, .{ "DEFAULT", .keyword }, .{ "STRUCT", .function }, .{ "1", .number }, .{ "LIST", .function }, .{ "'a", .literal },
+    });
+}
+
+test "general SQL classification fits dense bounded statements and tolerates allocator exhaustion" {
+    const e = std.testing;
+    var storage: [sql.max_statement_bytes]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&storage);
+    try writer.writeAll("INSERT INTO t VALUES ");
+    for (0..1018) |i| {
+        if (i != 0) try writer.writeByte(',');
+        try writer.writeAll("(0)");
+    }
+    const text = writer.buffered();
+    var roles: [sql.max_statement_bytes]sql.TokenRole = @splat(.unknown);
+    var workspace: [classification_bytes]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&workspace);
+    try classifyTableWithAllocator(text, roles[0..text.len], fixed.allocator());
+    try e.expectEqual(sql.TokenRole.number, roles[text.len - 2]);
+    try e.expect(fixed.end_index <= classification_bytes);
+    const small = "ALTER TABLE people ALTER amount SET DEFAULT STRUCT(1, LIST('a'))";
+    try e.expectError(error.OutOfMemory, classifyTableWithAllocator(small, roles[0..small.len], e.failing_allocator));
+    classify(small, roles[0..small.len]);
+    try e.expectEqual(sql.TokenRole.function, roles[std.mem.indexOf(u8, small, "LIST").?]);
 }

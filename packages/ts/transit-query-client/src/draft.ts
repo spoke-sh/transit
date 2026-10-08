@@ -1,4 +1,5 @@
-import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
+import { boundedQueryJson } from "./logical";
+import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client/caller-gate";
 import type { Diagnostic, Draft, Request, Response } from "./types";
 import { QueryError, type Transport } from "./transport";
 import { verifiedPage, type ResultPage } from "./result";
@@ -156,6 +157,7 @@ export class DraftSession {
       throw new QueryError(409, "DraftRecoveryUnavailable");
     const input: unknown = JSON.parse(source);
     if (
+      !boundedQueryJson(input) ||
       !record(input) ||
       !fields(input, [
         "version",
@@ -600,8 +602,8 @@ export class DraftSession {
         if ((!this.enabled && !this.observeWanted) || reader.signal.aborted) return;
         const basis = page.evidence.manifest.basis;
         if (
-          basis.kind !== "table" ||
-          basis.resource !== job.compiled.source.resource ||
+          basis.cut.kind !== "table" ||
+          basis.cut.resource !== job.compiled.source.resource ||
           !same(basis.contract, job.compiled.contract)
         )
           throw new QueryError(409, "DraftSourceChanged");

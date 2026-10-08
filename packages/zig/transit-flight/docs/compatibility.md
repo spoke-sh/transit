@@ -6,8 +6,8 @@ The [protocol](../../../../contracts/FLIGHT_V1.md) specifies exact wire formats.
 | Dimension | Supported interface |
 | --- | --- |
 | Source/result | Query v1 with a Table source; one explicitly configured Table per caller |
-| Application types | Two int64 columns, nullable value; full-width integers remain exact |
-| SQL | Shared Fuze read-only SELECT compiler, filters, limits, `COUNT(*)`, `COUNT(column)`, checked sum and output aliases |
+| Application types | Up to 128 int64 output columns with declared nullability; checked COUNT conversion from uint64; full-width integers remain exact |
+| SQL | Shared logical SELECT compiler, typed filters, limits, `COUNT(*)`, `COUNT(column)`, checked int64 sum and output aliases; unsupported output types reject before admission |
 | Wire | Apache Arrow 23.0.0 Flight/Flight SQL protobuf definitions, pinned in `proto/manifest.json` |
 | Clients | PyArrow 23.0.0; Apache ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable consumers on Linux x86_64 |
 | Discovery | `GetSchema`; `GetFlightInfo`/`DoGet` for catalogs, database schemas, Tables, Table types and selected SqlInfo |
@@ -17,6 +17,12 @@ The [protocol](../../../../contracts/FLIGHT_V1.md) specifies exact wire formats.
 | Metadata types | Standard union/list/map schemas; application SQL types remain int64 |
 | Unsupported | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions; explicit UNIMPLEMENTED |
 | ADBC fallback | Pinned Python DBAPI attempts preparation and uses its unprepared fallback; C uses direct statement execution |
+
+Configured Tables carry complete logical schemas and immutable catalog identities.
+Selecting an int64 subset or counting a richer column is supported; this does not
+add arbitrary logical output types to the primitive Flight profile. GetTables
+with include_schema rejects a Table outside that profile. Quoted Unicode names
+and up to 255-byte names share the SQL schema rules.
 
 No custom ADBC driver or foreign query engine runs in the gateway. Metadata
 inspection does not grant entry reads, and a caller's source association does not

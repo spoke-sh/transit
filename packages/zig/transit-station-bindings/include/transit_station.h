@@ -7,11 +7,10 @@
 extern "C" {
 #endif
 #define STATION_ABI_VERSION 1u
-#define STATION_ABI_DEFINITION "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82"
+#define STATION_ABI_DEFINITION "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
 #define STATION_MINIMUM_STACK_BYTES 8388608u
 typedef struct station_growing_server station_growing_server;
 typedef struct station_query_client station_query_client;
-typedef struct station_mutation_client station_mutation_client;
 typedef struct station_catalog_client station_catalog_client;
 typedef struct station_buffer station_buffer;
 #define STATION_STATUS_OK 0u
@@ -34,9 +33,6 @@ uint32_t station_logical_codec(const uint8_t * arg0, size_t arg1, station_buffer
 uint32_t station_catalog_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_catalog_client ** arg6);
 void station_catalog_destroy(station_catalog_client * arg0);
 uint32_t station_catalog_call(station_catalog_client * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);
-uint32_t station_table_mutation_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_mutation_client ** arg6);
-void station_table_mutation_destroy(station_mutation_client * arg0);
-uint32_t station_table_mutation_call(station_mutation_client * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);
 uint32_t station_unified_query_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_query_client ** arg6);
 void station_unified_query_destroy(station_query_client * arg0);
 uint32_t station_unified_query_call(station_query_client * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);

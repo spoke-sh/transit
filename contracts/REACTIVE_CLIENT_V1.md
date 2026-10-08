@@ -50,7 +50,10 @@ An explicitly configured application viewer may enable `snapshot_values` and
 read the reactive API's bounded int64 Table snapshot. This does not add a decoder to Board.
 
 `covered` delegates to `TableWatch.covered` for the same resource, contract and
-schema; it is a deterministic relation, not an authorization decision. Complete
+schema, comparing `basis.cut.revision` with the observed head-entry watermark;
+it is a deterministic relation, not an authorization decision. Catalog identity
+and immutable metadata revisions use decimal strings; captured resource cuts
+retain native safe-integer revisions and the exact Table-head commitment. Complete
 query verification and a current authorized visible-page reread remain required.
 
 The `/reactive/v1/client/control` route reserves listener/caller capacity for
@@ -98,7 +101,10 @@ optional `diagnostic` for the original scheduler stop, and optional
 `query_diagnostic` for the selected query. Head, view and query status are copied
 at one native cut after discovering the namespace. A changing selection retries
 at most three reads. Current native identity, source/requester read access and
-service policy are rechecked before disclosure, including after session closure.
+service policy and caller catalog inspect/read rights are rechecked before
+disclosure, including after session closure. A renamed or dropped Table does not
+prevent reading retained diagnostics under those current rights; a catalog
+revocation does.
 
 The stored view includes a finite stop reason, original committed input and
 check-time witness. No stop is represented explicitly by the `none` variant.

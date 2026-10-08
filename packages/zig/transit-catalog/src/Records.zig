@@ -1,9 +1,8 @@
-//! Fixed catalog records bound to the single current native definition. No
+//! Bounded catalog records bound to the single current native definition. No
 //! fallback decoding, host layout, pointers or resident catalog-sized arrays.
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
-const m = c.fuze.model;
 pub fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
     _ = std.fmt.hexToBytes(&bytes, @tagName(p.Growth.current_definition)) catch unreachable;
@@ -22,13 +21,6 @@ pub fn key(catalog: u64, tag: u8, id: u64, revision: u64) p.Value {
     std.mem.writeInt(u64, bytes[11..19], id, .big);
     std.mem.writeInt(u64, bytes[19..27], revision, .big);
     return p.Value.init(&bytes) catch unreachable;
-}
-pub fn nameKey(catalog: u64, name: m.Name) !p.Value {
-    try c.Model.validName(name);
-    var bytes: [27]u8 = undefined;
-    bytes[0..11].* = prefix(catalog, 'n').data[0..11].*;
-    @memcpy(bytes[11..][0..name.len], name.slice());
-    return p.Value.init(bytes[0 .. 11 + name.len]);
 }
 pub fn encode(comptime tag: u8, value: anytype) !p.Value {
     try value.validate();
@@ -52,17 +44,8 @@ pub fn decode(comptime T: type, comptime tag: u8, value: p.Value) !T {
 }
 fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
     const T = @TypeOf(value);
-    if (T == m.Name) {
-        try c.Model.validName(value);
-        try out.writeByte(value.len);
-        return out.writeAll(value.slice());
-    }
-    if (T == m.Schema) {
-        const schema = try c.station.Table.encodeSchema(value);
-        try out.writeByte(@intCast(schema.len));
-        return out.writeAll(schema.slice());
-    }
     switch (@typeInfo(T)) {
+        .void => {},
         .int => try out.writeInt(T, value, .little),
         .bool => try out.writeByte(@intFromBool(value)),
         .@"enum" => try out.writeByte(@backingInt(value)),
@@ -78,9 +61,8 @@ fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
     }
 }
 fn read(input: *std.Io.Reader, comptime T: type) anyerror!T {
-    if (T == m.Name) return m.Name.init(try input.take(try input.takeByte()));
-    if (T == m.Schema) return c.station.Table.decodeSchema(try p.Value.init(try input.take(try input.takeByte())));
     return switch (@typeInfo(T)) {
+        .void => {},
         .int => try input.takeInt(T, .little),
         .bool => switch (try input.takeByte()) {
             0 => false,

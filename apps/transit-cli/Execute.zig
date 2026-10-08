@@ -15,7 +15,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     if (console.recovery == null) return error.ConsoleRecoveryRequired;
     if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
     if (session.namespace) |existing| if (!session.complete) {
-        if (try console.client.status(existing)) |status| switch (status.phase) {
+        if (try console.client.?.status(existing)) |status| switch (status.phase) {
             .cancelled, .denied, .rejected, .retired => {},
             else => return error.UnresolvedSubmission,
         } else if (session.length != 0) return error.UnresolvedSubmission;
@@ -27,7 +27,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     // Compile before changing identity; invalid SQL cannot start durable work.
     timing.enter(.compile);
     var binding: q.fuze.Sql.Binding = .{};
-    _ = q.Workspace.applyDiagnostic(arena.allocator(), console.client, console.config, .{ .compile = request }, &binding) catch |err| {
+    _ = q.Workspace.applyDiagnostic(arena.allocator(), console.client.?, console.config.?, .{ .compile = request }, &binding) catch |err| {
         console.diagnostic.sql = q.fuze.SqlDiagnostic.bound(statement, err, true, binding);
         return err;
     };
@@ -39,7 +39,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
         var random: [8]u8 = undefined;
         try console.init.io.randomSecure(&random);
         id = std.mem.readInt(u64, &random, .little) & q.protocol.max_counter;
-        if (id != 0 and try console.client.status(id) == null) break;
+        if (id != 0 and try console.client.?.status(id) == null) break;
         id = 0;
     }
     if (id == 0) return error.QueryIdentityUnavailable;
@@ -52,7 +52,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     const deadline = now(console) + 300000;
     var discard_buffer: [4096]u8 = undefined;
     var discard: std.Io.Writer.Discarding = .init(&discard_buffer);
-    try u.executeSql(console.init, session, console.client, console.config, request, arena.allocator(), &discard.writer);
+    try u.executeSql(console.init, session, console.client.?, console.config.?, request, arena.allocator(), &discard.writer);
     try finish(console, deadline, &timing);
 }
 pub fn recover(console: *Console, selected: ?u64) !void {
@@ -63,7 +63,7 @@ pub fn recover(console: *Console, selected: ?u64) !void {
         if (id == 0 or id > q.protocol.max_counter) return error.InvalidQueryIdentity;
         if (session.namespace != id) {
             if (session.pending != null or session.input != null or (session.namespace != null and !session.complete)) return error.UnresolvedSubmission;
-            _ = (try console.client.status(id)) orelse return error.QueryUploadNotFound;
+            _ = (try console.client.?.status(id)) orelse return error.QueryUploadNotFound;
             session.clear();
             session.namespace = id;
         }
@@ -87,7 +87,7 @@ pub fn reconcile(console: *Console) !void {
     var scratch: [4096]u8 = undefined;
     var discard: std.Io.Writer.Discarding = .init(&scratch);
     if (console.session.pending != null or console.session.input != null or console.session.length != 0) {
-        try u.command(console.init, console.session, console.client, console.config, if (console.session.pending != null) ".retry" else ".advance", arena.allocator(), &discard.writer);
+        try u.command(console.init, console.session, console.client.?, console.config.?, if (console.session.pending != null) ".retry" else ".advance", arena.allocator(), &discard.writer);
     }
 }
 pub fn finish(console: *Console, deadline: i64, timing: *Timing) !void {
@@ -102,9 +102,9 @@ pub fn finish(console: *Console, deadline: i64, timing: *Timing) !void {
         if (session.input != null) {
             var scratch: [4096]u8 = undefined;
             var discard: std.Io.Writer.Discarding = .init(&scratch);
-            try u.command(console.init, session, console.client, console.config, ".advance", arena.allocator(), &discard.writer);
+            try u.command(console.init, session, console.client.?, console.config.?, ".advance", arena.allocator(), &discard.writer);
         }
-        const status = (try console.client.status(id)) orelse return error.QueryUploadNotFound;
+        const status = (try console.client.?.status(id)) orelse return error.QueryUploadNotFound;
         switch (status.phase) {
             .denied, .cancelled, .retired, .rejected => console.diagnostic.query = .{ .namespace = id, .phase = status.phase, .failure = status.failure },
             else => {},
@@ -125,10 +125,10 @@ pub fn finish(console: *Console, deadline: i64, timing: *Timing) !void {
         console.init.gpa.free(bytes);
     }
     var rows: u64 = 0;
-    const m = q.fuze.Unified;
-    const workspace = try console.init.gpa.alloc(u8, m.Arrow.working_bytes);
+    const f = q.fuze;
+    const workspace = try console.init.gpa.alloc(u8, f.LogicalArrow.working_bytes);
     defer console.init.gpa.free(workspace);
-    const arrow = try console.init.gpa.alloc(u8, m.Arrow.segment_bytes);
+    const arrow = try console.init.gpa.alloc(u8, f.LogicalArrow.segment_bytes);
     defer console.init.gpa.free(arrow);
     while (!session.complete) {
         timing.enter(.fetch);
@@ -137,16 +137,17 @@ pub fn finish(console: *Console, deadline: i64, timing: *Timing) !void {
         defer arena.deinit();
         const allocator = arena.allocator();
         // Decode once through the verified native page reader. Its access and
-        // ordered coverage checks precede disclosure; the batch stays at its
-        // final address while conflict cells borrow its fixed alternatives.
-        const batch = try allocator.create(m.Inspect.Batch);
-        const page = try console.client.page(id, session.cursor, allocator, workspace, arrow, batch);
-        const definition = try console.config.source.native(allocator);
-        if (!std.mem.eql(u8, &page.manifest.checkpoint.progress.basis.contract, &try definition.fingerprint())) return error.QueryIdentityMismatch;
+        // ordered coverage checks precede disclosure; the batch owns its
+        // decoded schema and cells until rendering completes.
+        const batch = try allocator.create(f.LogicalInspect.Batch);
+        const page = try console.client.?.page(id, session.cursor, allocator, workspace, arrow, batch);
+        defer batch.deinit();
+        const definition = try console.config.?.source.native(allocator);
+        if (!std.mem.eql(u8, &page.basis.contract, &try definition.fingerprint())) return error.QueryIdentityMismatch;
         timing.enter(.render);
         var buffered: std.Io.Writer = .fixed(bytes);
         try @import("Results.zig").write(allocator, &buffered, page, batch, if (session.cursor) |cursor| cursor.ordinal else 0, session.format == .json);
-        rows += batch.count;
+        rows += batch.rows.len;
         if (page.next == null and session.format == .table) try buffered.print("{d} {s}\n", .{ rows, if (rows == 1) "row" else "rows" });
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         try Output.write(console.init, console.out, buffered.buffered());

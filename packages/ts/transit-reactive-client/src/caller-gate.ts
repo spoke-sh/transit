@@ -1,4 +1,4 @@
-import { ReactiveError } from "./index";
+import { ReactiveError } from "./error";
 
 export type Caller = { realm: number; principal: number };
 export type AcquireCaller = (caller: Caller, signal?: AbortSignal) => Promise<() => void>;

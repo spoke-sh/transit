@@ -28,6 +28,12 @@ defmodule Transit.Station.Sdk.Control do
   @type t :: %__MODULE__{}
 end
 
+defmodule Transit.Station.Sdk.QueryFailure do
+  @enforce_keys [:position, :origin, :correlation, :result, :reason]
+  defstruct [:position, :origin, :correlation, :result, :reason]
+  @type t :: %__MODULE__{}
+end
+
 defmodule Transit.Station.Sdk.ResultComplete do
   @enforce_keys [:position, :origin, :correlation]
   defstruct [:position, :origin, :correlation]
@@ -40,15 +46,9 @@ defmodule Transit.Station.Sdk.ReadVersion do
   @type t :: %__MODULE__{}
 end
 
-defmodule Transit.Station.Sdk.Basis do
-  @enforce_keys [:resource, :revision, :schema]
-  defstruct [:resource, :revision, :schema]
-  @type t :: %__MODULE__{}
-end
-
 defmodule Transit.Station.Sdk.Page do
   @enforce_keys [:entries]
-  defstruct [:entries, cursor: nil, basis: nil]
+  defstruct [:entries, cursor: nil]
   @type t :: %__MODULE__{}
 end
 
@@ -59,21 +59,46 @@ defmodule Transit.Station.Sdk.KVEntry do
   @type t :: %__MODULE__{}
 end
 
-defmodule Transit.Station.Sdk.TableSchema do
-  @enforce_keys [:id, :cell]
-  defstruct [:id, :cell, key_name: "id", value_name: "value"]
-  @type t :: %__MODULE__{}
-end
-
 defmodule Transit.Station.Sdk.Row do
-  @enforce_keys [:key]
-  defstruct [:key, value: nil]
+  @enforce_keys [:identity, :cells]
+  @derive {Inspect, only: [:identity]}
+  defstruct [:identity, :cells]
   @type t :: %__MODULE__{}
 end
 
-defmodule Transit.Station.Sdk.QueryPlan do
-  defstruct projection: :both, aggregate: :rows, limit: nil, predicate: :all
-  @type t :: %__MODULE__{}
+defmodule Transit.Station.Sdk.TableBasis do
+  @enforce_keys [:resource, :revision, :object, :head]
+  defstruct [:resource, :revision, :object, :head]
+end
+
+defmodule Transit.Station.Sdk.TablePage do
+  @enforce_keys [:rows]
+  defstruct [:rows, next: nil]
+end
+
+defmodule Transit.Station.Sdk.TableCreation do
+  @enforce_keys [:state, :admitted_input]
+  defstruct [:state, :admitted_input, completed_input: nil]
+end
+
+defmodule Transit.Station.Sdk.TableWitness do
+  @enforce_keys [:source, :column, :text, :truncated]
+  @derive {Inspect, only: [:source, :column, :truncated]}
+  defstruct [:source, :column, :text, :truncated, row: nil]
+end
+
+defmodule Transit.Station.Sdk.TableStatus do
+  @enforce_keys [:reference, :state, :route, :admitted_input, :rejection]
+  defstruct [
+    :reference,
+    :state,
+    :route,
+    :admitted_input,
+    :rejection,
+    completed_input: nil,
+    counts: nil,
+    witness: nil
+  ]
 end
 
 defmodule Transit.Station.Sdk.QueryJob do
@@ -91,7 +116,6 @@ defmodule Transit.Station.Sdk.Manifest do
     :table,
     :policy_revision,
     :basis,
-    :source_contract,
     :plan,
     :segments,
     :byte_count,
@@ -107,7 +131,6 @@ defmodule Transit.Station.Sdk.Manifest do
     :table,
     :policy_revision,
     :basis,
-    :source_contract,
     :plan,
     :segments,
     :byte_count,

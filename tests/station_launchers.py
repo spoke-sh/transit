@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "launchers"))
 from common import HTTP, run, write
 from station_example import StationInstallation
 from launchers import ports
+from station_ledger import audit_total
 
 
 def exercise(profile, name=None, base=None, existing=False):
@@ -40,8 +41,21 @@ def exercise(profile, name=None, base=None, existing=False):
         return bytes.fromhex(value["value"]) if value else None
 
     def total():
-        value = entry("ledger", b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big"))
-        return int.from_bytes(value[2:], "little", signed=True) if value else 0
+        resource = installation.records()['ledger']['resource']
+        snapshot = installation.native_query({'open_snapshot': {
+            'resource': resource, 'nonce': list(secrets.token_bytes(16))}})['body']['open_snapshot']
+        def captured(kind):
+            if 'resource' in kind:
+                assert kind['resource'] == resource
+                return {'body': {'resource': snapshot['resource']}}
+            page = installation.native_query({'snapshot_entries': {
+                'id': snapshot['id'], 'after': kind['entries']['after']}})['body']['snapshot_entries']
+            assert page['snapshot']['id'] == snapshot['id'] and page['snapshot']['resource'] == snapshot['resource']
+            return {'body': {'entries': {'page': page['page']}}}
+        try:
+            return audit_total(captured, resource)
+        finally:
+            installation.native_query({'close_snapshot': snapshot['id']})
 
     def await_value(predicate, description, seconds=60):
         deadline = time.monotonic() + seconds
@@ -84,6 +98,25 @@ def exercise(profile, name=None, base=None, existing=False):
                 # snapshot. Never retry one old cursor or stitch different cuts.
                 time.sleep(.2)
         raise AssertionError("No stable bounded framework observation")
+
+    def query_evidence(record):
+        path = f'resources/{record["resource"]}/records'
+        for _ in range(30):
+            kinds = set()
+            try:
+                response = board(path)
+                while True:
+                    for lens in response['queries']:
+                        if lens:
+                            assert lens['source']['pid'] == record['pid'] and lens['source']['resource'] == record['resource']
+                            kinds.update(lens['declaration'])
+                    after = response['page']['next']
+                    if after is None: return kinds
+                    response = board(path + '?' + urllib.parse.urlencode({
+                        'after': after, 'revision': response['resource']['revision']}))
+            except CutExpired:
+                time.sleep(.2)
+        raise AssertionError('No stable bounded query observation')
 
     try:
         if not existing:
@@ -175,7 +208,9 @@ def exercise(profile, name=None, base=None, existing=False):
         kinds = set()
         for role, record in records.items():
             kinds.update(framework(record))
-        assert {"behavior", "table", "query", "wait", "registry_scope", "registry_binding", "child"} <= kinds, kinds
+        assert {"behavior", "table", "wait", "registry_scope", "registry_binding", "child"} <= kinds, kinds
+        queries = query_evidence(records['ledger']) | query_evidence(records['requester'])
+        assert {'execution', 'request'} <= queries, queries
         assert board(f'processes/{recovered["pid"]}')["observation"]["processes"][0]["generation"] == recovered["generation"]
         # A stopped installation starts with fresh ownership while retaining its
         # PIDs, associated resources, Table rows, registry and captured result.
@@ -186,7 +221,8 @@ def exercise(profile, name=None, base=None, existing=False):
         assert entry("requester", b"last-query") is not None
         evidence = ROOT / ".cache/m9" / ("station-" + profile + "-evidence.json")
         write(evidence, {"profile": profile, "processes": records, "before": before,
-                         "recovered": recovered, "upgraded": upgraded, "framework_kinds": sorted(kinds), "total": 14})
+                         "recovered": recovered, "upgraded": upgraded, "framework_kinds": sorted(kinds),
+                         "query_kinds": sorted(queries), "total": 14})
         invoke("down")
         invoke("reset")
     except BaseException:

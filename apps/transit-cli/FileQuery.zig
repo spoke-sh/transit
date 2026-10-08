@@ -253,7 +253,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         return err;
     };
     defer compiled.deinit();
-    var execution = try f.FileQuery.Execution.init(init.gpa, &binding, sources[0..count], compiled.plan);
+    var execution = try f.FileQuery.execute(init.gpa, &binding, sources[0..count], compiled.plan);
     defer execution.deinit();
     stage = .execute;
     limited = compiled.plan.limit != null;
@@ -316,7 +316,7 @@ fn arrowOutput(init: std.process.Init, binding: *const f.FileSource.Binding, exe
 fn arrowBatch(schema: f.Types.Type, rows: []const f.LogicalArrow.Row, workspace: []u8, output: []u8) anyerror!void {
     try Capture.check(undefined);
     const bytes = f.LogicalArrow.messages(schema, rows, .{ .schema = false, .end = false }, workspace, output) catch |err| {
-        if ((err == error.WriteFailed or err == error.OutOfMemory) and rows.len > 1) {
+        if ((err == error.WriteFailed or err == error.ArrowWorkspaceExceeded) and rows.len > 1) {
             const middle = rows.len / 2;
             try arrowBatch(schema, rows[0..middle], workspace, output);
             return arrowBatch(schema, rows[middle..], workspace, output);
@@ -329,7 +329,6 @@ fn arrowBatch(schema: f.Types.Type, rows: []const f.LogicalArrow.Row, workspace:
 fn arrowError(err: anyerror) anyerror {
     return switch (err) {
         error.WriteFailed => error.ArrowSegmentTooLarge,
-        error.OutOfMemory => error.ArrowWorkspaceExceeded,
         else => err,
     };
 }

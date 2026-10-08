@@ -51,11 +51,12 @@ internal static class Value
         if (text.Length > bound * 2 || text.Length % 2 != 0 || text.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) throw Incompatible("native-bytes");
         return Convert.FromHexString(text);
     }
-    internal static JsonNode? Parse(byte[] bytes)
+    internal static JsonNode? Parse(byte[] bytes, int maxDepth = 64)
     {
+        if (maxDepth is < 1 or > 128) throw new ArgumentOutOfRangeException(nameof(maxDepth));
         try {
             // Reject duplicate members before constructing the ordinary owned tree.
-            Utf8JsonReader reader = new(bytes, new JsonReaderOptions { MaxDepth = 64 });
+            Utf8JsonReader reader = new(bytes, new JsonReaderOptions { MaxDepth = maxDepth });
             Stack<HashSet<string>?> scopes = new();
             while (reader.Read()) {
                 switch (reader.TokenType) {
@@ -70,7 +71,7 @@ internal static class Value
             }
             // Strict decoder rejects invalid UTF-8; JsonDocument otherwise replaces it.
             string text = Utf8.GetString(bytes);
-            return JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { MaxDepth = 64 });
+            return JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { MaxDepth = maxDepth });
         } catch (JsonException) { throw Incompatible("native-json"); }
         catch (DecoderFallbackException) { throw Incompatible("native-utf8"); }
     }

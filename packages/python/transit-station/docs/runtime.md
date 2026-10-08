@@ -82,14 +82,14 @@ erased; native temporary keys are erased.
 input progress and outputs. `turn.budgets` includes native framework reservations.
 All resource helpers expire with the turn, including captured closures.
 
-`TableSchema` selects the exact native schema. Tables support typed point
-operations and bounded `page(cursor)` reads with source/revision metadata and
-opaque cursors. Full-width int64 cells and keys retain Python integer precision.
-Read-after-write point behavior follows native Station; live captured-view pages
-cannot be mixed with private Table mutations. `retain`, `open_version` and
-`release` expose native retained sources; IDs survive turns, handles do not.
-Only a null continuation proves a page sequence complete. Default lifetimes
-remain unlimited; these APIs add no implicit retention or collection ceiling.
+[Typed Tables](tables.md) discover their general schema and expose stable row
+identities, composite primary-key lookup and bounded `page(cursor)` reads.
+Readers observe the committed cut; a private mutation becomes visible after its
+turn commits. `TableMutation.save()` captures the exact intent and `step(turn)`
+prepares one resumable step. Input processing and applied mutation completion are
+separate outcomes. `retain`, `open_version` and `release` expose retained sources;
+IDs survive turns, handles do not. Only a null continuation proves a page sequence
+complete. Default lifetimes remain unlimited.
 
 Queries require `ServiceConfig(query_results=True)`. Services explicitly authorize
 peer/Table policies and call `start_query` from a recorded request. The result

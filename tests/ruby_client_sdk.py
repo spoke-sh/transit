@@ -17,6 +17,7 @@ def run(node, cli, library, artifacts):
         subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=environment, cwd=target, check=True)
         script = target / 'consumer.rb'
         shutil.copyfile(root / 'tests/ruby_client_sdk.rb', script)
+        shutil.copyfile(root / 'tests/ruby_schema_values.rb', target / 'schema_values.rb')
         def invoke(mode, config):
             return subprocess.check_output(['ruby', script, mode, config], env=environment, cwd=target, timeout=30)
         return invoke

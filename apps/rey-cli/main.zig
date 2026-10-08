@@ -8,7 +8,8 @@ const telemetry = observations.telemetry;
 fn print(io: std.Io, value: anytype) !void {
     var buffer: [wire.max_body]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(io, &buffer);
-    try std.json.Stringify.value(value, .{}, &writer.interface);
+    var encoder: std.json.Stringify = .{ .writer = &writer.interface };
+    try transit.Json.write(value, &encoder);
     try writer.interface.writeByte('\n');
     try writer.interface.flush();
 }

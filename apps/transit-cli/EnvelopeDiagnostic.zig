@@ -33,6 +33,9 @@ pub fn render(value: d, out: *std.Io.Writer) !void {
             .required => "Required",
             .emitted_rows => "Rows already emitted",
             .emitted_segments => "Segments already emitted",
+            .dependency => "Blocking dependency",
+            .dependency_kind => "Dependency kind",
+            .dependency_owner => "Dependency owner PID",
             else => @tagName(fact.field),
         }});
         if (fact.value) |item| switch (item) {

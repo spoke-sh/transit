@@ -140,6 +140,19 @@ describe("executable workload excerpts", () => {
 });
 
 describe("generated interface reference", () => {
+  it("links nested definitions to their owning schema heading", () => {
+    const rendered = renderSpecification({
+      info: { title: "Recursive fixture", version: "1" },
+      components: {
+        schemas: {
+          Plan: { $ref: "#/components/schemas/Plan/$defs/T0", $defs: { T0: { type: "object" } } },
+        },
+      },
+    });
+    expect(rendered).toContain("[Plan/$defs/T0](#plan)");
+    expect(rendered).not.toContain("(#t0)");
+    expect(rendered).toContain("### Plan");
+  });
   it("renders every current operation and named schema from each authoritative description", () => {
     for (const entry of specifications) {
       const spec = readSpecification(root, entry.source);

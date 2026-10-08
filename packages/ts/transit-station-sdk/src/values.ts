@@ -232,6 +232,10 @@ export class ReadVersion {
     Object.freeze(this);
   }
 }
+export function readVersionWire(value: ReadVersion): { pid: number; input: number; index: number } {
+  if (!(value instanceof ReadVersion)) throw new TypeError("Expected ReadVersion");
+  return { pid: value.pid, input: value.input, index: value.index };
+}
 export interface Budgets {
   readonly mutations: number;
   readonly outputs: number;

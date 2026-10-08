@@ -6,10 +6,11 @@ import time
 
 from inspection import System
 from station import frame
+from station_ledger import audit_total
 from storage import wait_ready
 
 
-def run(node, cli, worker):
+def run(node, cli, worker, courier):
     with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
         deadline = int(time.time() * 1000) + 120000
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
@@ -22,6 +23,11 @@ def run(node, cli, worker):
         s.command({"initialize": {"pid": pid, "expected_generation": 1}})
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 2}})
         config = s.root / "station.json"
+        courier_seed, courier_public = s.key('courier')
+        s.command({'grant': {'subject': 3, 'public_key': courier_public, 'permissions': 132}})
+        courier_config = s.root / 'courier.json'
+        courier_config.write_text(json.dumps(dict(url=s.url, realm=72, principal=3, seed_file=str(courier_seed), interval_ms=10)))
+        s.start(courier, courier_config)
 
         def once(generation, error=None):
             config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 1,
@@ -54,8 +60,16 @@ def run(node, cli, worker):
 
         s.command({"send": {"pid": pid, "value": frame(b"init")}})
         once(3)
+        s.command({'send': {'pid': pid, 'value': frame(b'prepare-table')}})
         s.command({"send": {"pid": pid, "value": frame(b"7")}})
-        once(3)
+        def applied(generation, expected):
+            until = time.monotonic() + 45
+            while audit_total(s.native_query, resource) != expected:
+                assert time.monotonic() < until
+                if s.native_query({'process': pid})['body']['process']['input'] is not None:
+                    once(generation)
+                else: time.sleep(.025)
+        applied(3, 7)
         captured = query("entries")
         s.authority.kill(); s.authority.wait(timeout=10)
         s.store.stop(); s.store.start()
@@ -69,10 +83,7 @@ def run(node, cli, worker):
         s.command({"send": {"pid": pid, "value": frame(b"5")}})
         s.command({"resume": {"pid": pid, "expected_generation": 4}})
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 5}})
-        once(6)
-        key = b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big")
-        row = bytes.fromhex(query("entries", key=key.hex())["entries"][0]["value"])
-        assert int.from_bytes(row[2:], "little", signed=True) == 12
+        applied(6, 12)
         # Admission must also fit the full configured uncertainty bound, not
         # just the smaller error reported by a particular developer machine.
         bound = int(time.time() * 1000) + 15000

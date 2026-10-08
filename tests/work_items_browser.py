@@ -8,11 +8,12 @@ import time
 import urllib.error
 import urllib.request
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
 def run(node, worker, query_host, gateway, caller):
     node, worker, query_host, gateway, caller = [str(Path(p).resolve()) for p in (node, worker, query_host, gateway, caller)]
-    with Fixture() as fixture:
+    with ColdStore() as cold, Fixture(cold.config()) as fixture:
         started = time.monotonic()
         processes, logs, residents = [], [], {}
         def resident(name, process):

@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+import struct
 import sys
 import time
 from inspection import System
@@ -133,14 +134,25 @@ def run(node, cli, board, browser=False):
         resource_revision = api(f"resources/{resource}")["observation"]["resources"][0]["revision"]
         opened = s.command({"open_view": {"pid": pids[1], "generation": writer_generation, "input": delivered,
             "expected_revision": 0, "resource": resource, "revision": resource_revision, "deadline_ms": int(time.time()*1000)+30000}})
+        # A valid typed head is metadata evidence. This fixture does not claim
+        # to materialize its schema publication or application rows.
+        from unified_contract import current_definition
+        head_key = b'\0P' + struct.pack('>IQ', 8, 1) + b'h' + bytes(12)
+        head = (b'STH1' + current_definition() + struct.pack('<QQQ', resource, 1, 1)
+                + struct.pack('<QII', 1, 0x54534301, 500) + bytes([9]) * 32
+                + b'\0' + struct.pack('<QQQ', 0, 2, 0) + b'\0')
         s.command({"turn": {"pid": pids[1], "generation": writer_generation, "input": delivered,
             "expected_revision": 0, "views": [opened, None, None, None], "write_view": opened,
             "mutations": [{"key": b"\x00station".hex(), "value": b"station.genserver.v1".hex()},
-                          {"key": (b"\x00t"+(1).to_bytes(4,"little")).hex(), "value": b"TBL1\x01\x02id\x06amount".hex()},
+                          {"key": head_key.hex(), "value": head.hex()},
                           {"key": b"application".hex(), "value": b"station.genserver.v1".hex()}, None]}})
         framework = api(f"resources/{resource}/entries")
         lenses = [item for item in framework["framework"] if item]
         assert len(lenses) == 2 and {next(iter(item["declaration"])) for item in lenses} == {"behavior", "table"}
+        table = next(item['declaration']['table'] for item in lenses if 'table' in item['declaration'])
+        assert bytes.fromhex(table['object']) == b'1' and bytes.fromhex(table['rows']) == b'0'
+        assert table['schema']['bytes'] == 500 and table['schema']['digest'] == [9] * 32
+        assert table['pending'] is None and not table['retired']
         assert all(item["source"]["pid"] == pids[1] and item["source"]["resource"] == resource for item in lenses)
         s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 1}})
         failure(f"resources/{resource}/entries", 403, "inspection.denied", "inspect_scope")  # lenses cannot bypass read revocation
@@ -164,6 +176,7 @@ def run(node, cli, board, browser=False):
         if browser:
             env = os.environ | {"BOARD_TEST_URL": origin,
                                 "BOARD_TEST_OUTPUT": str(output["id"]),
+                                "BOARD_TEST_TABLE_KEY": head_key.hex(),
                                 "BOARD_TEST_RESOURCE": str(resource), "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
             subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "board.spec.ts"], env=env, check=True, timeout=180)

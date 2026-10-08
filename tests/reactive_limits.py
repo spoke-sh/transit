@@ -8,6 +8,7 @@ import time
 
 import serving
 from reactive import SSE, WebSocket, cursor_bytes, reactive, signed_read
+from serving_table import bootstrap as bootstrap_counter, watch as table_watch
 
 
 def run(env, tls, previous):
@@ -185,11 +186,18 @@ def run(env, tls, previous):
     config = dict(env['application_config'], pid=application, generation=2)
     worker = env['start']('reactive-finite-source', env['example'], config)
     cast(application, b''); drained(application)
-    worker.kill(); worker.wait(timeout=10)
+    env['resource_grant'](resource, 33, 3)
     env['resource_grant'](resource, 79, 3)
+    env['courier_worker'].kill(); env['courier_worker'].wait(timeout=10)
+    courier_config = copy.deepcopy(env['courier_config'])
+    courier_config['role']['courier']['destinations'].append(application)
+    env['courier_worker'] = env['start']('reactive-finite-courier', env['courier'], courier_config)
+    root = env['store'].root / 'finite-source'
+    root.mkdir()
+    definition = bootstrap_counter(env['cli'], root, env['url'], serving.REALM, application, resource, keys[33], cast, drained, env['query'], sequences, readers=(65536,))
+    worker.kill(); worker.wait(timeout=10)
     command(serving.publication(2, application, env['deadline_ms']), 33)
-    schema = hashlib.sha256(b'\1\1\2id\5count').digest()
-    command(reactive(0, struct.pack('<QQQQIB', 1, 2, application, resource, 1, 13) + b'data-progress' + schema + b'\1'), 33)
+    command(reactive(0, table_watch(definition, application, expected=1, revision=2)), 33)
     finite = open_session(65536, 32, revision=2)
     stream = attach_sse(finite)
     stream.until('event')

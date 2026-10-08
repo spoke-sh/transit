@@ -1,8 +1,9 @@
-//! Typed catalog requests and owned recovery over the shared Zig caller.
+//! Owned general Tables over the shared Zig compiler and durable owner.
+use crate::abi;
 use crate::bridge::{CatalogNative, counter, field, wide};
-use crate::{CellType, abi};
+use crate::logical::{Atom, Cell, Descriptor};
 use serde_json::{Value, json};
-use transit_client::internal::{Worker, boolean, number, string, unhex};
+use transit_client::internal::{Worker, boolean, hex, number, string, unhex};
 use transit_client::{
     AdmissionReceipt, ClientConfig, Counter, Credential, Error, ErrorKind, ProcessRef, ResourceRef,
     Result,
@@ -13,6 +14,16 @@ fn invalid() -> Error {
 }
 fn malformed() -> Error {
     Error::new(ErrorKind::IncompatibleNative, "catalog-response")
+}
+// Charge one completed fragment before converting the next logical value.
+// Complete frame admission also counts enclosing punctuation and fields.
+struct WireBudget(usize);
+impl WireBudget {
+    fn take(&mut self, value: Value) -> Result<Value> {
+        let size = serde_json::to_vec(&value).map_err(|_| invalid())?.len();
+        self.0 = self.0.checked_sub(size).ok_or_else(invalid)?;
+        Ok(value)
+    }
 }
 fn positive(value: u64) -> Result<u64> {
     if value == 0 {
@@ -39,26 +50,94 @@ fn result<'a>(value: &'a Value, tag: &str) -> Result<&'a Value> {
     object(value, &[tag])?;
     field(value, tag)
 }
-fn name(value: String) -> Result<String> {
-    if value.is_empty() || value.len() > 16 {
+fn variant(value: &Value) -> Result<(&str, &Value)> {
+    let map = value
+        .as_object()
+        .filter(|v| v.len() == 1)
+        .ok_or_else(malformed)?;
+    let (k, v) = map.iter().next().ok_or_else(malformed)?;
+    Ok((k, v))
+}
+fn text(value: &str, limit: usize) -> Result<&str> {
+    if value.is_empty() || value.len() > limit {
         Err(invalid())
     } else {
         Ok(value)
     }
 }
-fn catalog_name(value: &str) -> Result<()> {
-    let bytes = value.as_bytes();
-    if bytes.is_empty()
-        || bytes.len() > 16
-        || !(bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
-        || !bytes
-            .iter()
-            .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
-    {
+fn name(value: &str) -> Result<&str> {
+    text(value, 255)?;
+    if value.contains('\0') {
         return Err(invalid());
     }
-    Ok(())
+    Ok(value)
 }
+fn definition(value: &str) -> Result<&str> {
+    if value != abi::ABI_DEFINITION {
+        Err(invalid())
+    } else {
+        Ok(value)
+    }
+}
+fn bytes(value: &Value, bound: usize) -> Result<Vec<u8>> {
+    let value = string(value, "catalog-bytes")?;
+    if !value
+        .bytes()
+        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(malformed());
+    }
+    unhex(value, bound)
+}
+fn digest(value: &Value) -> Result<[u8; 32]> {
+    bytes(value, 32)?.try_into().map_err(|_| malformed())
+}
+fn w(value: &Value, zero: bool) -> Result<u64> {
+    let value = wide(value)?;
+    if !zero {
+        positive(value)?;
+    }
+    Ok(value)
+}
+fn n(value: &Value, zero: bool) -> Result<u64> {
+    number(value, "catalog-counter", zero)
+}
+fn u32n(value: &Value, zero: bool) -> Result<u32> {
+    n(value, zero)?.try_into().map_err(|_| malformed())
+}
+fn optional<T>(value: &Value, parse: impl FnOnce(&Value) -> Result<T>) -> Result<Option<T>> {
+    if value.is_null() {
+        Ok(None)
+    } else {
+        parse(value).map(Some)
+    }
+}
+fn diagnostic(value: &Value) -> Result<Value> {
+    if !value.is_object() {
+        return Err(malformed());
+    }
+    Ok(value.clone())
+}
+
+macro_rules! tags {
+    (read $name:ident {$($variant:ident => $tag:literal),+ $(,)?}) => {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)] pub enum $name {$($variant),+}
+        impl $name { fn parse(value:&Value)->Result<Self>{Ok(match string(value,"catalog-tag")? {$($tag=>Self::$variant,)+ _=>return Err(malformed())})} }
+    };
+    (write $name:ident {$($variant:ident => $tag:literal),+ $(,)?}) => {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)] pub enum $name {$($variant),+}
+        impl $name { fn tag(self)-> &'static str { match self {$(Self::$variant => $tag),+} } }
+    };
+}
+tags!(read Kind {Create=>"create",Alter=>"alter",Rename=>"rename",Drop=>"drop",Insert=>"insert",Update=>"update",Delete=>"delete"});
+tags!(read Phase {Preparing=>"preparing",Delegated=>"delegated",Building=>"building",Applied=>"applied",Unchanged=>"unchanged",Rejected=>"rejected",Cancelled=>"cancelled"});
+tags!(read UploadPhase {Uploading=>"uploading",Sealed=>"sealed",Ready=>"ready",Cancelled=>"cancelled"});
+tags!(read Observation {Pending=>"pending",Processed=>"processed"});
+tags!(read DispositionOutcome {Initialized=>"initialized",PolicyApplied=>"policy_applied",DependencyApplied=>"dependency_applied",InvalidCommand=>"invalid_command",Blocked=>"blocked",Denied=>"denied",IdentityConflict=>"identity_conflict",StalePolicy=>"stale_policy"});
+tags!(write Control {CancelOperation=>"cancel_operation",CleanupOperation=>"cleanup_operation",CancelUpload=>"cancel_upload",CollectUpload=>"collect_upload"});
+tags!(write DependencyKind {QuerySource=>"query_source",Writer=>"writer",Watch=>"watch",MaintainedRelation=>"maintained_relation",History=>"history"});
+tags!(write CellState {Missing=>"missing",Null=>"null",TypeError=>"type_error",Value=>"value",Conflict=>"conflict"});
+tags!(write CompareOperator {Eq=>"eq",Ne=>"ne",Lt=>"lt",Le=>"le",Gt=>"gt",Ge=>"ge"});
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Scope {
@@ -78,17 +157,14 @@ impl Scope {
     pub fn catalog(&self) -> u64 {
         self.catalog
     }
-    fn wire(&self) -> Value {
+    pub(crate) fn wire(&self) -> Value {
         json!({"realm":self.resource.realm(),"resource":self.resource.resource(),"catalog":self.catalog.to_string()})
     }
-    fn parse(value: &Value) -> Result<Self> {
-        object(value, &["realm", "resource", "catalog"])?;
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["realm", "resource", "catalog"])?;
         Self::new(
-            ResourceRef::new(
-                number(field(value, "realm")?, "realm", false)?,
-                number(field(value, "resource")?, "resource", false)?,
-            )?,
-            wide(field(value, "catalog")?)?,
+            ResourceRef::new(n(&v["realm"], false)?, n(&v["resource"], false)?)?,
+            w(&v["catalog"], false)?,
         )
     }
 }
@@ -115,397 +191,477 @@ impl Connection {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Configuration {
-    scope: Scope,
-    owner: ProcessRef,
-    administrator: u64,
+pub struct TableLimits {
+    pub record_bytes: u32,
+    pub staging_bytes: u64,
+    pub staging_records: u32,
 }
-impl Configuration {
-    pub fn new(scope: Scope, owner: ProcessRef, administrator: u64) -> Result<Self> {
-        Connection::new(owner, scope)?;
-        Ok(Self {
-            scope,
-            owner,
-            administrator: native(administrator, false)?,
-        })
-    }
-    pub fn scope(&self) -> Scope {
-        self.scope
-    }
-    pub fn owner(&self) -> ProcessRef {
-        self.owner
-    }
-    pub fn administrator(&self) -> u64 {
-        self.administrator
-    }
-    fn wire(&self) -> Value {
-        json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"administrator":self.administrator})
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        object(value, &["scope", "owner", "administrator"])?;
-        let scope = Scope::parse(field(value, "scope")?)?;
-        Self::new(
-            scope,
-            ProcessRef::new(
-                scope.resource.realm(),
-                number(field(value, "owner")?, "owner", false)?,
-            )?,
-            number(field(value, "administrator")?, "administrator", false)?,
-        )
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Schema {
-    names: [String; 2],
-    value_type: CellType,
-}
-impl Schema {
-    pub fn new(names: [String; 2], value_type: CellType) -> Result<Self> {
-        let [first, second] = names;
-        Ok(Self {
-            names: [name(first)?, name(second)?],
-            value_type,
-        })
-    }
-    pub fn names(&self) -> &[String; 2] {
-        &self.names
-    }
-    pub fn value_type(&self) -> CellType {
-        self.value_type
-    }
-    fn wire(&self) -> Value {
-        json!({"names":self.names,"value_type":self.value_type.native()})
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        object(value, &["names", "value_type"])?;
-        let names = field(value, "names")?
-            .as_array()
-            .filter(|v| v.len() == 2)
-            .ok_or_else(malformed)?;
-        let value_type = match string(field(value, "value_type")?, "catalog-type")? {
-            "int64" => CellType::Int64,
-            "boolean" => CellType::Boolean,
-            "utf8" => CellType::Utf8,
-            "binary" => CellType::Binary,
-            _ => return Err(malformed()),
-        };
-        Self::new(
-            [
-                string(&names[0], "name")?.to_owned(),
-                string(&names[1], "name")?.to_owned(),
-            ],
-            value_type,
-        )
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CreateTable {
-    scope: Scope,
-    operation: u64,
-    object: u64,
-    table: u32,
-    name: String,
-    schema: Schema,
-}
-impl CreateTable {
-    pub fn new(
-        scope: Scope,
-        operation: u64,
-        object: u64,
-        table: u32,
-        table_name: String,
-        schema: Schema,
-    ) -> Result<Self> {
-        positive(u64::from(table))?;
-        Ok(Self {
-            scope,
-            operation: positive(operation)?,
-            object: positive(object)?,
-            table,
-            name: name(table_name)?,
-            schema,
-        })
-    }
-    pub fn scope(&self) -> Scope {
-        self.scope
-    }
-    pub fn operation(&self) -> u64 {
-        self.operation
-    }
-    pub fn object(&self) -> u64 {
-        self.object
-    }
-    pub fn table(&self) -> u32 {
-        self.table
-    }
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn schema(&self) -> &Schema {
-        &self.schema
-    }
-    fn wire(&self) -> Value {
-        json!({"scope":self.scope.wire(),"operation":self.operation.to_string(),"object":self.object.to_string(),"table":self.table,"name":self.name,"schema":self.schema.wire()})
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        object(
-            value,
-            &["scope", "operation", "object", "table", "name", "schema"],
-        )?;
-        Self::new(
-            Scope::parse(field(value, "scope")?)?,
-            wide(field(value, "operation")?)?,
-            wide(field(value, "object")?)?,
-            number(field(value, "table")?, "table", false)?
-                .try_into()
-                .map_err(|_| malformed())?,
-            string(field(value, "name")?, "name")?.to_owned(),
-            Schema::parse(field(value, "schema")?)?,
-        )
-    }
-}
-#[derive(Clone)]
-pub struct Compiled {
-    request: CreateTable,
-    canonical: Vec<u8>,
-}
-impl Compiled {
-    pub fn from_data(request: CreateTable, canonical: Vec<u8>) -> Result<Self> {
-        if canonical.is_empty() || canonical.len() > 256 {
+impl TableLimits {
+    pub(crate) fn wire(&self) -> Result<Value> {
+        positive(self.record_bytes.into())?;
+        positive(self.staging_records.into())?;
+        if self.staging_bytes < u64::from(self.record_bytes) {
             return Err(invalid());
         }
-        Ok(Self { request, canonical })
+        Ok(
+            json!({"record_bytes":self.record_bytes,"staging_bytes":self.staging_bytes.to_string(),"staging_records":self.staging_records}),
+        )
     }
-    pub fn request(&self) -> &CreateTable {
-        &self.request
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["record_bytes", "staging_bytes", "staging_records"])?;
+        let out = Self {
+            record_bytes: u32n(&v["record_bytes"], false)?,
+            staging_bytes: w(&v["staging_bytes"], false)?,
+            staging_records: u32n(&v["staging_records"], false)?,
+        };
+        out.wire()?;
+        Ok(out)
     }
-    pub fn canonical(&self) -> &[u8] {
-        &self.canonical
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Configuration {
+    pub scope: Scope,
+    pub owner: ProcessRef,
+    pub administrator: u64,
+    pub table_limits: TableLimits,
+}
+impl Configuration {
+    fn wire(&self) -> Result<Value> {
+        Connection::new(self.owner, self.scope)?;
+        Ok(
+            json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"administrator":native(self.administrator,false)?,"table_limits":self.table_limits.wire()?}),
+        )
     }
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["scope", "owner", "administrator", "table_limits"])?;
+        let scope = Scope::parse(&v["scope"])?;
+        Ok(Self {
+            scope,
+            owner: ProcessRef::new(scope.resource.realm(), n(&v["owner"], false)?)?,
+            administrator: n(&v["administrator"], false)?,
+            table_limits: TableLimits::parse(&v["table_limits"])?,
+        })
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Rights {
+    pub inspect: bool,
+    pub create: bool,
+    pub read: bool,
+    pub insert: bool,
+    pub update: bool,
+    pub delete: bool,
+    pub alter: bool,
+    pub drop: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Policy {
-    scope: Scope,
-    principal: u64,
-    revision: u64,
-    inspect: bool,
-    create: bool,
+    pub scope: Scope,
+    pub principal: u64,
+    pub revision: u64,
+    pub rights: Rights,
 }
 impl Policy {
-    pub fn new(
-        scope: Scope,
-        principal: u64,
-        revision: u64,
-        inspect: bool,
-        create: bool,
-    ) -> Result<Self> {
-        Ok(Self {
-            scope,
-            principal: native(principal, true)?,
-            revision: positive(revision)?,
-            inspect,
-            create,
-        })
-    }
-    pub fn scope(&self) -> Scope {
-        self.scope
-    }
-    pub fn principal(&self) -> u64 {
-        self.principal
-    }
-    pub fn revision(&self) -> u64 {
-        self.revision
-    }
-    pub fn inspect(&self) -> bool {
-        self.inspect
-    }
-    pub fn create(&self) -> bool {
-        self.create
-    }
-    fn wire(&self) -> Value {
-        json!({"scope":self.scope.wire(),"principal":self.principal,"revision":self.revision.to_string(),"inspect":self.inspect,"create":self.create})
-    }
-    fn parse(value: &Value) -> Result<Self> {
-        object(
-            value,
-            &["scope", "principal", "revision", "inspect", "create"],
-        )?;
-        Self::new(
-            Scope::parse(field(value, "scope")?)?,
-            number(field(value, "principal")?, "principal", true)?,
-            wide(field(value, "revision")?)?,
-            boolean(field(value, "inspect")?, "inspect")?,
-            boolean(field(value, "create")?, "create")?,
+    fn wire(&self) -> Result<Value> {
+        let r = self.rights;
+        Ok(
+            json!({"scope":self.scope.wire(),"principal":native(self.principal,true)?,"revision":positive(self.revision)?.to_string(),"inspect":r.inspect,"create":r.create,"read":r.read,"insert":r.insert,"update":r.update,"delete":r.delete,"alter":r.alter,"drop":r.drop}),
         )
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "scope",
+                "principal",
+                "revision",
+                "inspect",
+                "create",
+                "read",
+                "insert",
+                "update",
+                "delete",
+                "alter",
+                "drop",
+            ],
+        )?;
+        let b = |key| boolean(&v[key], "catalog-right");
+        Ok(Self {
+            scope: Scope::parse(&v["scope"])?,
+            principal: n(&v["principal"], true)?,
+            revision: w(&v["revision"], false)?,
+            rights: Rights {
+                inspect: b("inspect")?,
+                create: b("create")?,
+                read: b("read")?,
+                insert: b("insert")?,
+                update: b("update")?,
+                delete: b("delete")?,
+                alter: b("alter")?,
+                drop: b("drop")?,
+            },
+        })
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PolicyChange {
-    expected_revision: u64,
-    policy: Policy,
+    pub expected_revision: u64,
+    pub policy: Policy,
 }
 impl PolicyChange {
-    pub fn new(expected_revision: u64, policy: Policy) -> Self {
+    fn wire(&self) -> Result<Value> {
+        if self.expected_revision.checked_add(1) != Some(self.policy.revision) {
+            return Err(invalid());
+        }
+        Ok(
+            json!({"expected_revision":self.expected_revision.to_string(),"policy":self.policy.wire()?}),
+        )
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Column {
+    pub id: u64,
+    pub name: String,
+    pub datatype: Descriptor,
+    pub nullable: bool,
+    pub default: Option<Cell>,
+    pub max_characters: Option<u32>,
+}
+impl Column {
+    pub fn new(id: u64, name: String, datatype: Descriptor) -> Self {
         Self {
-            expected_revision,
-            policy,
+            id,
+            name,
+            datatype,
+            nullable: true,
+            default: None,
+            max_characters: None,
         }
     }
-    pub fn expected_revision(&self) -> u64 {
-        self.expected_revision
+    fn wire(&self) -> Result<Value> {
+        let mut out = column(
+            &self.name,
+            &self.datatype,
+            self.nullable,
+            self.default.as_ref(),
+            self.max_characters,
+        )?;
+        out["id"] = json!(positive(self.id)?.to_string());
+        Ok(out)
     }
-    pub fn policy(&self) -> &Policy {
-        &self.policy
+    fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "id",
+                "name",
+                "type",
+                "nullable",
+                "default",
+                "max_characters",
+            ],
+        )?;
+        Ok(Self {
+            id: w(&v["id"], false)?,
+            name: name(string(&v["name"], "column-name")?)?.into(),
+            datatype: Descriptor::parse(&v["type"])?,
+            nullable: boolean(&v["nullable"], "nullable")?,
+            default: optional(&v["default"], Cell::parse)?,
+            max_characters: optional(&v["max_characters"], |v| u32n(v, false))?,
+        })
+    }
+}
+fn column(
+    name_: &str,
+    datatype: &Descriptor,
+    nullable: bool,
+    default: Option<&Cell>,
+    max_characters: Option<u32>,
+) -> Result<Value> {
+    if max_characters == Some(0) {
+        return Err(invalid());
+    }
+    Ok(
+        json!({"name":name(name_)?,"type":datatype.wire()?,"nullable":nullable,"default":default.map(Cell::wire).transpose()?,"max_characters":max_characters}),
+    )
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Schema {
+    pub object: u64,
+    pub revision: u64,
+    pub next_column: u64,
+    pub columns: Vec<Column>,
+    pub primary_key: Vec<u64>,
+}
+impl Schema {
+    pub(crate) fn wire(&self) -> Result<Value> {
+        if !(1..=128).contains(&self.columns.len()) || self.primary_key.len() > self.columns.len() {
+            return Err(invalid());
+        }
+        let mut budget = WireBudget(2 * 1024 * 1024);
+        let columns = self
+            .columns
+            .iter()
+            .map(|column| budget.take(column.wire()?))
+            .collect::<Result<Vec<_>>>()?;
+        let keys = self
+            .primary_key
+            .iter()
+            .map(|v| Ok(positive(*v)?.to_string()))
+            .collect::<Result<Vec<_>>>()?;
+        let out = json!({"definition":abi::ABI_DEFINITION,"object":positive(self.object)?.to_string(),"revision":positive(self.revision)?.to_string(),"next_column":positive(self.next_column)?.to_string(),"columns":columns,"primary_key":keys});
+        if serde_json::to_vec(&out).map_err(|_| invalid())?.len() > 2 * 1024 * 1024 {
+            return Err(invalid());
+        }
+        Ok(out)
+    }
+    pub(crate) fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "definition",
+                "object",
+                "revision",
+                "next_column",
+                "columns",
+                "primary_key",
+            ],
+        )?;
+        definition(string(&v["definition"], "schema-definition")?)?;
+        let columns = v["columns"]
+            .as_array()
+            .filter(|v| (1..=128).contains(&v.len()))
+            .ok_or_else(malformed)?
+            .iter()
+            .map(Column::parse)
+            .collect::<Result<Vec<_>>>()?;
+        let primary_key = v["primary_key"]
+            .as_array()
+            .filter(|v| v.len() <= columns.len())
+            .ok_or_else(malformed)?
+            .iter()
+            .map(|v| w(v, false))
+            .collect::<Result<Vec<_>>>()?;
+        let out = Self {
+            object: w(&v["object"], false)?,
+            revision: w(&v["revision"], false)?,
+            next_column: w(&v["next_column"], false)?,
+            columns,
+            primary_key,
+        };
+        out.wire()?;
+        Ok(out)
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Identity {
+    operation: u64,
+    namespace: u64,
+}
+impl Identity {
+    pub fn new(operation: u64, namespace: u64) -> Result<Self> {
+        Ok(Self {
+            operation: positive(operation)?,
+            namespace: positive(namespace)?,
+        })
+    }
+    pub fn operation(&self) -> u64 {
+        self.operation
+    }
+    pub fn namespace(&self) -> u64 {
+        self.namespace
     }
     fn wire(&self) -> Value {
-        json!({"expected_revision":self.expected_revision.to_string(),"policy":self.policy.wire()})
+        json!({"operation":self.operation.to_string(),"namespace":self.namespace.to_string()})
     }
 }
-/// Exact opaque signed text. Submission borrows it without consuming or rewriting it.
-#[derive(Clone)]
-pub struct Prepared(String);
-impl Prepared {
-    pub fn from_data(data: String) -> Result<Self> {
-        if data.is_empty() || data.len() > 8192 {
-            Err(invalid())
-        } else {
-            Ok(Self(data))
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Basis {
+    pub object: u64,
+    pub revision: u64,
+    pub schema_fingerprint: [u8; 32],
+}
+impl Basis {
+    fn wire(&self) -> Result<Value> {
+        Ok(
+            json!({"object":positive(self.object)?.to_string(),"revision":positive(self.revision)?.to_string(),"schema_fingerprint":hex(&self.schema_fingerprint,32)?}),
+        )
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MetadataCommitment {
+    pub bytes: u32,
+    pub digest: [u8; 32],
+}
+impl MetadataCommitment {
+    pub(crate) fn wire(&self) -> Result<Value> {
+        if !(1..=436).contains(&self.bytes) {
+            return Err(invalid());
         }
+        Ok(json!({"format":0x54434d01u32,"length":self.bytes,"digest":self.digest}))
     }
-    pub fn data(&self) -> &str {
-        &self.0
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["format", "length", "digest"])?;
+        if v["format"] != 0x54434d01u32 {
+            return Err(malformed());
+        }
+        let data = v["digest"]
+            .as_array()
+            .filter(|v| v.len() == 32)
+            .ok_or_else(malformed)?;
+        let mut digest = [0u8; 32];
+        for (target, byte) in digest.iter_mut().zip(data) {
+            *target = n(byte, true)?.try_into().map_err(|_| malformed())?;
+        }
+        let out = Self {
+            bytes: u32n(&v["length"], false)?,
+            digest,
+        };
+        out.wire()?;
+        Ok(out)
     }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Observation {
-    Pending,
-    Processed,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Outcome {
-    Applied,
-    NameConflict,
-    ObjectConflict,
-    TableConflict,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Origin {
-    External,
-    Process,
-    Effect,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DispositionOutcome {
-    Initialized,
-    PolicyApplied,
-    InvalidCommand,
-    Denied,
-    IdentityConflict,
-    StalePolicy,
-}
-#[derive(Clone, Debug)]
-pub struct Capabilities {
-    pub version: u8,
-    pub definition: String,
-    pub initialize: bool,
-    pub create_table: bool,
-    pub conditional_policy: bool,
-    pub current_metadata: bool,
-    pub max_saved_bytes: u16,
-    pub table_columns: u8,
-}
-#[derive(Clone, Debug)]
-pub struct Description {
-    pub configuration: Configuration,
-    pub policy: Policy,
-    pub resource_revision: u64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TableSource {
-    pub table: u32,
-    pub schema: Schema,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Definition {
+pub struct Metadata {
     pub scope: Scope,
     pub object: u64,
     pub revision: u64,
     pub name: String,
-    pub source: TableSource,
+    pub schema_fingerprint: [u8; 32],
     pub principal: u64,
     pub operation: u64,
-    pub input: u64,
+    pub admitted_input: u64,
+    pub commitment: MetadataCommitment,
 }
-impl Definition {
-    fn parse(value: &Value) -> Result<Self> {
+impl Metadata {
+    pub fn basis(&self) -> Basis {
+        Basis {
+            object: self.object,
+            revision: self.revision,
+            schema_fingerprint: self.schema_fingerprint,
+        }
+    }
+    fn parse(v: &Value) -> Result<Self> {
         object(
-            value,
+            v,
             &[
                 "scope",
                 "object",
                 "revision",
                 "name",
-                "source",
+                "schema_fingerprint",
                 "principal",
                 "operation",
-                "input",
+                "admitted_input",
+                "commitment",
             ],
         )?;
-        let source = field(value, "source")?;
-        object(source, &["table"])?;
-        let table = field(source, "table")?;
-        object(table, &["id", "schema"])?;
-        let schema = Schema::parse(field(table, "schema")?)?;
-        for name in schema.names() {
-            catalog_name(name)?;
-        }
-        if schema.names()[0] == schema.names()[1] {
-            return Err(malformed());
-        }
-        let name = string(field(value, "name")?, "name")?;
-        catalog_name(name)?;
         Ok(Self {
-            scope: Scope::parse(field(value, "scope")?)?,
-            object: positive(wide(field(value, "object")?)?)?,
-            revision: positive(wide(field(value, "revision")?)?)?,
-            name: name.to_owned(),
-            source: TableSource {
-                table: number(field(table, "id")?, "table", false)?
-                    .try_into()
-                    .map_err(|_| malformed())?,
-                schema,
-            },
-            principal: number(field(value, "principal")?, "principal", true)?,
-            operation: positive(wide(field(value, "operation")?)?)?,
-            input: number(field(value, "input")?, "input", false)?,
+            scope: Scope::parse(&v["scope"])?,
+            object: w(&v["object"], false)?,
+            revision: w(&v["revision"], false)?,
+            name: name(string(&v["name"], "table-name")?)?.into(),
+            schema_fingerprint: digest(&v["schema_fingerprint"])?,
+            principal: n(&v["principal"], true)?,
+            operation: w(&v["operation"], false)?,
+            admitted_input: n(&v["admitted_input"], false)?,
+            commitment: MetadataCommitment::parse(&v["commitment"])?,
         })
     }
 }
-/// Exact local continuation. Restoring it requires the original definition field.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Head {
+    pub revision: u64,
+    pub rows: u64,
+    pub pending: u64,
+}
+impl Head {
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["revision", "rows", "pending"])?;
+        Ok(Self {
+            revision: w(&v["revision"], false)?,
+            rows: w(&v["rows"], true)?,
+            pending: w(&v["pending"], true)?,
+        })
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Entry {
+    pub metadata: Metadata,
+    pub head: Head,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Definition {
+    pub metadata: Metadata,
+    pub head: Head,
+    pub schema: Schema,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistoricalDefinition {
+    pub metadata: Metadata,
+    pub schema: Schema,
+}
+fn resolved(v: &Value, scope: Scope, requested: &str) -> Result<Option<Definition>> {
+    optional(v, |v| {
+        object(v, &["metadata", "head", "schema"])?;
+        let out = Definition {
+            metadata: Metadata::parse(&v["metadata"])?,
+            head: Head::parse(&v["head"])?,
+            schema: Schema::parse(&v["schema"])?,
+        };
+        if out.metadata.scope != scope
+            || out.metadata.name != requested
+            || out.metadata.object != out.schema.object
+        {
+            return Err(malformed());
+        }
+        Ok(out)
+    })
+}
+fn historical(
+    v: &Value,
+    scope: Scope,
+    id: u64,
+    revision: u64,
+) -> Result<Option<HistoricalDefinition>> {
+    optional(v, |v| {
+        object(v, &["metadata", "schema"])?;
+        let out = HistoricalDefinition {
+            metadata: Metadata::parse(&v["metadata"])?,
+            schema: Schema::parse(&v["schema"])?,
+        };
+        if out.metadata.scope != scope
+            || out.metadata.object != id
+            || out.metadata.revision != revision
+            || out.schema.object != id
+        {
+            return Err(malformed());
+        }
+        Ok(out)
+    })
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cursor {
     definition: String,
     scope: Scope,
     resource_revision: u64,
-    after: String,
+    after_object: u64,
 }
 impl Cursor {
     pub fn new(
-        definition: String,
+        definition_: String,
         scope: Scope,
         resource_revision: u64,
-        after: String,
+        after_object: u64,
     ) -> Result<Self> {
-        if definition != abi::ABI_DEFINITION {
-            return Err(malformed());
-        }
-        native(resource_revision, false)?;
-        catalog_name(&after)?;
+        definition(&definition_)?;
+        native(resource_revision, true)?;
+        positive(after_object)?;
         Ok(Self {
-            definition,
+            definition: definition_,
             scope,
             resource_revision,
-            after,
+            after_object,
         })
     }
     pub fn definition(&self) -> &str {
@@ -517,81 +673,81 @@ impl Cursor {
     pub fn resource_revision(&self) -> u64 {
         self.resource_revision
     }
-    pub fn after(&self) -> &str {
-        &self.after
+    pub fn after_object(&self) -> u64 {
+        self.after_object
     }
     fn wire(&self) -> Value {
-        json!({"definition":self.definition,"scope":self.scope.wire(),"resource_revision":self.resource_revision,"after":self.after})
+        json!({"definition":self.definition,"scope":self.scope.wire(),"resource_revision":self.resource_revision,"after_object":self.after_object.to_string()})
     }
-    fn parse(value: &Value) -> Result<Self> {
+    fn parse(v: &Value) -> Result<Self> {
         object(
-            value,
-            &["definition", "scope", "resource_revision", "after"],
+            v,
+            &["definition", "scope", "resource_revision", "after_object"],
         )?;
         Self::new(
-            string(field(value, "definition")?, "definition")?.to_owned(),
-            Scope::parse(field(value, "scope")?)?,
-            number(
-                field(value, "resource_revision")?,
-                "resource-revision",
-                false,
-            )?,
-            string(field(value, "after")?, "after")?.to_owned(),
+            string(&v["definition"], "cursor-definition")?.into(),
+            Scope::parse(&v["scope"])?,
+            n(&v["resource_revision"], true)?,
+            w(&v["after_object"], false)?,
         )
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Page {
     pub resource_revision: u64,
-    pub entries: Vec<Definition>,
+    pub entries: Vec<Entry>,
     pub next: Option<Cursor>,
 }
 impl Page {
-    fn parse(value: &Value, scope: Scope, previous: Option<&Cursor>) -> Result<Self> {
-        object(value, &["resource_revision", "entries", "next"])?;
-        let resource_revision = number(
-            field(value, "resource_revision")?,
-            "resource-revision",
-            false,
-        )?;
-        let slots = field(value, "entries")?
+    fn parse(v: &Value, scope: Scope, previous: Option<&Cursor>) -> Result<Self> {
+        object(v, &["resource_revision", "entries", "next"])?;
+        let resource_revision = n(&v["resource_revision"], true)?;
+        let slots = v["entries"]
             .as_array()
             .filter(|v| v.len() == 8)
             .ok_or_else(malformed)?;
-        let mut entries: Vec<Definition> = Vec::with_capacity(8);
+        let mut entries: Vec<Entry> = Vec::with_capacity(8);
         let mut ended = false;
         for slot in slots {
             if slot.is_null() {
                 ended = true;
                 continue;
             }
-            let entry = Definition::parse(slot)?;
+            object(slot, &["metadata", "head"])?;
+            let entry = Entry {
+                metadata: Metadata::parse(&slot["metadata"])?,
+                head: Head::parse(&slot["head"])?,
+            };
             if ended
-                || entry.scope != scope
-                || entries.last().is_some_and(|last| last.name >= entry.name)
+                || entry.metadata.scope != scope
+                || entries
+                    .last()
+                    .is_some_and(|last| last.metadata.object >= entry.metadata.object)
             {
                 return Err(malformed());
             }
             entries.push(entry);
         }
-        let next = match field(value, "next")? {
-            Value::Null => None,
-            cursor => Some(Cursor::parse(cursor)?),
-        };
-        if let Some(next) = &next {
-            let last = entries.last().ok_or_else(malformed)?;
-            if next.scope != scope
-                || next.after != last.name
-                || next.resource_revision != resource_revision
+        let next = optional(&v["next"], Cursor::parse)?;
+        if let Some(c) = &next {
+            if c.scope != scope
+                || c.resource_revision != resource_revision
+                || entries
+                    .last()
+                    .is_some_and(|last| last.metadata.object > c.after_object)
             {
                 return Err(malformed());
             }
         }
-        if let Some(previous) = previous {
-            if resource_revision != previous.resource_revision
+        if let Some(p) = previous {
+            if p.scope != scope
+                || p.resource_revision != resource_revision
                 || entries
                     .first()
-                    .is_some_and(|first| first.name <= previous.after)
+                    .is_some_and(|first| first.metadata.object <= p.after_object)
+                || next
+                    .as_ref()
+                    .is_some_and(|next| next.after_object <= p.after_object)
             {
                 return Err(malformed());
             }
@@ -603,62 +759,813 @@ impl Page {
         })
     }
 }
-fn resolved(
-    value: &Value,
-    scope: Scope,
-    name: Option<&str>,
-    identity: Option<(u64, u64)>,
-) -> Result<Option<Definition>> {
-    if value.is_null() {
-        return Ok(None);
-    }
-    let result = Definition::parse(value)?;
-    if result.scope != scope
-        || name.is_some_and(|name| result.name != name)
-        || identity.is_some_and(|(object, revision)| {
-            result.object != object || result.revision != revision
-        })
-    {
-        return Err(malformed());
-    }
-    Ok(Some(result))
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Reference {
+    definition: String,
+    digest: [u8; 32],
 }
-#[derive(Clone, Debug)]
-pub struct Receipt {
-    pub request: CreateTable,
+impl Reference {
+    pub fn new(definition_: String, digest: [u8; 32]) -> Result<Self> {
+        definition(&definition_)?;
+        Ok(Self {
+            definition: definition_,
+            digest,
+        })
+    }
+    pub fn definition(&self) -> &str {
+        &self.definition
+    }
+    pub fn digest(&self) -> &[u8; 32] {
+        &self.digest
+    }
+    fn wire(&self) -> Value {
+        json!({"definition":self.definition,"digest":hex(&self.digest,32).expect("fixed digest width")})
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["definition", "digest"])?;
+        Self::new(
+            string(&v["definition"], "intent-definition")?.into(),
+            digest(&v["digest"])?,
+        )
+    }
+}
+#[derive(Clone, Eq, PartialEq)]
+pub struct SavedIntent {
+    definition: String,
+    bytes: Vec<u8>,
+}
+impl std::fmt::Debug for SavedIntent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SavedIntent")
+            .field("definition", &self.definition)
+            .field("bytes", &self.bytes.len())
+            .finish()
+    }
+}
+impl SavedIntent {
+    pub fn new(definition_: String, bytes: Vec<u8>) -> Result<Self> {
+        definition(&definition_)?;
+        if bytes.is_empty() || bytes.len() > abi::CATALOG_INTENT_BYTES {
+            return Err(invalid());
+        }
+        Ok(Self {
+            definition: definition_,
+            bytes,
+        })
+    }
+    pub fn definition(&self) -> &str {
+        &self.definition
+    }
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    fn wire(&self) -> Result<Value> {
+        Ok(
+            json!({"definition":self.definition,"bytes":hex(&self.bytes,abi::CATALOG_INTENT_BYTES)?}),
+        )
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["definition", "bytes"])?;
+        Self::new(
+            string(&v["definition"], "saved-definition")?.into(),
+            bytes(&v["bytes"], abi::CATALOG_INTENT_BYTES)?,
+        )
+    }
+}
+#[derive(Clone, Eq, PartialEq)]
+pub struct Prepared {
+    data: String,
+}
+impl std::fmt::Debug for Prepared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Prepared")
+            .field("bytes", &self.data.len())
+            .finish()
+    }
+}
+impl Prepared {
+    pub fn from_data(data: String) -> Result<Self> {
+        text(&data, abi::CATALOG_PREPARED_BYTES)?;
+        Ok(Self { data })
+    }
+    pub fn data(&self) -> &str {
+        &self.data
+    }
+}
+fn prepared(value: &Value) -> Result<Prepared> {
+    Prepared::from_data(string(value, "catalog-prepared")?.into())
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Intent {
+    pub reference: Reference,
+    pub scope: Scope,
+    pub owner: ProcessRef,
     pub principal: u64,
-    pub input: u64,
-    pub outcome: Outcome,
+    pub identity: Identity,
+    pub object: u64,
+    pub kind: Kind,
+}
+impl Intent {
+    fn parse(v: &Value, connection: &Connection, principal: u64) -> Result<Self> {
+        object(
+            v,
+            &[
+                "reference",
+                "scope",
+                "owner",
+                "principal",
+                "operation",
+                "namespace",
+                "object",
+                "kind",
+            ],
+        )?;
+        let scope = Scope::parse(&v["scope"])?;
+        let out = Self {
+            reference: Reference::parse(&v["reference"])?,
+            scope,
+            owner: ProcessRef::new(scope.resource.realm(), n(&v["owner"], false)?)?,
+            principal: n(&v["principal"], true)?,
+            identity: Identity::new(w(&v["operation"], false)?, w(&v["namespace"], false)?)?,
+            object: w(&v["object"], true)?,
+            kind: Kind::parse(&v["kind"])?,
+        };
+        if out.scope != connection.scope
+            || out.owner != connection.owner
+            || out.principal != principal
+        {
+            return Err(malformed());
+        }
+        Ok(out)
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Compiled {
+    pub intent: Intent,
+    pub saved: SavedIntent,
+}
+impl Compiled {
+    fn parse(
+        v: &Value,
+        connection: &Connection,
+        principal: u64,
+        identity: Identity,
+        kind: Option<Kind>,
+        id: Option<u64>,
+    ) -> Result<Self> {
+        object(v, &["intent", "saved"])?;
+        let out = Self {
+            intent: Intent::parse(&v["intent"], connection, principal)?,
+            saved: SavedIntent::parse(&v["saved"])?,
+        };
+        if out.intent.identity != identity
+            || kind.is_some_and(|k| k != out.intent.kind)
+            || id.is_some_and(|id| id != out.intent.object)
+        {
+            return Err(malformed());
+        }
+        Ok(out)
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Counts {
+    pub matched: u64,
+    pub changed: u64,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Outcome {
+    pub kind: Kind,
+    pub operation: u64,
+    pub object: u64,
+    pub actual_object: Option<u64>,
+    pub phase: Phase,
+    pub terminal: bool,
+    pub counts: Option<Counts>,
+    pub admitted_input: u64,
+    pub completed_input: Option<u64>,
     pub diagnostic: Value,
 }
-#[derive(Clone, Debug)]
+impl Outcome {
+    fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "kind",
+                "operation",
+                "object",
+                "actual_object",
+                "phase",
+                "terminal",
+                "counts",
+                "admitted_input",
+                "completed_input",
+                "diagnostic",
+            ],
+        )?;
+        let kind = Kind::parse(&v["kind"])?;
+        let phase = Phase::parse(&v["phase"])?;
+        let terminal = boolean(&v["terminal"], "terminal")?;
+        if terminal
+            != matches!(
+                phase,
+                Phase::Applied | Phase::Unchanged | Phase::Rejected | Phase::Cancelled
+            )
+        {
+            return Err(malformed());
+        }
+        let counts = optional(&v["counts"], |v| {
+            object(v, &["matched", "changed"])?;
+            let out = Counts {
+                matched: w(&v["matched"], true)?,
+                changed: w(&v["changed"], true)?,
+            };
+            if out.changed > out.matched {
+                return Err(malformed());
+            }
+            Ok(out)
+        })?;
+        if counts.is_some()
+            != (phase == Phase::Applied
+                && matches!(kind, Kind::Insert | Kind::Update | Kind::Delete))
+        {
+            return Err(malformed());
+        }
+        Ok(Self {
+            kind,
+            operation: w(&v["operation"], false)?,
+            object: w(&v["object"], true)?,
+            actual_object: optional(&v["actual_object"], |v| w(v, true))?,
+            phase,
+            terminal,
+            counts,
+            admitted_input: n(&v["admitted_input"], false)?,
+            completed_input: optional(&v["completed_input"], |v| n(v, false))?,
+            diagnostic: diagnostic(&v["diagnostic"])?,
+        })
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Upload {
+    pub phase: UploadPhase,
+    pub received: usize,
+    pub total: usize,
+}
+impl Upload {
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["phase", "received", "total"])?;
+        let received = n(&v["received"], true)? as usize;
+        let total = n(&v["total"], false)? as usize;
+        if received > total || total > abi::CATALOG_INTENT_BYTES {
+            return Err(malformed());
+        }
+        Ok(Self {
+            phase: UploadPhase::parse(&v["phase"])?,
+            received,
+            total,
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct State {
+    pub outcome: Option<Outcome>,
+    pub upload: Option<Upload>,
+}
+impl State {
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["outcome", "upload"])?;
+        Ok(Self {
+            outcome: optional(&v["outcome"], Outcome::parse)?,
+            upload: optional(&v["upload"], Upload::parse)?,
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
 pub struct Disposition {
-    pub scope: Scope,
-    pub origin: Origin,
-    pub principal: u64,
     pub input: u64,
-    pub payload: [u8; 32],
     pub outcome: DispositionOutcome,
     pub diagnostic: Value,
 }
+impl Disposition {
+    fn parse(v: &Value) -> Result<Self> {
+        object(v, &["input", "outcome", "diagnostic"])?;
+        Ok(Self {
+            input: n(&v["input"], false)?,
+            outcome: DispositionOutcome::parse(&v["outcome"])?,
+            diagnostic: diagnostic(&v["diagnostic"])?,
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Next {
+    Send(Prepared),
+    Running,
+    UploadCancelled,
+    Terminal(Outcome),
+}
+impl Next {
+    fn parse(v: &Value) -> Result<Self> {
+        let (k, v) = variant(v)?;
+        Ok(match k {
+            "send" => Self::Send(prepared(v)?),
+            "terminal" => {
+                let out = Outcome::parse(v)?;
+                if !out.terminal {
+                    return Err(malformed());
+                }
+                Self::Terminal(out)
+            }
+            "running" => {
+                object(v, &[])?;
+                Self::Running
+            }
+            "upload_cancelled" => {
+                object(v, &[])?;
+                Self::UploadCancelled
+            }
+            _ => return Err(malformed()),
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Progress {
+    Pending,
+    Processed {
+        disposition: Option<Disposition>,
+        outcome: Option<Outcome>,
+        upload: Option<Upload>,
+    },
+}
+impl Progress {
+    fn parse(v: &Value) -> Result<Self> {
+        let (k, v) = variant(v)?;
+        Ok(match k {
+            "pending" => {
+                object(v, &[])?;
+                Self::Pending
+            }
+            "processed" => {
+                object(v, &["disposition", "outcome", "upload"])?;
+                Self::Processed {
+                    disposition: optional(&v["disposition"], Disposition::parse)?,
+                    outcome: optional(&v["outcome"], Outcome::parse)?,
+                    upload: optional(&v["upload"], Upload::parse)?,
+                }
+            }
+            _ => return Err(malformed()),
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum AssignmentValue {
+    Default,
+    Cell(Cell),
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Assignment {
+    pub column: u64,
+    pub value: AssignmentValue,
+}
+fn assignments(values: &[Assignment], budget: &mut WireBudget) -> Result<Value> {
+    if values.len() > 128 {
+        return Err(invalid());
+    }
+    let values=values.iter().map(|a|budget.take(json!({"column":positive(a.column)?.to_string(),"value":match &a.value{AssignmentValue::Default=>json!({"default":{}}),AssignmentValue::Cell(cell)=>json!({"cell":cell.wire()?})}}))).collect::<Result<Vec<_>>>()?;
+    Ok(json!(values))
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Predicate {
+    All,
+    Negate,
+    Conjunction,
+    Disjunction,
+    State {
+        column: u64,
+        state: CellState,
+    },
+    Compare {
+        column: u64,
+        op: CompareOperator,
+        value: Atom,
+    },
+}
+impl Predicate {
+    fn wire(&self) -> Result<Value> {
+        Ok(match self {
+            Self::All => json!({"atom":{"all":{}}}),
+            Self::Negate => json!({"negate":{}}),
+            Self::Conjunction => json!({"conjunction":{}}),
+            Self::Disjunction => json!({"disjunction":{}}),
+            Self::State { column, state } => {
+                json!({"atom":{"state":{"column":positive(*column)?.to_string(),"value":state.tag()}}})
+            }
+            Self::Compare { column, op, value } => {
+                json!({"atom":{"compare":{"column":positive(*column)?.to_string(),"op":op.tag(),"value":value.wire()?}}})
+            }
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Mutation {
+    Insert {
+        rows: Vec<Vec<Assignment>>,
+    },
+    Update {
+        assignments: Vec<Assignment>,
+        predicate: Option<Vec<Predicate>>,
+    },
+    Delete {
+        predicate: Option<Vec<Predicate>>,
+    },
+}
+impl Mutation {
+    pub(crate) fn parse(value: &Value) -> Result<Self> {
+        object(value, &["action", "predicate"])?;
+        fn parsed_assignments(v: &Value) -> Result<Vec<Assignment>> {
+            v.as_array()
+                .filter(|v| v.len() <= 128)
+                .ok_or_else(malformed)?
+                .iter()
+                .map(|v| {
+                    object(v, &["column", "value"])?;
+                    let (tag, data) = variant(&v["value"])?;
+                    let value = match tag {
+                        "default" => {
+                            object(data, &[])?;
+                            AssignmentValue::Default
+                        }
+                        "cell" => AssignmentValue::Cell(Cell::parse(data)?),
+                        _ => return Err(malformed()),
+                    };
+                    Ok(Assignment {
+                        column: w(&v["column"], false)?,
+                        value,
+                    })
+                })
+                .collect()
+        }
+        let predicate = if value["predicate"].is_null() {
+            None
+        } else {
+            Some(
+                value["predicate"]
+                    .as_array()
+                    .filter(|v| (1..=64).contains(&v.len()))
+                    .ok_or_else(malformed)?
+                    .iter()
+                    .map(|v| {
+                        let (tag, data) = variant(v)?;
+                        if tag != "atom" {
+                            object(data, &[])?;
+                            return Ok(match tag {
+                                "negate" => Predicate::Negate,
+                                "conjunction" => Predicate::Conjunction,
+                                "disjunction" => Predicate::Disjunction,
+                                _ => return Err(malformed()),
+                            });
+                        }
+                        let (tag, data) = variant(data)?;
+                        Ok(match tag {
+                            "all" => {
+                                object(data, &[])?;
+                                Predicate::All
+                            }
+                            "state" => {
+                                object(data, &["column", "value"])?;
+                                let state = match string(&data["value"], "cell-state")? {
+                                    "missing" => CellState::Missing,
+                                    "null" => CellState::Null,
+                                    "type_error" => CellState::TypeError,
+                                    "value" => CellState::Value,
+                                    "conflict" => CellState::Conflict,
+                                    _ => return Err(malformed()),
+                                };
+                                Predicate::State {
+                                    column: w(&data["column"], false)?,
+                                    state,
+                                }
+                            }
+                            "compare" => {
+                                object(data, &["column", "op", "value"])?;
+                                let op = match string(&data["op"], "comparison")? {
+                                    "eq" => CompareOperator::Eq,
+                                    "ne" => CompareOperator::Ne,
+                                    "lt" => CompareOperator::Lt,
+                                    "le" => CompareOperator::Le,
+                                    "gt" => CompareOperator::Gt,
+                                    "ge" => CompareOperator::Ge,
+                                    _ => return Err(malformed()),
+                                };
+                                Predicate::Compare {
+                                    column: w(&data["column"], false)?,
+                                    op,
+                                    value: Atom::parse(&data["value"])?,
+                                }
+                            }
+                            _ => return Err(malformed()),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )
+        };
+        let (tag, data) = variant(&value["action"])?;
+        let out = match tag {
+            "insert" => {
+                if predicate.is_some() {
+                    return Err(malformed());
+                }
+                Self::Insert {
+                    rows: data
+                        .as_array()
+                        .filter(|v| (1..=1024).contains(&v.len()))
+                        .ok_or_else(malformed)?
+                        .iter()
+                        .map(parsed_assignments)
+                        .collect::<Result<Vec<_>>>()?,
+                }
+            }
+            "update" => Self::Update {
+                assignments: parsed_assignments(data)?,
+                predicate,
+            },
+            "delete" => {
+                object(data, &[])?;
+                Self::Delete { predicate }
+            }
+            _ => return Err(malformed()),
+        };
+        if out.wire()?.1 != *value {
+            return Err(malformed());
+        }
+        Ok(out)
+    }
 
-fn prepared(value: &Value) -> Result<Prepared> {
-    Prepared::from_data(string(value, "catalog-prepared")?.to_owned())
+    pub(crate) fn wire(&self) -> Result<(Kind, Value)> {
+        let mut budget = WireBudget(abi::CATALOG_ACTION_BYTES);
+        let (kind, action, predicate) = match self {
+            Self::Insert { rows } => {
+                if !(1..=1024).contains(&rows.len()) {
+                    return Err(invalid());
+                }
+                (
+                    Kind::Insert,
+                    json!({"insert":rows.iter().map(|r|assignments(r, &mut budget)).collect::<Result<Vec<_>>>()?}),
+                    None,
+                )
+            }
+            Self::Update {
+                assignments: values,
+                predicate,
+            } => (
+                Kind::Update,
+                json!({"update":assignments(values, &mut budget)?}),
+                predicate.as_ref(),
+            ),
+            Self::Delete { predicate } => (Kind::Delete, json!({"delete":{}}), predicate.as_ref()),
+        };
+        let predicate = predicate
+            .map(|v| {
+                if v.len() > 64 {
+                    return Err(invalid());
+                }
+                v.iter()
+                    .map(|p| budget.take(p.wire()?))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?;
+        Ok((kind, json!({"action":action,"predicate":predicate})))
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Change {
+    Add {
+        name: String,
+        datatype: Descriptor,
+        nullable: bool,
+        default: Option<Cell>,
+        max_characters: Option<u32>,
+    },
+    Drop {
+        column: u64,
+    },
+    Rename {
+        column: u64,
+        name: String,
+    },
+    Default {
+        column: u64,
+        value: Option<Cell>,
+    },
+    Nullable {
+        column: u64,
+        value: bool,
+    },
+    Type {
+        column: u64,
+        datatype: Descriptor,
+        max_characters: Option<u32>,
+    },
+}
+impl Change {
+    fn wire(&self) -> Result<Value> {
+        Ok(match self {
+            Self::Add {
+                name,
+                datatype,
+                nullable,
+                default,
+                max_characters,
+            } => json!({"add":column(name,datatype,*nullable,default.as_ref(),*max_characters)?}),
+            Self::Drop { column } => json!({"drop":positive(*column)?.to_string()}),
+            Self::Rename {
+                column,
+                name: new_name,
+            } => json!({"rename":{"column":positive(*column)?.to_string(),"name":name(new_name)?}}),
+            Self::Default { column, value } => {
+                json!({"default":{"column":positive(*column)?.to_string(),"value":value.as_ref().map(Cell::wire).transpose()?}})
+            }
+            Self::Nullable { column, value } => {
+                json!({"nullable":{"column":positive(*column)?.to_string(),"value":value}})
+            }
+            Self::Type {
+                column,
+                datatype,
+                max_characters,
+            } => {
+                if *max_characters == Some(0) {
+                    return Err(invalid());
+                }
+                json!({"type":{"column":positive(*column)?.to_string(),"type":datatype.wire()?,"max_characters":max_characters}})
+            }
+        })
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Operation {
+    Create {
+        schema: Schema,
+        if_not_exists: bool,
+    },
+    Alter {
+        basis: Basis,
+        change: Change,
+    },
+    Rename {
+        basis: Basis,
+        name: String,
+    },
+    Drop {
+        basis: Option<Basis>,
+        if_exists: bool,
+    },
+    Mutate {
+        basis: Basis,
+        mutation: Mutation,
+    },
+}
+impl Operation {
+    fn wire(&self) -> Result<(Kind, u64, Value)> {
+        Ok(match self {
+            Self::Create {
+                schema,
+                if_not_exists,
+            } => (
+                Kind::Create,
+                schema.object,
+                json!({"create":{"schema":schema.wire()?,"if_not_exists":if_not_exists}}),
+            ),
+            Self::Alter { basis, change } => (
+                Kind::Alter,
+                basis.object,
+                json!({"alter":{"basis":basis.wire()?,"change":change.wire()?}}),
+            ),
+            Self::Rename {
+                basis,
+                name: new_name,
+            } => (
+                Kind::Rename,
+                basis.object,
+                json!({"rename":{"basis":basis.wire()?,"name":name(new_name)?}}),
+            ),
+            Self::Drop { basis, if_exists } => (
+                Kind::Drop,
+                basis.as_ref().map_or(0, |b| b.object),
+                json!({"drop":{"basis":basis.as_ref().map(Basis::wire).transpose()?,"if_exists":if_exists}}),
+            ),
+            Self::Mutate { basis, mutation } => {
+                let (kind, mutation) = mutation.wire()?;
+                (
+                    kind,
+                    basis.object,
+                    json!({"mutate":{"basis":basis.wire()?,"mutation":mutation}}),
+                )
+            }
+        })
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Dependency {
+    pub scope: Scope,
+    pub object: u64,
+    pub identity: u64,
+    pub owner: ProcessRef,
+    pub kind: DependencyKind,
+}
+impl Dependency {
+    fn wire(&self, present: bool) -> Result<Value> {
+        Connection::new(self.owner, self.scope)?;
+        Ok(
+            json!({"scope":self.scope.wire(),"object":positive(self.object)?.to_string(),"identity":positive(self.identity)?.to_string(),"owner":self.owner.pid(),"kind":self.kind.tag(),"present":present}),
+        )
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Capabilities {
+    pub version: u32,
+    pub definition: String,
+    pub max_columns: usize,
+    pub max_rows: usize,
+    pub max_sql_bytes: usize,
+    pub max_intent_bytes: usize,
+    pub max_action_bytes: usize,
+    pub max_prepared_bytes: usize,
+    pub resident_intents: usize,
+}
+impl Capabilities {
+    pub(crate) fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "version",
+                "definition",
+                "max_columns",
+                "max_rows",
+                "max_sql_bytes",
+                "max_intent_bytes",
+                "max_action_bytes",
+                "max_prepared_bytes",
+                "resident_intents",
+            ],
+        )?;
+        definition(string(&v["definition"], "catalog-definition")?)?;
+        Ok(Self {
+            version: u32n(&v["version"], false)?,
+            definition: abi::ABI_DEFINITION.into(),
+            max_columns: n(&v["max_columns"], false)? as usize,
+            max_rows: n(&v["max_rows"], false)? as usize,
+            max_sql_bytes: n(&v["max_sql_bytes"], false)? as usize,
+            max_intent_bytes: n(&v["max_intent_bytes"], false)? as usize,
+            max_action_bytes: n(&v["max_action_bytes"], false)? as usize,
+            max_prepared_bytes: n(&v["max_prepared_bytes"], false)? as usize,
+            resident_intents: n(&v["resident_intents"], false)? as usize,
+        })
+    }
+    pub(crate) fn supported(&self) -> bool {
+        self.version == 1
+            && self.max_columns == 128
+            && self.max_rows == 1024
+            && self.max_sql_bytes == 4096
+            && self.max_intent_bytes == abi::CATALOG_INTENT_BYTES
+            && self.max_action_bytes == abi::CATALOG_ACTION_BYTES
+            && self.max_prepared_bytes == abi::CATALOG_PREPARED_BYTES
+            && self.resident_intents == 1
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Description {
+    pub configuration: Configuration,
+    pub policy: Policy,
+    pub resource_revision: u64,
+}
+impl Description {
+    fn parse(v: &Value, connection: &Connection, principal: u64) -> Result<Self> {
+        object(v, &["configuration", "policy", "resource_revision"])?;
+        let out = Self {
+            configuration: Configuration::parse(&v["configuration"])?,
+            policy: Policy::parse(&v["policy"])?,
+            resource_revision: n(&v["resource_revision"], true)?,
+        };
+        if out.configuration.scope != connection.scope
+            || out.configuration.owner != connection.owner
+            || out.policy.scope != connection.scope
+            || out.policy.principal != principal
+        {
+            return Err(malformed());
+        }
+        Ok(out)
+    }
 }
 fn admission(value: &Value) -> Result<AdmissionReceipt> {
     (|| {
         let receipt = result(value, "receipt")?;
         object(receipt, &["position"])?;
         Ok(AdmissionReceipt {
-            position: counter(field(receipt, "position")?, false)?,
+            position: counter(&receipt["position"], false)?,
         })
     })()
     .map_err(|_: Error| Error::new(ErrorKind::UnknownOutcome, "catalog-receipt"))
 }
 fn submission(response: Result<Value>) -> Result<AdmissionReceipt> {
     let value = response.map_err(|mut error| {
-        // A queued worker can fail after dispatch. Its failure does not prove
-        // that the authority rejected the original signed command.
         if error.kind == ErrorKind::WorkerPanic {
             error.kind = ErrorKind::UnknownOutcome;
         }
@@ -666,9 +1573,16 @@ fn submission(response: Result<Value>) -> Result<AdmissionReceipt> {
     })?;
     admission(&value)
 }
-/// One blocking worker. Mutable borrows serialize calls; close/drop joins destruction.
+fn input(prepared: &Prepared, position: u64) -> Result<Value> {
+    Ok(json!({"prepared":prepared.data(),"input":native(position,false)?}))
+}
+
+/// One blocking worker and one loaded intent. Mutable borrows serialize calls.
+/// Persist the saved definition and bytes, then every Prepared before submission.
+/// UnknownOutcome requires reconciliation using that identical Prepared.
 pub struct Client {
     connection: Connection,
+    principal: u64,
     worker: Worker<CatalogNative>,
 }
 impl Client {
@@ -680,11 +1594,16 @@ impl Client {
         if credential.realm() != connection.scope.resource.realm() {
             return Err(invalid());
         }
+        let principal = credential.principal();
         let saved = connection.clone();
         let worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
             CatalogNative::open(&config, &credential, &saved)
         })?;
-        Ok(Self { connection, worker })
+        Ok(Self {
+            connection,
+            principal,
+            worker,
+        })
     }
     pub fn connection(&self) -> &Connection {
         &self.connection
@@ -692,206 +1611,169 @@ impl Client {
     fn call(&mut self, action: Value) -> Result<Value> {
         self.worker.call(move |native| native.call(action))
     }
+    fn query<T>(
+        &mut self,
+        action: Value,
+        tag: &str,
+        decode: impl FnOnce(&Value) -> Result<T>,
+    ) -> Result<T> {
+        let response = self.call(action)?;
+        (|| decode(result(&response, tag)?))().map_err(|_| malformed())
+    }
     pub fn capabilities(&mut self) -> Result<Capabilities> {
-        let response = self.call(json!({"capabilities":{}}))?;
-        let v = result(&response, "capabilities")?;
-        object(
-            v,
-            &[
-                "version",
-                "definition",
-                "initialize",
-                "create_table",
-                "conditional_policy",
-                "current_metadata",
-                "max_saved_bytes",
-                "table_columns",
-            ],
-        )?;
-        Ok(Capabilities {
-            version: number(field(v, "version")?, "version", false)?
-                .try_into()
-                .map_err(|_| malformed())?,
-            definition: string(field(v, "definition")?, "definition")?.to_owned(),
-            initialize: boolean(field(v, "initialize")?, "initialize")?,
-            create_table: boolean(field(v, "create_table")?, "create")?,
-            conditional_policy: boolean(field(v, "conditional_policy")?, "policy")?,
-            current_metadata: boolean(field(v, "current_metadata")?, "metadata")?,
-            max_saved_bytes: number(field(v, "max_saved_bytes")?, "saved-bound", false)?
-                .try_into()
-                .map_err(|_| malformed())?,
-            table_columns: number(field(v, "table_columns")?, "columns", false)?
-                .try_into()
-                .map_err(|_| malformed())?,
-        })
+        self.query(
+            json!({"capabilities":{}}),
+            "capabilities",
+            Capabilities::parse,
+        )
     }
     pub fn describe(&mut self) -> Result<Description> {
-        let response = self.call(json!({"describe":{}}))?;
-        let v = result(&response, "description")?;
-        object(v, &["configuration", "policy", "resource_revision"])?;
-        Ok(Description {
-            configuration: Configuration::parse(field(v, "configuration")?)?,
-            policy: Policy::parse(field(v, "policy")?)?,
-            resource_revision: number(field(v, "resource_revision")?, "revision", true)?,
+        let connection = self.connection.clone();
+        let principal = self.principal;
+        self.query(json!({"describe":{}}), "description", |v| {
+            Description::parse(v, &connection, principal)
         })
     }
-    pub fn lookup(&mut self, name: &str) -> Result<Option<Definition>> {
-        catalog_name(name)?;
-        let response = self.call(json!({"lookup":name}))?;
-        resolved(
-            result(&response, "definition")?,
-            self.connection.scope,
-            Some(name),
-            None,
-        )
-        .map_err(|_| malformed())
+    pub fn lookup(&mut self, name_: &str) -> Result<Option<Definition>> {
+        let scope = self.connection.scope;
+        self.query(json!({"lookup":name(name_)?}), "definition", |v| {
+            resolved(v, scope, name_)
+        })
     }
-    pub fn definition(&mut self, object: u64, revision: u64) -> Result<Option<Definition>> {
-        positive(object)?;
-        positive(revision)?;
-        let response = self.call(
-            json!({"definition":{"object":object.to_string(),"revision":revision.to_string()}}),
-        )?;
-        resolved(
-            result(&response, "definition")?,
-            self.connection.scope,
-            None,
-            Some((object, revision)),
-        )
-        .map_err(|_| malformed())
+    pub fn definition(&mut self, id: u64, revision: u64) -> Result<Option<HistoricalDefinition>> {
+        let scope = self.connection.scope;
+        self.query(json!({"definition":{"object":positive(id)?.to_string(),"revision":positive(revision)?.to_string()}}),"historical",|v|historical(v,scope,id,revision))
     }
     pub fn list(&mut self, cursor: Option<&Cursor>) -> Result<Page> {
-        let response = self.call(json!({"list":cursor.map(Cursor::wire)}))?;
-        Page::parse(result(&response, "page")?, self.connection.scope, cursor)
-            .map_err(|_| malformed())
+        let scope = self.connection.scope;
+        if cursor.is_some_and(|c| c.scope != scope) {
+            return Err(invalid());
+        }
+        self.query(json!({"list":cursor.map(Cursor::wire)}), "page", |v| {
+            Page::parse(v, scope, cursor)
+        })
     }
     pub fn compile_sql(
         &mut self,
         sql: &str,
-        operation: u64,
-        object_id: u64,
-        table: u32,
+        identity: Identity,
+        create_object: Option<u64>,
     ) -> Result<Compiled> {
-        if sql.is_empty() || sql.len() > 4096 {
-            return Err(invalid());
+        if let Some(id) = create_object {
+            positive(id)?;
         }
-        positive(operation)?;
-        positive(object_id)?;
-        positive(u64::from(table))?;
-        let response=self.call(json!({"compile":{"sql":sql,"operation":operation.to_string(),"object":object_id.to_string(),"table":table}}))?;
-        let value = result(&response, "compiled")?;
-        object(value, &["request", "canonical"])?;
-        Compiled::from_data(
-            CreateTable::parse(field(value, "request")?)?,
-            unhex(string(field(value, "canonical")?, "canonical")?, 256)?,
+        let connection = self.connection.clone();
+        let principal = self.principal;
+        self.query(json!({"compile":{"sql":text(sql,4096)?,"identity":identity.wire(),"create_object":create_object.map(|v|v.to_string())}}),"compiled",|v|Compiled::parse(v,&connection,principal,identity,create_object.map(|_|Kind::Create),create_object))
+    }
+    pub fn prepare(
+        &mut self,
+        name_: &str,
+        identity: Identity,
+        operation: &Operation,
+    ) -> Result<Compiled> {
+        let (kind, id, action) = operation.wire()?;
+        let connection = self.connection.clone();
+        let principal = self.principal;
+        self.query(json!({"prepare":{"definition":abi::ABI_DEFINITION,"identity":identity.wire(),"name":name(name_)?,"action":action}}),"compiled",|v|Compiled::parse(v,&connection,principal,identity,Some(kind),Some(id)))
+    }
+    pub fn load(&mut self, saved: &SavedIntent) -> Result<Intent> {
+        let connection = self.connection.clone();
+        let principal = self.principal;
+        self.query(json!({"load":saved.wire()?}), "loaded", |v| {
+            Intent::parse(v, &connection, principal)
+        })
+    }
+    pub fn forget(&mut self, intent: &Reference) -> Result<()> {
+        self.query(json!({"forget":intent.wire()}), "forgotten", |v| {
+            object(v, &[])
+        })
+    }
+    pub fn next(&mut self, intent: &Reference) -> Result<Next> {
+        self.query(json!({"next":intent.wire()}), "next", Next::parse)
+    }
+    pub fn status(&mut self, intent: &Reference) -> Result<State> {
+        self.query(json!({"status":intent.wire()}), "state", State::parse)
+    }
+    pub fn prepare_resume(&mut self, intent: &Reference) -> Result<Prepared> {
+        self.query(
+            json!({"prepare_resume":intent.wire()}),
+            "prepared",
+            prepared,
+        )
+    }
+    pub fn prepare_control(&mut self, intent: &Reference, control: Control) -> Result<Prepared> {
+        self.query(
+            json!({"prepare_control":{"intent":intent.wire(),"control":control.tag()}}),
+            "prepared",
+            prepared,
         )
     }
     pub fn prepare_initialize(&mut self, configuration: &Configuration) -> Result<Prepared> {
-        let response = self.call(json!({"prepare_initialize":configuration.wire()}))?;
-        prepared(result(&response, "prepared")?)
-    }
-    pub fn prepare_create(&mut self, request: &CreateTable) -> Result<Prepared> {
-        let response = self.call(json!({"prepare_create":request.wire()}))?;
-        prepared(result(&response, "prepared")?)
+        self.query(
+            json!({"prepare_initialize":configuration.wire()?}),
+            "prepared",
+            prepared,
+        )
     }
     pub fn prepare_policy(&mut self, change: &PolicyChange) -> Result<Prepared> {
-        let response = self.call(json!({"prepare_policy":change.wire()}))?;
-        prepared(result(&response, "prepared")?)
+        self.query(
+            json!({"prepare_policy":change.wire()?}),
+            "prepared",
+            prepared,
+        )
     }
-    /// UnknownOutcome requires retrying this same Prepared, including after replacement.
+    pub fn prepare_dependency(
+        &mut self,
+        dependency: &Dependency,
+        present: bool,
+    ) -> Result<Prepared> {
+        self.query(
+            json!({"prepare_dependency":dependency.wire(present)?}),
+            "prepared",
+            prepared,
+        )
+    }
     pub fn submit(&mut self, prepared: &Prepared) -> Result<AdmissionReceipt> {
         submission(self.call(json!({"submit":prepared.data()})))
     }
-    pub fn observe(&mut self, prepared: &Prepared, input: u64) -> Result<Observation> {
-        let response = self
-            .call(json!({"observe":{"prepared":prepared.data(),"input":native(input,false)?}}))?;
-        Ok(
-            match string(result(&response, "observation")?, "observation")? {
-                "pending" => Observation::Pending,
-                "processed" => Observation::Processed,
-                _ => return Err(malformed()),
-            },
+    pub fn observe(
+        &mut self,
+        prepared: &Prepared,
+        position: u64,
+        wait: bool,
+    ) -> Result<Observation> {
+        self.query(
+            json!({(if wait{"wait_observe"}else{"observe"}):input(prepared,position)?}),
+            "observation",
+            Observation::parse,
         )
     }
     pub fn input_disposition(
         &mut self,
         prepared: &Prepared,
-        input: u64,
+        position: u64,
     ) -> Result<Option<Disposition>> {
-        let response = self.call(
-            json!({"input_disposition":{"prepared":prepared.data(),"input":native(input,false)?}}),
-        )?;
-        let value = result(&response, "disposition")?;
-        if value.is_null() {
-            return Ok(None);
-        }
-        object(
-            value,
-            &[
-                "scope",
-                "origin",
-                "principal",
-                "input",
-                "payload",
-                "outcome",
-                "diagnostic",
-            ],
-        )?;
-        let origin = match string(field(value, "origin")?, "origin")? {
-            "external" => Origin::External,
-            "process" => Origin::Process,
-            "effect" => Origin::Effect,
-            _ => return Err(malformed()),
-        };
-        let outcome = match string(field(value, "outcome")?, "outcome")? {
-            "initialized" => DispositionOutcome::Initialized,
-            "policy_applied" => DispositionOutcome::PolicyApplied,
-            "invalid_command" => DispositionOutcome::InvalidCommand,
-            "denied" => DispositionOutcome::Denied,
-            "identity_conflict" => DispositionOutcome::IdentityConflict,
-            "stale_policy" => DispositionOutcome::StalePolicy,
-            _ => return Err(malformed()),
-        };
-        Ok(Some(Disposition {
-            scope: Scope::parse(field(value, "scope")?)?,
-            origin,
-            principal: number(field(value, "principal")?, "principal", true)?,
-            input: number(field(value, "input")?, "input", false)?,
-            payload: unhex(string(field(value, "payload")?, "payload")?, 32)?
-                .try_into()
-                .map_err(|_| malformed())?,
-            outcome,
-            diagnostic: field(value, "diagnostic")?.clone(),
-        }))
+        self.query(
+            json!({"input_disposition":input(prepared,position)?}),
+            "disposition",
+            |v| optional(v, Disposition::parse),
+        )
     }
-    pub fn status(&mut self, original: &CreateTable) -> Result<Option<Receipt>> {
-        let response = self.call(json!({"status":original.wire()}))?;
-        let value = result(&response, "status")?;
-        if value.is_null() {
-            return Ok(None);
-        }
-        object(
-            value,
-            &["request", "principal", "input", "outcome", "diagnostic"],
-        )?;
-        let request = CreateTable::parse(field(value, "request")?)?;
-        if request != *original {
-            return Err(malformed());
-        }
-        let outcome = match string(field(value, "outcome")?, "outcome")? {
-            "applied" => Outcome::Applied,
-            "name_conflict" => Outcome::NameConflict,
-            "object_conflict" => Outcome::ObjectConflict,
-            "table_conflict" => Outcome::TableConflict,
-            _ => return Err(malformed()),
-        };
-        Ok(Some(Receipt {
-            request,
-            principal: number(field(value, "principal")?, "principal", true)?,
-            input: number(field(value, "input")?, "input", false)?,
-            outcome,
-            diagnostic: field(value, "diagnostic")?.clone(),
-        }))
+    pub fn progress(
+        &mut self,
+        intent: &Reference,
+        prepared: &Prepared,
+        position: u64,
+        wait: bool,
+    ) -> Result<Progress> {
+        let mut action = input(prepared, position)?;
+        action["intent"] = intent.wire();
+        self.query(
+            json!({(if wait{"wait_progress"}else{"progress"}):action}),
+            "progress",
+            Progress::parse,
+        )
     }
     pub fn close(mut self) -> Result<()> {
         self.worker.close()
@@ -901,47 +1783,99 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logical::{CellValue, Field, ScalarType};
     #[test]
-    fn metadata_owns_wide_identity_and_rejects_inconsistent_pages() {
-        let scope = Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap();
-        let definition = json!({"scope":scope.wire(),"object":u64::MAX.to_string(),"revision":u64::MAX.to_string(),"name":"items",
-            "source":{"table":{"id":u32::MAX,"schema":{"names":["id","value"],"value_type":"utf8"}}},"principal":17,"operation":u64::MAX.to_string(),"input":2});
-        let cursor = Cursor::new(abi::ABI_DEFINITION.into(), scope, 3, "items".into()).unwrap();
-        let page = json!({"resource_revision":3,"entries":[definition,null,null,null,null,null,null,null],"next":cursor.wire()});
-        let parsed = Page::parse(&page, scope, None).unwrap();
-        assert_eq!(parsed.entries[0].object, u64::MAX);
-        assert_eq!(parsed.entries[0].revision, u64::MAX);
-        assert_eq!(parsed.entries[0].source.table, u32::MAX);
-        let retained = parsed.clone();
-        drop(parsed);
-        assert_eq!(retained.next.as_ref().unwrap(), &cursor);
-        assert_eq!(retained.entries[0].source.schema.names(), &["id", "value"]);
+    fn aggregate_conversion_rejects_before_later_invalid_values() {
+        let large = Cell::Value(CellValue::Atom(Atom::Binary(vec![0; 1024 * 1024])));
+        let invalid_cell = Cell::Value(CellValue::Atom(Atom::Float64(f64::NAN)));
+        let mut first = Column::new(1, "data".into(), Descriptor::Scalar(ScalarType::Binary));
+        first.default = Some(large.clone());
+        let mut later = Column::new(2, "later".into(), Descriptor::Scalar(ScalarType::Float64));
+        later.default = Some(invalid_cell.clone());
+        let schema = Schema {
+            object: 1,
+            revision: 1,
+            next_column: 3,
+            columns: vec![first, later],
+            primary_key: vec![],
+        };
+        assert_eq!(schema.wire().unwrap_err().phase, "catalog-value");
+        let assignment = Assignment {
+            column: 1,
+            value: AssignmentValue::Cell(large),
+        };
+        let mut rows = vec![vec![assignment]; 9];
+        rows.push(vec![Assignment {
+            column: 1,
+            value: AssignmentValue::Cell(invalid_cell),
+        }]);
         assert_eq!(
-            resolved(&definition, scope, Some("items"), None)
-                .unwrap()
-                .as_ref(),
-            retained.entries.first()
+            Mutation::Insert { rows }.wire().unwrap_err().phase,
+            "catalog-value"
         );
-        assert!(resolved(&definition, scope, Some("other"), None).is_err());
-        assert!(resolved(&definition, scope, None, Some((1, 1))).is_err());
-        assert!(resolved(&Value::Null, scope, None, None).unwrap().is_none());
-        for defect in 0..10 {
-            let mut bad = page.clone();
+    }
+    fn scope() -> Scope {
+        Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap()
+    }
+    fn metadata() -> Value {
+        json!({"scope":scope().wire(),"object":u64::MAX.to_string(),"revision":"2","name":"東京","schema_fingerprint":"ab".repeat(32),"principal":17,"operation":"9","admitted_input":3,"commitment":{"format":0x54434d01u32,"length":200,"digest":vec![1;32]}})
+    }
+    fn schema() -> Schema {
+        Schema {
+            object: u64::MAX,
+            revision: 1,
+            next_column: 2,
+            columns: vec![Column::new(
+                1,
+                "東京".into(),
+                Descriptor::Structure(vec![Field {
+                    name: "amount".into(),
+                    datatype: Descriptor::Decimal {
+                        precision: 38,
+                        scale: 2,
+                    },
+                    nullable: false,
+                    optional: false,
+                }]),
+            )],
+            primary_key: vec![],
+        }
+    }
+    fn entry() -> Value {
+        json!({"metadata":metadata(),"head":{"revision":"3","rows":"1","pending":"0"}})
+    }
+    fn page() -> Value {
+        json!({"resource_revision":3,"entries":[entry(),null,null,null,null,null,null,null],"next":Cursor::new(abi::ABI_DEFINITION.into(),scope(),3,u64::MAX).unwrap().wire()})
+    }
+    #[test]
+    fn historical_metadata_and_pages_preserve_exact_scope_order_and_cuts() {
+        let original = page();
+        let parsed = Page::parse(&original, scope(), None).unwrap();
+        assert_eq!(parsed.entries[0].metadata.object, u64::MAX);
+        assert_eq!(
+            parsed.entries[0].metadata.commitment,
+            MetadataCommitment {
+                bytes: 200,
+                digest: [1; 32]
+            }
+        );
+        for defect in 0..14 {
+            let mut bad = original.clone();
             match defect {
                 0 => {
                     bad["entries"][1] = bad["entries"][0].take();
                 }
                 1 => {
-                    bad["entries"][1] = definition.clone();
+                    bad["entries"][1] = entry();
                 }
                 2 => {
-                    bad["entries"][0]["scope"]["catalog"] = json!("1");
+                    bad["entries"][0]["metadata"]["scope"]["catalog"] = json!("1");
                 }
                 3 => {
                     bad["next"]["resource_revision"] = json!(4);
                 }
                 4 => {
-                    bad["next"]["after"] = json!("other");
+                    bad["next"]["after_object"] = json!("1");
                 }
                 5 => {
                     bad["next"].as_object_mut().unwrap().remove("definition");
@@ -950,63 +1884,185 @@ mod tests {
                     bad["next"]["definition"] = json!("0".repeat(64));
                 }
                 7 => {
-                    bad["entries"][0]["object"] = json!(u64::MAX);
+                    bad["entries"][0]["metadata"]["object"] = json!(u64::MAX);
                 }
                 8 => {
-                    bad["entries"][0]["source"] = json!({"document":{}});
+                    bad["entries"][0]["metadata"]["revision"] = json!("01");
                 }
-                _ => {
+                9 => {
                     bad["entries"].as_array_mut().unwrap().push(Value::Null);
                 }
+                10 => {
+                    bad["entries"][0]["metadata"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("commitment");
+                }
+                11 => {
+                    bad["entries"][0]["metadata"]["commitment"]["format"] = json!(0);
+                }
+                12 => {
+                    bad["entries"][0]["metadata"]["commitment"]["length"] = json!(437);
+                }
+                _ => {
+                    bad["entries"][0]["metadata"]["commitment"]["digest"][0] = json!(256);
+                }
             }
-            assert!(Page::parse(&bad, scope, None).is_err(), "defect {defect}");
+            assert!(Page::parse(&bad, scope(), None).is_err(), "defect {defect}");
         }
-        assert!(Page::parse(&page, scope, Some(&cursor)).is_err());
-        let mut end = json!({"resource_revision":3,"entries":[null,null,null,null,null,null,null,null],"next":null});
+        let previous = Cursor::new(abi::ABI_DEFINITION.into(), scope(), 3, 3).unwrap();
+        let empty = json!({"resource_revision":3,"entries":[null,null,null,null,null,null,null,null],"next":Cursor::new(abi::ABI_DEFINITION.into(),scope(),3,4).unwrap().wire()});
         assert!(
-            Page::parse(&end, scope, Some(&cursor))
+            Page::parse(&empty, scope(), Some(&previous))
                 .unwrap()
                 .entries
                 .is_empty()
         );
-        end["resource_revision"] = json!(4);
-        assert!(Page::parse(&end, scope, Some(&cursor)).is_err());
+        assert!(Page::parse(&empty, scope(), parsed.next.as_ref()).is_err());
+        let mut history = json!({"metadata":metadata(),"schema":schema().wire().unwrap()});
+        assert_eq!(
+            historical(&history, scope(), u64::MAX, 2)
+                .unwrap()
+                .unwrap()
+                .schema,
+            schema()
+        );
+        assert!(historical(&history, scope(), u64::MAX, 1).is_err());
+        assert!(
+            historical(&Value::Null, scope(), u64::MAX, 1)
+                .unwrap()
+                .is_none()
+        );
+        history["schema"]["object"] = json!("1");
+        assert!(historical(&history, scope(), u64::MAX, 2).is_err());
+        history["schema"] = schema().wire().unwrap();
+        history["head"] = entry()["head"].clone();
+        assert!(historical(&history, scope(), u64::MAX, 2).is_err());
     }
     #[test]
-    fn owned_wide_values_and_strict_decoding() {
-        let scope = Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap();
-        let request = CreateTable::new(
-            scope,
-            u64::MAX,
-            u64::MAX,
-            u32::MAX,
-            "items".into(),
-            Schema::new(["id".into(), "value".into()], CellType::Utf8).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(CreateTable::parse(&request.wire()).unwrap(), request);
-        let policy = Policy::new(scope, 0, u64::MAX, true, false).unwrap();
-        assert_eq!(Policy::parse(&policy.wire()).unwrap(), policy);
-        for bad in [
-            json!(u64::MAX),
-            json!("01"),
-            json!("+1"),
-            json!("18446744073709551616"),
-        ] {
-            let mut wire = policy.wire();
-            wire["revision"] = bad;
-            assert!(Policy::parse(&wire).is_err());
+    fn typed_requests_own_wide_nested_values_and_recovery() {
+        let saved = SavedIntent::new(abi::ABI_DEFINITION.into(), vec![1, 2, 255]).unwrap();
+        let cloned = saved.clone();
+        drop(saved);
+        assert_eq!(cloned.bytes(), [1, 2, 255]);
+        assert!(!format!("{cloned:?}").contains("255"));
+        assert!(SavedIntent::new("".into(), vec![1]).is_err());
+        assert!(Prepared::from_data("x".repeat(8193)).is_err());
+        assert!(Connection::new(ProcessRef::new(47, 1).unwrap(), scope()).is_err());
+        let right = Rights {
+            inspect: true,
+            create: false,
+            read: true,
+            insert: false,
+            update: true,
+            delete: false,
+            alter: true,
+            drop: false,
+        };
+        let p = Policy {
+            scope: scope(),
+            principal: 0,
+            revision: u64::MAX,
+            rights: right,
+        };
+        assert_eq!(Policy::parse(&p.wire().unwrap()).unwrap(), p);
+        assert!(
+            PolicyChange {
+                expected_revision: u64::MAX,
+                policy: p.clone()
+            }
+            .wire()
+            .is_err()
+        );
+        let data = Cell::Value(CellValue::Structure(vec![Cell::Value(CellValue::Atom(
+            Atom::Decimal(i128::MAX),
+        ))]));
+        let op = Operation::Mutate {
+            basis: Basis {
+                object: u64::MAX,
+                revision: 1,
+                schema_fingerprint: [255; 32],
+            },
+            mutation: Mutation::Insert {
+                rows: vec![vec![Assignment {
+                    column: 1,
+                    value: AssignmentValue::Cell(data),
+                }]],
+            },
+        };
+        let (kind, id, wire) = op.wire().unwrap();
+        assert_eq!(kind, Kind::Insert);
+        assert_eq!(id, u64::MAX);
+        assert_eq!(
+            wire["mutate"]["mutation"]["action"]["insert"][0][0]["value"]["cell"]["value"]["structure"]
+                [0]["value"]["atom"]["decimal"],
+            i128::MAX.to_string()
+        );
+        assert_eq!(Schema::parse(&schema().wire().unwrap()).unwrap(), schema());
+        let large = Assignment {
+            column: 1,
+            value: AssignmentValue::Cell(Cell::Value(CellValue::Atom(Atom::Binary(vec![
+                128;
+                300000
+            ])))),
+        };
+        assert!(
+            serde_json::to_vec(
+                &assignments(&[large], &mut WireBudget(abi::CATALOG_ACTION_BYTES)).unwrap()
+            )
+            .unwrap()
+            .len()
+                > transit_client::internal::MAX_BODY
+        );
+        assert!(Descriptor::Scalar(ScalarType::Boolean).wire().is_ok());
+    }
+    #[test]
+    fn compiled_identity_and_recorded_counts_are_not_invented() {
+        let connection = Connection::new(ProcessRef::new(46, 3).unwrap(), scope()).unwrap();
+        let ids = Identity::new(1, 2).unwrap();
+        let original = json!({"intent":{"reference":{"definition":abi::ABI_DEFINITION,"digest":"ab".repeat(32)},"scope":scope().wire(),"owner":3,"principal":17,"operation":"1","namespace":"2","object":"8","kind":"insert"},"saved":{"definition":abi::ABI_DEFINITION,"bytes":"ff"}});
+        assert_eq!(
+            Compiled::parse(&original, &connection, 17, ids, Some(Kind::Insert), Some(8))
+                .unwrap()
+                .saved
+                .bytes(),
+            [255]
+        );
+        for key in ["operation", "namespace", "object", "owner", "principal"] {
+            let mut bad = original.clone();
+            bad["intent"][key] = if matches!(key, "owner" | "principal") {
+                json!(99)
+            } else {
+                json!("99")
+            };
+            assert!(
+                Compiled::parse(&bad, &connection, 17, ids, Some(Kind::Insert), Some(8)).is_err()
+            );
         }
-        assert!(Scope::new(scope.resource(), 0).is_err());
-        assert!(Connection::new(ProcessRef::new(47, 1).unwrap(), scope).is_err());
-        let copy = Compiled::from_data(request, vec![1, 2]).unwrap();
-        let saved = copy.clone();
-        drop(copy);
-        assert_eq!(saved.canonical(), [1, 2]);
-        assert_eq!(saved.request().object(), u64::MAX);
+        let out = json!({"kind":"update","operation":"1","object":"8","actual_object":null,"phase":"applied","terminal":true,"counts":{"matched":"1","changed":"0"},"admitted_input":3,"completed_input":4,"diagnostic":{}});
+        assert_eq!(
+            Outcome::parse(&out).unwrap().counts,
+            Some(Counts {
+                matched: 1,
+                changed: 0
+            })
+        );
+        for (key, value) in [
+            ("counts", Value::Null),
+            ("terminal", json!(false)),
+            ("phase", json!("preparing")),
+            ("kind", json!("alter")),
+        ] {
+            let mut bad = out.clone();
+            bad[key] = value;
+            assert!(Outcome::parse(&bad).is_err());
+        }
+        let mut bad = out;
+        bad["counts"]["changed"] = json!("2");
+        assert!(Outcome::parse(&bad).is_err());
     }
     #[test]
-    fn malformed_success_keeps_admission_uncertain() {
+    fn malformed_success_and_worker_panic_preserve_admission_uncertainty() {
         for value in [
             Value::Null,
             json!({}),
@@ -1027,32 +2083,17 @@ mod tests {
                 .get(),
             1
         );
-    }
-    #[test]
-    fn worker_failure_after_admission_keeps_original_recovery() {
-        let prepared = Prepared::from_data("saved signed command".into()).unwrap();
+        let prepared = Prepared::from_data("original signed command".into()).unwrap();
         let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, || Ok(false)).unwrap();
         let response = worker.call(|accepted| {
             *accepted = true;
-            panic!("injected failure after dispatch");
+            panic!("injected loss after dispatch");
         });
         assert_eq!(
             submission(response).unwrap_err().kind,
             ErrorKind::UnknownOutcome
         );
-        assert!(worker.call(|accepted| Ok(*accepted)).unwrap());
-        assert_eq!(prepared.data(), "saved signed command");
-        worker.close().unwrap();
-        for kind in [ErrorKind::Busy, ErrorKind::Closed, ErrorKind::AccessDenied] {
-            let definite = Error {
-                diagnostic: None,
-                diagnostic_invalid: false,
-                kind,
-                status: Some(4),
-                code: Some("Denied".into()),
-                phase: "submit",
-            };
-            assert_eq!(submission(Err(definite.clone())).unwrap_err(), definite);
-        }
+        assert_eq!(prepared.data(), "original signed command");
+        let _ = worker.close();
     }
 }

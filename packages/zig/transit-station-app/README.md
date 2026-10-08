@@ -128,6 +128,17 @@ Initialize its immutable configuration, provision current per-operator migration
 policy, then conditionally `begin` a reviewed supported plan. `apply` invokes the
 domain transition only when that exact step lacks a receipt. Its callback returns
 a bounded cursor or activation and shares the ordinary four-write private turn.
+For staged domain publication, `stage` first saves the exact step and original
+admission input. Its later callback receives that frozen `Pending` and returns
+null while building or a terminal transition. Building may use all four writes;
+completion reserves two ledger writes, or three for activation. Every continuation
+checks current policy. `continueStage` restricts self-message continuation to an
+already admitted step under the original operator's current policy. `pending` and `receipt` distinguish admitted staging from
+completed work; abandonment retains evidence without completing the transform.
+`authorize` checks the current external migration principal before an application
+inspects its target state. A malformed stored step identity or inconsistent
+pending digest remains an unresolved storage invariant failure; it is never
+attributed to a caller's changed intent or passed to the domain transform.
 The owner must reject unsupported transforms before beginning, enforce its write
 pause, and prove complete target verification before activating. Policy is
 separate from interface publication permission. `abandon` cannot undo activation
@@ -143,8 +154,9 @@ steps, exact reconstruction, conflicting plans and ordinals, current denial,
 explicit abandonment, source mismatch, infrastructure errors and rollback of
 partial decisions. The [work-item example](../../../examples/work-items/README.md) additionally
 qualifies signed native migration commands, an actual Table transformation,
-worker replacement and node/disk recovery. Generated browser and Compose/reference
-placement qualification remain open. Its post-activation write pause separates
+worker replacement and node/disk recovery. The [proof ledger](../../../tests/README.md)
+records executed native, browser and physical placement schedules by source
+revision. Its post-activation write pause separates
 data activation from interface publication and explicit administrator release.
 
 The host's `next_cleanup` continuation composes explicit abandonment with bounded

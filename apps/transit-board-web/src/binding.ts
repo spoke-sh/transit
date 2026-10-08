@@ -27,8 +27,8 @@ export function unifiedPage(
 ) {
   const basis = page.evidence.manifest.basis;
   if (
-    basis.resource !== binding.resource ||
-    basis.kind !== binding.source_kind ||
+    basis.cut.resource !== binding.resource ||
+    basis.cut.kind !== binding.source_kind ||
     !sameDigest(basis.contract, binding.schema)
   )
     mismatch();

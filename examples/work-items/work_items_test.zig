@@ -47,7 +47,30 @@ const Store = struct {
         var turn_value = try self.turn(principal);
         try owner().execute(&turn_value, command);
         try self.commit(&turn_value);
-        return mutations(turn_value);
+        var maximum = mutations(turn_value);
+        var queue: std.array_list.Managed(p.Value) = .init(t.allocator);
+        defer queue.deinit();
+        for (turn_value.decision.outputs) |slot| if (slot) |output| {
+            try t.expectEqual(2, output.pid);
+            try queue.append(output.value);
+        };
+        var offset: usize = 0;
+        while (offset < queue.items.len) : (offset += 1) {
+            if (offset > 10000) return error.UnfinishedWorkItems;
+            var next = try self.turn(principal);
+            next.delivery.input.origin = .{ .process = .{ .pid = 2, .turn = next.delivery.input.position - 1, .output = 0 } };
+            next.delivery.input.value = queue.items[offset];
+            var behavior: W.Behavior = .{ .owner = owner() };
+            const handler = behavior.interface();
+            try handler.handle(handler.context, &next, try s.Frame.decode(next.delivery.input.value));
+            maximum = @max(maximum, mutations(next));
+            try self.commit(&next);
+            for (next.decision.outputs) |slot| if (slot) |output| {
+                try t.expectEqual(2, output.pid);
+                try queue.append(output.value);
+            };
+        }
+        return maximum;
     }
 };
 fn mutations(turn: s.Turn) usize {
@@ -58,7 +81,7 @@ fn mutations(turn: s.Turn) usize {
     return count;
 }
 fn owner() W {
-    return .{ .configuration = .{ .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7 } };
+    return .{ .allocator = t.allocator, .configuration = .{ .owner = 2, .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7 } };
 }
 test "independent WI1 commands retain full-width keys plans ordinals and cursors" {
     const Fixture = struct { version: u8, put: p.Value, cursor: p.Value, step: p.Value };
@@ -69,7 +92,7 @@ test "independent WI1 commands retain full-width keys plans ordinals and cursors
     const put: W.Command = .{ .put = .{ .epoch = .{ .value = std.math.maxInt(u64) }, .id = std.math.minInt(i64), .state = 20 } };
     try t.expect(value.put.eql(try put.encode()));
     try t.expectEqualDeep(put, try W.Command.decode(value.put));
-    const cursor: W.Cursor = .{ .phase = .verify, .has_after = true, .after = std.math.minInt(i64), .copied = 33, .verified = 2 };
+    const cursor: W.Cursor = .{ .phase = .verify, .has_after = true, .after = .{ .origin = 44, .operation = std.math.maxInt(u64), .ordinal = 2 }, .copied = 33, .verified = 2 };
     try t.expect(value.cursor.eql(try cursor.encode()));
     const step: W.Command = .{ .step = .{ .plan = .{ .value = std.math.maxInt(u32) }, .ordinal = .{ .value = std.math.maxInt(u64) }, .operation = 1, .arguments = value.cursor } };
     try t.expect(value.step.eql(try step.encode()));
@@ -80,7 +103,9 @@ test "independent WI1 commands retain full-width keys plans ordinals and cursors
     try t.expectError(error.InvalidWorkItemCommand, W.Command.decode(trailing));
 }
 fn setup(store: *Store, rows: usize) !void {
-    try t.expectEqual(3, try store.execute(33, .initialize));
+    try t.expectEqual(2, try store.execute(33, .initialize));
+    _ = try store.execute(33, .catalog_initialize);
+    for ([_]u32{ 1, 2, 3 }) |table| _ = try store.execute(33, .{ .prepare_table = table });
     _ = try store.execute(33, .{ .policy = .{ .principal = 44, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } });
     for (0..rows) |i| _ = try store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 20, .state = @intCast(i % 2) } });
 }
@@ -110,20 +135,18 @@ test "real Table migration bounds batches, retains receipts and fences old write
     var store: Store = .{};
     defer store.entries.deinit();
     try setup(&store, 33);
-    try t.expectEqual(4, try store.execute(44, .{ .begin = try owner().proposal(2) }));
+    try t.expectEqual(3, try store.execute(44, .{ .begin = try owner().proposal(2) }));
     try t.expectError(error.WorkItemMigrationPaused, store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 88, .state = 0 } }));
-    try t.expectEqual(35, try finish(&store, 2));
+    try t.expectEqual(69, try finish(&store, 2));
     var turn = try store.turn(44);
     try t.expectEqual(2, try owner().selected(&turn));
     const head = try (try owner().ledger()).head(&turn);
     try t.expectEqual(2, head.epoch.value);
-    try t.expectEqualSlices(u8, &try (try owner().source(2)).fingerprint(), &head.contract);
-    const old = try s.Table.open(&turn, 1);
-    const new = try s.Table.open(&turn, 2);
+    try t.expectEqualSlices(u8, &try owner().contract(2), &head.contract);
     for (0..33) |i| {
         const id = @as(i64, @intCast(i)) - 20;
-        try t.expectEqual(@as(i64, @intCast(i % 2)), (try old.get(&turn, id)).?.value.int64);
-        try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try new.get(&turn, id)).?.value.int64);
+        try t.expectEqual(@as(i64, @intCast(i % 2)), (try W.Table.get(t.allocator, &turn, 1, id)).?.state);
+        try t.expectEqual(@as(i64, if (i % 2 == 0) 10 else 20), (try W.Table.get(t.allocator, &turn, 2, id)).?.state);
     }
     try t.expectError(error.WorkItemEpochChanged, store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 88, .state = 0 } }));
     try t.expectError(error.WorkItemPublicationPaused, store.execute(55, .{ .put = .{ .epoch = .{ .value = 2 }, .id = std.math.maxInt(i64), .state = 20 } }));
@@ -144,9 +167,9 @@ test "empty migration and abandoned targets retain identities and verification i
     _ = try store.execute(44, .{ .abandon = .{ .value = 2 } });
     _ = try store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = std.math.minInt(i64), .state = 1 } });
     _ = try store.execute(44, .{ .begin = try owner().proposal(3) });
-    try t.expectEqual(3, try finish(&store, 3));
+    try t.expectEqual(5, try finish(&store, 3));
     var read = try store.turn(44);
-    try t.expect(try read.read(s.Table.descriptorKey(2)) != null);
+    try t.expect(try read.read(s.TableHead.key(2)) != null);
     var empty: Store = .{};
     defer empty.entries.deinit();
     try setup(&empty, 0);
@@ -159,17 +182,15 @@ test "target corruption and current migration denial cannot activate or partly c
     try setup(&store, 1);
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
     _ = try store.execute(44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1 } });
-    var corrupt = try store.turn(44);
-    const table = try s.Table.open(&corrupt, 2);
-    try table.upsert(&corrupt, .{ .key = -20, .value = .{ .int64 = 99 } });
-    try store.commit(&corrupt);
+    var copied = try store.turn(44);
+    const copy_progress = try (try owner().ledger()).progress(&copied, .{ .value = 2 });
+    _ = try store.execute(44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = copy_progress.next, .operation = 1, .arguments = copy_progress.cursor } });
+    try corruptRow(&store, 2, -20);
     const ledger = try owner().ledger();
     var read = try store.turn(44);
     const progress = try ledger.progress(&read, .{ .value = 2 });
     const step: W.Command = .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = progress.next, .operation = 1, .arguments = progress.cursor } };
-    var failed = try store.turn(44);
-    try t.expectError(error.WorkItemVerificationFailed, owner().execute(&failed, step));
-    try t.expectEqual(0, mutations(failed));
+    try t.expectError(error.WorkItemVerificationFailed, store.execute(44, step));
     _ = try store.execute(33, .{ .policy = .{ .principal = 44, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .migrate = false } } });
     try t.expectError(error.MigrationDenied, store.execute(44, step));
     var final = try store.turn(44);
@@ -243,18 +264,77 @@ test "invalid stored values and failed reads never become caller rejections" {
     var store: Store = .{};
     defer store.entries.deinit();
     try setup(&store, 2);
-    var corrupt = try store.turn(44);
-    const table = try s.Table.open(&corrupt, 1);
-    try table.upsert(&corrupt, .{ .key = -19, .value = .{ .int64 = 99 } });
-    try store.commit(&corrupt);
+    try corruptRow(&store, 1, -20);
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
     const command: W.Command = .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1 } };
-    try t.expectError(error.WorkItemSourceInvalid, handleCommand(&store, 44, command));
+    try t.expectError(error.WorkItemSourceInvalid, store.execute(44, command));
     try t.expect(!store.entries.contains(W.dispositionKey(9, 44, store.position)));
     var read = try store.turn(44);
-    try t.expect((try (try s.Table.open(&read, 2)).get(&read, -20)) == null);
+    try t.expect((try W.Table.get(t.allocator, &read, 2, -20)) == null);
     try t.expectEqual(@as(u64, 1), (try (try owner().ledger()).progress(&read, .{ .value = 2 })).next.value);
     store.fail_read = true;
     try t.expectError(error.MigrationDenied, handleCommand(&store, 44, command));
     try t.expect(!store.entries.contains(W.dispositionKey(9, 44, store.position)));
+}
+
+fn corruptRow(store: *Store, object: u32, key: i64) !void {
+    var read = try store.turn(44);
+    var row = (try W.Table.get(t.allocator, &read, object, key)).?;
+    row.state = 99;
+    const operation = read.delivery.input.position;
+    for (0..1000) |_| {
+        var turn = try store.turn(44);
+        const result = try W.Table.write(t.allocator, &turn, object, 44, operation, row, false, @splat(0), 0);
+        try store.commit(&turn);
+        if (result.state == .applied) return;
+    }
+    return error.UnfinishedCorruption;
+}
+
+test "accepted puts block migration until exact Table completion" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store, 0);
+    const command: W.Command = .{ .put = .{ .epoch = .{ .value = 1 }, .id = -9, .state = 1 } };
+    var admission = try store.turn(55);
+    const input = admission.delivery.input.position;
+    try owner().execute(&admission, command);
+    try store.commit(&admission);
+    var read = try store.turn(44);
+    try t.expect(!try owner().completed(&read, command, input));
+    try t.expectEqual(@as(?W.Table.Row, null), try W.Table.get(t.allocator, &read, 1, -9));
+    var blocked = try store.turn(44);
+    try t.expectError(error.WorkItemWritesPending, owner().execute(&blocked, .{ .begin = try owner().proposal(2) }));
+    try t.expectEqual(0, mutations(blocked));
+    // A later accepted put's wake also drains the older durable work first.
+    _ = try store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 12, .state = 0 } });
+    read = try store.turn(44);
+    try t.expect(try owner().completed(&read, command, input));
+    try t.expectEqual(1, (try W.Table.get(t.allocator, &read, 1, -9)).?.state);
+    try t.expectEqual(0, (try W.Table.get(t.allocator, &read, 1, 12)).?.state);
+    _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
+}
+
+test "catalog bootstrap and read grants require the independent administrator" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try setup(&store, 0);
+    for ([_]W.Command{ .catalog_initialize, .{ .prepare_table = 4 }, .{ .read_policy = .{ .principal = 55, .expected = 0, .revision = 1, .allow = true } } }) |command| {
+        var turn = try store.turn(44);
+        try t.expectError(error.WorkItemDenied, owner().execute(&turn, command));
+        try t.expectEqual(0, mutations(turn));
+    }
+    const grant: W.Command = .{ .read_policy = .{ .principal = 55, .expected = 0, .revision = 1, .allow = true } };
+    _ = try store.execute(33, grant);
+    var read = try store.turn(55);
+    _ = try owner().catalog().authorize(&read, 55, .read);
+    try t.expectError(error.CatalogDenied, owner().catalog().authorize(&read, 55, .create));
+    var declaration = try owner().source(&read, 55, 1);
+    defer declaration.deinit();
+    try t.expectEqual(1, declaration.definition.source.table.object);
+    _ = try store.execute(33, .{ .read_policy = .{ .principal = 55, .expected = 1, .revision = 2, .allow = false } });
+    read = try store.turn(55);
+    try t.expectError(error.CatalogDenied, owner().source(&read, 55, 1));
+    const rejected = try handleCommand(&store, 33, grant);
+    try t.expectEqualStrings("work_items.read_policy_conflict", (try failureAt(&store, 33, rejected)).diagnostic.code.slice());
 }

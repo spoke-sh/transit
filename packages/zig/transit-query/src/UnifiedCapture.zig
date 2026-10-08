@@ -4,7 +4,7 @@ const std = @import("std");
 const q = @import("root.zig");
 const s = q.station;
 const p = q.protocol;
-const m = q.fuze.Unified;
+const f = q.fuze;
 const r = q.UnifiedRecords;
 const Turn = s.Turn;
 const Pub = s.Publication;
@@ -17,6 +17,10 @@ pub fn policy(source: anytype, peer: u64) !?r.Policy {
 }
 pub fn setPolicy(turn: *Turn, next: r.Policy) !void {
     const encoded = try next.encode();
+    if (next.target == .catalog) {
+        const grant = next.target.catalog;
+        if (grant.scope.realm != turn.delivery.realm or grant.scope.resource != turn.view.resource or grant.owner != turn.delivery.pid) return error.InvalidQueryPolicy;
+    }
     if (try policy(turn, next.peer)) |old| {
         if (std.meta.eql(old, next)) return;
         if (next.revision <= old.revision) return error.StaleQueryPolicy;
@@ -51,21 +55,22 @@ fn permittedDiagnostic(source: anytype, stored: r.Job, diagnostic: ?*?q.SourceWi
     }
     return grant;
 }
-fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.SourceWitness) !void {
+fn matches(bundle: q.Bundle, grant: r.Policy, resource: u64, diagnostic: ?*?q.SourceWitness) !?u64 {
     try bundle.validate();
     if (bundle.source.resource != resource) {
         if (diagnostic) |detail| detail.* = .{ .reason = .resource, .resource = resource, .expected = resource, .actual = bundle.source.resource };
         return error.QueryDenied;
     }
     const declaration = try q.Bundle.declaration(bundle.source);
-    if (!std.mem.eql(u8, &grant.declaration, &declaration)) {
-        if (diagnostic) |detail| detail.* = .{ .reason = .declaration, .resource = resource, .expected_hash = grant.declaration, .actual_hash = declaration };
-        return error.QueryDenied;
-    }
+    const principal = grant.principal(bundle.source) catch |err| {
+        if (diagnostic) |detail| detail.* = .{ .reason = .declaration, .resource = resource, .expected_hash = try grant.target.fingerprint(), .actual_hash = declaration };
+        return err;
+    };
     inline for (.{ "pages", "segments", "result_bytes" }) |field| if (@field(bundle.limits, field) > @field(grant.limits, field)) {
         if (diagnostic) |detail| detail.* = .{ .reason = .policy_budget, .resource = resource, .dimension = @field(q.QueryFailure.Dimension, field), .expected = @field(grant.limits, field), .actual = @field(bundle.limits, field) };
         return error.QueryDenied;
     };
+    return principal;
 }
 
 fn schedule(turn: *Turn, stored: *r.Job) !void {
@@ -79,9 +84,18 @@ pub fn start(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Al
     return startDiagnostic(turn, reference, source, allocator, null);
 }
 pub fn startDiagnostic(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, diagnostic: ?*?q.QueryFailure) !r.Job {
+    return startAllocated(turn, reference, source, allocator, false, diagnostic);
+}
+/// Only local allocation sites use this buffer. External publication reads and
+/// poisoned current/retained reads preserve their original failure.
+pub fn startBoundedDiagnostic(turn: *Turn, reference: Ref, source: anytype, buffer: []u8, diagnostic: ?*?q.QueryFailure) !r.Job {
+    var fixed: std.heap.FixedBufferAllocator = .init(buffer);
+    return startAllocated(turn, reference, source, fixed.allocator(), true, diagnostic);
+}
+fn startAllocated(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, diagnostic: ?*?q.QueryFailure) !r.Job {
     if (diagnostic) |detail| detail.* = null;
     var source_witness: ?q.SourceWitness = null;
-    return startWitness(turn, reference, source, allocator, &source_witness) catch |err| {
+    return startWitness(turn, reference, source, allocator, bounded, &source_witness) catch |err| {
         if (diagnostic) |detail| if (source_witness) |value| {
             if (q.QueryFailure.fromError(err, .admission)) |failure| {
                 detail.* = failure;
@@ -94,7 +108,12 @@ pub fn startDiagnostic(turn: *Turn, reference: Ref, source: anytype, allocator: 
         return err;
     };
 }
-fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, witness: *?q.SourceWitness) !r.Job {
+/// Call only around pure decode/allocation or source operations whose external
+/// reads poison this turn. Never wrap request-publication/network operations.
+fn allocationFailure(err: anyerror, comptime bounded: bool, turn: *const Turn) anyerror {
+    return if (bounded and err == error.OutOfMemory and turn.read_error == null) error.QueryAdapterBudgetExceeded else err;
+}
+fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, witness: *?q.SourceWitness) !r.Job {
     const before = turn.decision;
     errdefer turn.decision = before;
     for (before.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
@@ -112,17 +131,18 @@ fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem
     }
     if (try turn.read(r.key('i', peer, frame.correlation)) != null) return error.CorrelationAlreadyUsed;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
-    const bundle = try q.Bundle.decode(allocator, try reference.read(source, &buffer));
+    const request_bytes = try reference.read(source, &buffer);
+    const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(reference, source, peer);
-    try matches(bundle, grant, turn.view.resource, witness);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, witness);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, turn.view.revision), try bundle.source.schema(&columns));
+    const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
+    const captured = q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness) catch |err| return allocationFailure(err, bounded, turn);
+    const bound = try bundle.bind(try captured.fingerprint());
     var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = try turn.retain(), .request = reference, .continuation = turn.delivery.input.position };
     const publication = stored.publication(turn.view.resource);
     if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.domain, publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
-    _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = m.Arrow.segment_bytes, .staging_bytes = m.Arrow.segment_bytes, .staging_records = 1 });
-    try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .progress = m.Stream.Progress.start(bound) }).encode());
+    _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = f.LogicalArrow.segment_bytes, .staging_bytes = f.LogicalArrow.segment_bytes, .staging_records = 1 });
+    try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .cut = captured.cut, .progress = try f.LogicalStream.Progress.start(bound) }).encode());
     try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
     try turn.validate();
@@ -135,9 +155,16 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     return advanceDiagnostic(turn, continuation, source, allocator, workspace, cancellation, null);
 }
 pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
+    return advanceAllocated(turn, continuation, source, allocator, false, workspace, cancellation, diagnostic);
+}
+pub fn advanceBoundedDiagnostic(turn: *Turn, continuation: r.Continuation, source: anytype, buffer: []u8, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
+    var fixed: std.heap.FixedBufferAllocator = .init(buffer);
+    return advanceAllocated(turn, continuation, source, fixed.allocator(), true, workspace, cancellation, diagnostic);
+}
+fn advanceAllocated(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, diagnostic: ?*?q.QueryFailure) !Advance {
     if (diagnostic) |detail| detail.* = null;
     var source_witness: ?q.SourceWitness = null;
-    return advanceWitness(turn, continuation, source, allocator, workspace, cancellation, &source_witness, diagnostic) catch |err| {
+    return advanceWitness(turn, continuation, source, allocator, bounded, workspace, cancellation, &source_witness, diagnostic) catch |err| {
         if (diagnostic) |detail| if (source_witness) |value| {
             if (q.QueryFailure.fromError(err, .execution)) |failure| {
                 detail.* = failure;
@@ -150,7 +177,7 @@ pub fn advanceDiagnostic(turn: *Turn, continuation: r.Continuation, source: anyt
         return err;
     };
 }
-fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, witness: *?q.SourceWitness, diagnostic: ?*?q.QueryFailure) !Advance {
+fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, allocator: std.mem.Allocator, comptime bounded: bool, workspace: []u8, cancellation: *const q.fuze.execution.Cancellation, witness: *?q.SourceWitness, diagnostic: ?*?q.QueryFailure) !Advance {
     const before = turn.decision;
     errdefer turn.decision = before;
     if (try s.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.UnexpectedQueryContinuation;
@@ -176,19 +203,14 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     };
     if (cancellation.load(.acquire)) return error.Cancelled;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
-    const bundle = try q.Bundle.decode(allocator, try stored.request.read(source, &buffer));
+    const request_bytes = try stored.request.read(source, &buffer);
+    const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(stored.request, source, stored.destination);
-    try matches(bundle, grant, turn.view.resource, witness);
-    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, witness);
+    const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
     const previous = try checkpoint(turn, stored.id);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(previous.progress.basis, try bundle.source.schema(&columns));
-    try previous.progress.validate(bound);
-    const observed_contract = try bundle.source.fingerprint();
-    if (!std.mem.eql(u8, &bound.basis.contract, &observed_contract)) {
-        witness.* = .{ .reason = .contract, .resource = turn.view.resource, .expected_hash = bound.basis.contract, .actual_hash = observed_contract };
-        return error.SourceChanged;
-    }
+    const bound = try previous.bound(bundle);
+    const captured = try previous.basis(bundle.source);
     if (stored.phase == .captured) {
         try publishManifest(turn, &stored, previous);
         return if (stored.phase == .complete) .complete else .progress;
@@ -197,12 +219,17 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
         if (diagnostic) |detail| detail.* = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .pages, .limit = bundle.limits.pages, .observed = try std.math.add(u64, previous.progress.pages, 1) };
         return error.QueryBudgetExceeded;
     }
-    var retained = try turn.openVersion(stored.source);
     var page: q.UnifiedSource.Batch = undefined;
-    try q.UnifiedSource.page(bundle.source, previous.progress.basis, previous.cursor, &retained, turn, allocator, &page);
-    var bytes: [m.Arrow.segment_bytes]u8 = undefined;
-    var runtime: ?m.Stream.Failure = null;
-    const candidate = m.Stream.stepDiagnostic(bound, previous.progress, page.engine(), workspace, &bytes, cancellation, &runtime) catch |err| {
+    if (bound.limit == 0) {
+        page = .{ .basis = captured, .binding = bound.source_basis, .ordinal = previous.cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, previous.cursor.ordinal, 1), .done = true } };
+    } else {
+        var retained = try turn.openVersion(stored.source);
+        q.UnifiedSource.page(bundle.source, bound, captured, previous.cursor, &retained, turn, principal, allocator, &page) catch |err| return allocationFailure(err, bounded, turn);
+    }
+    defer page.deinit();
+    var bytes: [f.LogicalArrow.segment_bytes]u8 = undefined;
+    var runtime: ?f.LogicalStream.Failure = null;
+    const candidate = f.LogicalStream.step(bound, previous.progress, page.engine(), workspace, &bytes, cancellation, &runtime) catch |err| {
         const cause = if (err == error.WriteFailed) error.QuerySegmentBudgetExceeded else err;
         if (diagnostic) |detail| if (runtime) |runtime_failure| {
             if (q.QueryFailure.fromError(cause, .execution)) |failure| {

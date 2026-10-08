@@ -21,8 +21,8 @@ No workload receives operator, storage, provider or Board credentials.
 
 | Role | Principal | State and responsibility |
 | --- | --- | --- |
-| ledger | 1 | Total and audit Tables; grants the requester finite query access |
-| requester | 6 | Durable calls, correlations, captured Arrow results and last-result identity |
+| ledger | 1 | Typed total Table and immutable application KV audit; grants the requester finite query access |
+| requester | 6 | Durable calls, correlations, query uploads and source-owned result references |
 | coordinator | 7 | Registry scope 1, `ledger` binding, and one supervised child |
 | station-observer | 10 | Reads waiting/child records and sends trusted timer/lifecycle observations |
 | station-lifecycle | 11 | Reads supervisor intent and applies separately scoped ledger lifecycle operations |
@@ -36,14 +36,28 @@ grants are separate. The observer does not have lifecycle authority, and the
 lifecycle controller does not have provider credentials.
 
 The printed `processes` mapping identifies actual durable PIDs and resource IDs;
-principal numbers are not PIDs. The three roles consume three of the realm's four
-resource slots. Each resource still has 32 entries and every turn has four
-mutations/outputs. Schemas, rows, registry/supervision/waiting records and query
-fragments share those limits. The example deliberately has no auto-pruning:
-history and captured results default to unlimited retention. Repeated calls,
-queries and audit rows eventually exhaust this finite profile; a blocked handler
-remains inspectable. Create another disposable installation to restart a demo,
-or use an application-designed retention policy instead of silently evicting work.
+principal numbers are not PIDs. Durable resources, rows, audit entries and retained
+query results use paged storage, independently of resident cache size. Each native
+turn still admits four writes and four outputs, with 256-byte values. Wide
+framework records and Arrow results use bounded immutable publications. The
+example's Table pages allow four-KiB records and eight simultaneously staged
+records within 32 KiB. Its finite queries allow 32 source pages, eight segments
+and 64 KiB of result bytes, with one active upload per requester.
+
+Root explicitly initializes the ledger catalog and admits `prepare-table` before
+queuing its initial deltas. Native installation readiness and Table publication
+are separate observations; the printed example workflow waits for its initialized
+total. Each delta retains its original input and correlation in a durable queue.
+Table publication, the audit entry and the reply become visible together. An
+advisory cancellation cannot remove accepted application work or retract a reply.
+
+The ledger needs current read access to the requester's upload resource; the
+requester needs current read access to the ledger's schema/result resource.
+Launchers grant these separately from ownership and configure the corresponding
+resource IDs. Root-origin query policy explicitly maps the configured peer to
+catalog principal zero and can revoke subsequent capture and disclosure.
+History and results retain unlimited lifetime by default. Storage quotas do not
+authorize silent eviction or expiry; a blocked handler remains inspectable.
 
 ## Messages and inspection
 
@@ -65,7 +79,7 @@ input deliberately exercises the bounded failed-handler path.
 
 In Board, follow the three PIDs, their **State** associations, and the associated
 resource entries. Lenses identify the GenServer descriptor, Table schema, registry
-scope/binding, child policy, waiting records, and outgoing/incoming query manifests.
+scope/binding, child policy, waiting records, and query uploads and source-owned result publications.
 Every interpretation links to its observed PID, resource, entry revision and cut.
 Application row values remain opaque. Kernel history/ownership views expose
 replacement generations independently of those framework declarations.

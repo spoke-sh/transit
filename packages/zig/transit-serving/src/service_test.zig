@@ -228,7 +228,7 @@ const reactive = root.ReactiveModel;
 const Reactive = root.ReactiveService;
 fn reactiveSetup(store: *Store, owner: *Service) !void {
     try store.setup(owner);
-    var publication = try store.command(owner, 33, .{ .reactive = .{ .publish = .{ .expected = 0, .source = .{ .revision = 1, .target = 88, .resource = 8, .table = 1, .progress_key = try p.Value.init("data-progress"), .schema = @splat(5) } } } });
+    var publication = try store.command(owner, 33, .{ .reactive = .{ .publish = .{ .expected = 0, .source = .{ .revision = 1, .target = 88, .resource = 8, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(5) } } } });
     try store.commit(&publication);
     var clock = try store.command(owner, 34, .{ .reactive = .{ .observe_clock = 1000 } });
     try store.commit(&clock);
@@ -387,7 +387,9 @@ test "finite Table composition keeps service policy and one-query admission in f
     registered.active_limit = 1;
     var publish = try store.command(&base, 33, .{ .publish = .{ .expected = 0, .binding = registered } });
     try store.commit(&publish);
-    const bundle: root.query.Bundle = .{ .source = .{ .resource = 88, .source = .{ .kv = .{ .prefix = try p.Value.init("data/"), .key = .{ .type = .binary }, .value = .{ .type = .binary } } } }, .plan = .{ .projection = &.{ 0, 1 }, .limit = 10 }, .limits = .{ .pages = 10, .segments = 10, .result_bytes = 65536 } };
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const bundle = try root.query.Bundle.fromSql(arena.allocator(), .{ .resource = 88, .source = .{ .kv = .{ .prefix = try p.Value.init("data/"), .key = .{ .type = .binary }, .value = .{ .type = .binary } } } }, "items", "SELECT * FROM items LIMIT 10", .{ .pages = 10, .segments = 10, .result_bytes = 65536 });
     const start: root.query.UnifiedRequest.Command = .{ .begin = try bundle.reference(7, 100) };
     const frame: s.Frame = .{ .kind = .cast, .payload = try start.encode() };
     var no_policy = try store.turn(65536, frame);
@@ -514,7 +516,7 @@ test "all serving rejection classes fit bounded diagnostics and maximum witnesse
         .{ .capacity = .{ .kind = .service, .actual = 8, .limit = 8 } },
         .{ .generation = .{ .expected = p.max_counter, .actual = p.max_counter } },
         .{ .session = .{ .phase = .closed, .deadline = p.max_counter, .observed = 0, .clock_known = false } },
-        .{ .source = .{ .expected = p.max_counter, .actual = p.max_counter, .present = true, .published = true, .target = p.max_counter, .resource = p.max_counter, .schema = @splat(255) } },
+        .{ .source = .{ .expected = p.max_counter, .actual = p.max_counter, .present = true, .published = true, .target = p.max_counter, .resource = p.max_counter, .metadata = @splat(255) } },
         .{ .lease = .{ .kind = .resource, .requested = p.max_counter, .observed = p.max_counter, .limit = p.max_counter } },
         .{ .attachment = .{ .expected = p.max_counter, .actual = p.max_counter } },
         .{ .subscription = .{ .expected = p.max_counter, .actual = p.max_counter, .requested = p.max_counter, .active = p.max_counter } },
@@ -524,8 +526,9 @@ test "all serving rejection classes fit bounded diagnostics and maximum witnesse
         .{ .target = .{ .expected = p.max_counter, .actual = 1, .kind = .resource } },
         .{ .basis = .{ .expected = @splat(255), .actual = @splat(254), .kind = .schema } },
         .{ .source_kind = .{ .expected = .table, .actual = .kv } },
-        .{ .table = std.math.maxInt(u32) },
-        .{ .watch_type = .{ .expected = .int64, .actual = .utf8 } },
+        .{ .table = .{ .value = std.math.maxInt(u64) } },
+        .{ .watch_type = .{ .expected = .int64, .actual = .utf8, .column = 127 } },
+        .{ .watch_shape = .{ .columns = 128, .first_nullable = true, .primary_columns = 128, .primary_first = false } },
         try f.progressWitness(try p.Value.init(&@as([32]u8, @splat(255))), p.max_counter, p.max_counter),
         .{ .reader_identity = .{ .field = .permissions, .expected = p.max_counter, .actual = p.max_counter, .policy_revision = p.max_counter, .policy_known = true } },
         .{ .reader_failure = .{ .operation = .result, .principal = p.max_counter, .resource = p.max_counter, .namespace = std.math.maxInt(u64), .cause = .StateResourceExpired } },

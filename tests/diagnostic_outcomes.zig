@@ -26,6 +26,7 @@ fn emitTransport(out: *std.Io.Writer, family: []const u8, variant: []const u8, s
     try out.writeByte('\n');
 }
 fn queries(out: *std.Io.Writer) !void {
+    @setEvalBranchQuota(10000);
     inline for (comptime std.meta.tags(q.QueryFailure.Code)) |code| {
         inline for (comptime std.meta.tags(q.QueryFailure.Stage)) |stage| {
             inline for (.{ q.UnifiedRequest.Phase.denied, q.UnifiedRequest.Phase.rejected, q.UnifiedRequest.Phase.retired }) |phase| {
@@ -49,41 +50,58 @@ fn applicationCallers(out: *std.Io.Writer) !void {
         try emitScenario(out, "application.host", @errorName(entry.cause), "dispatched", try a.HostDiagnostic.attempt(config, .{ .submit = signed }, entry.cause, true, null));
     }
 }
-fn mutations(out: *std.Io.Writer) !void {
-    const r = q.TableMutationRecords;
-    const base: r.Status = .{ .reference = .{ .resource = 7, .domain = .table_mutation, .namespace = 19, .record = 1, .spec = .{ .format = q.TableMutationRequest.format, .length = 1, .digest = @splat(1) } }, .principal = 9, .table = 1, .declaration = @splat(2), .policy_revision = 1 };
-    inline for (comptime std.meta.tags(r.Phase)) |phase| {
+fn generalTables(allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+    const scope: c.TableCatalogRecords.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
+    const schema: q.fuze.TableSchema.Schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    var buffer: [q.fuze.TableSchema.max_bytes]u8 = undefined;
+    const metadata: c.TableMetadata.Record = .{ .scope = scope, .object = 20, .revision = 1, .name = try .init("items"), .schema = .{ .id = 1, .spec = try c.station.Publication.Digest.of(c.station.TablePages.schema_format, try schema.encode(&buffer)) }, .schema_fingerprint = try schema.fingerprint(), .principal = 9, .operation = 1, .admitted_input = 1 };
+    var compiled = try q.fuze.TableDml.compile(allocator, "INSERT INTO items VALUES (1)", "items", schema, null);
+    defer compiled.deinit();
+    var intent = try c.TableIntent.create(allocator, try c.TableCommand.fromDml(scope, 3, .{ .principal = 9, .operation = 19, .metadata = .{ .id = 1, .spec = try metadata.spec() }, .plan = compiled.plan }, metadata), 19);
+    defer intent.deinit();
+    const base: q.station.TableWrite.Status = .{ .reference = intent.identity.dml.reference, .route = intent.identity.dml.route, .admitted_input = 11, .basis_revision = 1, .first_record = 1, .end_record = 2, .state = .building };
+    inline for (comptime std.meta.tags(@FieldType(q.station.TableWrite.Status, "state"))) |state| {
         var value = base;
-        value.phase = phase;
-        value.input = if (value.terminal()) 11 else 0;
-        if (phase == .rejected) value.reason = .invalid_request;
-        try emit(out, "mutation.phase", @tagName(phase), try q.MutationDiagnostic.status(value));
+        value.state = state;
+        value.completed_input = if (state == .building) 0 else 12;
+        if (state == .rejected) value.rejection = .row_exists;
+        try emit(out, "table.phase", @tagName(state), try c.TableDiagnostic.status(&intent, .{ .dml = value }));
     }
-    inline for (comptime std.meta.tags(r.Reason)) |reason| {
+    inline for (comptime std.meta.tags(@FieldType(q.station.TableWrite.Status, "rejection"))) |reason| {
         var value = base;
-        value.phase = if (reason == .none) .applied else .rejected;
-        value.reason = reason;
-        value.input = 11;
-        value.witness = switch (reason) {
-            .denied => .{ .kind = .policy_missing },
-            .source_changed => .{ .kind = .table_missing },
-            else => null,
-        };
-        if (reason == .row_exists) value.conflict = .{ .row = 2, .key = std.math.minInt(i64) };
-        try emit(out, "mutation.reason", @tagName(reason), try q.MutationDiagnostic.status(value));
+        value.state = if (reason == .none) .applied else .rejected;
+        value.completed_input = 12;
+        value.rejection = reason;
+        try emit(out, "table.reason", @tagName(reason), try c.TableDiagnostic.status(&intent, .{ .dml = value }));
     }
-    inline for (comptime std.meta.tags(q.TableMutationWriter.Rejection)) |reason| {
-        try emit(out, "mutation.input", @tagName(reason), try q.MutationDiagnostic.input(.{ .principal = 9, .input = 11, .payload = @splat(3), .reason = reason }));
+    inline for (comptime std.meta.tags(@FieldType(c.TableCatalogRecords.Operation, "state"))) |state| {
+        const delegated = state == .delegated;
+        const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (delegated) 1 else 0, .name = metadata.name, .action = if (delegated) .{ .alter = .{ .schema = schema, .change = .{ .rename = .{ .column = 1, .name = "identifier" } } } } else .{ .create = .{ .schema = schema } } };
+        var original = try c.TableIntent.create(allocator, try c.TableCommand.fromDdl(scope, 3, request, if (delegated) metadata else null), 19);
+        defer original.deinit();
+        const active = state == .preparing or delegated;
+        const value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .actual_object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = state, .reason = if (state == .rejected) .name_conflict else .none, .admitted_input = 11, .completed_input = if (active) 0 else 12, .metadata = .{ .id = metadata.revision, .spec = try metadata.spec() }, .table_digest = if (delegated) @splat(7) else @splat(0) };
+        var table: ?q.station.TableWrite.Status = null;
+        if (delegated) {
+            table = base;
+            table.?.reference = try value.tableReference();
+            table.?.route = .alter;
+        }
+        try emit(out, "table.ddl_phase", @tagName(state), try c.TableDiagnostic.status(&original, .{ .ddl = .{ .operation = value, .table = table } }));
     }
-}
-fn catalogs(out: *std.Io.Writer) !void {
-    const scope: c.Model.Scope = .{ .realm = 1, .catalog = 2, .resource = 7 };
-    const request = try c.Model.CreateTable.compile(scope, 19, 20, 1, "CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL)");
-    inline for (comptime std.meta.tags(c.Model.Outcome)) |outcome| {
-        try emit(out, "catalog.receipt", @tagName(outcome), try c.Diagnostic.receipt(.{ .request = request, .principal = 9, .input = 11, .outcome = outcome }));
+    inline for (comptime std.meta.tags(@FieldType(c.TableCatalogRecords.Operation, "reason"))) |reason| {
+        const request: c.TableDdlRequest = .{ .principal = 9, .operation = 19, .object = 20, .expected_revision = if (reason == .name_conflict or reason == .object_conflict) 0 else 1, .name = metadata.name, .action = if (reason == .name_conflict or reason == .object_conflict) .{ .create = .{ .schema = schema } } else .{ .drop = .{} } };
+        var original = try c.TableIntent.create(allocator, try c.TableCommand.fromDdl(scope, 3, request, if (request.action == .create) null else metadata), 19);
+        defer original.deinit();
+        var value: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 9, .operation = 19, .object = 20, .kind = std.meta.activeTag(request.action), .digest = original.identity.ddl.digest, .state = if (reason == .none) .cancelled else .rejected, .reason = reason, .admitted_input = 11, .completed_input = 12 };
+        if (reason == .dependency) {
+            value.actual_object = value.object;
+            value.blocker = .{ .dependency = .{ .identity = 7, .owner = 3, .kind = .writer } };
+        }
+        try emit(out, "table.ddl_reason", @tagName(reason), try c.TableDiagnostic.status(&original, .{ .ddl = .{ .operation = value, .table = null } }));
     }
-    inline for (comptime std.meta.tags(@FieldType(c.Model.Disposition, "outcome"))) |outcome| {
-        try emit(out, "catalog.input", @tagName(outcome), try c.Diagnostic.input(.{ .scope = scope, .origin = .external, .principal = 9, .input = 11, .payload = @splat(3), .outcome = outcome }));
+    inline for (comptime std.meta.tags(@FieldType(c.TableControl.Disposition, "outcome"))) |outcome| {
+        try emit(out, "table.input", @tagName(outcome), try c.TableDiagnostic.input(.{ .scope = scope, .origin = .external, .principal = 9, .input = 11, .payload = @splat(3), .outcome = outcome }));
     }
 }
 fn serving(out: *std.Io.Writer) !void {
@@ -150,7 +168,7 @@ fn closures(out: *std.Io.Writer) !void {
     }
 }
 fn refresh(out: *std.Io.Writer) !void {
-    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .target = 2, .resource = 7, .table = 1, .progress_key = try p.Value.init("progress"), .schema = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = 11, .covered = 10, .limit = 8, .starts = 8 };
+    var view: s.RefreshModel.View = .{ .principal = 9, .session = .{ .session = 19, .generation = 1 }, .generation = 2, .source = .{ .revision = 1, .target = 2, .resource = 7, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 1 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 187, .metadata_digest = @splat(1) }, .template = .{ .value = 20 }, .namespace = .{ .value = 21 }, .dirty = 11, .covered = 10, .limit = 8, .starts = 8 };
     inline for (comptime std.meta.tags(s.RefreshFailure.Reason)) |reason| {
         view.failure = s.RefreshFailure.record(12, reason, .{});
         try emit(out, "refresh.stop", @tagName(reason), (try s.RefreshFailure.project(1, 7, view)).?);
@@ -198,22 +216,12 @@ fn queryCallers(out: *std.Io.Writer) !void {
 }
 
 fn writeCallers(out: *std.Io.Writer) !void {
-    const table: q.station.Table = .{ .resource = 7, .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 } };
-    const request = try q.TableMutationRequest.fromSql(46, 65536, table, try .init("items"), "DELETE FROM items WHERE id=1");
-    const ref = try (try request.reference(19)).encode();
-    var storage: [q.station.PublicationReference.encoded_bytes * 2]u8 = undefined;
-    var allocator = std.heap.FixedBufferAllocator.init(&storage);
-    const text = try q.document.JsonValues.hex(allocator.allocator(), ref.slice());
-    for (q.MutationDiagnostic.codes.entries) |entry| {
-        var read: ?d = try q.MutationDiagnostic.attempt(.{ .status = text }, entry.cause, .{}, false, null);
-        q.MutationDiagnostic.qualify(&read, .{ .realm = 46, .resource = 7, .writer = 65536, .principal = 1234, .table = 1 }, null);
-        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "read", read.?);
-        try emitScenario(out, "mutation.caller", @errorName(entry.cause), "dispatched", try q.MutationDiagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
-    }
-    const create: c.Bridge.CreateTable = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = "2" }, .operation = "19", .object = "21", .table = 1, .name = "items", .schema = .{ .names = .{ "id", "value" }, .value_type = .int64 } };
-    for (c.Diagnostic.codes.entries) |entry| {
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.Diagnostic.attempt(.{ .status = create }, entry.cause, .{}, false, null));
-        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.Diagnostic.attempt(.{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }));
+    var catalog_session: c.TableBridge.Session = .{ .allocator = std.heap.page_allocator };
+    defer catalog_session.deinit();
+    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 2 }, .owner = 3, .principal = 17 };
+    for (c.TableAttempt.codes.entries) |entry| {
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "read", try c.TableAttempt.attempt(&catalog_session, connection, .{ .lookup = "items" }, entry.cause, .{}, false, null, null));
+        try emitScenario(out, "catalog.caller", @errorName(entry.cause), "dispatched", try c.TableAttempt.attempt(&catalog_session, connection, .{ .submit = "original" }, entry.cause, .{}, true, .{ .domain = .transport, .id = .init(12), .sequence = .init(12) }, null));
     }
 }
 
@@ -260,8 +268,7 @@ pub fn main(init: std.process.Init) !void {
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try queries(&stdout.interface);
     try queryPhases(&stdout.interface);
-    try mutations(&stdout.interface);
-    try catalogs(&stdout.interface);
+    try generalTables(init.gpa, &stdout.interface);
     try serving(&stdout.interface);
     try capture(&stdout.interface);
     try effects(&stdout.interface);
@@ -280,7 +287,7 @@ pub fn main(init: std.process.Init) !void {
 
 fn queryPhases(out: *std.Io.Writer) !void {
     inline for (comptime std.meta.tags(q.UnifiedRequest.Phase)) |phase| {
-        var value: q.UnifiedRequest.Status = .{ .reference = .{ .resource = 7, .domain = .query_request, .namespace = 19, .record = 1, .spec = .{ .format = q.Bundle.format, .length = 32, .digest = @splat(1) } }, .phase = phase };
+        var value: q.UnifiedRequest.Status = .{ .reference = .{ .resource = 7, .domain = .query_request, .namespace = 19, .record = 1, .spec = .{ .format = q.Bundle.format, .length = q.Bundle.header_bytes, .digest = @splat(1) } }, .phase = phase };
         if (phase == .admitted or phase == .complete or phase == .denied or phase == .rejected) value.correlation = 12;
         if (phase == .denied) value.failure = .{ .code = .policy_denied, .stage = .admission };
         if (phase == .rejected) value.failure = .{ .code = .arithmetic_overflow, .stage = .execution };

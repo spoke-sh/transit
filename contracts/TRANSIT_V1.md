@@ -14,6 +14,8 @@ Every request/query carries version 1, the current contract `definition` and its
 realm. The generated schema's `x-transit.definition` owns that identifier.
 Signatures bind it; query responses and persisted authority heads require it.
 Missing or foreign persisted definitions reject before reading their catalogs.
+The definition is the exact identifier string; enum ordinals, numeric strings,
+all-zero fingerprints and JSON numbers are not alternate spellings.
 Principal, process, resource,
 view, receipt, output and effect identities use 64-bit fields, with the public
 numeric address space capped at 2^53−1. They are values, never resident array
@@ -307,6 +309,12 @@ the service body/deadline limits, and no legacy-route fallback occurs. Typed
 rejection responses distinguish conflict, denial, invalid proposals and uncertain
 service/clock failures. Transport loss, malformed success and response allocation
 failure after acceptance cannot authorize a new mutation sequence.
+
+Both signed envelopes require the body's explicit current `definition` field.
+Decoding rejects a missing or foreign definition before authentication or
+execution; it never fills one from the current build. This also applies to
+signed envelopes nested in saved caller artifacts. The construction defaults
+on unsigned authoring types apply only before signing a new request.
 
 The growing listener uses the bounded [HTTP serving profile](HTTP_SERVING_V1.md)
 with sequential connection reuse. A client can send `X-Transit-Control: snapshot`

@@ -17,6 +17,36 @@ import contract from "./contract.json" with { type: "json" };
 
 export const maximumLine = contract.limits.host_line_bytes;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
+// Generated schemas may contain recursive logical values. Bound traversal
+// before invoking them; the complete encoded frame keeps its separate limit.
+function boundedJson(value: unknown, maximum: number): boolean {
+  let nodes = 0;
+  let bytes = 0;
+  function string(value: string): boolean {
+    bytes += Buffer.byteLength(value);
+    return bytes <= maximum && Buffer.from(value).toString("utf8") === value;
+  }
+  function visit(value: unknown, depth: number): boolean {
+    if (depth > 96 || ++nodes > 1048576) return false;
+    if (value === null || value === undefined || typeof value === "boolean") return true;
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "string") return string(value);
+    if (typeof value !== "object") return false;
+    if (Array.isArray(value))
+      return value.length <= 1048576 && value.every((item) => visit(item, depth + 1));
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+      return false;
+    for (const key in value) {
+      if (
+        Object.hasOwn(value, key) &&
+        (!string(key) || !visit((value as Record<string, unknown>)[key], depth + 1))
+      )
+        return false;
+    }
+    return true;
+  }
+  return visit(value, 0);
+}
 export function validators(schemas: Record<string, unknown>): Record<string, ValidateFunction> {
   const ajv = new Ajv({ strict: true });
   return Object.fromEntries(
@@ -39,9 +69,11 @@ export class Port {
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #directory: string;
   readonly #requestValidator: ValidateFunction;
+  readonly #maximumLine: number;
   readonly #exit: Promise<void>;
   #pending: Pending | undefined;
   #incoming = Buffer.alloc(0);
+  #incomingLength = 0;
   #closed = false;
   #closing: Promise<void> | undefined;
   private constructor(
@@ -49,9 +81,11 @@ export class Port {
     file: string,
     directory: string,
     validate: ValidateFunction,
+    maximum: number,
   ) {
     this.#directory = directory;
     this.#requestValidator = validate;
+    this.#maximumLine = maximum;
     this.#child = spawn(executable, [file], { stdio: ["pipe", "pipe", "pipe"] });
     // Drain without retaining or backpressuring control on the caller's stderr.
     this.#child.stderr.on("data", () => {});
@@ -69,7 +103,10 @@ export class Port {
     executable: string,
     configuration: object,
     validate: ValidateFunction,
+    maximum: number = maximumLine,
   ): Promise<Port> {
+    if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 64 * 1024 * 1024)
+      throw new TypeError("Invalid native port profile bound");
     try {
       await access(executable, constants.X_OK);
     } catch {
@@ -84,7 +121,7 @@ export class Port {
     try {
       const file = join(directory, "host.json");
       await writeFile(file, document, { mode: 0o600 });
-      return new Port(executable, file, directory, validate);
+      return new Port(executable, file, directory, validate, maximum);
     } catch (error) {
       await rm(directory, { recursive: true, force: true });
       throw error;
@@ -95,6 +132,7 @@ export class Port {
     this.#closed = true;
     this.#pending = undefined;
     this.#incoming = Buffer.alloc(0);
+    this.#incomingLength = 0;
     if (pending) {
       clearTimeout(pending.timer);
       const options = { status: pending.mutation ? 6 : status, phase: pending.phase };
@@ -106,21 +144,33 @@ export class Port {
     this.#child.kill("SIGTERM");
   }
   #receive(chunk: Buffer): void {
-    if (this.#incoming.length + chunk.length > maximumLine) {
+    if (this.#incomingLength + chunk.length > this.#maximumLine) {
       this.#fail("Native response exceeds the port bound", 8);
       return;
     }
-    this.#incoming = Buffer.concat([this.#incoming, chunk]);
-    const end = this.#incoming.indexOf(10);
+    const length = this.#incomingLength + chunk.length;
+    if (length > this.#incoming.length) {
+      const capacity = Math.min(
+        this.#maximumLine,
+        Math.max(length, 16384, this.#incoming.length * 2),
+      );
+      const grown = Buffer.allocUnsafe(capacity);
+      this.#incoming.copy(grown, 0, 0, this.#incomingLength);
+      this.#incoming = grown;
+    }
+    chunk.copy(this.#incoming, this.#incomingLength);
+    const end = this.#incoming.subarray(0, length).indexOf(10, this.#incomingLength);
+    this.#incomingLength = length;
     if (end < 0) return;
     const pending = this.#pending;
-    if (!pending || end !== this.#incoming.length - 1) {
+    if (!pending || end !== this.#incomingLength - 1) {
       this.#fail("Unsolicited native response", 8);
       return;
     }
     let status: number, value: unknown;
     try {
       const result: unknown = JSON.parse(utf8.decode(this.#incoming.subarray(0, end)));
+      if (!boundedJson(result, this.#maximumLine)) throw new TypeError();
       if (
         result === null ||
         typeof result !== "object" ||
@@ -142,6 +192,7 @@ export class Port {
       return;
     }
     this.#incoming = Buffer.alloc(0);
+    this.#incomingLength = 0;
     this.#pending = undefined;
     clearTimeout(pending.timer);
     if (status === 0) pending.resolve(value);
@@ -154,10 +205,10 @@ export class Port {
   ): Promise<unknown> {
     if (this.#closed || this.#closing) return Promise.reject(new Closed("Native host is closed"));
     if (this.#pending) return Promise.reject(new Busy("One native request per host"));
-    if (!this.#requestValidator(input))
+    if (!boundedJson(input, this.#maximumLine) || !this.#requestValidator(input))
       return Promise.reject(new TypeError("Invalid native request"));
     const line = JSON.stringify(input) + "\n";
-    if (Buffer.byteLength(line) > maximumLine)
+    if (Buffer.byteLength(line) > this.#maximumLine)
       return Promise.reject(new TypeError("Native request exceeds the port bound"));
     return new Promise((resolve, reject) => {
       let complete!: () => void;

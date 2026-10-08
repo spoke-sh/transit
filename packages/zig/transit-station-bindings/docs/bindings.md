@@ -133,27 +133,46 @@ joined destruction.
 delegate to shared native KV/Table/message implementations, including bounded
 pages and retained source operations, and accept full-width timer
 observers. Each page has at most eight entries and an opaque native cursor.
-Table row keys/int64 values and correlations cross JSON as decimal strings.
+General Table actions live under `table`. `create` advances initialization with
+an explicit realm/resource, typed schema and publication quotas. `schema`, `get`,
+`get_key` and `page` read owned descriptors and cells through `TableReader` at a
+captured or retained cut. Rows carry a separate canonical 20-byte identity as
+lowercase hex; Table/column/operation identities and exact numeric coefficients
+use decimal strings. Recursive cells use the shared logical JSON codec.
 Cursor parsing is canonical, and resuming checks the original source, resource,
-revision and Table/schema. Only null continuation means complete. Captured-view
+revision and Table/head. Only null continuation means complete. Captured-view
 pages exclude private mutations; retained-source pages can accompany private
 progress writes, with read dependencies registered by native Station.
-`table_schema` returns the captured schema and basis for live or retained Tables;
-`version_table_get` reads a point from the retained basis. `budgets` reports the
-remaining native decision slots, including framework work already reserved.
-Local capabilities publish Table cell/name byte bounds for host-side validation.
+
+`table.mutate` accepts the original schema, typed mutation, stable principal and
+operation ID, realm and resource. It delegates one step to `TableStatement`.
+The caller persists that exact intent and schedules further inputs while
+building. Counts distinguish matched/changed and exist only for applied results;
+status and cancellation use a definition-bound exact reference. Changed intent
+or realm/resource rejects before a replacement operation can execute. Retained
+rejection witnesses remain subject to the application's disclosure policy.
+Creation and mutation results are private until their native proposal commits;
+no action loops until completion, grants access or invents continuation inputs.
+
+`budgets` reports the remaining native decision slots, including framework work
+already reserved. Capabilities expose Table column, row, page and action bounds.
+A complete action is at most 256 KiB and undergoes bounded logical JSON
+preflight before typed parsing; the native storage limits are independent of
+this foreign-operation budget. Table pages contain at most eight owned rows.
+The standalone `ArrowCell` result includes the logical descriptor and full
+logical cell, preserving exact bits, nested values and all source states.
 
 Query support requires `query_results: true` in the growing configuration. An
 enabled handle owns a bounded 4 MiB Fuze workspace until joined destruction;
 disabled handles allocate none. Generated capabilities expose this budget,
-8192-byte segments and state/message/operation bounds. Query actions on a disabled
+65535-byte segment buffers and state/message/operation bounds. Query actions on a disabled
 handle reject even if the library advertises support. Registry actions create,
 grant, handle and route scoped names; supervisor actions register and observe
 children through the same private turn. Runtime provider reconciliation remains
 a separately authorized controller, outside application handler actions.
 
 `query_policy` and `query_start` delegate to native `Query`. Starting a
-query requires an authenticated call and uses the whole four-mutation proposal;
+query requires an authenticated call and uses three or four native mutations for job, one or two plan cells and correlation index;
 it cannot share initialization or an earlier private mutation. The native state
 machine handles capture/publication continuations, receiver credit, fragments
 and acknowledgement. Every control turn still passes through the dispatch gate.
@@ -164,7 +183,9 @@ must route it separately from their application payload codec.
 Table and captured basis, ordered chain and schema. `query_segment` rechecks
 completion/current access and returns one owned IPC stream plus ordinal, digest,
 row and byte counts. It rejects missing/incomplete evidence and invalid ordinals.
-Full-width correlations, query limits and aggregate counts use decimal strings.
+Full-width Table identities, correlations, policy revisions, query limits and
+aggregate counts use decimal strings. Query plans reuse the general positional
+logical-plan model and bind the retained typed schema and head digest.
 IPC bytes remain valid after scope/handle disposal; readers remain scoped and
 must reauthorize each access. A local read does not extend retention or confirm
 the containing turn's commitment. Consumers decode each IPC stream separately;
@@ -340,3 +361,12 @@ any replay cursor unchanged. It requires current resource read/inspection;
 native effect evidence also requires inspection of the connector PID.
 See the [exchange contract](../../../../contracts/STATION_EXCHANGE_V1.md#capture-failure-evidence)
 for absent evidence, retired exchanges, identity binding and stale-cut errors.
+
+
+Handler Table actions bound the complete `GrowingResult` JSON response to
+`handler_table_result_bytes` (256 KiB), including metadata and escaping. This
+matches the direct ABI response capacity and fits the native-host line frame.
+`OutputBudgetExceeded` returns the budget status before response publication;
+no row, page or schema is truncated. Smaller page limits can reduce a response;
+a single row/schema exceeding this bound requires a different supported read
+surface. Native storage admission does not imply handler transport admission.

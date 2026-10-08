@@ -11,8 +11,18 @@ export type Insert = {
   readonly value: bigint | null;
 };
 export type Rows = { readonly kind: "rows" };
+export type Advance = { readonly kind: "advance" };
+export type NotReady = { readonly kind: "notReady" };
+export type Update = {
+  readonly kind: "update";
+  readonly key: bigint;
+  readonly value: bigint | null;
+};
+export type Delete = { readonly kind: "delete"; readonly key: bigint };
 export type CounterMessage = Add | Read | Start | Total;
-export type QueryMessage = Initialize | Insert | Rows | Start;
+export type TableCommand = Initialize | Insert | Update | Delete;
+export type TableMessage = TableCommand | Rows | Advance;
+export type QueryMessage = TableMessage | Start | NotReady;
 
 function wide(value: bigint, signed = false): bigint {
   const low = signed ? -(1n << 63n) : 0n,
@@ -84,10 +94,33 @@ export const query: Codec<QueryMessage> = Object.freeze({
   version: 1,
   maxEncodedBytes: 22,
   encode(value: QueryMessage): Uint8Array {
-    const tag = ({ initialize: 1, insert: 2, rows: 3, start: 4 } as const)[value.kind];
+    const tag = (
+      {
+        initialize: 1,
+        insert: 2,
+        rows: 3,
+        start: 4,
+        advance: 5,
+        notReady: 6,
+        update: 7,
+        delete: 8,
+      } as const
+    )[value.kind];
     if (tag === undefined) throw new TypeError("Unsupported query message");
-    const output = bytes(81, value.kind === "insert" ? (value.value === null ? 14 : 22) : 5, tag);
-    if (value.kind === "insert") {
+    const output = bytes(
+      81,
+      value.kind === "insert" || value.kind === "update"
+        ? value.value === null
+          ? 14
+          : 22
+        : value.kind === "delete"
+          ? 13
+          : 5,
+      tag,
+    );
+    if (value.kind === "delete")
+      new DataView(output.buffer).setBigInt64(5, wide(value.key, true), true);
+    if (value.kind === "insert" || value.kind === "update") {
       const view = new DataView(output.buffer);
       view.setBigInt64(5, wide(value.key, true), true);
       output[13] = value.value === null ? 0 : 1;
@@ -98,14 +131,27 @@ export const query: Codec<QueryMessage> = Object.freeze({
   decode(data: Uint8Array): QueryMessage {
     const view = prefix(data, 81),
       tag = data[4];
-    if (data.length === 5 && (tag === 1 || tag === 3 || tag === 4))
-      return Object.freeze({ kind: tag === 1 ? "initialize" : tag === 3 ? "rows" : "start" });
+    if (data.length === 5 && (tag === 1 || tag === 3 || tag === 4 || tag === 5 || tag === 6))
+      return Object.freeze({
+        kind:
+          tag === 1
+            ? "initialize"
+            : tag === 3
+              ? "rows"
+              : tag === 4
+                ? "start"
+                : tag === 5
+                  ? "advance"
+                  : "notReady",
+      });
+    if (data.length === 13 && tag === 8)
+      return Object.freeze({ kind: "delete", key: view.getBigInt64(5, true) });
     if (
-      tag === 2 &&
+      (tag === 2 || tag === 7) &&
       ((data.length === 14 && data[13] === 0) || (data.length === 22 && data[13] === 1))
     ) {
       return Object.freeze({
-        kind: "insert",
+        kind: tag === 2 ? "insert" : "update",
         key: view.getBigInt64(5, true),
         value: data[13] === 0 ? null : view.getBigInt64(14, true),
       });
@@ -132,5 +178,13 @@ function selected<T extends { readonly kind: string }, K extends T["kind"]>(
 export const counterCodec = selected(counter, ["add", "read"]);
 export const requesterCodec = selected(counter, ["start", "total"]);
 export const totalCodec = selected(counter, ["total"]);
-export const queryServiceCodec = selected(query, ["initialize", "insert", "rows"]);
-export const queryRequesterCodec = selected(query, ["start"]);
+export const queryServiceCodec = selected(query, [
+  "initialize",
+  "insert",
+  "rows",
+  "advance",
+  "update",
+  "delete",
+]);
+export const queryRequesterCodec = selected(query, ["start", "notReady"]);
+export const queryReplyCodec = selected(query, ["notReady"]);

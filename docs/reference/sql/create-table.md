@@ -1,111 +1,89 @@
 # CREATE TABLE
 
-**Catalog execution and offline compilation.** Fuze's `Declaration.compile`
-validates this statement as a typed definition and formats it for review. The
-[catalog helper](../../../packages/zig/transit-catalog/README.md) can create a
-compatible empty Table and publish its named definition in an application's
-authorized Station turn. Shared Zig and
-[C ABI/native-port callers](../../../packages/zig/transit-station-bindings/docs/catalog.md)
-submit to an explicit
-[`catalog` host](../../../apps/transit-query-host/README.md) or application
-integration. The [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-executes compatible declarations through `writes.catalog`. `.help CREATE TABLE`
-explains configuration, the two-column schema and exact recovery.
-Python exposes [typed sync/async catalog methods](../../../packages/python/transit-station/docs/catalog.md);
-TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-sdk/docs/catalog.md);
-Rust exposes [typed blocking methods](../../../packages/rust/transit-station-sdk/docs/CATALOG.md);
-Ruby exposes [typed synchronous methods](../../../packages/ruby/transit-station/docs/CATALOG.md);
-C exposes [owned typed handles](../../../packages/c/transit-station/docs/CATALOG.md);
-C++ exposes [typed move-only callers](../../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
-Java exposes [typed futures](../../../packages/java/transit-station-sdk/docs/CATALOG.md);
-.NET exposes [typed tasks](../../../packages/dotnet/transit-station-sdk/docs/CATALOG.md);
-Erlang exposes [typed records](../../../packages/beam/transit-station-sdk/docs/catalog.md);
-Elixir exposes [typed structs](../../../packages/beam/transit-station-elixir/docs/catalog.md).
-Flight SQL and read-query SDK interfaces reject the statement. Board has no
-administrative route for it. Neither compilation nor the
-helper provisions a native resource, chooses a writer, grants access or registers
-a query source implicitly.
-
-## Syntax
-
-```text
-CREATE TABLE name (column_name data_type [nullability] [, ...]);
-data_type   := INT64 | BOOL | UTF8 | BINARY
-nullability := NOT NULL | NULL
-```
-
-At least one column is required. Names are identifiers. Each column has one of
-the four listed types and can omit nullability or spell `NULL` or `NOT NULL`.
-The compiler preserves omitted nullability as `unspecified`; it chooses no
-default-nullability policy or runtime provisioning rules. It accepts one to eight
-columns with distinct normalized names. The reference grammar itself has no
-column count bound or duplicate check.
-
-## Examples
-
-These examples compile as offline definitions:
+CREATE TABLE publishes a general typed Table in the console's configured,
+authorized catalog. SQL and typed callers use the same schema, lifecycle owner
+and recovery contract. Compilation does not provision resources, choose an
+owner or grant permissions. Board and Flight query routes remain read-only.
 
 ```sql
-CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);
-CREATE TABLE events (id INT64 NOT NULL, label UTF8, active BOOL, body BINARY);
+CREATE TABLE people (id INT64, name UTF8);
+
+CREATE TABLE employees (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    department_id INTEGER,
+    active BOOLEAN DEFAULT TRUE,
+    salary DECIMAL(18, 2)
+);
 ```
 
-The wider schema in the second example does not establish executable Table DDL.
-The production Table v1 query profile still uses its declared two-column schema;
-query v1's wider query schema does not implement this creation statement.
+The first statement creates two nullable columns without a user primary key.
+The second declares an int32 primary key and a five-column schema. Use the
+[console catalog configuration](../../../apps/transit-cli/docs/console.md#configuration-and-trust)
+for remote connections; the local server supplies a catalog automatically.
 
-`Definition.tableSchema()` accepts only exactly two columns: an explicitly
-`INT64 NOT NULL` first column and an explicitly nullable second column. It maps
-the first column to the existing immutable primary key and returns the shared
-Table schema. The first example passes this check; the second does not. Omitted
-nullability, a non-int64 or nullable key, and a non-null value column reject this
-conversion. The adapter still needs an authorized resource, writer and Table ID.
-See the [offline declaration contract](../../../contracts/STATE_DECLARATION_V1.md)
-for canonical formatting, bounds and errors.
+## Syntax and types
 
-## Meaning and current interface
+```text
+CREATE TABLE [IF NOT EXISTS] name (
+    column_name data_type [NULL | NOT NULL] [DEFAULT constant] [PRIMARY KEY],
+    ...
+    [, PRIMARY KEY (column_name, ...)]
+);
+```
 
-`Model.CreateTable.compile` produces the owned request for `Catalog.createTable`.
-It binds realm/resource/catalog scope, operation and object IDs, a physical Table
-ID, the normalized name and complete two-column schema. An explicitly initialized
-catalog checks current create policy, refuses existing names/objects/Tables and
-proposes four atomic writes: Table descriptor, immutable definition, name binding
-and attributed receipt. Exact retries recover the original outcome; changed intent
-under the same operation ID rejects. A private result is not committed until the
-native turn succeeds. The [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md)
-defines policies, conflict outcomes, bounded inspection and recovery responsibilities.
-The shared Zig `Client` can prepare and submit that request to an explicitly
-integrated catalog application, preserve its exact signed send across caller
-replacement, and inspect its attributed outcome under current rights. A send
-receipt establishes admission; publication requires an applied catalog receipt.
-The console supports DESCRIBE and SHOW TABLES through its configured catalog.
-Zig, native ABI/port and explicit callers support name lookup, exact definition reads and lists of at
-most eight catalog definitions. Continuation binds the resource revision and
-rechecks current rights; a changed revision requires a fresh listing. These
-metadata methods have typed mappings in all ten language SDKs, sharing the same
-signed Zig caller and owned bounded values.
-The supplied catalog host requires explicit native provisioning, initialization
-and grants. Creating a Table does not configure a query source or infer query/mutation policy.
+Schemas admit 1–128 columns within a 64 KiB encoded-schema budget. Names contain
+1–255 decoded UTF-8 bytes. Unquoted identifiers fold ASCII case to lowercase;
+double quotes preserve case and escape a quote by doubling it. Column names are
+distinct after normalization.
 
-The form is a relational spelling of typed Table creation. Actual
-[Tables](../tables.md) are Station state over a resource, with explicit writer
-ownership, current grants and bounded mutation batches. Schema declarations do
-not expand the atomic commit boundary across resources.
+[Types and aliases](types.md) cover signed/unsigned integers through 128 bits,
+finite float32/64, decimal, boolean, UTF-8, binary, date, time, civil/UTC timestamp,
+interval, UUID, struct, list, fixed array, map, tagged union and JSON. INTEGER/INT
+means int32; BIGINT/INT64 means int64. VARCHAR(n) counts Unicode scalars and
+rejects overlength values. Parameters are validated, never parsed and ignored.
 
-Use the [Station APIs](../station.md) or an application's
-[installation declaration](../applications.md#installation-and-bootstrap) to
-configure supported state. A query source remains an explicit separate declaration.
+Omitted nullability defaults to nullable. A declared primary key implies NOT
+NULL; explicit NULL on a key is contradictory. Keys may be single or composite.
+There is no implicit first-column key. Without a key, duplicate values have
+separate stable internal row identities.
 
-Primary keys, defaults, uniqueness, foreign keys, generated columns, `IF NOT EXISTS`
-and `CREATE TABLE AS SELECT` are outside this grammar.
-`ALTER TABLE` and `DROP TABLE` are also absent. Bounded [INSERT](insert.md),
-[UPDATE](update.md) and [DELETE](delete.md) use an explicitly configured Table
-writer; creating a catalog Table does not enable those routes implicitly.
+Defaults are deterministic typed constants, including the supported nested
+constructors. They apply to omitted INSERT fields and DEFAULT; explicit NULL
+never selects a default. Defaults must satisfy the column's type, nullability
+and character limit. See the [DDL value grammar](../../../contracts/TABLE_DDL_V1.md#type-and-literal-profile).
 
-Source: [`createTable`, `columnDef`, `dataType`, `nullability`](../../../contracts/sql/TransitExtensions.g4).
+Primary keys admit integer, finite float, decimal, boolean, UTF-8, binary, date,
+time, timestamp and UUID columns. Interval, nested values and JSON are not key
+types. Keys compare canonical typed values; text uses exact UTF-8 bytes without
+collation or normalization. Floating zero signs compare equal for keys.
 
-A failed receipt read retains the operation and scope from the original CREATE
-request. It does not prove absence or rejection. Native authority conflicts are
-reported separately from catalog operation identity conflicts. A retained name
-binding with a missing definition is inconsistent evidence, not an unknown name;
-inspect the original scope rather than submitting another CREATE.
+## Publication and recovery
+
+The caller needs current inspect and create rights as well as native access.
+The owner reserves a never-reused object identity, stages bounded schema work,
+then atomically publishes the live name, metadata, head and original outcome.
+Staged bytes alone do not make the Table available. Authorized catalog SELECT
+and DML resolve the published Table through the same configured owner.
+
+IF NOT EXISTS records an unchanged outcome for an existing name. It neither
+checks that the existing schema matches the proposed one nor alters or adopts
+that Table. An exact retry recovers the original outcome; changed intent under
+an occupied operation identity rejects. A native send receipt establishes input
+admission, not successful creation.
+
+The console saves exact intent and signed steps before sending. Use `.status`
+and `.resume` after uncertainty. A newly issued CREATE is new work. Current
+inspection rights govern outcome and metadata reads, including after later
+schema changes or name reuse.
+
+UNIQUE, CHECK, named constraints, foreign keys, generated/identity columns,
+collations, CREATE TABLE AS SELECT and transaction sessions are unsupported.
+These forms reject before mutation. [ALTER TABLE](alter-table.md),
+[DROP TABLE](drop-table.md) and [typed DML](insert.md) have their own selected
+profiles; storing a type does not qualify every relational operator on it.
+
+The [Table schema](../../../contracts/TABLE_SCHEMA_V1.md),
+[DDL compiler](../../../contracts/TABLE_DDL_V1.md) and
+[catalog owner](../../../packages/zig/transit-catalog/docs/table-metadata.md)
+define exact identity, encoding, publication and ownership rules.

@@ -145,7 +145,8 @@ fn cycle(self: *Self) !void {
     try self.worker(allocator, .requester);
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
-    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = .{ connection.source, connection.requester } } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
+    const destinations = [_]u64{ connection.source, connection.requester };
+    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
     var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
@@ -195,13 +196,25 @@ fn cycle(self: *Self) !void {
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
     try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
     var last = std.Io.Clock.awake.now(self.init.io);
+    var unavailable_probes: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
         if (applications) |manager| try manager.tick();
         const now = std.Io.Clock.awake.now(self.init.io);
         if (last.durationTo(now).toMilliseconds() >= 1000) {
             self.active_role = .node;
-            _ = try installation.query(.{ .capabilities = {} });
+            _ = installation.query(.{ .capabilities = {} }) catch |err| {
+                // One unavailable read does not establish process death. Keep
+                // exact pending work and live owners while the next scheduled
+                // observation checks availability. Denial/corruption still
+                // fails immediately; persistent outage remains bounded.
+                if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied or unavailable_probes == 2) return err;
+                unavailable_probes += 1;
+                last = std.Io.Clock.awake.now(self.init.io);
+                try self.init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            unavailable_probes = 0;
             if (self.ui) {
                 self.active_role = .board;
                 try Board.check(installation);
@@ -212,14 +225,13 @@ fn cycle(self: *Self) !void {
     }
 }
 fn tableReady(self: *Self, query: *q.UnifiedClient) !void {
-    const config = self.installation.table();
-    const current = try query.resources().readBatch(config.writer.resource, null, &.{q.TableQueryWriter.state_key});
-    const state = (try current.read(q.TableQueryWriter.state_key)) orelse return error.TableWriterNotReady;
-    if (state.eql(try config.state(.staged))) return error.TableWriterNotReady;
-    if (!state.eql(try config.state(.ready))) return error.TableQueryWriterConfigurationChanged;
-    // Current mutation policy may have been revoked. Readiness must never
-    // reinstall it or require the original permission mask after a restart.
-    _ = try query.describe(try config.definition());
+    const config = Installation.catalogFor(query.connection);
+    var catalog: q.catalog.TableClient = .{ .transport = query.wire, .connection = .{ .scope = config.scope, .owner = config.owner, .principal = query.connection.principal }, .key = query.key };
+    const description = try catalog.describe();
+    if (!std.meta.eql(description.configuration, config)) return error.CatalogConfigurationChanged;
+    // Readiness never restores revoked policy or recreates a deliberately
+    // dropped default Table. First creation has its own exact saved recovery.
+    try self.installation.ensureDefaultTable(&catalog);
 }
 fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const installation = self.installation;
@@ -229,8 +241,8 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const process = (try installation.query(.{ .process = pid })).body.process.process;
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
-    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { table_query_writer: q.TableQueryWriter.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
-    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .table_query_writer = installation.table() } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
+    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { catalog: q.catalog.TableCatalogRecords.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
+    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .catalog = Installation.catalogFor(connection) } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
     var bytes: [1024]u8 = undefined;

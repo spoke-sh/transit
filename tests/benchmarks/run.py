@@ -104,26 +104,40 @@ def checked_records(records, data):
     expected = set()
     for case in data['components']:
         expected.add((case['id'], 'compile'))
-        phases = {'select': ['execute'], 'declaration': ['verify_declaration'], 'mutation': ['verify_mutation', 'propose_mutation']}[case['kind']]
+        phases = {'select': ['execute'], 'declaration': ['verify_declaration'], 'mutation': ['verify_mutation', 'build_candidate']}[case['kind']]
         expected.update((case['id'], phase) for phase in phases)
-    expected.update((probe['id'], 'blocker_probe') for probe in data['probes'])
+    expected.update((probe['id'], 'capability_probe') for probe in data['probes'])
     require(set(actual) == expected, 'missing, extra or mislabeled component results')
     for record in actual.values():
-        if record['phase'] in ('compile', 'execute', 'propose_mutation'):
+        if record['phase'] in ('compile', 'execute', 'build_candidate'):
             require(type(record.get('elapsed_ns')) is int and record['elapsed_ns'] > 0
                     and type(record.get('iterations')) is int and record['iterations'] > 0, 'missing or invalid timing')
     return actual
 
 
-def expected_mutations(case):
-    suffix = case['id'].split('.')[-1]
-    values = {'insert': [(3, 12), (4, None), (5, 31)], 'update': [(1, 42)], 'delete': [(2, None)]}[suffix]
-    output = []
-    for key, value in values:
-        key_bytes = b'\x00r' + struct.pack('<I', 1) + struct.pack('>Q', key ^ (1 << 63))
-        cell = None if suffix == 'delete' else (b'\x01\x00' if value is None else b'\x01\x01' + struct.pack('<q', value)).hex()
-        output.append(dict(key=key_bytes.hex(), value=cell))
-    return output + [None] * (4 - len(output)), len(values)
+def expected_candidate(case):
+    # Compare complete logical contents with a separate SQL implementation,
+    # never with a reproduction of Transit's private row/index encoding.
+    source = case['source']
+    require(source.isidentifier(), 'invalid fixture source')
+    with sqlite3.connect(':memory:') as oracle:
+        oracle.execute(f'CREATE TABLE {source} (id INTEGER PRIMARY KEY, quantity INTEGER)')
+        initial = [(1, 50), (2, None)]
+        oracle.executemany(f'INSERT INTO {source} VALUES (?, ?)', initial)
+        matched = oracle.execute(case['sql']).rowcount
+        rows = oracle.execute(f'SELECT id, quantity FROM {source} ORDER BY id').fetchall()
+    before, after = dict(initial), dict(rows)
+    changed = sum(key not in before or key not in after or before[key] != after[key]
+                  for key in before.keys() | after.keys())
+    require(len(rows) <= 5, 'mutation fixture result exceeded')
+    return dict(matched=matched, changed=changed, rows=[list(row) for row in rows] + [None] * (5 - len(rows)))
+
+
+def expected_schema():
+    definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    columns = [dict(id=str(index), name=name, type={'int64': {}}, nullable=index != 1,
+                    default=None, max_characters=None) for index, name in enumerate(('id', 'quantity'), 1)]
+    return dict(definition=definition, object='1', revision='1', next_column='3', columns=columns, primary_key=['1'])
 
 
 def verify(records, data, config, directory):
@@ -131,7 +145,7 @@ def verify(records, data, config, directory):
     actual = checked_records(records, data)
     query_outputs = []
     for record in actual.values():
-        if record['phase'] in ('compile', 'execute', 'propose_mutation'):
+        if record['phase'] in ('compile', 'execute', 'build_candidate'):
             expected_iterations = config['iterations'] if record['phase'] == 'execute' else config['compile_iterations']
             require(record['iterations'] == expected_iterations, 'wrong iteration count')
     with sqlite3.connect(directory / 'oracle.sqlite') as oracle:
@@ -168,14 +182,12 @@ def verify(records, data, config, directory):
                 require(combined == expected and result['rows'] == len(expected), f"incorrect Arrow result: {case['id']}: {combined} != {expected}")
                 query_outputs.append(dict(id=case['id'], columns=names, rows=combined, segment_sha256=segment_hashes))
             elif case['kind'] == 'mutation':
-                mutations, affected = expected_mutations(case)
                 result = actual[case['id'], 'verify_mutation']
-                require(result['mutations'] == mutations and result['affected'] == affected, f"incorrect private proposal: {case['id']}")
+                require(result['candidate'] == expected_candidate(case), f"incorrect typed candidate: {case['id']}")
             else:
-                formatted = f'CREATE TABLE "{case["source"]}" ("id" INT64 NOT NULL, "quantity" INT64 NULL);'
-                require(actual[case['id'], 'verify_declaration']['formatted'] == formatted, 'incorrect declaration')
+                require(actual[case['id'], 'verify_declaration']['schema'] == expected_schema(), 'incorrect typed schema')
     for probe in data['probes']:
-        require(actual[probe['id'], 'blocker_probe']['err'] == probe['expected_error'], f"blocker changed: {probe['id']}")
+        require(actual[probe['id'], 'capability_probe']['err'] == probe['expected_error'], f"capability changed: {probe['id']}")
     return actual, query_outputs
 
 
@@ -244,7 +256,7 @@ def main():
             records = invoke(binary, dict(config, verify_dir=str(directory)), directory, args.timeout)
             baseline, query_outputs = verify(records, data, config, directory)
             report['build'] = records[0]
-            report['verification'] = dict(status='passed', records=records[1:], query_outputs=query_outputs, oracle='SQLite query results and PyArrow IPC; independent Table key/cell bytes')
+            report['verification'] = dict(status='passed', records=records[1:], query_outputs=query_outputs, oracle='SQLite query results and typed mutation rows/counts; PyArrow IPC; exact neutral Table schemas')
             warmup = invoke(binary, config, directory, args.timeout)
             require(warmup[0] == records[0], 'build metadata changed')
             require({k: {f: v for f, v in r.items() if f != 'elapsed_ns'} for k, r in checked_records(warmup, data).items()} == {k: {f: v for f, v in r.items() if f != 'elapsed_ns'} for k, r in baseline.items()}, 'warm-up differs')

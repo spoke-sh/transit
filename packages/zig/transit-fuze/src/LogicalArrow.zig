@@ -1,5 +1,5 @@
-//! Bounded Arrow IPC export for logical values. This is a local transport
-//! capability, not admission of richer values to native durable query jobs.
+//! Bounded Arrow IPC export for logical values. The caller owns admission,
+//! authority, publication and result completeness; this codec owns neither.
 const std = @import("std");
 const f = @import("root.zig");
 const t = f.Types;
@@ -327,6 +327,14 @@ pub fn encode(schema: t.Type, rows: []const Row, workspace: []u8, output: []u8) 
     return messages(schema, rows, .{}, workspace, output);
 }
 pub fn messages(schema: t.Type, rows: []const Row, parts: Messages, workspace: []u8, output: []u8) ![]const u8 {
+    return messagesInner(schema, rows, parts, workspace, output) catch |err| switch (err) {
+        // This encoder has no external allocator or I/O: every allocation uses
+        // the explicit fixed workspace. Do not conflate this with host OOM.
+        error.OutOfMemory => error.ArrowWorkspaceExceeded,
+        else => err,
+    };
+}
+fn messagesInner(schema: t.Type, rows: []const Row, parts: Messages, workspace: []u8, output: []u8) ![]const u8 {
     try schema.validate(.{});
     if (schema != .structure or schema.structure.len > 128 or rows.len > max_rows) return error.ArrowShapeTooLarge;
     for (rows) |row| try (v.Cell{ .value = .{ .structure = row.cells } }).validate(.{ .name = "row", .type = schema }, .{});
@@ -401,6 +409,6 @@ test "logical Arrow exports exact decimal and recursive states within independen
     defer batch.deinit();
     try std.testing.expectEqual(@as(usize, 2), batch.numRows());
     try std.testing.expect((try reader.nextRecordBatch()) == null);
-    try std.testing.expectError(error.OutOfMemory, encode(schema, &rows, workspace[0..1], &output));
+    try std.testing.expectError(error.ArrowWorkspaceExceeded, encode(schema, &rows, workspace[0..1], &output));
     try std.testing.expectError(error.WriteFailed, encode(schema, &rows, workspace, output[0..1]));
 }

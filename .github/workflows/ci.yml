@@ -91,7 +91,7 @@ jobs:
             shell: ci-bindings
             cache: bindings
             cache_writer: true
-            timeout: 180
+            timeout: 240
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
     steps:

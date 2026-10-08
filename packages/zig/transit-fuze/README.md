@@ -14,10 +14,87 @@ boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.
 Casts and lossless domain promotion have separate admission rules. Recursive
 struct/list/array/map/union cells preserve null, missing, errors and conflicts;
 `Types.Codec` owns decoded descriptor/value bytes in an explicitly released arena.
+Descriptor `decodeInto`/`cloneInto`, bound-value `decodeBoundInto` and logical-plan
+`decodeInto` also compose within a caller-owned request arena. The enclosing owner
+releases both successful values and all partial allocations after a failure;
+returned slices never outlive that arena. The same format and budget checks apply.
+`Types.Kind` preserves observed decoder and Document mismatch kinds independently
+of admissible descriptor tags. `Values.fromQuery` converts every six-scalar cell
+state and conflict alternative without inventing an actual type or selecting a
+winner; its copied values belong to the supplied arena.
 `Types.Json` keeps exact numeric lexemes and rejects duplicate decoded keys.
 The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codecs,
 budgets and capability limits. These APIs do not extend SQL, persisted Tables,
 native query plans or Flight. Run `just test::fuze-types` for independent fixtures.
+
+`LogicalPredicate` owns typed scalar predicate atoms and bounded postfix Boolean
+programs over logical rows. File plans use these same primitives; source capture
+and statement admission remain with their callers. NULL/state handling, eager
+evaluation and comparison rejection follow the shared finite-query semantics.
+
+`LogicalQuery` owns source-independent logical projection, filtering, limits,
+counting and checked int64 summation. Its pull executor consumes one owned row
+at a time and retains bounded aggregate state and original failure evidence.
+`FileQuery.execute` binds it to the verified file scan; other adapters must
+establish their own immutable schema/source binding and current disclosure rights.
+The executor itself acquires no source or permission.
+
+`LogicalPlanCodec` owns canonical `FQP1` serialization of these plans under an
+exact supplied schema and source binding. Decode rejects foreign definitions and
+stale bindings before reading dependent literals, then returns an independently
+owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
+defines its byte budget, field layout and separation from query admission.
+
+`LogicalPrepared` owns general logical SELECT templates with typed comparison
+and LIMIT parameters, including Boolean predicates and recursive projections.
+Binding checks the complete source/schema commitment and returns independent
+canonical logical plans. Parameters retain exact integer/decimal/temporal values;
+unsupported comparisons stay unsupported. Input and plan budgets apply before a
+bound result is returned. See the [parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#general-logical-template-compiler)
+for scope, ownership and the separate caller-integration boundary.
+
+Logical binding failures retain the exact caller identifier at the failing token,
+including quoted, escaped and UTF-8 names up to 255 bytes. The owned diagnostic
+survives releasing parser inputs; it does not reread source metadata for context.
+
+`LogicalStream` evaluates bounded logical pages with canonical resumable progress
+and Arrow segments. It shares the pull executor's ordered row operators and
+returns no candidate after an error or cancellation. Its
+[step contract](../../../contracts/TABLE_QUERY_V1.md#bounded-resumable-steps)
+keeps current authorization, captured source lifetime and atomic publication with
+the source owner.
+
+`LogicalInspect` decodes one complete canonical `LogicalArrow` segment into owned
+recursive rows and a descriptor. It checks exact schema bytes before interpreting
+IPC metadata, then validates physical arrays and complete logical cell semantics.
+Its [segment contract](../../../contracts/FUZE_ARROW_V1.md#canonical-segment-decoding)
+defines independent input/workspace/row budgets and excludes general external
+Arrow import. The result owns all bytes until `deinit`; source authority and
+publication evidence remain with the consumer.
+
+`LogicalInspect.infer` recovers the embedded logical descriptor and row count
+from a plain canonical segment. A bounded metadata-only reader locates the two
+required metadata entries; the logical descriptor and complete canonical schema
+are checked before Arrow traverses physical field trees. `segment` also validates
+all cells and returns the logical schema fingerprint for delivery consistency.
+Neither helper supplies source, authorization or computation evidence.
+
+`TableDml` compiles [typed Table statements](../../../contracts/TABLE_DML_V1.md)
+against a supplied name and complete schema. It owns generalized INSERT rows,
+constant/default UPDATE assignments and DELETE predicates using stable column
+IDs. It performs no source resolution or publication; statement owners retain
+authorization, frozen selection, atomic completion and recovery obligations.
+
+`TableSelect` compiles [general Table SELECT](../../../contracts/TABLE_QUERY_V1.md)
+over up to 128 logical columns, with typed predicates, aliases, limits and finite
+COUNT/checked int64 SUM. It shares typed literals and predicate lowering with
+Table DML and row execution with file queries. The supplied schema and source
+binding remain the caller's responsibility; compilation does not acquire access.
+Non-SELECT input returns `UnsupportedStatement`. Query-side diagnostics validate
+Table DDL/DML with the production general grammar before explaining the required
+catalog interface; valid implicit INSERT columns and schema lifecycle syntax are
+not reported as malformed legacy statements. This presentation check has a
+256 KiB scratch bound and never invents a schema or performs catalog reads.
 
 `Type.validateDiagnostic(limits, &failure)` retains the first recursive descriptor
 rejection in an owned `Types.Diagnostic`. `LogicalJson.decodeTypeContext` carries
@@ -99,21 +176,45 @@ all use-site byte offsets, expected/supplied types and counts, and changed-schem
 fingerprints in an optional `Sql.Binding`. Ordinary and diagnostic entry points
 produce the same plans and errors; diagnostic storage requires no allocation.
 
-`Sql.parseMutation` and `TableMutation.compile/lower` produce owned, exactly
-typed plans for literal INSERT, UPDATE and DELETE against one declared Table.
-These plans are separate from read queries. The application invokes Station's
-private-turn helper under its own command authorization; public query transports
-reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
+`TableDml.compile` produces owned, schema-bound INSERT, UPDATE and DELETE plans
+with typed cells, column assignments and predicates. These plans are separate
+from read queries. Station's staged Table owner validates the captured basis and
+publishes the complete result atomically. See the
+[Table mutation contract](../../../contracts/TABLE_DML_V1.md).
+
+`TableSchema` supplies the pure general schema/row model with stable column IDs,
+nullable defaults, typed defaults and declared keys. Its owned codec and exact
+bounds are documented in [Table schemas](docs/table-schemas.md). Storage and SQL
+admission retain their separate profiles.
+
+`TableDdl` compiles general typed CREATE/ALTER/DROP through the shared SQL lexer
+and schema model. It owns names, descriptors and typed defaults in an arena;
+ALTER/DROP retain the captured object/schema identity. The
+[compiler contract](../../../contracts/TABLE_DDL_V1.md) separates these pure
+definitions from catalog/native/console admission.
+
+`SqlTyped.literal` captures unbound constructor syntax and source spans before
+`SqlLiteral.bind` admits it against a logical descriptor. Bound cells allocate in the caller's
+arena and byte values share the parsed syntax lifetime. Nested binding failures identify the
+original child or union alternative after parsing has advanced. Direct syntax
+callers are bounded to the SQL depth, node and text budgets before cell allocation;
+row width, nullability and constraints remain schema responsibilities.
+
+`SqlTyped.Editor` captures bounded cursor expectations from the same Table DDL,
+DML and SELECT parsers. Their `compileWithEditor` and `targetWithEditor` entry
+points report syntax/name/type context without dispatching work. Catalog callers
+supply actual authorized schemas and filter suggestions by the selected execution
+profile. These expectations do not establish that an unfinished statement binds
+or executes.
 
 `Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
-`CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
-their names and up to eight Table columns, preserve omitted nullability and
-format canonical review SQL into a caller-owned buffer. `Definition.tableSchema`
-explicitly checks compatibility with the existing two-column Table model.
-Compilation does not provision resources, publish a catalog or confer authority;
-query transports still reject declarations. The
+`CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own their names and
+format canonical review SQL into a caller-owned buffer. General Table declarations
+use `TableDdl.compile` and the shared schema/type rules described above; there is
+one Table parser for offline review and catalog publication. Compilation does not
+provision resources, publish a catalog or confer authority. The
 [state declaration contract](../../../contracts/STATE_DECLARATION_V1.md) defines
-types, ownership, errors and capability limits.
+KV/Document types, ownership, errors and capability limits.
 
 `Sql.hints` uses the production parser up to a token-boundary cursor and returns
 bounded grammar expectations. `SqlInput` frames semicolon termination and
@@ -121,15 +222,21 @@ whole-token replacement while respecting quotes, nested comments and UTF-8.
 Neither reads a catalog nor executes a statement. Callers filter expectations
 against their authorized schema and executable capability profile.
 
-`SqlInput.classify` combines tolerant lexical tokens with `Sql.classifyTokens`,
-which records roles as the production SELECT, mutation, declaration and
-inspection parsers consume input. Keywords, names, aggregate functions, types,
+`SqlInput.classify` combines tolerant lexical tokens with roles recorded as the
+production parsers consume input. `Sql.classifyTokens` covers finite source,
+parameter and inspection syntax; general Table DDL, DML and SELECT use their
+unbound syntax parsers. Column/source references retain their original spans
+through binding, including predicate and ALTER failures. Keywords, names, aggregate functions, types,
 literals, numbers, parameters and comments have distinct presentation roles;
 contextual words remain identifiers in name positions. Each semicolon-delimited
-statement is classified independently. Incomplete or malformed suffixes retain
+statement is classified independently. Type aliases, rich constructors and ALTER
+actions are contextual; those same spellings remain identifiers in name positions.
+Incomplete or malformed suffixes retain
 lexical roles, including unfinished strings, quoted identifiers and comments.
 The caller supplies one role per UTF-8 byte within the 4,096-byte input bound;
-classification allocates no memory, reads no catalog and grants no authority.
+classification reads no catalog and grants no authority. General Table syntax
+uses a fixed 256 KiB workspace without heap allocation. Exhaustion or malformed
+input retains consumed roles and lexical classification on the remaining suffix.
 These local roles do not change parser acceptance or serialized contracts.
 `SqlDiagnostic` owns excerpt roles captured before redaction and clipping;
 its styled renderer supplies those roles alongside the escaped source text.

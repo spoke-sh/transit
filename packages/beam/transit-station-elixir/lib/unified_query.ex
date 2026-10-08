@@ -1,6 +1,12 @@
 defmodule Transit.Station.Sdk.UnifiedQuery.Column do
   @enforce_keys [:name, :type]
   @derive {Inspect, only: []}
+  defstruct [:name, :type, nullable: false, optional: false]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.DecoderColumn do
+  @enforce_keys [:name, :type]
+  @derive {Inspect, only: []}
   defstruct [:name, :type]
 end
 
@@ -17,9 +23,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery.KvSource do
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.TableSource do
-  @enforce_keys [:resource, :id, :value_type]
+  @enforce_keys [:owner, :metadata, :schema]
   @derive {Inspect, only: []}
-  defstruct [:resource, :id, :value_type, names: ["id", "value"]]
+  defstruct [:owner, :metadata, :schema]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.Projection do
@@ -168,12 +174,6 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Observation do
   defstruct [:state, reason: nil]
 end
 
-defmodule Transit.Station.Sdk.UnifiedQuery.Alternative do
-  @enforce_keys [:counter, :replica, :value]
-  @derive {Inspect, only: []}
-  defstruct [:counter, :replica, :value]
-end
-
 defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
   @enforce_keys [
     :job,
@@ -185,6 +185,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :kind,
     :resource,
     :revision,
+    :source_head,
     :source_digest,
     :schema_digest,
     :plan_digest,
@@ -209,6 +210,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Manifest do
     :kind,
     :resource,
     :revision,
+    :source_head,
     :source_digest,
     :schema_digest,
     :plan_digest,
@@ -238,10 +240,11 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   Persist Prepared.bytes before submit and retry identical bytes on uncertainty.
   """
   alias Transit.Client
-  alias Transit.Station.Sdk.{Runner, Value, Document}
+  alias Transit.Station.Sdk.{Runner, Value, Document, Catalog, Logical}
 
   alias __MODULE__.{
     Column,
+    DecoderColumn,
     Decoder,
     KvSource,
     TableSource,
@@ -262,7 +265,6 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     Status,
     Failure,
     Observation,
-    Alternative,
     Manifest,
     Page
   }
@@ -356,7 +358,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   defp result(error), do: Client.convert(error)
 
   @doc false
-  def native(%Column{} = v), do: {:transit_unified_column, native(v.name), native(v.type)}
+  def native(%Column{} = v),
+    do: {:transit_unified_column, v.name, Logical.native(v.type), v.nullable, v.optional}
+
+  def native(%DecoderColumn{} = v), do: {:transit_unified_decoder_column, v.name, v.type}
   def native(%Decoder{} = v), do: {:transit_unified_decoder, native(v.type), native(v.version)}
 
   def native(%KvSource{} = v),
@@ -365,8 +370,8 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
 
   def native(%TableSource{} = v),
     do:
-      {:transit_unified_table, native(v.resource), native(v.id), native(v.names),
-       native(v.value_type)}
+      {:transit_unified_table, Client.native(v.owner), Catalog.native(v.metadata),
+       Catalog.native(v.schema)}
 
   def native(%Projection{} = v),
     do:
@@ -413,17 +418,14 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%Observation{} = v),
     do: {:transit_unified_observation, native(v.state), native(v.reason)}
 
-  def native(%Alternative{} = v),
-    do: {:transit_unified_alternative, native(v.counter), native(v.replica), native(v.value)}
-
   def native(%Manifest{} = v),
     do:
       {:transit_unified_manifest, native(v.job), native(v.source), native(v.requester),
        native(v.correlation), native(v.policy_revision), native(v.request), native(v.kind),
-       native(v.resource), native(v.revision), native(v.source_digest), native(v.schema_digest),
-       native(v.plan_digest), native(v.pages), native(v.scanned), native(v.selected),
-       native(v.value_count), native(v.segments), native(v.rows), native(v.byte_count),
-       native(v.sum), native(v.finished), native(v.chain)}
+       native(v.resource), native(v.revision), native(v.source_head), native(v.source_digest),
+       native(v.schema_digest), native(v.plan_digest), native(v.pages), native(v.scanned),
+       native(v.selected), native(v.value_count), native(v.segments), native(v.rows),
+       native(v.byte_count), native(v.sum), native(v.finished), native(v.chain)}
 
   def native(%Page{} = v),
     do:
@@ -453,6 +455,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%Document.Reference{} = v), do: Document.native(v)
   def native(%Client.ResourceRef{} = v), do: Client.native(v)
   def native(%Client.ProcessRef{} = v), do: Client.native(v)
+  def native(%Logical.Field{} = v), do: Logical.native(v)
+  def native(%Logical.Element{} = v), do: Logical.native(v)
+  def native(%Logical.Alternative{} = v), do: Logical.native(v)
   def native(nil), do: :undefined
   def native(values) when is_list(values), do: Enum.map(values, &native/1)
 
@@ -465,8 +470,11 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_unified_predicate_program, instructions}),
     do: %PredicateProgram{instructions: convert(instructions)}
 
-  def convert({:transit_unified_column, name, type}),
-    do: %Column{name: convert(name), type: convert(type)}
+  def convert({:transit_unified_column, name, type, nullable, optional}),
+    do: %Column{name: name, type: Logical.convert(type), nullable: nullable, optional: optional}
+
+  def convert({:transit_unified_decoder_column, name, type}),
+    do: %DecoderColumn{name: name, type: type}
 
   def convert({:transit_unified_decoder, type, version}),
     do: %Decoder{type: convert(type), version: convert(version)}
@@ -479,12 +487,11 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
       value: convert(value)
     }
 
-  def convert({:transit_unified_table, resource, id, names, value_type}),
+  def convert({:transit_unified_table, owner, metadata, schema}),
     do: %TableSource{
-      resource: convert(resource),
-      id: convert(id),
-      names: convert(names),
-      value_type: convert(value_type)
+      owner: Client.convert(owner),
+      metadata: Catalog.convert(metadata),
+      schema: Catalog.convert(schema)
     }
 
   def convert(
@@ -602,13 +609,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_unified_observation, state, reason}),
     do: %Observation{state: convert(state), reason: convert(reason)}
 
-  def convert({:transit_unified_alternative, counter, replica, value}),
-    do: %Alternative{counter: convert(counter), replica: convert(replica), value: convert(value)}
-
   def convert(
         {:transit_unified_manifest, job, source, requester, correlation, policy_revision, request,
-         kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned,
-         selected, value_count, segments, rows, byte_count, sum, finished, chain}
+         kind, resource, revision, source_head, source_digest, schema_digest, plan_digest, pages,
+         scanned, selected, value_count, segments, rows, byte_count, sum, finished, chain}
       ),
       do: %Manifest{
         job: convert(job),
@@ -620,6 +624,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         kind: convert(kind),
         resource: convert(resource),
         revision: convert(revision),
+        source_head: convert(source_head),
         source_digest: convert(source_digest),
         schema_digest: convert(schema_digest),
         plan_digest: convert(plan_digest),
@@ -651,6 +656,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_resource, _, _} = v), do: Client.convert(v)
   def convert({:transit_process, _, _} = v), do: Client.convert(v)
   def convert({:transit_admission, _} = v), do: Client.convert(v)
+  def convert({:transit_logical_field, _, _, _, _} = v), do: Logical.convert(v)
+  def convert({:transit_logical_element, _, _} = v), do: Logical.convert(v)
+  def convert({:transit_logical_alternative, _, _, _} = v), do: Logical.convert(v)
   def convert(:undefined), do: nil
   def convert(values) when is_list(values), do: Enum.map(values, &convert/1)
 

@@ -87,13 +87,14 @@ decoded nullable application value. Typed `put` requires the key's value type.
 be mutated per turn under the current profile; durable cardinality is accessed
 through bounded pages, not copied into a runner-owned queue.
 
-`TableSchema<T>` supports int64_t, bool, string and byte-vector values, with an
-i64 key. `Row<T>` has an optional cell; `get()` has a separate optional row.
-Schema capture verifies the declared names and value type. Pages contain owned
-rows, source basis and an optional move-only cursor. `retain()` records a durable
-read version, and `source(version)` exposes read-only KV/Table helpers with
-current native authorization. `release(version)` is an explicit durable turn
-operation. Freeing a local helper never silently releases a recorded version.
+[General Tables](TABLES.md) expose catalog schemas and owned logical rows with
+stable identities. `TableMutation` saves the original schema, operation identity
+and typed assignments for explicit later steps. Creation and mutation results
+distinguish domain completion from private preparation, input admission and
+framework commit. Pages contain owned rows and an optional move-only cursor.
+`retain()` records a durable read version; `source(version)` exposes read-only
+KV/Table helpers with current native authorization. `release(version)` is an
+explicit durable turn operation. Freeing a local helper never releases it.
 
 Calls return full u64 correlations. Store that identity with the output and end
 the private turn; a later activation verifies its recorded reply with
@@ -102,7 +103,7 @@ associated durable state. Query plans use typed projections, predicates and
 aggregates; execution stays in Fuze's Zig implementation.
 
 `result(correlation)` rechecks access on every complete manifest/segment read.
-The manifest carries source/destination, captured resource/revision/schema, plan,
+The manifest carries source/destination, captured resource/revision/object/head, plan/schema digests,
 segment/row/byte counts and chain identity. `IpcSegment` owns its native-independent
 data, and `ipc()` returns another owned byte vector. Both survive runner close;
 mutating a returned copy cannot alter the segment. No Arrow C++ adapter is

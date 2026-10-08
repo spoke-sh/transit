@@ -2,18 +2,18 @@
 
 `transit_station.unified` exposes the v1 KV, Table and accepted Document query
 profile. Python owns typed values and scheduling; shared Zig validates bundles,
-signs commands, observes admission and verifies result pages. Existing Table v1
-queries keep their original APIs. Source adapters never infer an application
+signs commands, observes admission and verifies result pages. Table sources bind
+immutable catalog metadata and general logical schemas. Source adapters never infer an application
 schema: supply versioned KV decoders or explicit Document paths/projections.
 
 ```python
 from transit_station import unified as q
 from transit_station.query import Comparison
 
-source = q.KVSource(resource, b"events/", q.Decoder(q.Type.BINARY),
-                    q.Decoder(q.Type.UTF8))
+source = q.KVSource(resource, b"events/", q.Decoder(q.DecoderType.BINARY),
+                    q.Decoder(q.DecoderType.UTF8))
 bundle = q.Bundle.prepare(source, q.Plan((1,),
-    q.Compare(1, Comparison.NE, q.Scalar(q.Type.UTF8, ""))),
+    q.Compare(1, Comparison.NE, q.Scalar("utf8", ""))),
     q.Budgets(pages=1000, segments=100, result_bytes=1_048_576))
 ```
 
@@ -49,7 +49,7 @@ Namespaces and budgets retain the full unsigned 64-bit range.
 empty tuple selects a template without placeholders.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -86,8 +86,34 @@ distinct. Conflict alternatives retain ordered full-width assignment IDs.
 `Page.to_pyarrow()` requires the optional pinned PyArrow 23.0.0 dependency and
 preserves the nested state/alternative schema. An independently decoded IPC
 stream alone establishes neither current authorization nor complete-result
-coverage. Work limits remain 16 KiB per bundle, eight columns/rows per batch,
-4 KiB per scalar and 64 KiB per IPC segment.
+coverage. Bundles contain at most 25069 bytes. Table results admit 128 columns;
+segments contain at most eight rows and 64 KiB. Comparison literals retain a
+4 KiB byte limit. Descriptors and recursive cells use the shared logical budgets.
+KV has two columns, and Document projections admit eight scalar decoders.
+
+`Column.type` is a `logical.Descriptor`, with separate `nullable` and `optional`
+flags. Query parameters use `logical.Atom` (also exported as `q.Scalar`), including
+exact Python integers for all widths, decimal coefficients and temporal values.
+Result cells reuse `logical.Missing`, `Null`, `SourceTypeError`, `Present` and
+`Conflict`; a `Present.value` is an atom or a typed recursive value. Collections
+are immutable tuples. The six KV/Document decoder names remain in `DecoderType`
+and `DecoderColumn` independently of the result type model.
+
+Build a Table source from a catalog lookup:
+
+```python
+definition = catalog_client.lookup("people")
+if definition is None:
+    raise ValueError("Table not found")
+source = q.TableSource(catalog_client.connection.owner,
+                       definition.metadata, definition.schema)
+```
+
+Metadata includes the immutable record commitment returned by the shared
+implementation. Preparing a source does not grant access. Current `describe`
+checks its metadata, while retained-result reads check current rights and retain
+their original schema and `Manifest.source_head`. Saved work does not rebind to
+a renamed or replacement object.
 
 Run `just bindings::unified-python kv` for a clean installed-wheel codec and
 signed recovery schedule. `table` and `document` select the other source

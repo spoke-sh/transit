@@ -58,7 +58,25 @@ def run(fixture):
         requested = call(sql.CommandGetSqlInfo(info=[3, 0, 517, 508, 3]))
         assert requested.column(0).to_pylist() == [3, 0, 517, 508, 3]
         assert requested.column(1).to_pylist() == [True, 'Transit Fuze', [], [], True]
-        print('Flight metadata: pinned PyArrow verified standard schemas, all six union children, optional filters, empty batches and published Table schema.')
+        def query_schema(mode, text, *, reject=False):
+            (work / 'input').write_text(text)
+            result = subprocess.run([fixture, mode, str(work / 'input'), str(work / 'output')], capture_output=True)
+            if reject:
+                assert result.returncode != 0 and b'UnsupportedFlightType' in result.stderr, result.stderr
+                return
+            assert result.returncode == 0, result.stderr
+            return pa.ipc.read_schema(pa.BufferReader((work / 'output').read_bytes()))
+
+        wide = query_schema('WideQuerySchema', 'SELECT * FROM people')
+        assert wide == pa.schema([pa.field(f'column_{i}', pa.int64(), nullable=i % 3 == 0) for i in range(128)])
+        assert query_schema('MixedQuerySchema', 'SELECT id, value FROM "東京""people" WHERE "full name" = \'Ada\'') == pa.schema([
+            pa.field('id', pa.int64()), pa.field('value', pa.int64(), nullable=False),
+        ])
+        assert query_schema('MixedQuerySchema', 'SELECT COUNT("full name") AS "人数" FROM "東京""people"') == pa.schema([
+            pa.field('人数', pa.int64(), nullable=False),
+        ])
+        query_schema('MixedQuerySchema', 'SELECT "full name" FROM "東京""people"', reject=True)
+        print('Flight metadata: pinned PyArrow verified standard schemas, all six union children, optional filters, empty batches, 128 columns, quoted Unicode names, typed filtering/counts and unsupported output rejection.')
 
 
 if __name__ == '__main__':

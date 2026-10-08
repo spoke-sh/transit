@@ -23,6 +23,16 @@ It returns current metadata within the configured source scope, separate from
 compiled query bundles or submitted results. It creates no query or snapshot.
 The worksheet's Run action retains its explicit SELECT submission interface.
 
+Resource-entry inspection interprets a typed Table head only when its current
+format, object key and resource identity agree. It reports the recorded head
+revision, row count, pending operation, retirement state and immutable schema
+publication reference. It does not infer column names or decode application rows
+from that head. Use authorized catalog inspection for column definitions. Query
+record inspection reports the current request and execution records, including
+their result references and attributed failures. Every lens retains its source
+PID, resource, key and observed revisions; current read revocation removes access
+to that evidence as well as to ordinary entries.
+
 The query API's `compile` request also accepts an explicit neutral `parameters`
 array and delegates to the shared [parameter compiler](../../contracts/SQL_PARAMETERS_V1.md).
 It returns an ordinary owned bundle after current source and budget checks;
@@ -30,6 +40,14 @@ compilation does not submit it. Invalid parameter indices, counts and types
 return a bad-request response. The separate `sql_capabilities` request reports
 local parameter support and grammar bounds. The worksheet has no parameter-entry
 form; existing SQL drafts continue to use ordinary compilation.
+
+The query route accepts at most 64 KiB of JSON per request, including a complete
+hexadecimal query bundle. Replies are bounded to 1 MiB. A result page contains
+at most eight rows and 128 columns with complete logical descriptors, nullability
+and optionality. The browser checks recursive shape and value limits before
+presentation, displays exact numeric values and typed nested cells, and preserves
+the immutable source cut separately from its contract and schema. JSON values
+remain text with exact numeric lexemes; they do not become JavaScript numbers.
 
 ## Query diagnostics
 

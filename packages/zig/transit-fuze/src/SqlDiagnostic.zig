@@ -26,7 +26,7 @@ caret: usize = 0,
 detail: [1024]u8 = @splat(0),
 detail_len: usize = 0,
 
-const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
+const mutation_hint = "Use .help INSERT, .help UPDATE or .help DELETE in the console with an authorized Table catalog. A query connection does not grant writes.";
 const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
 const grammar_hint = "This statement family has no executable SQL route; its submitted syntax has not been validated. Use .help SQL in the console for supported statements.";
 
@@ -71,7 +71,7 @@ pub fn structured(self: Self) !d {
 }
 
 test "SQL structured diagnostics preserve binding evidence without console commands" {
-    var context: sql.Binding = .{ .subject = try @import("model.zig").Name.init("value"), .expected = "int64", .actual = "utf8", .parameter = 1, .parameter_sites = .{ 12, 35, null }, .location = .{ .offset = 12 } };
+    var context: sql.Binding = .{ .subject = try sql.Binding.Name.init("value"), .expected = "int64", .actual = "utf8", .parameter = 1, .parameter_sites = .{ 12, 35, null }, .location = .{ .offset = 12 } };
     sql.Binding.supplied(&context, @import("Unified.zig").Scalar{ .utf8 = "secret-is-caller-input" });
     const diagnostic = bound("SELECT $1 FROM items WHERE value = $1", error.TypeMismatch, false, context).?;
     const result = try diagnostic.structured();
@@ -111,24 +111,35 @@ test "SQL code registry is unique and every entry projects a valid bounded value
 /// return null so transport, permission and uncertain-outcome advice survives.
 /// `inspection` means this interface accepts DESCRIBE/SHOW TABLES/EXPLAIN.
 pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| return .{
+            .kind = switch (entry.category) {
+                .syntax => .syntax,
+                .unsupported => .unsupported,
+                .limit => .limit,
+                else => .binding,
+            },
+            .cause = cause,
+            .summary = summary,
+            .hint = entry.hint.?,
+        };
+    };
     const semantic = switch (cause) {
         error.InvalidColumnCount => "Check the column count allowed by this source profile.",
-        error.InvalidMutationPlan => "Supply one to three distinct typed INSERT rows, one value UPDATE or one primary-key DELETE.",
-        error.UnknownSource => "The source is not the configured source or Table writer name. Use .sources in the console and use the exact configured name; CREATE TABLE does not configure a query source.",
+        error.InvalidMutationPlan => "Supply a valid schema-bound typed INSERT, UPDATE or DELETE plan within the statement and value bounds.",
+        error.UnknownSource => "Use .sources and SHOW TABLES in the console to inspect available sources and use the exact name.",
         error.UnknownColumn, error.UnknownQualifier => "Use .schema and .sources in the console to check exact column names and the source qualifier.",
-        error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
+        error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to 128 output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use an aggregate over a limited derived table; an outer LIMIT is not an input limit. Use .help SQL in the console for an example.",
         error.UnsupportedAggregate => "Use COUNT(*), COUNT(column), or SUM on an int64 column; other aggregate forms are unsupported.",
-        error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
-        error.NotTableDeclaration => "This catalog compiler accepts CREATE TABLE. KV and Document SQL declarations have no publication route.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",
         error.NullPrimaryKey => "Supply a non-NULL INT64 primary key. No mutation command was prepared.",
         error.ParameterCountMismatch, error.ParameterGap, error.ParameterTypeConflict, error.InvalidParameterIndex, error.InvalidParameterSite, error.UnboundParameters => "Use consecutive positional parameters beginning with $1 and supply one exact scalar binding for each index. Repeated indices must have the same type.",
         error.SourceChanged, error.QuerySourceChanged => "Inspect the current source declaration and explicitly prepare the statement again against it.",
         error.InvalidUtf8, error.NonFiniteValue, error.CellTooLarge => "Supply a finite scalar with valid UTF-8 text and within the configured cell byte bound.",
         error.InvalidDocumentInteger, error.InvalidQueryInteger, error.InvalidQueryScalar, error.InvalidHex => "Supply the exact canonical scalar encoding required by the parameter type; integer bindings use decimal strings and binary bindings use hexadecimal bytes.",
-        error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
+        error.UnsupportedMutationPredicate, error.InvalidMutationColumns => "Use .help INSERT, .help UPDATE or .help DELETE for typed assignments and supported scalar predicates.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         error.InvalidPredicateProgram => "The typed predicate has invalid instruction, literal-storage or stack bounds. Preserve the original plan and correct its construction before submission.",
         error.UnsupportedSchema => "This SQL compiler requires schema version 1. Check the original source or target schema; this failure does not authorize reinterpreting saved work.",
@@ -141,8 +152,6 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.DuplicateProjection => "Duplicate result column; assign distinct output names",
         error.DuplicateColumn => "Duplicate column name",
         error.TypeMismatch => "SQL value has the wrong type",
-        error.ImmutablePrimaryKey => "UPDATE cannot change the primary key",
-        error.DuplicateMutationKey => "INSERT repeats a primary key within the statement",
         error.NullPrimaryKey => "The primary key cannot be NULL",
         error.UnsupportedAggregate => "Unsupported aggregate function or input type",
         error.UnsupportedSchema => "The supplied SQL schema version is unsupported",
@@ -164,7 +173,6 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.UnsupportedDeclaration,
         error.UnsupportedDeclarationType,
         error.MutationBatchTooLarge,
-        error.DeclarationTooManyColumns,
         error.UnsupportedStatement,
         error.InvalidSqlSyntax,
         error.UnsupportedConstruct,
@@ -197,9 +205,19 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     var location: sql.Location = .{};
     var result: Self = undefined;
     if (word(text, first, "INSERT") or word(text, first, "UPDATE") or word(text, first, "DELETE")) {
-        _ = sql.parseMutationLocated(text, &location) catch |err| return parseFailure(text, err, location, mutation_hint, .mutation);
-        result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "Table mutation syntax is supported, but this query interface is read-only", .hint = mutation_hint };
-    } else if (word(text, first, "CREATE") and (word(text, second, "TABLE") or word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
+        validateTableSyntax(text, .mutation, &location) catch |err| {
+            if (err != error.OutOfMemory) return parseFailure(text, err, location, mutation_hint, .mutation);
+            // Exhausting presentation scratch cannot establish malformed SQL.
+            // The route remains unavailable without claiming syntax validation.
+        };
+        result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "This query interface is read-only; Table mutations require an authorized catalog", .hint = mutation_hint };
+    } else if (word(text, second, "TABLE") and (word(text, first, "CREATE") or word(text, first, "ALTER") or word(text, first, "DROP"))) {
+        const hint = "Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE in the console with an authorized Table catalog.";
+        validateTableSyntax(text, .declaration, &location) catch |err| {
+            if (err != error.OutOfMemory) return parseFailure(text, err, location, hint, .declaration);
+        };
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "Query interfaces do not publish Table schema changes", .hint = hint };
+    } else if (word(text, first, "CREATE") and (word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
         const hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console for supported types, nullability, catalog configuration and recovery." else "SQL publication of KV and Document definitions is unavailable. Use .help SQL in the console for supported statements.";
         _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
@@ -223,6 +241,88 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 
 /// Consume context captured by the failing compiler operation, never by a
 /// later catalog read or a guess at similarly spelled source text.
+pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result: Self = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .cause = cause,
+        .summary = "Table declaration cannot be compiled",
+        .hint = "Check the declared types, columns and selected schema lifecycle syntax. Use .help CREATE TABLE, .help ALTER TABLE or .help DROP TABLE in the console.",
+    };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.DuplicateColumn) {
+        result.summary = "Duplicate column name";
+        result.hint = "Use distinct column names in the Table schema. Use .help CREATE TABLE or .help ALTER TABLE in the console.";
+    }
+    result.route = .declaration;
+    result.source(text, location);
+    return result;
+}
+
+/// General Table compilation uses its own captured location and logical types.
+/// A narrower source grammar must not replace its cause or accepted type rules.
+pub fn tableSelect(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    var result = tableDml(text, cause, location) orelse return null;
+    result.route = .query;
+    result.summary = "Table SELECT cannot be compiled";
+    result.hint = "Use .schema NAME for the current columns and .help SQL for finite SELECT, typed predicates, COUNT and int64 SUM. Joins and grouped aggregation have no execution route.";
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.UnsupportedNullComparison) result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";
+    return result;
+}
+
+/// The general typed compiler has already selected the mutation route. Never
+/// reparse its evidence with a narrower grammar or attach saved-write guidance.
+pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result: Self = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .route = .mutation,
+        .cause = cause,
+        .summary = "Table mutation cannot be compiled",
+        .hint = "Use the bound Table's columns and typed constants; UPDATE accepts constant or DEFAULT assignments and WHERE accepts scalar comparisons and state tests with NOT, AND and OR.",
+    };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    if (cause == error.MutationBatchTooLarge) {
+        result.summary = "The Table mutation exceeds its row or typed-intent bound";
+        result.hint = "Use 1 to 1024 rows per INSERT, keep encoded typed intent within 4 MiB, and SQL within its 4096-byte statement limit.";
+    } else if (cause == error.UnsupportedNullComparison) {
+        result.summary = "NULL requires a state test";
+        result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";
+    }
+    result.source(text, location);
+    return result;
+}
+
+/// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
@@ -262,10 +362,10 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
 pub fn writeCompiler(text: []const u8, cause: anyerror, route: Route, binding: sql.Binding) ?Self {
     var result = bound(text, cause, false, binding) orelse return null;
     result.route = route;
-    if (cause == error.UnsupportedStatement or cause == error.NotTableDeclaration) {
+    if (cause == error.UnsupportedStatement or (route == .declaration and cause == error.UnsupportedDeclaration)) {
         result.kind = .unsupported;
-        result.summary = if (route == .declaration) "This catalog compiler requires a supported CREATE TABLE declaration" else "This writer compiler requires a supported INSERT, UPDATE or DELETE statement";
-        result.hint = if (route == .declaration) "Supply CREATE TABLE with an INT64 NOT NULL key and a nullable value column." else mutation_hint;
+        result.summary = if (route == .declaration) "This offline compiler requires a supported KV or Document declaration" else "This writer compiler requires a supported INSERT, UPDATE or DELETE statement";
+        result.hint = if (route == .declaration) "Use CREATE KV or CREATE DOCUMENT for offline definitions. Table schema changes use the Table DDL compiler and authorized catalog route." else mutation_hint;
     }
     return result;
 }
@@ -275,10 +375,24 @@ fn word(text: []const u8, token: ?input.Token, expected: []const u8) bool {
     return value.kind == .word and std.ascii.eqlIgnoreCase(text[value.start..value.end], expected);
 }
 
+/// Reuse the production grammar without inventing a schema or binding values.
+/// Presentation has bounded scratch and performs no catalog reads or dispatch.
+fn validateTableSyntax(text: []const u8, route: Route, location: *sql.Location) !void {
+    var scratch: [256 * 1024]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&scratch);
+    var parser = try @import("SqlTyped.zig").init(fixed.allocator(), text, location);
+    if (route == .mutation) {
+        _ = try @import("TableDml.zig").syntax(&parser, null);
+    } else {
+        _ = try @import("TableDdl.zig").syntax(&parser, null);
+    }
+    try parser.finish();
+}
+
 fn parseFailure(text: []const u8, cause: anyerror, location: sql.Location, hint: []const u8, route: Route) Self {
     const kind: Kind = switch (cause) {
         error.InvalidSqlSyntax, error.InvalidSqlEncoding, error.InvalidNumericLiteral, error.InvalidBinaryLiteral => .syntax,
-        error.StatementTooLarge, error.CommentTooDeep, error.PredicateTooComplex, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.MutationBatchTooLarge, error.DeclarationTooManyColumns => .limit,
+        error.StatementTooLarge, error.CommentTooDeep, error.PredicateTooComplex, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.MutationBatchTooLarge => .limit,
         else => if (location.expected != null) .syntax else .unsupported,
     };
     var result: Self = .{ .kind = kind, .route = route, .cause = cause, .summary = switch (kind) {
@@ -361,7 +475,7 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
             try out.writeAll(if (self.kind == .syntax) "SQL parse error" else "SQL construct unsupported");
             if (self.location != null) try out.print(" at line {d}, column {d}", .{ self.line, self.column });
             try out.writeAll(if (self.route == .mutation)
-                "; use explicit INSERT columns and an authorized writer: console .help INSERT"
+                "; check Table mutation syntax and an authorized writer: console .help INSERT"
             else
                 "; check supported syntax in /reference/sql/.");
         },
@@ -451,7 +565,11 @@ test "query boundaries distinguish parser evidence, grammar families and binding
     const cases = .{
         .{ "SELECT;", error.InvalidSqlSyntax, Kind.syntax, @as(usize, 7) },
         .{ "SELECT *\nFROM", error.InvalidSqlSyntax, Kind.syntax, @as(usize, 5) },
-        .{ "INSERT INTO items VALUES (1, 100);", error.UnsupportedStatement, Kind.syntax, @as(usize, 19) },
+        .{ "INSERT INTO items VALUES (1, 100);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "INSERT INTO items DEFAULT VALUES;", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "CREATE TABLE people (id INTEGER, name VARCHAR(200));", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "ALTER TABLE people ADD COLUMN tags LIST(UTF8);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "DROP TABLE people;", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
         .{ "/* context */ INSERT INTO items (id, value) VALUES (1, 100);", error.UnsupportedStatement, Kind.interface, @as(usize, 15) },
         .{ "CREATE KV items (UTF8);", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
         .{ "CREATE CONNECTION unfinished", error.UnsupportedStatement, Kind.grammar_only, @as(usize, 1) },
@@ -498,7 +616,7 @@ test "SQL categories and scalar truncation are machine facts" {
     for ([_]struct { cause: anyerror, category: d.Category }{
         .{ .cause = error.UnsupportedAggregate, .category = .unsupported },
         .{ .cause = error.NullPrimaryKey, .category = .constraint },
-        .{ .cause = error.DuplicateMutationKey, .category = .constraint },
+        .{ .cause = error.NullablePrimaryKey, .category = .constraint },
         .{ .cause = error.SourceChanged, .category = .conflict },
         .{ .cause = error.CellTooLarge, .category = .limit },
     }) |fixture| {
@@ -512,4 +630,34 @@ test "SQL categories and scalar truncation are machine facts" {
     try std.testing.expectEqual(d.Availability.truncated, value.facts[0].?.availability);
     sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .int64 = 1 });
     try std.testing.expect(!binding.literal_truncated);
+}
+
+test "general Table literal failures keep typed causes and original locations" {
+    const t = std.testing;
+    const Ddl = @import("TableDdl.zig");
+    const cases = .{
+        .{ "DATE", "DATE '2025-02-29'", error.InvalidDate, "sql.invalid_date" },
+        .{ "TIME", "TIME '24:00:00'", error.InvalidTime, "sql.invalid_time" },
+        .{ "TIMESTAMP", "TIMESTAMP '2026-10-06 12:00:00'", error.InvalidTimestamp, "sql.invalid_timestamp" },
+        .{ "UUID", "UUID 'not-a-uuid'", error.InvalidUuid, "sql.invalid_uuid" },
+        .{ "JSON", "JSON '{\"a\":truX}'", error.SyntaxError, "sql.invalid_json_syntax" },
+        .{ "JSON", "JSON '{\"a\":1,\"a\":2}'", error.DuplicateField, "sql.duplicate_field" },
+    };
+    inline for (cases) |case| {
+        const text = "CREATE TABLE items (value " ++ case[0] ++ " DEFAULT " ++ case[1] ++ ", later INT64)";
+        var location: sql.Location = .{};
+        try t.expectError(case[2], Ddl.compile(t.allocator, text, null, &location));
+        const expected = std.mem.indexOf(u8, text, "DEFAULT ").? + "DEFAULT ".len;
+        try t.expectEqual(expected, location.offset);
+        const detail = tableDdl(text, case[2], location).?;
+        const envelope = try detail.structured();
+        try t.expectEqualStrings(case[3], envelope.code.slice());
+        try t.expectEqual(d.Outcome.not_submitted, envelope.outcome);
+        try t.expectEqual(d.Evidence.local_before_dispatch, envelope.evidence);
+        try t.expectEqual(@as(u64, expected), try envelope.location.?.offset.value());
+        try t.expectEqual(null, envelope.identity);
+        for (envelope.actions) |slot| if (slot) |action| {
+            try t.expect(action.kind != .resume_exact and action.kind != .cancel_mutation);
+        };
+    }
 }

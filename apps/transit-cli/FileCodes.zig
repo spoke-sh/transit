@@ -2,6 +2,7 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.PlanTooLarge, .code = "file.plan_too_large", .category = .limit, .message = "The bound query exceeds the 8192-byte plan identity limit. Reduce repeated predicate values or output names." },
     .{ .cause = error.RaggedCsvRow, .code = "file.ragged_csv_row", .category = .binding, .message = "The CSV record has a different field count from its header." },
     .{ .cause = error.DuplicateField, .code = "file.duplicate_field", .category = .binding, .message = "The input contains a duplicate field name." },
     .{ .cause = error.UnknownField, .code = "file.unknown_field", .category = .binding, .message = "An input field is absent from the frozen schema." },
@@ -10,6 +11,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.JsonObjectRequired, .code = "file.json_object_required", .category = .binding, .message = "Each JSONL record must be a JSON object." },
     .{ .cause = error.InvalidLiteral, .code = "file.invalid_literal", .category = .binding, .message = "The input value cannot be represented by its declared type." },
     .{ .cause = error.TypeMismatch, .code = "file.type_mismatch", .category = .binding, .message = "The input value cannot be represented by its declared type." },
+    .{ .cause = error.InvalidColumnCount, .code = "file.invalid_row_shape", .category = .integrity, .message = "A decoded row does not match the frozen query schema. No complete result is available." },
     .{ .cause = error.Inexact, .code = "file.inexact_value", .category = .binding, .message = "The input value cannot be represented exactly by its declared type." },
     .{ .cause = error.NonFiniteValue, .code = "file.nonfinite_value", .category = .binding, .message = "The input number is not finite; the declared type requires a finite value." },
     .{ .cause = error.InvalidDate, .code = "file.invalid_date", .category = .binding, .message = "The input is not a valid date for the declared type." },

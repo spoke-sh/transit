@@ -58,7 +58,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
 
     def api(operation, **kwargs): return request('/api/v1/query', operation, **kwargs)
     caps = request('/api/v1/capabilities')
-    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 49152
+    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 65536, caps
     atlas = request('/api/v1/atlas')
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 1
     assert atlas['query_resource'] == caller['connection']['resource']
@@ -74,8 +74,8 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert unsupported['err'] == 'UnsupportedQuery'
     assert unsupported['diagnostic']['category'] == 'unsupported'
     assert unsupported['diagnostic']['outcome'] == 'not_submitted'
-    literal = api({'inspect': {'sql': "EXPLAIN SELECT * FROM items WHERE id = 'oops'::uint64"}}, status=400)
-    assert literal['err'] == 'UnsupportedQuery' and literal['diagnostic']['code'] == 'sql.invalid_numeric_literal'
+    literal = api({'inspect': {'sql': 'EXPLAIN SELECT * FROM items WHERE value = TRUE'}}, status=400)
+    assert literal['err'] == 'UnsupportedQuery' and literal['diagnostic']['code'] == 'sql.type_mismatch', literal
     unknown = api({'inspect': {'sql': 'EXPLAIN SELECT missing FROM items'}}, status=400)['diagnostic']
     assert unknown['code'] == 'sql.unknown_column' and unknown['location']['offset'] == '15'
     assert any(f and f['field'] == 'column' and f['value'] == {'text': 'missing'} for f in unknown['facts'])
@@ -88,7 +88,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     api({'assist': {'sql':'SELECT','cursor':7,'generation':8}}, status=400)
     suggestions = api({'suggest': {'search': 'count'}})['suggestions']
     assert suggestions['resource'] == caller['connection']['resource']
-    assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}
+    assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM "items"'}, suggestions
     assert len(suggestions['items']) <= 8  # Document column names can also contain 'count'.
     api({'compile': {'sql': suggestions['items'][0]['sql']}})
     assert api({'suggest': {'search': 'hidden_source'}})['suggestions']['items'] == []
@@ -149,12 +149,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     cursor, rows, pages = None, [], []
     while True:
         page = api({'page': {'namespace': namespace, 'cursor': cursor}})['page']
-        assert page['evidence']['manifest']['basis']['kind'] == kind
+        assert page['evidence']['manifest']['basis']['cut']['kind'] == kind
         assert page['evidence']['manifest']['basis']['contract'] == compiled['contract']
         rows += page['cells']; pages.append(page)
         cursor = page['evidence']['next']
         if cursor is None: break
-    assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+    assert [row[0]['value']['atom']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
     subprocess.run(['node', 'tests/unified_board_client.mjs'],
         input=json.dumps([{'description': description}, {'compiled': compiled}, *[{'page': p} for p in pages]]).encode(),
         check=True, timeout=15)
@@ -200,7 +200,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         assert consumed['starts'] == 1 and consumed['namespaces'] == ['20'] + ['0']*7
         settle(api(open_draft)['prepared'])
         assert api({'draft_status': '1'})['draft'] == consumed
-        api({'next_draft': {'namespace': '21', 'generation': '1', 'bundle': draft_bundle['bundle']}}, status=409)
+        exhausted = api({'next_draft': {'namespace': '21', 'generation': '1', 'bundle': draft_bundle['bundle']}}, status=400)
+        assert exhausted['err'] == 'InvalidQuery'
+        assert exhausted['diagnostic']['code'] == 'query.draft_start_limit'
+        assert exhausted['diagnostic']['category'] == 'limit'
+        assert exhausted['diagnostic']['outcome'] == 'not_applicable'
+        assert api({'draft_status': '1'})['draft'] == consumed
         assert api({'next_draft': {'namespace': '20', 'generation': '1', 'bundle': draft_bundle['bundle']}})['prepared'] is None
         settle(api({'draft_close': '1'})['prepared'])
         settle(api(open_draft)['prepared'])

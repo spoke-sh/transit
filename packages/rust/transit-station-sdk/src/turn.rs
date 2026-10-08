@@ -1,7 +1,7 @@
 use crate::{
-    Basis, Budgets, Codec, Correlation, Counter, Cursor, Found, Key, KvEntry, Page, ReadVersion,
-    Reply, WaitPolicy,
-    bridge::{Bridge, Caps, counter, digest, field, size, wide},
+    Budgets, Codec, Correlation, Counter, Cursor, Found, Key, KvEntry, Page, ReadVersion, Reply,
+    WaitPolicy,
+    bridge::{Bridge, Caps, counter, field, size, wide},
     types::{decode, encode},
 };
 use serde_json::{Value, json};
@@ -24,13 +24,6 @@ pub(crate) fn read_version(value: &Value) -> Result<ReadVersion> {
         input: counter(&value["input"], false)?,
         index: u8::try_from(number(&value["index"], "read-version", true)?)
             .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "read-version"))?,
-    })
-}
-pub(crate) fn basis(value: &Value, realm: u64) -> Result<Basis> {
-    Ok(Basis {
-        resource: ResourceRef::new(realm, number(&value["resource"], "basis", false)?)?,
-        revision: counter(&value["revision"], true)?,
-        schema: digest(&value["schema"])?,
     })
 }
 fn key<T>(key: &Key<T>, caps: Caps) -> Result<String> {

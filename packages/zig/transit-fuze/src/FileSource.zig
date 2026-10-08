@@ -336,14 +336,7 @@ pub fn discoverDiagnostic(allocator: std.mem.Allocator, sources: []const Source,
     try result.validate(sources);
     return result;
 }
-pub const Row = struct {
-    arena: std.heap.ArenaAllocator,
-    cells: []const values.Cell,
-    pub fn deinit(self: *Row) void {
-        self.arena.deinit();
-        self.* = undefined;
-    }
-};
+pub const Row = @import("LogicalQuery.zig").Row;
 /// Source-local logical record coordinates, including a CSV header. Byte is
 /// the zero-based record start in the captured, expanded input, not a guessed
 /// physical line or the reader's prefetched offset.
@@ -558,7 +551,7 @@ fn jsonCell(allocator: std.mem.Allocator, value: std.json.Value, expected: types
             error.UnsupportedLiteralType,
             => if (mismatch == .type_error) {
                 context.failure.* = before;
-                return .{ .type_error = actualKind(value) };
+                return .{ .type_error = types.Kind.fromTag(actualKind(value)) };
             },
             else => {},
         }
@@ -732,7 +725,7 @@ test "sampled CSV freezes lossless IDs and reports late errors without successfu
     while (try other.next()) |owned| {
         var row = owned;
         defer row.deinit();
-        if (count == 2) try t.expectEqual(types.Tag.utf8, row.cells[1].type_error);
+        if (count == 2) try t.expectEqual(types.Kind.utf8, row.cells[1].type_error);
         count += 1;
     }
     try t.expect(other.complete);

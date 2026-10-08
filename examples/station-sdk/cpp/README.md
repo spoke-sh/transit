@@ -1,6 +1,6 @@
 # Typed C++ Station examples
 
-M11's `transit/sdk_examples.hpp`
+`transit/sdk_examples.hpp`
 contains typed counter/requester and Table/query handlers using the public C++17
 Station SDK. Variant message types distinguish service and requester payloads;
 the C application library owns the shared versioned byte codec. No native ABI
@@ -15,3 +15,6 @@ delivery remains a separate Transit role. Unknown outcomes stop for explicit
 recovery with the persisted exact request. The query requester streams owned
 IPC segments into its consumer callback. Callback effects still need an
 application idempotency policy because their handler turn is private.
+
+The [Table queue contract](../TABLES.md) defines resumable four-column creation,
+ordered mutations, original operation identities and explicit busy query replies.

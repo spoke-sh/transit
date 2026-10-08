@@ -42,11 +42,12 @@ messages. All codec calls within state operations are guarded against reentry.
 A failed read poisons the private turn even if the handler catches its error.
 A missing optional value is not a failed read.
 
-`transit_table` provides `schema/2,4`, `create/2`, `open/2`, `get/2`, writes and
-bounded `page/1,2`. `get/2` returns `missing` or `{found, #transit_row{}}`;
-`null` is a cell value, distinct from a missing row. Table keys and int64 cells
-use exact signed Erlang integers. Schema identity and source revision remain
-part of the captured basis. `retain/1`, `open_version/2` and `release/2` expose
+`transit_table:open/2` discovers a general catalog schema by full-width object ID.
+Rows contain stable identities and logical cells. `get/2` reads an identity;
+`get_key/2` reads a composite primary key. Both distinguish `missing` from
+`{found, #transit_row{}}`. `page/1,2,3` returns at most eight rows and an explicit
+continuation. [Typed handler Tables](tables.md) describes creation, exact saved
+mutation steps and limits. `retain/1`, `open_version/2` and `release/2` expose
 shared retained-read semantics; a retained source remains read-only and grant
 checks still apply.
 
@@ -56,7 +57,8 @@ semantics. A call uses `untimed` or `{until, DeadlineMs, ObserverProcess}`.
 Persist its correlation in associated state, close the turn, and resume on a
 recorded reply. A waiting BEAM process is not a durable waiter.
 
-Query policies and plans use `transit_query`. `result/2` creates a scoped reader;
+Query policies use `transit_query` and full-width Table IDs; `start/3` accepts the
+general `#transit_unified_plan{}`. `result/2` creates a scoped reader;
 `manifest/1` returns complete provenance and `segment/2` returns owned original
 IPC, digest and row count. Full-width correlations, counts and application
 integers remain exact. Pages, segments, native workspace and operation budgets

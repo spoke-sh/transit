@@ -8,6 +8,7 @@ import signal
 import subprocess
 import threading
 from server import children, command
+from table_console import atom
 
 
 def run(fixture):
@@ -50,7 +51,7 @@ def run(fixture):
                 operation = next(iter(envelope['query']['kind']))
                 if operation == 'process' and state['receipt_checkpoint'] is None and saved.exists():
                     record = json.loads(saved.read_text())
-                    if record['operation']['mutation']['input'] is not None:
+                    if record['input'] is not None:
                         state['receipt_checkpoint'] = saved.read_bytes()
                 refuse = False
                 if not state['admitted'] and state['preflight']:
@@ -99,9 +100,7 @@ def run(fixture):
             config.update(execution='interactive', url=f'http://127.0.0.1:{proxy.server_port}')
             done = fixture.record()['provision']
             saved = fixture.root / 'observation-writes.json'
-            config['writes'] = {'recovery_file': str(saved), 'table': {'name': 'items',
-                'connection': {'realm': fixture.config['realm'], 'principal': 10,
-                               'writer': done[4], 'resource': done[5], 'table': 1}}}
+            config['writes'] = {'recovery_file': str(saved)}
             path = fixture.root / 'observation-console.json'
             path.write_text(json.dumps(config))
 
@@ -113,13 +112,13 @@ def run(fixture):
                 return result
 
             def applied(result, affected=1):
-                value = json.loads(result.stdout)['mutation']
-                assert value['phase'] == 'applied' and value['affected_rows'] == affected, value
+                value = json.loads(result.stdout)['table_operation']
+                assert value['phase'] == 'applied' and value['counts'] == dict(matched=str(affected), changed=str(affected)), value
 
             applied(invoke('INSERT INTO items (id, value) VALUES (-81, 810);'))
             assert state['refusals'] == 4 and len(state['commands']) == 1, state['refusals']
             assert json.loads(saved.read_text())['complete']
-            assert fixture.console('SELECT value FROM items WHERE id = -81;\n')[-1]['cells'][0][0]['value']['int64'] == '810'
+            assert atom(fixture.console('SELECT value FROM items WHERE id = -81;\n')[-1], 'signed') == '810'
             state['mode'] = None
             # Crash before replacing the acknowledged-input checkpoint with the
             # terminal checkpoint: observation must recover without another send.
@@ -137,12 +136,12 @@ def run(fixture):
             assert not failed.stdout and 'HttpConnectionClosing' in failed.stderr, failed
             assert len(state['commands']) == before + 1, 'uncertain send was automatically retried'
             record = json.loads(saved.read_text())
-            pending = record['operation']['mutation']
+            pending = record
             assert not record['complete'] and pending['pending'] is not None and pending['input'] is None
             applied(invoke('.resume'))
             assert len(state['commands']) == before + 2
             assert state['commands'][-1] == state['commands'][-2], 'explicit recovery changed signed bytes'
-            assert fixture.console('SELECT value FROM items WHERE id = -82;\n')[-1]['cells'][0][0]['value']['int64'] == '820'
+            assert atom(fixture.console('SELECT value FROM items WHERE id = -82;\n')[-1], 'signed') == '820'
             applied(invoke('DELETE FROM items WHERE id = -82;'))
             state.update(mode='refuse_send', admitted=False)
             before = len(state['commands'])
@@ -157,7 +156,7 @@ def run(fixture):
             # deterministic. Exhausted wait admission must fall back to an
             # ordinary current read; denial must never use that fallback.
             owners = [pid for pid in children(fixture.process.pid)
-                      if 'table_query_writer' in command(pid)]
+                      if '"catalog":' in command(pid)]
             assert len(owners) == 1, 'missing unique Table owner'
             owner = owners[0]
             for mode, key in [('wait_capacity', -84), ('wait_denied', -85)]:

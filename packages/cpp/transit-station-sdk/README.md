@@ -38,8 +38,17 @@ with explicit owned values and bounded continuations.
 M18 adds [typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md),
 with explicit signed recovery, owned nested Arrow and current-source checks.
 
-The [Table mutation caller](docs/TABLE_MUTATIONS.md) provides explicit SQL writes,
-move-only request/command owners and exact recovery through the public C SDK.
+The [catalog caller](docs/CATALOG.md) provides owned general Table schemas, DDL,
+DML, historical definitions and move-only saved work through the native worker.
 
-The [catalog caller](docs/CATALOG.md) provides owned typed declarations and
-move-only creation/control commands through the same shared native worker.
+[Logical values](docs/LOGICAL.md) provide immutable owned descriptors and cells,
+exact wide numbers and bounded codecs with C++ value semantics.
+
+[General handler Tables](docs/TABLES.md) use catalog schemas, owned logical rows,
+stable identities and explicit saved creation/mutation steps.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

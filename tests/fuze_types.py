@@ -20,6 +20,8 @@ TAGS = dict(zip(('int64 uint64 float64 boolean utf8 binary int8 int16 int32 int1
                  'uint8 uint16 uint32 uint128 float32 decimal date time timestamp '
                  'interval uuid structure list array map tagged_union json').split(), range(1, 28)))
 
+KINDS = dict(TAGS, unknown=0, null_value=28, text=29, character=30)
+
 
 def descriptor(kind, params=b''):
     return b'FTY1' + bytes([len(DEFINITION)]) + DEFINITION + bytes([TAGS[kind]]) + params

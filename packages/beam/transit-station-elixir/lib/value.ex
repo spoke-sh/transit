@@ -22,27 +22,11 @@ defmodule Transit.Station.Sdk.Value do
   def native(%S.Key{} = v), do: {:transit_key, v.name, v.codec}
   def native(%S.ReadVersion{} = v), do: {:transit_read_version, v.pid, v.input, v.index}
 
-  def native(%S.TableSchema{} = v),
-    do: {:transit_table_schema, v.id, v.cell, v.key_name, v.value_name}
-
-  def native(%S.Row{} = v), do: {:transit_row, v.key, cell(v.value)}
-
-  def native(%S.QueryPlan{} = v),
-    do:
-      {:transit_query_plan, v.projection, v.aggregate, optional(v.limit), predicate(v.predicate)}
-
   def native(%S.Incoming{} = v),
     do: {:transit_incoming, v.kind, v.value, v.position, v.origin, optional(v.correlation)}
 
   def optional(nil), do: :undefined
   def optional(v), do: v
-  def cell(nil), do: :null
-  def cell(v), do: v
-
-  def predicate({:compare, column, op, type, value}),
-    do: {:compare, column, op, type, cell(value)}
-
-  def predicate(v), do: v
   def wait(:untimed), do: :untimed
   def wait({:until, at, observer}), do: {:until, at, Client.native(observer)}
 
@@ -70,30 +54,79 @@ defmodule Transit.Station.Sdk.Value do
       correlation: correlation
     }
 
+  def convert({:transit_query_failure, position, origin, correlation, result, reason}),
+    do: %S.QueryFailure{
+      position: position,
+      origin: origin(origin),
+      correlation: correlation,
+      result: result,
+      reason: reason
+    }
+
   def convert({:transit_result_complete, position, origin, correlation}),
     do: %S.ResultComplete{position: position, origin: origin(origin), correlation: correlation}
 
   def convert({:transit_read_version, pid, input, index}),
     do: %S.ReadVersion{pid: pid, input: input, index: index}
 
-  def convert({:transit_basis, resource, revision, schema}),
-    do: %S.Basis{resource: Client.convert(resource), revision: revision, schema: schema}
-
-  def convert({:transit_page, entries, cursor, basis}),
+  def convert({:transit_page, entries, cursor}),
     do: %S.Page{
       entries: Enum.map(entries, &convert/1),
-      cursor: convert(cursor),
-      basis: convert(basis)
+      cursor: convert(cursor)
     }
 
   def convert({:transit_kv_entry, key, value, revision}),
     do: %S.KVEntry{key: key, value: value, revision: revision}
 
-  def convert({:transit_table_schema, id, cell, key, value}),
-    do: %S.TableSchema{id: id, cell: cell, key_name: key, value_name: value}
+  def convert({:transit_catalog_schema, _, _, _, _, _} = v), do: S.Catalog.convert(v)
 
-  def convert({:transit_row, key, value}),
-    do: %S.Row{key: key, value: if(value == :null, do: nil, else: value)}
+  def convert({:transit_row, identity, cells}),
+    do: %S.Row{identity: identity, cells: S.Logical.convert(cells)}
+
+  def convert({:transit_table_basis, resource, revision, object, head}),
+    do: %S.TableBasis{
+      resource: Client.convert(resource),
+      revision: revision,
+      object: object,
+      head: head
+    }
+
+  def convert({:transit_table_page, rows, next}),
+    do: %S.TablePage{rows: Enum.map(rows, &convert/1), next: convert(next)}
+
+  def convert({:transit_table_creation, state, admitted, completed}),
+    do: %S.TableCreation{
+      state: state,
+      admitted_input: admitted,
+      completed_input: convert(completed)
+    }
+
+  def convert({:transit_table_mutation, _} = v), do: %S.TableMutation{native: v}
+  def convert({:transit_table_reference, _} = v), do: %S.TableMutationReference{native: v}
+
+  def convert(
+        {:transit_table_status, reference, state, route, admitted, completed, counts, rejection,
+         witness}
+      ),
+      do: %S.TableStatus{
+        reference: convert(reference),
+        state: state,
+        route: route,
+        admitted_input: admitted,
+        completed_input: convert(completed),
+        counts: S.Catalog.convert(counts),
+        rejection: rejection,
+        witness: convert(witness)
+      }
+
+  def convert({:transit_table_witness, source, row, column, text, truncated}),
+    do: %S.TableWitness{
+      source: source,
+      row: convert(row),
+      column: column,
+      text: text,
+      truncated: truncated
+    }
 
   def convert({:found, value}), do: {:found, convert(value)}
 
@@ -101,8 +134,8 @@ defmodule Transit.Station.Sdk.Value do
     do: %S.QueryJob{result: result, correlation: correlation, source: convert(source)}
 
   def convert(
-        {:transit_manifest, result, source, destination, correlation, table, policy, basis,
-         source_contract, plan, segments, bytes, rows, chain, schema}
+        {:transit_manifest, result, source, destination, correlation, table, policy, basis, plan,
+         segments, bytes, rows, chain, schema}
       ),
       do: %S.Manifest{
         result: result,
@@ -112,7 +145,6 @@ defmodule Transit.Station.Sdk.Value do
         table: table,
         policy_revision: policy,
         basis: convert(basis),
-        source_contract: source_contract,
         plan: plan,
         segments: segments,
         byte_count: bytes,

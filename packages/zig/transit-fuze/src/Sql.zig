@@ -62,17 +62,6 @@ pub const Parameter = struct { index: u32, offset: usize };
 pub const TemplateAst = struct { ast: Ast, parameters: ParameterSites };
 pub const Catalog = enum { tables, sources, sinks, connections };
 pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
-pub const max_mutation_rows = 3;
-pub const KeyEquality = struct { column: Column, literal: Literal };
-pub const Mutation = struct {
-    source: m.Name,
-    operation: union(enum) {
-        insert: struct { columns: [2]m.Name, rows: [max_mutation_rows]?[2]Literal = @splat(null) },
-        update: struct { column: Column, literal: Literal, key: KeyEquality },
-        delete: KeyEquality,
-    },
-};
-
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
     return parseLocated(text, null);
@@ -104,55 +93,26 @@ pub fn parseTemplate(text: []const u8, location: ?*Location) !TemplateAst {
     ast.unbound_parameters = parameters.any();
     return .{ .ast = ast, .parameters = parameters };
 }
-/// Offline state declaration syntax. No catalog lookup, provisioning or grants.
-/// Omitted nullability remains unspecified; semantic validation is separate.
+/// Offline KV/Document syntax. General Table DDL uses TableDdl.compile.
+/// No catalog lookup, provisioning or grants.
 pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
     return parseDeclarationLocated(text, null);
 }
 pub fn parseDeclarationLocated(text: []const u8, location: ?*Location) !?f.Declaration.Definition {
-    return parseDeclarationDetailed(text, location, null);
-}
-pub const DeclarationLocations = struct {
-    columns: [f.Declaration.max_columns]?usize = @splat(null),
-};
-pub fn parseDeclarationDetailed(text: []const u8, location: ?*Location, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
     if (location) |value| value.* = .{};
-    if (locations) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
-    return declaration(&parser, locations);
+    return declaration(&parser);
 }
-fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declaration.Definition {
+fn declaration(parser: *Parser) !?f.Declaration.Definition {
     try parser.advance();
     if (!parser.word("CREATE")) return null;
     try parser.advance();
-    const table = parser.word("TABLE");
     const kv = parser.word("KV");
-    if (!table and !kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
+    if (!kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
     try parser.advance();
     const name = try parser.name();
-    const body: f.Declaration.Body = if (table) blk: {
-        var columns: f.Declaration.Columns = @splat(null);
-        try parser.require(.left);
-        for (&columns, 0..) |*slot, index| {
-            if (locations) |value| value.columns[index] = parser.lexer.start;
-            const column_name = try parser.name();
-            const data_type = try parser.declarationType();
-            const nullability: f.Declaration.Nullability = if (parser.word("NOT")) nullable: {
-                try parser.advance();
-                try parser.requireWord("NULL");
-                break :nullable .not_null;
-            } else if (parser.word("NULL")) nullable: {
-                try parser.advance();
-                break :nullable .null;
-            } else .unspecified;
-            slot.* = .{ .name = column_name, .type = data_type, .nullability = nullability };
-            if (!try parser.take(.comma)) break;
-            if (index + 1 == columns.len) return error.DeclarationTooManyColumns;
-        }
-        try parser.require(.right);
-        break :blk .{ .table = columns };
-    } else if (kv) blk: {
+    const body: f.Declaration.Body = if (kv) blk: {
         try parser.require(.left);
         const data_type = try parser.declarationType();
         try parser.require(.right);
@@ -161,60 +121,9 @@ fn declaration(parser: *Parser, locations: ?*DeclarationLocations) !?f.Declarati
     try parser.end();
     return .{ .name = name, .body = body };
 }
-fn validateText(text: []const u8) !void {
+pub fn validateText(text: []const u8) !void {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
-}
-/// Parse only bounded, literal Table mutations. This supplies no write authority;
-/// the application must explicitly route the plan through its fenced writer.
-pub fn parseMutation(text: []const u8) !?Mutation {
-    return parseMutationLocated(text, null);
-}
-pub fn parseMutationLocated(text: []const u8, location: ?*Location) !?Mutation {
-    if (location) |value| value.* = .{};
-    try validateText(text);
-    var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
-    return mutation(&parser);
-}
-fn mutation(parser: *Parser) !?Mutation {
-    try parser.advance();
-    const insert = parser.word("INSERT");
-    const update = parser.word("UPDATE");
-    const delete = parser.word("DELETE");
-    if (!insert and !update and !delete) return null;
-    try parser.advance();
-    if (insert) try parser.requireWord("INTO");
-    if (delete) try parser.requireWord("FROM");
-    const source = try parser.name();
-    const operation: @FieldType(Mutation, "operation") = if (insert) blk: {
-        try parser.require(.left);
-        const first = try parser.name();
-        try parser.require(.comma);
-        const second = try parser.name();
-        try parser.require(.right);
-        try parser.requireWord("VALUES");
-        var values: @FieldType(@FieldType(Mutation, "operation"), "insert") = .{ .columns = .{ first, second } };
-        var index: usize = 0;
-        while (true) : (index += 1) {
-            if (index == max_mutation_rows) return error.MutationBatchTooLarge;
-            try parser.require(.left);
-            const key = try parser.literal();
-            try parser.require(.comma);
-            const value = try parser.literal();
-            try parser.require(.right);
-            values.rows[index] = .{ key, value };
-            if (!try parser.take(.comma)) break;
-        }
-        break :blk .{ .insert = values };
-    } else if (update) blk: {
-        try parser.requireWord("SET");
-        const column = try parser.column();
-        try parser.require(.eq);
-        const literal = try parser.literal();
-        break :blk .{ .update = .{ .column = column, .literal = literal, .key = try parser.keyEquality() } };
-    } else .{ .delete = try parser.keyEquality() };
-    try parser.end();
-    return .{ .source = source, .operation = operation };
 }
 /// Recognize inspection without making it an executable SELECT. A null result
 /// leaves other statements to their owner; recognized forms consume all input.
@@ -318,10 +227,8 @@ pub fn classifyTokens(text: []const u8, roles: []TokenRole) void {
     if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         var ast: Ast = undefined;
         statement(&parser, &ast) catch {};
-    } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
-        _ = mutation(&parser) catch null;
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
-        _ = declaration(&parser, null) catch null;
+        _ = declaration(&parser) catch null;
     } else if (std.ascii.eqlIgnoreCase(first.text, "EXPLAIN") or std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") or std.ascii.eqlIgnoreCase(first.text, "SHOW")) {
         _ = inspection(&parser) catch null;
     }
@@ -359,14 +266,14 @@ pub fn isReserved(word: []const u8) bool {
 }
 
 pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
-const Token = struct { tag: Tag, text: []const u8 };
-const Lexer = struct {
+pub const Token = struct { tag: Tag, text: []const u8 };
+pub const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
     parameters_enabled: bool = false,
     start: usize = 0,
-    fn next(self: *Lexer) !Token {
+    pub fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
             self.start = self.position;
             const rest = self.text[self.position..];
@@ -724,12 +631,6 @@ const Parser = struct {
             h.predicate_column = null;
         }
         return .{ .compare = .{ .column = col, .op = op, .literal = value } };
-    }
-    fn keyEquality(self: *Parser) !KeyEquality {
-        try self.requireWord("WHERE");
-        const column_value = try self.column();
-        try self.require(.eq);
-        return .{ .column = column_value, .literal = try self.literal() };
     }
     fn literal(self: *Parser) !Literal {
         if (try self.parameter()) |index| {

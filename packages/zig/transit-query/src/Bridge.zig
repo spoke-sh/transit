@@ -87,7 +87,7 @@ pub const Manifest = struct {
     correlation: []const u8,
     policy_revision: []const u8,
     request: p.Value,
-    basis: m.Basis,
+    basis: q.Basis,
     plan: [32]u8,
     pages: []const u8,
     scanned: []const u8,
@@ -97,11 +97,11 @@ pub const Manifest = struct {
     rows: []const u8,
     bytes: []const u8,
     sum: ?[]const u8,
-    finished: @FieldType(m.Stream.Progress, "finished"),
+    finished: @FieldType(q.fuze.LogicalStream.Progress, "finished"),
     chain: [32]u8,
-    pub fn fromNative(alloc: Allocator, value: q.UnifiedRecords.Manifest) !Manifest {
+    pub fn fromNative(alloc: Allocator, value: q.UnifiedRecords.Manifest, basis: q.Basis) !Manifest {
         const progress = value.checkpoint.progress;
-        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = progress.basis, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.scanned), .selected = try a.decimal(alloc, progress.selected), .value_count = try a.decimal(alloc, progress.value_count), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
+        return .{ .job = value.job.id, .source = value.job.source, .requester = value.job.destination, .correlation = try a.decimal(alloc, value.job.correlation), .policy_revision = try a.decimal(alloc, value.job.policy_revision), .request = try value.job.request.encode(), .basis = basis, .plan = progress.plan, .pages = try a.decimal(alloc, progress.pages), .scanned = try a.decimal(alloc, progress.counters.scanned), .selected = try a.decimal(alloc, progress.counters.selected), .value_count = try a.decimal(alloc, progress.counters.value_count), .segments = try a.decimal(alloc, progress.segments), .rows = try a.decimal(alloc, progress.rows), .bytes = try a.decimal(alloc, value.checkpoint.bytes), .sum = if (progress.counters.sum) |sum| try a.decimal(alloc, sum) else null, .finished = progress.finished, .chain = value.checkpoint.chain };
     }
 };
 pub const Page = struct {
@@ -126,13 +126,13 @@ pub const Result = union(enum) {
 };
 pub fn prepared(alloc: Allocator, bytes: []const u8) !q.UnifiedClient.Prepared {
     if (bytes.len == 0 or bytes.len > 8192) return error.InvalidQueryRequest;
-    const parsed = std.json.parseFromSlice(q.UnifiedClient.Prepared, alloc, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryRequest;
+    const parsed = c.parse(q.UnifiedClient.Prepared, alloc, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryRequest;
     if (!std.mem.eql(u8, bytes, try std.json.Stringify.valueAlloc(alloc, parsed.value, .{}))) return error.InvalidQueryRequest;
     return parsed.value;
 }
 fn cursor(alloc: Allocator, bytes: []const u8) !q.UnifiedResult.Cursor {
     if (bytes.len == 0 or bytes.len > 4096) return error.InvalidQueryCursor;
-    const parsed = std.json.parseFromSlice(q.UnifiedResult.Cursor, alloc, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryCursor;
+    const parsed = c.parse(q.UnifiedResult.Cursor, alloc, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidQueryCursor;
     if (!std.mem.eql(u8, bytes, try std.json.Stringify.valueAlloc(alloc, parsed.value, .{}))) return error.InvalidQueryCursor;
     return parsed.value;
 }
@@ -163,9 +163,10 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
             const previous = if (v.cursor) |bytes| try cursor(alloc, bytes) else null;
             const workspace = try alloc.alloc(u8, m.Arrow.working_bytes);
             const output = try alloc.alloc(u8, m.Arrow.segment_bytes);
-            var decoded: m.Inspect.Batch = undefined;
+            var decoded: q.fuze.LogicalInspect.Batch = undefined;
             const result = try client.page(try c.unsigned(v.namespace), previous, alloc, workspace, output, &decoded);
-            return .{ .page = .{ .manifest = try Manifest.fromNative(alloc, result.manifest), .columns = try c.foreignColumns(alloc, result.schema), .ordinal = try a.decimal(alloc, if (previous) |old| old.ordinal else 0), .rows = decoded.count, .ipc = try a.hex(alloc, result.arrow), .next = if (result.next) |value| try std.json.Stringify.valueAlloc(alloc, value, .{}) else null } };
+            defer decoded.deinit();
+            return .{ .page = .{ .manifest = try Manifest.fromNative(alloc, result.manifest, result.basis), .columns = try c.foreignColumns(alloc, result.schema), .ordinal = try a.decimal(alloc, if (previous) |old| old.ordinal else 0), .rows = @intCast(decoded.rows.len), .ipc = try a.hex(alloc, result.arrow), .next = if (result.next) |value| try std.json.Stringify.valueAlloc(alloc, value, .{}) else null } };
         },
     }
 }

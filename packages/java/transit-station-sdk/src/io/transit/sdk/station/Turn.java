@@ -171,29 +171,19 @@ public final class Turn {
                 "parent", parent.exchange().toString(), "reference", request.referenceHex()))).get("correlation"), true);
         });
     }
-    public <T> Table<T> table(Table.Schema<T> schema) { return access(true, () -> Table.open(this, schema, null)); }
-    public <T> Table<T> createTable(Table.Schema<T> schema) {
-        access(false, () -> {
-            Objects.requireNonNull(schema);
-            text(schema.keyName(), limit("table_name_bytes")); text(schema.valueName(), limit("table_name_bytes"));
-            raw(obj("table_create", obj("id", schema.id(), "key_name", schema.keyName(), "value_name", schema.valueName(), "value_type", schema.cell().wireName())));
-            return null;
-        });
-        return table(schema);
-    }
+    public Table table(BigInteger object) { return access(true, () -> Table.open(this, object, null)); }
+    public Table.Creation createTable(Catalog.Schema schema, Catalog.TableLimits limits) { return access(false, () -> Table.create(this, schema, limits)); }
     public ReadVersion retain() { return access(false, () -> NativeValues.version(raw(obj("retain", obj())).get("version"))); }
     public Source openVersion(ReadVersion version) { check(); return new Source(this, Objects.requireNonNull(version)); }
     public void release(ReadVersion version) { access(false, () -> { raw(obj("release", NativeValues.wire(version))); return null; }); }
-    public void allowQuery(ProcessRef peer, Table.Schema<?> table, long expectedRevision, boolean allow) {
-        access(false, () -> {
-            raw(obj("query_policy", obj("peer", peer(peer), "table", table.id(), "expected_revision", counter(expectedRevision, 0), "allow", allow)));
-            return null;
-        });
+    public void allowQuery(ProcessRef peer, BigInteger object, BigInteger expectedRevision, boolean allow) {
+        Catalog.positive(object); u64(expectedRevision);
+        access(false, () -> { raw(obj("query_policy", obj("peer", peer(peer), "table", object.toString(), "expected_revision", expectedRevision.toString(), "allow", allow))); return null; });
     }
-    public Query.Job startQuery(Table.Schema<?> schema, Query.Plan plan) {
-        table(schema);
+    public Query.Job startQuery(BigInteger object, Query.Plan plan) {
+        Catalog.positive(object);
         return access(false, () -> {
-            JsonObject value = object(raw(obj("query_start", obj("id", schema.id(), "plan", plan.wire(limit("table_cell_bytes"))))).get("query"));
+            JsonObject value = object(raw(obj("query_start", obj("id", object.toString(), "plan", plan.wire()))).get("query"));
             return new Query.Job(number(value.get("result"), 1), NativeValues.wide(value.get("correlation"), true), NativeValues.version(value.get("source")));
         });
     }

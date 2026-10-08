@@ -147,26 +147,6 @@ no replacement preparation, automatic dispatch or implicit provisioning occurs.
 The [catalog guide](../apps/transit-cli/docs/catalog.md) owns configuration,
 command syntax, input envelopes, numeric bounds and recovery examples.
 
-## Explicit mutation commands
-
-`transit mutate` uses the shared [Table mutation contract](TABLE_MUTATION_V1.md).
-`capabilities` is offline; `describe` reads currently authorized metadata.
-`compile` saves a request/reference, `next` prepares one upload stage and
-`prepare --control apply|cancel` prepares an explicit control. These operations
-do not send native commands. `submit` sends an exact saved command; `observe`
-and `rejection` inspect its admitted input, while `status` reads the durable
-request outcome. Admission and application remain distinct.
-
-Compilation and preparation require a new private output file. Atomic creation,
-file synchronization and directory synchronization precede successful output;
-existing paths are refused. Submission validates the saved definition, target
-and signature through the shared client. An unknown outcome retains the original
-file for exact retry; there is no automatic retry or sequence coordination.
-Current grants and writer policy still apply. Terminal cancellation cannot undo
-an applied result. The [mutation guide](../apps/transit-cli/docs/mutations.md)
-owns exact flags, configuration and artifact bounds. These commands require their
-own mutation connection; query permissions do not authorize writes.
-
 ## Local server and recovery
 
 The initial service neighborhood is a growing authority over disk-backed Ursula,
@@ -424,24 +404,23 @@ a separate API and does not satisfy this cursor-assistance contract.
 
 ### Console write routes and recovery
 
-An optional `writes` object contains `recovery_file` and at least one of `table`
-(name plus TableMutationClient connection) or `catalog` (Catalog.Client connection).
-Both use the console's transport and credential, with matching realm/principal.
-The file is distinct from query recovery. The automatic local connection supplies
-the `items` Table route from allocated installation identities and uses
-`console-writes.json` in the installation directory. It uses the existing
-credential lock, recovery validation and explicit resume behavior. Explicit
-connection files supply their own routes; catalog creation is not configured by
-the local default. No route or configuration grants rights.
-Supported mutations and compatible CREATE TABLE use their owning clients;
-`.help` and SQL topics explain both present and absent routes without native I/O.
+An optional `writes` object contains `recovery_file`. The enclosing console
+configuration supplies `catalog: {scope: {realm, resource, catalog}, owner,
+principal}` for general typed Table reads and writes. The Table client uses the
+console transport and credential with matching realm/principal. The write file
+is distinct from query recovery. Automatic local configuration uses allocated
+catalog identities and `console-writes.json` in the installation directory.
+No route or configuration grants rights. CREATE/ALTER/DROP and INSERT/UPDATE/DELETE
+use the shared catalog Table client; `.help` and SQL topics describe the configured
+route without native I/O.
 
-Write recovery is a separate JSON record, bounded to 32768 bytes. Required fields
-are version 1, current `definition`, public `key`, optional `table` connection and
-`name`, optional `catalog` connection, optional `operation`, `complete` and
-`cancelling`. A mutation owns namespace, typed request, optional prepared command
-and its optional admitted input; creation owns its typed request, prepared command
-and optional input. The definition, key, connections and prepared request binding
+Write recovery has a mutable JSON progress record bounded to 32768 bytes and
+an immutable committed intent file bounded by `TableIntent.max_bytes`. The progress
+record contains version 1, current `definition`, public `key`, catalog `connection`,
+optional `operation` (intent digest and byte length), optional exact `pending`
+command and admitted `input`, `complete` and `cancelling`. The intent binds the
+original object, schema and command; it is synced before the progress record.
+The definition, key, connections and prepared request binding
 are validated before native I/O. Exact canonical JSON equality rejects omitted
 nested compatibility fields, alternate formatting and unknown fields; a missing
 field cannot acquire a native type's convenience default. Writes use
@@ -451,8 +430,8 @@ saved before sending; receipt position remains paired with it through processed
 observation and rejection checks. Terminal outcomes are read under current rights.
 
 `.status` observes the saved write, `.resume` reconciles it, and `.cancel` requests
-mutation cancellation after reconciling its pending send. Interruptions preserve
-work; neither interruption nor cancellation undoes applied rows. CREATE TABLE has
-no cancellation operation. Unresolved writes block replacement work and connection
+cancellation of the saved operation after reconciling its pending send.
+Interruptions preserve work; cancellation never undoes a published operation.
+Cancellation outcomes follow the shared Table client's current phase. Unresolved writes block replacement work and connection
 switching. A new durable query replaces completed write recovery only after SQL
 compilation. Query recovery keeps its own format and lifecycle.

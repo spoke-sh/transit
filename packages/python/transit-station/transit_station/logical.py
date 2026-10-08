@@ -13,6 +13,38 @@ from transit_client._native import Library, encode
 from transit_client._worker import Worker
 from transit_client.types import owned_bytes
 
+
+from .logical_values import (
+    ScalarType as ScalarType,
+    DecimalType as DecimalType,
+    TimestampType as TimestampType,
+    Field as Field,
+    Element as Element,
+    StructureType as StructureType,
+    UnionType as UnionType,
+    ListType as ListType,
+    ArrayType as ArrayType,
+    MapType as MapType,
+    Interval as Interval,
+    Atom as Atom,
+    SequenceValue as SequenceValue,
+    MapEntry as MapEntry,
+    MapValue as MapValue,
+    TaggedValue as TaggedValue,
+    JsonValue as JsonValue,
+    Missing as Missing,
+    Null as Null,
+    SourceTypeError as SourceTypeError,
+    Present as Present,
+    Alternative as Alternative,
+    Conflict as Conflict,
+    Descriptor as Descriptor,
+    CellValue as CellValue,
+    Cell as Cell,
+    ScalarKind as ScalarKind,
+    AtomKind as AtomKind,
+)
+
 Rounding = Literal['reject', 'toward_zero', 'nearest_even']
 
 

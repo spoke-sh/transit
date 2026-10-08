@@ -10,7 +10,7 @@ resource: u64,
 domain: Domain,
 namespace: u64,
 /// Registry of publication owners, not an authorization or dispatch policy.
-pub const Domain = enum(u32) { application = 1, query_request = 2, query_result = 3, table_mutation = 4, document = 5, exchange = 6, application_definition = 7, _ };
+pub const Domain = enum(u32) { application = 1, query_request = 2, query_result = 3, table_mutation = 4, document = 5, exchange = 6, application_definition = 7, table = 8, catalog = 9, _ };
 pub const chunk_bytes = 256;
 pub const cleanup_chunks = 2;
 pub const State = enum(u8) { staging = 1, published = 2, abandoned = 3, retired = 4 };
@@ -259,6 +259,41 @@ pub fn publish(self: Publication, turn: *Turn, id: u64) !Outcome {
     try turn.write(key(self.domain, self.namespace, 'b', 0, 0), try quota.encode());
     try turn.write(key(self.domain, self.namespace, 'r', id, 0), try record.encode());
     return .changed;
+}
+/// Stage already-owned finite bytes using the remaining native mutation slots.
+/// Repeated descriptor/quota writes coalesce in the private proposal. False
+/// means bounded progress that must commit before resuming; true means private
+/// publication, not a committed cursor or an application acceptance result.
+/// A capacity failure with no progress and every other error restore this call.
+pub fn stage(self: Publication, turn: *Turn, id: u64, spec: Spec, bytes: []const u8) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    if (!std.meta.eql(try Digest.of(spec.format, bytes), spec)) return error.InvalidPublicationDigest;
+    var progressed = false;
+    while (true) {
+        const record = self.inspect(turn, id) catch |err| blk: {
+            if (err != error.PublicationNotFound) return err;
+            _ = try self.begin(turn, id, spec);
+            progressed = true;
+            break :blk try self.inspect(turn, id);
+        };
+        if (!std.meta.eql(record.spec, spec)) return error.PublicationIdentityConflict;
+        switch (record.state) {
+            .abandoned, .retired => return error.PublicationClosed,
+            .published => return true,
+            .staging => {
+                const result = if (record.written < spec.chunks()) append: {
+                    const offset = @as(usize, record.written) * chunk_bytes;
+                    break :append self.append(turn, id, record.written, bytes[offset..][0..try spec.size(record.written)]);
+                } else self.publish(turn, id);
+                _ = result catch |err| {
+                    if (err != error.MutationBudgetExceeded or !progressed) return err;
+                    return false;
+                };
+                progressed = true;
+            },
+        }
+    }
 }
 /// Explicit disposition. Abandonment retains quota until collect completes.
 pub fn abandon(self: Publication, turn: *Turn, id: u64) !Outcome {

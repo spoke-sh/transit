@@ -26,9 +26,7 @@ function attachedSession() {
 const snapshot: Snapshot<string> = {
   value: "protected",
   basis: {
-    kind: "table",
-    resource: 9,
-    revision: 10,
+    cut: { kind: "table", resource: 9, revision: 10, head: Array(32).fill(0) },
     contract: Array(32).fill(0),
     schema: Array(32).fill(0),
   },

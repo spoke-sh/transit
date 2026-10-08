@@ -2,15 +2,18 @@
 
 `Transit.Station.Sdk.UnifiedQuery` exposes explicit v1 KV/Table/accepted-Document
 sources, bounded projections, plans and nested Arrow results. Shared Zig owns
-encoding, validation, signatures, recovery and current-policy result verification;
-the original Table query profile remains separate.
+encoding, validation, signatures, recovery and current-policy result verification.
 
-`KvSource` declares two versioned decoders. `TableSource` binds its ID/schema.
-`DocumentSource` binds an accepted reference and optional list expansion with
-bounded scalar/path/text projections. `Bundle.PrepareAsync` accepts a `Plan` and
+`KvSource` declares two versioned `DecoderType` decoders. `TableSource` owns a
+catalog `Metadata`, `Schema` and owner `ProcessRef`; the native query owner checks
+the immutable metadata commitment and current rights. `DocumentSource` binds an
+accepted reference and optional list expansion with bounded scalar/path/text
+projections using `DecoderColumn`. Result `Column` values use
+`Logical.Descriptor` with explicit nullable/optional flags. `Bundle.PrepareAsync` accepts a `Plan` and
 explicit positive `Budgets`. Predicates are `All`, `IsState`, typed `Compare` or `PredicateProgram`.
-Namespaces, unsigned values and progress use `ulong`; signed scalars use `long`.
-Floats preserve finite double bits, including negative zero. Immutable `Bytes`
+Namespaces and progress use `ulong`. Logical atoms preserve exact `Int128` and
+`UInt128` values, decimal coefficients, temporal values and finite float32/64 bits
+including negative zero. Immutable `Bytes`
 own binary values and IPC without exposing mutable buffers.
 
 `PredicateProgram` copies one to 64 `PredicateInstruction` values into a
@@ -33,13 +36,13 @@ prepared token and must resolve any uncertainty. An admission receipt, an
 A null next command means inspect status.
 
 `CompileSqlAsync(source, name, sql, budgets, parameters = null, cancellation)`
-returns an owned `Bundle`. The optional `IReadOnlyList<Scalar>` is converted to an
+returns an owned `Bundle`. The optional `IReadOnlyList<Logical.Atom>` is converted to an
 owned request before worker submission. `null` selects ordinary SQL; an empty
 list selects a template without placeholders. Cancellation of the wait retains
 worker ownership until completion; disposal joins native cleanup.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -58,14 +61,20 @@ the configured source. Cancelling the wait retains native ownership until join.
 
 `PageAsync` reads only verified complete results, checking current source grants,
 lifecycle, segment digests and ordered coverage. It returns immutable manifest
-and schema evidence, original IPC and an optional opaque cursor. A cursor is not
+and schema evidence including the retained source-head digest, original IPC and an optional opaque cursor. A cursor is not
 a grant; null means verified complete coverage. `PrepareControlAsync` prepares
 explicit cancellation, retirement or collection with the same durable retry rules.
 
-`DecodeArrowAsync` and `Page.DecodeAsync` return owned read-only lists of `Missing`,
-`Null`, `TypeError`, `CellValue` or ordered `Conflict` cells. Decoding validates
+`DecodeArrowAsync` and `Page.DecodeAsync` return owned read-only lists of shared logical
+`Missing`, `Null`, `SourceTypeError`, `Present` or ordered `Conflict` cells.
+Nested results retain their logical types and exact values. Decoding validates
 shape; an authorized page read establishes current access and provenance.
 No optional .NET Arrow dependency is selected. Values and pages survive disposal.
+
+Bundles contain at most 25,069 bytes, batches at most eight rows and 128 result
+columns, and IPC segments at most 64 KiB. Document projections remain bounded
+to eight. Predicate byte literals are limited to 4 KiB. Source/output names are
+nonempty UTF-8 of at most 255 bytes without NUL.
 
 One operation may be in flight. Overlapping work reports Busy. Use `await using`
 or await `DisposeAsync` to join the bounded 8 MiB native worker even after a local

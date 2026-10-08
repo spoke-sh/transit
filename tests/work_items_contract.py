@@ -8,7 +8,7 @@ PATH = Path(__file__).resolve().parents[1]/'examples/work-items/fixtures/command
 
 
 def fixture():
-    cursor = b'AP1c'+struct.pack('<BBqQQ', 1, 1, -(2**63), 33, 2)
+    cursor = b'AP1c'+struct.pack('<BBQQIQQ', 1, 1, 44, 2**64-1, 2, 33, 2)
     return dict(version=1,
         put=(b'WI1i\x02'+struct.pack('<Qqq', 2**64-1, -(2**63), 20)).hex(),
         cursor=cursor.hex(),

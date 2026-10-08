@@ -35,20 +35,33 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
-    body = dict(version=1, definition='57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
-def post(port, path, value, expected=200, headers=None):
+def post(port, path, value, expected=200, headers=None, retry_unavailable=False):
+    deadline = time.monotonic() + 15
+    while True:
+        result = exchange(port, path, value, headers)
+        if not retry_unavailable or result != (503, b'{"err":"AuthorityUnavailable"}') or time.monotonic() >= deadline:
+            break
+        # Opted in only for read-only rejected connection discovery below.
+        # An unavailable identity read is neither an authorization nor a denial.
+        time.sleep(.05)
+    status, data = result
+    assert status == expected, (status, data)
+    return json.loads(data)
+
+
+def exchange(port, path, value, headers):
     connection = HTTPConnection('127.0.0.1', port, timeout=7)
     try:
         connection.request('POST', path, compact(value), headers or {'Content-Type': 'application/json'})
         response = connection.getresponse()
         data = response.read()
-        assert response.status == expected, (response.status, data)
-        return json.loads(data)
+        return response.status, data
     finally:
         connection.close()
 
@@ -98,6 +111,21 @@ def node(real, directory, args):
         def do_POST(self): self.forward()
         def forward(self):
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            if self.path == '/v1/query' and body:
+                query = json.loads(body)['query']
+                if query['principal'] == 0 and 'capabilities' in query['kind']:
+                    unavailable = directory / 'unavailable-probe'
+                    if unavailable.exists():
+                        unavailable.unlink()
+                        (directory / 'unavailable-probe-observed').touch()
+                        self.send_response(503)
+                        data = b'{"err":"AuthorityUnavailable"}'
+                        self.send_header('Content-Length', str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
+                    if (directory / 'unavailable-probe-observed').exists():
+                        (directory / 'probe-recovered').touch()
             upstream = HTTPConnection('127.0.0.1', source['port'], timeout=4)
             try:
                 upstream.request(self.command, self.path, body, {'Content-Type': 'application/json'})
@@ -210,7 +238,7 @@ def run(cli, node_binary, host, worker, operator):
         while True:
             result = subprocess.run(command, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
             if fail or result.returncode == 0 or result.stderr.strip() not in (
-                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing') or time.monotonic() >= deadline:
+                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused') or time.monotonic() >= deadline:
                 break
             # As in server_applications, retry through the same public recovery
             # file. Never prepare a new operation to hide an uncertain result.
@@ -224,6 +252,12 @@ def run(cli, node_binary, host, worker, operator):
     try:
         fixture.start(initialize=True)
         fixture.ready()
+        activations = set((fixture.installation / 'activations').iterdir())
+        (fixture.root / 'unavailable-probe').touch()
+        wait_file(fixture.root / 'unavailable-probe-observed')
+        wait_file(fixture.root / 'probe-recovered')
+        assert fixture.process.poll() is None
+        assert set((fixture.installation / 'activations').iterdir()) == activations, 'One unavailable read replaced live owners'
         declaration = json.loads(subprocess.check_output([operator, 'manifest', worker], text=True))
         manifest = fixture.root / 'application.json'
         manifest.write_text(json.dumps(declaration))
@@ -263,7 +297,7 @@ def run(cli, node_binary, host, worker, operator):
         post(port, '/applications/v1', good, 403, {'Host': f'127.0.0.1:{port}', 'Origin': 'http://localhost'})
         post(port, '/applications/v1', {'padding': 'x' * 65536}, 413)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            tasks = [pool.submit(post, port, '/applications/v1', denied, 403) for _ in range(20)]
+            tasks = [pool.submit(post, port, '/applications/v1', denied, 403, retry_unavailable=True) for _ in range(20)]
             attempt = time.monotonic()
             connection = HTTPConnection('127.0.0.1', port, timeout=5)
             connection.request('GET', '/health')
@@ -274,8 +308,10 @@ def run(cli, node_binary, host, worker, operator):
             for task in tasks:
                 task.result()
         domain('operator', 'authorize', 'authorize')
+        domain('operator', 'prepare-table', 'prepare-initial', 1)
         for i in range(5):
             domain('writer', 'put', f'put-{i}', i, i % 2)
+        domain('operator', 'prepare-table', 'prepare-target', 2)
         domain('operator', 'begin', 'begin')
         arm(fixture, 'send', 'copy-send', json.loads((fixture.root / 'operator.json').read_text())['principal'])
         domain('operator', 'step', 'copy-1', fail=True)

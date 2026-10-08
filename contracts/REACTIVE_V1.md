@@ -27,12 +27,14 @@ with one subscription per session. These are active-work bounds. Closed session
 history grows through public point reads without a resident total-cardinality
 array. Reconnecting or switching transports does not multiply the durable quota.
 
-A published watch binding declares the exact target PID, resource, Table,
-application progress key and schema. Publication is conditional and revisions
+A published watch binding declares the target PID, realm/resource/catalog scope,
+stable Table object, and immutable metadata revision/length/digest. Publication is conditional and revisions
 are immutable. It grants no read rights. The gateway's inspect scope covers both ingress and source, with separate explicit
 resource grants. Its
 current source metadata, caller policy and accepted watch declaration must all
-permit a read. Draft configuration and observed listener capability are separate
+permit a read. Catalog inspect/read rights are checked for the authenticated
+caller on every observation; the gateway identity does not substitute for them.
+Draft configuration and observed listener capability are separate
 from accepted publication.
 
 ## Durable controls and leases
@@ -82,33 +84,48 @@ at its next admission/disclosure check. Bytes already authorized and released ma
 finish; atomic socket transfer is not promised. Idle attachments revalidate on a
 finite interval. Denial, expiry, reset and transport interruption differ.
 
-## First source: Table data progress
+## Table observation and progress
 
-The non-trading Table owner writes `data-progress` in the same Station commit as
-every relevant Table mutation. Its **entry revision** is the data watermark;
-the stored integer, mailbox input position and another resource's revision are
-not substitutes. Query capture, status reads and other bookkeeping do not change
-that entry. This is a trusted application-owner contract, not proof of honest
-arbitrary computation.
+The watermark is the **native entry revision** of the general Table head.
+Catalog resolution verifies its immutable metadata/schema commitment at the
+same resource cut. A head reservation, cancellation or no-op completion may
+advance the watermark without changing rows; it signals possible change.
+Query capture, result/status bookkeeping and unrelated Tables do not write
+this head. Neither the Table's logical revision nor another resource's native
+revision is a substitute for this watermark.
 
-The public snapshot operation reads the Table schema, progress entry and bounded
-Table page at one resource revision. A conflicting acquisition retries the whole
-bounded observation or returns interruption/reset; it never mixes cuts. It returns
-the exact page basis and a compatible watch cursor. Later polls read current
-progress. A commit during or after acquisition is either included in that basis
-or appears as a newer data watermark, so coalescing cannot lose relevant changes.
+The snapshot operation checks catalog configuration/owner, current caller
+inspect/read policy, live object, exact metadata, schema, head and the first
+bounded row page at one resource revision. Conflicts retry the entire acquisition
+or return interruption/reset. Readers see only the published row/index root,
+including while a successor is staged. The later publication advances the head
+again; an earlier reservation notification cannot hide that publication.
+Dropping or altering the metadata requires explicit source publication and a new
+snapshot. Retained declarations never follow renamed or recreated objects.
 
-A finite query's captured basis can cover a watermark only for the same source
-resource and schema, with `captured revision >= data watermark`. A query result
-cursor/source pin is not a watch cursor. Finite query capture releases its source
-pin; watching requires its own current reads. Empty pages and bookkeeping-only
-commits do not invent a data invalidation. Schema, policy, binding and lifetime
-changes still produce their own control/availability outcomes.
+A finite query's captured basis covers a watermark only for the identical source
+resource, declaration contract and schema, with
+`basis.cut.revision >= data_revision`. Its cut includes the exact Table head
+commitment. A result cursor/source pin is not a watch cursor. Finite query capture
+releases its source pin; watching requires current authorized reads. Merely
+reading an empty page does not advance the watermark.
 
-The first transport snapshot profile is an int64 Table. Row keys and values
-encode as lossless decimal strings, with at most eight rows and a `more` flag;
-use the existing finite query reader for larger snapshots. Protocol identities
-remain safe JSON integers.
+The snapshot transport admits exactly two INT64 columns, the first a non-null
+single-column primary key and the second nullable or non-null. This is a
+transport profile over general Tables, independent of the broader finite query
+and storage type profiles. Incompatible shapes reject before row disclosure.
+Both column names retain their complete bounded UTF-8 bytes. Row keys/values
+encode as lossless decimal strings, with at most eight rows and a `more` flag.
+Use finite query result pages for larger snapshots and other logical schemas.
+Native identities remain safe JSON integers; catalog/object/metadata revision
+identities use unsigned decimal strings.
+
+The Source binary fields are, in order: watch revision, target PID, resource,
+realm, catalog, object and metadata revision (seven little-endian u64s), metadata
+length (u32), digest (32 bytes), and publication (one byte). Its payload is 93
+bytes. The current metadata format is fixed by the shared v1 definition. It has
+no alternate legacy decoding path; the coordinated definition cutover rejects
+incompatible saved/native work.
 
 The first delivery classes are coalesced source invalidations and notifications
 of recoverable operation outcomes. An invalidation covers every relevant mutation
@@ -126,7 +143,7 @@ a read grant. Attachments may change while the same authorized subscription
 continues. Forged, foreign, future and incompatible cursors reject; lost coverage
 or changed schema/publication produces explicit reset-required.
 
-The progress key remains durable for the source lifetime. The first invalidation
+The Table head remains durable, including its retirement evidence. The first invalidation
 profile coalesces directly from an authenticated older watermark to current
 progress; it does not scan an unbounded log or claim intermediate event retention.
 A restored gateway reconstructs session and source meaning through public reads.

@@ -5,82 +5,72 @@ const std = @import("std");
 pub const query = @import("root.zig");
 const q = query;
 const m = q.fuze.Unified;
+const f = q.fuze;
+const types = f.Types;
+const j = f.LogicalJson;
 const d = q.document.JsonValues;
 const a = d;
 const Allocator = std.mem.Allocator;
 pub const maximum_json_bytes = q.protocol.max_body;
+/// A logical type level uses several JSON containers (field, descriptor and
+/// child collection). The wrapper budget admits all 16 logical levels while
+/// bounding recursive typed decoding before its first allocation.
+pub const json_limits: types.Json.Limits = .{ .bytes = maximum_json_bytes, .depth = 96, .tokens = maximum_json_bytes + 1 };
+pub fn preflight(bytes: []const u8) !void {
+    try types.Json.preflight(bytes, json_limits);
+}
+pub fn parse(comptime T: type, allocator: Allocator, bytes: []const u8) !std.json.Parsed(T) {
+    try preflight(bytes);
+    return std.json.parseFromSlice(T, allocator, bytes, .{});
+}
 pub const unsigned = d.unsigned;
 pub const unhex = d.unhex;
 pub const Column = struct {
     name: []const u8,
+    type: types.Type,
+    nullable: bool = false,
+    optional: bool = false,
+    pub fn native(self: Column) !types.Field {
+        const field: types.Field = .{ .name = self.name, .type = self.type, .nullable = self.nullable, .optional = self.optional };
+        try (types.Type{ .structure = &.{field} }).validate(.{});
+        return field;
+    }
+    pub fn fromNative(alloc: Allocator, value: types.Field) !Column {
+        return .{ .name = try alloc.dupe(u8, value.name), .type = try value.type.cloneInto(alloc), .nullable = value.nullable, .optional = value.optional };
+    }
+};
+pub fn columns(alloc: Allocator, values: []const Column) !types.Type {
+    if (values.len == 0 or values.len > q.SourceDefinition.max_columns) return error.InvalidColumnCount;
+    const items = try alloc.alloc(types.Field, values.len);
+    for (items, values) |*out, in| out.* = try in.native();
+    const schema: types.Type = .{ .structure = items };
+    try schema.validate(.{});
+    return schema;
+}
+pub fn foreignColumns(alloc: Allocator, schema: types.Type) ![]const Column {
+    try schema.validate(.{});
+    if (schema != .structure) return error.InvalidQuerySchema;
+    const items = try alloc.alloc(Column, schema.structure.len);
+    for (items, schema.structure) |*out, in| out.* = try Column.fromNative(alloc, in);
+    return items;
+}
+pub const Scalar = j.Atom;
+pub const scalar = j.atomFromForeign;
+pub const foreignScalar = j.atomToForeign;
+/// KV/Document decoding remains explicitly limited to its six scalar decoders.
+pub const DecoderColumn = struct {
+    name: []const u8,
     type: m.Type,
-    pub fn native(self: Column) !m.Column {
+    pub fn native(self: DecoderColumn) !m.Column {
         return .{ .name = try m.Name.init(self.name), .type = self.type };
     }
-    pub fn fromNative(alloc: Allocator, value: m.Column) !Column {
+    pub fn fromNative(alloc: Allocator, value: m.Column) !DecoderColumn {
         return .{ .name = try alloc.dupe(u8, value.name.slice()), .type = value.type };
     }
 };
-pub fn columns(alloc: Allocator, values: []const Column) !m.Schema {
-    if (values.len == 0 or values.len > m.max_columns) return error.InvalidColumnCount;
-    const items = try alloc.alloc(m.Column, values.len);
-    for (items, values) |*out, in| out.* = try in.native();
-    const schema: m.Schema = .{ .columns = items };
-    try schema.validate();
-    return schema;
-}
-pub fn foreignColumns(alloc: Allocator, schema: m.Schema) ![]const Column {
-    try schema.validate();
-    const items = try alloc.alloc(Column, schema.columns.len);
-    for (items, schema.columns) |*out, in| out.* = try Column.fromNative(alloc, in);
-    return items;
-}
-pub const Scalar = union(enum) {
-    int64: []const u8,
-    uint64: []const u8,
-    float_bits: []const u8,
-    boolean: bool,
-    utf8: []const u8,
-    binary: []const u8,
-    pub fn native(self: Scalar, alloc: Allocator) !m.Scalar {
-        const out: m.Scalar = switch (self) {
-            .int64 => |text| blk: {
-                const negative = std.mem.startsWith(u8, text, "-");
-                const magnitude = try unsigned(if (negative) text[1..] else text);
-                if (negative and magnitude == 0) return error.InvalidQueryInteger;
-                break :blk .{ .int64 = try std.fmt.parseInt(i64, text, 10) };
-            },
-            .uint64 => |text| .{ .uint64 = try unsigned(text) },
-            .float_bits => |text| blk: {
-                if (text.len != 16) return error.InvalidQueryScalar;
-                const bytes = try unhex(alloc, text, 8);
-                break :blk .{ .float64 = @bitCast(std.mem.readInt(u64, bytes[0..8], .little)) };
-            },
-            .boolean => |v| .{ .boolean = v },
-            .utf8 => |v| .{ .utf8 = v },
-            .binary => |v| .{ .binary = try unhex(alloc, v, m.max_cell_bytes) },
-        };
-        try out.validate(std.meta.activeTag(out));
-        return out;
-    }
-    pub fn fromNative(alloc: Allocator, value: m.Scalar) !Scalar {
-        try value.validate(std.meta.activeTag(value));
-        return switch (value) {
-            .int64 => |v| .{ .int64 = try a.decimal(alloc, v) },
-            .uint64 => |v| .{ .uint64 = try a.decimal(alloc, v) },
-            .float64 => |v| blk: {
-                var bytes: [8]u8 = undefined;
-                std.mem.writeInt(u64, &bytes, @bitCast(v), .little);
-                break :blk .{ .float_bits = try a.hex(alloc, &bytes) };
-            },
-            .boolean => |v| .{ .boolean = v },
-            .utf8 => |v| .{ .utf8 = try alloc.dupe(u8, v) },
-            .binary => |v| .{ .binary = try a.hex(alloc, v) },
-        };
-    }
-};
 pub const Projection = struct {
-    column: Column,
+    pub const json_schema_sequence_bounds = .{ .path = 8 };
+    column: DecoderColumn,
     path: []const []const u8,
     relative: bool = false,
     mode: @FieldType(q.SourceDefinition.Projection, "mode") = .scalar,
@@ -103,13 +93,25 @@ pub const Source = struct {
     resource: u64,
     source: union(enum) {
         kv: struct { prefix: []const u8, key: q.SourceDefinition.Decoder, value: q.SourceDefinition.Decoder },
-        table: struct { id: u32, names: [2][]const u8, value_type: q.fuze.model.Type },
-        document: struct { reference: d.Reference, change_format: u32 = 1, expand: ?[]const []const u8 = null, projections: []const Projection },
+        table: struct {
+            scope: q.catalog.TableValues.Scope,
+            owner: u64,
+            object: []const u8,
+            metadata: struct { id: []const u8, spec: q.station.Publication.Spec },
+            row_type: types.Type,
+        },
+        document: struct {
+            pub const json_schema_sequence_bounds = .{ .expand = 8, .projections = m.max_columns };
+            reference: d.Reference,
+            change_format: u32 = 1,
+            expand: ?[]const []const u8 = null,
+            projections: []const Projection,
+        },
     },
     pub fn native(self: Source, alloc: Allocator) !q.SourceDefinition {
         const source: @FieldType(q.SourceDefinition, "source") = switch (self.source) {
             .kv => |v| .{ .kv = .{ .prefix = try q.protocol.Value.init(try unhex(alloc, v.prefix, q.protocol.Growth.key_bytes)), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .id = v.id, .schema = .{ .names = .{ try .init(v.names[0]), try .init(v.names[1]) }, .value_type = v.value_type } } },
+            .table => |v| .{ .table = .{ .scope = try v.scope.native(), .owner = v.owner, .object = try unsigned(v.object), .metadata = .{ .id = try unsigned(v.metadata.id), .spec = v.metadata.spec }, .row_type = try v.row_type.cloneInto(alloc) } },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;
                 const projections = try alloc.alloc(q.SourceDefinition.Projection, v.projections.len);
@@ -118,17 +120,17 @@ pub const Source = struct {
             },
         };
         const result: q.SourceDefinition = .{ .version = self.version, .resource = self.resource, .source = source };
-        var storage: [m.max_columns]m.Column = undefined;
+        var storage: [q.SourceDefinition.max_columns]types.Field = undefined;
         _ = try result.schema(&storage);
         return result;
     }
     pub fn fromNative(alloc: Allocator, value: q.SourceDefinition) !Source {
         return .{ .version = value.version, .resource = value.resource, .source = switch (value.source) {
             .kv => |v| .{ .kv = .{ .prefix = try a.hex(alloc, v.prefix.slice()), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .id = v.id, .names = .{ try alloc.dupe(u8, v.schema.names[0].slice()), try alloc.dupe(u8, v.schema.names[1].slice()) }, .value_type = v.schema.value_type } },
+            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .object = try a.decimal(alloc, v.object), .metadata = .{ .id = try a.decimal(alloc, v.metadata.id), .spec = v.metadata.spec }, .row_type = try v.row_type.cloneInto(alloc) } },
             .document => |v| blk: {
                 const projections = try alloc.alloc(Projection, v.projections.len);
-                for (projections, v.projections) |*out, in| out.* = .{ .column = try Column.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };
+                for (projections, v.projections) |*out, in| out.* = .{ .column = try DecoderColumn.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };
                 break :blk .{ .document = .{ .reference = try d.Reference.fromNative(alloc, v.reference), .change_format = v.change_format, .expand = if (v.expand) |names| try foreignPath(alloc, names) else null, .projections = projections } };
             },
         } };
@@ -136,66 +138,67 @@ pub const Source = struct {
 };
 pub const PredicateAtom = union(enum) {
     all,
-    state: struct { column: u8, value: m.State },
+    state: struct { column: u8, value: types.State },
     compare: struct { column: u8, op: m.Plan.Comparison, value: Scalar },
-    pub fn native(self: PredicateAtom, alloc: Allocator) !m.Plan.Atom {
-        return switch (self) {
+    pub fn native(self: PredicateAtom, alloc: Allocator, schema: types.Type) !f.LogicalQuery.Plan.Atom {
+        const atom: f.LogicalQuery.Plan.Atom = switch (self) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
-            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try v.value.native(alloc) } },
+            .compare => |v| blk: {
+                if (schema != .structure or v.column >= schema.structure.len) return error.UnknownColumn;
+                break :blk .{ .compare = .{ .column = v.column, .op = v.op, .value = try scalar(alloc, v.value, schema.structure[v.column].type) } };
+            },
         };
+        try atom.validate(schema);
+        return atom;
     }
-    pub fn fromNative(alloc: Allocator, value: m.Plan.Atom) !PredicateAtom {
+    pub fn fromNative(alloc: Allocator, value: f.LogicalQuery.Plan.Atom, schema: types.Type) !PredicateAtom {
+        try value.validate(schema);
         return switch (value) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
-            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try Scalar.fromNative(alloc, v.value) } },
+            .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try foreignScalar(alloc, v.value, schema.structure[v.column].type) } },
         };
     }
 };
-pub const PredicateInstruction = union(enum) {
-    atom: PredicateAtom,
-    negate,
-    conjunction,
-    disjunction,
-};
+pub const PredicateInstruction = union(enum) { atom: PredicateAtom, negate, conjunction, disjunction };
 pub const Predicate = union(enum) {
-    pub const json_schema_sequence_bounds = .{ .program = m.PredicateProgram.max_instructions };
+    pub const json_schema_sequence_bounds = .{ .program = f.LogicalPredicate.Program.max_instructions };
     all,
     state: @FieldType(PredicateAtom, "state"),
     compare: @FieldType(PredicateAtom, "compare"),
     program: []const PredicateInstruction,
-    pub fn native(self: Predicate, alloc: Allocator) !m.Plan.Predicate {
+    pub fn native(self: Predicate, alloc: Allocator, schema: types.Type) !@FieldType(f.LogicalQuery.Plan, "predicate") {
         return switch (self) {
             .program => |instructions| blk: {
                 if (instructions.len == 0) return error.InvalidPredicateProgram;
-                if (instructions.len > m.PredicateProgram.max_instructions) return error.PredicateTooLarge;
-                var owned: m.PredicateProgram.Owned = .{ .count = @intCast(instructions.len) };
-                for (instructions, owned.instructions[0..instructions.len]) |instruction, *out| out.* = switch (instruction) {
-                    .atom => |atom| .{ .atom = try atom.native(alloc) },
-                    inline else => |_, tag| @unionInit(m.PredicateProgram.Instruction, @tagName(tag), {}),
+                if (instructions.len > f.LogicalPredicate.Program.max_instructions) return error.PredicateTooLarge;
+                const owned = try alloc.alloc(f.LogicalPredicate.Program.Instruction, instructions.len);
+                for (instructions, owned) |instruction, *out| out.* = switch (instruction) {
+                    .atom => |atom| .{ .atom = try atom.native(alloc, schema) },
+                    inline else => |_, tag| @unionInit(f.LogicalPredicate.Program.Instruction, @tagName(tag), {}),
                 };
-                try (try owned.view()).validateShape();
-                break :blk .{ .program = owned };
+                const program: f.LogicalPredicate.Program = .{ .instructions = owned };
+                try program.validate(schema);
+                break :blk .{ .program = program };
             },
-            inline else => |value, tag| switch (try @as(PredicateAtom, @unionInit(PredicateAtom, @tagName(tag), value)).native(alloc)) {
-                inline else => |atom_value, atom_tag| @unionInit(m.Plan.Predicate, @tagName(atom_tag), atom_value),
+            inline else => |value, tag| switch (try @as(PredicateAtom, @unionInit(PredicateAtom, @tagName(tag), value)).native(alloc, schema)) {
+                inline else => |atom_value, atom_tag| @unionInit(@FieldType(f.LogicalQuery.Plan, "predicate"), @tagName(atom_tag), atom_value),
             },
         };
     }
-    pub fn fromNative(alloc: Allocator, value: m.Plan.Predicate) !Predicate {
+    pub fn fromNative(alloc: Allocator, value: @FieldType(f.LogicalQuery.Plan, "predicate"), schema: types.Type) !Predicate {
         return switch (value) {
-            .program => |*program| blk: {
-                const view = try program.view();
-                try view.validateShape();
-                const result = try alloc.alloc(PredicateInstruction, view.instructions.len);
-                for (view.instructions, result) |instruction, *out| out.* = switch (instruction) {
-                    .atom => |atom| .{ .atom = try PredicateAtom.fromNative(alloc, atom) },
+            .program => |program| blk: {
+                try program.validate(schema);
+                const result = try alloc.alloc(PredicateInstruction, program.instructions.len);
+                for (program.instructions, result) |instruction, *out| out.* = switch (instruction) {
+                    .atom => |atom| .{ .atom = try PredicateAtom.fromNative(alloc, atom, schema) },
                     inline else => |_, tag| @unionInit(PredicateInstruction, @tagName(tag), {}),
                 };
                 break :blk .{ .program = result };
             },
-            inline else => |atom_value, atom_tag| switch (try PredicateAtom.fromNative(alloc, @unionInit(m.Plan.Atom, @tagName(atom_tag), atom_value))) {
+            inline else => |atom_value, atom_tag| switch (try PredicateAtom.fromNative(alloc, @unionInit(f.LogicalQuery.Plan.Atom, @tagName(atom_tag), atom_value), schema)) {
                 inline else => |v, tag| @unionInit(Predicate, @tagName(tag), v),
             },
         };
@@ -208,34 +211,35 @@ pub const Plan = struct {
     limit: ?[]const u8 = null,
     aggregate: m.Plan.Aggregate = .rows,
     predicate: Predicate = .all,
-    pub fn native(self: Plan, alloc: Allocator) !m.Plan {
-        if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
-        var names: [m.max_columns]?m.Name = @splat(null);
-        if (self.output_names) |values| {
-            if (values.len != self.projection.len) return error.InvalidOutputNames;
-            for (values, 0..) |name, index| if (name) |text| {
-                names[index] = try m.Name.init(text);
-            };
-        }
+    pub fn native(self: Plan, alloc: Allocator, schema: types.Type, binding: [32]u8) !f.LogicalQuery.Plan {
+        if (self.version != 1) return error.UnsupportedPlan;
+        if (self.projection.len == 0 or self.projection.len > q.SourceDefinition.max_columns) return error.InvalidProjection;
         const selected = try alloc.alloc(u8, self.projection.len);
         for (selected, self.projection) |*out, in| {
-            if (in >= m.max_columns) return error.UnknownColumn;
+            if (in >= q.SourceDefinition.max_columns) return error.UnknownColumn;
             out.* = @intCast(in);
         }
-        return .{ .version = self.version, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc) };
+        const names = if (self.output_names) |input| owned: {
+            if (input.len != selected.len) return error.InvalidOutputNames;
+            const result = try alloc.dupe(?[]const u8, input);
+            for (result) |*name| if (name.*) |text| {
+                name.* = try alloc.dupe(u8, text);
+            };
+            break :owned result;
+        } else &.{};
+        const result: f.LogicalQuery.Plan = .{ .schema = try schema.cloneInto(alloc), .source_basis = binding, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
+        try result.validate();
+        return result;
     }
-    pub fn fromNative(alloc: Allocator, value: m.Plan) !Plan {
-        try value.validateShape();
-        const has_names = for (value.output_names) |name| {
-            if (name != null) break true;
-        } else false;
-        const names: ?[]?[]const u8 = if (has_names) try alloc.alloc(?[]const u8, value.projection.len) else null;
-        if (names) |output| for (output, value.output_names[0..value.projection.len]) |*out, name| {
-            out.* = if (name) |text| try alloc.dupe(u8, text.slice()) else null;
+    pub fn fromNative(alloc: Allocator, value: f.LogicalQuery.Plan) !Plan {
+        try value.validate();
+        const names: ?[]?[]const u8 = if (value.output_names.len != 0) try alloc.alloc(?[]const u8, value.projection.len) else null;
+        if (names) |output| for (output, value.output_names) |*out, name| {
+            out.* = if (name) |text| try alloc.dupe(u8, text) else null;
         };
         const selected = try alloc.alloc(u32, value.projection.len);
         for (selected, value.projection) |*out, in| out.* = in;
-        return .{ .version = value.version, .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate) };
+        return .{ .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate, value.schema) };
     }
 };
 pub const Limits = struct {
@@ -256,7 +260,10 @@ pub const Bundle = struct {
     plan: Plan,
     limits: Limits,
     pub fn native(self: Bundle, alloc: Allocator) !q.Bundle {
-        const result: q.Bundle = .{ .source = try self.source.native(alloc), .plan = try self.plan.native(alloc), .limits = try self.limits.native() };
+        const source = try self.source.native(alloc);
+        var fields: [q.SourceDefinition.max_columns]types.Field = undefined;
+        const schema = try (try source.schema(&fields)).cloneInto(alloc);
+        const result: q.Bundle = .{ .source = source, .plan = try self.plan.native(alloc, schema, try source.fingerprint()), .limits = try self.limits.native() };
         try result.validate();
         return result;
     }
@@ -264,41 +271,14 @@ pub const Bundle = struct {
         return .{ .source = try Source.fromNative(alloc, value.source), .plan = try Plan.fromNative(alloc, value.plan), .limits = try Limits.fromNative(alloc, value.limits) };
     }
 };
-pub const Alternative = struct {
-    counter: []const u8,
-    replica: []const u8,
-    value: union(enum) { null, type_error: m.Kind, value: Scalar },
-};
-pub const Cell = union(enum) {
-    missing,
-    null,
-    type_error: m.Kind,
-    value: Scalar,
-    conflict: []const Alternative,
-    pub fn fromNative(alloc: Allocator, value: m.Cell) !Cell {
-        return switch (value) {
-            .missing => .missing,
-            .null => .null,
-            .type_error => |v| .{ .type_error = v },
-            .value => |v| .{ .value = try Scalar.fromNative(alloc, v) },
-            .conflict => |values| blk: {
-                const items = try alloc.alloc(Alternative, values.len);
-                for (items, values) |*out, in| out.* = .{ .counter = try a.decimal(alloc, in.counter), .replica = try a.decimal(alloc, in.replica), .value = switch (in.value) {
-                    .null => .null,
-                    .type_error => |v| .{ .type_error = v },
-                    .value => |v| .{ .value = try Scalar.fromNative(alloc, v) },
-                } };
-                break :blk .{ .conflict = items };
-            },
-        };
-    }
-};
-pub fn rows(alloc: Allocator, decoded: *const m.Inspect.Batch) ![]const []const Cell {
-    const result = try alloc.alloc([]const Cell, decoded.count);
-    for (result, 0..) |*out, index| {
-        const row = try decoded.row(index);
+pub const Alternative = j.Alternative;
+pub const Cell = j.Cell;
+pub const foreignCell = j.foreignCell;
+pub fn rows(alloc: Allocator, decoded: *const f.LogicalInspect.Batch) ![]const []const Cell {
+    const result = try alloc.alloc([]const Cell, decoded.rows.len);
+    for (result, decoded.rows) |*out, row| {
         const cells = try alloc.alloc(Cell, row.cells.len);
-        for (cells, row.cells) |*cell, value| cell.* = try Cell.fromNative(alloc, value);
+        for (cells, row.cells, decoded.descriptor.type.structure) |*cell, value, field| cell.* = try foreignCell(alloc, value, field.type);
         out.* = cells;
     }
     return result;
@@ -310,6 +290,8 @@ pub const Action = union(enum) {
     inspect_arrow: struct { columns: []const Column, rows: u8, ipc: []const u8 },
 };
 pub const Result = union(enum) {
+    pub const json_schema_sequence_bounds = .{ .rows = q.SourceDefinition.max_columns };
+    pub const json_schema_outer_sequence_bounds = .{ .rows = f.LogicalArrow.max_rows };
     prepared: struct { bytes: []const u8, spec: q.station.Publication.Spec },
     bundle: Bundle,
     source: struct { bytes: []const u8, digest: [32]u8, declaration: [32]u8, columns: []const Column },
@@ -325,14 +307,14 @@ pub fn apply(alloc: Allocator, action: Action) !Result {
         .decode => |v| return .{ .bundle = try Bundle.fromNative(alloc, try q.Bundle.decode(alloc, try unhex(alloc, v, q.Bundle.max_bytes))) },
         .source => |v| {
             const native = try v.native(alloc);
-            var storage: [m.max_columns]m.Column = undefined;
+            var storage: [q.SourceDefinition.max_columns]types.Field = undefined;
             var buffer: [q.SourceDefinition.max_bytes]u8 = undefined;
             return .{ .source = .{ .bytes = try a.hex(alloc, try native.encode(&buffer)), .digest = try native.fingerprint(), .declaration = try q.Bundle.declaration(native), .columns = try foreignColumns(alloc, try native.schema(&storage)) } };
         },
         .inspect_arrow => |v| {
             const workspace = try alloc.alloc(u8, m.Arrow.working_bytes);
-            var decoded: m.Inspect.Batch = undefined;
-            try m.Inspect.decode(try columns(alloc, v.columns), try unhex(alloc, v.ipc, m.Arrow.segment_bytes), v.rows, workspace, alloc, &decoded);
+            var decoded = try f.LogicalInspect.decode(alloc, try columns(alloc, v.columns), try unhex(alloc, v.ipc, f.LogicalArrow.segment_bytes), v.rows, workspace);
+            defer decoded.deinit();
             return .{ .rows = try rows(alloc, &decoded) };
         },
     }
@@ -365,8 +347,71 @@ test "neutral programs retain owned literals and exact bundle publication identi
     try t.expectError(error.InvalidPredicateProgram, apply(alloc, .{ .prepare = restored }));
     restored.plan.predicate = .{ .program = &@as([65]PredicateInstruction, @splat(.negate)) };
     try t.expectError(error.PredicateTooLarge, apply(alloc, .{ .prepare = restored }));
-    restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .uint64 = "1" } } } }, .disjunction } };
+    restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .unsigned = "1" } } } }, .disjunction } };
     try t.expectError(error.TypeMismatch, apply(alloc, .{ .prepare = restored }));
     restored.plan.predicate = .{ .program = &.{ .{ .atom = .all }, .{ .atom = .{ .state = .{ .column = 2, .value = .null } } }, .disjunction } };
     try t.expectError(error.UnknownColumn, apply(alloc, .{ .prepare = restored }));
+}
+
+test "neutral JSON rejects recursive input before allocating and retains typed validation" {
+    const t = std.testing;
+    var no_memory = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var bytes: [512]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&bytes);
+    try out.writeAll("{\"unknown\":");
+    for (0..json_limits.depth) |_| try out.writeByte('[');
+    for (0..json_limits.depth) |_| try out.writeByte(']');
+    try out.writeByte('}');
+    try t.expectError(error.JsonDepthExceeded, parse(q.Workspace.Request, no_memory.allocator(), out.buffered()));
+    try t.expectError(error.InvalidUtf8, parse(q.Workspace.Request, no_memory.allocator(), "{\"compile\":{\"sql\":\"\xff\"}}"));
+    try t.expectError(error.OutOfMemory, parse(q.Workspace.Request, no_memory.allocator(), "{\"compile\":{\"sql\":\"SELECT * FROM items\"}}"));
+    try t.expectError(error.UnknownField, parse(q.Workspace.Request, t.allocator, "{\"compile\":{\"sql\":\"SELECT * FROM items\",\"extra\":[]}}"));
+    try t.expectError(error.DuplicateField, parse(q.Workspace.Request, t.allocator, "{\"compile\":{\"sql\":\"SELECT * FROM items\",\"sql\":\"SELECT 1\"}}"));
+    const oversized = try t.allocator.alloc(u8, maximum_json_bytes + 1);
+    defer t.allocator.free(oversized);
+    try t.expectError(error.JsonByteBudgetExceeded, parse(q.Workspace.Request, no_memory.allocator(), oversized));
+}
+
+test "neutral JSON admits full logical descriptor depth and owns recursive parse storage" {
+    const Run = struct {
+        fn run(allocator: Allocator) !void {
+            // Sixteen logical levels: row structure, fourteen array descriptors
+            // and the leaf. Each array has three JSON object wrappers.
+            var descriptors: [15]types.Type = undefined;
+            descriptors[0] = .int128;
+            for (1..descriptors.len) |i| descriptors[i] = .{ .array = .{ .element = .{ .type = &descriptors[i - 1] }, .length = 1 } };
+            const schema: types.Type = .{ .structure = &.{.{ .name = "nested", .type = descriptors[14] }} };
+            try schema.validate(.{});
+            const original = [_]Column{.{ .name = "record", .type = schema }};
+            const encoded = try std.json.Stringify.valueAlloc(allocator, original, .{});
+            defer allocator.free(encoded);
+            const decoded = try parse([]const Column, allocator, encoded);
+            defer decoded.deinit();
+            try std.testing.expect(try schema.eql(decoded.value[0].type));
+        }
+    };
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Run.run, .{});
+}
+
+test "neutral plans own schema and output names across every allocation failure" {
+    const Run = struct {
+        fn run(allocator: Allocator) !void {
+            var arena: std.heap.ArenaAllocator = .init(allocator);
+            defer arena.deinit();
+            var original_name = "original".*;
+            var output_name = "renamed".*;
+            var fields = [_]types.Field{.{ .name = &original_name, .type = .utf8 }};
+            var names = [_]?[]const u8{&output_name};
+            const plan = try (Plan{ .projection = &.{0}, .output_names = &names }).native(arena.allocator(), .{ .structure = &fields }, @splat(7));
+            @memset(&original_name, 'x');
+            @memset(&output_name, 'x');
+            fields[0].type = .int64;
+            names[0] = null;
+            try std.testing.expectEqualStrings("original", plan.schema.structure[0].name);
+            try std.testing.expectEqualStrings("renamed", plan.output_names[0].?);
+            try std.testing.expect(plan.schema.structure[0].type == .utf8);
+            try plan.validate();
+        }
+    };
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Run.run, .{});
 }

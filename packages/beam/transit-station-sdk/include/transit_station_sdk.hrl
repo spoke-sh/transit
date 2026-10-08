@@ -6,17 +6,20 @@
 -record(transit_key, {name :: binary(), codec :: module()}).
 -record(transit_incoming, {kind :: cast | call | reply, value :: term(), position :: transit_counter(), origin :: term(), correlation = undefined :: undefined | pos_integer()}).
 -record(transit_control, {kind :: cancel | timeout, position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
+-record(transit_query_failure, {position :: transit_counter(), origin :: term(), correlation :: pos_integer(), result :: transit_counter(),
+    reason :: result_too_large | workspace_exceeded | overflow | cancelled | denied}).
 -record(transit_result_complete, {position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
 -record(transit_read_version, {pid :: transit_counter(), input :: transit_counter(), index :: 0..255}).
--record(transit_basis, {resource :: #transit_resource{}, revision :: non_neg_integer(), schema :: binary()}).
--record(transit_page, {entries = [] :: list(), cursor = undefined :: undefined | binary(), basis = undefined :: undefined | #transit_basis{}}).
+-record(transit_page, {entries = [] :: list(), cursor = undefined :: undefined | binary()}).
 -record(transit_kv_entry, {key :: binary(), value :: binary(), revision :: non_neg_integer()}).
--record(transit_table_schema, {id :: pos_integer(), cell :: int64 | boolean | utf8 | binary, key_name = <<"id">> :: binary(), value_name = <<"value">> :: binary()}).
--record(transit_row, {key :: integer(), value :: null | integer() | boolean() | binary()}).
--record(transit_query_plan, {projection = both :: both | key | value, aggregate = rows :: rows | count | sum,
-                             limit = undefined :: undefined | non_neg_integer(), predicate = all :: term()}).
+-record(transit_table_basis, {resource :: #transit_resource{}, revision :: transit_counter(), object :: pos_integer(), head :: binary()}).
+-record(transit_row, {identity :: binary(), cells :: list()}).
+-record(transit_table_page, {rows = [] :: list(), next = undefined :: undefined | binary()}).
+-record(transit_table_creation, {state :: building | applied, admitted_input :: transit_counter(), completed_input = undefined :: undefined | transit_counter()}).
+-record(transit_table_witness, {source, row = undefined, column, text, truncated}).
+-record(transit_table_status, {reference, state, route, admitted_input, completed_input = undefined, counts = undefined, rejection, witness = undefined}).
 -record(transit_query_job, {result :: transit_counter(), correlation :: pos_integer(), source :: #transit_read_version{}}).
--record(transit_manifest, {result, source, destination, correlation, table, policy_revision, basis, source_contract, plan, segments, byte_count, rows, chain, schema}).
+-record(transit_manifest, {result, source, destination, correlation, table, policy_revision, basis, plan, segments, byte_count, rows, chain, schema}).
 -record(transit_ipc_segment, {manifest :: #transit_manifest{}, ordinal :: non_neg_integer(), rows :: non_neg_integer(), digest :: binary(), ipc :: binary()}).
 -record(transit_frozen, {identity :: #transit_identity{}, purpose :: permit | open | commit, input :: transit_counter(), bytes :: binary()}).
 -record(transit_committed, {input :: transit_counter(), receipt :: #transit_receipt{}}).

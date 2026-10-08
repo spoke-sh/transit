@@ -55,19 +55,17 @@ def run(node, caller, *, finish_pages=64):
                         kind = envelope["query"]["kind"]
                         if "version_entries" in kind:
                             entries = kind["version_entries"]
-                            if entries.get("key") is None:
-                                assert entries.get("after", "").startswith(b"\x00r\x01\x00\x00\x00".hex())
-                                page = json.loads(data)["body"]["version_entries"]["page"]
-                                assert sum(item is not None for item in page["entries"]) <= 8
-                                fault["queries"] += 1
+                            page = json.loads(data)["body"]["version_entries"]["page"]
+                            assert sum(item is not None for item in page["entries"]) <= 8
+                            fault["queries"] += 1
                     if self.path == "/v1/command" and response.status == 200:
                         command = envelope["request"]["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
                         keys = [bytes.fromhex(item["key"]) for item in turn.get("mutations", []) if item]
                         publishing = any(item and item["value"] and
                                          bytes.fromhex(item["key"]).startswith(b"\x00Qj") and
-                                         len(bytes.fromhex(item["value"])) == 117 and
-                                         int.from_bytes(bytes.fromhex(item["value"])[106:108], "little") > 0
+                                         len(bytes.fromhex(item["value"])) == 152 and
+                                         int.from_bytes(bytes.fromhex(item["value"])[129:131], "little") > 0
                                          for item in turn.get("mutations", []))
                         for name, selected in (("stage", any(key.startswith(b"\x00Qs") for key in keys)),
                                                ("seal", any(key.startswith(b"\x00Qm") for key in keys)),
@@ -146,6 +144,19 @@ def run(node, caller, *, finish_pages=64):
             result = json.loads(Path(f"{manifest}.result.json").read_text())
             job, progress = result["job"], result["progress"]
             assert job["phase"] == "captured" and progress["finished"] == "source_end"
+            source = job['source']
+            expected_job = (b'GQJ1' + struct.pack('<QQQQQQBQQHQBBQ',
+                job['result'], job['destination'], job['correlation'], job['table'],
+                source['pid'], source['input'], source['index'], job['resource'], job['revision'],
+                job['plan_bytes'], job['policy_revision'], 2, 0, job['bytes'])
+                + bytes(job['chain']) + struct.pack('<QHB', job['send_segment'], job['send_offset'], 0) + bytes(20))
+            assert len(expected_job) == 152 and bytes.fromhex(result['job_wire']) == expected_job
+            counters = progress['counters']
+            expected_progress = (b'FQS1' + bytes(progress['binding']) + bytes(progress['plan'])
+                + struct.pack('<QQQQQQBqB', progress['pages'], counters['scanned'], counters['selected'],
+                    counters['value_count'], progress['segments'], progress['rows'], 0, 0, 1))
+            assert counters['sum'] is None and len(expected_progress) == 126
+            assert bytes.fromhex(result['progress_wire']) == expected_progress
             actual, chain, total = [], bytes(32), 0
             for ordinal, segment in enumerate(result["segments"]):
                 data = Path(f"{manifest}.{ordinal}.arrow").read_bytes()
@@ -156,20 +167,39 @@ def run(node, caller, *, finish_pages=64):
                 chain = hashlib.sha256(b"transit.station.query.segments.v1\x00" + chain + encoded).digest()
                 with pa.ipc.open_stream(data) as reader:
                     batches = list(reader)
-                    from arrow import field, simple_rows
+                    from arrow import field
                     assert reader.schema == pa.schema([field("id", pa.int64()), field("value", pa.string())])
+                    from fuze_file_query import descriptor
+                    assert reader.schema.metadata == {
+                        b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-09-30',
+                        b'transit.logical_schema': descriptor({'structure': [
+                            {'name': 'id', 'type': {'int64': {}}, 'nullable': False, 'optional': False},
+                            {'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': False},
+                        ]}).hex().encode(),
+                    }
+                    logical_descriptor = reader.schema.metadata[b"transit.logical_schema"]
                 assert len(batches) == 1 and batches[0].num_rows == segment["rows"]
-                actual.extend(simple_rows(pa.Table.from_batches(batches)))
+                from fuze_logical_arrow import arrow_cell
+                batch = batches[0]
+                for index in range(batch.num_rows):
+                    number = len(actual)
+                    text = None if number % 5 == 0 else chr(ord('a') + number % 26) * 220
+                    assert arrow_cell(batch.column(0), index, {'int64': {}}) == b'\x03' + struct.pack('<q', number)
+                    expected_value = b'\x01' if text is None else b'\x03' + struct.pack('<I', len(text)) + text.encode()
+                    assert arrow_cell(batch.column(1), index, {'utf8': {}}) == expected_value
+                    actual.append({'id': batch.column(0).field('value')[index].as_py(),
+                                   'value': batch.column(1).field('value')[index].as_py()})
                 total += len(data)
             assert actual == [{"id": i, "value": None if i % 5 == 0 else chr(ord("a") + i % 26) * 220} for i in range(41)]
             assert progress["rows"] == 41 and progress["segments"] == 6
             assert total == job["bytes"] > 672 and chain == bytes(job["chain"])
             received = json.loads(Path(f"{manifest}.received.json").read_text())
             completed = received["manifest"]
-            assert completed["basis"] == progress["basis"] and completed["plan"] == progress["plan"]
+            assert completed["basis"] == {"resource": job["resource"], "revision": job["revision"], "head": progress["binding"]}
+            assert completed["plan"] == progress["plan"]
             assert completed["rows"] == 41 and completed["bytes"] == total
             assert completed["chain"] == job["chain"] and received["segments"] == result["segments"]
-            schema_hash = hashlib.sha256(b"transit.fuze.schema.v1\x00\x02\x02\x01id\x05\x05value").digest()
+            schema_hash = hashlib.sha256(bytes.fromhex(logical_descriptor.decode())).digest()
             assert bytes(completed["schema"]) == schema_hash
             for ordinal in range(completed["segments"]):
                 captured_data = Path(f"{manifest}.{ordinal}.arrow").read_bytes()

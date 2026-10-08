@@ -63,7 +63,9 @@ def defaults(package):
                     result = subprocess.run([str(cli), 'console', '--no-rc',
                                              '--format', 'json', '-c', 'SELECT COUNT(*) FROM items'], cwd=root, env=env, capture_output=True, timeout=90)
                     assert result.returncode == 0, result
-                    assert json.loads(result.stdout)['cells'][0][0]['value']['uint64'] == '0'
+                    queries = server.table_results(json.loads(line) for line in result.stdout.splitlines())
+                    assert len(queries) == 1, queries
+                    assert server.atom(queries[0], 'unsigned') == '0', queries
                 finally:
                     owned = server.children(process.pid)
                     process.terminate()

@@ -4,13 +4,14 @@ require 'tmpdir'
 module Transit
   module Internal
     class Port
-      def initialize(executable, configuration, schemas, request_name)
+      def initialize(executable, configuration, schemas, request_name, line_bound: LIMITS.fetch('host_line_bytes'))
         unless File.file?(executable) && File.executable?(executable)
           raise IncompatibleNative, 'Install the matching native 0.2.0 gem or supply native_host'
         end
         document = JSON.generate(configuration)
         raise ArgumentError, 'Native configuration exceeds its bound' if document.bytesize > LIMITS.fetch('host_config_bytes')
         @schemas, @request_name, @closed = schemas, request_name, false
+        @line_bound = Internal.integer(line_bound)
         @directory = Dir.mktmpdir('transit-ruby-')
         @file = File.join(@directory, 'host.json')
         File.open(@file, 'wb', 0o600) { |file| file.write(document) }
@@ -31,14 +32,14 @@ module Transit
         raise Closed, 'Native port is closed' if @closed
         Internal.validate!(schema(@request_name), value)
         line = JSON.generate(value).b << "\n"
-        bound = LIMITS.fetch('host_line_bytes')
+        bound = @line_bound
         raise ArgumentError, 'Native request exceeds its bound' if line.bytesize > bound
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 65
         begin
           raise IOError if IO.select([@output], nil, nil, 0)
           offset = 0
           while offset < line.bytesize
-            sent = @input.write_nonblock(line.byteslice(offset..), exception: false)
+            sent = @input.write_nonblock(line.byteslice(offset, 16_384), exception: false)
             if sent == :wait_writable
               await_io(nil, [@input], deadline)
             else
@@ -55,7 +56,7 @@ module Transit
             raise IOError if chunk.nil?
             incoming << chunk
             raise IOError if incoming.bytesize > bound
-            break if incoming.include?("\n")
+            break if chunk.include?("\n")
           end
           raise IOError unless incoming.index("\n") == incoming.bytesize - 1
           incoming.force_encoding(Encoding::UTF_8)

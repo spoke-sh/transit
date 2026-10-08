@@ -4,14 +4,17 @@ const std = @import("std");
 const q = @import("root.zig");
 const p = q.protocol;
 const m = q.fuze.Unified;
+const t = q.fuze.Types;
 const d = q.document.Model;
 const Self = @This();
-pub const max_bytes = 8192;
+pub const max_bytes = 47 + q.TableSource.max_bytes;
+pub const max_decoder_bytes = 8192;
+pub const max_columns = q.fuze.TableSchema.max_columns;
 version: u8 = 1,
 resource: u64,
 source: union(m.SourceKind) {
     kv: struct { prefix: p.Value, key: Decoder, value: Decoder },
-    table: struct { id: u32, schema: q.fuze.model.Schema },
+    table: q.TableSource,
     document: struct {
         reference: q.document.Client.Reference,
         change_format: u32 = 1,
@@ -41,7 +44,7 @@ fn validatePath(path: []const d.Name, empty: bool) !void {
         if (!std.unicode.utf8ValidateSlice(name.slice())) return error.InvalidQueryPath;
     }
 }
-pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
+pub fn schema(self: Self, output: *[max_columns]t.Field) !t.Type {
     if (self.version != 1) return error.UnsupportedSource;
     if (self.resource == 0 or self.resource > p.max_counter) return error.InvalidQuerySource;
     const count: usize = switch (self.source) {
@@ -50,17 +53,21 @@ pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
             if (kv.prefix.len > p.Growth.key_bytes) return error.InvalidQueryPrefix;
             try kv.key.validate();
             try kv.value.validate();
-            output[0] = .{ .name = try m.Name.init("key"), .type = kv.key.type };
-            output[1] = .{ .name = try m.Name.init("value"), .type = kv.value.type };
+            output[0] = .{ .name = "key", .type = t.Type.fromQuery(kv.key.type), .nullable = true, .optional = true };
+            output[1] = .{ .name = "value", .type = t.Type.fromQuery(kv.value.type), .nullable = true, .optional = true };
             break :blk 2;
         },
-        .table => |table| (try (q.station.Table{ .resource = self.resource, .id = table.id, .schema = table.schema }).querySchema(output)).columns.len,
+        .table => |table| {
+            try table.validate();
+            if (self.resource != table.scope.resource) return error.InvalidQuerySource;
+            return table.row_type;
+        },
         .document => |document| blk: {
             _ = try document.reference.encode();
             if (document.reference.resource != self.resource or document.change_format != 1) return error.UnsupportedDocumentSource;
             if (document.expand) |path| try validatePath(path, false);
             if (document.projections.len == 0 or document.projections.len > m.max_columns) return error.InvalidProjection;
-            for (document.projections, 0..) |projection, index| {
+            for (document.projections, 0..) |*projection, index| {
                 if (projection.relative and document.expand == null) return error.InvalidQueryPath;
                 try validatePath(projection.path, projection.relative);
                 if (projection.text_bytes == 0 or projection.text_bytes > m.max_cell_bytes or projection.text_steps == 0 or projection.text_steps > 16384) return error.InvalidProjectionBudget;
@@ -69,21 +76,23 @@ pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
                     .text => if (projection.column.type != .utf8) return error.InvalidTextProjection,
                     .element_counter, .element_replica => if (!projection.relative or projection.path.len != 0 or projection.column.type != .uint64) return error.InvalidElementProjection,
                 }
-                output[index] = projection.column;
+                if (projection.column.name.len > projection.column.name.bytes.len) return error.InvalidColumnName;
+                _ = try m.Name.init(projection.column.name.slice());
+                output[index] = .{ .name = projection.column.name.slice(), .type = t.Type.fromQuery(projection.column.type), .nullable = true, .optional = true };
             }
             break :blk document.projections.len;
         },
     };
-    const result: m.Schema = .{ .columns = output[0..count] };
-    try result.validate();
+    const result: t.Type = .{ .structure = output[0..count] };
+    try result.validate(.{});
     return result;
 }
 pub fn encode(self: Self, output: []u8) ![]const u8 {
-    var columns: [m.max_columns]m.Column = undefined;
+    var columns: [max_columns]t.Field = undefined;
     _ = try self.schema(&columns);
-    if (self.source == .table) return (q.station.Table{ .resource = self.resource, .id = self.source.table.id, .schema = self.source.table.schema }).queryDefinition(output);
-    var writer: std.Io.Writer = .fixed(output);
+    var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
     try writer.writeAll("UQS1");
+    try writer.writeAll(&q.catalog.TableMetadata.definition());
     try writer.writeInt(u64, self.resource, .little);
     try writer.writeByte(@backingInt(std.meta.activeTag(self.source)));
     switch (self.source) {
@@ -92,7 +101,12 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
             try writer.writeAll(kv.prefix.slice());
             try writer.writeAll(&.{ kv.key.version, @backingInt(kv.key.type), kv.value.version, @backingInt(kv.value.type) });
         },
-        .table => unreachable,
+        .table => |table| {
+            var bytes: [q.TableSource.max_bytes]u8 = undefined;
+            const encoded = try table.encode(&bytes);
+            try writer.writeInt(u16, @intCast(encoded.len), .little);
+            try writer.writeAll(encoded);
+        },
         .document => |document| {
             try writer.writeAll((try document.reference.encode()).slice());
             try writer.writeInt(u32, document.change_format, .little);
@@ -109,7 +123,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
             }
         },
     }
-    if (writer.end > max_bytes) return error.SourceDefinitionTooLarge;
+    if (writer.end > max_bytes or (self.source != .table and writer.end > max_decoder_bytes)) return error.SourceDefinitionTooLarge;
     return writer.buffered();
 }
 fn writePath(writer: *std.Io.Writer, path: []const d.Name) !void {
@@ -120,6 +134,11 @@ fn writePath(writer: *std.Io.Writer, path: []const d.Name) !void {
     }
 }
 pub fn fingerprint(self: Self) ![32]u8 {
+    if (self.source == .table) {
+        if (self.version != 1) return error.UnsupportedSource;
+        if (self.resource != self.source.table.scope.resource) return error.InvalidQuerySource;
+        return self.source.table.fingerprint();
+    }
     var bytes: [max_bytes]u8 = undefined;
     const encoded = try self.encode(&bytes);
     return m.sourceFingerprint(encoded);
@@ -129,6 +148,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.SourceDefinitionTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "UQS1")) return error.InvalidSourceEncoding;
+    if (!std.mem.eql(u8, try reader.take(32), &q.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
     var result: Self = .{ .resource = try reader.takeInt(u64, .little), .source = undefined };
     result.source = switch (try reader.takeByte()) {
         1 => .{ .kv = .{
@@ -136,7 +156,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
             .key = .{ .version = try reader.takeByte(), .type = std.enums.fromInt(m.Type, try reader.takeByte()) orelse return error.UnsupportedDecoder },
             .value = .{ .version = try reader.takeByte(), .type = std.enums.fromInt(m.Type, try reader.takeByte()) orelse return error.UnsupportedDecoder },
         } },
-        2 => .{ .table = .{ .id = try reader.takeInt(u32, .little), .schema = try q.station.Table.decodeSchema(try p.Value.init(try reader.take(try reader.takeByte()))) } },
+        2 => .{ .table = try q.TableSource.decodeInto(allocator, try reader.take(try reader.takeInt(u16, .little))) },
         3 => blk: {
             const reference = try q.document.Client.Reference.decode(try p.Value.init(try reader.take(40)));
             const format = try reader.takeInt(u32, .little);

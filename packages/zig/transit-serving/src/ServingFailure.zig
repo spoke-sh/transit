@@ -45,6 +45,7 @@ pub const Reason = enum(u8) {
     UnexpectedRefreshWake,
     AccessDenied,
     QueryDenied,
+    CatalogDenied,
     ResourceUnavailable,
     QuerySourceUnavailable,
     ResultUnavailable,
@@ -59,7 +60,7 @@ pub fn reason(cause: anyerror) ?Reason {
 pub const Class = struct { code: []const u8, category: d.Category, stage: d.Stage, message: []const u8 };
 pub fn classification(value: Reason) Class {
     return switch (value) {
-        .UnsupportedReactiveSource => .{ .code = "reactive.unsupported_source", .category = .unsupported, .stage = .admission, .message = "The declared watch requires an int64 Table value column. The observed Table uses a different type. This control did not establish watch coverage; inspect the retained expected and actual types." },
+        .UnsupportedReactiveSource => .{ .code = "reactive.unsupported_source", .category = .unsupported, .stage = .admission, .message = "The declared watch requires two int64 columns with the first as the non-null primary key. The observed Table has a different shape or type. This control did not establish watch coverage; inspect the retained expected and actual types." },
         .InvalidReactiveProgress => .{ .code = "reactive.invalid_progress", .category = .integrity, .stage = .admission, .message = "The watch progress marker has a zero revision or a revision beyond the acquired source cut. This control did not establish coverage. Inspect the marker and source revision; do not infer continuity or a completed snapshot." },
         .TableNotFound => .{ .code = "reactive.table_absent", .category = .lifecycle, .stage = .admission, .message = "The declared Table was absent in the acquired watch source. This control did not establish coverage. Check the retained Table identity and source declaration under current read authority." },
         .InvalidServingFrame => .{ .code = "serving.invalid_frame", .category = .syntax, .stage = .input, .message = "The owner rejected a malformed Station frame. Use the current serving command encoder. This input did not admit an application operation or change a session." },
@@ -82,7 +83,7 @@ pub fn classification(value: Reason) Class {
         .InvalidTimerObservation => .{ .code = "serving.invalid_timer", .category = .binding, .stage = .input, .message = "The timer observation has invalid encoding, observer or deadline evidence. It did not time out the wait. Inspect the exact recorded wait before sending another observation." },
         .PrematureTimer => .{ .code = "serving.premature_timer", .category = .conflict, .stage = .input, .message = "The timer observation precedes the recorded wait deadline. This input did not close the wait. Observe the original deadline through the configured observer." },
         .UnsupportedServingFrame => .{ .code = "serving.unsupported_frame", .category = .unsupported, .stage = .input, .message = "This Station frame kind is not supported by the serving owner. This input did not admit or complete an application operation. Use its declared command and reply interfaces." },
-        .InvalidReactiveSource => .{ .code = "reactive.invalid_source", .category = .binding, .stage = .input, .message = "The watch declaration has an invalid identity, empty schema commitment or progress key outside 1–32 bytes, or names a different service target. This input did not publish the watch." },
+        .InvalidReactiveSource => .{ .code = "reactive.invalid_source", .category = .binding, .stage = .input, .message = "The watch declaration has an invalid identity, invalid catalog metadata commitment, or names a different service target. This input did not publish the watch." },
         .ReactiveSessionNotFound => .{ .code = "reactive.session_absent", .category = .lifecycle, .stage = .admission, .message = "The owner found no session in this caller scope. This input did not create or renew one. Inspect the exact original open request and its committed disposition." },
         .ReactiveGenerationConflict => .{ .code = "reactive.generation_conflict", .category = .conflict, .stage = .admission, .message = "The requested session generation differs from the original recorded generation. This input did not change the session. Inspect the original session and reject replies belonging to another generation." },
         .ReactiveSessionClosed => .{ .code = "reactive.session_closed", .category = .lifecycle, .stage = .admission, .message = "This session was explicitly closed. This input did not reopen it or cancel accepted application commands. Inspect the original close outcome before explicitly opening a new session identity." },
@@ -101,6 +102,7 @@ pub fn classification(value: Reason) Class {
         .RefreshResultConflict => .{ .code = "refresh.result_conflict", .category = .conflict, .stage = .admission, .message = "The acknowledged query namespace or phase differs from the retained ready result. This input did not mark it covered. Verify the complete exact result before acknowledging its original namespace." },
         .UnexpectedRefreshWake => .{ .code = "refresh.unexpected_wake", .category = .access, .stage = .input, .message = "Only this owner may schedule its refresh wakeup. This input did not create query demand or authority. Use the declared Follow controls." },
         .AccessDenied => .{ .code = "serving.native_denied", .category = .access, .stage = .admission, .message = "Current native authority denied this control. This input did not complete its requested transition. Earlier accepted work remains independent; inspect current scope before continuing." },
+        .CatalogDenied => .{ .code = "reactive.catalog_denied", .category = .access, .stage = .admission, .message = "Current catalog inspect/read policy denied this caller. No watch coverage was established. Review the caller policy in the retained catalog scope; the service identity does not grant the caller access." },
         .QueryDenied => .{ .code = "refresh.query_denied", .category = .access, .stage = .admission, .message = "The query authority denied this Follow control. This input did not establish result coverage. Inspect the current query and source permissions without repeating accepted work." },
         .ResourceUnavailable => .{ .code = "serving.resource_unavailable", .category = .lifecycle, .stage = .admission, .message = "A required resource or process was unavailable at this check. This input did not complete the requested transition. Unavailability does not establish the outcome of earlier admitted work." },
         .QuerySourceUnavailable => .{ .code = "refresh.source_unavailable", .category = .lifecycle, .stage = .admission, .message = "The required query source is unavailable. This input did not establish a replacement result. Retain the last exact basis and inspect the original source and query identities." },
@@ -114,7 +116,7 @@ pub const Record = struct { reason: Reason, input: u64, kind: Kind, subject: u64
 pub const RevisionKind = enum(u8) { binding = 0, policy = 1, watch = 2, refresh = 3 };
 pub const CapacityKind = enum(u8) { service = 0, caller = 1, service_slots = 2, sessions = 3, caller_sessions = 4 };
 pub const LeaseKind = enum(u8) { clock = 0, interval = 1, binding = 2, process = 3, resource = 4, observer = 5 };
-pub const ReaderCause = enum(u8) { AccessDenied, Forbidden, StateResourceExpired, UnknownStateResource, DeadlineExpired, RetiredProcess, QueryDenied, QuerySourceUnavailable, ResultUnavailable, PublicationNotPublished };
+pub const ReaderCause = enum(u8) { AccessDenied, Forbidden, StateResourceExpired, UnknownStateResource, DeadlineExpired, RetiredProcess, CatalogDenied, QueryDenied, QuerySourceUnavailable, ResultUnavailable, PublicationNotPublished };
 pub const ReaderOperation = enum(u8) { identity, source, requester, result };
 pub const ReaderIdentity = enum(u8) { principal, pid, permissions, turn_pid };
 pub const ResourceRole = enum(u8) { source, requester };
@@ -126,7 +128,7 @@ pub const Witness = union(enum(u8)) {
     capacity: struct { kind: CapacityKind, actual: u8, limit: u8 } = 4,
     generation: struct { expected: u64, actual: u64 } = 5,
     session: struct { phase: root.ReactiveModel.Phase, deadline: u64, observed: u64, clock_known: bool } = 6,
-    source: struct { expected: u64, actual: u64, present: bool, published: bool, target: u64, resource: u64, schema: [32]u8 } = 7,
+    source: struct { expected: u64, actual: u64, present: bool, published: bool, target: u64, resource: u64, metadata: [32]u8 } = 7,
     lease: struct { kind: LeaseKind, requested: u64, observed: u64, limit: u64 } = 8,
     attachment: struct { expected: u64, actual: u64 } = 9,
     subscription: struct { expected: u64, actual: u64, requested: u64, active: u64 } = 10,
@@ -135,14 +137,15 @@ pub const Witness = union(enum(u8)) {
     refresh: struct { expected: root.RefreshModel.Namespace, actual: root.RefreshModel.Namespace, phase: root.RefreshModel.Phase } = 13,
     frame: struct { correlation: u64, expected: u64, actual: u64, kind: enum(u8) { reply_source, observer, timer, administrator }, actual_known: bool = true } = 14,
     target: struct { expected: u64, actual: u64, kind: enum(u8) { source, resource } } = 15,
-    basis: struct { expected: [32]u8, actual: [32]u8, kind: enum(u8) { schema, contract } } = 16,
+    basis: struct { expected: [32]u8, actual: [32]u8, kind: enum(u8) { schema, contract, metadata } } = 16,
     source_kind: struct { expected: root.query.fuze.Unified.SourceKind, actual: root.query.fuze.Unified.SourceKind } = 17,
-    table: u32 = 18,
-    watch_type: struct { expected: @FieldType(root.query.fuze.model.Schema, "value_type"), actual: @FieldType(root.query.fuze.model.Schema, "value_type") } = 19,
+    table: root.RefreshModel.Namespace = 18,
+    watch_type: struct { expected: root.query.fuze.Types.Tag, actual: root.query.fuze.Types.Tag, column: u8 = 1 } = 19,
     progress: struct { present: bool, actual: u64, limit: u64, key: [32]u8, length: u8 } = 20,
     reader_identity: struct { field: ReaderIdentity, expected: u64, actual: u64, present: bool = true, policy_revision: u64 = 0, policy_known: bool = false } = 21,
     reader_failure: struct { operation: ReaderOperation, principal: u64, resource: u64, namespace: u64 = 0, cause: ReaderCause } = 22,
     reader_resource: struct { role: ResourceRole, resource: u64, expected_writer: u64, actual_writer: u64, phase: @FieldType(p.Growth.Resource, "phase"), writer_check: bool, revision: u64 } = 23,
+    watch_shape: struct { columns: u8, first_nullable: bool, primary_columns: u8, primary_first: bool } = 25,
     reader_template: struct { namespace: u64, present: bool, phase: root.query.UnifiedRequest.Phase = .uploading, manifest: bool = false } = 24,
 };
 pub const Context = struct { witness: Witness = .none, cause: ?anyerror = null };
@@ -157,7 +160,7 @@ pub fn bindingWitness(value: ?m.Binding, expected: u64, codec: u16) Witness {
     return .{ .binding = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .expected_codec = codec, .actual_codec = if (value) |v| v.codec else 0, .target = if (value) |v| v.target else 0, .present = value != null, .published = if (value) |v| v.published else false } };
 }
 pub fn sourceWitness(value: ?root.ReactiveModel.Source, expected: u64) Witness {
-    return .{ .source = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .present = value != null, .published = if (value) |v| v.published else false, .target = if (value) |v| v.target else 0, .resource = if (value) |v| v.resource else 0, .schema = if (value) |v| v.schema else @splat(0) } };
+    return .{ .source = .{ .expected = expected, .actual = if (value) |v| v.revision else 0, .present = value != null, .published = if (value) |v| v.published else false, .target = if (value) |v| v.target else 0, .resource = if (value) |v| v.resource else 0, .metadata = if (value) |v| v.metadata_digest else @splat(0) } };
 }
 pub fn progressWitness(key: p.Value, actual: ?u64, limit: u64) !Witness {
     if (key.len == 0 or key.len > 32) return error.InvalidServingRecord;
@@ -279,8 +282,17 @@ pub fn facts(result: *d, witness: Witness) !void {
                 try result.fact(.published, .execution, .{ .boolean = value.manifest });
             } else try result.absent(.supplied_value, .execution, .inapplicable);
         },
-        .table => |value| try result.fact(.table, .owner, .{ .unsigned = .init(value) }),
+        .table => |value| try result.fact(.table, .owner, .{ .unsigned = .init(value.value) }),
+        .watch_shape => |value| {
+            try result.fact(.expected_count, .owner, .{ .unsigned = .init(2) });
+            try result.fact(.actual_count, .owner, .{ .unsigned = .init(value.columns) });
+            try result.fact(.presence, .owner, .{ .boolean = value.first_nullable });
+            try result.fact(.key, .owner, .{ .boolean = value.primary_first });
+            try result.fact(.required, .owner, .{ .unsigned = .init(value.primary_columns) });
+            try result.text(.unit, .owner, "columns; nullable first column; primary key on first column; primary key columns");
+        },
         .watch_type => |value| {
+            try result.fact(.column, .owner, .{ .unsigned = .init(value.column) });
             try result.text(.expected_type, .owner, @tagName(value.expected));
             try result.text(.actual_type, .owner, @tagName(value.actual));
         },
@@ -355,7 +367,7 @@ pub fn facts(result: *d, witness: Witness) !void {
             try result.fact(.actual_revision, .owner, .{ .unsigned = .init(value.actual) });
             try result.fact(.actual_resource, .owner, .{ .unsigned = .init(value.resource) });
             try result.fact(.actual_source, .owner, .{ .unsigned = .init(value.target) });
-            if (value.present) try result.fact(.actual_schema, .owner, .{ .digest = value.schema }) else try result.absent(.actual_schema, .owner, .inapplicable);
+            if (value.present) try result.fact(.actual_schema, .owner, .{ .digest = value.metadata }) else try result.absent(.actual_schema, .owner, .inapplicable);
             try result.fact(.published, .owner, .{ .boolean = value.published });
             try result.fact(.presence, .owner, .{ .boolean = value.present });
         },

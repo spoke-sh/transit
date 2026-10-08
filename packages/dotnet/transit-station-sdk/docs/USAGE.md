@@ -43,12 +43,12 @@ acquire ownership or implicitly fall back from `Profile.NativeV1`.
 
 `turn.State` provides typed `Find`, `Require`, `Put`, `Delete` and bounded `Page`.
 `Key<T>` carries the application codec. A nullable `Found<T>` distinguishes
-absence. `TableSchema<T>` selects `long?`, `bool?`, `string?` or immutable `Bytes?`
-using `Cells.Int64`, `Boolean`, `Utf8` or `Binary`. Signed `long` keys and full
-`ulong` correlations remain exact. A missing `TableRow<T>` differs from a present
-row with a null cell. Table operations validate the captured native schema.
-Pages own values, cursors and source basis; the qualified native profile returns
-at most eight entries per page.
+absence. `turn.Table(objectId)` discovers a general `Catalog.Schema`; `TableRow`
+contains an owned stable identity and logical cells. Missing rows differ from
+present rows with null cells. Table operations validate the captured native basis.
+Pages own values and cursors, with at most eight entries per page. Object and
+operation identities use the full `ulong` range. See
+[typed handler Tables](TABLES.md) for creation, saved mutation steps and limits.
 
 Turn-derived state, Table, retained-source and result-reader operations require
 the active handler thread and reject reentrant codec access. Helpers expire when
@@ -97,7 +97,7 @@ proves nothing durable.
 `NextAsync`, `ReconcileAsync`, `EvidenceAsync` and `CloseAsync` use one owned
 8 MiB thread with one admitted operation and no work backlog. Task continuations
 are scheduled asynchronously; no native I/O runs on an application event loop.
-Query-enabled runners use the native 1 MiB workspace and 8192-byte segment bound.
+Query-enabled runners use the native 4 MiB workspace and 65535-byte segment bound.
 A `CancellationToken` abandons only the local wait; admitted work continues.
 `Stop()` is cooperative, and an uncooperative handler can delay cleanup.
 Callbacks cannot reenter or join their own runner.
@@ -114,10 +114,11 @@ Garbage collection is not a shutdown protocol.
 ## Queries and migration
 
 `AllowQuery`, `StartQuery` and `CloseQuery` use native policy and typed plans; the
-SDK contains no query engine. `QueryPlan` covers supported projection, predicate,
-aggregation and optional full `ulong` limit. Verified `ResultComplete` arrives
+SDK contains no query engine. `new QueryPlan(UnifiedQuery.Plan)` freezes a general
+projection, output names, typed predicate, aggregation and optional full `ulong`
+limit. Table IDs and policy revisions use `ulong`. Verified `ResultComplete` arrives
 separately from application messages. `turn.Result(correlation).Manifest()`
-returns complete source/destination identity, resource/revision, table/policy,
+returns complete source/destination identity, resource/revision, Table-head digest, table/policy,
 plan/schema/chain digests and exact counts. `Segment(ordinal)` rechecks current
 authorization and returns copied original IPC with its manifest and digest.
 Stream bounded segments through a consumer; external effects need idempotency

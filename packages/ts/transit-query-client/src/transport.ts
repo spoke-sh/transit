@@ -1,6 +1,7 @@
 import { ownedDiagnostic } from "./diagnostics";
 import type { Diagnostic, Request, Response } from "./types";
 import { Request as validRequest } from "./validators.js";
+import { boundedQueryJson } from "./logical";
 import { validateUnifiedQuery } from "./values";
 export class QueryError extends Error {
   readonly diagnostic: Diagnostic | undefined;
@@ -28,9 +29,10 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
   )
     throw new QueryError(0, "InvalidTransport");
   return async (request, signal) => {
-    if (!validRequest(request)) throw new QueryError(0, "InvalidRequest");
+    if (!boundedQueryJson(request) || !validRequest(request))
+      throw new QueryError(0, "InvalidRequest");
     const body = JSON.stringify(request);
-    if (new TextEncoder().encode(body).length > 49152) throw new QueryError(0, "RequestTooLarge");
+    if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
     // These operations read or prepare only. Keep this allowlist explicit so a
     // future effectful request cannot inherit read-conflict retry accidentally.
     const readOnly = [

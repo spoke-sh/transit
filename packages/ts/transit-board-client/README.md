@@ -16,6 +16,9 @@ Validator generation shares identical schema fragments that contain no reference
 or schema-scope declarations. AJV compiles them as reusable functions to reduce
 duplicated browser code. The public schemas remain unchanged; contract checks
 cover generation drift and accepted/rejected values before and after sharing.
+References into nested definitions retain every ancestor along their original
+JSON Pointer path; their closed targets and siblings can still share validators.
+Nested schema resources with their own identifiers remain unchanged.
 
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage
@@ -108,8 +111,8 @@ The unified `/api/v1/query` route has a separate 1 MiB decoded JSON response
 bound: one at-most-64-KiB Arrow segment appears as hex alongside owned decoded
 cells, whose control characters may expand sixfold in JSON. Schema, conflict and
 provenance overhead stays bounded. The streaming limit applies before parsing,
-and generated plus semantic validators still enforce eight rows/columns and
-individual scalar bounds. Other routes retain their 256 KiB transport budget.
+and generated plus semantic validators still enforce eight rows, 128 columns and
+recursive logical value bounds. Other routes retain their 256 KiB transport budget.
 
 `participation(resource, cursor?, signal?)` reads the bounded shared-resource
 projection. Preserve `position` with `after` for process continuation, or the

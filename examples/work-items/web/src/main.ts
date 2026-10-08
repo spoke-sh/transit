@@ -54,7 +54,7 @@ function compatible(page: ResultPage) {
     declared &&
     declared.source_kind === "table" &&
     declared.profile === "unified_v1" &&
-    declared.resource === basis.resource &&
+    declared.resource === basis.cut.resource &&
     JSON.stringify(declared.schema) === JSON.stringify(basis.contract)
   );
 }
@@ -75,16 +75,19 @@ function show(page: ResultPage, selected: string, cursor: string | null = null) 
     const tr = document.createElement("tr");
     const id = document.createElement("td"),
       state = document.createElement("td");
-    id.textContent = unifiedCellText(row[0]!);
+    id.textContent = unifiedCellText(row[0]!, columns[0]!.type);
     const value = row[1]!;
-    const status = "value" in value && "int64" in value.value ? value.value.int64 : null;
+    const status =
+      "value" in value && "atom" in value.value && "signed" in value.value.atom
+        ? value.value.atom.signed
+        : null;
     const old = columns[1]!.name === "status";
     state.textContent =
       status === (old ? "0" : "10")
         ? "Open"
         : status === (old ? "1" : "20")
           ? "Done"
-          : unifiedCellText(value);
+          : unifiedCellText(value, columns[1]!.type);
     tr.append(id, state);
     return tr;
   });
@@ -96,7 +99,7 @@ function show(page: ResultPage, selected: string, cursor: string | null = null) 
   element("next").hidden = page.evidence.next === null;
   const manifest = page.evidence.manifest;
   element("basis").textContent =
-    `Query ${selected} · resource ${manifest.basis.resource} · revision ${manifest.basis.revision} · ${columns[1]!.name} schema`;
+    `Query ${selected} · resource ${manifest.basis.cut.resource} · revision ${manifest.basis.cut.revision} · ${columns[1]!.name} schema`;
   element("coverage").textContent =
     `Complete ordered coverage verified: ${manifest.rows} rows. Showing page ${BigInt(page.evidence.ordinal) + 1n}; ${page.evidence.rows} visible rows.`;
 }

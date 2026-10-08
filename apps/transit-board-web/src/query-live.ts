@@ -23,16 +23,25 @@ export const liveQuery = new LiveView<ResultPage>(querySession, async (signal, n
     );
     const basis = page.evidence.manifest.basis;
     const next = {
-      resource: basis.resource,
+      resource: basis.cut.resource,
       contract: JSON.stringify(basis.contract),
       plan: JSON.stringify(page.evidence.manifest.plan),
     };
-    if (basis.kind !== "table" || basis.resource !== description.description.source.source.resource)
+    if (
+      basis.cut.kind !== "table" ||
+      basis.cut.resource !== description.description.source.source.resource
+    )
       throw new ReactiveError(409, "reset_required");
     if (identity && JSON.stringify(identity) !== JSON.stringify(next))
       throw new ReactiveError(409, "reset_required");
     identity = next;
-    return { value: page, basis, namespace };
+    // Follow compares source coverage. The full captured head remains on page;
+    // a watch watermark is not an immutable result or a retained source pin.
+    return {
+      value: page,
+      basis,
+      namespace,
+    };
   } catch (error) {
     if (error instanceof BoardError)
       throw new ReactiveError(

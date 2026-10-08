@@ -120,5 +120,5 @@ test "file fingerprints bind program order opcodes and literal bytes within the 
     var oversized = plan;
     oversized.predicate = .{ .program = .{ .instructions = &large } };
     try oversized.validate();
-    try t.expectError(error.WriteFailed, oversized.fingerprint());
+    try t.expectError(error.PlanTooLarge, oversized.fingerprint());
 }

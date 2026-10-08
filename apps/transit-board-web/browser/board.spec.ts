@@ -88,7 +88,11 @@ test("state associations disclose resources without interpreting application dat
   // The API proof checks recognized framework declarations. The current atlas
   // exposes record identities and source revisions without application values.
   for (const key of await records.getByText("Source key", { exact: true }).all()) await key.click();
-  for (const key of ["0073746174696f6e", "007401000000", "6170706c69636174696f6e"])
+  for (const key of [
+    "0073746174696f6e",
+    process.env.BOARD_TEST_TABLE_KEY!,
+    "6170706c69636174696f6e",
+  ])
     await expect(records.getByText(key, { exact: true })).toBeVisible();
   await expect(records.getByText("station.genserver.v1", { exact: true })).toHaveCount(0);
 });

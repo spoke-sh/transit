@@ -4,11 +4,11 @@ const std = @import("std");
 const types = @import("Types.zig");
 const sem = types.Semantics;
 pub const Atom = sem.Atom;
-pub const Alternative = struct { counter: u64, replica: u64, value: union(enum) { null, type_error: types.Tag, value: Value } };
+pub const Alternative = struct { counter: u64, replica: u64, value: union(enum) { null, type_error: types.Kind, value: Value } };
 pub const Cell = union(types.State) {
     missing,
     null,
-    type_error: types.Tag,
+    type_error: types.Kind,
     value: Value,
     conflict: []const Alternative,
     pub fn validate(self: Cell, field: types.Field, limits: types.Limits) !void {
@@ -122,19 +122,34 @@ pub fn atomOrder(left: Atom, right: Atom, expected: types.Type) !std.math.Order 
         .interval => error.UnorderedType,
     };
 }
-pub fn fromQuery(value: types.Query.Cell) !Cell {
+fn queryValue(allocator: std.mem.Allocator, scalar: types.Query.Scalar) !Value {
+    return .{ .atom = switch (scalar) {
+        .int64 => |v| .{ .signed = v },
+        .uint64 => |v| .{ .unsigned = v },
+        .float64 => |v| .{ .float = v },
+        .boolean => |v| .{ .boolean = v },
+        .utf8, .binary => |v| .{ .bytes = try allocator.dupe(u8, v) },
+    } };
+}
+/// Lossless six-scalar source conversion, including every state and observed
+/// source kind. All copied bytes/alternatives belong to the supplied arena;
+/// release that arena after success or failure. No source authority is implied.
+pub fn fromQuery(allocator: std.mem.Allocator, expected: types.Query.Type, value: types.Query.Cell) !Cell {
+    try value.validate(expected);
     return switch (value) {
         .missing => .missing,
         .null => .null,
-        .type_error => error.UnsupportedQueryConversion,
-        .conflict => error.UnsupportedQueryConversion,
-        .value => |scalar| .{ .value = .{ .atom = switch (scalar) {
-            .int64 => |v| .{ .signed = v },
-            .uint64 => |v| .{ .unsigned = v },
-            .float64 => |v| .{ .float = v },
-            .boolean => |v| .{ .boolean = v },
-            .utf8, .binary => |v| .{ .bytes = v },
-        } } },
+        .type_error => |kind| .{ .type_error = types.Kind.fromQuery(kind) },
+        .conflict => |alternatives| blk: {
+            const result = try allocator.alloc(Alternative, alternatives.len);
+            for (result, alternatives) |*out, in| out.* = .{ .counter = in.counter, .replica = in.replica, .value = switch (in.value) {
+                .null => .null,
+                .type_error => |kind| .{ .type_error = types.Kind.fromQuery(kind) },
+                .value => |scalar| .{ .value = try queryValue(allocator, scalar) },
+            } };
+            break :blk .{ .conflict = result };
+        },
+        .value => |scalar| .{ .value = try queryValue(allocator, scalar) },
     };
 }
 test "recursive values bound children and preserve nested missing null and error" {

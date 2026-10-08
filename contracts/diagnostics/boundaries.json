@@ -8,13 +8,6 @@
       "exceptions": {},
       "fallback": "query"
     },
-    "mutation": {
-      "causes": null,
-      "mappings": [],
-      "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
-      "exceptions": {},
-      "fallback": "mutation"
-    },
     "catalog": {
       "causes": null,
       "mappings": [],
@@ -160,65 +153,16 @@
     "sql-declaration": {
       "causes": [
         "CommentTooDeep",
-        "DeclarationTooManyColumns",
-        "DuplicateColumn",
         "IncompleteSql",
-        "InvalidColumnCount",
         "InvalidColumnName",
         "InvalidParameterIndex",
         "InvalidSqlEncoding",
         "InvalidSqlSyntax",
-        "NotTableDeclaration",
         "StatementTooLarge",
         "UnboundParameters",
-        "UnspecifiedNullability",
         "UnsupportedConstruct",
         "UnsupportedDeclaration",
         "UnsupportedDeclarationType",
-        "UnsupportedSchema",
-        "UnsupportedStatement",
-        "UnsupportedTableColumnCount",
-        "UnsupportedTableKey",
-        "UnsupportedTableNullability"
-      ],
-      "mappings": [
-        "sql-compilation"
-      ],
-      "reason": "Compiler-inferred set is conservative; it includes errors normalized by the enclosing compiler.",
-      "exceptions": {
-        "IncompleteSql": "Consumed editor cursor sentinel; public parse paths do not provide the cursor assistance that creates it. The SQL mapping manifest owns its control-flow tests."
-      }
-    },
-    "sql-mutation": {
-      "causes": [
-        "CellTooLarge",
-        "CommentTooDeep",
-        "DuplicateColumn",
-        "DuplicateMutationKey",
-        "ImmutablePrimaryKey",
-        "IncompleteSql",
-        "InvalidBinaryLiteral",
-        "InvalidColumnName",
-        "InvalidMutationPlan",
-        "InvalidNumericLiteral",
-        "InvalidParameterIndex",
-        "InvalidSqlEncoding",
-        "InvalidSqlSyntax",
-        "InvalidUtf8",
-        "LiteralOutOfRange",
-        "LiteralTooLarge",
-        "MutationBatchTooLarge",
-        "NullPrimaryKey",
-        "StatementTooLarge",
-        "TypeMismatch",
-        "UnboundParameters",
-        "UnknownColumn",
-        "UnknownQualifier",
-        "UnknownSource",
-        "UnsupportedConstruct",
-        "UnsupportedLiteral",
-        "UnsupportedMutationPredicate",
-        "UnsupportedSchema",
         "UnsupportedStatement"
       ],
       "mappings": [
@@ -299,6 +243,24 @@
       "reason": "Transport, allocator or callback APIs expose anyerror. Selected known causes are mapped separately; arbitrary external causes cannot be enumerated.",
       "exceptions": {},
       "fallback": "serving"
+    },
+    "sql-table-ddl": {
+      "causes": null,
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Recursive typed parsing and logical codecs expose anyerror, including allocation failure. Reviewed known causes are mapped; unknown causes remain at their original caller boundary.",
+      "exceptions": {},
+      "fallback": "sql-table-ddl"
+    },
+    "sql-table-dml": {
+      "causes": null,
+      "mappings": [
+        "sql-compilation"
+      ],
+      "reason": "Recursive typed parsing and logical codecs expose anyerror, including allocation failure. Reviewed known causes are mapped; unknown causes remain at their original caller boundary.",
+      "exceptions": {},
+      "fallback": "sql-table-dml"
     }
   },
   "fallbacks": {
@@ -314,27 +276,6 @@
     },
     "query.dispatched": {
       "code": "query.send_unknown",
-      "category": "unavailable",
-      "stage": "submit",
-      "outcome": "unknown",
-      "evidence": "saved_intent",
-      "actions": [
-        "inspect_status",
-        "resume_exact"
-      ]
-    },
-    "mutation.read": {
-      "code": "mutation.internal_failure",
-      "category": "internal",
-      "stage": "read",
-      "outcome": "not_applicable",
-      "evidence": "none",
-      "actions": [
-        "contact_operator"
-      ]
-    },
-    "mutation.dispatched": {
-      "code": "mutation.send_unknown",
       "category": "unavailable",
       "stage": "submit",
       "outcome": "unknown",
@@ -423,6 +364,14 @@
     "file": {
       "source": "apps/transit-cli/FileDiagnosticTests.zig",
       "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
+    },
+    "sql-table-ddl": {
+      "source": "packages/zig/transit-fuze/src/table_ddl_test.zig",
+      "name": "Table DDL diagnostics retain actual causes and never classify unknown execution failures"
+    },
+    "sql-table-dml": {
+      "source": "packages/zig/transit-fuze/src/table_dml_test.zig",
+      "name": "typed DML diagnostics preserve compile rejection without narrow-profile or recovery advice"
     }
   }
 }

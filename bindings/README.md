@@ -37,6 +37,12 @@ Linux x86_64 and are built from this checkout. Native packages retain their loca
 Nix runtime linkage. Public registries and other platform artifacts are not
 provided by these build tasks.
 
+The Python wheel, Node tarball, Ruby gem, Java JAR, .NET NuGet, Rust crate, BEAM OTP and C/C++ archive builders accept `--native-prefix PATH`
+to package libraries and hosts from an explicitly selected Zig install prefix. For example,
+`python3 -B bindings/build_python.py /tmp/transit-wheels --native-prefix /tmp/transit-native`
+uses that prefix's `lib/` and `bin/` artifacts; all must come from the same source
+definition and build. Omitting the option uses this checkout's `zig-out/`.
+
 | Task | Work |
 | --- | --- |
 | `just bindings::build` | Shared client/Station libraries and native hosts |

@@ -3,15 +3,46 @@
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
-const m = f.Unified;
+const stream = f.LogicalStream;
 const Frame = @import("Frame.zig");
-pub const segment_bytes = 8192;
+// Segment lengths/fragment offsets are uint16. This bounded transport profile
+// admits every aligned logical segment below the Arrow codec's 64-KiB ceiling.
+pub const segment_bytes = std.math.maxInt(u16);
+pub const max_plan_bytes = 2 * p.Value.max_bytes;
+pub const Basis = struct { resource: u64, revision: u64, head: [32]u8 };
 pub const fragment_bytes = Frame.max_payload - 22;
 /// A sender may not start a segment more than this many ordinals past the
 /// last credit it has observed. Fixed, not adaptive; matches Delivery.tla's
 /// checked `Window` constant. See docs/reference/streams.md#flow-control.
 pub const credit_window: u64 = 2;
-pub const Phase = enum(u8) { capturing = 1, captured = 2, published = 3, acknowledged = 4, cancelled = 5, denied = 6 };
+pub const Phase = enum(u8) { capturing = 1, captured = 2, published = 3, acknowledged = 4, cancelled = 5, denied = 6, failed = 7 };
+pub const Failure = enum(u8) { none = 0, result_too_large = 1, workspace_exceeded = 2, overflow = 3 };
+/// Terminal negative result, separate from application reply codecs. The source
+/// and correlation come from the authenticated frame and its durable wait.
+pub const ResultFailure = struct {
+    pub const Reason = enum(u8) { result_too_large = 1, workspace_exceeded = 2, overflow = 3, cancelled = 4, denied = 5 };
+    result: u64,
+    reason: Reason,
+
+    pub fn encode(self: ResultFailure) !p.Value {
+        if (self.result == 0 or self.result > p.max_counter) return error.InvalidResultFailure;
+        var bytes: [13]u8 = undefined;
+        bytes[0..4].* = "GQE1".*;
+        std.mem.writeInt(u64, bytes[4..12], self.result, .little);
+        bytes[12] = @backingInt(self.reason);
+        return p.Value.init(&bytes);
+    }
+    pub fn decode(value: p.Value) !ResultFailure {
+        try value.validate();
+        if (value.len != 13 or !std.mem.eql(u8, value.data[0..4], "GQE1")) return error.InvalidResultFailure;
+        const self: ResultFailure = .{
+            .result = std.mem.readInt(u64, value.data[4..12], .little),
+            .reason = std.enums.fromInt(Reason, value.data[12]) orelse return error.InvalidResultFailure,
+        };
+        _ = try self.encode();
+        return self;
+    }
+};
 
 pub fn key(tag: u8, result: u64, ordinal: u64, fragment: u16) p.Value {
     var bytes: [21]u8 = undefined;
@@ -25,53 +56,68 @@ pub const Job = struct {
     result: u64,
     destination: u64,
     correlation: u64,
-    table: u32,
+    table: u64,
     source: p.Growth.ReadVersionId,
+    resource: u64,
+    revision: u64,
+    plan_bytes: u16,
     policy_revision: u64,
     phase: Phase = .capturing,
+    failure: Failure = .none,
     bytes: u64 = 0,
     chain: [32]u8 = @splat(0),
     send_segment: u64 = 0,
     send_offset: u16 = 0,
-    table_after: ?i64 = null,
+    table_after: ?f.TableRow.Identity = null,
     pub fn encode(self: Job) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
         try writer.writeAll("GQJ1");
         inline for (.{ "result", "destination", "correlation" }) |field| try writer.writeInt(u64, @field(self, field), .little);
-        try writer.writeInt(u32, self.table, .little);
+        try writer.writeInt(u64, self.table, .little);
         try writer.writeInt(u64, self.source.pid, .little);
         try writer.writeInt(u64, self.source.input, .little);
         try writer.writeByte(self.source.index);
+        try writer.writeInt(u64, self.resource, .little);
+        try writer.writeInt(u64, self.revision, .little);
+        try writer.writeInt(u16, self.plan_bytes, .little);
         try writer.writeInt(u64, self.policy_revision, .little);
         try writer.writeByte(@backingInt(self.phase));
+        try writer.writeByte(@backingInt(self.failure));
         try writer.writeInt(u64, self.bytes, .little);
         try writer.writeAll(&self.chain);
         try writer.writeInt(u64, self.send_segment, .little);
         try writer.writeInt(u16, self.send_offset, .little);
         try writer.writeByte(@intFromBool(self.table_after != null));
-        try writer.writeInt(i64, self.table_after orelse 0, .little);
+        const after: [f.TableRow.Identity.encoded_bytes]u8 = if (self.table_after) |identity| try identity.encode() else @splat(0);
+        try writer.writeAll(&after);
         value.len = @intCast(writer.end);
         return value;
     }
     pub fn decode(value: p.Value) !Job {
         try value.validate();
-        if (value.len != 117 or !std.mem.eql(u8, value.data[0..4], "GQJ1")) return error.InvalidQueryJob;
+        if (value.len != 152 or !std.mem.eql(u8, value.data[0..4], "GQJ1")) return error.InvalidQueryJob;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
-        var self: Job = .{ .result = undefined, .destination = undefined, .correlation = undefined, .table = undefined, .source = undefined, .policy_revision = undefined };
+        var self: Job = .{ .result = undefined, .destination = undefined, .correlation = undefined, .table = undefined, .source = undefined, .resource = undefined, .revision = undefined, .plan_bytes = undefined, .policy_revision = undefined };
         inline for (.{ "result", "destination", "correlation" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
-        self.table = try reader.takeInt(u32, .little);
+        self.table = try reader.takeInt(u64, .little);
         self.source = .{ .pid = try reader.takeInt(u64, .little), .input = try reader.takeInt(u64, .little), .index = try reader.takeByte() };
+        self.resource = try reader.takeInt(u64, .little);
+        self.revision = try reader.takeInt(u64, .little);
+        self.plan_bytes = try reader.takeInt(u16, .little);
         self.policy_revision = try reader.takeInt(u64, .little);
         self.phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryJob;
+        self.failure = std.enums.fromInt(Failure, try reader.takeByte()) orelse return error.InvalidQueryJob;
+        if ((self.phase == .failed) != (self.failure != .none)) return error.InvalidQueryJob;
         self.bytes = try reader.takeInt(u64, .little);
         self.chain = (try reader.takeArray(32)).*;
         self.send_segment = try reader.takeInt(u64, .little);
         self.send_offset = try reader.takeInt(u16, .little);
         const present = try reader.takeByte();
-        const after = try reader.takeInt(i64, .little);
-        if (present > 1 or (present == 0 and after != 0)) return error.InvalidQueryJob;
-        self.table_after = if (present == 1) after else null;
+        const after = try reader.takeArray(f.TableRow.Identity.encoded_bytes);
+        if (present > 1 or (present == 0 and !std.mem.allEqual(u8, after, 0))) return error.InvalidQueryJob;
+        self.table_after = if (present == 1) try f.TableRow.Identity.decode(after) else null;
+        if (self.resource == 0 or self.resource > p.max_counter or self.plan_bytes == 0 or self.plan_bytes > max_plan_bytes) return error.InvalidQueryJob;
         if (self.result == 0 or self.result > p.max_counter or self.destination == 0 or self.destination > p.max_counter or self.correlation == 0 or self.table == 0 or self.policy_revision == 0 or
             self.source.pid == 0 or self.source.pid > p.max_counter or self.source.input != self.result or self.source.index >= p.Growth.version_changes or self.send_offset > segment_bytes or
             !value.eql(try self.encode())) return error.InvalidQueryJob;
@@ -101,7 +147,7 @@ pub const Segment = struct {
         if (value.len != 55 or !std.mem.eql(u8, value.data[0..4], "GQS1")) return error.InvalidResultSegment;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         const self: Segment = .{ .result = try reader.takeInt(u64, .little), .ordinal = try reader.takeInt(u64, .little), .bytes = try reader.takeInt(u16, .little), .rows = try reader.takeByte(), .digest = (try reader.takeArray(32)).* };
-        if (self.result == 0 or self.result > p.max_counter or self.bytes < 8 or self.bytes > segment_bytes or self.rows > m.max_rows or !value.eql(try self.encode())) return error.InvalidResultSegment;
+        if (self.result == 0 or self.result > p.max_counter or self.bytes < 8 or self.bytes > segment_bytes or self.rows > stream.max_rows or !value.eql(try self.encode())) return error.InvalidResultSegment;
         return self;
     }
     pub fn extend(self: Segment, previous: [32]u8) ![32]u8 {
@@ -113,14 +159,14 @@ pub const Segment = struct {
     }
 };
 pub const Stage = struct {
-    candidate: m.Stream.Progress,
+    candidate: stream.Progress,
     segment: Segment,
     written: u16 = 0,
     pub fn encode(self: Stage) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
         try writer.writeAll("GQT1");
-        try writer.writeAll(&try self.candidate.encode());
+        try writer.writeAll(&try self.candidate.encodeRecord());
         try writer.writeAll((try self.segment.encode()).slice());
         try writer.writeInt(u16, self.written, .little);
         value.len = @intCast(writer.end);
@@ -128,10 +174,10 @@ pub const Stage = struct {
     }
     pub fn decode(value: p.Value) !Stage {
         try value.validate();
-        const progress_end = 4 + m.Stream.progress_bytes;
+        const progress_end = 4 + stream.progress_bytes;
         const segment_end = progress_end + 55;
         if (value.len != segment_end + 2 or !std.mem.eql(u8, value.data[0..4], "GQT1")) return error.InvalidQueryStage;
-        const self: Stage = .{ .candidate = try m.Stream.Progress.decode(value.data[4..progress_end]), .segment = try Segment.decode(try p.Value.init(value.data[progress_end..segment_end])), .written = std.mem.readInt(u16, value.data[segment_end..][0..2], .little) };
+        const self: Stage = .{ .candidate = try stream.Progress.decodeRecord(value.data[4..progress_end]), .segment = try Segment.decode(try p.Value.init(value.data[progress_end..segment_end])), .written = std.mem.readInt(u16, value.data[segment_end..][0..2], .little) };
         if (self.written > self.segment.bytes or (self.written != self.segment.bytes and self.written % fragment_bytes != 0) or !value.eql(try self.encode())) return error.InvalidQueryStage;
         return self;
     }
@@ -187,7 +233,7 @@ pub const Transfer = struct {
         self.pending = try reader.takeInt(u16, .little);
         self.schema = (try reader.takeArray(32)).*;
         if (self.result == 0 or self.result > p.max_counter or self.source == 0 or self.source > p.max_counter or self.pending > segment_bytes or
-            self.rows / m.max_rows + @intFromBool(self.rows % m.max_rows != 0) > self.segments or
+            self.rows / stream.max_rows + @intFromBool(self.rows % stream.max_rows != 0) > self.segments or
             (self.segments == 0 and (self.bytes != 0 or self.rows != 0 or !std.mem.allEqual(u8, &self.chain, 0) or !std.mem.allEqual(u8, &self.schema, 0))) or
             !value.eql(try self.encode())) return error.InvalidResultTransfer;
         return self;
@@ -209,9 +255,9 @@ pub const Manifest = struct {
     result: u64,
     destination: u64,
     correlation: u64,
-    table: u32,
+    table: u64,
     policy_revision: u64,
-    basis: m.Basis,
+    basis: Basis,
     plan: [32]u8,
     segments: u64,
     bytes: u64,
@@ -223,13 +269,11 @@ pub const Manifest = struct {
         var writer: std.Io.Writer = .fixed(&value.data);
         try writer.writeAll("GQM1");
         inline for (.{ "result", "destination", "correlation" }) |field| try writer.writeInt(u64, @field(self, field), .little);
-        try writer.writeInt(u32, self.table, .little);
+        try writer.writeInt(u64, self.table, .little);
         try writer.writeInt(u64, self.policy_revision, .little);
-        try writer.writeByte(@backingInt(self.basis.kind));
         try writer.writeInt(u64, self.basis.resource, .little);
         try writer.writeInt(u64, self.basis.revision, .little);
-        try writer.writeAll(&self.basis.contract);
-        try writer.writeAll(&self.basis.schema);
+        try writer.writeAll(&self.basis.head);
         try writer.writeAll(&self.plan);
         inline for (.{ "segments", "bytes", "rows" }) |field| try writer.writeInt(u64, @field(self, field), .little);
         try writer.writeAll(&self.chain);
@@ -239,20 +283,20 @@ pub const Manifest = struct {
     }
     pub fn decode(value: p.Value) !Manifest {
         try value.validate();
-        if (value.len != 241 or !std.mem.eql(u8, value.data[0..4], "GQM1")) return error.InvalidResultManifest;
+        if (value.len != 212 or !std.mem.eql(u8, value.data[0..4], "GQM1")) return error.InvalidResultManifest;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         var self: Manifest = undefined;
         inline for (.{ "result", "destination", "correlation" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
-        self.table = try reader.takeInt(u32, .little);
+        self.table = try reader.takeInt(u64, .little);
         self.policy_revision = try reader.takeInt(u64, .little);
-        self.basis = .{ .kind = std.enums.fromInt(m.SourceKind, try reader.takeByte()) orelse return error.InvalidResultManifest, .resource = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .contract = (try reader.takeArray(32)).*, .schema = (try reader.takeArray(32)).* };
+        self.basis = .{ .resource = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .head = (try reader.takeArray(32)).* };
         self.plan = (try reader.takeArray(32)).*;
         inline for (.{ "segments", "bytes", "rows" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
         self.chain = (try reader.takeArray(32)).*;
         self.schema = (try reader.takeArray(32)).*;
         if (self.result == 0 or self.result > p.max_counter or self.destination == 0 or self.destination > p.max_counter or self.correlation == 0 or self.table == 0 or self.policy_revision == 0 or
-            self.basis.kind != .table or self.basis.resource == 0 or self.basis.resource > p.max_counter or self.segments == 0 or self.bytes < 8 or
-            self.rows / m.max_rows + @intFromBool(self.rows % m.max_rows != 0) > self.segments or !value.eql(try self.encode())) return error.InvalidResultManifest;
+            self.basis.resource == 0 or self.basis.resource > p.max_counter or self.segments == 0 or self.bytes < 8 or
+            self.rows / stream.max_rows + @intFromBool(self.rows % stream.max_rows != 0) > self.segments or !value.eql(try self.encode())) return error.InvalidResultManifest;
         return self;
     }
     pub fn check(self: Manifest, transfer: Transfer) !void {

@@ -19,9 +19,7 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
           policy_revision: "1",
           request: "00",
           basis: {
-            kind: "document",
-            resource: 7,
-            revision: 42,
+            cut: { kind: "document", resource: 7, revision: 42, head: Array(32).fill(0) },
             contract: Array(32).fill(0),
             schema: Array(32).fill(1),
           },
@@ -37,7 +35,7 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
           finished: "source_end",
           chain: Array(32).fill(3),
         },
-        columns: [{ name: "counter", type: "uint64" }],
+        columns: [{ name: "counter", type: { uint64: {} }, nullable: true, optional: true }],
         ordinal: "0",
         rows: 1,
         ipc: "00",
@@ -77,11 +75,11 @@ describe("unified query boundary", () => {
     ).toBe(false);
   });
   it("admits escaped query pages while keeping inspection and query response bounds", async () => {
-    const value = page({ value: { utf8: "\u0000".repeat(2048) } });
+    const value = page({ value: { atom: { utf8: "\u0000".repeat(2048) } } });
     if (!("page" in value)) throw new Error("fixture");
     value.page.evidence.columns = [
-      { name: "key", type: "utf8" },
-      { name: "value", type: "utf8" },
+      { name: "key", type: { utf8: {} }, nullable: true, optional: true },
+      { name: "value", type: { utf8: {} }, nullable: true, optional: true },
     ];
     value.page.evidence.rows = 8;
     value.page.evidence.ipc = "00".repeat(65536);
@@ -93,8 +91,8 @@ describe("unified query boundary", () => {
       bytes: "65536",
     });
     value.page.cells = Array.from({ length: 8 }, () => [
-      { value: { utf8: "\u0000".repeat(2048) } },
-      { value: { utf8: "\u0000".repeat(2048) } },
+      { value: { atom: { utf8: "\u0000".repeat(2048) } } },
+      { value: { atom: { utf8: "\u0000".repeat(2048) } } },
     ]);
     const encoded = JSON.stringify(value);
     expect(encoded.length).toBeGreaterThan(262144);
@@ -118,33 +116,35 @@ describe("unified query boundary", () => {
       { missing: {} },
       { null: {} },
       { type_error: "map" },
-      { value: { uint64: "18446744073709551615" } },
+      { value: { atom: { unsigned: "18446744073709551615" } } },
       {
         conflict: [
           { counter: "1", replica: "1", value: { null: {} } },
           {
             counter: "1",
             replica: "18446744073709551615",
-            value: { value: { uint64: "18446744073709551615" } },
+            value: { value: { atom: { unsigned: "18446744073709551615" } } },
           },
         ],
       },
     ];
     for (const value of values) expect(validateUnifiedQuery(page(value))).toBe(true);
-    expect(values.map(unifiedCellText)).toEqual([
+    expect(values.map((value) => unifiedCellText(value))).toEqual([
       "MISSING",
       "NULL",
       "TYPE ERROR (map)",
       "18446744073709551615",
       "CONFLICT [1/1: NULL; 1/18446744073709551615: 18446744073709551615]",
     ]);
-    expect(unifiedCellText({ value: { float_bits: "0000000000000080" } })).toBe("-0");
-    expect(unifiedCellText({ value: { binary: "00ff" } })).toBe("0x00ff");
+    expect(unifiedCellText({ value: { atom: { float_bits: "0000000000000080" } } })).toBe("-0");
+    expect(unifiedCellText({ value: { atom: { binary: "00ff" } } })).toBe("0x00ff");
   });
   it("rejects widened cells, reordered conflicts and false final coverage", () => {
-    expect(validateUnifiedQuery(page({ value: { uint64: "18446744073709551616" } }))).toBe(false);
-    expect(validateUnifiedQuery(page({ value: { uint64: "01" } }))).toBe(false);
-    expect(validateUnifiedQuery(page({ value: { int64: "1" } }))).toBe(false);
+    expect(
+      validateUnifiedQuery(page({ value: { atom: { unsigned: "18446744073709551616" } } })),
+    ).toBe(false);
+    expect(validateUnifiedQuery(page({ value: { atom: { unsigned: "01" } } }))).toBe(false);
+    expect(validateUnifiedQuery(page({ value: { atom: { signed: "1" } } }))).toBe(false);
     expect(
       validateUnifiedQuery(
         page({

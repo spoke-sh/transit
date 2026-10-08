@@ -86,14 +86,17 @@ or stop; it must not convert missing read evidence into a successful proposal or
 a durable handler-failure marker. A transport-capable reader is not a sandbox:
 deployment isolation remains necessary for untrusted native code.
 
-`Table.create/open`, point reads/mutations and `Table.atomic` share codecs,
-type checks and rollback rules. A full Table need not fit in resident memory;
-use bounded pages and retained sources for iteration across handlers.
+`TableCreation`, `TableReader` and `TableWrite` share the general typed schema,
+immutable row/index representation and exact operation identities. Creation and
+mutation can require multiple committed steps; applications durably schedule
+continuations and publish replies only after the terminal outcome. A full Table
+need not fit in resident memory. See [Tables](tables.md) for ownership, limits
+and mutation composition.
 
 `Turn.page(after)` reads at most eight committed KV entries; private
-mutations must be absent. `Table.page(turn, cursor)` decodes a bounded batch of
-typed rows and stops at that Table's key boundary. Its returned `next` binds the
-source ID, resource, revision, Table and schema. Passing it to another source or
+mutations must be absent. `table.page(allocator, source, cursor, limit)` decodes
+one to eight owned logical rows in internal identity order. Its returned `next`
+binds the source ID, resource, revision, object and exact head. Passing it to another source or
 Table fails with `StaleTableCursor`. Only null establishes completion; an empty
 final page is possible. Keep one captured view throughout iteration. Failure or
 expiry cannot silently recapture a newer version, and read failures poison the
@@ -101,8 +104,8 @@ private proposal as point reads do.
 
 `var source = turn.committed()` borrows the same captured cut explicitly.
 Its `read` and `page` both exclude private inserts, updates and deletes, including
-when the source is borrowed after those changes. It supports `Table.open/get/page`
-with the ordinary Table codecs and cursor basis. This lets a framework composition
+when the source is borrowed after those changes. `TableReader` also uses this
+committed cut when passed a turn directly. This lets a framework composition
 check committed state while staging unrelated setup records; it never merges an
 overlay into an ordered page. `Turn.page` keeps its rejection after private writes.
 The source acquires no new view, retains no history and adds no permission.
@@ -123,12 +126,22 @@ proposal as the job/progress that will use it. No bytes become visible early;
 the retained source excludes this turn's private writes.
 
 `var source = try turn.openVersion(id)` opens a read-only source.
-`Table.open(&source, table_id)`, `table.get(&source, key)` and
-`table.page(&source, cursor)` reuse the ordinary Table decoder and bounded paging.
-The cursor's `source` distinguishes a turn view from a retained version. Reopen
+`TableReader.open(allocator, &source, object)`, `table.getKey(allocator, &source, cells)`
+and `table.page(allocator, &source, cursor, limit)` use the captured schema and
+owned logical values. Release readers and rows/pages with `deinit`. The cursor's
+`basis.cut` distinguishes a turn view from a retained version. Reopen
 the same durable ID in a replacement handler to resume its saved cursor; do not
 reuse the borrowed `source` pointer after the turn ends. KV callers can use
 `source.read(key)` or `source.page(after)` directly.
+
+When the host enables captured read caching, each opened retained source also
+keeps at most 64 point entries, including absence, for that handler invocation.
+The cache belongs to its exact retained cut and excludes private writes. A new
+open starts empty; eviction fetches the entry again. Ordered pages still use the
+native reader. Every point read, including a cache hit, records the retained
+dependency and rejects an earlier read failure. Current application permissions
+remain a separate live check; cached bytes do not preserve permission or prevent
+the authority from rejecting the final proposal.
 
 Opening/reading automatically includes the version in the final proposal's read
 dependencies, deduplicated within a four-version budget. Current grants, source

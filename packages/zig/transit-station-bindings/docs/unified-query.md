@@ -1,6 +1,6 @@
 # Unified query clients and codecs
 
-The additive `station_unified_query_codec(json, length, output)` export and
+The `station_unified_query_codec(json, length, output)` export and
 `unified_query_codec` port action share `QueryCodec`. Generated schemas come from
 the same Zig types. The [v1 contract](../../../../contracts/UNIFIED_QUERY_V1.md)
 owns source identity, typed semantics and the foreign representation.
@@ -17,14 +17,21 @@ infer a KV decoder, adopt an unknown Document format or widen a Table schema.
 Document paths are UTF-8 name arrays; list expansion and text projections retain
 their explicit traversal/byte budgets. `decode` rejects incomplete/trailing bytes.
 
-Keep all non-counter 64-bit quantities as decimal strings. Float values use
+Logical source schemas describe every column, including nested types, nullability
+and optionality. Table declarations bind catalog scope, owner, stable object and
+immutable metadata; they do not identify a two-column positional layout.
+
+Keep all non-counter integers, including 128-bit values, as decimal strings.
+Typed scalar bindings use `signed` or `unsigned`, with the inferred logical
+descriptor selecting the exact width; decimal coefficients, temporal values and
+UUIDs use the shared [logical value encoding](../../../../contracts/FUZE_TYPES_V1.md). Float values use
 `float_bits` hex to preserve negative zero; binary uses hex and UTF-8 uses text.
 Projection indices are numeric arrays. Returned conflicts include their original
 ordered assignment IDs and distinguish null from a typed value or type error.
 
 Plans accept `output_names` as null for all defaults or an array matching the
-projection width. Each position is null or an ASCII identifier of at most 32
-bytes. Named output positions may repeat an input index when resulting names
+projection width. Each position is null or a nonempty UTF-8 name of at most 255
+bytes, without NUL. Named output positions may repeat an input index when resulting names
 are distinct. Decoding preserves owned names and null slots, so preparing a
 decoded bundle retains its exact bytes and immutable Publication identity.
 
@@ -33,14 +40,16 @@ Atoms reuse the `all`, `state` and `compare` values; `negate`, `conjunction` and
 `disjunction` have empty-object payloads. The shared owner validates complete
 stack shape and every typed atom before encoding. Decode copies instruction
 and literal storage into its owned result. The generated array limit is specific
-to programs; column and row limits stay at eight. Native SQL lowers NOT, AND, OR
+to programs; column limits are 128 and row pages contain at most eight rows. Native SQL lowers NOT, AND, OR
 and grouping to these programs. All ten SDKs expose typed program constructors
 and inspected programs. The C/C++ layout extension replaces the shared ABI
 definition; deploy matching headers, SDK libraries and native artifacts.
 
 The complete JSON input is at most 256 KiB. The native implementation additionally
-enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow
-segment bounds. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,
+enforces the 25069-byte bundle, 128-column/eight-row page, 4 KiB comparison
+literal and 64 KiB Arrow segment bounds. Recursive cells retain the logical
+child, nesting and byte budgets; KV and Document keep their narrower decoder
+profiles. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,
 names, scalars and IPC-derived values are copied into the owned result; they do
 not borrow temporary parsing storage. Release every native `station_buffer`
 once, and join in-flight work before destroying a foreign owner.
@@ -49,11 +58,13 @@ The port can run with `{"local_codec":true}`. It needs no authority URL, key or
 execution handle. Pure decoding does not establish current source availability
 or authorization; signed submission/result qualification is separate.
 
-`tests/unified_codec.py HOST LIBRARY` checks both transports against independently
-encoded bundles and PyArrow-produced streams. It covers all three sources, six
+`tests/unified_codec.py HOST LIBRARY ARROW_PRODUCER` checks both transports
+against independently encoded source/schema-bound bundles. The native producer
+supplies the canonical schema header, which the decoder requires exactly;
+PyArrow independently interprets its data and produces the test record batches. It covers all three sources, six
 primitive types, five cell states, Unicode, binary, full-width integers/IDs,
-negative zero, empty results and malformed inputs. Public SDK qualification
-remains in progress.
+negative zero, empty results and malformed inputs. Installed SDK transport
+checks and their execution limits are recorded in the [proof ledger](../../../../tests/README.md).
 
 ## Signed caller ownership
 

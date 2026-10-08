@@ -66,8 +66,8 @@ defmodule Transit.Station.Sdk.Source do
   alias Transit.Station.Sdk.Value, as: V
   def state(%__MODULE__{native: s}), do: V.result(:transit_turn.source_state(s))
 
-  def table(%__MODULE__{native: s}, schema),
-    do: V.result(:transit_table.open_source(s, V.native(schema)))
+  def table(%__MODULE__{native: s}, object),
+    do: V.result(:transit_table.open_source(s, object))
 end
 
 defmodule Transit.Station.Sdk.Table do
@@ -75,52 +75,75 @@ defmodule Transit.Station.Sdk.Table do
   @derive {Inspect, only: []}
   defstruct [:native]
   @type t :: %__MODULE__{}
-  alias Transit.Station.Sdk.{Value, Turn}
+  alias Transit.Station.Sdk.{Value, Turn, Catalog, Logical}
 
-  def schema(id, cell, key_name \\ "id", value_name \\ "value"),
-    do: Value.result(:transit_table.schema(id, cell, key_name, value_name))
+  def create(%Turn{native: t}, schema, limits),
+    do: Value.result(:transit_table.create(t, Catalog.native(schema), Catalog.native(limits)))
 
-  def create(%Turn{native: t}, schema),
-    do: Value.result(:transit_table.create(t, Value.native(schema)))
-
-  def open(%Turn{native: t}, schema),
-    do: Value.result(:transit_table.open(t, Value.native(schema)))
-
+  def open(%Turn{native: t}, object), do: Value.result(:transit_table.open(t, object))
+  def schema(%__MODULE__{native: t}), do: Value.result(:transit_table.schema(t))
   def basis(%__MODULE__{native: t}), do: Value.result(:transit_table.basis(t))
-  def get(%__MODULE__{native: t}, key), do: Value.result(:transit_table.get(t, key))
+  def get(%__MODULE__{native: t}, identity), do: Value.result(:transit_table.get(t, identity))
 
-  def insert(%__MODULE__{native: t}, row),
-    do: Value.result(:transit_table.insert(t, Value.native(row)))
+  def get_key(%__MODULE__{native: t}, cells),
+    do: Value.result(:transit_table.get_key(t, Logical.native(cells)))
 
-  def update(%__MODULE__{native: t}, row),
-    do: Value.result(:transit_table.update(t, Value.native(row)))
+  def page(%__MODULE__{native: t}, cursor \\ nil, limit \\ 8),
+    do: Value.result(:transit_table.page(t, Value.optional(cursor), limit))
 
-  def upsert(%__MODULE__{native: t}, row),
-    do: Value.result(:transit_table.upsert(t, Value.native(row)))
-
-  def delete(%__MODULE__{native: t}, key), do: Value.result(:transit_table.delete(t, key))
-
-  def page(%__MODULE__{native: t}, cursor \\ nil),
-    do: Value.result(:transit_table.page(t, Value.optional(cursor)))
+  def prepare(%__MODULE__{native: t}, principal, operation, mutation),
+    do: Value.result(:transit_table.prepare(t, principal, operation, Catalog.native(mutation)))
 end
 
-defmodule Transit.Station.Sdk.Query do
-  alias Transit.Station.Sdk.{Value, Turn}
+defmodule Transit.Station.Sdk.TableMutation do
+  @enforce_keys [:native]
+  @derive {Inspect, only: []}
+  defstruct [:native]
+  @type t :: %__MODULE__{}
+  alias Transit.Station.Sdk.{Value, Turn, Catalog}
 
-  def allow(%Turn{native: t}, peer, schema, revision, allow),
+  def prepare(resource, principal, operation, schema, mutation),
     do:
       Value.result(
-        :transit_query.allow(
-          t,
-          Transit.Client.native(peer),
-          Value.native(schema),
-          revision,
-          allow
+        :transit_table.prepare(
+          Transit.Client.native(resource),
+          principal,
+          operation,
+          Catalog.native(schema),
+          Catalog.native(mutation)
         )
       )
 
-  def start(%Turn{native: t}, schema, plan),
-    do: Value.result(:transit_query.start(t, Value.native(schema), Value.native(plan)))
+  def load(data), do: Value.result(:transit_table.load(data))
+  def save(%__MODULE__{native: m}), do: Value.result(:transit_table.save(m))
+  def step(%__MODULE__{native: m}, %Turn{native: t}), do: Value.result(:transit_table.step(t, m))
+end
+
+defmodule Transit.Station.Sdk.TableMutationReference do
+  @enforce_keys [:native]
+  @derive {Inspect, only: []}
+  defstruct [:native]
+  @type t :: %__MODULE__{}
+  alias Transit.Station.Sdk.{Value, Turn}
+  def load(data), do: Value.result(:transit_table.load_reference(data))
+  def save(%__MODULE__{native: r}), do: Value.result(:transit_table.save_reference(r))
+
+  def status(%__MODULE__{native: r}, %Turn{native: t}),
+    do: Value.result(:transit_table.status(t, r))
+
+  def cancel(%__MODULE__{native: r}, %Turn{native: t}),
+    do: Value.result(:transit_table.cancel(t, r))
+end
+
+defmodule Transit.Station.Sdk.Query do
+  alias Transit.Station.Sdk.{Value, Turn, UnifiedQuery}
+
+  def allow(%Turn{native: t}, peer, object, revision, allow),
+    do:
+      Value.result(:transit_query.allow(t, Transit.Client.native(peer), object, revision, allow))
+
+  def start(%Turn{native: t}, object, plan),
+    do: Value.result(:transit_query.start(t, object, UnifiedQuery.native(plan)))
 
   def close(%Turn{native: t}, result, reason),
     do: Value.result(:transit_query.close(t, result, reason))

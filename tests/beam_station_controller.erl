@@ -2,7 +2,7 @@
 -module(beam_station_controller).
 -compile({no_auto_import,[get/1,put/2]}).
 -export([main/0, main/2, ok/2, expect/3, read/1, write/2, wait_file/1, get/2, put/3,
-         initialize/3, handle_message/4, handle_result/4, before_dispatch/3, confirmed/4]).
+         initialize/3, handle_message/4, handle_result/4, handle_query_failure/4, before_dispatch/3, confirmed/4]).
 main() -> [Mode, Path] = init:get_plain_arguments(), main(beam_station_adapter, [Mode, Path]), halt().
 main(A, Args) ->
     try execute(A, Args) catch Class:Reason:Stack ->
@@ -146,22 +146,30 @@ table_message(A, Turn, Input, S) ->
     case {A:input_variant(Input), filelib:is_file(path(S, <<"version.json">>))} of
         {rows, _} ->
             Table = ok(A, A:table(Turn)), put(S, escaped_table, Table),
-            Basis = ok(A, A:basis(Table)), {Rows, 6} = pages(A, Table, undefined, Basis, [], 0),
-            41 = length(Rows), #{key := -9223372036854775808, value := undefined} = view(A, hd(Rows)),
+            Basis = ok(A, A:basis(Table)), {Rows, Pages} = pages(A, Table, undefined, Basis, [], 0), true=Pages>=6,
+            41 = length(Rows), #{cells := [{value,{atom,{signed,-9223372036854775808}}},null,_,_]} = view(A, hd(Rows)),
+            lists:foreach(fun(Row)->#{cells:=[_,_,{value,{atom,{utf8,<<"example">>}}},{value,{list,[{value,{atom,{signed,1}}},{value,{atom,{signed,2}}}]}}]}=view(A,Row) end,Rows),
             Version = ok(A, A:retain(Turn)), write(path(S, <<"version.json">>), view(A, Version)),
-            ok(A, A:table_update(Table, -9223372036854775808, 17)), {ok, S};
+            {ok, S};
         {initialize, true} ->
-            Table = ok(A, A:table(Turn)), {found, Row} = ok(A, A:table_get(Table, -9223372036854775808)), #{value := 17} = view(A, Row),
+            Table = ok(A, A:table(Turn)), {found, Row} = ok(A, A:table_get(Table, -9223372036854775808)), #{cells := [_,{value,{atom,{signed,17}}},_,_]} = view(A, Row),
             Version = A:version(read(path(S, <<"version.json">>))), Source = ok(A, A:open_version(Turn, Version)), put(S, escaped_source, Source),
-            Retained = ok(A, A:source_table(Source)), {found, Old} = ok(A, A:table_get(Retained, -9223372036854775808)), #{value := undefined} = view(A, Old),
-            #{entries := Entries} = view(A, ok(A, A:table_page(Retained, undefined))), 8 = length(Entries),
+            Retained = ok(A, A:source_table(Source)), {found, Old} = ok(A, A:table_get(Retained, -9223372036854775808)), #{cells := [_,null,_,_]} = view(A, Old),
+            #{rows := Entries} = view(A, ok(A, A:table_page(Retained, undefined))), 8 = length(Entries),
             State = ok(A, A:source_state(Source)), #{entries := KV} = view(A, ok(A, A:state_page(State))), true = length(KV) =< 8,
             ok(A, A:release(Turn, Version)), {ok, S};
         _ -> A:example_message(<<"table">>, Turn, Input, S)
     end.
 pages(A, Table, Cursor, Basis, Rows, N) ->
-    #{entries := Entries, cursor := Next, basis := Basis} = view(A, ok(A, A:table_page(Table, Cursor))), true = length(Entries) =< 8,
+    Basis = ok(A,A:basis(Table)), #{rows := Entries, next := Next} = view(A, ok(A, A:table_page(Table, Cursor))), true = length(Entries) =< 8,
     case Next of undefined -> {Rows ++ Entries, N+1}; _ -> pages(A, Table, Next, Basis, Rows ++ Entries, N+1) end.
+handle_query_failure(A, Turn, Input, S) ->
+    #{correlation := Correlation, result := Result, reason := Reason} = view(A, Input),
+    true = Result > 0, State = ok(A, A:state(Turn)),
+    Correlation = ok(A, A:require(State, A:key(request))),
+    missing = ok(A, A:find(State, A:key(total))),
+    Code = case Reason of result_too_large -> 1; workspace_exceeded -> 2; overflow -> 3; cancelled -> 4; denied -> 5 end,
+    ok(A, A:put(State, A:key(total), 1)), ok(A, A:put(State, A:key(observed), Code)), {ok,S}.
 handle_result(A, Turn, Input, S) ->
     {ok, _} = A:example_result(Turn, Input, S), #{correlation := Correlation} = view(A, Input),
     Reader = ok(A, A:result(Turn, Correlation)), put(S, escaped_reader, Reader),

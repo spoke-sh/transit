@@ -575,7 +575,8 @@
       "owner": "contracts/STATION_V1.md",
       "implementation": [
         "packages/zig/transit-station/src/Turn.zig",
-        "packages/zig/transit-station/src/Table.zig",
+        "packages/zig/transit-station/src/TableReader.zig",
+        "packages/zig/transit-station/src/TableWrite.zig",
         "packages/zig/transit-station/src/Waiting.zig",
         "packages/zig/transit-station/src/growing_test.zig",
         "packages/zig/transit-station/src/GenServer.zig",
@@ -1429,43 +1430,25 @@
     },
     {
       "id": "SQL-MUTATION-01",
-      "claim": "An explicitly composed Table mutation owner commits a bounded row batch and its terminal result with input progress, preserving immutable request identity and current authority gates",
-      "owner": "contracts/TABLE_MUTATION_V1.md",
+      "claim": "A general Table owner publishes all row and index changes with terminal counts and input progress, preserving immutable request identity and current authority through bounded staging",
+      "owner": "contracts/TABLE_DML_V1.md",
       "implementation": [
-        "packages/zig/transit-query/src/TableMutationAdmission.zig",
-        "packages/zig/transit-query/src/TableMutationRecords.zig",
-        "packages/zig/transit-query/src/TableMutationClient.zig",
-        "packages/zig/transit-station/src/TableMutation.zig",
-        "packages/zig/transit-query/src/TableMutationWriter.zig",
-        "apps/transit-query-host/main.zig",
-        "packages/zig/transit-query/src/TableMutationBridge.zig",
-        "packages/zig/transit-station-bindings/src/TableMutationAbi.zig",
-        "apps/transit-station-host/main.zig",
-        "packages/python/transit-station/transit_station/mutations.py",
-        "packages/ts/transit-station-sdk/src/mutations.ts",
-        "packages/ts/transit-station-sdk/src/bridge.ts",
-        "packages/ruby/transit-station/lib/transit/station/mutations.rb",
-        "packages/ruby/transit-station/lib/transit/station/bridge.rb",
-        "packages/rust/transit-station-sdk/src/mutations.rs",
-        "packages/rust/transit-station-sdk/src/bridge.rs",
-        "packages/c/transit-station/src/table_mutation.cpp",
-        "packages/c/transit-station/include/transit/table_mutation.h",
-        "packages/cpp/transit-station-sdk/include/transit/table_mutation.hpp",
-        "packages/java/transit-station-sdk/src/io/transit/sdk/station/Mutations.java",
-        "packages/java/transit-station-sdk/src/io/transit/sdk/station/Bridge.java",
-        "packages/dotnet/transit-station-sdk/Mutations.cs",
-        "packages/dotnet/transit-station-sdk/Internal/Bridge.cs",
-        "packages/beam/transit-station-sdk/src/transit_mutations.erl",
-        "packages/beam/transit-station-sdk/src/transit_station_bridge.erl",
-        "packages/beam/transit-station-elixir/lib/mutations.ex",
-        "apps/transit-cli/MutationOptions.zig",
-        "apps/transit-cli/Mutations.zig"
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableBridge.zig",
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
+        "packages/zig/transit-catalog/src/TableUpload.zig",
+        "packages/zig/transit-catalog/src/TableTyped.zig",
+        "packages/zig/transit-station/src/TableWrite.zig",
+        "packages/zig/transit-station/src/TableStatement.zig",
+        "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
+        "apps/transit-cli/Catalog.zig",
+        "apps/transit-station-host/main.zig"
       ],
-      "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
+      "profile": "transit-v1/state-v1/station-v1/table-dml-v1",
       "tasks": [
         "test::unit",
         "test::sql",
-        "test::table-mutation",
+        "test::typed-tables",
         "test::cli-diagnostics",
         "bindings::python-test",
         "bindings::node-sdk-test",
@@ -1477,68 +1460,55 @@
         "bindings::beam-sdk-test"
       ],
       "scenarios": [
-        "Independent typed request/policy/status/command bytes and complete-input SQL rejection",
-        "Interrupted halves, namespace conflict, principal/policy fencing, rollback and sticky read poison",
-        "Mutation and query references reject each other's publication domain before resource reads",
-        "Shared signed client preparation/resumption, canonical saved definitions, target/signature rejection and exact caller-send receipt recovery after restart",
-        "Native rows/result/input visibility, exact accepted-but-lost commit recovery after node/store restart, changed retry refusal",
-        "Stale captured revision, fenced writer, current resource write/read grants and application-policy revocation",
-        "Explicit supplied writer configuration and authorized initialization",
-        "Fresh-fenced host restart during upload and retained input rejection without replacing request status",
-        "Owned neutral request/reference and opaque signed actions through the real writer, with current status denial",
-        "Real ABI/port caller replacement after lost admission receipt, exact saved retry and current disclosure revocation",
-        "Installed Python sync/async UPDATE, owned saved command across caller replacement, exact receipt recovery and current status denial",
-        "Installed TypeScript UPDATE with maximum uint64 namespace, owned request/reference bytes, current disclosure denial and exact retry; malformed port responses preserve uncertainty",
-        "Installed Ruby immutable request ownership, full-width namespace, altered commitment rejection and exact receipt recovery after caller replacement",
-        "Installed Rust full-width namespace, altered commitment rejection, exact saved receipt recovery and current status denial; compile-time rejection of overlapping mutable clients",
-        "Installed C11/C++17 full-width namespaces, copied buffers, saved commands after native close, exact lost-receipt recovery, changed commitment rejection and current read denial",
-        "Installed Java full-width namespace, immutable inputs, altered commitment rejection, caller replacement, exact admitted retry and current status denial",
-        "Installed .NET full-width namespace, immutable inputs, altered commitment rejection, asynchronous caller replacement, exact admitted retry and current status denial",
-        "Installed Erlang/Elixir full-width namespaces, immutable recovery values retained in uncertain results, altered commitment rejection, caller replacement, exact admitted retry and current status denial",
-        "Real CLI subprocess UPDATE with full-width identity, private non-replacing artifacts, changed commitment rejection, exact saved recovery after lost receipt, premature apply rejection, terminal cancellation semantics and current read denial",
-        "Every selected installed caller executes INSERT, DELETE, missing-row UPDATE/DELETE, conflicting INSERT rollback and upload cancellation; exact terminal-send recovery, unchanged terminal identity, disk restart and current status denial"
+        "Independent schema-bound typed DML bytes and complete-input SQL rejection",
+        "Point and finite statement all-or-none publication, composite/no-key identities, precise matched/changed counts and immutable original outcomes",
+        "Interrupted upload/publication, changed-intent rejection, allocation/limit failure and sticky read poison",
+        "Exact caller/owner native receipt recovery, node/store restart and retained schema-bound rows",
+        "Current read/write/policy revocation, scoped initializer authorization and fenced owners",
+        "Catalog ABI/port and CLI replacement preserve saved intent, prepared command, input disposition and terminal outcome separately",
+        "Selected installed Catalog SDK callers exercise typed multi-row INSERT/UPDATE/DELETE, exact saved recovery, changed identity rejection and current disclosure denial"
       ],
-      "limits": "Explicit supplied writer host and shared Zig/native ABI/port and ten language SDK callers plus an explicit saved-file CLI. Installed operation profiles use one UTF-8 Table; native/private-turn cases own wider literal and three-row bounds. Cancellation during upload does not establish SQL transaction rollback or cancellation of an applied mutation. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees. See the proof ledger for which selected language schedules have actually completed.",
+      "limits": "One mutated resource; at most four native writes and 256-byte values per turn. Finite plans and private batches have explicit resident budgets independent of Table cardinality. Staged progress is not a visible statement prefix. Cancellation preserves original terminal evidence and cannot undo an applied statement. Installed language execution and physical placements are qualified separately in the proof ledger.",
       "model": null,
-      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed ten-language/real-CLI mutation schedules; read/write composition and post-cutover inspection requalification remain separate boundaries."
+      "qualification": "The general native/CLI/port proof and component tests replace the fixed writer. See tests/README.md for exact executed revisions. Prior installed fixed-writer results do not qualify the general Catalog callers; each selected installed-language schedule must run separately."
     },
     {
       "id": "SQL-TABLE-OWNER-01",
-      "claim": "One Table owner gates queries and mutations on durable initialization while preserving independent policy and captured source cuts",
-      "owner": "contracts/TABLE_QUERY_WRITER_V1.md",
+      "claim": "One catalog owner gates queries and Table lifecycle operations on committed initialization and explicit delegation while preserving independent permissions and captured schema/head cuts",
+      "owner": "contracts/CATALOG_QUERY_OWNER_V1.md",
       "implementation": [
-        "packages/zig/transit-query/src/TableQueryWriter.zig",
-        "packages/zig/transit-query/src/TableMutationWriter.zig",
+        "packages/zig/transit-query/src/CatalogQueryOwner.zig",
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "apps/transit-query-host/main.zig"
       ],
-      "profile": "transit-v1/state-v1/station-v1/table-query-writer-v1",
+      "profile": "transit-v1/state-v1/station-v1/catalog-query-owner-v1",
       "tasks": [
         "test::unit",
         "test::table-query-writer"
       ],
       "scenarios": [
-        "Independent configuration, state, initialization and policy-control bytes",
-        "Four-mutation staged/ready phases, exact configuration after owner replacement, duplicate and forged continuations",
-        "Whole-proposal rollback and sticky read poison; early ingress cannot execute query or mutation work",
-        "Lost receipts at both initialization commits, worker fencing and node/disk-store restart",
-        "Retained durable and interactive console queries before an interleaved CLI mutation and current queries afterwards; identical numeric publication namespaces remain independent",
-        "Query-policy revocation permits separately authorized mutations; mutation-policy revocation permits separately authorized queries; native read revocation prevents disclosure",
-        "Optional ten-language installed mutation callers: full-width UPDATE, exact saved retry after lost admitted send and caller replacement, and current status denial"
+        "Four-write administrator initialization; requester delegation is a separate conditional commit",
+        "Independent definition-bound delegation bytes, exact owner configuration and multiple requester mappings",
+        "Whole-proposal rollback after write exhaustion; sticky read poison; undelegated calls do not access request bodies",
+        "Authenticated external administrator versus same-number process identity; stale revision and current revocation",
+        "Native durable queries retain the admitted schema/head through ALTER, DROP and name reuse, and require current read rights for disclosure"
       ],
-      "limits": "One explicitly configured Table, finite query peer and request resource. Native schedules use public Zig-backed ABI/CLI and optional installed mutation SDK callers, eight resident pages and explicit one-output delivery steps. Query reads in this composition proof use native ABI/console. It does not establish power-loss or maintained-view guarantees.",
+      "limits": "Component tests use private turns over an in-memory reference store. Native host, SDK and disk recovery qualification for the catalog composition is pending; historical two-column owner proofs do not qualify this replacement.",
       "model": null,
-      "qualification": "See tests/README.md#combined-table-owner-component-checks for executed evidence; native schedule results are recorded separately from in-memory tests."
+      "qualification": "See tests/README.md for current catalog query component results and separately recorded native qualification."
     },
     {
       "id": "SQL-DECLARATION-01",
-      "claim": "Offline state declarations preserve explicit type and nullability intent and require an explicit capability check for the current Table schema",
+      "claim": "Offline KV/Document definitions preserve typed intent without publication; Table declarations use the shared general DDL and schema owner",
       "owner": "contracts/STATE_DECLARATION_V1.md",
       "implementation": [
         "packages/zig/transit-fuze/src/Declaration.zig",
         "packages/zig/transit-fuze/src/Sql.zig",
         "tests/sql_declaration.zig",
-        "tests/sql/declarations.py"
+        "tests/sql/declarations.py",
+        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-fuze/src/declaration_test.zig"
       ],
       "profile": "state-declaration-v1/offline",
       "tasks": [
@@ -1546,31 +1516,25 @@
         "test::sql"
       ],
       "scenarios": [
-        "Owned names, canonical padding, contiguous columns, duplicate names and complete-input exclusions",
-        "Independent ANTLR ASTs and canonical formatting, including the full four-type/three-nullability product for both Table columns",
-        "Exact existing Table schema fingerprints and explicit rejection of unspecified or incompatible key/value nullability",
-        "Query and mutation parsers continue to reject state declarations as executable work"
+        "Owned names, canonical padding, complete-input exclusions and bounded review formatting for KV/Document definitions",
+        "Independent ANTLR ASTs and canonical KV/Document formatting",
+        "General Table types, aliases, nullable defaults, primary keys and schema bytes use TableDdl without a second fixed-schema parser",
+        "Compilation does not provision, publish or grant authority"
       ],
-      "limits": "Pure in-memory Zig API and review SQL only. One to eight columns per definition, sixteen-byte names and 4096-byte input. No catalog lookup, provisioning, publication, wire/ABI action or language SDK/CLI administrative route.",
+      "limits": "Pure in-memory compilation and review only. KV/Document definitions use sixteen-byte names and 4096-byte input; general Table bounds and ownership follow TABLE_DDL_V1 and TABLE_SCHEMA_V1. No catalog lookup or implicit publication.",
       "model": null,
-      "qualification": "See tests/README.md#offline-state-declaration-compiler for executed parser, component and capability evidence."
+      "qualification": "See tests/README.md for the current general declaration compiler checks and separately recorded catalog runtime evidence."
     },
     {
       "id": "SQL-CATALOG-01",
-      "claim": "Named Table creation, catalog bootstrap and policy controls preserve bounded atomic turns, exact recovery and current authority",
+      "claim": "General typed Table catalog lifecycle and caller recovery preserve current authorization, immutable identity and bounded atomic publication",
       "owner": "contracts/DECLARATIVE_CATALOG_V1.md",
       "implementation": [
-        "packages/zig/transit-catalog/src/Catalog.zig",
         "packages/zig/transit-catalog/src/Inspection.zig",
         "packages/zig/transit-catalog/src/Model.zig",
         "packages/zig/transit-catalog/src/Records.zig",
-        "packages/zig/transit-catalog/src/Client.zig",
-        "packages/zig/transit-catalog/src/Behavior.zig",
         "packages/zig/transit-station/src/Turn.zig",
         "apps/transit-query-host/main.zig",
-        "tests/catalog_native.py",
-        "tests/catalog_contract.py",
-        "packages/zig/transit-catalog/src/Bridge.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
         "tests/catalog_abi.py",
@@ -1614,7 +1578,20 @@
         "packages/beam/transit-station-elixir/lib/catalog.ex",
         "tests/beam_catalog_controller.erl",
         "tests/beam_catalog_values.erl",
-        "tests/elixir_catalog_adapter.ex"
+        "tests/elixir_catalog_adapter.ex",
+        "packages/zig/transit-catalog/src/TableCatalog.zig",
+        "packages/zig/transit-catalog/src/TableCatalogRecords.zig",
+        "packages/zig/transit-catalog/src/TableMetadata.zig",
+        "packages/zig/transit-catalog/src/TableMetadataStore.zig",
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
+        "packages/zig/transit-catalog/src/TableBridge.zig",
+        "packages/zig/transit-catalog/src/TableIntent.zig",
+        "packages/zig/transit-catalog/src/TableAttempt.zig",
+        "tests/typed_table_native.py",
+        "tests/typed_table_native.zig",
+        "tests/table_catalog.py",
+        "tests/table_growth.py"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
@@ -1634,36 +1611,20 @@
         "test::catalog-growth"
       ],
       "scenarios": [
-        "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
-        "Four-write creation and one-write terminal conflicts; no adoption, exact repeats and changed-intent rejection",
-        "Owner/configuration changes, orphan namespace refusal, independent conditional create/inspect rights and current denial",
-        "Orphan Table row refusal, unchanged incoming proposals and sticky read poison at each point/page read",
-        "257 definitions over 33 bounded metadata pages, fixed source revision, malformed pages and live Table schema validation",
-        "Independent four-record bytes at one native revision; caller-send and owner-commit receipt loss with exact recovery after disk restart",
-        "No-write application duplicate, terminal name conflict, conflicting native retry, stale ownership and current native write/read denial",
-        "Owned canonical signed caller restore, pre-transport scope/signature rejection, separate pending/processed status and current create/inspect policy revocation",
-        "Supplied catalog host four-write initialization, control/rejection dispositions, lost initialization/creation commits, disk restart and fresh activation enforcement",
-        "Explicit committed turn source excludes private writes, preserves original read poison and rejects changed view binding; ordinary paged reads still reject after mutation",
-        "Signed initialization recovery after lost admission and caller/node/store replacement; current conditional policy preparation, queued stale controls, independent target principals and self-revocation/restoration without disclosure bypass",
-        "Neutral caller values match independent binary/JSON fixtures, retain full-width identities and owned fields, and reject malformed values before transport",
-        "Real catalog C ABI/port controls and creation, full-width neutral values, malformed/profile rejection, owned buffers, caller/node/store replacement after lost sends, exact original receipts and current application/native disclosure denial",
-        "Explicit CLI offline compilation without credentials or transport, typed/canonical artifact agreement and foreign-definition rejection before key loading, private non-replacing files, exact saved-file recovery across lost admission and caller/node/store replacement, separate outcomes and current policy/native denial",
-        "Installed Python synchronous/asynchronous catalog methods preserve immutable full-width values, exact saved commands after lost admission and caller/node/store replacement, current-policy denial, malformed-response uncertainty and joined cleanup after await cancellation",
-        "TypeScript frozen catalog values and bigint identities, generated port request/response validation, malformed-success uncertainty and original-request status matching; installed package saved creation recovery after caller/node/store replacement and current denial",
-        "Installed Rust catalog crates preserve owned full-width values and borrowed saved commands; compiler rejects overlapping mutable borrows and reuse after close; malformed success receipts and an injected admitted-worker panic remain uncertain; creation recovers after caller/node/store replacement with current disclosure denial",
-        "Installed Ruby catalog gems retain immutable full-width values and exact saved recovery after caller/node/store replacement; generated port validation, malformed replies, child loss and allocation failure retain uncertain commands; cancelled waiting threads preserve busy ownership and joined cleanup",
-        "Seeded private-turn schedules compare all accepted receipts, definitions and pages against an independent ledger; compiling current-policy and original-receipt defects must fail executed assertions",
-        "Installed C11/C++17 catalog handles retain copied full-width values and exact saved commands after native close, use cleared failure outputs and reject copying C++ owners; creation recovers after caller/node/store replacement under current policy",
-        "Installed Java catalog values and bounded futures preserve full-width original requests, uncertain submissions and current denial; actual owned-port malformed replies, loss and cancelled futures retain busy ownership and joined close",
-        "Installed .NET catalog NuGets preserve immutable full-width original requests, exact saved creation recovery and current denial; strict successful receipt decoding retains uncertainty; cancellation during a native HTTP read preserves busy ownership and disposal joins the worker",
-        "Installed Erlang/Elixir catalog records and structs retain full-width values and exact recovery after caller/node/store replacement; generated native-port validation preserves uncertain commands on malformed replies or child loss; killed waiting processes preserve busy ownership and joined cleanup",
-        "Signed Zig lookup, exact definition and bounded listing share private-turn validation; changed revision/scope and current catalog/native read denial reject continuation; disk growth and restart are owned by test::catalog-growth",
-        "Bounded dependent batches reduce a full signed page from nineteen reads to five; real native read revocation between initial metadata and dependent acquisition rejects disclosure",
-        "Native ABI/port, private CLI pages and all ten typed SDK metadata readers agree with signed Zig lookup, immutable definition and bounded pages; full-width ownership, malformed responses, original cursor compatibility, current denial and disk restart are checked"
+        "Independent metadata, command, control, upload and intent bytes with full-width identities and mandatory current definitions",
+        "Staged CREATE, ALTER, RENAME and DROP publish complete heads, bindings and original receipts with at most four native mutations per turn",
+        "Independent inspect/create/read/insert/update/delete/alter/drop rights, conditional administrator controls and current denial on continuation or disclosure",
+        "Stable object/column/row identities, exact historical schema lookup and original outcomes after rename/drop/recreate",
+        "Typed atomic point and finite DML preserve matched/changed counts and reject a failing statement without publishing a prefix",
+        "Caller/owner receipt loss, exact signed replay, authority/store replacement and fresh worker ownership",
+        "Metadata-only pages bind the exact native cut, validate object ordering and continuation, and reject authorization or cursor changes",
+        "CLI, native ABI/port and enabled SDKs share typed schemas, intents, neutral full-width values and precise uncertainty",
+        "Seeded publication/recovery schedules and compiling guard mutations verify permission, receipt and cursor invariants",
+        "Cold growth beyond resident metadata pages and disk restart retain original receipt identity and typed rows"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C11/C++17 blocking methods, Java futures, .NET tasks and Erlang/Elixir records/structs over a shared owned worker. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, eighteen with all ten SDKs (including Python sync/async); the signed Zig growth schedule adds 65 Tables and lists 70 definitions over nine pages before/after disk restart with the same resident bound. The 257-additional-Table run remains failed; host power loss is not established.",
+      "limits": "One configured catalog resource and owner; no native cross-resource transaction. At most eight metadata entries per page and four mutations per native turn. Schema, row, operation and upload budgets are independent of total Table/catalog/history cardinality. Failure-injection and disk-restart evidence do not establish host power-loss recovery.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed caller and supplied-host disk recovery evidence; see tests/README.md#signed-catalog-metadata for signed Zig growth, restart and guard-mutation evidence; larger growth and broader catalog operation proofs remain."
+      "qualification": "See tests/README.md#general-catalog-seeded-publication-and-recovery-oracle and #general-catalog-cli-lifecycle-and-metadata-retry. The proof ledger distinguishes executed SDK, cold-growth and recovery schedules from pending qualification."
     },
     {
       "id": "HOST-02",
@@ -1685,6 +1646,39 @@
       ],
       "limits": "Process-lifetime code mappings; at most sixteen distinct native images. Handles and buffers still release on close. Mapping checks are Linux-specific; finite stress does not prove every host schedule.",
       "model": null
+    },
+    {
+      "id": "TABLE-75",
+      "claim": "General typed Table commands retain atomic publication and exact native recovery across schema lifecycle changes",
+      "owner": "packages/zig/transit-catalog/docs/table-metadata.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/TableBehavior.zig",
+        "packages/zig/transit-catalog/src/TableClient.zig",
+        "packages/zig/transit-catalog/src/TableIntent.zig",
+        "packages/zig/transit-query/src/TableQuery.zig",
+        "apps/transit-query-host/main.zig",
+        "tests/typed_table_native.zig",
+        "tests/typed_table_native.py"
+      ],
+      "profile": "general typed Table coordinator/native-v1",
+      "tasks": [
+        "test::typed-tables"
+      ],
+      "scenarios": [
+        "Five-column CREATE, aliases, defaults, nullable cells and decimal values",
+        "Exact matched/changed counts and atomic rejection of a multi-row insert",
+        "ADD, RENAME and DROP COLUMN, finite DELETE, DROP/name reuse and unkeyed duplicate rows",
+        "Lost accepted send and turn replies recover their original receipts after node/store replacement",
+        "Authorized courier delivers recorded continuations with at most four native mutations per turn",
+        "Actual SQL SELECT, typed primary-key lookup, aggregates and request/row/result-byte budgets",
+        "Current read-policy denial blocks retained snapshots including LIMIT 0; ALTER/DROP/name reuse retain original captured rows",
+        "Authority replacement invalidates old snapshots without silently reopening a new cut",
+        "Supplied catalog host and single-destination courier execute wide DDL/DML, reject reused activations and retain outcomes across fresh ownership",
+        "Killing the supplied host after native acceptance but before receipt delivery preserves the original staged operation through fresh fenced activation"
+      ],
+      "limits": "One signed Zig fixture and disk-backed store, eight resident authority pages; actual general Table SQL reads and supplied catalog/courier binaries. Console, SDKs, all families/ALTER operations, memory growth, latency and host power loss require separate qualification.",
+      "model": null,
+      "qualification": "See tests/README.md#general-table-schema-foundation for passing and failed runs."
     },
     {
       "id": "HOST-03",

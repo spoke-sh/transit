@@ -10587,6 +10587,1398 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+## General Table schema foundation
+
+`just test::table-schema` checks independently generated Python schema bytes and
+13 row/default/constraint cases, then executes the Zig schema and logical-type
+tests. The 2026-10-05 run passes 28 tests. It covers nonzero/nonreused column IDs,
+omitted nullable cells, explicit NULL versus DEFAULT, required fields, reordered
+assignments, integer overflow, Unicode scalar length, unsupported key types,
+all logical families as non-null typed defaults, nested optional missing versus
+source errors/conflicts, truncated envelopes, foreign definitions, canonical
+flags, ownership and allocation failures. The Python oracle imports no Transit
+implementation and fixes a complete schema encoding and SHA-256 fingerprint.
+
+The Fuze package's `zig build test` also passes with these schema tests enabled.
+This is pure model/codec evidence. It does not qualify generalized native Table
+storage, SQL execution, catalog routing, DDL publication or restart recovery.
+Those remain separate implementation and proof obligations in
+[M46](../docs/roadmap/M46.md) and [#75](https://github.com/rupurt/rey/issues/75).
+
+The subsequent physical-row/key run passes 34 focused tests; the evolution run
+passes 33, including shared schema/type dependencies. Independent Python bytes
+add a complete physical row, layout fingerprint, equality key and digest. Cases
+exercise signed-zero key normalization with exact stored IEEE bits, object/layout
+mismatch, nested ownership, distinct duplicate-row identities, metadata-only
+rename/default changes, nonreused dropped IDs, required-field tightening,
+overflow/inexact conversion rejection and key-index rebuild requirements. These
+remain pure envelopes/transitions, with no disk/publication claim.
+
+Station's package suite passes the general `TableData` candidate tests on
+2026-10-05: 72 keyed rows across multiple index levels, stable key updates,
+same-value/zero-match counts, duplicate keys and row identities, retained roots,
+32 KiB values, unkeyed duplicates, a synthetic digest collision, write failure
+after staging and allocation-failure cleanup. Index deletion separately removes
+a 512-key permutation, checks retained roots, prunes empty branches, rejects
+read denial and preserves the accepted root after partial candidate storage.
+These use in-memory immutable test stores. They establish candidate semantics,
+not durable Table head publication, a performance comparison or disk recovery.
+
+The scalar SQL name resolver passes 20 focused tests including shared logical
+type dependencies. It normalizes all 37 selected aliases in upper/lower case,
+retains INT8's eight-bit meaning, checks decimal/VARCHAR/temporal parameters and
+rejects unqualified padding, binary lengths, FLOAT precision and time-zone forms.
+These are resolver tests; native DDL admission is not established by them.
+
+The Fuze package suite passes seven general DDL tests, including the reported
+nullable CREATE example, a realistic five-column schema, composite keys, escaped
+Unicode names, recursive type/default constructors, exact scalar/temporal values,
+map ordering/duplicate rejection, incompatible constraints, bound ALTER/DROP
+identity, complete input consumption and allocator-failure cleanup. The first
+run exposed a duplicate-key diagnostic falling back to `InvalidPrimaryKey`; the
+compiler now retains `DuplicatePrimaryKeyColumn` before binding. This is compiler
+evidence, not console execution or independent ANTLR lifecycle qualification.
+
+The first repository check at this checkpoint stops at a missing mapping for
+`DuplicateMapKey`. Reviewed mappings now cover 113 SQL compiler causes, including
+general DDL/type failures. A second mapping run exposes the bounded schema-default
+writer error; its owner now projects `TableSchemaTooLarge` with an executable
+oversized-default test. The Fuze package suite, diagnostic mappings and inferred
+error-boundary checks pass after these corrections. DDL diagnostics preserve the
+original cause and location and leave unknown/allocator failures unclassified;
+compile rejection never acquires uncertain-write recovery advice. This does not
+constitute a full repository-check or clean-CI pass.
+
+The Station package suite passes 65 tests after adding private Table overlays
+and captured-KV page storage. A small keyed insert stages only its row and final
+index leaf and composes a test head/outcome in exactly four private writes.
+Forty rows exercise multiple index levels, a 4 KiB row, lost pre-commit staging,
+retained roots and released Publication staging quota. Negative cases cover
+same-ID content changes, foreign/missing manifests, current denial, cross-resource
+reads, malformed/truncated pages, record limits, allocator failures and rollback
+when turn composition exceeds four writes. Initial development runs reject an
+extra Zig semicolon and a test that incorrectly expected different publication
+inputs to have identical attribution; both are corrected before the passing run.
+These use captured-turn in-memory stores, not a disk-backed Table service or
+native head/admission/recovery integration. Logs are in the owned campaign
+`/var/tmp/transit-table-75-_el6xx0v/table-pages-test3.log`.
+
+The page checkpoint passes full pinned `just check`, including the existing
+generated/native contracts, diagnostic boundaries, CLI cases, frontend checks
+and handbook build (`pages-check.log` in the same campaign). Subsequent namespace
+hardening separately rejects orphan committed/private records before manifest
+creation. The head checkpoint passes **68/68 Station tests**: actual head/schema
+publication, a four-write small insert, stale replacement rejection, irreversible
+retirement with retained data, count/identity constraints and malformed envelopes.
+Independent Python bytes fix head/page/manifest encodings and namespace keys;
+`just test::table-schema` and root checks include fixture drift. The head test
+run takes 904 ms with 22 MiB reported maximum resident memory; this is a test
+process measurement, not a runtime performance result. Full checks and clean CI
+for subsequent head/transaction changes are separate obligations.
+
+The single-row publication coordinator passes **72/72 Station tests**. New cases
+cover exact small-write publication, same-value/absent counts, retained rejection
+after conflict removal, receipts after retirement, changed-intent rejection,
+7 KiB staged rows with discarded pre-commit proposals, competing-write fencing,
+cancellation/current denial, nonreused reservations and later work. Allocation
+failures and a turn with three preexisting private writes restore the complete
+original proposal. Independent Python bytes cover the 158-byte write receipt
+and its full-width key; malformed/foreign records reject. The final suite reports
+1 s and 23 MiB maximum resident memory in `table-write-final-test.log` under the
+same campaign. This remains in-memory captured-turn evidence, without native
+SQL admission, predicate/multi-row publication, disk recovery or latency claims.
+Cancellation retains unfinished Publication quota pending explicit cleanup.
+
+Extracting logical predicate atoms/programs from file execution into the shared
+`LogicalPredicate` owner passes the Fuze package suite and semantic mapping gate.
+Existing finite predicate fixtures still exercise the same comparison, state,
+Boolean, ownership and error behavior. This refactor adds no Table SQL admission.
+
+The typed DML compiler checkpoint passes **187/187 Fuze tests** and **72/72
+Station tests**. It covers reordered/defaulted multi-row INSERT, duplicate
+unkeyed values, stable assignment IDs, key updates, NULL/Boolean precedence,
+all-row DELETE, exact decimal/date comparisons, nested values, Unicode bindings,
+complete-input rejection and allocation failure. Schema insertion/patch validation
+also rejects an oversized schema before column-index workspace access. An initial
+Zig compile rejects a shadowed helper name; the corrected run passes. Diagnostic
+checks cover 18 inferred boundaries and 116 SQL codes; the mapping gate first
+rejects duplicate ownership of shared predicate errors, then passes with one
+source owner and the separate typed-DML projection. Documentation validation
+passes 5,285 local links across 520 files. These are compiler/captured-turn proofs,
+not native multi-row admission, ANTLR qualification or durable SQL execution.
+
+Key-addressed SQL patches pass **188/188 Fuze tests** and **73/73 Station tests**.
+Only a complete conjunction of primary-key equalities qualifies for the point
+path; extra predicates, repeated keys, OR and NOT retain finite-scan semantics.
+Retry identity binds the supplied key and assignments, independently of current
+unassigned cells. Tests replay updates after intervening changes and deletes
+after key recreation, and reject changed keys/assignments under the same identity.
+The wider-schema fixture initially tries to open a Publication cursor after
+private publication and correctly receives `PublicationReadAfterMutation`;
+it now commits publication before validating the head in a fresh captured turn.
+The test explicitly preserves that gate. Documentation validation passes 5,285
+links across 520 files. Logs are `key-patch-fuze-test.log`,
+`key-patch-station-final.log` and `key-patch-docs.log` in the same campaign.
+These remain compiler and in-memory captured-turn checks, without native SQL,
+disk recovery, whole-statement publication or performance qualification.
+
+The finite statement coordinator passes **189/189 Fuze tests** and **78/78 Station
+tests**. It discards and recomputes every proposed turn while testing later-row
+duplicate rejection, all-or-nothing multi-row publication, predicate key updates,
+same-value/absent counts, unkeyed duplicates, competing-write fencing, cancellation,
+retained roots, exact receipts after conflict removal and allocation cleanup.
+Forty rows grow multiple index levels, including a 6 KiB value. Independent Python
+bytes fix the resumable progress envelope and namespace key. Typed intent tests
+bind assignment values, schema, predicates and the 4 MiB operation limit while
+ignoring SQL whitespace/keyword case. An initial Station run rejects the use of
+the user-key deletion API for a reserved framework progress key; the coordinator
+now uses the existing framework write API without weakening key protections.
+The final Station suite reports 5 s and 23 MiB maximum resident memory, not a
+runtime latency measurement. Logs are `statement-fuze-test.log`,
+`statement-station-final.log` and `statement-docs.log` in the same campaign.
+These are in-memory captured-turn proofs. Native admission, schema rewrites,
+cancelled-page cleanup, disk faults and clean committed-HEAD qualification remain
+separate obligations.
+
+Closed-candidate cleanup passes the root `zig build test` (**660/660 tests**,
+with other cached suites) and the final **81/81 Station tests**. Tests discard
+each cleanup proposal, recover unfinished Publication quota, skip hundreds of
+unused reserved IDs and preserve accepted roots, receipts and nonreuse floors.
+They reject cleanup of active/applied work, changed cursor identity/ranges,
+malformed/foreign cursor bytes and current access denial. Independent Python
+bytes fix the 93-byte cleanup cursor and key. The final Station run reports 5 s
+and 24 MiB maximum resident memory. Logs are `cleanup-station-test.log`,
+`cleanup-oracle-test.log` and `cleanup-docs.log` in the same campaign. These are
+captured-turn unit checks and existing root tests, not new disk cleanup, native
+admission or physical-erasure evidence.
+
+The schema publication coordinator passes **86/86 Station tests**. Captured-turn
+cases cover add/drop/rename columns, stable/nonreused identities, future-only
+defaults, required-field validation, exact numeric/key conversions, character
+limits, empty Tables, stale schema rejection, competing writes and cancellation.
+Late NULL, missing-field, character-length, overflow and inexact-conversion
+failures retain the old schema/root and original rejection after data changes.
+Every proposed ALTER turn is discarded once before recomputation; retained rows
+decode through the original schema. A 6 KiB source cell and 5 KiB typed default
+exercise large schema and rewritten-row Publications without reading private
+descriptors. Allocation failure, current denial and changed progress revisions
+reject without publishing a successor. Final evidence is
+`alter-station-final.log` and `alter-docs.log` in the same campaign. These checks
+cover schema publication helpers; catalog rename/DROP/dependencies, native caller
+admission, disk recovery and performance qualification remain unproved here.
+
+The coordinator tree passes full pinned `just check`, including native/generated
+contracts, all diagnostic gates, unit/CLI checks, frontend suites and the handbook
+build (`schema-coordinators-check2.log`). Its first run stopped at the new typed
+intent scratch-buffer `WriteFailed` cause. That owner now retries within the
+bounded value envelope, projects a full-envelope limit as `MutationBatchTooLarge`,
+and has a reviewed control-flow mapping plus tested 4 MiB guidance. The passing
+run includes that correction. This remains a working-tree check, not committed
+clean CI or qualification of subsequent catalog/runtime integration.
+
+General catalog metadata passes **31/31 catalog package tests**. New cases cover
+owned UTF-8 names through 255 bytes, full-width IDs, immutable schema references,
+hashed-name collision-bucket keys, inline/chunked staging, discarded proposals,
+retained revisions, same-revision content changes, foreign/missing manifests,
+orphan adoption rejection, poisoned reads and allocation-failure cleanup.
+Independent Python bytes fix metadata, manifest, name digest and namespace keys.
+An initial compile used removed Zig array-repeat syntax; the fixture now constructs
+the name with a comptime loop. The next test found an incorrect hand-calculated
+maximum; the independently fixed envelope is 436 bytes. Final evidence is
+`metadata-catalog-final.log` and `metadata-docs.log` in the same campaign.
+These are codec and in-memory storage checks. Live catalog routing, name
+publication, DDL lifecycle, native clients and disk evidence remain separate.
+
+General namespace resolution passes **35/35 catalog package tests**. The new
+cases exercise independent metadata/data/schema permissions, administrator
+restoration, twenty-object pagination, stale cursors, exact names, mismatched
+bindings and heads, malformed pages, poisoned reads and paged DROP dependencies.
+History references remain distinct from dependencies that restrict DROP. Control
+records also have independent Python byte fixtures. Testing exposed a proposed
+name key beyond native KV's 32-byte bound: keys now use a 13-byte digest bucket
+and a complete object ID, with full stored-name comparison for equality. Final
+evidence is `catalog-namespace-final.log` and `catalog-namespace-docs.log` in the
+same campaign. Fixtures install definitions explicitly; these tests do not prove
+CREATE/ALTER/DROP admission, dynamic native routing or durable recovery.
+
+General captured-turn lifecycle proposals pass **43/43 catalog package tests**.
+CREATE/name/schema publication, RENAME, RESTRICT DROP, same-name replacement,
+absent-DROP binding, current policy revocation and original receipt retries are
+exercised through the actual general catalog coordinator. Every CREATE/ALTER
+staging phase is cloned, cancelled and cleaned; subsequent operations preserve
+nonreused identities/revisions and recover staging quota. An ALTER on existing
+NULL data rejects without changing the live definition; a subsequent defaulted
+column rewrite preserves row identity and values. Final ALTER publication is
+asserted to use exactly four writes. Repeating discarded DDL/cleanup proposals
+reproduces the same result and mutations. Historical lookup rejects published but
+unaccepted metadata. An initial new row fixture used an incorrect scalar union
+shape; the corrected typed atom representation passes. Evidence is
+`catalog-ddl-final.log` in the same campaign. RESTRICT uses a separately maintained
+blocking index; the test asserts one page regardless of preceding history
+references. These remain in-memory proposal
+proofs; signed routing, disk/restart and caller/performance qualification are not
+established by this checkpoint.
+
+Catalog-bound DML routing passes **46/46 catalog tests** and **86/86 Station
+tests** (`catalog-dml-final.log`, `catalog-dml-station.log`). A small keyed INSERT
+publishes in exactly four writes; exact-key UPDATE uses the point path and
+preserves matched=1/changed=0. Multi-row INSERT and predicates with additional
+conditions select the finite coordinator. Tests preserve original outcomes after
+DROP/name reuse, reject changed metadata at occupied operation IDs, fence DDL and
+DML in both directions, allow original cancellation after action revocation and
+deny receipt disclosure after inspect revocation. Another catalog cannot inspect
+those outcomes merely by sharing the same native resource. Read permission is
+separate from inspection. These routing proofs still do not qualify native
+command transport, console latency or installed SDK behavior.
+
+The catalog lifecycle/DML integration tree passes full pinned `just check`,
+including generated native/ABI contracts, all diagnostic gates, unit and CLI
+proofs, frontend suites and documentation build (`catalog-integrated-check2.log`).
+The first run stopped at stale inventory after removing a duplicate schema
+validation call; regenerated reviewed inventory passes. This is a working-tree
+check, not native general-Table disk qualification or committed clean CI.
+
+Bound logical cell encoding passes **190/190 Fuze package tests**
+(`bound-value-test1.log`). It shares the canonical FVL1 cell implementation and
+validates exact fixed integer-row bytes, full-width integers, floating signed
+zero, decimal, nested list/array/map, JSON and admitted cell states. Every encoded
+prefix truncation and trailing byte rejects; allocation-failure schedules release
+the enclosing request arena. This helper does not establish a schema binding or
+enable a new native request format by itself.
+
+Recorded catalog continuations pass **47/47 catalog package tests**
+(`catalog-continuation-test.log`). The native-origin test fixture admits work
+through external input, resumes exact recorded CREATE and finite DML from the
+configured owner, and rejects first admission, foreign process origin, external
+input through the continuation entry point, changed intent and changed principal.
+Policy revocation preserves pending work with zero writes; restoration permits
+the original continuation to finish. This is coordinator input validation, not
+evidence of a wired native self-message scheduler or disk restart.
+
+Compact schema-bound DML payloads pass **194/194 Fuze package tests**
+(`dml-codec-test2.log`). Independent Python bytes fix FDM1 with Unicode/defaulted
+values. Tests preserve complete plan fingerprints and DEFAULT/NULL/predicate
+distinctions, own nested data after source destruction, reject changed schemas
+before value decoding, cover every truncated prefix and reject malformed
+tags/counts/row states/lengths. Allocation-failure schedules include the separately
+owned schema and value arena; the initial compile caught that missing schema
+owner field before the corrected pass. Example int64 INSERT and point UPDATE
+payloads leave room for the planned 141-byte command header within the 243-byte
+Station frame payload. This is a size assertion, not native transport latency
+evidence or proof that the planned command header is implemented.
+
+Typed Table command bodies pass **50/50 catalog package tests**
+(`table-command-final2.log`). Independent Python bytes fix the 141-byte header,
+full-width identities, immutable metadata commitment and Unicode rename payload.
+CREATE, every selected ALTER action, RENAME, bound/absent DROP and typed DML
+round-trip exactly. Tests reject all DDL truncations/trailing bytes, foreign
+definitions, changed metadata/schemas and foreign scopes. Actual encoded int64
+point INSERT/UPDATE/DELETE fit the 243-byte Station payload. Allocation-failure
+testing exposed nondeterministic allocation counts with a DML owner nested inside
+another arena; retaining DML's explicit independent owners removes that layer and
+passes the full failure schedule. These are codec and size proofs; native
+submission, continuation scheduling and transport latency remain separate.
+The first independent-fixture run failed: it used plain SHA-256 instead of the
+specified Publication chunk-chain commitment, and its strict metadata fixture
+reader omitted the new command fields. The corrected fixture and reader pass;
+the failed `table-command-final.log` is not qualification evidence.
+
+Explicit receipt routes and reference-only recovery pass **86/86 Station** and
+**51/51 catalog** tests (`receipt-route-station-final.log`,
+`receipt-route-catalog2.log`). STW1 is now 159 bytes with a mandatory point/finite/
+ALTER route. Independent bytes and rejection tests cover missing/unknown routes
+and invalid ALTER row counts. Exact saved DML references inspect, cancel and
+clean their original work without resending rows; current scope/principal/policy
+checks remain. DML reference controls and the wrong low-level cancellation path
+reject ALTER, while catalog cancellation clears its Table and object together.
+The old 158-byte helper record is rejected; the coordinated native/current-v1
+cutover and regeneration remain required before enabling the general profile.
+
+Authorized command-basis resolution and staged delivery pass **59/59 catalog
+tests** (`table-upload-final2.log`). Historical command resolution retains the
+original accepted schema after DROP/name reuse and checks current permissions.
+The independent Python fixture fixes the 239-byte upload status. Tests cover
+part boundaries and exact duplicate checks, four-write chunk completion,
+namespace/principal collisions, foreign origins, every unadmitted cancellation
+phase, recorded self-origin admission, finite DML counts, denial/restoration
+boundaries and terminal retries after body collection. Every injected native
+read failure during binding/admission poisons the proposal and leaves it empty.
+Private seal/bind results cannot supply committed publication/admission evidence.
+The first extended run preceded fixture regeneration and failed two missing-field
+checks (`table-upload-final.log`); the regenerated independent fixture passes in
+the cited rerun. These are captured-turn tests; native behavior scheduling,
+signed client transport, disk restart and performance remain unqualified here.
+
+The general owner hooks and native controls pass **65/65 catalog tests**
+(`table-behavior-final.log`). The guard/initializer/handler sequence executes
+uploaded CREATE and inline point/finite DML, schedules one durable output per
+pending step and preserves identical decisions with replacement handler instances.
+Initialization and point INSERT each use four writes. Current policy revocation
+records a denial without rescheduling; exact external resume finishes after
+restoration. Tests reject foreign origins, process-origin first admission,
+malformed/truncated bodies, foreign definitions and noncanonical part padding.
+Injected failures across every point-mutation read propagate without committing
+an input rejection. Malformed published request bytes receive a disposition;
+corrupt Publication evidence propagates its integrity failure instead. These
+tests use a dynamic-map captured-turn fixture and do not claim disk-backed host
+replacement, deployed client integration or console end-to-end support.
+Full pinned `just check` also passes on this owner-hook tree
+(`table-behavior-check.log`): generated contracts and binding drift gates,
+diagnostic inventory/mappings, unit and CLI checks, independent byte fixtures,
+frontend checks/tests and the documentation production build. Existing frontend
+lint warnings remain warnings. Committed-HEAD clean and disk qualification are
+still separate required gates.
+
+Offline typed intent persistence passes **70/70 catalog tests**
+(`table-intent-final2.log`). Independent Python bytes fix TCI1 for a full-width
+Unicode rename. CREATE and finite DML restore original command/schema/reference
+without source access; destruction of input buffers cannot change restored work.
+Tests reject every truncated prefix, missing/foreign definitions, changed schema
+commitments and substitution of upload parts, namespaces, digests or coordinator
+controls. A 20,000-byte typed value exercises the large-workspace path, and the
+restore/decode allocation-failure schedule leaves no leaked owners. An initial
+extended test used an incorrect UTF-8 atom field name and failed compilation;
+the corrected test uses the shared typed byte atom. Signed submission, durable
+console persistence and cross-language recovery integration remain separate.
+
+The general signed caller passes **73/73 catalog tests**
+(`table-client-test2.log`). Canonical prepared envelopes retain exact inline,
+begin, part, resume and cancellation payloads; missing/foreign top-level and
+native definitions, changed connection fields and extra saved bytes reject.
+Signature, scope, reference and intent-step substitution failures reject before
+network access. Metadata methods validate their connection before opening a
+source. The initial compile rejected the Zig-reserved name `resume`; the API is
+`prepareResume`. All caller entry points compile, including current-cut outcome
+batches and bounded notification waits. These tests do not yet qualify successful
+HTTP submission, wait scheduling or disk-backed general-owner recovery.
+
+The shared SQL preparation path passes **74/74 catalog tests**
+(`table-client-compile.log`). `just test::typed-tables` then passes through the
+signed client, actual GenServer hooks and authorized delivery courier against
+disk-backed Ursula with eight resident authority pages. The schedule covers
+five-column CREATE, aliases/defaults/nulls/decimal cells, typed INSERT/UPDATE,
+same-value matched/changed counts, atomic multi-row conflict rejection, ADD/
+RENAME/DROP COLUMN, finite DELETE, DROP/name reuse, unkeyed duplicates and an
+original retained receipt after replacement. Accepted send and owner-commit
+replies are lost; exact saved native requests recover identical receipts after
+node/store replacement. The passing run takes **35.891 seconds** and observes
+140 turns, at most four mutations and 256-byte native values
+(`typed-table-native4.log`). This is scenario duration, not a mutation benchmark.
+
+Three earlier runs failed: the fixture first used a path-only directory handle
+for fsync, then omitted the native courier needed to deliver recorded self-output.
+The final fixture uses a readable directory descriptor and signs/persists exact
+courier delivery requests; no authority or publication gate was relaxed.
+Inspection uses the shared typed row reader, not SQL SELECT. This proof does not
+qualify the deployed query host, console, language SDKs, every logical family,
+every ALTER case, memory growth, host power loss or the final current-v1 cutover.
+
+Extracting the source-independent `LogicalQuery` plan and pull executor passes
+**194/194 Fuze tests**, the semantic mapping gate and all **190 real file-query
+CLI cases**, including the unchanged 192 MiB/96 MiB streaming memory case.
+Existing plan fingerprints, counts, failure evidence and file-tail verification
+remain unchanged. This checkpoint enables reuse of the same operators by typed
+Tables; it does not yet establish a native Table SELECT adapter.
+Logs: `logical-query-extract.log` and `logical-query-file-proof.log`.
+
+The general Table SELECT compiler passes **201/201 Fuze tests** and the semantic
+mapping gate (`table-select-final.log`, `table-select-mappings2.log`). Cases cover
+all 128 explicit/wildcard column positions, 255-byte names, exact decimal/date
+predicates shared with DML, nested projection, aliases, finite aggregates over
+limited inputs, complete-input rejection and allocation-failure ownership.
+Selected-prefix execution stops at LIMIT without claiming tail exhaustion;
+complete-source execution still propagates a tail read failure. Development runs
+caught obsolete Zig repetition syntax, an extra semicolon, a predicate-module
+name collision and an unmapped LIMIT cause; the final tree preserves the existing
+syntax/range diagnostic causes. This remains compiler/operator evidence, not
+native Table SQL reads, installed callers or relational join qualification.
+
+The signed general `TableQuery` adapter passes **94/94 query-package tests**
+(`table-query-test2.log`) and the expanded native disk schedule. The latter now
+executes SQL projections, exact typed primary-key lookup, COUNT, LIMIT 0 and
+request/row/result-byte budget failures. A held query rejects current catalog
+read denial; another keeps its original object, schema and rows through UPDATE,
+column evolution, DROP and name reuse. Authority/store replacement invalidates
+the original snapshot, and a separately opened query reads the new object.
+The final run passes in **36.709 seconds**, with 142 owner turns and unchanged
+four-mutation/256-byte native bounds (`typed-table-select-native4.log`).
+
+The first expanded run failed its restart diagnostic assertion: cleanup replaced
+the original `QueryExpired` with a generic transport conflict. The query handle
+now retains the actual failed request's native cause before cleanup; local errors
+do not inherit another operation's rejection. Subsequent native runs pass. The
+first full check stopped at missing outcomes for the new query diagnostic cases;
+reviewed caller/Board/Flight/inspection cases now pass **2,922 projections across
+30 declared surfaces**. These remain signed Zig fixture proofs, without deployed
+console/host, all-family/SDK, cardinality-growth, latency or host-power-loss claims.
+Full pinned `just check` passes on the corrected query tree
+(`table-query-check2.log`), including generated contract/binding drift, native and
+CLI checks, semantic outcome cases, frontend checks/tests and the documentation
+build. Existing frontend lint warnings remain nonfatal. This does not replace
+committed-HEAD clean qualification or the remaining deployment migration.
+
+The supplied `transit-query-host` catalog role now passes the same disk proof
+with a courier scoped to its single PID (`typed-table-host4.log`). The expanded
+run takes **64.017 seconds** and observes 219 owner turns, at most four native
+mutations per turn and 256 bytes per value. A second wide Table receives CREATE,
+typed INSERT, a defaulted-column rewrite, finite UPDATE and DROP without another
+worker. Restarting with the same activation marker rejects; fresh ownership
+preserves the original outcome. The test also withholds an accepted native turn's
+receipt, kills that host and finishes the original saved operation under a newly
+fenced activation. The duration is a fault scenario total, not a latency benchmark.
+
+The first deployed run exposed `StaleStateResource` during concurrent current
+metadata reads. The fixture now retries only bounded read/preparation calls;
+it never retries a captured scan on a newer cut or replaces an uncertain send.
+The next run passes in 61.996 seconds before the explicit host fault was added.
+The fault run initially failed because the proxy counted killed hosts' closed
+notification waits as forwarding failures. The final proxy separately counts
+those downstream disconnects and still fails actual upstream errors. Earlier
+failed logs are `typed-table-host1.log` and `typed-table-host3.log`; all logs remain
+in the campaign above. This qualifies the supplied catalog/courier binaries,
+not the still-separate local server, console or SDK migration, nor power loss.
+
+The general console recovery-file owner passes **28/28 CLI lifecycle tests**
+(`table-recovery3.log`). A 48 KiB typed default makes the immutable intent larger
+than the mutable record limit; progress stays below 8 KiB and retains exact signed
+upload bytes through close/reopen. Tests cover the exclusive lock, unknown-send
+state, invalid successor checkpoints, retained original disk progress, completed
+intent cleanup, orphan non-adoption, altered referenced bytes, changed scope,
+missing/foreign compatibility definitions and invalid signatures. This is local
+file-owner evidence, before console dispatch integration. The first run crashed
+because Zig's immutable atomic publication requires `link`, while `replace`
+requires a replace-enabled temporary file; the corrected owner passes. These
+tests do not simulate filesystem power loss or establish native SQL outcomes.
+
+The console and local server now execute general catalog Table SQL through the
+same signed caller and frozen typed query reader. The expanded native disk proof
+passes in **91.741 seconds**, with 297 owner turns, 66 sends, at most four native
+mutations and 256 bytes per value (`typed-table-console5.log`). It runs the actual
+console through wide CREATE, typed INSERT, duplicate rejection, exact counts,
+EXPLAIN, SELECT, ALTER, DELETE and DROP. Lost upload replies reconcile the exact
+signed request; read-only `.status` does not send or change saved progress;
+cancellation of the original upload leaves no inserted row. The supplied host's
+lost accepted turn and fresh activation checks remain in the same run.
+
+The full local server suite passes in **34.74 seconds** (`typed-server3.log`).
+It covers current permission revocation, bounded observation pressure, capacity
+fallback versus denial, retained exact recovery through process/store restart,
+and DROP/recreate across restart without recreating the default Table. An earlier
+run exposed installation of private recovery before preparation authorization;
+preparation now succeeds before a new intent replaces saved work. A denied
+statement preserves the prior recovery bytes and does not block later reads.
+Separate startup evidence also confirms that dropping the default Table survives
+restart (`typed-local-startup1.log`).
+
+Full pinned `just check` passes (`typed-console-check3.log`), including 586 real
+CLI diagnostic cases, **2,948 outcome projections across 34 surfaces**, generated
+contract/binding checks, native units, frontend checks and documentation build.
+CLI lifecycle checks pass **29/29**, including exact logical formatting. Earlier
+development runs caught the wrong CLI artifact in the proof, obsolete fixture
+shapes and narrow SQL expectations, and an invalid test assumption that a fully
+reconciled upload must retain its first pending request. Those runs remain in the
+campaign; the passing tests assert actual replay bytes and original operation
+identity instead. These durations are scenario totals, not latency benchmarks.
+This checkpoint does not establish power-loss durability, all-family caller
+qualification, the final compatibility cutover or committed-HEAD clean CI.
+
+The console's direct `catalog_v1` configuration and parser-derived completion
+pass the expanded native proof in **91.213 seconds**, with the same 297 owner
+turns, 66 sends, four-mutation and 256-byte bounds
+(`catalog-console-native1.log`). The real signed fixture discovers a created
+Table, completes its column from the SELECT suffix and obtains ALTER continuations.
+The server suite passes in **35.61 seconds** (`catalog-console-server1.log`),
+including SELECT and `.info` through a catalog-only read-only connection without
+write recovery. Neither path needs the former fixed Table workspace fields.
+
+The query package passes **97/97 tests** (`table-assistance4.log`), including
+production-parser continuations, typed assignment/aggregate suggestions,
+unsupported continuation filtering, 255-byte/quoted/Unicode names, terminal
+control suppression and allocation-failure cleanup. Full pinned `just check`
+passes on the integration tree (`catalog-console-check1.log`); the final local
+suggestion filters and configuration diagnostic additions also pass focused query
+tests and **592 real CLI cases** (`catalog-console-diagnostics1.log`). Generated
+query/Board schemas and validators include the catalog assistance profile.
+Development compile failures caught a shadowed parser helper, a remaining optional
+client dereference and optional return coercion; no failed build is counted as
+passing evidence. The bounded catalog search returns at most eight suggestions
+from at most 128 pages and does not claim complete catalog enumeration.
+
+The durable execution-witness checkpoint passes **205/205 Fuze tests**, **86/86
+Station tests** and **75/75 catalog tests** (`table-witness2.log`,
+`table-witness-transit-station5.log`, `table-witness-transit-catalog5.log`). Exact
+key/cell formatting, schema attribution, input ordinal checks, malformed witness
+rejection and current-policy disclosure are executable cases. A real catalog
+transition retains the same stored witness through read revocation/restoration,
+DROP and name reuse; a withheld presentation cannot be encoded over the receipt.
+The independent Python storage oracle now includes the mandatory 95-byte witness
+and a nonempty rejected-key fixture inside the 254-byte receipt.
+
+The expanded disk-backed native/console proof passes in **103.074 seconds**
+(`table-witness-native1.log`), with 318 owner turns, 69 sends, at most four
+mutations per turn and 256 bytes per native value. It checks the original row/key
+for a conflicting finite UPDATE, read-policy redaction/restoration, a rejected
+INSERT after DROP/recreate and disk restart, structured console facts, the human
+duplicate-key message and the failing column/value for SET NOT NULL. Existing
+lost send/turn replies and supplied-host loss checks remain in the same run.
+This total is not a point-latency benchmark or power-loss proof.
+
+Full pinned `just check` passes (`table-witness-check2.log`), including 592 CLI
+diagnostic cases, 2,948 outcome projections, generated contracts, native units,
+frontend validation and the documentation build. Development runs caught an
+obsolete 159-byte oracle, a shadowed local name, an
+incorrect test accessor and diagnostic fact ordering drift. Each failed run is
+retained in the same campaign and is not counted as passing qualification. The
+receipt extension remains part of the pending coordinated current-v1 cutover;
+it does not establish compatibility with prior builds or complete caller migration.
+
+General Table rendering now passes **30/30 CLI lifecycle tests**
+(`table-output4.log`). A valid 256 KiB source cell projected eight times produces
+more than 8 MiB of escaped JSON; the test independently decodes every output
+cell through a 16 KiB stream and confirms it remains an incomplete row prefix.
+Vector/splat writes and failures before/after draining the buffer preserve bytes
+and sticky failure state. The focused build also compiles the real console.
+
+The expanded native/console proof passes in **110.906 seconds**
+(`table-output-native1.log`), with 350 turns, 83 sends and unchanged four-mutation/
+256-byte native bounds. Its additional 64-column projection crosses multiple
+output-buffer drains and verifies all escaped values plus the final marker.
+Inventory and semantic mapping checks pass (`table-output-mappings1.log`).
+Initial development builds caught Zig's nested-name shadowing rule and the
+mutable vector required by `writeSplatAll`; those failed builds are retained.
+These checks do not replace the final full-type/caller and clean-CI gates.
+
+The Table header/EXPLAIN location checkpoint passes **206/206 Fuze tests**,
+**30/30 CLI lifecycle tests** and the real console build
+(`table-locations-fuze1.log`, `table-locations-console1.log`). Cases cover
+SELECT/CREATE/ALTER/DROP/INSERT/UPDATE/DELETE header offsets and ensure editor
+continuations do not suggest IF after ALTER TABLE or a derived relation after
+plain SELECT. Catalog/query tests supply no usable transport and establish that
+invalid headers fail before metadata acquisition.
+
+Full pinned `just check` passes (`table-locations-check1.log`). The expanded
+native proof passes in **110.858 seconds** (`table-locations-native1.log`),
+checking actual console error coordinates for SELECT and EXPLAIN, including a
+failure after schema acquisition. All 350 turns, 83 sends, four-mutation bounds,
+large-output checks and recovery cases remain in that run. These checks do not
+qualify complete contextual highlighting or all compiler binding witnesses.
+
+The unbound literal checkpoint passes **211/211 Fuze tests** and **98/98 query
+tests** (`sql-literal2.log`, `sql-literal-query1.log`). It retains exact nested
+syntax and source spans, binds the full signed int128 boundary and canonical map
+order, attributes nested overflow/duplicate keys/unknown union alternatives,
+rejects recursive or oversized direct syntax before allocation, and exhausts
+partial-allocation failures. Existing typed editor continuations still pass.
+Semantic mapping and source-inventory gates pass; this is parser/binder evidence,
+not completed contextual classification or runtime/transport qualification.
+
+During the general SQL syntax checkpoint, the full check and a focused catalog
+run both stop at `NondeterministicMemoryUsage` in the saved-intent allocation
+schedule (`sql-syntax-check1.log`, `sql-syntax-catalog1.log`). The schedule now
+refuses in-place resize/remap so arena growth allocates reproducibly; normal
+restore tests retain the ordinary allocator. The complete catalog suite passes
+**76/76 tests** (`sql-syntax-catalog2.log`). This repairs fault scheduling without
+changing the recovery implementation or counting either failed run as passed.
+
+The general SQL syntax/classification checkpoint passes **217/217 Fuze tests**,
+**98/98 query tests** and full pinned `just check` (`sql-syntax8.log`,
+`sql-syntax-query2.log`, `sql-syntax-check2.log`). Every scalar alias, recursive
+constructor positions, ALTER/DROP/EXPLAIN, malformed prefixes and comment-safe
+numeric spans have role assertions. A 4,092-byte dense statement fits the fixed
+256 KiB classification workspace. Name/value binding tests retain exact source
+positions, and completion refuses metadata for a different source. An earlier
+query test exposed that source-scope check; two development cases also used an
+incorrect expected overflow error and a default of the wrong type. Those failed
+runs remain in the campaign.
+
+The expanded native console proof passes in **113.504 seconds**
+(`sql-syntax-native1.log`), with 350 turns, 83 sends and the same four-mutation/
+256-byte native bounds. Actual SELECT/EXPLAIN, DML and DDL errors identify the
+failing source token after binding; the lost-reply/turn, restart, witness and
+large-output assertions remain. This scenario total is not a latency benchmark,
+a completed transport migration or committed-HEAD clean CI.
+
+Canonical Table state predicates pass **218/218 Fuze tests** and **98/98 query
+tests** (`sql-state-fuze1.log`, `sql-state-query1.log`). SELECT, DELETE and
+completion use the shared grammar's NULL/MISSING/VALUE/TYPE_ERROR/CONFLICT names,
+including NOT. Matching ordinary value/null rows does not relax storage admission
+for missing values, source errors or conflicts. This corrects the new Table
+parser's missing VALUE case and its inconsistent ERROR spelling; it does not add
+an error-state storage profile.
+
+The neutral Table schema checkpoint passes **224/224 Fuze tests**
+(`table-schema-json3.log`). The independent Python fixture fixes both neutral JSON
+and FTS1 for the same schema; the reflected JSON Schema validates it and rejects
+foreign/missing definitions and wrong identity/container shapes
+(`table-schema-json-oracle1.log`). Full-width identities, UINT128, exact decimal,
+floating signed zero, recursive descriptors/defaults and ownership after source
+destruction round-trip unchanged. The allocator schedule releases every partial
+conversion. A legal 60,000-element nullable array default exceeds the ordinary
+logical JSON envelope size but fits this schema's 2 MiB wire bound; its canonical
+schema remains below 64 KiB. Oversized input rejects before allocation. The
+focused suite reports 78 MiB maximum RSS including that large JSON case; this is
+process-level test evidence, not an isolated transport memory measurement.
+
+Initial development runs caught the neutral parser's `InvalidJsonShape` rejection
+rather than a raw enum error, allocation failure escaping as `WriteFailed`, and
+an uninstantiated optional/array reflection branch. The corrected encoder reports
+OutOfMemory for its allocating writer; reflection separates those Zig metadata
+variants. Generated resources and failed logs remain in the same campaign. The
+codec does not by itself enable the general Table ABI, port or SDK callers.
+Full pinned `just check` passes on this checkpoint (`table-schema-json-check1.log`),
+including generated logical resources, the independent schema oracle, native and
+CLI cases, frontend validation and the documentation build. This is not the
+pending committed-HEAD clean-CI gate.
+
+General catalog listing now returns inline metadata/head entries without reading
+schema defaults or row data. The focused catalog and query suites pass **77/77**
+and **98/98** tests (`catalog-list2.log`, `catalog-list-query1.log`). A source that
+refuses schema reads still lists the live name, while lookup fails and a retired
+head is rejected. The disk-backed native/console proof passes in **109.611
+seconds** (`catalog-list-native1.log`), including distinct JSON names across a
+page and the existing lost-reply/restart checks. It retains 350 turns, 83 sends,
+four mutations per turn and 256-byte native values. This qualifies listing and
+rendering behavior, not the remaining neutral caller migration or clean CI.
+
+The shared general neutral caller checkpoint passes **90/90 catalog tests**
+(`table-neutral-values4.log`). Typed CREATE/INSERT/UPDATE/DELETE produce the same
+saved bytes as SQL, including reordered/omitted fields, DEFAULT versus NULL and
+point versus finite predicates. All selected evolution forms, stale object/name/
+schema rejection, recursive binary input, full-width identities/quotas, metadata
+ownership, malformed pages and allocation-failure cleanup have direct checks.
+One session retains one original intent; failed compilation/export leaves it
+loaded, and stale references reject without reading or dispatching.
+
+The expanded disk-backed bridge/console proof passes in **137.612 seconds**
+(`table-neutral-native2.log`), with 424 turns, 109 sends, at most four mutations
+per turn and 256-byte native values. It covers typed nested binary/UTF-8/exact
+decimal input, composite-key conflict, typed ALTER/rename/DROP, a stale typed basis
+and original outcome recovery after handle restart and same-name recreation.
+Progress calls are at most **1,380 encoded bytes** in this scenario; they carry a
+small reference and signed step rather than the full saved intent. This is an
+observed framing bound for this workload, not a point-latency benchmark or installed
+SDK qualification. The fixture invokes the shared Zig bridge directly.
+
+The first native attempt failed with `InvalidDiagnostic` while projecting a
+pending ALTER. The existing diagnostic validator allowed cancellation only for
+row-mutation identities, despite the general Table owner using catalog identities
+for pending DDL. Zig and TypeScript now permit the exact catalog identity only
+with recorded pending domain evidence. Unknown, merely saved, input-rejected or
+terminal catalog work still rejects that action. **31/31 protocol tests** and
+**7/7 TypeScript diagnostic tests** pass, including the new evidence/identity
+guards (`table-pending-diagnostic-protocol1.log`,
+`table-pending-diagnostic-ts1.log`). Failed native/compiler logs remain in the
+campaign. These helpers do not complete ABI/port/SDK migration or the coordinated
+current-v1 definition replacement.
+
+The final repository `just check` for that neutral caller checkpoint passes
+(`table-neutral-check2.log`). The subsequent recursive schema generator passes
+**33/33 protocol tests**, **91/91 catalog tests**, unchanged binding drift checks,
+and the pinned TypeScript compiler fixture. The fixture accepts recursive values
+and independent root namespaces while rejecting numeric wide integers, malformed
+nested children, foreign/unresolved references and invalid identifiers. The real
+Table action/result graphs retain recursive list children and diagnostic scalar
+codecs (`table-schema-graph1.log`, `table-schema-graph-catalog1.log`,
+`table-schema-graph-bindings1.log`). This qualifies generation; enabling the general
+catalog ABI and installed language callers remains a separate migration.
+
+The general catalog C ABI/port checkpoint passes **18/18 binding tests** and
+**92/92 catalog tests** (`table-general-abi6.log`, `table-general-catalog1.log`).
+ABI checks cover owned results, local compile locations, preserved loaded intent
+after failed compile, busy exclusion, signature rejection before dispatch and
+uncertain transport with the original signed sequence. Framing checks reject
+oversized and unterminated work and leave non-catalog profile bounds unchanged.
+All **33 generated Station schema roots** compile with the pinned TypeScript Ajv
+validator (`table-general-schema-ajv1.log`). Recursive host bounds apply to the
+catalog field; unrelated actions keep their existing generation bounds.
+
+The disk-backed scenario now invokes the actual Station port/C ABI instead of a
+test-only bridge. It passes in **135.663 seconds** (`table-general-abi-native2.log`),
+with 424 turns, 109 sends, at most four native mutations and 256-byte values.
+It prepares and reloads a nested 300 KiB binary input above the old raw-client
+framing bound, without dispatching that large upload. The smaller typed write,
+ALTER, rename, DROP and name-reuse/restart scenario executes; exact lost-send,
+lost-turn and supplied-host recovery controls also pass. Maximum progress request
+size is **1,392 bytes**, including the port envelope.
+
+The first port run encountered `StaleStateResource` between dependent reads
+during ALTER progress. The ABI now restarts only that exact native rejection for
+reads/local preparation, at most eight times within its configured deadline,
+freeing failed workspace each time. It never retries a submit, cursor conflict
+or denial. The successful second run includes this correction. These are focused
+public ABI proofs; all-language migration, complete end-to-end type coverage,
+global current-v1 replacement and committed-HEAD clean CI remain open.
+
+The TypeScript general Table checkpoint passes `just bindings::node-check`,
+including **48 Station boundary tests** (`table-general-node-check3.log`). The
+catalog cases cover full-width identities/values, owned nested defaults, all eight
+independent rights, signed zero, malformed metadata and foreign intent attribution,
+empty continuing pages, large binary requests, fragmented 1.2 MB responses and
+uncertain replies retaining exact prepared text. The shared port grows response
+storage geometrically within its selected profile and releases it between calls.
+
+The installed Node tarball proof passes in **163.200 seconds** together with the
+disk-backed native/port scenario (`table-general-node-native2.log`): 478 turns,
+125 sends, at most four native mutations and 256-byte values. The consumer runs
+outside the checkout using installed packages and their packaged native host.
+It executes general CREATE, reordered typed nested INSERT with exact decimal,
+same-value UPDATE with matched=1/changed=0, ALTER with default, stale-basis
+rejection, DELETE, DROP/recreate and original saved-intent status after replacing
+the caller. The original object is 12001 and the replacement is 12002.
+
+The first installed run rejects a valid configuration because its SDK limit
+excluded the native row header. The adapter now validates the wire integer bound
+and leaves the narrower record profile to shared native admission; the rebuilt
+tarballs pass. Raw failed logs remain in the campaign. Documentation checks pass
+5,288 local links; the verification catalog and CI task-inventory checks pass.
+This is installed TypeScript evidence, not qualification of the other language
+callers, all logical-family value paths, the final definition cutover or clean CI.
+
+
+The repository `just check` passes after the ABI and TypeScript checkpoint
+(`table-public-callers-check1.log`). The Python general Table migration passes
+strict mypy for **25 source files**, including the installed example API owners
+(`table-general-python-types3.log`). Focused value checks exercise immutable nested
+descriptors/cells, full-width integers, exact decimals, signed zero, invalid float
+widths, malformed pages and intent attribution, 300 KiB binary preparation,
+uncertain submission and joined cleanup after async cancellation. They run again
+from installed wheels outside the checkout.
+
+The combined native/port and installed Node/Python sync/Python async proof passes
+in **211.345 seconds** (`table-general-python-native2.log`): 586 turns, 157 sends,
+at most four native mutations and 256-byte values, with original lost-send,
+lost-turn and supplied-host receipt-loss recovery. Each language executes CREATE,
+typed nested INSERT, no-op UPDATE (matched=1, changed=0), ALTER/default, stale-basis
+rejection, DELETE and DROP/recreate. A replacement caller reloads the original
+intent and reads its original applied outcome, independent of the reused name.
+Python sync retains object 12011 after replacement 12012; async retains 12021
+after replacement 12022. Node retains 12001 after replacement 12002.
+
+The first installed Python run stopped on a fixture's hard-coded principal; the
+corrected fixture checks its configured identity. That failed run remains in
+`table-general-python-native1.log` and does not qualify the Python scenario.
+Documentation links, verification declarations and CI task ownership pass
+(`table-general-python-{docs,verification,ci}1.log`). Other language migrations,
+complete logical-family path coverage, the coordinated definition replacement
+and committed-HEAD clean CI remain open.
+
+
+Exact general historical-definition inspection passes **95/95 catalog tests**
+(`table-historical-catalog5.log`). Tests cover inline and chunked metadata through
+ALTER, DROP and name reuse; current inspection revocation/restoration; absent
+revisions; published-but-unaccepted ALTER candidates; missing original receipts;
+incompatible bytes; conflicting representations; and allocation-failure cleanup
+for owned schemas and neutral results. Corrupt immutable-history attribution is
+an integrity diagnostic without advice to prepare a replacement declaration.
+
+The matching general ABI, generated schemas, TypeScript and Python callers pass
+full `just check` (`table-historical-check2.log`), **50 Station boundary tests**,
+Python's strict **25-file** type check and focused value checks. Initial checks
+stopped on compiler name shadowing and the diagnostic-inventory review gate;
+those failed logs remain in the campaign. The reviewed inventory and semantic
+mapping gates pass with the correction.
+
+The rebuilt installed Node/Python sync/Python async proof passes in **212.738
+seconds** (`table-historical-installed1.log`). Besides the preceding lifecycle,
+exact-recovery and fault schedule, the native port reads original, altered and
+renamed definitions after DROP/recreate. Installed callers inspect the original
+metadata and schema after replacing their handles, verify absent revisions and
+confirm that historical results carry no live head. Bounds remain four mutations
+and 256-byte native values across 586 turns and 157 sends. This checkpoint does
+not qualify unmigrated languages or the remaining cutover, query paths and
+performance/growth gates.
+
+The SDK logical-boundary correction passes **51 Station tests**, strict Python
+type checking across **25 files** and focused Python value/ownership checks
+(`table-sdk-bounds-{node,types,python}1.log` in the same campaign). Regression
+cases accept conflicts at depth 15, reject one more list level, reject invalid
+conflict counts/dot ordering, count both MAP keys and values, and reject aggregate
+payload/type budgets. A direct call through the built native logical codec
+independently accepts and round-trips the depth-15 conflict with two alternatives.
+These checks do not expand the supported Table schema depth or establish a new
+installed-package, full-repository or clean-CI pass.
+
+The Rust general Table caller passes **7 focused library tests** from both the
+source crate and freshly installed source-crate artifacts. Its owned logical
+models preserve exact wide numbers, float bits, recursive states and native
+budgets. Catalog checks reject foreign compiled identities, malformed metadata
+pages, invented affected-row counts and malformed receipts; an injected worker
+panic after dispatch retains uncertainty. The installed fixture also checks
+compiler rejection of overlapping mutable borrows and reuse after consuming close.
+
+The actual native/port plus installed Rust lifecycle passes in **181.875 seconds**
+(`table-rust-installed1.log`), including nested typed INSERT, no-op UPDATE counts,
+ALTER/default, stale-basis rejection, DELETE, DROP/name reuse, accepted historical
+definitions and exact saved-intent recovery through a replacement caller. Across
+478 turns and 125 sends, maximums remain four native writes, 256-byte values and
+1,392-byte progress steps. Lost-send, lost-turn and supplied-host receipt-loss
+schedules pass. Installed crates use their packaged native libraries after source
+vendor directories are removed, with no native-library override.
+
+Source checks are in `table-rust-general2.log`; packaging, documentation and
+verification logs share the `table-rust-` prefix. The first verification check
+found an obsolete test anchor; the updated declaration references the replacement
+malformed-response/worker-panic test and the general fixture actually run by the
+Python, Node and Rust tasks. Documentation checks pass **5,288 local links**;
+verification checks cover **59 invariants, 53 bounds and 13 SDK scenarios**. Other
+SDK migrations, query paths, fixed-profile removal, final definition replacement,
+performance/growth gates and clean CI remain unqualified by this checkpoint.
+
+The retained DROP RESTRICT witness passes **96/96 catalog tests** and the
+independent Python record oracle (`table-drop-witness-catalog4.log`). The rejected
+operation stores its exact dependency identity, kind and owner in **242 bytes**;
+other operation records encode an explicit empty blocker in **225 bytes**.
+Tests reject truncation, foreign definitions, absent blocker evidence and
+contradictory reason/kind pairs. All four blocking dependency kinds retain their
+original attribution after registry replacement/removal, DROP/name reuse and
+inspection revocation/restoration. Exact terminal retry writes nothing.
+
+The native/port/console proof passes in **147.866 seconds**
+(`table-drop-witness-native1.log`). It registers an actual blocking writer,
+observes a rejected DROP with all three original diagnostic facts, removes the
+dependency, retires/recreates the name and reloads the original rejected intent
+through a replacement native-port handle. The original evidence is unchanged.
+Across 439 turns and 117 sends, maximums remain four writes, 256-byte values and
+1,398-byte progress steps; lost-send, lost-turn and supplied-host receipt-loss
+schedules still pass. This run does not include installed SDK consumers.
+
+Regenerated shared diagnostics, ABI/port contracts and frontend validators pass
+full `just check` (`table-drop-witness-check2.log`), including **2,948 semantic
+projections across 34 outcome surfaces** and **592 real CLI diagnostic cases**.
+Initial checks caught missing void-tag serialization, an outdated byte fixture,
+a test attempting dependency registration while DDL is fenced, and a synthetic
+diagnostic receipt missing its now-required blocker. Failed logs remain in the
+campaign and are not qualification; the corrected tests preserve the pending-DDL
+fence and include explicit blocker provenance in the reviewed outcome manifest.
+The final coordinated shared-definition cutover and clean CI remain outstanding.
+
+Ruby's shared port validator accepts generated recursive local schema references
+with root isolation and rejects missing/external references, unsupported siblings,
+non-consuming reference cycles and cyclic host values. The independent recursive
+fixture passes in the pinned bindings shell (`table-ruby-schema2.log`) and is
+wired into the installed raw-client consumer without adding output to its machine
+protocol. This is focused source-level validator evidence; the general Ruby Table
+API and installed-package schedule remain separate qualification work.
+
+The Ruby general Table caller passes its installed lifecycle in **168.021 seconds**
+(`table-ruby-installed1.log`): recursive typed INSERT, exact decimal/binary/UTF-8
+values, no-op UPDATE counts, ALTER/default, stale-basis rejection, DELETE,
+DROP/name reuse, historical schema reads and exact intent recovery through a
+replacement caller. Across 493 turns and 133 sends, maximums remain four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss schedules pass. The consumer loads isolated installed
+gems without source or native-host overrides.
+
+Installed Ruby value checks cover all logical families, wide integers, signed
+zero, depth-15 conflicts, MAP key accounting, aggregate byte/node/name budgets,
+owned frozen results, malformed metadata/receipts, exact uncertain commands and
+interrupted-wait ownership through joined close. Actual child exchanges accept
+600,000-byte catalog payloads and fragmented replies while rejecting the same
+request at the unchanged raw-client line bound. Generated recursive schemas are
+exercised through the packaged port, including malformed replies and child loss.
+The rebuilt raw-client schedule passes separately (`table-ruby-raw1.log`),
+including saved lost-receipt recovery, seedless restart and revoked retry.
+
+Full pinned `just check` passes (`table-ruby-check1.log`); documentation checks
+cover 5,293 links across 523 files and verification retains 59 invariants, 53
+bounds and 13 SDK scenarios. The original fixed-profile Ruby runner/query APIs
+remain to be removed or migrated with the other query surfaces. This checkpoint
+does not establish the remaining SDK migrations, final definition replacement,
+matched performance/growth or committed-HEAD clean CI.
+
+Java's generated-schema validator now resolves bounded local recursive references
+with independent roots and fails closed on missing/external references, unknown
+keywords, reference cycles and cyclic host values. The independent Java 21/Gson
+fixture passes with `-Xlint:all -Werror` (`table-java-schema2.log`) and is wired into
+the installed raw-client schedule. The first focused compilation exposed Gson's
+optional annotation dependency through a fixture-only parser call; using the
+existing Gson parsing API avoids adding a runtime dependency. This is source-level
+validator evidence, not an installed Java general Table qualification.
+
+The Java general Table API passes its installed lifecycle in **166.945 seconds**
+(`table-java-installed1.log`): typed nested INSERT, wide exact decimals,
+unchanged-value UPDATE counts, ALTER/default, stale-basis rejection, DELETE,
+DROP/name reuse, accepted historical definitions and original saved-intent outcomes
+through a replacement caller. Across 493 turns and 133 sends, maximums remain
+four native writes, 256-byte values and 1,398-byte progress commands. Lost-send,
+lost-turn and supplied-host receipt-loss schedules still pass. The external
+consumer uses independent packaged JARs and their native artifacts.
+
+Installed Java value checks cover all logical families, exact integer/float bits,
+owned binary/lists, aggregate node/name/data bounds, depth-15 conflicts, MAP child
+accounting, strict metadata/continuations and original compiled identity. Actual
+owned ports carry 600,000-byte payloads in both directions, reject malformed
+receipts and retain in-flight ownership after future cancellation until joined
+close. Allocation-loss injection retains uncertainty. The raw-client installed
+schedule separately passes recovery, seedless restart, disposal and revoked retry
+(`table-java-raw1.log`). Its schema checks include large canonical hex without
+recursive regex stack growth; raw frame and nesting bounds remain unchanged.
+
+Focused logical checks additionally exercise fifteen nested MAPs through the
+catalog JSON nesting limit while the unchanged raw JSON limit rejects the same
+wrapped data (`table-java-logical3.log`). The initial package compilation found a
+Java name collision with the existing Station `State`; explicitly naming
+`Catalog.State` fixes it, and rebuilt Station/example JARs pass. Documentation
+checks cover 5,298 links across 524 files; verification retains 59 invariants,
+53 bounds and 13 SDK scenarios. Source/package logs share the `table-java-`
+prefix in the same campaign. This checkpoint does not claim a new full repository
+or clean-CI pass; other SDK/query migrations and final qualification remain.
+
+.NET's generated-schema validator resolves bounded local recursive references
+with isolated roots and rejects missing/external references, invalid siblings,
+unknown validation keywords and non-consuming cycles. Data depth and reference
+hops are bounded separately to prevent uncatchable stack exhaustion. Independent
+nullable/integer/recursive-array fixtures run inside each installed raw-client
+consumer without changing its machine output. The rebuilt NuGet packages and
+installed raw recovery/cancellation/disposal/revoked-retry schedule pass with zero
+compiler warnings (`table-dotnet-schema-{build,raw}1.log`). This qualifies the
+shared validator and raw client; the general .NET Table API remains separate work.
+
+The .NET owned logical models pass the isolated NuGet fixture
+`tests/dotnet_logical_values.py` with zero compiler warnings. It restores four
+exact local artifacts into a clean consumer, records SHA-256 identities, removes
+consumer source/package caches, then tests all descriptor/atom/cell families,
+Int128/UInt128 extremes, exact decimal coefficients, signed-zero bit equality,
+owned binary/collections and structural hashes. Depth-15 conflicts, MAP key
+accounting and aggregate child/name/data limits are exercised in both codec
+directions; large binary values exceed the old raw-body size. Recursive schema
+checks run in the same consumer. The real `bindings::logical-dotnet` task and
+full .NET SDK task include this fixture.
+
+Logs are `table-dotnet-logical-{build2,values1,installed1,docs1,verification1}.log`
+in the same campaign. The original build and round-trip review found that owned
+JSON numeric nodes must use the decoder's exact unsigned representation; numeric
+descriptor fields now round-trip directly without serialization or coercion.
+Documentation checks cover 5,301 links across 525 files; verification retains
+59 invariants, 53 bounds and 13 SDK scenarios. The Ruby/Java guides also correct
+the complete saved-intent bound to the generated **4,327,031 bytes**, distinct
+from the 4 MiB mutation body. These are local/installed codec results, not general
+.NET Table runtime, full-repository, performance or clean-CI qualification.
+
+
+The .NET general Table client passes the installed lifecycle in **167.021 seconds**
+(`table-dotnet-catalog-installed2.log`): nested typed INSERT, exact wide decimal,
+unchanged-value counts, ALTER/default and stale-basis rejection, DELETE,
+DROP/name reuse, accepted original schema and exact original outcome through a
+replacement client. The shared fixture records 493 turns and 133 sends with
+maximums of four native writes, 256-byte values and 1,398-byte progress commands.
+Lost-send, lost-turn and supplied-host receipt-loss checks pass. The consumer
+restores four independently packaged NuGet artifacts, records their hashes,
+removes source/package caches and runs with no source-library overrides.
+
+Installed value checks cover full-width identities, owned schemas/collections,
+immutable diagnostic copies, missing/foreign definitions, exact compiled identity,
+strict original metadata and resource-cut continuations, malformed successful
+receipts and 300,000-byte saved-intent copies. Fifteen nested MAPs exercise the
+catalog's 96-level JSON limit while the unchanged raw limit rejects the same
+wrapped value. Real native HTTP cancellation retains busy ownership until joined
+disposal; this does not claim admitted-mutation cancellation or allocator injection.
+The separate installed raw-client recovery, seedless retry, cancellation/disposal
+and revoked-retry schedule passes (`table-dotnet-catalog-raw1.log`).
+
+The first installed attempt failed to compile its test consumer because a
+STRUCT was passed through the fixture's scalar helper. The corrected consumer
+first passed isolated installed value checks (`table-dotnet-catalog-values2.log`)
+then the complete lifecycle; the package build itself had passed with zero
+warnings (`table-dotnet-catalog-build1.log`). These logs share the existing
+campaign directory. Full `just check` passes (`table-dotnet-catalog-check1.log`),
+including generated contracts, unit/CLI checks, frontend tests and the documentation
+production build. Documentation checks cover 5,303 links across 525 files;
+verification retains 59 invariants, 53 bounds and 13 SDK scenarios. C/C++ and BEAM
+catalog migrations, other enabled query routes, the coordinated definition cutover
+and final clean/performance qualification remain required before issue completion.
+
+
+The BEAM generated-contract validator passes independent recursive nullable,
+signed-integer and array fixtures inside the installed Erlang raw-client
+boundary test. It rejects missing/external references, invalid siblings, nested
+root definitions, unknown rules, empty unions, non-consuming cycles and excess
+data/reference depth. Separate roots remain isolated. A 600,000-byte canonical
+hex fixture and Unicode scalar-length cases cover the linear string checks.
+The public raw Erlang and Elixir schedules both pass recovery, seedless retry,
+owned I/O/disposal and revoked retry after rebuilding all eight OTP artifacts
+with warnings as errors (`table-beam-schema-{build,raw}1.log`). This qualifies the
+shared validator and raw callers, not the pending general BEAM Table API.
+
+
+Erlang and Elixir logical models pass `just bindings::logical-beam` from six
+independent installed OTP artifacts (`table-beam-logical-installed1.log`). The
+fixture records SHA-256 identities, compiles external Erlang consumers with
+warnings as errors, removes consumer Erlang source, and runs both language APIs
+without native/source overrides. Coverage includes all scalar/recursive families,
+128-bit extremes, exact decimals, float widths/signed zero, nonfinite/width
+rejection, five distinct cell states, ordered conflict alternatives, aggregate
+name/node/data bounds, depth-15 conflicts and MAP key accounting. A 300,000-byte
+binary exceeds raw-body size; a sub-binary ownership check proves that extracted
+UTF-8 does not pin a megabyte of unrelated caller data. Elixir nested field,
+element and alternative structs round-trip through the same codecs, with a
+separate finite projection bound before logical validation.
+
+The first strict build rejected an unused internal type declaration; it was
+removed and all eight OTP artifacts rebuilt successfully. The independent model
+fixture passed first (`table-beam-logical-values1.log`), then the registered task
+rebuilt packages including their guides and passed again. Elixir formatting passes
+(`table-beam-logical-format1.log`). Documentation checks cover 5,309 links across
+527 files; verification retains 59 invariants, 53 bounds and 13 SDK scenarios.
+These logs use the same campaign directory. This is installed codec evidence;
+general BEAM catalog/query, full repository and final clean/performance checks
+remain separate qualification.
+
+The general Erlang and Elixir Table callers pass the installed disk-backed
+lifecycle in **199.752 seconds** (`table-beam-catalog-installed1.log`): nested
+typed INSERT, exact decimal and binary values, unchanged-value counts,
+ALTER/default and stale-basis rejection, DELETE, DROP/name reuse and recovery of
+the original outcome and accepted historical schema through a fresh client.
+The shared fixture records 547 turns and 149 sends, with maximums of four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss checks pass. Separate compiled OTP artifacts are
+installed outside the checkout, hashed and exercised through each public API;
+consumer Erlang source is removed after compilation with warnings as errors.
+
+Installed boundary cases cover full-width identities, strict metadata and
+continuation cuts, missing/foreign definitions, exact compiled attribution,
+malformed successful receipts and definitive authorization rejection. Actual
+owned ports carry a 600,000-byte request/response and parse fifteen nested MAPs
+through the catalog's 96-level JSON bound; the raw bound remains unchanged.
+Killing the waiting process leaves admitted work busy, and close waits for the
+native child to finish and exit. These tests do not inject allocator exhaustion
+or establish remote cancellation. Immutable generated contract metadata is
+cached per client; current grants, source cuts and outcomes still come from
+native reads. The raw Erlang and Elixir recovery/disposal/revocation schedules
+also pass (`table-beam-catalog-raw1.log`).
+
+The first isolated boundary run passed Erlang, then found Elixir's missing reverse
+admission-receipt conversion in the shared fixture adapter. After correction,
+all eight OTP packages rebuilt with warnings as errors
+(`table-beam-catalog-build3.log`), both isolated boundary schedules passed
+(`table-beam-catalog-values2.log`), and the complete lifecycle passed. Elixir
+formatting passes (`table-beam-catalog-format1.log`). Logs share the existing
+campaign directory. C/C++, other query routes, the coordinated definition
+cutover and final clean/performance qualification remain required.
+
+Full `just check` passes for the BEAM catalog increment
+(`table-beam-catalog-check1.log`), including generated-contract drift, native/CLI
+checks, frontend tests and the documentation production build.
+
+The C11/C++17 logical models pass `just bindings::logical-c` from six independently
+installed, hashed pkg-config artifacts (`table-c-logical-installed1.log`). The
+fixture compiles external consumers with warnings as errors, removes their source
+and runs without source-library overrides. **146 independent neutral fixtures**
+round-trip scalar boundaries and recursive values from the existing Python
+integer/decimal/temporal/UUID/bit oracle. Separate public model checks cover every
+family, signed/unsigned 128-bit extremes, float widths and signed zero, all five
+states, owned input/child lifetimes, 300,000-byte binary copies, aggregate
+name/data/node limits, depth-15 conflicts and MAPs, cyclic construction views,
+unknown tags, malformed UTF-8/hex/numbers, surrogate escapes, duplicate decoded
+JSON keys and every truncated prefix of a valid nested value.
+
+The first compiler pass found an ambiguous internal numeric helper; the first
+consumer attempt found a shared fixture's import-time command-line assumption.
+The next run exposed undefined foreign-enum loading for an unknown C tag. Public
+tags now use uint32 carriers and reject unknown values normally. The corrected
+isolated consumers pass (`table-c-logical-values3.log`), followed by the registered
+task with freshly packaged guides. The affected Arrow fixture still passes all
+**106 PyArrow cases** (`table-c-logical-arrow1.log`). Documentation checks cover
+5,318 links across 529 files; verification retains 59 invariants, 53 bounds and
+13 SDK scenarios. Logs share the existing campaign directory. These are owned
+codec/package checks, not C/C++ general catalog, query, allocator-fault or final
+clean/performance qualification.
+
+The logical C exports also pass the generated definition-binding gate. The
+generator now discovers all public `transit_*` function prefixes, and the logical
+header includes Station's generated symbol mappings. The installed fixture
+requires those mappings at compilation and proves a foreign-definition logical
+symbol cannot link. Rebuilt installed C/C++ consumers and all 146 neutral fixtures
+pass (`table-c-logical-definition-installed1.log`); generated ABI/resources pass
+(`table-c-logical-definition-generate1.log`).
+
+
+The C11 and C++17 general Table callers pass the installed disk-backed lifecycle
+in **193.286 seconds** (`table-c-catalog-installed1.log`): SQL and typed CREATE,
+nested typed INSERT with exact decimal/binary data, unchanged-value counts,
+ALTER/default and stale-basis rejection, DELETE, DROP/name reuse, original
+outcome recovery and accepted historical definitions through a fresh client.
+The shared fixture records 547 turns and 149 sends, with maximums of four native
+writes, 256-byte values and 1,398-byte progress commands. Lost-send, lost-turn and
+supplied-host receipt-loss checks pass. All six independent pkg-config artifacts
+are hashed, installed outside the checkout and exercised with consumer sources
+removed. Copying Client, Compiled, Prepared or SavedIntent fails compilation.
+
+**41 installed boundary cases** pass (`table-c-catalog-values3.log`) through a
+forwarding native-library fixture: exact full-width metadata and intent
+attribution, historical identities, strict page cuts/continuations, missing or
+foreign definitions, duplicate JSON fields, 600,000-byte typed requests and
+saved replies, malformed/oversized/uncertain receipts and definitive denial.
+An input containing 1,024 rows of 128 shared one-MiB cells rejects at the aggregate
+action bound without reaching native dispatch; the C serializer materializes one
+bounded cell at a time. Deferred POSIX waiter cancellation keeps the actual SDK
+worker busy; close joins the blocked call, and original prepared bytes survive.
+The shim controls replies and does not establish durable authority or remote
+cancellation. No allocator-exhaustion claim follows from this schedule.
+
+The first boundary-consumer compilation used incorrect public factory names;
+after fixing the fixture, the isolated compile and all cases pass. Both raw C
+and C++ recovery/disposal/revocation schedules also pass
+(`table-c-catalog-raw1.log`). C and C++ package checks and all eight C-family
+artifacts/examples pass (`table-c-catalog-build3.log`); generated resources pass
+(`table-c-catalog-generate1.log`). Logs share the existing campaign directory.
+The remaining query/runner migrations, coordinated definition cutover and final
+clean/performance qualification are separate work.
+
+Freshly packaged C/C++ guides and all eight artifacts pass
+(`table-c-catalog-build4.log`); the rebuilt isolated boundary schedule again
+passes all 41 cases (`table-c-catalog-values4.log`). Full `just check` passes for
+this catalog migration (`table-c-catalog-check1.log`), including contract drift,
+native/CLI checks, frontend tests and the documentation production build.
+
+Native typed-preparation admission passes **97/97 catalog tests**
+(`table-typed-budget-test1.log`, 33 MiB test-process peak RSS). A shared neutral
+input describing 512 MiB of decoded binary rows now rejects during conversion
+under the four-MiB intent allowance, with less than 32 MiB of tracked cumulative
+allocation including arena overhead. Repeated borrowed defaults still fail
+complete canonical intent admission. Existing SQL/typed byte-equality and
+exhaustive allocation-failure cleanup checks pass. This is a conversion-memory
+regression proof, not a whole-node or concurrent-workload RSS guarantee.
+
+TypeScript and Python now reject aggregate schema/DML conversion before building
+the complete JSON batch. Tests share one MiB binary values across 1,024 rows and
+128 schema columns; bounded access/conversion counters detect late rejection
+without allocating the entire invalid input. TypeScript's 52 adapter tests and
+type/lint checks pass (`table-node-budget-check1.log`). Fresh independent Python
+wheels pass isolated catalog value/recovery/lifetime checks
+(`table-python-budget-values1.log`), and strict mypy passes all 25 source files
+(`table-python-budget-types1.log`). This extends local preparation evidence;
+the earlier disk-backed lifecycle evidence remains separately recorded.
+
+Rust and Ruby aggregate conversion checks pass from independently installed
+artifacts (`table-sdk-budget-values2.log`). Rust's **8 library tests** include
+an oversized prefix followed by an invalid logical value, verifying that aggregate
+admission stops before that later conversion. Ruby counts conversions over shared
+large cells, then completes the existing strict metadata, receipt-loss and joined
+cancellation cases. The first installed Rust compilation found a test helper
+using the old budgetless signature; the corrected rebuilt artifacts pass.
+`table-sdk-budget-build2.log` records the package builds. The combined installed
+run subsequently stopped at an unrelated Java fixture variable-name collision;
+its later language entries are not passing evidence from that run.
+
+The corresponding native schema-conversion guard passes **225/225 Fuze tests**
+(`table-schema-budget-test1.log`). A shared neutral schema describing 64 MiB of
+binary defaults rejects after the first bounded default exceeds the 64-KiB
+record allowance, using less than 4 MiB of tracked cumulative allocation. The
+existing legal 60,000-element nullable default and exhaustive partial-allocation
+cleanup schedules still pass. Complete schema validation retains its independent
+descriptor, identity, nullability and framing checks.
+
+Java and .NET aggregate conversion checks pass from independently installed
+packages (`table-sdk-budget-values3.log`), after renaming the colliding Java
+fixture variable. Erlang and Elixir pass the corresponding installed checks
+(`table-sdk-budget-values4.log`). Each schema/INSERT fixture places an invalid
+logical value after an oversized valid prefix and verifies rejection before that
+later conversion. BEAM checks both the serializer's exact budget error and the
+public API's normalized preparation error. The first BEAM fixture expected the
+internal phase at the public boundary and failed; correcting that expectation
+does not change the API's existing error normalization. Strict values, large
+frames, uncertain receipts and joined worker-lifetime schedules also pass.
+These are local preparation and boundary checks, not another disk-backed
+lifecycle or whole-runtime memory measurement.
+
+Full pinned `just check` passes the aggregate-admission checkpoint at `1dd2a19e`
+(`table-sdk-budget-check2.log`), including generated contracts, native/CLI tests,
+frontend checks and the documentation production build. The first full run stops
+on diagnostic inventory drift from the two new early budget checks. Both causes
+already have explicit SQL diagnostic mappings; after reviewing and recording the
+changed propagation owners, the independent mapping gate and full rerun pass.
+
+The general logical-plan codec passes **229/229 Fuze tests**
+(`table-logical-plan-test3.log`). Independent Python bytes bind the row descriptor,
+ordered typed predicate, output names, LIMIT and existing plan fingerprint.
+Checks cover every scalar comparison family, exact 128-bit boundaries, negative
+floating zero, recursive schema ownership, every truncated prefix, wrong
+definitions/source/schema, malformed tags and exhaustive allocation failures.
+The first extended scalar fixture used nonexistent width-specific float atom
+fields; using the shared float atom fixes that compile failure. These tests
+qualify the local `FQP1` codec, not durable query integration.
+
+Restartable logical steps pass **235/235 Fuze tests**
+(`table-logical-stream-test3.log`). All four finite operators run at each page
+width from one to eight with recursive rows and canonical plan/checkpoint
+replacement after every page. Independent expected rows/aggregates match emitted
+Arrow bytes. Additional checks cover a 12-column int128 result, independent
+Python checkpoint bytes, all five cell states, full-width counters, LIMIT 0,
+empty continuation/completion, eager predicate failure, source-order overflow,
+wrong bindings/ordinals, malformed progress and whole-row budgets. Allocation,
+output and cancellation faults preserve the original checkpoint and exact retry
+bytes. These are local restart simulations, not native retained-cut recovery.
+
+The shared pull/step row operators also pass **190 real file-query cases**
+(`table-logical-stream-file1.log`), including independent codecs/results,
+gzip, quotas, cancellation/cleanup, immutable capture and the 192-MiB input under
+a 96-MiB address-space limit. The operator refactor retains existing file-plan
+fingerprints and full-source verification after LIMIT.
+
+Full pinned `just check` passes the logical-plan/step checkpoint
+(`table-logical-query-check3.log`), including native/CLI tests, generated
+contracts, frontend checks and the documentation build. Its first run catches
+the new decoded-row width check's missing file diagnostic mapping. The second
+catches the corresponding missing independently reviewed outcome entry. Both
+are corrected: the error preserves incomplete output, identifies a schema/row
+integrity mismatch and directs the caller to the operator without inventing a
+saved command. The third full run passes all mapping and outcome assertions.
+
+Canonical logical Arrow decoding passes **239/239 Fuze tests**
+(`table-logical-inspect-test2.log`). All 46 independent scalar fixtures retain
+exact canonical value bytes after input and workspace are overwritten. Recursive
+ownership, all five states, full-width conflict identities and exhaustive partial
+allocation failures pass. Every truncated prefix, foreign schema/definition,
+extra batch/stream, wrong row count and invalid physical state/kind/payload
+relationship rejects. The first run finds a test variable shadowing the shared
+schema; renaming that variable fixes the compile failure.
+
+The independent Arrow schedule passes **106 PyArrow 23.0.0 cases**
+(`table-logical-inspect-arrow1.log`). Its 45 neutral bridge cases also round-trip
+through the new Zig decoder and compare complete logical JSON values. PyArrow
+checks the emitted physical layouts independently. These results qualify the
+local canonical segment decoder; they do not establish general external IPC
+import, neutral ABI import or durable query integration.
+
+The general Table source adapter passes **102/102 query package tests**
+(`table-query-source-test4.log`). Public CREATE/INSERT/ALTER/DROP transitions in
+the private-turn reference store build 19 rows with 13 columns, nested lists,
+int128 boundaries and a composite primary key. A retained source returns the
+original rows in three bounded pages after column rename, DROP and name reuse;
+logical steps and the owned Arrow decoder preserve their exact values. New
+capture rejects the old declaration, including when supplied old retained data.
+Complete composite-key equality returns one or zero rows without an ordinary
+scan. Current read revocation rejects both before paging and after populated or
+empty point-page computation. Exhaustive decoder/page allocation failures clean
+up partial ownership. Python independently supplies recursive declaration bytes
+and their fingerprint (`tests/table_catalog.py`). The first run's three new tests
+used angle-bracket LIST syntax; using the contract's `LIST(type)` spelling fixes
+them. These are component and retained-cut reference simulations, not native
+durable job admission, disk recovery, SDK integration or performance evidence.
+
+Full pinned `just check` passes the logical decoder and general Table source
+checkpoint (`table-query-source-check1.log`), including generated contracts,
+independent fixtures, native/CLI tests, frontend checks and the documentation
+production build. The source fixture is regenerated and checked by the existing
+Table catalog oracle. Committed-HEAD clean CI remains a separate final gate.
+
+Source mismatch kinds now pass **241/241 Fuze tests**
+(`table-logical-kind-test3.log`). All original KV/Document mismatch kinds map by
+name into logical error evidence without becoming schema types. Unknown kinds,
+Document text/character, full-width conflict identities, owned byte values and
+partial allocation failures retain their meaning through canonical value, JSON
+and Arrow decoding. The first focused run finds an obsolete Zig enum-reflection
+field and one assertion using descriptor tags; both are corrected before passing.
+
+Independent boundary checks pass **126 PyArrow cases** and **111 native ABI/port
+logical fixtures** (`table-logical-kind-boundaries1.log`). The codec success line
+initially prints its previous 91-case total; the executed assertion is 111, and
+the message is corrected. All ten SDK artifacts rebuild. Installed Python and
+Node each pass the 111 fixtures; C/C++ pass 170 owned-model cases, and .NET,
+Erlang and Elixir pass their logical-model and recursive-schema suites
+(`table-logical-kind-installed1.log`). Installed Python/Rust/Ruby/Java value,
+partial-failure and ownership checks pass, including all nine Rust library tests
+(`table-logical-kind-sdk-values1.log`). These model checks do not rerun the
+node-backed catalog lifecycle or qualify durable logical query routing.
+
+Full pinned `just check`, TypeScript's 53 adapter tests/type/lint/format gates,
+and Python strict typing pass (`table-logical-kind-{check,node-check,python-check}1.log`).
+Generated schemas and ABI resources are regenerated and checked. The observed
+kind extension is part of the pending coordinated definition cutover; these
+local passes do not replace final committed-HEAD clean qualification.
+
+Explicit requester-to-catalog policies pass **104/104 query package tests**
+(`table-query-policy-test3.log`). Independent bytes cover declaration and catalog
+targets, full-width catalog IDs, the required current definition, every truncated
+prefix, extra bytes and obsolete unqualified records. Public reference-store
+transitions install one requester-to-principal mapping and use it for two Tables,
+including one created afterwards. Tests reject realm/resource/owner confusion,
+PID-as-principal inference, disabled or declaration-only delegation, and changed
+mappings without a policy revision. Current catalog read revocation still denies
+the unchanged requester policy. These checks do not establish native general-Table
+job admission. The first run uses the definition enum instead of its canonical
+bytes and misses two existing policy constructors; the second exposes a stale
+fixed-length wrapper check. All are corrected before the passing run.
+
+Full pinned `just check` passes this policy checkpoint
+(`table-query-policy-check1.log`), including migrated example controls, independent
+fixtures, generated contracts, native/CLI checks and frontends/documentation.
+The policy record replacement is part of the pending coordinated definition
+cutover; committed-HEAD clean qualification remains outstanding.
+
+The declaration-target policy replacement also passes the actual ReleaseSafe
+`just test::unified-query` disk-backed recovery schedule
+(`table-query-policy-durable1.log`). KV returns 41 rows in six segments in
+**22.32 s**, the existing Table route returns 41/six in **22.67 s**, and Document
+returns 12/two in **225.34 s**, including 177.06 s of Document provisioning.
+All three preserve exact uploads after unavailable sends, current-policy denial,
+source/requester/node/disk-store replacement after staging, complete manifests
+and released source pins. Native and port SQL inspection/parameter comparisons
+pass. No installed language SDK or general-Table durable route is claimed by this
+run; its binaries were built before the subsequent logical-template changes.
+
+General logical parameter templates pass the **250-test Fuze suite** through
+full pinned `just check` (`table-logical-prepared-check1.log`). The tests cover
+21 scalar comparison descriptors, exact 128-bit and decimal values, negative
+floating zero, temporal/UUID values, independent canonical plan bytes, compound
+predicates at the 64-instruction bound, 13-column projection, derived input LIMIT
+and ordered SUM shape. Source/name/schema changes reject before result allocation;
+ordinals, descriptor conflicts, malformed positions, unsupported comparisons and
+oversized text/operands retain their actual failure. Owned plans survive releasing
+input and template storage, including exhaustive partial-allocation schedules.
+The first run finds a copied arena state before later growth, plus a reserved
+identifier and a too-generic expected parser error in new tests. Ownership transfer
+and test inputs/expectations are corrected. The second root-unit run passes its
+246-test intermediate suite. The third focused run finds the existing file plan
+budget test expecting `WriteFailed`; it now requires `PlanTooLarge`, and the final
+root suite passes all 250 tests without leaks.
+
+SQL and file diagnostics identify the 8192-byte bound-plan identity limit; codec
+caller-buffer exhaustion remains distinct. The semantic mapping and executed
+outcome matrices pass with those deliberate mappings. `just test::file-query`
+passes **190 real CLI cases** (`table-logical-prepared-file1.log`), including the
+192-MiB input under a 96-MiB address-space limit. Logical template compilation is
+local, with no implicit lookup, snapshot or admission. These passes do not claim
+migration of the neutral parameter, SDK, Flight, Board or console routes, nor a
+new named PREPARE/EXECUTE contract. Committed-HEAD clean qualification is pending.
+
+Composed request-arena decoding passes **250/250 Fuze tests** and **105/105
+query tests** (`table-request-arena-{fuze,query}1.log`). One request arena decodes
+the independently encoded recursive Table declaration, clones its descriptor,
+decodes its bound logical plan and decodes an owned UTF-8 operand. Each input
+buffer is overwritten afterwards; complete values and fingerprints remain valid.
+Exhaustive partial-allocation failures release the enclosing arena exactly once.
+Foreign definitions still reject before allocation. Existing separately owned
+decoders delegate to the same implementations and retain their previous failure
+cleanup and canonical-byte checks. These are package/ownership checks, not native
+job integration or a fresh full-root/clean-checkout qualification.
+
+The logical durable-record codec and embedded neutral values pass **252/252
+Fuze tests** (`query-record-fuze2.log` in the same campaign). A structurally
+valid counter record that contradicts its immutable plan rejects on binding;
+changed bindings and impossible counter shapes reject separately. Neutral text
+and JSON remain valid after source buffers are overwritten, including exhaustive
+allocation failures and exact uint128 scalar round-trips. The earlier
+`query-record-fuze1.log` passes 251 tests before the neutral ownership case.
+Native query integration is in progress: its package compilation is not yet a
+pass, and neither this check nor the codec alone establishes durable admission.
+
+Catalog definition diagnostics pass **98/98 catalog tests**
+(`catalog-definition-witness1.log` in the same campaign). A stale read returns
+the exact expected and observed metadata references at its authorized check.
+Successful reads clear earlier evidence, and revocation clears it before denial.
+This is reference-store unit evidence; native query caller migration and
+disk-backed qualification remain separate checks.
+
+Logical binding diagnostics pass **253/253 Fuze tests**
+(`logical-binding-names3.log`). A 255-byte quoted Unicode identifier with an
+escaped quote survives release of its original SQL buffer and projects into a
+structured diagnostic. Unknown qualifier and source failures retain their
+original token offsets. The first two runs catch pinned-compiler syntax and
+shadowing errors, fixed before this pass. Native query caller tests are still
+being migrated; this package pass does not qualify their integration.
+
 ## Fuze logical type foundation
 
 The local `Types` profile has nine passing focused Zig tests, including 46
@@ -11144,6 +12536,8 @@ just test::mutation-latency --repeat 20 --instrument --output /var/tmp/mutations
 just test::mutation-latency --repeat 20 --rows 100 --age 100 --resident-pages 64 --output /var/tmp/mutations-aged.json
 just test::mutation-latency --repeat 20 --idle-ms 1500 --worker-interval-ms 20 --output /var/tmp/mutations-poll20.json
 just test::mutation-latency --repeat 20 --readers 1 --client .cache/transit-latency/release/bin/transit-mutation-latency-client --output /var/tmp/mutations-client.json
+just test::mutation-latency --repeat 3 --schema-profile wide --output /var/tmp/mutations-wide.json
+just test::mutation-latency --repeat 3 --schema-profile nested --output /var/tmp/mutations-nested.json
 ```
 
 The ordinary task freezes ReleaseSafe binaries, creates an owned disk fixture,
@@ -14297,3 +15691,3126 @@ detail. Logs: `/var/tmp/transit-diagnostics-reconnect-{check,lifecycle}.log`.
 The failed browser lane remains incomplete at `/var/tmp/transit-ci-kmpsq18h`;
 qualification of the three affected reactive tasks in a fresh checkout remains
 separate from this focused pass.
+
+### Embedded recursive schema references
+
+`transit-protocol`'s package tests pass 34/34 in the pinned development shell
+(`recursive-schema-nested1.log` in the local Table-schema campaign).
+`Schema.writeRecursiveAt` emits references relative to an explicit enclosing
+JSON pointer. The test traverses every generated reference in an embedded
+recursive schema and resolves it against the complete document. Existing scalar
+codecs, safe integer ranges and field-specific bounds remain covered. This is
+schema-generation evidence, not runtime admission or browser validation.
+
+### Catalog-backed logical query cutover
+
+The current `transit-query` package passes 109/109 tests and compiles its public
+schema exporter (`query-native-cutover-build18.log` in the local Table-schema
+campaign). Its 106 owner/unit tests plus three standalone catalog integration
+cases run on private turns and an in-memory reference store. They exercise
+complete schema-bound UQS1/UQB1/FQP1 requests; retained schema/head cuts across
+ALTER, DROP and name reuse; distinct requester/principal mappings; current read
+revocation including empty results; exact discarded proposals and terminal
+replay; maximum checkpoint bytes; and owned neutral parameters for all 21 scalar
+families. Table rows use internal RowIDs, while complete key equality uses the
+collision-safe primary-key index. KV and Document decoder semantics remain
+separately bounded. The independent source/bundle/publication Python vectors
+also pass.
+
+The catalog query owner cases cover four-write initialization, multiple explicit
+requester delegations, conditional revisions, same-number process spoofing,
+undelegated calls before request-body access, foreign continuations, rollback
+after disposition write exhaustion and sticky denied reads. Runtime witnesses
+retain complete UTF-8 prefixes at both Table and decoder-source byte boundaries.
+The migrated assistance corpus caught and verifies fixes for unresolved-column
+operator suggestions, partial source completion and unsupported aggregate LIMIT
+suggestions; full Fuze tests pass 253/253.
+
+The diagnostic mapping gate passes all eleven declared boundaries. The executable
+outcome matrix passes 3136 projections across 34 declared surfaces, including
+current catalog failures and their Board/Flight projections
+(`native-cutover-outcomes4.log`). These are projection tests, not native transport
+qualification. Verification catalog and fixture checks pass. Full root build,
+installed callers, catalog owner disk/restart schedules, resident-memory budgets
+and matched ReleaseSafe measurements remain to be completed for this cutover.
+Historical two-column owner schedules do not qualify the replacement.
+
+### Logical query callers and contextual diagnostics
+
+The CLI renders owned logical Arrow batches in interactive and durable modes;
+neutral results preserve logical descriptors and cells. The native binding codec
+uses the same schema/plan/value conversion. Query tests pass 110/110, including
+allocation-failure coverage proving that converted plans retain their own schema
+and output names (`query-native-cutover-build21.log`). Native binding package
+tests pass 18/18 (`native-cutover-bindings4.log`).
+
+Fuze tests pass 254/254 (`fuze-native-cutover9.log`), including original SQL token
+locations, owned quoted identifiers, active alias context and literal mismatch
+evidence. The real CLI diagnostic corpus passes 592 subprocess cases
+(`native-cutover-cli-diagnostics8.log`); lifecycle tests pass 30/30 and diagnostic
+projections pass 3142 cases across 34 surfaces (`native-cutover-outcomes5.log`).
+Logs are in the local Table-schema campaign. These checks qualify codecs,
+diagnostics and local rendering; installed SDK transports and complete root/clean
+checks remain separate work.
+
+### Catalog-bound Flight codec migration
+
+Flight package tests pass 14/14 (`flight-logical-build6.log` in the local
+Table-schema campaign). The actual gateway executable compiles into an isolated
+prefix (`flight-logical-app1.log`). Logical result adaptation preserves declared
+nullability and owned names across 128 columns, rejects unsupported output types
+before admission, checks unsigned COUNT narrowing, and binds tickets to the
+current Transit definition and complete immutable Table declaration.
+
+Pinned PyArrow independently reads the native producer's standard metadata and
+128-column schema, quoted Unicode names, typed text filtering and text COUNT
+outputs. Selecting text as a primitive Flight output rejects
+(`flight-logical-metadata2.log`, ReleaseSafe). The shared parser refactor also
+passes 254 Fuze and 110 query tests (`fuze-native-cutover10.log` and
+`query-native-cutover-build22.log`). These are codec/compiler checks; the migrated
+catalog-backed gateway still requires native disk, TLS, ADBC and recovery
+qualification. Earlier two-column provisioning schedules do not qualify it.
+
+### Bounded query memory failure isolation
+
+Query tests pass 112/112 (`query-memory-budgets5.log` in the local Table-schema
+campaign). Private catalog turns exercise explicit admission-buffer exhaustion,
+execution-buffer exhaustion, Arrow workspace exhaustion, exact repeated
+continuations and a later successful query. Failed candidates publish no result
+segment and release their original captured pin. Separate injected ordinary
+allocator, request-publication and poisoned Table-read failures preserve their
+original infrastructure errors and untouched proposals.
+
+The same owner reads a committed 600 KiB UTF-8 Table value using its normal 1 MiB
+adapter buffer, records `adapter_memory_budget` and retains the unchanged stored
+row. The five standalone catalog cases took approximately three minutes in
+Debug with reported peak RSS 27 MiB; this is reference-store execution, not a
+disk throughput or ReleaseSafe latency result. A redundant rerun was stopped
+after the completed pass (`query-memory-budgets6.log`) and adds no evidence.
+
+Fuze tests pass 254/254 (`fuze-memory-budgets2.log`). The real file-query corpus
+passes 190 cases, including bounded Arrow output, exact codecs, cleanup and
+192 MiB input under a 96 MiB address-space limit (`query-memory-file1.log`). Its
+ordered batch splitting handles the new explicit workspace error. Diagnostic
+mappings pass and 3179 projections across 34 surfaces pass
+(`query-memory-mappings2.log`, `query-memory-outcomes2.log`). General allocator
+failures are not relabeled as observed workspace exhaustion, and no required-byte
+measurement is invented.
+
+### Recursive query JSON admission
+
+Shared query JSON preflight admits all 16 logical descriptor levels inside the
+96-level JSON wrapper budget and rejects excessive nesting, invalid UTF-8 and
+over-bound input before allocating. Query package tests pass 114/114, including
+allocation-failure coverage for the deepest admitted descriptor and unchanged
+private catalog schedules (`query-json-bounds1.log` in the local Table-schema
+campaign). Native binding tests pass 18/18 (`bindings-json-bounds2.log`); a
+hostile submit-shaped envelope reports `not_submitted` with local evidence, and
+the same handle remains usable. The CLI diagnostic corpus passes 592 cases and
+console lifecycle tests pass 31/31 (`cli-json-bounds2.log`). These are local parser/codec checks; Board and native
+Flight transport qualification remains part of the wider cutover.
+
+### Current schema inspection and retained authorization
+
+ReleaseSafe query tests pass 114/114 (`query-current-metadata2.log` in the local
+Table-schema campaign), including current definition rejection after ALTER and
+DROP while the authorized original captured pages remain readable. Flight
+package tests pass 14/14 (`flight-current-metadata1.log`). `describe` validates
+current Table metadata; exact upload recovery and retained-result authorization
+use the independent current-rights check. These package checks do not qualify
+the in-progress native transport fixture migration.
+
+### General grammar at read-only query boundaries
+
+Fuze tests pass 254/254 (`fuze-query-grammar1.log` in the local Table-schema
+campaign). Valid implicit-column INSERT, DEFAULT VALUES, general CREATE, ALTER
+and DROP receive interface guidance from the shared production grammar; the
+query compiler reports non-SELECT input as unsupported. The real CLI diagnostic
+corpus passes 592 cases, and 3179 diagnostic projections across 34 surfaces pass
+(`query-grammar-outcomes1.log`). The native query/Flight fixture migration is
+still being qualified separately.
+
+### Catalog-backed native query and Flight callers
+
+`zig build test-public-query -Doptimize=ReleaseSafe` passes on native disk-backed
+Ursula with the configured cold tier (`public-query-catalog-native3.log` in the
+local Table-schema campaign). Provisioning uses the production catalog owner,
+CREATE/INSERT lifecycle, immutable source metadata and explicit requester policy.
+The actual console and query hosts return 41 exact int64/null rows and preserve
+lost-response retry, fenced restart, busy admission, current schema rejection,
+incomplete-result refusal, cancellation and read-time revocation.
+
+The pinned Flight shell's `zig build test-flight -Doptimize=ReleaseSafe` also
+passes (`flight-catalog-native3.log`). PyArrow verifies finite schemas, exact
+full-width/null rows, metadata and retry; installed Python and C ADBC consumers
+verify native schema, values, aliases, empty results, counts and supported SUM.
+The separately provisioned overflow source preserves the original diagnostic
+through exact retry and gateway replacement, and denies details after current
+disclosure revocation. The finite PyArrow portion took 55.47 seconds; the complete
+Flight proof took approximately 13 minutes excluding compilation. These elapsed
+times describe this functional schedule, not matched mutation latency.
+
+Earlier migration attempts failed: two provisioning runs exceeded their original
+60-second setup deadline; the next console run exposed the non-SELECT grammar
+classification defect; and the next Flight run passed PyArrow but reached hot-tier
+backpressure during ADBC. The final fixtures use the existing bounded cold-store
+configuration and a 300-second provisioning deadline. No resident quota was
+raised. Compose/Substrate placements, Flight fault/concurrency schedules, wider
+SDK transports and matched performance remain separate qualification work.
+
+### Logical query browser contracts and rendering
+
+The query browser suite passes 35 tests and the Board browser suite passes 77
+tests, with strict TypeScript, formatting and lint checks. Work-items browser
+type and lint checks also pass (`browser-contract-final1.log` and
+`board-browser-lint1.log` in the local Table-schema campaign). Cases cover all
+integer widths, exact decimals, finite floats including signed zero, temporal
+and UUID values, nested containers, canonical map keys, bounded JSON, all five
+cell states, Unicode names, 128 columns and hostile recursive inputs. A maximal
+retained-query bundle fits the shared 64 KiB request envelope; oversized requests
+reject before transport. The existing live-view coverage projection is tested,
+but this does not qualify the native reactive owner migration.
+
+Query and Board contract exports regenerate with resolvable embedded recursive
+references. Browser declarations and validators pass drift checks, the schema
+correspondence check passes, and shared declaration generation rejects foreign
+references (`browser-schema-types1.log`). Native ReleaseSafe query tests pass
+114/114 and Board API tests pass 13/13 (`query-browser-native1.log` and
+`board-api-logical1.log`). Subsequent sequence-bound schema annotations compile
+through the exporters and pass the browser schema checks; the native test runs
+precede those annotation-only changes.
+
+The locked frontend install and Vite+ build pass (`board-browser-build1.log`).
+Reported chunks include index 406.36 kB, query 1060.71 kB and inspection
+1576.71 kB before gzip; the build still warns about large generated-validator
+chunks. This browser build does not qualify the embedded Board binary or the
+still-pending native reactive/work-items migration. Earlier browser migration
+attempts failed on stale basis and cell fixtures before the recorded passes.
+
+### Recursive Node port admission
+
+The native Node port bounds JSON depth, nodes and text before invoking recursive
+generated validators. Tests reject cyclic/deep requests, invalid Unicode and
+nonfinite numbers without calling the validator, then successfully reuse the
+same port with shared object references. Deep responses preserve read failure
+versus uncertain mutation outcomes. All three port cases and the existing error
+case pass, with strict TypeScript, formatting and lint checks
+(`node-query-fullcheck1.log` in the local Table-schema campaign). These local
+transport tests do not establish catalog authority or native query completion.
+
+### Catalog commitments and TypeScript logical query callers
+
+Neutral catalog metadata includes the immutable publication commitment needed
+to build a query declaration without reproducing catalog hashing in a host SDK.
+Catalog ReleaseSafe tests pass 98/98, including commitment changes on rename and
+agreement between lookup and listing (`catalog-metadata-commitment1.log` in the
+local Table-schema campaign). Recursive Station ABI exports and host declarations
+regenerate, pass drift checks and retain root-local schema references. Native
+binding tests pass 18/18 (`sdk-query-native1.log`). Explicit empty output-name
+arrays reject instead of being reinterpreted as omitted aliases.
+
+The native ABI and local port pass 108 shared cases in `test-unified-codec`
+(`unified-logical-codec3.log`): three source bundles, nine independently encoded
+schema-bound Boolean plans, six scalar Arrow columns, all five states, exact
+values, empty results and malformed rejection. The producer supplies the exact
+canonical schema header required by logical decoding; PyArrow independently
+interprets the generated values and writes the tested record batches. This
+qualifies that header/payload profile, not arbitrary foreign Arrow schemas.
+
+Fresh Node tarballs pass the installed codec schedule, including 128 Unicode
+columns, a uint128 predicate, nested uint128/null results, owned bundle bytes and
+malformed rejection (`node-query-installed2.log`). Strict TypeScript, formatting
+and lint checks pass; 53 existing Station tests and two query boundary tests
+pass. The latter preserve recursive inspection types and freeze catalog metadata
+and binary/full-width SQL parameters before asynchronous transport. Their fake
+host deliberately returns an invalid compilation response and proves no remote
+authority or query completion (`node-query-fullcheck1.log` and
+`node-query-boundary1.log`).
+
+Earlier attempts exposed the empty-alias regression, stale null-kind fixture
+tags and a nested fixture that used a noncanonical root field name; corrected
+runs pass. A TypeScript build also rejected an unavailable target-library string
+method before its replacement. Remaining language query models, native SDK
+recovery schedules and the coordinated definition cutover are separate work;
+regenerated resources alone do not qualify those callers.
+
+### Python logical query caller
+
+Strict mypy passes all 25 client, Station and example source files
+(`python-query-build1.log` in the local Table-schema campaign). Fresh wheels
+installed outside the checkout pass the shared three-source/nine-Boolean-plan
+codec schedule, six scalar Arrow columns and five states, plus 128 Unicode
+columns, uint128 comparison and nested uint128/null decoding
+(`python-query-installed1.log`). The public query API reuses immutable logical
+descriptors/cells, constructs Table declarations from catalog metadata and
+preserves the retained manifest head. The initial type-check caught an accidental
+conversion of a KV decoder as a predicate atom; it was corrected before the
+passing build. Native synchronous/asynchronous query recovery schedules remain
+unqualified until their shared catalog fixture migration is complete.
+
+### Ruby logical query caller
+
+Fresh Ruby gems pass the installed three-source/nine-Boolean-plan codec schedule,
+six scalar Arrow columns and all five states, 128 Unicode columns and a uint128
+predicate, and nested uint128/null decoding (`ruby-query-build1.log` and
+`ruby-query-installed1.log` in the local Table-schema campaign). The nested
+fixture uses the production Arrow encoder and is independently interpreted by
+PyArrow before the installed SDK reads it. Ruby reuses its owned logical values,
+retains the source-head digest and takes Table source identity from catalog
+metadata and its mandatory immutable commitment. Syntax checks pass
+(`ruby-query-syntax1.log`). Native recovery and authorization schedules remain
+unqualified until the common catalog query fixture is migrated.
+
+### Rust logical query caller
+
+Rust's nine Station unit tests pass with locked offline dependencies, including
+missing/foreign/oversized catalog metadata commitments and retained metadata
+identity (`rust-query-test3.log` in the local Table-schema campaign). A fresh
+crate installation passes the shared codec schedule, 128 Unicode columns, a
+uint128 predicate, nested uint128/null decoding and malformed Arrow rejection;
+the independent compile-failure check still rejects overlapping mutable client
+borrows (`rust-query-installed1.log`). Registry dependency identities match the
+packaged lockfile. Query descriptors/atoms/cells reuse the logical API and
+manifests retain the source-head digest.
+
+The first source test invocation lacked the required native library location;
+the next exposed a catalog fixture without the newly mandatory commitment.
+Both were corrected before the passing run. These local checks do not qualify
+signed native query recovery; its shared fixture migration remains outstanding.
+
+### Java logical query caller
+
+Fresh Java JARs and examples compile with Java 21, all lint warnings enabled and
+warnings treated as errors (`java-query-build1.log` in the local Table-schema
+campaign). Their installed public query consumer passes the shared codec cases,
+128 Unicode columns, a uint128 predicate and nested uint128/null results
+(`java-query-installed1.log`). Query results and bindings use shared immutable
+logical models; Table declarations own catalog metadata and its commitment.
+The installed catalog boundary schedule passes generated recursive-schema checks,
+owned full-width/nested values, missing/foreign/oversized commitment rejection,
+large frames, uncertain receipts and joined cancellation
+(`java-query-boundary1.log`). Its injected port outcomes prove ownership and
+classification, not durable query admission. Native query recovery remains
+pending the common catalog fixture migration.
+
+Python and Ruby's installed catalog boundary schedules also pass after migrating
+their metadata fixtures to mandatory commitments
+(`python-ruby-query-boundary1.log`). They verify retained commitment ownership,
+reject missing/foreign/oversized/malformed commitments and preserve their existing
+uncertain-receipt and joined-cancellation checks. These use the fresh query
+wheels/gems recorded above, with injected boundary responses; live catalog
+recovery remains separately qualified by its native schedule.
+
+### .NET logical query caller
+
+Fresh NuGet packages and examples build from the local feed
+(`dotnet-query-build1.log` in the local Table-schema campaign). Their isolated
+query consumer compiles with warnings as errors and passes the shared codec
+schedule, 128 Unicode columns, uint128 predicates and nested uint128/null results
+(`dotnet-query-installed1.log`). The isolated catalog boundary consumer passes
+retained immutable commitment checks, malformed commitment rejection, schema
+history, recursive budgets, uncertain receipts and actual native read
+cancellation/join (`dotnet-query-boundary1.log`). Query inputs/results reuse the
+logical model, and Table sources carry catalog metadata commitments. These
+checks do not establish admitted-mutation cancellation or native query recovery;
+the latter still requires the common catalog query fixture migration.
+
+
+### Erlang and Elixir logical query callers
+
+Fresh BEAM packages and examples compile with warnings as errors
+(`beam-query-build1.log` in the local Table-schema campaign). Both isolated
+installed callers pass the shared source/predicate/Arrow codec schedule,
+128 Unicode columns, uint128 predicates and nested uint128/null results
+(`beam-query-query1.log`). Both catalog boundary consumers pass retained
+commitment checks, missing/malformed commitment rejection, schema history,
+recursive bounds, large frames, uncertain receipts and joined waiter loss
+(`beam-query-boundary1.log`). Catalog and query values survive their client
+lifetimes. These local codecs and boundary schedules do not establish native
+query recovery; the common catalog query fixture migration remains required.
+
+
+### C and C++ catalog metadata commitments
+
+The C SDK ReleaseSafe build and C++ ownership/codec check pass after adding
+mandatory metadata commitments (`c-metadata-build1.log` and
+`cpp-metadata-check1.log` in the local Table-schema campaign). Fresh installed
+C/C++ artifacts pass 46 actual native-library boundary cases
+(`c-metadata-installed2.log`): lookup/history identity, retained commitment bytes,
+missing/malformed commitments, bounded requests, uncertain receipts and deferred
+POSIX cancellation with close joining native work. This boundary schedule does
+not establish durable catalog or query recovery.
+
+
+### C and C++ logical query callers
+
+The C ReleaseSafe query library and C++ ownership/codec check pass with
+catalog-bound Table sources, shared logical descriptors/atoms/cells and owned
+inspection results (`c-query-package-build1.log`, `cpp-query-check1.log` in the
+local Table-schema campaign). Fresh installed C11/C++17 consumers compile with
+warnings as errors and pass independent source/Boolean/Arrow fixtures, all five
+cell states, input-buffer release, 128 Unicode columns, uint128 predicates,
+nested uint128/null results and malformed Arrow rejection
+(`c-query-installed3.log`). C++ client-copy rejection is preserved. These local
+checks do not establish current-source authorization, retained inspection/page
+lifetimes or durable query recovery; those require the common catalog query
+fixture migration.
+
+### SQL and typed single-predicate identity
+
+Literal SQL, parameter binding and typed plans preserve identical canonical
+bytes for one comparison or state atom, including redundant parentheses. Real
+Boolean programs retain every instruction. ReleaseSafe Fuze checks pass 255
+tests (`fuze-atom-canonical2.log` in the local Table-schema campaign); the query
+package passes 109 tests with its five native catalog tests cached from the
+preceding successful native run (`query-atom-canonical3.log`). The allocation
+failure schedule disables backing-allocator resizing so each injected failure
+uses the same arena-growth allocation path; it still verifies release at every
+allocation failure.
+
+The initial migrated disk-backed KV and Table schedules stopped at inspection
+because SQL had encoded single atoms as one-instruction programs. Table seed
+provisioning and the original lost-receipt retry completed in that failed run
+(`unified-catalog-native1.log`); this is not a passed recovery schedule. The next
+KV run exposed the separate predicate nesting limit regression. Its companion
+Table run was interrupted before qualification. Full native query recovery
+remains pending those corrections.
+
+### Bounded typed Boolean parsing
+
+Typed SELECT/UPDATE/DELETE parsing uses a fixed 64-entry operator stack with the
+separate 64-instruction postfix budget. Boundary checks admit 63 NOT operators
+plus one atom, 64 parentheses, and a mixed 64-entry stack; the next instruction
+or stack entry rejects with its respective budget error. Existing precedence,
+five-state truth and eager-error checks remain. ReleaseSafe Fuze passes 256
+tests (`fuze-boolean-stack2.log` in the local Table-schema campaign) and query
+passes all 114 tests, including five native catalog cases
+(`query-boolean-stack1.log`). The first Fuze run retained an obsolete 16-level
+rejection assertion; that failed run is not qualification. The native recovery
+schedules and installed-SDK reruns are separate evidence.
+
+### Catalog-backed unified query recovery
+
+The common disk-backed query fixture now provisions Tables through the production
+CatalogQueryOwner and public CREATE/INSERT operations, persists the actual
+metadata-bound source, and delegates the authenticated catalog principal. It no
+longer fabricates a positional Table declaration. The native Table schedule
+passes recovery, current prefix denial, release and COUNT continuation checks
+(`unified-catalog-native3.log` in the local Table-schema campaign): 41 rows,
+six segments, 15,120 result bytes, eight resident authority pages and an 8 MiB
+hot store. COUNT preserves partial 8/10 progress through exact upload retry and
+worker/node/store replacement, and rejects partial results after cancellation.
+
+The compound Table schedule passes with all ten freshly installed SDKs
+(`unified-catalog-all-sdk1.log`): Python, TypeScript/Node, Ruby, Rust, C, C++,
+Java, .NET, Erlang and Elixir. Thirteen enabled native/port/SDK consumers agree
+on inspection, 64-instruction predicates, literal/typed/frozen compound bundles,
+parameter errors, 39 selected rows, five segments and 13,328 result bytes.
+The schedule loses seed/upload replies, preserves the original signed retry and
+receipt, replaces source/requester/node/disk store after segment staging, denies
+reads after revocation and releases the original source pin. All packages are
+installed into fresh isolated consumers; local codec checks alone are not the
+basis of this recovery claim.
+
+The native KV and Document schedules also pass recovery and lifecycle
+(`unified-logical-native3.log`): 41 and 12 rows respectively. Original budget,
+policy and KV cell-decoder witnesses survive lost replies, live repair,
+worker/node/store replacement and retirement. These two schedules do not include
+installed SDKs. Provisioning and elapsed recovery durations in these logs are
+not matched mutation-latency measurements.
+
+The shared shell/Board/count/example oracles now read logical descriptors and
+cells. COUNT and the native lifecycle paths above have executed; shell, Board,
+browser, expiry and the combined writer schedule require their separate runs.
+The combined fixture's Zig provisioning uses the new catalog owner, while its
+Python interleaving/fault schedule is still being migrated and is not qualified.
+
+
+### Catalog-backed reactive observations and refresh authority
+
+ReleaseSafe serving checks pass all 48 tests (`serving-catalog-watch6.log` in the
+local Table-schema campaign). Real catalog-backed snapshots test every read
+boundary against concurrent cuts, full column names, explicit watch shape
+admission, atomic multi-row publication, metadata invalidation and current
+caller catalog denial. Head reservations may notify possible changes before
+publication but expose only committed rows. Retained refresh diagnostics require
+current caller catalog rights without requiring their old metadata to remain
+live. Native resource access and service policy checks remain separate.
+
+Generated OpenAPI/AsyncAPI/client schemas and the private host reflection check
+pass (`reactive-catalog-generate1.log`, `reactive-catalog-contract1.log`); Board
+TypeScript checking and 52 reactive/live-view cases pass
+(`reactive-catalog-ts-check1.log`, `reactive-catalog-ts-test1.log`). Board builds
+against the migrated reader (`serving-catalog-board2.log`). The final status
+catalog-authorization addition is covered by serving package compilation and
+local checks; the deployed native SSE/WebSocket/Follow examples still require
+migration and qualification. These checks do not qualify that remaining work or
+the coordinated shared-definition cutover.
+
+
+### Logical parameter correction evidence
+
+All 257 Fuze ReleaseSafe tests pass (`fuze-logical-preview1.log` in the local
+Table-schema campaign). Binding errors retain the original parameter site,
+expected descriptor and exact supplied atom: int128/uint128, decimal coefficient,
+float, boolean, temporal units, interval and UUID. Text/binary previews own at
+most 32 escaped bytes with explicit truncation; subsequent bindings reset that
+flag. Invalid values require no allocation or source reads to format. The actual
+CLI compiles with its 65-binding limit reflected in failure guidance
+(`typed-table-point-preview1.log`); that run's separate native lifecycle schedule
+failed a new residual-predicate scan-count assertion and is not a passed proof.
+
+
+### Canonical comparison point routing
+
+The general Table SELECT adapter recognizes a canonical single comparison as
+well as a conjunction of qualified primary-key terms. The full native typed
+Table schedule passes (`typed-table-point-preview2.log`): a matching equality
+scans one row, an absent key scans zero, and a residual non-key predicate retains
+the declared finite scan while evaluating the complete expression. Console
+EXPLAIN reports the actual primary-key route. The schedule also executes the
+existing catalog lifecycle, owner-loss recovery, typed console diagnostics,
+exact lost-receipt resume/cancellation, metadata evolution and native bridge
+cases with the four-write and 256-byte native value bounds. The first run's new
+residual assertion incorrectly required key routing for an unqualified predicate;
+that failed assertion is retained in `typed-table-point-preview1.log`.
+
+
+The neutral SQL parameter boundary also preserves typed previews when decoding
+fails against the expected descriptor (`query-neutral-preview1.log`: all 114
+query ReleaseSafe tests pass; `console-neutral-preview-build1.log`: CLI builds).
+A valid signed JSON atom supplied to unsigned LIMIT displays the exact number;
+malformed canonical integer text retains its escaped encoding. Temporal units
+and valid intervals remain typed; malformed intervals name the original failing
+component. Preview scratch is bounded to 64 bytes and reads no additional source
+state. The preceding console run exposed the quoted-number difference
+(`console-logical-kv2.log`) and was not a passed console qualification.
+
+
+### Console logical-value recovery qualification
+
+The native KV console schedule passes with the generalized logical cells and
+parameter atoms (`console-logical-kv3.log`, 480.18 seconds, ReleaseSafe CLI).
+It exercises saved exact upload/resume after changed or deleted parameter files,
+no-send binding diagnostics, command/file/stdin stopping, terminal completion and
+history, uncertain-send and streamed-prefix Ctrl-C races, prompt reuse, batch
+exit 130, and explicit private-CA TLS with trust/hostname rejection. Terminal
+cold/warm measurements were 53.69/16.01 ms with a 19,980,288-byte RSS high-water;
+these are fixture observations, not matched performance controls. The separate
+offline history proof passes (`console-logical-history1.log`) with a valid KV
+configuration and a network trap. Native Table lifecycle coverage remains in the
+Table schedule above; this console run does not qualify the remaining Table
+interactive, Board/browser or deployed reactive consumers.
+
+
+### Exact-cut Table metadata reader
+
+The public bounded resource reader passes all 19 client ReleaseSafe tests
+(`client-cached-metadata2.log`), including cached absence, eviction/refetch,
+coalesced misses and sticky rejection of a changed resource cut. All 115 query
+ReleaseSafe tests pass (`query-cached-metadata2.log`), including interpretation
+of current authorization against its original requested keys without another
+policy lookup or borrowing a formerly mapped principal's rights. The console
+build passes (`interactive-metadata-build2.log`).
+
+The native interactive KV schedule still passes in 2.69 seconds with unchanged
+request ceilings (`interactive-logical-kv3.log`). The Table schedule now executes
+its complete value, predicate, cancellation, fresh-cut and current-denial
+checks, but **fails** its final request-budget gate
+(`interactive-logical-table3.log`). Exact-cut scratch reduces Table inspection
+from 39 requests to 19. The general immutable row/index representation still
+costs 231 requests for this 41-row scan, 63 for short LIMIT and 39 for a key point
+lookup. Those measurements expose further batching work; they are not a passed
+performance qualification. The prior run failed Table capture with
+`UnrequestedResourceKey` (`interactive-logical-table2.log`).
+
+
+### Recursive result-page bounds and real Board browser
+
+The reflected query/Board page contract preserves independent bounds of eight
+rows and 128 columns, with recursive logical collections retaining their own
+bounds. All 34 protocol ReleaseSafe checks pass (`protocol-matrix-bounds4.log`),
+and owning query/Board schemas agree. The native KV Board plus Chromium schedule
+passes (`unified-logical-board-kv3.log`, 78.17 seconds), including generated
+validators on actual responses, nine-row/129-column rejection, 128-column and
+nested-list acceptance, competing readers, exact uncertain retry, explicit
+submission, editing/result provenance and current prefix denial. Two Board
+readers used at most 54,890,496 sampled RSS bytes in that run. Query, Board and
+Station schemas and all host binding resources were regenerated from Zig
+(`board-matrix-generate1.log`).
+
+The preceding browser run failed a stale lowercase type-label expectation
+(`unified-logical-board-kv2.log`); the console/browser now render canonical
+`UINT64`. The earlier API run caught the lost outer row bound
+(`unified-logical-board-kv1.log`). Native Table Board draft/generation schedules
+and the remaining consumer migrations still require qualification. A prematurely
+started root test build was stopped after compile failures in the not-yet-migrated
+work-items example and the first schema-bound expression; its partial output in
+`protocol-matrix-bounds1.log` is not a root-check pass.
+
+
+### General Table page acquisition batching
+
+All 87 Station and 115 query ReleaseSafe tests pass with bounded metadata/chunk
+prefetch (`station-table-prefetch1.log`, `query-table-prefetch1.log`). A 4,100-byte
+record acquires one header pair and three chunk batches (8+8+1); every read still
+uses the ordinary publication decoder. Corrupt digest, retired descriptor and
+current read denial reject, with no chunk acquisition after retirement. Catalog
+definition reads group four known record addresses only after catalog rights
+are checked. The actual console and Board builds pass
+(`table-prefetch-app-build1.log`). Native request measurements and Table Board
+integration are running separately and are not established by these local tests.
+
+
+### Bounded Table index-node reuse
+
+All 88 Station and 115 query ReleaseSafe tests pass with eight verified immutable
+index bodies cached independently of the native entry buffer
+(`station-table-node-cache2.log`, `query-table-node-cache1.log`). The adversarial
+cache case verifies reuse through a second adapter, refetch at a changed cut,
+output-buffer bounds, incompatible manifests, retirement, current access denial
+and corrupt chunk rejection after a new basis. The first test run correctly
+kept a failed Station read sticky; the test now acquires a fresh turn before
+its separate corruption case (`station-table-node-cache1.log`).
+
+The preceding native Table scan improved from 231 to 157 requests for 41 rows,
+but still **failed** its old request ceiling (`interactive-logical-table4.log`).
+It passed the correctness, cancellation and disclosure schedules before that
+final budget gate. Those old limits describe a different physical layout and
+are not a performance pass for the generalized row/index representation. The
+latest node-cache runtime measurements remain a separate check.
+
+### General Table Board and browser qualification
+
+The Table native/Board/Chromium schedule passes in 739.02 seconds
+(`unified-logical-board-table4.log`) using the frozen executables from the page
+prefetch build. It preserves a 41-row, six-segment, 15,120-byte result through
+lost upload receipts and worker/node/disk-store replacement, with eight authority
+pages, an 8 MiB hot store and released source pins. Separate inspection/query
+rights, current prefix denial, generated recursive validators, competing Board
+instances, identical signed retries and bounded readers pass. Two Board processes
+peak at 53,866,496 sampled RSS bytes in this run.
+
+The Table draft schedule passes atomic start accounting, exhausted finite budget,
+cross-instance exact retries, closed-generation replay and current source denial.
+Chromium passes explicit SQL, editing/result provenance, finite Live drafts,
+saved exact recovery and denial. The previous run reaches the budget boundary
+but fails a stale HTTP 409 expectation (`unified-logical-board-table3.log`). The
+corrected test requires HTTP 400, `query.draft_start_limit`, limit category and
+unchanged draft state, matching the existing semantic response owner; no runtime
+status mapping was changed to satisfy the test.
+
+### General Table explicit catalog CLI
+
+The explicit `transit catalog` command builds against `TableClient` and the same
+`TableBridge` intent/session contract used by the enabled SDKs
+(`catalog-cli-general-build1.log`). Its real CLI diagnostic schedule passes
+**656 cases** (`catalog-cli-general-diagnostics4.log`), including local CREATE,
+full-width identities, mandatory saved definitions and summary/byte agreement,
+private non-replacing files, UTF-8 lookup names, saved-page consistency, malformed
+artifacts before credential loading, offline help and output privacy. The native
+lifecycle/large-artifact/exact-recovery schedule remains a separate running check.
+
+Three earlier diagnostic runs fail test expectations: the removed `--table`
+option now reports an unknown argument; a shallowly shared fixture scope changed
+both sides of an intended mismatch; and general DDL reports its own precise code
+and end-of-statement validation coordinate. Those cases now assert the selected
+interface directly (`catalog-cli-general-diagnostics1.log` through `3.log`). A
+first native invocation names an uninstalled proof executable and does not run;
+the subsequent owning `test-typed-tables` task builds its actual artifacts before
+qualification (`catalog-cli-general-native1.log`, `2.log`).
+
+### General catalog CLI lifecycle and metadata retry
+
+`zig build test-typed-tables -Doptimize=ReleaseSafe --summary all` passes all
+nine build/run steps (`catalog-cli-general-native4.log` in the local Table-schema
+campaign). The native schedule takes 162.930 seconds and includes 525 observed
+turns, 141 sends, accepted-but-lost caller and supplied-host replies, exact
+reconciliation and original versus replacement object identities. Each observed
+turn stays within four native mutations and every inline value within 256 bytes.
+These recovery timings are not a matched mutation-latency benchmark.
+
+The CLI adapter uses original private compiled/prepared output files. It verifies
+multi-column CREATE/INSERT, separate no-op matched/changed counts, late duplicate
+atomic rejection, a lost send followed by a new caller instance, ALTER and
+historical schema lookup, DELETE and DROP/recreate identity safety. A 142,101-byte
+typed intent exceeds the former 64 KiB artifact limit; this framing case remains
+locally saved and undispatched, and does not claim a 70 KiB row was executed by
+this particular CLI schedule. The shared native/port schedule independently
+qualifies typed large-value storage.
+
+The first attempted CLI proof referenced an uninstalled executable and did not
+run. The next found a real `StaleStateResource` race while preparing ALTER's next
+step. The initial fix failed to compile; neither run passed. The corrected CLI
+uses a separate response arena and at most eight retries within its request
+deadline for locally unsubmitted reads with that exact native rejection. It does
+not retry submit, permission denial or changed cursors, or replace saved intent.
+The successful schedule above includes the corrected path.
+
+### General Table owner with interleaved queries and writes
+
+The migrated combined fixture passes in 51.275 seconds
+(`combined-general-native5.log` in the local Table-schema campaign), using
+frozen ReleaseSafe native/host/proof/library/CLI artifacts identified in that
+log. The supplied owner recovers the exact original accepted catalog
+initialization and query-delegation commits after lost replies, fresh ownership
+and node/disk-store restart. Reader/writer policy is a separate explicit action;
+initialization does not manufacture those permissions.
+
+The schedule performs general catalog CREATE/DML through ABI and private CLI
+artifacts, holds an actual final `STW1` applied publication, and verifies both a
+retained durable query and an interactive snapshot keep their original rows.
+The mutation uses the same numeric namespace as the query. Ordered self-delivery
+is preserved: explicit resume advances the original Table operation while the
+query continuation is withheld. The final interactive pause is 0.075 seconds;
+the snapshot is not held through the whole upload.
+
+Console checks cover separate matched/changed counts, no-op/zero-match DML,
+late duplicate atomic rejection and attributed diagnostics, exact lost-send
+recovery after caller restart, altered recovery identity rejection, applied
+cancellation, staged-upload SIGINT cancellation and stopping subsequent SQL.
+An admitted upload part rejected by policy remains `uploading` with a separate
+`denied` input disposition, rather than fabricating a terminal operation result.
+Cancellation closes that original upload; restoring DML policy leaves rows
+unchanged. Query delegation, DML rights and native disclosure denial remain
+independent.
+
+Observed bounds are four native writes and 256-byte inline values across 186
+turns. The 18,623 instrumented reads include busy polling and fault setup and
+are not a production request budget or latency baseline. This run uses ABI and
+CLI consumers, with no installed SDKs. The fixture's optional SDK lane now
+selects the general catalog lifecycle scenarios; it needs separate execution.
+
+Earlier migration attempts are retained as failed evidence: the old selective
+self-delivery schedule hit `RouteBlocked`; the next failed to drain earlier
+Table continuations before capturing a query; later assertions incorrectly
+assumed every small request uses upload and that input rejection replaces the
+operation phase. None of those runs is counted as passed.
+
+### Bounded Table row acquisition
+
+Station's 90 tests and query's 115 tests pass in ReleaseSafe with bounded
+reference gathering and row prefetch (`station-table-row-prefetch1.log`,
+`query-table-row-prefetch1.log`). One page gathers at most eight row references,
+checks every Table manifest/publication header, then prefetches at most 32 chunk
+keys in native batches of eight. Normal reads still check lifecycle, lengths,
+digests, decoded schema and stable row identity. Large rows continue through
+bounded incremental chunk reads. Partial page ownership unwinds on read or
+allocation failure; no advanced cursor escapes. The current authorization check
+still precedes page disclosure. These changes do not enlarge native values,
+query page size, the 64-entry immutable read cache or the eight-node cache.
+
+The real ReleaseSafe interactive Table schedule
+(`interactive-logical-table6.log`) executes correctness, cancellation, prefix
+and current-denial checks, then **fails** its unchanged historical request
+ceilings. The 41-row full scan and COUNT now take 89 requests, down from 149 after
+node caching and 231 before the metadata/chunk batching work. LIMIT 3 takes 28
+instead of 40; LIMIT 0 remains 13, complete-key equality remains 24 and inspection
+remains 11. Non-key ranges use the general Table's finite scan and take 89 in
+this fixture; the earlier ordered-int64 range budget of three does not describe
+this hash-key index.
+
+The two full JSON scans take 0.347 and 0.305 seconds with about 22.1 MB sampled
+caller RSS. These are instrumented observations from one run, not a matched
+baseline latency claim. No durable updates occur. The failed request ceilings
+remain active in the test; no warning threshold or assertion was raised to turn
+this result into a pass. Resolving the current physical-profile budgets, wider
+resident/cold-growth evidence and matched mutation performance remains open.
+
+### General Table grammar and independent compiler oracles
+
+The ReleaseSafe full SQL proof passes all seven build/run steps
+(`general-table-sql-full2.log` in the local Table-schema campaign). All 76
+published SQL examples parse. The 174 shared SELECT ASTs agree with
+libpg_query, 142 scalar plans and paged Arrow results agree with the independent
+reference, and the existing three-source/six-scalar/five-state suite retains
+72 successful results and 27 explicit failures. Parameter qualification retains
+26 canonical plans/results and 20 exact rejections. Its private scalar corpus
+is not the public logical Table parameter ABI.
+
+The new DDL oracle checks 270 grammar/compiler cases, including 238 exact
+schema/identity/type/default/evolution comparisons and independently encoded
+FTS1 bytes. Coverage includes all logical families, aliases, nested defaults,
+128 columns, nullable columns, composite/no primary key, selected ALTER and
+DROP, and separate offline KV/Document compilation. The DML oracle checks 44
+cases: 37 PostgreSQL/ANTLR AST comparisons and 33 exact independent typed FDM1
+plans. It covers reordered/omitted fields, DEFAULT, multi-row input, multiple
+assignments, general Boolean/state predicates and compound literals. Decoding
+the canonical intent retains its original fingerprint. These are pure
+compilation proofs, not evidence of admission, stored uniqueness or atomic
+publication; those have separate native schedules above.
+
+`just test::table-ddl-sql` and `just test::table-dml-sql` are focused entry points
+using the same implementations and oracles as `just test::sql`. Earlier runs
+failed to unwrap the schema-evolution transition and then found a stale scalar
+parameter fixture API in the full suite; neither is counted as passed.
+
+### General Table diagnostic grammar and logical values
+
+The migrated public diagnostic fixture passes 311 compiler cases and all 411
+reference parser rule/alternative/optional/repetition obligations
+(`general-table-diagnostic-grammar5.log`). It now executes general Table DDL and
+DML compilers, while retaining scalar SELECT/template and offline KV/Document
+profiles. New cases cover recursive descriptors/constructors, aliases, defaults,
+primary keys, every selected ALTER form, DROP, omitted INSERT lists, multiple
+assignments and precise malformed-value failures. Duplicate input primary keys
+compile into an immutable intent; runtime uniqueness/publication proofs above
+own their atomic rejection. SQL MAP constructors normalize key order; duplicate
+keys remain errors.
+
+ReleaseSafe Fuze tests pass 258/258 (`general-table-logical-diagnostics-unit1.log`).
+Malformed date/time/timestamp/UUID/JSON values retain their original typed cause;
+temporal and JSON failures retain the original literal location even with a
+later column in the declaration. The structured result is locally not-submitted
+and offers no resume/cancel action. JSON validation occurs during literal binding
+rather than first reporting an error at a later schema validation boundary.
+The independent mapping gate passes (`general-table-diagnostic-mappings3.log`),
+including the already implemented reactive catalog denial and caught metadata
+invalidation translations. No native serving schedule ran in this checkpoint.
+
+Earlier diagnostic runs exposed unmapped temporal causes and incomplete new
+parser-branch coverage. A proposed unsorted MAP rejection was incorrect because
+SQL construction canonicalizes map order; its reviewed case now requires
+successful compilation. None of those earlier runs is counted as passed.
+
+### Application completion alongside staged Table writes
+
+Station ReleaseSafe tests pass 92/92 (`table-application-completion1.log`).
+`TableWrite.stepWithReserve` leaves one or two additional mutation slots on
+terminal returns so an application can commit its progress and receipt with the
+Table head/outcome. Building turns retain the existing four-write staging bound.
+The reservation is physical scheduling, not part of logical mutation identity.
+
+The new cases exercise small and 600-byte values with both reservation sizes,
+discard every proposed turn before repeating it, and observe old rows and absent
+application progress until one final commit. The final commit publishes the row
+and application records together within four writes. Repeated terminal requests
+retain the original completion identity and prepare no writes. Duplicate keys
+retain room for the application's rejected receipt; invalid reservations and an
+exhausted private turn restore the proposal. This is local transition evidence;
+the serving/work-items example migrations and native restart schedules remain
+separate, unfinished qualification.
+
+### Typed serving counter and reactive consumers
+
+The serving example uses the general catalog Table representation. Native
+bootstrap waits for authorized discovery of the published `counter` metadata;
+watch callers receive separate inspect/read policies, and finite query policy
+maps the authenticated requester to its configured catalog principal.
+Independent Python peers encode that discovered metadata, logical descriptors
+and FQP1 plans. They do not synthesize a metadata commitment or turn a source
+digest into authority.
+
+ReleaseSafe evidence on 2026-10-06:
+
+- `general-counter-unit2.log`: 3/3 local tests. Nineteen accepted calls exceed a
+  native page; discarded turns reproduce the same frozen deltas and original
+  replies. Overflow leaves row/progress unchanged, zero deltas retain exact
+  results, foreign origins reject, and an exhausted output budget restores all
+  tentative row/index/application writes. Peak test RSS is 13 MiB.
+- `general-serving-native4.log`: native signed service, original delivery/commit
+  retries, two-gateway retry, worker/node/disk recovery and current revocation
+  pass in 7.19 seconds. Fault delivery IDs are selected from the actual service
+  call/reply outbox entries, excluding bootstrap and counter self continuations.
+- `general-reactive-native1.log`: real nginx TLS, WebSocket/SSE, attachment
+  fencing, current denial and full native restart pass (8.72-second trace).
+- `general-reactive-limits1.log`: four sessions/held streams, reserved health and
+  renewal, malformed frames, signed cursors, twelve reconnects and an actually
+  published finite Table's expiry pass. Gateway RSS is 57,311,232 bytes under the
+  existing 256 MiB ceiling; health takes 4 ms. The full trace takes 51.76 seconds.
+- `general-reactive-client2.log`: private Zig caller preparation, exact lost
+  receipt recovery, committed controls, source-cut coverage and denial pass
+  (2.92-second trace).
+- `general-reactive-refresh3.log`: two views under one principal, one admitted
+  query, fair successor, lost follow receipt, worker replacement, full-width
+  identities, and current entry-read denial pass (46.04-second trace).
+- `general-reactive-views2.log`: actual Chromium Board/counter lifecycle,
+  shared-principal tabs, transport resume, pagehide/expiry, explicit resnapshot
+  after watch reset and retained source basis after retirement pass in 49.60
+  seconds.
+
+Earlier attempts caught an excessive fixture row quota, an incorrect CLI build
+artifact, old neutral-type/source-cut expectations and a digest-only query policy
+that correctly denied the new Table source. Those runs failed; the first browser
+build was cancelled before its corrected policy run. Physical placement runners
+are migrated but have not run at this checkpoint. Full clean-source CI and the
+coordinated contract definition replacement remain pending.
+
+The complete SQL suite also passes after the diagnostic additions and Table
+completion reservation (`general-table-sql-full3.log`, seven build steps). This
+retains the separately recorded independent grammar/AST/schema/plan counts.
+
+
+### Counter continuation across chunked Table indexes
+
+`general-counter-unit3.log` passes 4/4 ReleaseSafe tests. The new case inserts
+nineteen distinct keys, crossing inline-index and native-page bounds, and checks
+all prior rows after each completion. It retains the discarded-turn and exhausted
+output-budget schedules. Test execution takes 184 ms with 13 MiB peak RSS.
+
+The first combined serving lifetime/growth run failed with
+`PublicationReadAfterMutation`: a frozen counter command was written before the
+same turn acquired a chunked immutable index. The owner now commits that frozen
+command before a subsequent turn stages its Table write. The final Table,
+application progress and reply boundary remains unchanged. The second run passed
+64 retained operations but reached the cold-disabled fixture's 64 MiB hot-store
+ceiling at operation 169. It is failed growth evidence, not a lifetime/growth pass;
+qualification with bounded hot storage and cold spill remains separate.
+
+
+### General Table serving on Compose
+
+`general-serving-compose3.log` passes the real static ReleaseSafe Compose
+placement in 19.70 seconds: two nginx TLS gateways, exact HTTP retry, worker,
+gateway, node and disk-store replacement, fresh ownership activation, immutable
+counter outcome, retirement and current denial. The reactive trace also passes
+WebSocket/SSE replacement fencing and retained session/source meaning; its lease
+did not elapse during this recovery schedule. Authority retains eight resident
+pages and Ursula eight MiB of hot storage. The owned native MinIO fixture holds
+25 cold data objects and 1,255,689 filesystem bytes at the final observation.
+
+The placement now binds pinned native MinIO to its own private storage bridge
+and includes the exact selected port in its caller/gateway denial probes. Cleanup
+owns the native process independently of placement teardown. Signed provisioning
+includes the current explicit collection/history fields. The first attempt failed
+because the runner expected the removed Docker cold-store API; the second failed
+native authentication because those signed fields were missing. Neither attempt
+passed. Reference placement and the combined cold-growth trace remain unqualified
+at this checkpoint.
+
+
+### Staged application migration steps
+
+`application-staged-migration3.log` passes 41/41 ReleaseSafe Station application
+tests (28 ms execution, 8 MiB peak test RSS). Independent Python fixtures pin the
+new 191-byte-maximum pending-step envelope alongside existing plan, progress,
+receipt and diagnostic layouts. The pending envelope and terminal receipt share
+one key; completion replaces it without an additional deletion mutation.
+
+The new schedules freeze admission before domain work, discard and reconstruct
+staging/completion turns, reject changed arguments, check current revocation and
+original plan ownership, preserve prior proposals after read/domain/budget
+failures, and retain pending evidence after abandonment. Three building rounds
+use all four domain writes without advancing ledger progress. Normal completion
+uses two domain plus two ledger writes; activation uses one plus three. Completed
+receipts retain first admission separately from the final progress input and
+replay without invoking the domain. Only an owner self-message can continue an
+already admitted step; it cannot admit work or bypass revoked operator policy.
+
+The first package run failed a new discarded-turn assertion because the test
+reset the mandatory captured view as well as its proposal. The corrected
+40-test run passed before the owner-continuation cases were added. These are
+local ledger proofs; they do not qualify a migrated work-item application or
+native placement. The coordinated current-definition cutover remains pending.
+
+
+### Serving retained growth with bounded hot storage
+
+`general-serving-growth6.log` passes the combined ReleaseSafe lifetime/growth
+trace in 419.31 seconds (all nine build steps). It retains 128 additional exact
+operations, rereads early receipts and preserves immutable outcomes across worker,
+gateway, node and disk restart, cancellation, authenticated timeout, late replies,
+finite expiry and current policy/native revocation. Authority retains eight
+resident pages. The eight MiB hot-store profile spills to 488 cold data objects,
+with 128,143,451 filesystem bytes at the measured point. Authority, both workers
+and one gateway together use 81,838,080 resident bytes under the existing
+536,870,912-byte ceiling. This end-to-end fault trace is not a point-mutation
+latency benchmark; matched mutation measurements remain separate work.
+
+The third growth attempt was interrupted to correct cold metric collection before
+its final assertion. The fourth encountered temporary native `HttpCapacity`
+after recovery. The fixture now retries identical serialized signed submission
+bytes within ten seconds for that specific unavailable response; explicit
+503/fault assertions still observe their original result. The fifth attempt
+caught a null diagnostic in that fixture helper. Only the sixth complete run is
+counted as passed. The hot-store ceiling was reduced from the cold-disabled
+fixture's 64 MiB to the existing cold fixture's eight MiB, not enlarged.
+
+
+### Stored staged-migration evidence before caller attribution
+
+`application-staged-migration4.log` passes 42/42 ReleaseSafe Station application
+tests (29 ms execution, 8 MiB peak test RSS). The added corruption schedule checks
+zero admission input, wrong stored ordinal, changed digest, invalid operation and
+changed stored arguments. Each remains `InvalidApplicationRecord`, preserves the
+existing proposal and invokes no domain transform. Validation of frozen evidence
+precedes comparing the caller's requested digest; stored corruption cannot become
+a terminal `MigrationStepConflict`. The public authority check also permits an
+application to gate target inspection before invoking `begin`.
+
+`general-work-items-mappings2.log` passes the declared semantic diagnostic mapping
+gate, including the explicit invariant exception tied to that executable test.
+Its preceding run correctly failed because the newly surfaced stored-record error
+had no reviewed disposition. Native application and browser runs are separate
+qualification; these package results do not establish their completion.
+
+
+### Work-item typed Tables and staged application migration
+
+`general-work-items-unit4.log` passes 9/9 ReleaseSafe tests (280 ms execution,
+13 MiB peak test RSS). The application uses general catalog Tables, stable hidden
+row cursors and actual published source metadata. Thirty-three rows require 69
+logical migration steps: one-row copies, a phase transition, one-row verification,
+a second transition and activation. Each step freezes its original input before
+Table staging. Completion publishes the Table head, Table outcome, migration
+progress and exact step receipt in four native writes. Tests include empty and
+abandoned targets, changed cursors, corrupt stored values, current policy denial,
+explicit write release and separately authorized catalog/read policy. Accepted
+queued puts prevent a new migration until their Table publication completes.
+
+`general-work-items-native3.log` passes all eight build/proof steps in 142.71
+seconds of native execution: nineteen rows, two fresh-key worker replacements,
+authority/disk restarts, exact operator and worker retries, retained rejection
+witnesses, complete verification and old-epoch rejection. The transport observes
+583 accepted turn submissions, 287 bounded page reads, at most four mutations and
+256-byte native values. Its 39 transport disconnects occur during owned caller or
+authority replacement; exact recovery still must finish within the fixture's
+finite deadlines. The first run failed because completion observation used a
+stale resource revision; whole-read retries now preserve the signed command.
+The second completed its domain schedule but failed the fixture's disconnect
+classification. Only the third run counts as a native pass.
+
+`general-work-items-browser2.log` passes all twelve build/proof steps in 185.65
+seconds, including 51.47 seconds provisioning. Actual Chromium covers all nineteen
+rows, three result pages, application schema/interface publication, gateway
+replacement, original upload recovery/cancellation, the new schema and current
+denial. Peak RSS bytes are 49,737,728 for authority, 18,898,944 for the data owner,
+11,583,488 for publication, 15,314,944 for the requester, 12,333,056 for delivery,
+and 28,372,992/33,071,104 for the two gateway incarnations. The first browser run
+failed after the publication worker's initial ownership read encountered temporary
+native capacity pressure. Startup now retries availability within its configured
+request deadline before writing the activation marker; it still refuses denied
+or stale ownership. The fixture uses bounded hot storage with cold spill.
+
+Standalone package builds pass, as do the independent WI1 cursor/command fixtures
+and documentation links. Physical placements and local application installation
+remain separate schedules; these results do not qualify either or the coordinated
+current-definition cutover.
+
+### Retained startup and strict definition spelling
+
+`node-retained-recovery5.log` passes all five build/proof steps over a disk-backed
+Ursula restart. An owned storage peer closes the first connection and returns
+503 on the next; ordinary recovery succeeds on its third attempt. Persistent
+503 exhausts three attempts. Denied/missing history, wrong genesis, corrupt
+JSON, foreign definitions and missing definitions fail immediately. The published
+tail stays at one and the peer observes no storage mutations. Provider-request
+duration is not a whole-startup deadline. The earlier baseline fault schedule
+passed, while expanded runs exposed an all-zero enum alias and fixture issues;
+only the fifth run covers the complete rejection schedule.
+
+The all-zero fingerprint was previously accepted as enum ordinal zero by Zig's
+generic JSON decoder. The shared definition now accepts only the exact current
+identifier string in both streaming and value-based JSON decoding.
+`strict-definition-unit1.log` passes 35/35 ReleaseSafe protocol tests (9 ms,
+5 MiB peak test RSS), including numeric/all-zero/nonstring rejection and exact
+round trips. Documentation and semantic diagnostic mapping checks pass. These
+checks do not substitute for the coordinated identifier replacement or full CI.
+
+### Local work-item installation and staged recovery
+
+`general-work-items-install6.log` passes the standalone local installation
+schedule in 242.698 seconds: nineteen typed rows, 41 logical migration steps,
+full target verification, schema activation/release, fresh worker generations and
+retained authority/storage recovery. Its largest application checkpoint is 3,207
+bytes, manager peak RSS is 42,057,728 bytes, and the installation retains 23
+management receipts. Explicit `prepare-table` commands reconcile domain readiness
+separately from the manager's native readiness record.
+
+`general-work-items-install-faults4.log` passes in 68.796 seconds. It loses spawn,
+worker-rotation, migration-send, worker-turn and activation-send replies, checks
+exact recorded retries, and preserves current denials. A deliberately unavailable
+authority liveness read leaves the live owners unchanged; three consecutive
+unavailable observations still enter the bounded restart path. The concurrent
+management denial schedule observes a one-millisecond control response in this
+run; this is a fixture observation, not a latency guarantee. The local courier
+explicitly selects all destinations when applications are enabled and retains
+bounded native pages and independently authorized delivery.
+
+Earlier installation/fault runs are not passes: they exposed missing self-message
+delivery, temporary observation errors, a restart triggered by one unavailable
+probe, and fixture retries that confused unavailable reads with domain denials.
+One installation attempt was invalidated by replacing a referenced executable
+during the run; the installation correctly rejected its changed artifact identity.
+The passing runs keep their referenced binaries fixed. Expected mutation errors
+still reconcile the same saved command through temporary availability failures;
+an unavailable observation never counts as the expected domain rejection.
+
+### Explicit root catalog administration
+
+`catalog-root-administrator1.log` passes 99/99 ReleaseSafe catalog tests (265 ms,
+22 MiB peak test RSS). General catalog configuration accepts native principal zero
+as an explicitly chosen administrator, consistently with policy and operation
+principal fields. The new test creates and discovers a typed Table under that
+identity, refuses another initializer, rejects invalid owner/principal bounds,
+and verifies that repeated initialization cannot restore revoked read rights.
+Root has no implicit catalog policy when another administrator was selected.
+
+### Physical work-item placements
+
+`general-work-items-compose2.log` passes in 328.33 seconds, including 126.02
+seconds of image work, with 124,264,730 retained cold bytes.
+`general-work-items-reference2.log` passes in 345.79 seconds, including 6.74
+seconds of image work, with 62,419,677 retained cold bytes. Each uses actual
+physical owners and Chromium, private TLS ingress and role isolation, original
+query recovery across worker/node/store/gateway replacement, application schema
+publication, complete pagination and current denial. Reference placement uses
+fresh registered owners in separate Substrate Actors. These are finite recovery
+proofs, not matched throughput measurements.
+
+The physical runner owns a native cold fixture bound to the private IPv4 Docker
+bridge; it retains the cold fixture independently of role/storage replacement.
+Dual-stack networks select their IPv4 gateway explicitly. The first Compose run
+failed on a transient connection closure opening retained history; the first
+reference run failed because it assumed the first network address had an IPv4
+gateway. Neither counts as a pass. Both passing runs complete their owned
+placement teardown. Local installation and physical placement now have separate
+executed evidence for the migrated work-item application.
+
+### Station ledger on general Tables and finite query publications
+
+At `96ec89a4` plus the following Station ledger migration, the ReleaseSafe
+example build passed all four build steps (`general-station-ledger-build4.log`).
+The isolated disk-backed core schedule passed
+(`general-station-ledger-native5.log`): 7 + 5 - 2 = 10; identical retry bytes
+after a lost terminal receipt; worker, node and disk-store replacement; stale
+ownership rejection; independently decoded typed Arrow segments and coverage;
+replacement of both query hosts after capture; policy denial before capture and
+revocation during capture; and inspectable poisoned input with working native
+termination. The terminal mutation is observed to contain exactly four KV writes
+(Table head, exact Table outcome, application audit and pending-work removal)
+and the original call reply in the same turn. Queue admission is not completion.
+
+The service schedule passed (`general-station-ledger-services2.log`): registry
+rebind retains the resolved old PID, a timed-out call still completes its
+accepted application work without reopening the wait, and separately scoped
+supervision reaches every child across multiple pages. The lifetime schedule
+passed (`general-station-ledger-lifetime1.log`): typed state survives suspension
+and recovery, expired dependencies never reactivate, and opted-in reclamation
+survives authority restart. Both use the real courier for staged self-messages.
+
+The first native run against the new application (`native4`) failed when
+PID-scoped readers lacked optional query-peer associations despite having resource
+grants. Provisioning now supplies both. The first service schedule incorrectly
+waited for a reply to a registry-routed cast; it now checks that cast's committed
+audit entry. Neither failed run is completion evidence. These logs are in
+`/var/tmp/transit-table-75-_el6xx0v`, with the full `general-station-ledger-`
+prefix. Local/Compose/reference ledger placements and the final clean checkout
+remain separate qualification work; earlier placement results do not qualify
+this changed application.
+
+### Board metadata follows general Table and query records
+
+At `86b11d69` plus the metadata projection change, standalone ReleaseSafe Station
+tests passed **93/93** (`general-board-metadata-station1.log`, 2 seconds, 13 MiB
+maximum resident memory), and Board API tests passed **13/13**
+(`general-board-metadata-api2.log`, 5 ms, 4 MiB). They verify exact typed-head
+keys/resource identity, incompatible definitions, full-width object/revision and
+publication namespace identities, and rejection of superseded metadata layouts.
+Generated Board OpenAPI/types/validators match their Zig owner
+(`general-board-metadata-contract1.log`). Frontend formatting, lint, strict types
+and **77 tests** passed (`general-board-metadata-web1.log`); the embedded
+ReleaseSafe Board and ledger build passed (`general-board-metadata-build1.log`).
+
+The first browser schedule (`general-board-metadata-native1.log`) passed actual
+API metadata validation but failed two browser assertions: the fixture still
+expected the removed Table key, and a query JavaScript chunk had grown to
+1,070,791 bytes, exceeding the existing 900,000-byte bound. The key expectation
+is migrated with the head fixture. The asset regression requires a separate
+validator-generation correction; this run is **not** a passing browser or
+complete native Board proof. A preceding generator build failed on a removed
+Zig array repetition operator; the corrected second generator/API run passed.
+Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.
+
+### General Station ledger: local deployment and courier replacement
+
+The changed ledger and Board metadata passed the actual local launcher schedule
+(`general-station-ledger-local1.log` in `/var/tmp/transit-table-75-_el6xx0v`).
+The selected ReleaseSafe artifacts record `86b11d69` plus the Board migration.
+The proof verifies 12 → 10 → 13 → 14 totals through exact repeated sends, worker
+replacement and a genuine Debug upgrade of all three roles; stable PIDs/resources;
+no-op update; persistent down/up; and current typed-head/request/execution lenses
+with source provenance. Audit scans use one bounded native snapshot, so concurrent
+commits cannot mix revisions. The owned installation `station-9fab12` was stopped
+and reset after success.
+
+During intentional courier readiness failure, 292 reads were refused and one
+replacement completed in **30.241 seconds**, within the original 60-second
+replacement deadline. The submitted query completed **3.933 seconds** after
+recovery, within its separate fixed 60-second completion deadline. The recorded
+reply elapsed time is **32.836 seconds**. All assertions passed before cleanup;
+a cleanup restart cannot turn an incomplete query into a passing result. This
+is a fault schedule, not normal query latency. Compose and reference remain
+separate pending placement checks for this application revision.
+
+### General Station ledger: Compose and reference deployments
+
+The same application subsequently passed both physical placement schedules:
+`general-station-ledger-compose1.log` and
+`general-station-ledger-reference1.log` in
+`/var/tmp/transit-table-75-_el6xx0v`. Both verify registry/call/typed Arrow
+exchange, same-PID recovery, upgrades across all three workers, current Board
+provenance, and persistent stop/start. Their disposable installations were
+stopped and reset after success. The reference schedule also replaces the
+ledger's actual Kubernetes pod. These runs qualify the API metadata and
+application recovery paths; they do not substitute for Board's separate browser
+asset and startup proof.
+
+### General Table validators and bounded Board assets
+
+The recursive-schema sharing correction preserves JSON-pointer ancestors and
+reference scopes while extracting repeated closed types. Six differential AJV
+tests and all five generated-validator drift checks pass
+(`general-validator-contract1.log`). Board's standalone validator decreases
+from 2,298,933 to 1,372,590 source bytes. The generated public schemas are unchanged.
+The five embedded JavaScript chunks are approximately 0.58, 405.54, 611.95,
+768.06 and 851.36 kB; the original five-file/900,000-byte browser bounds remain.
+
+`general-validator-board-native2.log` passes **8/8** ReleaseSafe build/proof
+steps, including all **5** real embedded browser tests in 17.9 seconds. It also
+checks actual API responses, current typed-head metadata, private access,
+revocation, gaps/effects, outages and load; maximum measured control latency is
+16 ms. Board and query formatting/lint and **77/35** unit tests pass
+(`general-validator-web-final0.log`, `general-validator-web-final1.log`), as do
+their strict TypeScript checks (`general-validator-board-types1.log`,
+`general-validator-query-types1.log`). Reactive source checks passed with its
+existing exception-assignment lint warning; that package has no standalone test
+files, so the attempted package test command was not a passing test run. Its
+consumer tests run in the Board suite.
+
+The preceding embedded run (`general-validator-board-native1.log`) failed all
+five browser cases on a module-initialization cycle after splitting query and
+reactive validators. The caller gate now has a small public entry and shares its
+error class without importing the reactive transport entry. A static browser
+startup check and the complete second native run verify the correction. An
+intermediate build invoked from the repository root failed to find an entry;
+the subsequent build ran in the owning app directory. Failed attempts are not
+counted as qualification. Logs remain in `/var/tmp/transit-table-75-_el6xx0v`.
+
+### Signed bodies require explicit contract definitions
+
+The signed-envelope decoder derives a required-definition wire body from the
+unsigned authoring type. Both JSON entry points reject missing/foreign definitions,
+quoted enum ordinals, string signatures and string snapshot nonces; saved wrappers
+cannot restore the omitted field. Ordinary unsigned construction still supplies
+the current definition before signing. Shared opaque values retain their owned
+lowercase-hex codec when decoded from a JSON tree.
+
+`general-signed-definition-unit3.log` passes **37/37** ReleaseSafe protocol tests
+(9 ms, 5 MiB), including unchanged independent signing fixtures and ordinary/
+recursive schema parity. `general-signed-definition-native1.log` passes the real
+disk-backed inspection schedule, including command/query missing and foreign
+definitions, invalid signature shape, no authority-position advance on rejection,
+scoped pagination, revocation and node/store recovery. Native, installation,
+ABI/binding and browser resources were regenerated and their drift checks pass
+(`general-signed-definition-contract1.log`); documentation links also pass.
+
+The first unit compile rejected an overly broad custom-parser error set. The
+second run exposed that opaque `Value` had only a token decoder; its matching
+JSON-tree decoder fixes the signed body round-trip. Those attempts failed and
+are retained as `general-signed-definition-unit1.log`, `unit2.log` and the focused
+debug logs in `/var/tmp/transit-table-75-_el6xx0v`. The shared definition replacement
+for the complete Table cutover remains a separate pending step.
+
+### General catalog seeded publication and recovery oracle
+
+The catalog domain simulation uses the general `TableCatalog` owner and
+three-column typed schemas. Each 64-operation schedule checks successful
+creation, name/object conflicts and IF NOT EXISTS against retained intent and
+original outcomes. It injects point-read failures, independently revokes inspect
+or create rights during staging, discards private candidates, and replaces the
+owner's in-memory fixture after lost replies. Every stage checks bounded writes,
+unchanged state on failure/discard, invisible partial publication, exact terminal
+retries, historical definitions and stale-page rejection.
+
+`general-catalog-simulation-unit1.log` passes **99/99** ReleaseSafe catalog tests
+(482 ms, 21 MiB). `general-catalog-simulation-domains1.log` passes **8/8** steps
+and ten component schedules across two seeds, with identical replay in 1.488
+seconds. These dynamic-map fixtures test deterministic contracts, not provider
+durability. The four catalog mutation guards now target the general owner; the
+refresh generation guard is aligned with its retained diagnostic implementation.
+All nine guard anchors match once. Their committed-source mutation run remains
+separate pending qualification. Logs are in `/var/tmp/transit-table-75-_el6xx0v`.
+
+The subsequent committed-HEAD run at `9953b670` passed its unmodified baseline
+and detected **all nine** independently compiled domain defects, including the
+four general catalog defects (create permission, inspection permission, changed
+original completion position, and mixed-revision pagination). The
+[recorded mutation results](verification/results/general-table-catalog-mutations-2026-10-06.json)
+retain revision and per-defect status/timing. Full baseline, failure traces and
+minimized reports remain in `.cache/verification/domain-simulation-mutations`;
+the command log is `general-catalog-simulation-mutants1.log` in the same campaign.
+Compile errors and stale source anchors were not counted as detected defects.
+
+### General Table cold catalog growth
+
+`general-table-growth-native2.log` in the local Table-schema campaign passes all
+**9/9** ReleaseSafe build/run steps with `--grow 65 --cold` (564.604 seconds for
+the complete native lifecycle, console, bridge, CLI and growth schedule). The
+new schedule adds **65** three-column Tables with INTEGER primary keys, bounded
+VARCHAR values and BOOL defaults, enumerates **10** metadata pages, replaces the
+authority, disk store and application workers, and verifies identical metadata,
+the first original saved mutation outcome and typed first/middle/last rows.
+Optional installed SDK consumers were not selected in this run.
+
+The actual cold provider holds **532** data objects and **139,708,974** bytes with
+an **8 MiB** hot-store limit and eight authority resident pages. Sampled per-role
+resident high-water marks are authority **35,393,536**, store **134,701,056**, and
+workers **15,663,104 / 22,556,672** bytes, within the unchanged 512 MiB aggregate
+proof ceiling. The complete schedule records 1,630 committed turns and 596 sends;
+no turn exceeds four mutations or a 256-byte native value. This is process/store
+replacement evidence, not a host power-loss proof.
+
+The growth phase takes 397.798 seconds. Its median CREATE/INSERT wall times are
+5.560/0.545 seconds through the subprocess-driven staged proof and deliberately
+small cold-store working set. These measurements are not a matched console
+latency comparison: the lifecycle includes separate saved-step invocations,
+other local processes were active, and compilation overlapped part of growth.
+The first build attempt
+was deliberately interrupted before runtime after correcting an expected neutral
+integer atom; `general-table-growth-native1.log` is not a passed schedule.
+
+Failure retention now has a shared fixture helper, independent of the retired
+creation-only runner. `general-table-growth-retention1.log` passes the fixture
+checks for cold chunk/pack accounting, joining a native child before moving its
+owned state, and retaining an unjoined provider privately without deletion. The
+new general native runner invokes that helper after joining its owned authority
+and workers on failure. This successful growth run did not exercise that failure
+branch; the helper's injected lifecycle checks are separate evidence.
+
+### General catalog implementation cutover
+
+The creation-only catalog owner, signed/neutral callers, two-column record codecs
+and their fixtures are removed. General `TableCatalog` / `TableClient` /
+`TableBridge` supply the current catalog contract; `test::catalog` uses the real
+general lifecycle runner, and `test::catalog-growth` selects 139 additional
+Tables with cold storage. The shared scope/fingerprint and native page validators
+remain without a legacy schema decoder. Historical results above describe the
+source revision at which they ran, not an additional supported catalog profile.
+
+`general-catalog-removal-unit2.log` passes **76/76** current ReleaseSafe component
+tests (467 ms, 21 MiB test RSS). It replaces the former 99-test suite after
+removing tests specific to the retired APIs; the general lifecycle, exact-recovery,
+authorization and seeded-oracle tests remain. The first invocation used
+`--build-file` from the root and failed configuration before running tests; the
+successful run uses the owning package directory.
+
+`general-catalog-removal-diagnostics5.log` passes **9/9** steps, **3,216** semantic
+projections over **33** complete declared outcome surfaces, **18** inferred error
+sets and **11** unknown-cause projections, including adversarial drift mutations.
+The catalog registry now covers 67 explicit causes across 47 caller/source error
+pairs, including saved-intent ownership, upload state and typed-operation limits.
+All DDL operation states, delegated ALTER, unchanged CREATE and current catalog
+denial in serving/Follow have explicit reviewed projections. Uncertain sends
+retain their exact transport identity; a name lookup invents no operation ID.
+
+The first diagnostics build exposed the retired bridge entry and an obsolete
+reactive-source fixture. The second compiled and passed inferred-boundary checks,
+but the outcome manifest lacked the already implemented catalog-denial variants.
+The next isolated mapping run exposed the distinct serving catalog-denial code.
+Those failed runs are retained as `general-catalog-removal-diagnostics1.log`,
+`diagnostics2.log` and `outcomes3.log`; `outcomes4.log` passes the pre-DDL-phase
+3,210-case matrix. Only `diagnostics5.log` includes the complete expanded matrix.
+
+`general-catalog-removal-docs2.log`, `mappings2.log`, `fixtures1.log` and
+`invariants2.log` pass local documentation links, semantic cause maps, independent
+metadata/control/query-source bytes, and the 59-invariant/53-bound ownership
+catalog. `general-catalog-removal-sdk-diagnostic2.log` validates the replacement
+synthetic DML diagnostic against the current JSON schema with a full-width
+operation ID; it does not run installed SDK consumers. Its first invocation
+omitted a required CLI argument in the imported fixture module and did not run
+validation. The larger cold native run and final definition/clean qualification
+remain separate checkpoints.
+
+### Root-authored catalog page recovery
+
+The explicit CLI validates saved metadata authors as native principals, including
+zero, rather than positive resource identities. `general-catalog-root-page-cli1.log`
+passes **659** real CLI diagnostic cases and all **4/4** ReleaseSafe build/run
+steps. The new cases accept authors zero, 1,234 and the maximum native principal
+through local page validation, then require the missing signing credential as
+before; an author above the native bound rejects as `InvalidCatalogPage`.
+`general-catalog-root-page-negative1.log` runs the same regression against the
+prior built binary and fails on zero with `InvalidCatalogIdentity`. Neither test
+confers catalog rights or dispatches a request after local validation.
+
+### General Table catalog growth beyond the former fixed capacity
+
+`general-catalog-removal-growth139-1.log` in the local Table-schema campaign
+passes **9/9** ReleaseSafe build/run steps and the complete native schedule in
+**1,064.616 seconds**. The growth portion adds **139** three-column Tables,
+enumerates **19** metadata pages, replaces the authority, disk store and workers,
+and verifies the same metadata, original saved outcome and typed sampled rows.
+The cold provider retains **1,010** data objects and **265,188,208** bytes under
+the unchanged **8 MiB** hot-store limit and eight authority resident pages.
+Resident high-water bytes are authority **34,967,552**, store **141,467,648**,
+and workers **15,695,872 / 24,059,904**, within the existing 512 MiB aggregate
+ceiling. Across the schedule, **2,888** turns and **1,114** sends never exceed
+four mutations or a 256-byte native value. The growth portion takes 898.938
+seconds. Compilation and other owned experiments overlapped this run; these
+are growth/recovery results, not a controlled latency comparison. Installed SDK
+consumers were not selected.
+
+### Mutation latency harness on general Tables
+
+The persistent public-client control uses `TableClient` intents and checkpoints
+the exact intent, signed command and admission before observing each input and
+its separate Table outcome. The console reader assembles typed snapshot frames
+and requires matching final basis/plan evidence. The seven existing mutation
+cases check matched/changed counts, including unchanged and absent rows, and
+verify values through the general query path. The baseline uses its own revision's
+harness; no obsolete result decoder is retained in the current harness.
+
+`general-mutation-latency-reader1.log` passes **4/4** reader/timeline tests,
+including fragmented frames, timing arriving first and rejection of a changed
+completion plan. `general-mutation-latency-build1.log` builds the ReleaseSafe
+CLI, node, query host, Board and persistent client into a private campaign prefix.
+`general-mutation-latency-console-smoke1.json` and
+`general-mutation-latency-client-smoke1.json` each complete one repetition of all
+seven cases with **zero errors, unknown outcomes or supervisor restarts**. Both
+use eight resident pages; only the client run enables native/provider probes.
+Cold catalog growth overlaps these functional checks. Single samples and
+instrumentation differences do not support a matched performance conclusion.
+The console's single-row INSERT/UPDATE take 705/980 ms and its three-row INSERT
+takes 5,112 ms; the instrumented client takes 1,544/1,994/11,356 ms respectively.
+This exposes work to investigate, not a passed latency target. Controlled
+baseline/current runs and staging/request-count analysis remain outstanding.
+
+### Packed general Table publication
+
+`Publication.stage` packs already-owned finite bytes into the remaining native
+mutation slots, coalescing private descriptor/quota updates. General Table pages
+and catalog metadata use it without changing the four-write boundary. The
+regression matrix crosses 257/512/513/1,025-byte records with zero through four
+occupied slots, discards and replays proposals, rejects conflicting immutable
+content and inconsistent chunk evidence, verifies quota release, and refuses
+private publication cursors. Existing cancellation tests still cancel every
+committed CREATE/ALTER phase. Their former minimum phase counts and two-write
+helper assumptions are replaced by bounded packed-progress checks.
+
+`general-table-staging-unit2.log` passes **95/95** Station ReleaseSafe tests
+(1 second, 14 MiB), and `general-catalog-staging-unit2.log` passes **76/76**
+catalog tests (460 ms, 21 MiB). The first runs failed two and three assertions
+respectively that encoded the former per-call write/phase counts; the raw and
+direct-run detail logs retain those failures.
+`general-table-staging-native1.log` passes **9/9** build/run steps and the signed
+native lifecycle, console, bridge and catalog CLI schedule in **119.991 seconds**.
+It records **401** turns and **141** sends, at most four mutations and 256 bytes
+per native value, accepted-but-lost send/turn replies, supplied-host receipt loss
+and two injected disconnects. Saved work continues to identify the original
+objects after replacement. The earlier corresponding CLI/native schedule used
+525 turns; wall-clock differences are not a matched latency comparison. Installed
+SDK consumers were not selected. `general-table-staging-docs1.log` checks 5,313
+local documentation links.
+
+### Catalog acquisition cache and initial matched mutation comparison
+
+`TableClient` uses the shared 64-key, one-revision resource cache for each
+metadata acquisition, with chunk prefetch and shared failure poisoning across
+point/page reads. `general-mutation-latency-staged-build1.log` builds the current
+ReleaseSafe callers into a separate private prefix.
+`general-table-cache-native1.log` passes the signed lifecycle/console/bridge/CLI
+schedule in **120.318 seconds**, with **401** turns, **141** sends, lost receipts
+and an injected disconnect. The callers use the new cache; the unchanged proof
+and Station host binaries come from the preceding staging qualification.
+All native writes remain at most four mutations and 256 bytes.
+
+After that proof and all compilation finished, the owned runner executes the
+baseline and candidate benchmarks sequentially with eight resident pages, no
+proxies, no extra rows/history/readers and three repetitions per case. Each
+revision uses its own harness. `general-mutation-latency-baseline2.json` records
+clean baseline `cc5f57e7`; `general-mutation-latency-staged1.json` records `be358aeb`
+plus the acquisition-cache changes and exact executable hashes. Both finish all
+21 samples with zero errors, unknown outcomes or supervisor restarts.
+
+| Case | Baseline median ms | Candidate median ms |
+| --- | ---: | ---: |
+| INSERT one | 84.929 | 834.129 |
+| UPDATE one | 92.991 | 921.899 |
+| UPDATE unchanged | 69.377 | 177.602 |
+| UPDATE absent | 76.444 | 166.060 |
+| DELETE one | 68.143 | 183.819 |
+| DELETE absent | 89.865 | 168.663 |
+| INSERT three | 70.212 | 3,866.094 |
+
+Three samples do not establish tail percentiles. This is a measured regression,
+not passed performance qualification; worker read amplification and polling
+between staged outcomes remain under investigation. The first baseline attempt
+failed before workload execution because its Board binary was absent. The first
+Board build failed before locked frontend dependencies were installed; the second
+build succeeded after installation. These setup failures remain in
+`general-mutation-latency-baseline1.log` and `performance-baseline-board1.log`.
+
+### General Table outcome scheduling
+
+The console and persistent control call `TableClient.waitForChange` after a
+running outcome. Its process-inspection hint uses the native authority position
+from the same metadata acquisition, is tied to the exact connection/intent, and
+requires a fresh outcome acquisition after the bounded wait. It does not infer
+completion from a wakeup or mailbox progress. Known wait-capacity exhaustion
+falls back to the existing bounded read-side delay.
+
+`general-table-wait-client-unit1.log` passes **19/19** ReleaseSafe client tests;
+`general-table-wait-catalog-unit1.log` passes **77/77** catalog tests, including
+rejection of hints belonging to another connection, namespace or operation before
+transport access. Documentation and declared diagnostic mappings pass in the
+corresponding `general-table-wait-docs1.log` and `mappings1.log`.
+After the private ReleaseSafe build completes, `general-mutation-latency-wait1`,
+`wait-probe1` and `wait-client1` run sequentially, with respectively three console
+repetitions, one instrumented console repetition and one public-client repetition.
+All finish without errors, unknown outcomes or supervisor restarts. The console
+medians are INSERT **811.5 ms**, UPDATE **922.7 ms**, DELETE **191.8 ms** and
+three-row INSERT **3,568.2 ms**. These small samples do not establish a latency
+improvement over the preceding candidate. The instrumented schedule records
+four turns and 23/24 caller metadata batches for INSERT/UPDATE, and 16 turns with
+88 caller metadata batches for the three-row INSERT. Staging and worker reads
+still dominate; the matched baseline regression remains unresolved. Reports and
+exact binary hashes remain in the local Table-schema campaign.
+
+### Point admission and the captured metadata working set
+
+Point writes check the fresh candidate's complete native write cost before
+attempting direct publication. When staging is required, admission uses spare
+slots for the first immutable records alongside the busy-head reservation and
+original receipt. A two-row regression verifies that those bytes remain hidden
+behind the old root, complete in at most three turns, and preserve exact terminal
+replay. Large admission reserves its publication quota without exposing a row.
+
+The captured-turn cache holds at most **64** validated point reads, independent
+of durable cardinality. Native prefetch stays limited to **eight** keys. Catalog
+policy pairs, metadata records/chunks and Table staging checks use bounded
+batches. The cache regression exercises a working set larger than one native
+page, eviction at the fixed capacity, private-write precedence, committed reads,
+new-turn reacquisition and poisoned reads. This is a measured-workload cache
+budget change; native storage pages, values, write slots and Table size limits
+do not change.
+
+`general-table-working-unit3.log` passes **97/97** Station ReleaseSafe tests
+(1 second, 15 MiB), and `general-catalog-working-unit3.log` passes **77/77** catalog
+tests (465 ms, 22 MiB). The first builds fail syntax checking because a constant
+was placed between container fields; the second fail because a test-local name
+shadowed a declaration. Neither is counted as executed proof.
+`general-mutation-latency-working-build3.log` passes **18/18** private-prefix
+ReleaseSafe build steps. `general-table-working-native1.log` passes **9/9**
+steps and the signed native lifecycle, console, bridge and CLI schedule in
+**107.772 seconds**, with **400** turns and **141** sends. It verifies lost
+send/turn receipts, supplied-host receipt loss and an injected disconnect, and
+never exceeds four native mutations or a 256-byte value. The component and native
+results include both the admission and bounded-read changes. Optional installed
+SDK consumers were not selected. Documentation, declared diagnostic mappings
+and verification registry checks pass in the corresponding
+`general-table-working-docs1.log`, `mappings1.log` and `invariants1.log`.
+Latency measurements follow separately after compilation and native tests stop.
+
+### Committed general Table latency and native-cache controls
+
+After all builds and the native proof finish, the baseline and committed
+`1504e2db` candidate run sequentially with three repetitions of the seven cases,
+no extra rows/history/readers, and no probes. Both source trees are clean.
+`general-mutation-latency-baseline3.json` and `working1.json` use eight authority
+resident pages. A second sequential pair, `baseline-cache64-1.json` and
+`working-cache64-1.json`, uses 64 authority resident pages. The larger cache is
+an explicit experiment override; the server default remains eight. All four
+schedules complete their 21 samples without errors, unknown outcomes or
+supervisor restarts. These three-sample medians do not establish tails.
+
+| Case | Baseline, 8 pages ms | General, 8 pages ms | Baseline, 64 pages ms | General, 64 pages ms |
+| --- | ---: | ---: | ---: | ---: |
+| insert 1 | 78.361 | 554.492 | 59.061 | 344.574 |
+| update 1 | 82.478 | 559.577 | 65.181 | 366.765 |
+| update same | 75.129 | 157.041 | 60.408 | 105.876 |
+| update absent | 84.336 | 165.191 | 55.948 | 110.001 |
+| delete 1 | 70.191 | 181.481 | 58.373 | 113.229 |
+| delete absent | 95.081 | 153.869 | 62.287 | 113.296 |
+| insert 3 | 83.881 | 3262.655 | 58.743 | 1976.484 |
+
+Separate instrumented single repetitions (`baseline-probe1.json` and
+`working-probe1.json`) show the structural cost: the baseline uses one admitted
+command and one turn for each case; the current candidate uses one command and
+three turns for changed single-row INSERT/UPDATE, and four commands with sixteen
+turns for the three-row INSERT. The latter includes command upload and complete
+statement staging. Candidate worker point reads/batches are 22/18 for INSERT,
+22/24 for UPDATE and 203/49 for the three-row statement. Provider POST counts
+are respectively 40/57/321 versus 9/11/9 in the baseline. No-op and DELETE cases
+still complete in one turn. These are request counts under the instrumented
+controls, not uninstrumented latency samples.
+
+The single-repetition persistent-client control (`working-client1.json`) also
+passes without unknown outcomes or supervisor restarts. All reports retain
+controls and executable hashes in the local Table-schema campaign. The admission
+and bounded-read changes reduce avoidable work, but the generalized representation
+still has a substantial latency regression. A larger cache helps without removing
+the extra commit cost. This does not pass the remaining performance review or
+justify changing deployment budgets without recording the tradeoff.
+
+### Bounded INSERT batches and compact primary-key lookup
+
+`bd064760` builds at most eight INSERT rows within the existing 196-record and
+candidate byte ceilings. Only the final reachable root is staged. Partial next-row
+construction rolls back privately when the overlay fills. Final batches publish
+without an unnecessary cursor/reservation commit. Lost proposals, a duplicate in
+a later saved batch, consumed-ID cleanup, allocation failures and large multi-level
+indexes remain covered. `general-table-batch-unit2.log` passes **99/99** Station
+ReleaseSafe tests (700 ms, 15 MiB); `general-catalog-batch-unit1.log` passes **77/77**
+(470 ms, 22 MiB). The first Station run failed an old cleanup fixture that assumed
+one interval per row; its replacement crosses two complete batches before failing.
+The failed run is retained and is not a passing result.
+
+The clean committed three-repetition `general-mutation-latency-batch1.json` control
+records three-row INSERT median **1,816.821 ms**, versus **3,262.655 ms** in the
+preceding three-repetition candidate. The separate one-repetition instrumented
+`batch-probe1.json` records **four sends and ten turns**, down from sixteen turns;
+provider POSTs fall from 321 to 199. Instrumented elapsed times are not compared
+with uninstrumented samples. Both runs complete without errors, unknown outcomes
+or supervisor restarts.
+
+`c906661f` stores a 128-bit SHA-256 prefix in each primary-key lookup entry.
+Every bucket candidate still requires full typed-key comparison; immutable node
+and row commitments retain all 256 bits. Collision injection continues to prove
+that a matching prefix cannot establish equality. Two keyed rows use a 234-byte
+leaf, allowing a changed point write to fit the four-write native boundary.
+The third row still exercises staged admission, old-root visibility and replay.
+`general-table-key-prefix-unit2.log` passes **99/99** (644 ms, 15 MiB), and catalog
+`key-prefix-unit1.log` passes **77/77** (459 ms, 22 MiB). The first Station run fails
+only the explicitly asserted old maximum head size, 245 versus 229 bytes; the
+updated assertion and contract record the new exact encoding. This incompatible
+storage layout participates in the outstanding coordinated definition cutover.
+
+`general-table-key-prefix-native1.log` passes **9/9** build/proof steps and the
+signed lifecycle, console, CLI and port recovery schedule in **97.372 seconds**:
+**364 turns, 141 sends**, lost send/turn replies, supplied-host receipt loss and
+one injected disconnect. Native writes/values stay at four/256 bytes. No installed
+SDK consumer is selected in this run. Documentation validation passes.
+
+After builds and native recovery finish, clean `c906661f` and baseline `cc5f57e7`
+run sequential **20-repetition** controls with eight authority pages and no extra
+rows, pre-aging, concurrent readers or probes. Both 140-sample schedules complete
+without errors, unknown outcomes or supervisor restarts. Reports
+`general-mutation-latency-key-prefix1.json` and `baseline4.json` retain exact source
+revisions, controls and binary hashes in the local Table-schema campaign.
+
+| Case | Baseline median / p95 ms | General median / p95 ms |
+| --- | ---: | ---: |
+| insert 1 | 112.845 / 126.055 | 197.453 / 237.981 |
+| update 1 | 127.008 / 164.999 | 222.542 / 256.279 |
+| update same | 113.702 / 125.521 | 173.805 / 198.112 |
+| update absent | 130.650 / 157.161 | 211.218 / 227.303 |
+| delete 1 | 115.978 / 128.972 | 188.129 / 207.016 |
+| delete absent | 133.193 / 172.776 | 205.886 / 257.363 |
+| insert 3 | 122.674 / 131.667 | 1946.881 / 2158.296 |
+
+These empirical p95 values meet the fixture's minimum sample count; no p99 or
+latency SLO is claimed. Point-write overhead is substantially reduced, but the
+remaining general-schema metadata, upload and staged-publication cost still
+requires review. The multi-row regression is not resolved by this checkpoint;
+wide/nested, age/readers and final committed-source controls remain separate.
+
+### Fixed mutation caller removal
+
+The separate fixed-table writer, query-package mutation caller/bridge, native
+mutation handle/port profile, `transit mutate` route and ten SDK mutation adapters
+are removed. General Catalog DDL/DML owns replacement dispatch and exact saved
+recovery. Old generated ABI/schema declarations and dedicated tests/tasks are
+removed with their implementation. The [historical record](../docs/history/fixed-table-mutations.md)
+retains the earlier contracts and executed SDK observations; those observations
+are not counted as new general-Table qualification. The remaining Station
+handler Table/query helpers and pure fixed SQL compiler are a separate migration.
+
+`general-query-mutation-removal-unit1.log` passes **89/89** Query tests;
+`general-station-bindings-mutation-removal-unit1.log` passes **17/17** binding tests.
+The regenerated Station ABI and language resources pass their owner generators.
+`general-mutation-removal-boundaries1.log` passes **12/12** steps, **3,083** executed
+diagnostic projections across **29** surfaces, **17** compiler-inferred error sets
+and **nine** unknown-cause projections. The subsequent explicit removed-command
+check raises CLI coverage from 595 to **596** real cases, retaining privacy and
+no-provisioning assertions. General Catalog diagnostics replace the removed
+writer family; unknown-send recovery remains separately asserted.
+
+`general-mutation-removal-native1.log` passes **11/11** steps, including the CLI
+checks and the signed general native/console/port lifecycle in **95.562 seconds**.
+It records **364 turns/141 sends**, lost send/turn receipts, supplied-host receipt
+loss, one disconnect and unchanged four-write/256-byte maxima. No installed SDK
+is selected. Strict Python checking passes 24 source files, TypeScript no-emit
+checking passes, and locked Rust checking passes with the explicit source-development
+library directory. The first Rust attempt lacks that required artifact setting
+and fails before SDK compilation; it is not an installed-language qualification.
+Recursive generated-host declaration checks and the recorded diagnostic inventory
+also pass. Documentation (`docs5`), semantic mappings (`mappings1`) and the
+updated verification registry (`invariants2`) pass. The first registry run fails
+on the removed request-bound source and is retained; its replacement classifies
+the general intent and existing private batch budgets rather than dropping bounds.
+The global definition cutover, installed-language requalification and full clean
+CI remain outstanding.
+
+### General typed component compiler migration
+
+The fixed `Sql.Mutation`/`Fuze.TableMutation`/`Station.TableMutation` paths and
+`Declaration.tableSchema` conversion are removed. DDL/DML compiler measurements
+now use `TableDdl`/`TableDml`. The existing non-executable state-definition
+formatter remains separate. Diagnostic reflection removes the old mutation
+boundary and six obsolete declaration-conversion causes; general Table compiler
+boundaries retain their reviewed mappings and unknown-cause fallback.
+
+`component-general-fuze2.log` passes **250/250** tests; Station's matching
+`station1` run passes **97/97**. The first Fuze run fails one obsolete binary-cast
+highlighting fixture; the corrected fixture uses the general parser's `X'00ff'`
+constructor. The first root build finds the removed parser's classifier branch
+and an obsolete neutral scalar conversion in the parameter benchmark; both are
+migrated before `build3` passes **7/7** steps, including **16** compiler-inferred
+error sets and **nine** unknown-cause checks. `build4` recompiles the final
+parameter benchmark. Its first runtime attempt rejects old cast literals; the
+second uses typed numeric/binary literals and passes all **12** neutral parameter
+cases, preserving ordinary/prepared bundle equality and two description reads.
+The default pure SQL benchmark passes its **13** compilation/aggregate cases.
+These single-sample smoke runs are correctness checks, not latency comparisons.
+
+The general declarative consumer passes **33** components and **nine** capability
+probes with 257 rows/three-row pages and separately with empty input. SQLite
+checks complete typed mutation rows and matched/changed counts; PyArrow checks
+SELECT cells and schemas. Decimal, wide-schema and compound-predicate probes
+now require acceptance. Full TPC inventories remain blocked. Mutation timing is
+named `build_candidate` and includes immutable row/index construction, bounded
+overlay allocation and decoded result traversal; it cannot be compared with the
+historical fixed-cell `propose_mutation` phase as equivalent work. The SQL probe
+also marks its general DDL/DML workload contract to reject mismatched controls.
+Runner checks pass **9/9**, including unchanged-row and zero-match oracle cases.
+
+Raw reports are retained in the local campaign (one sample, ten component
+compile iterations, one query execution; parameter/default probes retain their
+own fixed iteration counts):
+
+| Report | SHA-256 |
+| --- | --- |
+| `component-general-report1.json` | `dc6ffbc70fe2067da3bf70ac12ad1e9ed5754820f230c1c2cbcde8b1cc3b0702` |
+| `component-general-empty1.json` | `8790d3e3848f1b511a24e1625f381281a136b74adfff8dd1a034897d5cf55e95` |
+| `component-general-sql1.json` | `ddf50e7ab2cfcb1b2ed3971221743a5cd62560326b1593f6937f478a248c9af4` |
+| `component-general-parameters2.json` | `d599ce91049ebdd93fe0e0b1ab7003757b650c684888d4818b0125a6c2f0fbf2` |
+
+Documentation and diagnostic semantic mappings pass. The updated source
+inventory records 375 owners, 3,499 owner/error pairs, 445 enum/union surfaces,
+13 declared sets, 2,887 error-return boundaries and 194 grammar productions;
+this inventory is not executable proof. The verification registry passes with
+the superseded three-row compiler bounds removed. Handler Table/query migration,
+installed SDKs, current-definition regeneration and complete clean qualification
+remain separate gates.
+
+### General Table handler foundation
+
+`TableReader` owns the current general schema and bounded typed rows at one
+captured or retained cut. `TableCreation` freezes an application-owned schema
+and publication quotas, stages its original immutable schema, and publishes the
+initial head and original completion receipt in one native turn. These helpers
+provide no catalog name, operation authorization or implicit continuation.
+The final SDK/handler dispatch migration remains separate from this foundation.
+
+`general-handler-reader-unit1.log` passes **99/99** Station tests and
+`general-handler-creation-unit1.log` passes **101/101**. The complete
+`general-handler-reader-creation-unit3.log` passes **103/103**, four build steps,
+2 seconds and 27 MiB test-process MaxRSS. Coverage includes typed decimal/nested
+rows wider than two columns, stable identity ordering, moved-cut rejection,
+private-write invisibility, retained original schema after rename, retired-head
+rejection, read denial/poisoning and independently owned row lifetimes.
+
+Small and large initialization schemas are replayed after discarded proposals
+at every stage. Changed schemas/quotas reject with no private writes; all accepted
+steps retain the four-write maximum. Original receipts survive rename and
+retirement without restoring the original head. Independently populated Table
+namespaces cannot be adopted. The independent Python storage oracle adds the
+84-byte STC1 receipt and namespace key, and Zig verifies those exact bytes,
+foreign definitions, truncation, invalid positions and missing data.
+
+The first combined run (`unit2`) passes 101/103: one allocation-failure harness
+sees variable allocator resizing, and a truncated fixture violates native Value
+padding before reaching the intended record-length check. The corrected test
+uses the existing no-resize allocator pattern and canonical truncated Values.
+The final run exhausts creation/read allocation failures, checks released
+ownership, and verifies that failed final creation leaves no partial proposal.
+`general-handler-storage2`, `docs2`, `invariants2` and the recorded diagnostic
+inventory pass. The registry classifies the eight-row operation bound separately
+from total Table cardinality and query execution-vector size. This is unit and
+layout evidence; installed-host/SDK and disk-backed lifecycle qualification
+remain outstanding for the new handler dispatch surface.
+
+### Self-describing logical Arrow delivery foundation
+
+`LogicalInspect.infer` reads only the bounded Arrow metadata tables, validates
+the embedded logical descriptor, and checks the complete canonical schema before
+Arrow traverses physical field trees. `segment` additionally validates every cell
+and expected row count. The existing plain-segment, workspace and logical value
+budgets remain; neither helper admits external Arrow profiles or supplies source
+or computation authority. This prepares general handler result delivery.
+
+`general-handler-arrow-unit2.log` passes **252/252** Fuze tests in six build steps,
+3 seconds and 80 MiB test-process MaxRSS. Inference covers all **46** independent
+type/value fixtures and recursive states, owned descriptor lifetimes, empty
+results, every partial-allocation failure, every truncated segment length and
+single-byte corruption at every position of the complete schema prefix. The
+first build (`unit1`) fails on a local name shadowing an existing decoder method;
+it executes no tests and is not counted as a pass.
+
+`general-handler-arrow-oracle1.log` passes **5/5** steps and **126 PyArrow 23.0.0
+cases**: exact scalar/recursive values and all five states, metadata, owned
+batches, bounded splitting and failed-prefix completion. The fixture producer
+now verifies inferred schemas and sealed segment fingerprints before the
+independent PyArrow checks. Documentation, invariant registry and the refreshed
+diagnostic inventory pass. Handler dispatch and installed SDK migration remain
+separate from these codec checks.
+
+### General typed handler query capture and delivery
+
+Station private queries now retain the general Table head/schema, persist an
+FQP1 plan in one or two native cells, and resume with a stable 20-byte row
+identity and FQS1 progress. Job/correlation plus two plan cells still consume
+at most four native writes. Logical Arrow delivery verifies canonical schema
+metadata and every cell through the shared inspector. The transport keeps u16
+lengths with a 65535-byte buffer (aligned streams fit at most 65528 bytes),
+eight-row pages and the existing 4 MiB Arrow workspace. These are operation
+bounds; durable source/result cardinality remains paged.
+
+`handler-query-unit6.log` passes **109/109** Station tests, four build steps,
+4 seconds and 28 MiB test-process MaxRSS. It preserves the prior restart,
+authenticated-origin, current-policy, cancellation, read-poison, duplicate,
+fragment-conflict and credit checks over general typed storage. New cases cover
+empty source/successor pages, a filtered tail, independent decimal/list cells,
+full-width Table identities, two-cell frozen plans, missing/changed/oversized
+plans, and four-write admission at 128 columns. That last empty result exceeds
+the per-segment output budget and records a terminal `result_too_large`; schema
+admission does not promise every projection fits one output segment. Explicit
+workspace exhaustion also records failure and releases the source. An earlier
+sealed prefix cannot become a complete result after failure. Host allocator
+failure restores the private proposal and does not manufacture a terminal result.
+
+`handler-query-bindings1.log` passes **17/17** shared Zig binding tests. Neutral
+query plans now reuse the general logical plan model and manifests preserve
+full-width Table IDs as decimal strings. Generated binding resources reflect
+this change; language-native handler wrappers and installed SDK qualification
+remain part of the subsequent Table API migration.
+
+`handler-query-native5.log` passes **6/6** steps against disk-backed Ursula:
+**41 rows, six segments, 22880 bytes**. Worker/provider/node replacement resumes
+staging, sealing and partial receipt; four lost-reply sites reconcile identical
+requests and receipts. Source access stops before publication, completion occurs
+once, local cancellation preserves uncertain proposals, and acknowledgement is
+retained. Independent Python checks reconstruct the 152-byte GQJ1 job and
+126-byte FQS1 progress, verify logical descriptor metadata and every PyArrow
+cell, ordered segment digests, complete source binding and received-byte identity.
+Phase times are write 33.461 s, seal 8.934 s, recover 13.652 s, publish 0.517 s,
+and delivery 22.927 s. These fault-injection proof times are not matched latency
+controls. Authority residency is 64 pages initially, one after the first restart,
+and 64 for final capture/delivery; no default deployment bound changes.
+
+The first native build fails on an unused fixture parameter. Native runs 2–4
+complete all service phases but fail independent final checks that still use
+the old descriptor fixture shape, null-kind convention and progress basis.
+They are not counted as passing proofs. The final oracle uses shared independent
+logical type/cell encoders and verifies the new manifest head binding and schema
+fingerprint. Unit runs 1 and 4 fail on fixture field/enum names; run 2 accidentally
+invokes the broader root test target (943 tests pass, two binding builds fail
+before their API migration). Focused runs 3 and 5 pass 103 and 107 tests; run 6
+adds the output-budget and incomplete-prefix adversaries. Documentation and
+classified-bound checks pass. The final shared-definition cutover, all installed
+SDKs, full checks, performance controls and committed-HEAD clean CI remain pending.
+
+Raw `handler-query-unit6.log` SHA-256: `56ca7cc707fd6cd2cd3bfe7c0364bbf942e3013619b4f9696f4f787fbee829bc`.
+
+Raw `handler-query-bindings1.log` SHA-256: `09556090d8786e89f76c75df5abd471b756674c6c9c41d44d939986752a1892a`.
+
+Raw `handler-query-native5.log` SHA-256: `e22dea584887532f4e48b8cd359bd899be6367a04501eeb1de583ccbfe5e4227`.
+
+
+### General typed handler Table boundary and TypeScript API
+
+The private handler bridge replaces the two-column Table actions with schema
+creation/discovery, stable row identities, composite primary-key lookup, bounded
+pages and exact resumable mutations. Creation and mutation prepare one private
+turn; the application owns durable intent capture and continuation scheduling.
+Saved work binds the current definition, realm, resource, schema, principal and
+operation. Applied counts, rejection witnesses and original admission/completion
+positions remain distinct. Current grants, retained cuts and four-write commits
+are unchanged. The neutral action budget is 256 KiB, independent of the native
+row bound. Generated schemas distinguish 128 columns, eight returned page rows
+and 1024 insert rows; schema acceptance does not promise an action fits its byte
+budget.
+
+`handler-table-bridge-unit7.log` passes **20/20** native binding tests, four build
+steps, 116 ms and 31 MiB test-process MaxRSS. Cases use four columns including
+nullable UTF-8, decimal and nested lists, full-width object/operation identities,
+exact duplicate/conflicting intents, changed realm/resource, committed and
+retained reads, moved cursors, cancellation and read poisoning. Independent
+Arrow-cell checks retain nested descriptors/values after input/workspace reuse.
+`handler-table-bridge-build3.log` builds the ReleaseSafe shared library in a
+private prefix; no live workspace installation is replaced.
+
+`handler-table-ts-final2.log` passes formatting, lint, strict TypeScript checking
+and **54/54** tests. Six new boundary tests cover immutable saved typed work,
+foreign/missing definitions, malformed/full-width identities, resource routing,
+owned row identities, general projection/predicates, action budgets and the
+128-column/1024-row schema distinction. The first final check stops on Markdown
+formatting before type checking/tests and is not counted as a passing run.
+Earlier native attempts fail on identity-array typing and an incorrect expected
+conflict error; the final suite includes both corrections and the later Arrow
+ownership test. Other language wrappers, installed SDK integration, the shared
+definition cutover, performance controls and full clean checks remain pending.
+
+Raw `handler-table-bridge-unit7.log` SHA-256: `d0f9542b2ec0ad65a613a5dda0d54edcd9d8eacfadd10faaee13d7462b58fdab`.
+
+Raw `handler-table-bridge-build3.log` SHA-256: `0097519a84734af8db38f1e62edf2e55af4145c2481d2f0f0e1d4982cc9c061b`.
+
+Raw `handler-table-ts-final2.log` SHA-256: `77ac1efd7750b1d38b77c02f57cf3676cd6f12355bc0f0a95890510c2f8d0c35`.
+
+
+### Python handler Table values and outcome identity checks
+
+The Python handler API replaces fixed key/value Tables with the shared general
+schema/logical value model, owned row identities, bounded pages, typed creation
+and immutable saved mutations. Saved work validates before dispatch, binds the
+original realm/resource/schema/operation and advances one private turn at a time.
+Handler queries reuse the general immutable plan model and manifest head binding.
+Current/retained reads preserve scope checks; no API loops or silently schedules
+work. Returned mutation outcomes must match the requested operation; status and
+cancellation also match the saved digest. TypeScript now enforces those same
+outcome checks.
+
+`handler-table-python-check2.log` passes strict mypy over **21 source files**, the
+new handler boundary suite with **31 adversarial rejections**, and the existing
+catalog ownership/lifetime suite. The handler suite covers exact saved values,
+malformed/missing/foreign definitions, default/predicate recovery, nested decimal
+and binary cells, 128-column/1024-row bounds, current/retained routing, moved cuts,
+expired scopes, outcome counts, foreign returned identities and digest mismatch.
+The first check fails on an explicit Python re-export declaration; no tests are
+counted for that attempt. `handler-table-ts-routing3.log` passes formatting/lint,
+strict source type checking and **55/55 tests**. Routing attempt 1 uses the wrong
+formatter working directory; attempt 2 runs 54 passing tests but its new mock
+omits the handler async context. Neither is counted as a complete pass. Attempt
+3 invokes the real scope context and passes the foreign-outcome checks.
+
+The Python test is registered in source and installed-consumer tasks. These
+results are source-level boundary checks, not installed authority proof. Query
+examples and the shared multi-turn SDK scenario still require migration before
+the installed handler schedule can run. Documentation links pass.
+
+Raw `handler-table-python-check2.log` SHA-256: `3bb73e17272862f0f3b1235f006dbaf9962ad75a03454bfadf9e0e8953f8f38b`.
+
+Raw `handler-table-ts-routing3.log` SHA-256: `9a27c26153e3fe41f1ac78f3c90ff9871bd00eaf3ff1d098cb6ab6f0673dee1c`.
+
+
+### Ruby handler Table values and scoped read materialization
+
+Ruby handlers now use general catalog schemas and owned logical cells, stable
+row identities, bounded pages and immutable saved mutation/reference values.
+Query plans reuse `Unified::Plan`; manifests bind the complete Table head and
+preserve full-width object IDs. Schema/row/page conversion and status identity
+checks remain inside the read guard: catching a malformed result still poisons
+the real Ruby turn. Mutation results match the original operation, and saved
+status/cancellation match its digest.
+
+`handler-table-ruby-final1.log` passes syntax checks for all three changed source
+files, the handler value suite with **28 adversarial rejections**, and the
+independent recursive-schema validator suite. Cases cover nested decimal/list
+and binary ownership, saved definitions and canonical identities, 128 columns and
+1024 rows, action-size rejection, foreign realm/resource, changed read cuts,
+read poisoning, retained mutation rejection and mismatched outcomes. The new
+suite is registered in source and installed handler tasks.
+
+Earlier attempts do not count as passing full checks: the first catalog-suite
+invocation lacks its staged relative schema fixture, the first new test uses an
+incorrect Ruby endless-method conditional, and later standalone catalog runs
+lack the installed-gem fixture environment. That installed catalog suite remains
+pending; these source checks do not substitute for it or for the real-authority
+handler scenario. The final handler test and recursive schema test both pass,
+and documentation links pass. Query examples and the shared multi-turn installed
+scenario remain part of the continuing SDK migration.
+
+Raw `handler-table-ruby-final1.log` SHA-256: `d49edcf78bbffd0b2900554df4ce6f15b4e5f20776e79eb8dcf89ec263c23c7e`.
+
+
+### Shared handler Table response budget
+
+The native Table bridge now measures the complete `GrowingResult` JSON, including
+its envelope, metadata and escaping, before publishing a response. Its 256 KiB
+limit matches the existing direct-ABI read capacity and fits the native-host
+frame. Oversized reads return `OutputBudgetExceeded` with budget status; they
+cannot truncate rows, hide continuation or vary by SDK transport. Smaller pages
+can reduce response size; a single row/schema above this transport bound remains
+unreadable through this handler profile. Native row/schema storage admission is
+separate and unchanged. Result validation restores the private proposal on error.
+
+`handler-table-result-unit1.log` passes **21/21** binding tests, four steps,
+138 ms and 31 MiB test-process MaxRSS. The added test independently serializes
+an exact-fit response, tests one-byte overflow, JSON escaping, page envelope and
+metadata overhead, and the exported budget status. Existing general Table
+creation/read/mutation/recovery tests pass through the shared result guard.
+`handler-table-result-build1.log` builds the ReleaseSafe shared library in four
+steps into the campaign's private prefix (1 minute, 2 GiB compiler MaxRSS).
+Contract attempt 1 imports the same Zig file through two module roots and fails;
+attempt 2 reads the exported capability instead and regenerates successfully.
+
+After regeneration, `handler-table-result-ts1.log` passes formatting, lint,
+strict source type checking and **55/55** tests. The Python/Ruby source suites
+pass **31/28** adversarial rejections respectively in
+`handler-table-result-sdk1.log`. Diagnostic inventory, classified-bound registry
+and documentation links pass. These are bounded-codec/API checks; installed
+handler scenarios and final full qualification remain pending.
+
+Raw `handler-table-result-unit1.log` SHA-256: `1614d07cd8f6bd06055e5c966e82666f489921b1030a1cf16e23e4afff0edde4`.
+
+Raw `handler-table-result-build1.log` SHA-256: `0097519a84734af8db38f1e62edf2e55af4145c2481d2f0f0e1d4982cc9c061b`.
+
+Raw `handler-table-result-ts1.log` SHA-256: `a29b4575553a19c361fe4435d35603361582aa52c2f8aebdb5d555724c49fb4f`.
+
+Raw `handler-table-result-sdk1.log` SHA-256: `d876dc783d4f558f953cf56a4cff8a4a677df9e269d17eec78c2f35879a3f3ad`.
+
+
+### Rust general handler Table values
+
+Rust handlers now discover `catalog::Schema` through an exclusive Table borrow,
+return owned logical rows and stable identities, and expose typed creation,
+saved mutation/reference recovery and explicit one-turn steps. General handler
+queries freeze `unified::Plan` and retain full-width object IDs/head digests.
+The fixed `TableValue`/two-column cell API and its private schema decoder are
+removed. Private schema/mutation codecs are shared with the catalog models;
+no neutral JSON declaration becomes the public application type.
+
+`handler-table-rust-check3.log` passes **14/14** tests (1.07 s), with zero ignored
+cases and no compiler warnings. Five new handler/query tests cover immutable
+nested decimal/binary/list inputs, original schema ownership, full-width IDs,
+strict saved definitions and canonical recovery, default/predicate round trips,
+128-column/1024-row/byte bounds, applied-only counts and frozen general query
+projections/output names. The existing catalog and logical codec tests pass.
+The initial build fails on a missing internal scalar decoder and a conflicting
+borrow in the page builder; attempt 2 passes 13 tests and warns about the unused
+superseded basis decoder. Attempt 3 removes that decoder and adds the query test.
+`cargo fmt` and documentation link checks pass. Tests use the locked source
+crate with an explicit native-library directory; they do not qualify installed
+handler dispatch or examples, which still require the shared scenario migration.
+
+Raw `handler-table-rust-check3.log` SHA-256: `a314df3c07317d7a1736612fbd7262001ca5d4e63290ab06f8044cab5b2b30b8`.
+
+### Java general handler Table values
+
+Java handlers use the general immutable `Catalog.Schema`, owned logical rows
+and stable identities, with explicit creation and saved mutation/reference
+steps. Catalog mutation decoding validates logical values and canonical recovery
+before native dispatch. Handler query plans freeze `UnifiedQuery.Plan`; manifests
+retain full-width Table IDs and the complete head digest. Scoped reads retain
+the existing active-thread and failed-read gates.
+
+`handler-table-java-check1.log` passes **34 adversarial rejections** plus positive
+ownership, nested decimal/binary/list, saved-schema, default/predicate,
+128-column/1024-row, full-width identity, outcome count and frozen query checks.
+The source SDK and test compile with Java 21, `-Xlint:all -Werror` and the pinned
+Gson dependency. The first compile attempt fails on missing optional annotations
+referenced by Gson's static parser; using the SDK's existing Gson parsing pattern
+removes those warnings, and build attempt 2 succeeds. Documentation checks pass
+5259 local links across 524 files. The test is registered in the installed Java
+Station schedule; its execution here is a source boundary check, not evidence
+for installed dispatch, native authority or the still-unmigrated examples.
+
+Raw `handler-table-java-check1.log` SHA-256: `91d3ead047504fdb562b14f44bf884736a28ad021bec921ddf5c8473c8b2fb62`.
+
+### .NET general handler Table values
+
+.NET handlers discover immutable catalog schemas, read owned logical rows and
+stable identities, and explicitly advance saved creation/mutation work. Query
+plans freeze the general unified plan; manifests preserve full-width Table IDs
+and head digests. Saved mutations decode logical values before dispatch and bind
+the original resource, schema and operation. Table reads compare digest bytes
+and retain the active-thread, scope and failed-read guards.
+
+`handler-table-dotnet-check4.log` restores a freshly built Station SDK NuGet
+package into an isolated consumer and passes **34 adversarial rejections** plus
+the existing logical and recursive-schema checks. It covers ownership, exact
+saved identities, defaults/predicates, 128 columns, 1024 rows, byte limits,
+applied-only counts, scope/resource checks, captured-basis changes and frozen
+general query plans. A 15-map nested value exceeds the old 64-level JSON bound;
+the actual handler action encoder accepts it under the shared 96-level bound.
+SDK compilation and consumer compilation treat warnings as errors. Final consumer
+build: 2.42 s, zero warnings/errors. Documentation checks pass 5261 links across
+525 files. The Station package contains the new handler guide.
+
+Check attempt 1 fails on a test syntax error; attempt 2 passes 33 rejection cases.
+Build attempt 3 encounters a name collision in the depth fix, so the subsequent
+check 3 uses the older package and fails on the missing encoder. Build/check 4
+use the corrected package and pass. The log records package hashes. Dependency
+packages are prior campaign artifacts; no native handler dispatch occurs in
+this value suite. Fresh all-package builds, examples and the installed authority
+schedule remain pending; these results do not qualify them.
+
+Raw `handler-table-dotnet-check4.log` SHA-256: `d7c7fd0b57e74d54e31163d0395c5dfcaf2f3443268273cba5ae5f916b1de714`.
+
+### Java handler transport nesting
+
+The Java Station port now uses the shared 96-level JSON nesting bound. A valid
+15-map logical value, its schema and complete mutation envelope round-trip in
+`handler-table-java-depth2.log`; the previous 64-level parser rejects that same
+envelope. All existing handler value checks pass, for **35 rejection cases**.
+The first attempt fails to compile because the test omitted the parser's checked
+I/O exception; the corrected test compiles with `-Xlint:all -Werror`. This source
+test exercises the actual bounded parser, not a running native port or authority.
+
+Raw `handler-table-java-depth2.log` SHA-256: `ae05f6eac9e440e3980aff5fc4980284bb398238a536466279150a704fbc8905`.
+
+### Erlang and Elixir general handler Tables
+
+The shared BEAM implementation discovers general catalog schemas and returns
+logical rows, stable identities, full head bases and typed creation/mutation
+outcomes. Saved mutation/reference handles bind the original work, validate
+logical values and copy binaries on loading. The native handler port uses the
+shared 96-level JSON profile. Elixir projects the same records into public
+structs and reuses `Catalog.Schema` and `UnifiedQuery.Plan`; neither wrapper
+reimplements Table execution or scheduling.
+
+`handler-table-beam-build3.log` builds six OTP archives, including both language
+wrappers, with Erlang and Elixir warnings treated as errors.
+`handler-table-beam-check1.log` installs those archives into an independent
+consumer and passes the existing logical-value/recursive-schema suites,
+**27 Erlang rejection cases**, and Elixir schema, logical-row, saved-reference,
+typed-outcome and general-plan checks. The handler cases cover full-width IDs,
+canonical saved data, 128 columns/1024 rows/action bounds, defaults/predicates,
+applied-only counts, 15 nested maps, foreign/expired scopes and caught-read
+poisoning. Loaded saved data does not pin unrelated large parent binaries.
+Package hashes are recorded in the raw log. The first build rejects a type name
+that shadows Erlang's built-in `reference()`; the renamed opaque type builds.
+
+Documentation passes 5264 local links across 526 files; the bound/invariant
+registry and diagnostic inventory pass. These are installed value and scope
+checks. The archives package existing native executables; the test opens no
+native handler or authority. Shared examples, live installed schedules and final
+full qualification remain pending.
+
+Raw `handler-table-beam-check1.log` SHA-256: `971af456ae695565e47eb3d33652a591a0c17abfc4d2150c76018e60befbb9d9`.
+
+### C schema and mutation codec reuse
+
+The C SDK's internal catalog codecs now expose the existing owned schema decoder
+and bounded schema/mutation writers for reuse by handler Tables. Catalog requests
+continue to write their basis and mutation through the same bounded output
+writer. `zig build check` in `packages/c/transit-station`, under `nix develop`,
+completes successfully with the package's C++17 `-Wall -Wextra -Werror` flags
+(`handler-table-c-codecs-build1.log`, exit 0). This is compilation evidence for
+the refactor; C/C++ handler replacement and runtime qualification are pending.
+
+### C and C++ general handler Tables
+
+The C SDK replaces fixed key/value Tables with catalog schemas, logical row
+cells, stable identities, composite-key reads, captured head bases and explicit
+saved creation/mutation steps. C++ exposes owned schema/row values, move-only
+saved mutations and the same shared unified query model. Query object/policy
+identities retain full u64 values. Public C symbols are regenerated against the
+current definition; the final coordinated definition replacement remains pending.
+
+Under `nix develop`, `zig build check` in `packages/c/transit-station` passes
+C11 public-header/ownership execution and **34 rejection cases**, plus local
+scope/thread/retained-write/read-poison checks. The cases exercise saved input
+ownership, current/missing/foreign definitions, full-width identities, bounded
+rows/assignments/predicates, defaults, complete action envelopes (exact fit and
+one-byte overflow), malformed outcomes/counts and 15 nested logical maps. The
+shared 96-level JSON profile admits that valid envelope; a 64-level parser
+rejects it. A companion C++ conversion error records a failed read under the
+existing scope guard; a caught failure still blocks subsequent private work.
+Local guard tests omit transport, so passing them establishes no native dispatch
+or authority observation.
+
+`zig build check` in `packages/cpp/transit-station-sdk` passes C++17 ownership
+and codec checks, including general schemas, owned inputs, saved recovery,
+INSERT/UPDATE/DELETE construction, typed DEFAULT, malformed input and a frozen
+copy of the unified plan. Both packages compile with `-Wall -Wextra -Werror`.
+The initial C build was invoked from the repository root and correctly fails
+because that build has no `check` step. Initial value checks reject a malformed
+positive map fixture whose key was a cell rather than an atom; correcting the
+fixture produces the passing runs. No failed attempt is counted as evidence.
+
+Generated binding drift, diagnostic mappings/inventory and the verification
+registry pass. Documentation passes 5272 local links across 528 files. These
+are package source/value checks, not fresh installed SDK/native handler
+qualification. Shared examples, live recovery/fault schedules, allocator-fault
+coverage, coordinated definition cutover and full clean-CI remain separate work.
+
+Raw `handler-table-c-check6.log` SHA-256: `0072a03edfde54b92d9a068eff9dd7e74d450d7cf1041dd7a4d32f612963a2eb`.
+
+Raw `handler-table-cpp-check4.log` SHA-256: `00c2907e35f59d3380cca04e117e381405bdaad1f541addaac859411a2a30cb8`.
+
+### Durable SDK Table work: independent format and Python model
+
+The shared example contract now specifies a four-column Table, compact FIFO
+records and explicit Advance/NotReady/Update/Delete messages. Python implements
+that application queue with the original admitted input as the DML operation
+identity. Enqueue and final bookkeeping are separate from bounded native steps;
+a terminal step that fills the write budget records a continuation, and a later
+turn observes the same receipt before advancing the FIFO. Pending accepted
+commands survive handler replacement and are not held in host fields.
+
+`tests/sdk_table_work.py` derives wire fixtures independently with `struct`, then
+checks the Python encoders/decoders: **12 valid and 52 rejected queue/work/outcome
+records**, plus **44 shared application-message cases**. Its scripted-domain
+schedule executes **31 private turns**, discards/replays **5** and replaces the
+handler between turns. Five original DML identities remain stable; a rejected
+command does not strand later work; a busy Rows call returns NotReady; no turn
+uses more than **4 writes**. The model also rejects an external Advance origin.
+The mock scripts Table steps that consume all writes; it does not implement
+Table storage or establish native publication, authority, crash recovery or
+performance evidence.
+
+The strict Python type check passes **26 source files**, including the new
+example records and all existing client/Station modules. Documentation passes
+5277 links across 529 files; the verification catalog passes. The initial type
+check catches incorrect use of the SDK's `Found` wrapper and two constructor
+inference errors; the corrected run passes. The source model is registered in
+`just bindings::python-test`. The other language examples and shared live
+schedule still require migration and execution; existing older fixture results
+do not qualify this replacement application flow.
+
+Raw `sdk-table-queue-python-model3.log` SHA-256: `18d2a0feb98dc344c90e00905af71871eb3bef937364cbb0924ffa046c4c767f`.
+
+Raw `sdk-table-queue-python-type3.log` SHA-256: `5107f9446510710cfc458474a6bae8746bf7ed9a2bccb85b1de3b0a14e84c8ad`.
+
+### Installed Python Table FIFO and nested query recovery
+
+Fresh ReleaseSafe native libraries/hosts and five current Python wheels pass the
+installed public Station and HTTP schedules (`sdk-table-queue-python-native4.log`,
+exit 0). The shared live schedule queues commands before advancing them, loses
+an accepted queue commit response, reconciles the original signed request,
+observes an explicit NotReady reply, and replaces the service host with pending
+work. It checks **46 terminal application outcomes**, FIFO completion after a
+duplicate-key rejection, insert/update/delete counts, deleted work nodes and
+stable original admission identities. These identities are global input
+positions; mailbox ordinals are not interchangeable with them. Queue draining
+takes **462 turns** within the unchanged four-write callback limit.
+
+General retained reads verify the old nullable value after a later update, then
+release the retained version. Six owned logical IPC streams contain **41 rows**,
+**41,992 bytes**, text/list defaults and full-width signed values. Independent
+PyArrow checks all four columns and nested cell states after runner disposal.
+Publication/receipt takes **275 rounds**. Result access after grant revocation
+fails. The existing fencing, expiry, callback failure, exact disk/host recovery
+and joined disposal checks pass, as does the HTTP SDK schedule (**31.05 s**).
+Installed pure-value checks reject **31** adversarial handler intents; the
+application codecs pass the shared message and FIFO golden fixtures.
+
+Earlier runs expose two fixture assumptions: using mailbox ordinals for outcome
+keys, and limiting the former two-column query to 150 rounds. The replacement
+progress cap is derived from six 65,535-byte streams, 221-byte fragments and
+three capture writes per turn, with a separate 600-second deadline. A further
+run correctly stops on hot-only storage backpressure at 64 MiB. The passing
+schedule uses disk-backed cold storage with **8 MiB** provider hot/cache limits,
+**64** authority pages and **294** observed cold objects. It does not increase
+production memory bounds, disable retention or qualify latency. The other SDK
+consumers and final shared-definition cutover remain separate checks.
+
+Raw `sdk-table-queue-python-native4.log` SHA-256: `6deeca59fd5e33f8bb3deeeb3bae5400b6bbdfb313df853ca34df8ad25aeb68d`.
+
+### Installed Ruby Table FIFO and general retained reads
+
+Five fresh Ruby gems pass the same installed FIFO/retained-query schedule as
+Python (`sdk-table-queue-ruby-native1.log`, exit 0). The application uses Ruby
+value objects for the neutral queue records and general logical schema, with
+explicit quotas, stable original inputs, insert/update/delete, self-origin
+validation, and an authenticated NotReady reply. Golden application fixtures,
+**28** adversarial handler-value checks, **46** terminal outcomes and **462**
+drain turns pass. A rejected duplicate does not strand later work across host
+replacement. The old retained cut remains readable after a queued update.
+
+Independent PyArrow verifies **41 rows / 6 streams / 41,992 bytes** after runner
+closure; capture and delivery take **275** rounds. The current-grant revocation,
+exact signed recovery, thread/fiber scope and callback-failure checks pass. The
+fixture keeps **8 MiB** provider hot/cache limits and **64** authority pages,
+with **306** observed cold objects. The Ruby HTTP SDK schedule also passes
+(**14.71 s**). This is installed correctness evidence, not a latency comparison
+or qualification of the still-unmigrated language examples.
+
+Raw `sdk-table-queue-ruby-native1.log` SHA-256: `cdee05106802e7f4687e129587c6dbb34a0510c15bafc12cc9916ad036686e7f`.
+
+### Installed TypeScript Table FIFO and retained wire values
+
+Fresh Node tarballs pass the installed Station/HTTP schedules
+(`sdk-table-queue-node-native2.log`, exit 0). TypeScript implements the same
+neutral queue records, four-column schema/defaults and bounded continuation
+flow. The installed codec check exercises all shared message/FIFO fixtures;
+**46** terminal outcomes, **462** drain turns, **41 rows / 6 IPC streams /
+41,992 bytes**, and **275** publication/receipt rounds match the other migrated
+examples. The retained cut survives a later update, and current revocation still
+denies completed-result reads. Both independent PyArrow and the optional Node
+Arrow adapter consume the original owned nested IPC after runner closure.
+
+The first installed run exposes class instances being sent directly through the
+port's plain-JSON boundary. ReadVersion now lowers explicitly for retained Table
+schema/get/page, retained KV get/page, and release. Runtime boundary validation
+remains strict. All **55** Station package tests pass, with no skips; strict
+compilation, formatting and lint pass for the package/examples. The complete
+installed schedule passes exact recovery, poisoned reads, host replacement,
+fencing/expiry and callback/scope checks with **8 MiB** provider hot/cache limits,
+**64** authority pages and **294** cold objects. The HTTP schedule passes
+(**36.00 s**). These executions do not qualify latency or the remaining languages.
+
+Raw `sdk-table-queue-node-native2.log` SHA-256: `bdfdcc6a9964c048aaf566a22941b2b522b509bda315515b99e0794b4da7ae9e`.
+
+Raw `sdk-table-queue-node-unit1.log` SHA-256: `6d4d7362fee7286423db548db656b7e66b38e659511ea89f1c6271c63a315d93`.
+
+### Installed Java Table FIFO and owned record codecs
+
+Fresh Java native/client/Station/example JARs build under `--release 21`,
+`-Xlint:all -Werror` and pass the installed Station/HTTP schedules
+(`sdk-table-queue-java-native2.log`, exit 0). The examples use immutable records,
+BigInteger queue identities/counts, general logical values and the shared
+Advance/NotReady/Update/Delete formats. Golden FIFO/message fixtures and **35**
+handler-value rejection checks pass. The initial external consumer compilation
+catches its remaining fixed-Table getter/page calls; the migrated consumer uses
+the current public API and passes.
+
+The same **46** terminal outcomes and **462** drain turns qualify FIFO recovery,
+rejection followed by later work, exact signed retries, retained old rows,
+current-grant denial and host replacement. Independent PyArrow validates the
+**41 rows / 6 streams / 41,992 bytes** after native/host handles close; delivery
+takes **275** rounds. The fixture observes **301** cold objects while retaining
+**8 MiB** provider hot/cache limits and **64** authority pages. The Java HTTP
+SDK schedule passes (**27.67 s**). Artifact mismatch, compile-time wrong-value,
+scope/thread and callback-failure checks remain enabled. No performance claim
+or remaining-language qualification follows from this run.
+
+Raw `sdk-table-queue-java-native2.log` SHA-256: `3bf83303cf2f57d2afa21cda262c01b8d43e1fbe4fb591221b2cf1ed71dd7df1`.
+
+### .NET queued general Table example
+
+The five freshly built NuGet packages pass the complete installed Station and
+HTTP schedules against the selected ReleaseSafe native prefix
+(`sdk-table-queue-dotnet-native3.log`, exit 0). .NET implements the shared
+[application FIFO](../examples/station-sdk/TABLES.md) with strict neutral record
+codecs, original mutation identities, bounded continuation casts and atomic
+terminal bookkeeping. The schedule verifies 46 outcomes across 462 drain turns,
+including duplicate-key rejection, insert/update/delete, defaults, pending-host
+replacement and the authenticated busy reply followed by explicit retry. Retained
+reads preserve the earlier row after update, and all four result columns survive
+owned IPC disposal. The common decoder verifies 41 rows in six streams.
+
+The installed consumer also passes 34 adversarial Table wrapper checks and the
+shared message/FIFO golden cases. The normal HTTP schedule passes in 18.36 seconds.
+The first two attempts failed before the authority schedule: reflection selected
+an overloaded schema method ambiguously, then the fixture assumed an inline
+schema instead of recursive references. The fixture now selects the public
+validation entry signature and validates complete result envelopes, preserving
+missing/null/numeric boundary checks. Those failed attempts are not passes.
+These are correctness controls using the shared cold-store profile, not latency
+measurements or final shared-definition qualification.
+
+Raw `sdk-table-queue-dotnet-native3.log` SHA-256: `7d97dc9f83549baa9ebe32e2f68097bd6991b9636e9af46e64a8d9fb6406c921`.
+
+### Rust queued general Table example
+
+Fresh native/client/Station/example crates pass the full installed Station and
+HTTP schedules (`sdk-table-queue-rust-native3.log`, exit 0). The Rust application
+uses the shared [durable FIFO](../examples/station-sdk/TABLES.md), exact original
+mutation identities, strict owned queue codecs and four-column logical values.
+The installed consumer verifies the neutral message/FIFO fixtures, 46 terminal
+outcomes in 462 drain turns, rejection followed by later queued work, authenticated
+busy replies, retained old rows, current-grant denial and exact signed recovery.
+
+Both core and optional Arrow consumers compile from locked offline dependencies;
+compile-fail borrow/lifetime/value checks remain enabled. The Arrow adapter verifies
+UTF8/list defaults, full-width signed integers and nullable values after the runner
+closes and original IPC buffers are overwritten. Independent PyArrow verifies the
+same 41 rows / 6 streams / 41,992 bytes after 275 delivery rounds. Storage observes
+301 cold objects with the common 8 MiB hot cache and 64 authority pages. The full
+HTTP schedule passes in 56.28 seconds.
+
+The first run completes the queue but fails an obsolete Arrow null-kind assertion.
+The second attempt is deliberately interrupted during compilation after finding
+an incorrect value-kind edit; neither is a pass. The final fixture asserts kind
+zero for null and kind one for present INT64, with bounded nested cell wrappers.
+This schedule is correctness evidence, not a latency claim or final contract
+cutover qualification.
+
+Raw `sdk-table-queue-rust-native3.log` SHA-256: `97df38ae57248bae9bff2122a2bfdfab098abc02150b995d9b30993f8680cb02`.
+
+### Erlang and Elixir queued general Table examples
+
+Fresh OTP packages compile with warnings treated as errors and execute the shared
+[durable Table FIFO](../examples/station-sdk/TABLES.md) through their public
+record/struct APIs. Erlang completes both installed Station and HTTP schedules in
+`sdk-table-queue-beam-native2.log`; that combined process then exits 1 in the Elixir
+golden fixture before Elixir's authority schedule. After correcting the fixture's
+JSON `null` handling, the selected Elixir run completes both schedules in
+`sdk-table-queue-elixir-native3.log` (exit 0). No combined-run success is claimed.
+The earlier selected Erlang attempt similarly failed nullable fixture decoding.
+
+Each language verifies 46 terminal outcomes / 462 drain turns, original input
+identities, host replacement, rejection followed by pending work, explicit busy
+replies and query retry. Retained sources preserve pre-update rows; provenance,
+read-failure poisoning, current grants and exact recovery gates remain exercised.
+Shared message/FIFO golden cases and 27 Erlang handler-value rejection cases pass;
+Elixir additionally verifies its public Table structs and saved operation wrappers.
+Independent PyArrow decodes all four columns and defaults from 41 rows / 6 streams /
+41,992 bytes after 275 publication rounds and host disposal. Each schedule observes
+301 cold objects with 8 MiB hot/cache limits and 64 authority pages. HTTP completes
+in 23.07 seconds (Erlang) and 25.09 seconds (Elixir). These are local correctness
+controls, not latency measurements or final definition-cutover qualification.
+
+Raw `sdk-table-queue-beam-native2.log` SHA-256: `6b8fa667ee85374ba6fe8cad0261fcb258413644a1bccb2de045d9ee4856f7b3`.
+
+Raw `sdk-table-queue-elixir-native3.log` SHA-256: `bdae68aab46636262919a14ee55f534acc4238dfca518e0856bbdf451f682629`.
+
+
+### C and C++ queued general Table examples
+
+Fresh installed C and C++ archives pass both full Station and HTTP schedules
+(`sdk-table-queue-c-native3.log`, exit 0). Both application libraries implement
+the shared [durable Table FIFO](../examples/station-sdk/TABLES.md), with explicit
+owned logical values, original input identities and resumable four-column
+creation. Each schedule verifies 46 terminal outcomes / 462 drain turns, rejection
+followed by queued work, worker replacement, authenticated busy replies, retained
+old rows, current grants and exact signed recovery. Independent PyArrow decodes
+41 rows / 6 streams / 41,992 bytes after 275 publication rounds and host disposal.
+Each observes 301 cold objects with 8 MiB hot storage and 64 authority pages.
+The HTTP schedules pass in 39.23 seconds (C) and 33.76 seconds (C++).
+
+Strict C11/C++17 consumer compilation, wrong-codec and runner-copy rejection,
+incompatible-native checks and shared message/FIFO fixtures remain enabled.
+The standalone C wrapper check passes its 34 rejection cases; the C++ wrapper
+check passes ownership, saved-operation and general-plan checks. The C query
+manifest decoder now takes the object identity from the manifest's `table` field:
+its captured basis contains resource/revision/head, unlike handler Table reads.
+The preceding run passed the mutation queue but failed on that response-shape
+mismatch; an earlier consumer build used an obsolete page field. Neither failed
+run is a qualification pass. These are correctness controls, not performance or
+final shared-definition cutover measurements.
+
+Raw `sdk-table-queue-c-native3.log` SHA-256: `8f6252ec6c363a75b7dcf0a709080b9d1ad576b6e30ed64c663cf2444b86976a`.
+
+
+### Ten-language queued Table interoperability
+
+`sdk-table-queue-interop2.log` and its JSON report complete successfully (exit 0):
+Python → Node → Rust → Ruby → C → C++ → Java → .NET → Erlang → Elixir → Python.
+Every pair installs clean artifacts, exercises its counter CLI and durable reply,
+then recovers a pending general Table FIFO after owner replacement. Each verifies
+authenticated NotReady and explicit query retry, automatic schema creation,
+three four-column rows with wide/null/UTF8/list values, and independently decoded
+owned IPC. Each Table drains in 15 turns and publishes 6,696 IPC bytes in 47
+rounds. This is a finite ring, not an all-pairs compatibility claim.
+
+All ten injected lost turn receipts and unavailable reads reconcile with unchanged
+signed attempts; the delivery retry likewise retains its exact request. The run
+observes 306 cold objects / 80,373,167 cold file bytes with 8 MiB hot storage and
+64 authority pages. Elapsed time is 491.181 seconds including 109.905 seconds of
+clean consumer installation, excluding artifact builds. Concurrent local proofs
+were running; these timings do not establish a latency or hosted CI budget.
+The preceding run was interrupted during installation to rebuild the corrected
+C manifest parser and is not a pass. Final shared-definition qualification remains
+separate.
+
+Raw `sdk-table-queue-interop2.log` SHA-256: `1ff494654e52d46550623dba3d1e14d16c5b50b2fcc98a97f1e6c88bfca489fd`.
+
+Report `sdk-table-queue-interop2.json` SHA-256: `097a49df926dbe6bd0a54d3861c167df3498d2bd1136fdbdad6adbbe0fe071d7`.
+
+
+### General Zig Table helpers and native recovery
+
+The superseded fixed two-column Station `Table` helper is removed. Application
+Table access uses `TableCreation`, `TableReader` and `TableWrite`; the growing
+Station guide and GROWTH-08 registry point to these owners. General reader tests
+now exercise 41 rows across six pages, signed extreme keys, exact point lookup,
+neighbor/empty objects and every cursor basis field. Cross-resource writes and
+exhausted private write budgets leave no accepted prefix. Generic Turn tests
+retain private-versus-committed reads, sticky failures, point access independent
+of retained cardinality and automatic retained-version dependency wiring. The
+standalone Station unit suite passes (`general-station-unit3.log`, exit 0).
+
+`general-station-native5.log` completes all three real caller phases (exit 0).
+Forty sequential calls persist their original input, peer and correlation before
+resuming typed Table creation/writes. An additional pending Table step survives
+caller/node/disk replacement and rejects its old ownership generation. Current
+reads verify 41 three-column rows in six pages; a retained source resumes six
+bounded steps across another replacement, excludes the later row and releases
+its dependency. Read poisoning and exact retry after an accepted reply loss
+remain exercised. Writes use 64 authority pages; both recovery phases use one.
+The local run records 55.403 seconds for writes, 16.595 seconds for recovery and
+109 cold objects with the existing 8 MiB hot storage limit. These are correctness
+controls, not interactive SQL latency measurements.
+
+The initial native build failed a pointer argument; the next run rejected the
+legitimate bounded empty-namespace check. Another run completed both caller
+phases but its harness counted only ordinary turns, missing version-bearing
+commits. The final harness recognizes both envelopes, admits only the exact
+creation prefix page, and independently checks one then six committed retained
+steps. None of the failed attempts is counted as passing evidence.
+
+`general-station-abi1.log` also passes (exit 0), using the explicit qualified native
+prefix. Its first staged creation commit loses its reply and is reconciled after
+host/disk replacement. Ten atomic four-row mutations preserve full-width values
+and UTF8 defaults; scoped and retained general readers verify 41 rows, stale
+cursor rejection and a later 42nd row without changing the old cut. Existing
+poison/stop, malformed-input, publication and HTTP/RPC checks remain enabled.
+The ABI schedule uses cold storage and 64 authority pages; final shared-definition
+and committed-source CI qualification remain separate. The broader check first
+stopped on the removed helper's diagnostic inventory entry; the inventory is
+updated and its closed mappings pass, without treating that partial check as a
+full-suite pass.
+
+Raw `general-station-native5.log` SHA-256: `81e183e2158ca83a05f9bc0f6423a882154a9ff42a112a8435f9e8bfabcb4c09`.
+
+Raw `general-station-abi1.log` SHA-256: `1cc746eca2cbcb451836c56f78461e49d078e5e762a9580a475d0c67fbf2fb87`.
+
+### Current declaration ownership and documentation checks
+
+The offline `Declaration` API now owns KV and Document definitions only. Table
+CREATE/ALTER/DROP use the shared `TableDdl` compiler and owned general schema;
+the obsolete eight-column parser and fixed two-column diagnostic are removed.
+`general-declaration-unit3.log`, `general-declaration-errors2.log` and
+`general-declaration-oracle1.log` pass: Fuze unit tests, 16 inferred compiler error
+sets with nine unknown projections, and 270 independent declaration cases with
+238 exact schema identity/type/default/evolution comparisons. The first compile
+attempt missed a highlighting parser call site and failed; its corrected rerun
+passes. The registry accounts for both existing general schema bounds (128
+columns and 65,536 encoded bytes); Markdown links and registry checks pass in
+`general-declaration-docs3.log` and `general-declaration-registry3.log`.
+
+The broader check reached documentation tests and exposed missing ALTER/DROP site
+entries and a stale Python workload excerpt. Those failures are not a full check
+pass; their corrections and site validation are recorded separately.
+
+The documentation site adds ALTER/DROP navigation and refreshes the Python
+workload excerpt to the durable general Table queue. Generated references to
+nested JSON Schema `$defs` now link to their owning component heading, with a
+recursive-reference regression test. `general-docs-check2.log` passes formatting,
+lint, TypeScript, all eight content tests and the production site build with
+strict anchor checking. The preceding run passed seven content tests but failed
+the production build on a generated `#t0` anchor; it is not counted as a pass.
+
+### Authenticated negative handler-query outcomes
+
+`query-failure-native-unit2.log` passes the root Zig test target, including the
+native/port codec fixtures. `query-failure-station-unit3.log` passes the Station
+unit suite after adding all five negative reasons, malformed wire lengths/codes/
+identities, forged or external sources, unknown correlations, conflicting prefix
+identity, first-versus-late callbacks, partial evidence retention and private
+write-budget rollback. Earlier deterministic capture tests still distinguish
+host allocation failure from terminal query budget outcomes. The first root
+attempt failed an absent public type export; its corrected rerun passes.
+
+Negative outcomes use dedicated `result_failed` framing and a native-decoded ABI
+`query_failure` value. No application codec parses framework error strings.
+Generated host contracts, documentation links, diagnostic mappings and verification
+registry checks pass. Typed language callbacks, installed-runtime negative-result
+proofs and the final shared-definition cutover remain separate qualification work;
+these unit results do not establish that those consumers are complete.
+
+
+### Typed negative query callbacks in installed SDKs
+
+All ten public Station SDKs expose a distinct typed query-failure callback and
+owned position/origin/correlation/result/reason values. Application codecs do not
+receive framework failures. `bindings::query-failures` runs the shared installed
+schedule; the same cases run in each ordinary Station SDK task. The
+`typed-query-failures` registry checks five reason codes, closure after owner
+replacement, one injected lost commit receipt, one unavailable observation and
+exact signed recovery. The raw authorized source isolates consumer framing from
+the separately checked native computation/capture failure paths.
+
+The focused Python, Node, Rust, Ruby, Java, .NET, C/C++, Erlang and Elixir runs
+listed below all pass (exit 0). Every callback verifies its saved correlation,
+records application state with the terminal native wait, and leaves the exact
+negative-result payload retained. Each requester is replaced before another
+source output; its first reason survives without another callback. Runs use disk
+Ursula/cold storage, 8 MiB hot memory and 64 authority pages. These are correctness
+checks, not latency measurements or an all-pairs compatibility claim. Native
+artifacts were rebuilt at `6cbbf059`; the final shared-definition cutover and
+committed-source clean qualification remain separate.
+
+Python strict typing passes (26 files), Rust unit tests pass (14), and the Node
+check passes (57 tests), including application-codec bypass, all five reasons,
+maximum-width correlation and absent/malformed callback handling. Java/.NET
+packages and both BEAM packages compile; C and C++ ownership/value checks pass.
+The first C builds exposed missing optional callback initializers and colliding
+C enum names; both are corrected. The first Node installed run failed a proof
+key constructed from a string instead of owned bytes. The first Ruby installed
+run exposed a new local variable shadowing its callback-error slot; the corrected
+runner and fresh gem pass. Those failed attempts are not passing evidence.
+The first focused Python attempt selected the public CLI instead of the raw
+proof CLI; its corrected run passes. A broader Python run then found an import
+side effect in the independent file-codec oracle; CLI argument parsing now runs
+only from that proof's entry point. Its full rerun remains a separate result.
+
+Raw `query-failure-python-native3.log` SHA-256: `058ba8224e5507bba554950f6802b0c745ae3ddd7122092a698ed57682e5cdf6`.
+
+Raw `query-failure-node-native2.log` SHA-256: `f581f21f86589ae3262cf87493549c03fd244837a67ba115ed6346236008d0be`.
+
+Raw `query-failure-rust-native1.log` SHA-256: `9ff90a0dac92e9bc44e1ce0a26c6bd6e81e62404f817cbff4ca517f9e95a02f0`.
+
+Raw `query-failure-ruby-native2.log` SHA-256: `a49ff62415fcc857a4b2055fb255bbf8690af7c02c01c04d755c9b32c9e4c889`.
+
+Raw `query-failure-java-native1.log` SHA-256: `933ed66927b87e617e52c9c56656e9a1a01f76f560f9067769bb9e01c5e853e8`.
+
+Raw `query-failure-dotnet-native1.log` SHA-256: `91bec6d778b573564dc650b9d53664f68a6be756369da467248f77bb0d786866`.
+
+Raw `query-failure-beam-native1.log` SHA-256: `be505695ecec58927417a8283c5c7e9bc5fc717133fd86807cb5c80bc616f8d9`.
+
+Raw `query-failure-c-native2.log` SHA-256: `c165d0b83cfb33a1db034e8873235df98910bd43e2508e5d789e47fcc120556b`.
+
+### General Table query ABI and checkpoint recovery
+
+`general-query-abi2.log` passes the three-column capture migration, including
+six bounded IPC segments, independent logical Arrow decoding, exact retry,
+worker/store replacement, stale scopes and revocation. Its first attempt failed
+a proof lookup of `creation` instead of the current `created` result; that failed
+attempt is not passing evidence.
+
+`general-bindings-native1.log` passes the complete native bindings schedule on a
+single CPU: local codecs, growing state/turn ABI, query capture and checkpoint
+materialization. The materializer uses three typed columns, a defaulted label,
+original mutation identities and a fresh host for each of 25 callbacks. It
+checks duplicate admission and 16 exact commit retries per callback, update and
+delete/reinsert counts, physical checkpoint trimming, tail updates and node/store
+recovery. Updates preserve row identity; reinsertion allocates a different row.
+The fixture uses disk Ursula with cold storage (three objects) and 8 MiB hot memory.
+The separate query fixture uses 64 authority pages, 83 cold objects and 117 setup
+callbacks. These are recovery checks, not throughput measurements.
+
+The broader installed Python Station schedule passes in
+`query-failure-python-full2.log`: all five negative query reasons, 46 Table
+outcomes, 462 drain turns and 41 rows in six owned Arrow segments (41,992 bytes,
+275 publication rounds). Its two injected lost receipts and two unavailable
+observations recover exact work. It uses 329 cold objects, 8 MiB hot memory and
+64 authority pages. The earlier import-side-effect failure remains a failed run.
+
+Raw `general-query-abi2.log` SHA-256: `3cf1e5194f1660a5b4a6d0bd5b70ac9680a8e5067f4a6452a4bb116cb8150ab3`.
+
+Raw `general-bindings-native1.log` SHA-256: `db510373e9ba44b2a7ff06c9275d7c4d559d0e22e3c8156ea514769787ebe613`.
+
+Raw `query-failure-python-full2.log` SHA-256: `8ac6d6247f674308f8e1f17f8deb1291432f79839f9606c05e7df8f389d3b5c9`.
+
+### Bounded immutable index encoding
+
+`packed-index-unit3.log` passes all 113 Station tests and
+`packed-index-root-unit1.log` passes the root Zig test target. Independent Python
+fixtures cover two three-row inline leaves, maximum-width identities, a direct
+uncompressed leaf, full-size keys/values and a maximum-depth branch. Tests retain
+all identities and 32-byte commitments, reject every truncated fixture and
+malformed/noncanonical envelopes, and verify unchanged retained roots. Three
+small point inserts each fit four writes; a fourth still exercises staged
+publication and exact terminal replay. Encoding uses maximal key prefixes and
+zero-byte presence masks, with direct bytes when masks do not reduce size.
+
+The first compile failed on a reserved Zig identifier. The next run passed
+112/113 tests and exposed a test whose third-row staging assumption was obsolete;
+its replacement checks that third-row direct publication and fourth-row staging
+both preserve the visibility and four-write boundaries. Those failed attempts
+are not passes. The independent storage fixtures and 5,316 documentation links
+pass; the combined command's registry invocation used a nonexistent script and
+is not a registry pass. Native recovery and matched latency remain separate
+checks. The final shared-definition replacement covers this incompatible v1
+node encoding; no old-envelope decoder is retained.
+
+Raw `packed-index-root-unit1.log` SHA-256: `f8a9f88dca914da04ad0b24f134ea462bee1ac3aaa7e922f83400f086f362c2f`.
+
+### Lazy pull decoding with bounded Table prefetch
+
+`table-pull-prefetch-station1.log` and `table-pull-prefetch-unit1.log` pass the
+Station (114 tests) and query package suites. Catalog SELECT gathers at most
+eight immutable row references and prefetches their bounded headers/chunks,
+then decodes one owned row per pull. The complete source schema, blob commitment
+and row identity still validate on load; current rights still precede output.
+A source unit forbids all row-body loads during reference gathering, permits
+one subsequent decode, rejects changed identities/digests and current denial,
+and checks the final short page. Existing allocation-failure page tests pass.
+Native lifecycle and request/latency measurements remain separate checks.
+
+### Current local application and console capacity recovery
+
+The work-item application audit retains its existing selected schedule.
+`general-work-items-capacity1.log` passes `just test::server-application-capacity`:
+an accepted application input survives actual ENOSPC on an owned ext4 image,
+joined shutdown, space release and restart with the same receipt, PID and resource
+(19.46 seconds after setup). The separately built example uses the general Table
+implementation.
+
+`general-console-capacity1.log` passes `just test::server-capacity` in 12.73 seconds
+after setup. The console proof now uses the configured catalog and freezes an
+admitted INSERT while its Table owner is stopped. It preserves the exact saved
+intent/input outside the filled provider volume, resumes that owner under real
+ENOSPC, checks bounded control/shutdown, releases space, and reconciles the same
+operation after restart. The applied count is one matched/changed row and a fresh
+SELECT verifies exactly one row with the original values. The old proof expected
+a saved durable SELECT from an interactive console, which cannot establish that
+recovery scenario. This migration preserves accepted-work recovery instead of
+inventing a saved query.
+
+Both fixtures fill only their owned 2 GiB ext4 image, leave 4 MiB metadata
+headroom and verify that a real 32 MiB allocation returns ENOSPC. They do not
+establish zero-free-byte progress or storage throughput. These current passes
+close the local application capacity audit; final clean qualification remains.
+
+Raw `general-work-items-capacity1.log` SHA-256: `78a3459e6e8898ae260eea82192ce11ae22b62541cae7294753e93702be69833`.
+
+Raw `general-console-capacity1.log` SHA-256: `3698227870320d085ca12ffaa943cd88005ddbae4a6c3085850d043a1ca40113`.
+
+### Remove superseded BEAM Table value helpers
+
+The BEAM packages remove unused positional Table cell/basis codecs and the
+obsolete basis slot on generic KV pages. Current Table pages continue to carry
+their typed Table basis. `general-beam-cleanup2.log` builds all eight packages;
+`general-beam-cleanup-native2.log` passes the full installed Erlang and Elixir
+Station schedules. Both check five typed query failures, 46 Table outcomes,
+462 queue drain turns, exact signed recovery and six owned Arrow segments.
+Each retains the 8 MiB hot-store and 64-authority-page fixture. The initial build
+command used an unsupported output flag, and the first runner call omitted its
+required binary arguments; both setup failures are excluded from passing evidence.
+These installed artifacts contain the native query-failure build, before the
+separate compact-index change.
+
+`packed-index-table-native1.log` independently passes the signed native general
+Table lifecycle/console/bridge/CLI schedule with compact indexes and lazy pull
+prefetch: 96.592 seconds, 364 turns, 141 sends, at most four mutations and 256
+bytes per native value, lost send/turn replies, supplied-host receipt loss and
+an injected disconnect. Original objects/receipts survive name reuse. This is
+functional recovery evidence, not a matched latency sample. The corrected
+verification registry check also passes: 59 invariants, 58 classified bounds
+and 14 SDK scenarios.
+
+Raw `general-beam-cleanup-native2.log` SHA-256: `30070f738ec805b94f7be0e33c3460faa947ec0f83c58cfb3981551a23ed4d3a`.
+
+Raw `packed-index-table-native1.log` SHA-256: `22f5568cf3742c66776875495b9cac69cb1ab1fb5a133efb8970b0d486eda011`.
+
+### Avoid duplicate schema envelopes in catalog DML
+
+`compact-dml-catalog-unit2.log` and `compact-dml-fuze-unit2.log` pass the Catalog
+and Fuze suites. TCQ1 already verifies its immutable metadata commitment and full
+schema fingerprint before decoding, so its DML body now composes the shared
+action/predicate payload without repeating the standalone FDM1 schema/name
+envelope. Three two-INT64-row INSERTs fit one ordinary Station frame. The
+standalone FDM1 representation remains unchanged and shares the same codec.
+
+Tests check exact intent equivalence, independent FDM1 fixture body bytes,
+allocation-failure ownership, truncation, stale schema/renamed metadata, foreign
+current definitions and rejection of the superseded nested FDM1 envelope.
+The first Fuze command used `--build-file` from the wrong working directory and
+failed configuration; running the package from its own directory passes.
+Documentation links pass in `compact-dml-docs1.log`. Native performance and fault
+qualification remain separate; the final shared-definition replacement includes
+this TCQ1 body cutover.
+
+### INSERT staging during reservation
+
+`statement-admission-unit3.log` passes all 114 Station tests and
+`statement-admission-catalog1.log` passes all 77 Catalog tests. INSERT uses the
+admission decision's spare write to stage its first reachable record, without
+advancing the saved candidate cursor. The three-row fixture now requires at most
+three turns, discards every first proposal, checks old-head visibility and
+retains exact terminal counts. Large rows can commit only the reservation when
+their first publication needs more than one remaining write. Native writes stay
+bounded at four. Cancellation, competing work, allocation failures and late
+duplicate rejection remain covered. The first test attempt failed compilation
+on a temporary mutable borrow; the second exposed the large-record reservation
+case. Neither is passing evidence. Native qualification remains separate.
+
+### Batch original command metadata
+
+`catalog-basis-prefetch2.log` passes all 77 Catalog tests. Command basis resolution
+uses three bounded point-read batches for a small schema: current policy,
+metadata/head addresses, then original acceptance receipt/schema addresses.
+The test refuses every unbatched read, injects failure at each acquisition and
+resolves the original schema after DROP/name reuse. Current execution and
+inspection revocation checks remain. The first attempt omitted the fixture's
+source-view ID and failed compilation; it is not passing evidence.
+
+### General Table shared-definition cutover
+
+The current native/ABI definition is
+`b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032`.
+It covers general Table schemas/storage/lifecycle, typed query failures, compact
+immutable index bytes and the catalog DML payload. Public contracts, native/port
+SDK resources, browser schemas/validators and signing fixtures are regenerated
+together. Independent Python SHA-256/Ed25519 recomputation checks canonical
+requests; the two inline turn/query vectors first reproduce their previous
+digests before calculating the new ones. The previous compact-page definition
+is retained only as an explicit rejection input. No legacy decoder or reset is
+introduced.
+
+`general-definition-generate1.log` and `general-definition-consumers1.log` complete
+the generators. `general-definition-check4.log` passes `just check`, including
+root tests, contract drift, diagnostic proofs, CLI/history checks, frontend checks
+and the documentation production build. The earlier three attempts catch enum
+formatting, its recorded inventory spelling and the two inline signing digests;
+none is a complete check pass. This pass precedes the subsequent captured-reader
+correction. Committed-HEAD clean CI remains a separate gate.
+
+`general-definition-native-proofs1.log` passes the publication recovery schedule
+but fails the Table and Document schedules. Table admission opens published
+index data after composing its private reservation; Document page access can
+reuse a fully cached small index after native permission revocation. The separate
+interactive Table setup fails with the same `PublicationReadAfterMutation`. These
+failures are retained and are not qualified native passes. Corrections and reruns
+are required before closing the issue.
+
+### Captured INSERT reconstruction after reservation
+
+`statement-captured-admission2.log` passes all 114 Station tests. INSERT candidate
+reads use a committed-source borrow while composing the private reservation;
+bounded prefetch still uses the same captured cut and poisoned-read handling.
+The large-value/multilevel fixture now admits another two-row statement after
+40 accepted rows, discards/reconstructs proposals and then verifies 22 predicate
+deletions. The first attempt accidentally reused a test operation ID and correctly
+rejected changed intent. Native reruns remain separate.
+
+### Cached Document disclosure rechecks native access
+
+`document-current-page-unit3.log` passes 30 Document tests;
+`document-current-page-station1.log` passes 114 Station tests. A public Document
+read/resynchronization through a cached turn now reacquires the head through its
+native reader before using cached values. The new test primes the cache, revokes
+access, then rejects both a repeated path read and resynchronization, with a
+poisoned turn that cannot commit. Station separately proves an uncached read
+cannot return a privately overwritten/cached key after source failure. Mapping,
+format and updated diagnostic inventory checks pass in
+`document-current-page-check1.log`. The original native revocation schedule is
+unchanged and its rerun remains the qualification gate.
+
+### Native correction reruns
+
+`general-definition-native-proofs2.log` passes the signed general Table lifecycle,
+console, bridge and CLI schedule in 85.502 seconds: 340 turns, 127 sends, at most
+four writes/256 bytes, lost send/turn replies, supplied-host receipt loss and one
+injected disconnect. Original objects/receipts survive replacement names; exact
+CLI recovery settles input 922. Installed SDK consumers and growth are not
+selected. The combined command still exits nonzero because the Document harness
+asserts an obsolete exact 256-byte maximum. This is a Table pass, not a combined
+proof pass.
+
+The Document harness now checks its measured maximum against the unchanged
+256-byte ceiling, already enforced independently for every observed write.
+Compact index nodes need not fill a value. `general-definition-document3.log`
+passes the complete original Document recovery/revocation schedule: 347 turns,
+3065 reads, three killed workers, four exact-retry phases, one authority page
+during recovery, an 8 MiB hot store, 65 cold objects/17,077,055 cold bytes, maximum
+four mutations and 169-byte values. Stage/accept/checkpoint/finish take
+1.008/5.333/10.715/24.072 seconds in this functional fixture; concurrent
+compilation means these are not matched latency measurements.
+
+Raw `general-definition-native-proofs2.log` SHA-256: `d16ad85beb819e2d532a04ff2436f5f78893806f1fc8c576643fb8e4b96f02d9`.
+
+Raw `general-definition-document3.log` SHA-256: `3a66227b028c5cfe06572716e9a47ad2993c9792a031217ba3fbdb8c86d560ce`.
+
+### Concurrent mutation control configuration
+
+`general-mutation-latency-current-load1.json` completes its 21 writer samples but
+fails the concurrent-reader gate: the reader rejects a superseded top-level
+`recovery_file` in its `catalog_v1` configuration before executing any SQL. It
+records `cli.invalid_configuration`, zero completed reader queries and a failed
+report. It is not concurrent-load performance evidence. The fixture now uses the
+same interactive catalog configuration as its independent verifier; readers own
+separate console processes and need no durable query recovery files. A corrected
+native rerun is required.
+
+### General Table performance qualification checkpoint
+
+The [2026-10-07 campaign](mutation_latency/results/2026-10-07/README.md) retains
+ten original compressed reports, source/binary identities, controls, distributions
+and failed attempts. The matched baseline/general runs each complete 140 cases;
+wide and nested runs each complete 21 cases with exact typed readback. The
+corrected retained-data pair completes 21 mutations and 88/156 concurrent reads.
+All completed controls have zero errors/unknown outcomes and no observed
+supervisor restart. The harness reader tests pass 4/4. Separate instrumentation
+completes seven cases; its counts are not uninstrumented latency measurements.
+
+Point, multi-row and retained-data costs exceed the earlier profile. Wide/nested
+writes have substantial staging costs and no matching historical schema control.
+`general-definition-interactive3.log` also fails the unchanged Table request
+ceilings after completing its correctness, current-denial, cancellation and
+incomplete-prefix checks. A 41-row scan uses 75 requests against nine; LIMIT 3
+uses 23 against four; primary-key equality uses 22 against three. Performance
+remains an open gate, not a passing check with larger allowances.
+
+`general-definition-check5.log` passes the full `just check` at `1832f58a`, after
+the captured INSERT and Document disclosure corrections. The later benchmark
+reader fix passes `general-mutation-latency-reader2.log` and its corrected native
+run. Committed-source clean CI remains separate.
+
+The current-definition KV and Document interactive reruns both pass unchanged
+request ceilings, fresh snapshot cuts, exact literal/parameter results, bounded
+frames, zero durable updates, cancellation, current denial and incomplete-prefix
+checks. `general-definition-interactive-kv1.log` completes its query schedule in
+2.68 seconds; `general-definition-interactive-document1.log` in 112.65 seconds.
+They overlap each other and are functional qualifications, not latency controls.
+The Document fixture contains 12 rows; the KV fixture contains 41.
+
+Raw `general-definition-interactive-kv1.log` SHA-256: `f265486dcfbdc82688ea11e6cf575b8a7ff52e618a7e811b44e87578cb91638f`.
+
+Raw `general-definition-interactive-document1.log` SHA-256: `b342dd0f8400b80bda7480138a6a25f11d8fdccb2f70fbfd2d8a39f9e4c191fd`.
+
+### Clean binding compiler resolution
+
+`general-definition-ci-clean1.log` stops in the first ordinary task at committed
+`c82a01eb`: the recursive TypeScript declaration proof invokes `tsc` from the
+workspace root, which has no compiler dependency. A stale root executable in
+the working checkout masked this failure. The proof now invokes the already
+pinned compiler through `@transit/client`, its declared package owner. No
+dependency version or lockfile changes. `general-definition-clean-binding-types1.log`
+passes that corrected proof against the isolated checkout's frozen installation,
+including recursive shapes and expected type errors. This focused pass does not
+complete the interrupted 75-task clean suite; a fresh committed run is required.
+
+### Signed envelope byte-array serialization
+
+`general-definition-ci-clean2.log` passes 17 ordinary tasks at `043188bf`,
+including the clean core check, package builds, client ABI, Station and storage.
+It then fails the service schedule when a signed runtime intent's fixed byte
+arrays happen to be valid UTF-8: an ordinary JSON writer emits strings that the
+strict signed-envelope decoder rejects. This is not a completed clean run.
+
+Signed request/query owners now preserve schema-declared arrays through ordinary
+JSON writers, including envelopes nested in saved work. The signing CLI and
+native responses use the shared schema-aligned writer. Existing typed signing
+digests and rejection of malformed array strings remain unchanged. Protocol
+tests cover control-byte runtime identities, printable snapshot nonces, signatures
+and nested saved-envelope round trips. The reviewed inventory adds only the
+serializer error-return boundaries.
+
+`general-definition-byte-arrays-unit1.log` passes the protocol suite.
+`general-definition-byte-arrays-service1.log` passes the original full signed
+service schedule: independent signing vectors, native waits, bounded ingress,
+current denial, worker fencing, disk recovery, checkpoint/trim, retirement and
+effect replay without redispatch. A fresh committed clean run remains required.
+The [clean development record](verification/results/m46-clean-development-2026-10-07.json)
+retains both incomplete runs' revisions, task outcomes, host metadata and raw-log
+hashes; neither is labeled complete.
+`general-definition-byte-arrays-check1.log` passes the full `just check`, including
+contract/signature drift, strict decoding, CLI checks, frontend checks and the
+documentation production build, with the serialization correction applied.
+
+### Retained Table reconstruction during recovery
+
+`general-definition-ci-clean3.log` passes 31 ordinary tasks at `5a6365ab`, then
+fails the public query's unchanged 120-second post-fencing completion deadline.
+The clean development record retains its incomplete outcome. Forwarding native
+wait/control/trace headers through the fault proxy alone does not fix it:
+`general-public-query-waits1.log` still fails. The diagnostic run
+`general-public-query-trace1.log` records 3,009 retained point requests over 27
+source reconstructions before the same deadline. Each bounded Arrow publication
+step reconstructs its source page; uncached metadata and index reads repeat even
+within one reconstruction.
+
+An opened retained source now reuses at most 64 point entries when its host
+enables read caching. The cache is private to that open and exact retained cut;
+it never substitutes for current application authorization or native dependency
+validation. Station unit checks cover repeated reads, absence, eviction, private
+write exclusion, reopen/cut isolation, restored dependencies and poisoned reads.
+The diagnostic inventory changes only propagation of the existing dependency
+check. No format definition, resident authority limit or proof deadline changes.
+
+`general-retained-cache-unit1.log` passes Station's tests.
+`general-public-query-cache1.log` passes the complete original public-query
+schedule: transient startup failure, lost send receipt, 41 exact int64/null rows,
+fenced source recovery, busy admission, schema rejection, incomplete-result
+refusal, cancellation and read-time revocation. The proxy also verifies that
+native wait hints were exercised. This is a functional recovery pass, not a
+replacement for the matched performance campaign or full clean qualification.
+`general-retained-cache-check1.log` passes the full root `just check`, including
+the contract/diagnostic inventory, unit and CLI checks, frontend checks and
+documentation production build.
+
+Raw public-query pass SHA-256: `1e6570781aee5d91ccaa35be31ddc87d2fa082837f63ac06c75d086b1141f7eb`.
+
+### Accepted general Table performance baseline
+
+On 2026-10-07 the user explicitly accepts the documented general Table costs
+for issue #75 and selects separate optimization tracking in
+[issue #76](https://github.com/rupurt/rey/issues/76). This decision supersedes the
+earlier pending-budget checkpoints; it does not relabel their failed runs.
+`tests/interactive_query.py` applies the recorded ceilings only to the 41-row,
+64-resident-page, unaged Table fixture. Other sizes/source profiles keep their
+prior checks. The public performance reference and archived mutation report
+describe the accepted costs and their limits; M47 owns subsequent improvement.
+
+`general-interactive-accepted1.log` passes the real Table console schedule on
+runtime `436a0797` with the updated budget assertions: metadata 11 requests,
+scan/COUNT/scalar ranges 75, LIMIT 3 23, LIMIT 0 13, key equality 22, equality
+COUNT 20, and ten additional requests for explicit bindings. Fresh cuts,
+exact rows/parameters, bounded frames, zero durable writes, cancellation, current
+denial and incomplete-result checks also pass. This functional/request-count
+proof overlaps root checks and clean CI; its 25.26-second elapsed time is not an
+ordinary latency comparison.
+The [accepted interactive record](verification/results/m46-accepted-interactive-2026-10-07.json)
+retains all 26 measured statements, controls, binary/harness hashes and raw-log
+digest, separately from the original failed-budget evidence.
+`general-accepted-budgets-check1.log` passes the full root `just check`, including
+documentation ownership/links, generated interfaces, unit/CLI/frontend checks
+and the documentation production build.
+
+### Clean Station SDK formatting gate
+
+`general-definition-ci-clean4.log` at `436a0797` passes 50 ordinary tasks,
+including every core/growth task, both real connector examples, Board checks
+and the documentation production build. The Node binding task then rejects an
+extra blank line in the Station SDK README. This remains an incomplete run in
+the clean development record; its successful prefix is not the full suite.
+Removing that blank line changes no runtime or interface. The focused
+`general-node-check-format1.log` passes client tests, both package format/lint/type
+checks and all 57 Station SDK tests, including general Tables, recursive metadata,
+exact identities and recovery. Fresh clean consumer qualification remains required.
+
+### Current Board and packaged-console result fixtures
+
+The clean experience lane at `d4c4362f` passes five tasks, then rejects a
+superseded fixed-Table `value_type` assertion. The incomplete lane and its exact
+results remain in the clean development record. The Board proof now checks the
+complete logical row descriptor, current typed parameters and nested exact-value
+cells. Its generated-client negative control changes a valid current cell into
+an unsafe JavaScript number; a separate control rejects the removed scalar
+format. This avoids a false positive caused only by an obsolete envelope.
+
+`general-board-query-shape1.log` passes the real Board query schedule, including
+exact compilation, lost preparation/submission replies, native read capacity,
+current denial, incomplete-result refusal, cancellation and retired-source
+rejection. Its raw SHA-256 is
+`5b6c4cf7d62968e993c3696d288b56ea56a27d4626e2606bc214c74815149be5`.
+The packaged-console fixture also consumes the current schema/row/completion
+stream through the shared helper, which checks basis, plan and row count before
+asserting the empty Table COUNT. `general-server-board-package1.log` passes its Nix package proof: defaults,
+YAML/environment identity, initialization/restart, the completion-qualified COUNT,
+embedded Board/headless/re-enable and downstream manifest work without runtime
+PATH tools. `general-board-query-browser1.log` passes the real Canvas/Browse
+schedule (one browser test, 54.7 seconds), including exact integers, explicit
+unchanged retry, retained resume, current revocation, retirement and accessibility.
+
+The clean experience lane at `72d9a6e3` passes all seven tasks. Its Station
+launcher proof recovers current reads after 293 injected refusals and one courier
+replacement, finishes the query, then verifies cleanup and persistent restart.
+The clean launcher lane at `d4c4362f` separately passes both tasks. The
+[consumer checkpoint record](verification/results/m46-consumer-checkpoints-2026-10-07.json)
+retains each revision, task result and raw-log digest. These lanes and focused
+passes do not constitute complete ordinary clean qualification.
+
+### Distinct identities for composed catalog fixtures
+
+The clean bindings lane at `d4c4362f` passes contract/native qualification and the
+Python client, Station, retained query and HTTP/gRPC schedules, then fails the
+installed catalog CREATE. The earlier CLI schedule and first SDK both use object
+12001. DROP retains that original object, so the catalog correctly rejects its
+reuse. The incomplete lane remains archived; its Python task is not a full pass.
+
+The CLI fixture now uses 22001/22002, separately from bridge 9001/9002 and SDK
+12001 + index * 10. Python also includes the returned outcome in a failed CREATE
+assertion. `general-python-catalog-identity1.log` passes the full native lifecycle
+and both independently installed Python modes in 116.215 seconds: 426 turns,
+159 sends, four mutations/256-byte values, lost send/turn/host receipts and a
+client disconnect. Both SDK modes retain their original typed mutation result
+and historical schema after DROP/name reuse. The consumer checkpoint record
+retains this result and log digest. No runtime identity or recovery rule changes.
+
+### Current installed catalog consumer matrix
+
+`general-all-catalog-build1.log` rebuilds every language package from the current
+source. `general-all-catalog-identity1.log` then passes the complete native
+schedule with all ten languages (eleven consumers including both Python modes)
+at `738ac2cc`: Python, TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir.
+Each installed consumer performs typed CREATE/INSERT/UPDATE/ALTER/DELETE/DROP,
+reopens its saved original intent after replacement and verifies the historical
+schema and committed counts. The run takes 425.412 seconds, with 813 turns,
+303 sends, at most four mutations/256-byte values, original lost-reply recovery
+and one client disconnect. These are functional timings under concurrent checks,
+not a matched performance measurement. The consumer record retains every outcome
+and the raw-log digest. No language is skipped.
+
+`general-consumer-checkpoint-check1.log` passes the full root `just check` at the
+same source revision, including contract/diagnostic drift, units, CLI checks,
+frontend checks and the documentation production build. This completes the
+current catalog consumer checkpoint; the separate ordinary clean bindings lane
+continues and is not yet a complete suite pass.
+
+### Native complete logical-family Table matrix
+
+The final coverage audit identifies a distinction: every family has independent
+compiler/codec evidence, while the existing native lifecycle schedule exercises a
+smaller subset. The ordinary `just test::typed-tables` profile now also runs
+`table_logical_types.py`; explicit `--sdk` selections retain their separate
+installed-consumer profile and report this additional matrix as unselected.
+
+`general-native-logical-matrix3.log` passes 28 exact descriptors through SQL,
+the supplied catalog owner, disk-backed Ursula and typed SELECT: all signed and
+unsigned 8/16/32/64/128-bit widths, float32/64, decimal, boolean, UTF-8, binary,
+date, time, civil/UTC timestamp, interval, UUID, struct, list, fixed array, map,
+union and JSON. Independent expected values include integer extrema, negative
+zero bits, precision-38 decimal, Unicode scalars, binary bytes, pre-epoch dates,
+exact temporal units, nested MISSING/NULL, canonical map order and JSON integers
+above JavaScript's exact range. Complete descriptors and per-cell evidence agree.
+
+The proof inserts typed defaults and a separate all-NULL row, updates only that
+NULL row with typed literals, then restarts both node and store and replaces
+owners. Both complete rows and the original UPDATE result remain identical.
+The whole lifecycle schedule passes in 110.868 seconds, with 420 turns, 176 sends
+and the unchanged four-write/256-byte bounds. These are functional timings under
+concurrent SDK qualification. The first two attempts reject fixture names and an
+incorrect unwrapped-schema expectation; neither is a complete pass. The consumer
+checkpoint record retains their hashes and the successful result. Clean growth
+qualification must exercise this new default profile at committed source.
+
+### Clean growth lane with complete native logical types
+
+`general-definition-clean-growth1.log` passes all 26 growth tasks at committed
+`e8585d6e` in 2207.28 seconds. It includes Arrow/logical codecs, growing services,
+public queries, publication, the combined Table query/writer, catalog and typed
+Tables, transports, Flight metadata, HTTP/gRPC recovery and both real connector
+examples. Catalog and standalone Table tasks exercise the new 28-descriptor
+matrix through node/store recovery. Publication retains exact append/collect/
+publish retries after four killed workers and the four-write/256-byte bounds.
+
+The completed lane metadata, every task result and raw-log digest are retained
+in the consumer checkpoint record. The clean SDK lane remains active; this is
+not a claim that the full ordinary suite has finished. All runtime source is
+unchanged since `436a0797`; later commits migrate fixtures, accept the explicitly
+selected performance ceilings and record/add qualification evidence.
+
+### Final root check and clean Elixir formatting gate
+
+`general-final-check1.log` passes the full root `just check` at `781b2da5`,
+including generated contracts, native units, CLI/frontend checks and the
+production documentation build. Its result and log digest are retained in the
+consumer checkpoint record.
+
+The clean bindings lane at `738ac2cc` passes its first ten tasks, including
+Python, TypeScript, Rust, Ruby, C/C++, Java and .NET. The BEAM task builds its
+artifacts and passes logical-value checks, then fails formatting of two Elixir
+query-failure adapters. The clean development record retains the exact failed
+lane; its BEAM runtime schedule and later tasks did not execute.
+
+The pinned formatter corrects those files. The complete selected Elixir format
+command passes, and independently normalized parsed ASTs compare equal before
+and after formatting (`general-elixir-format-ast1.log`). This changes no runtime
+semantics or definition. The remaining eight standard tasks require fresh clean
+execution; the successful prefix is not relabeled a complete bindings lane.
+
+### Final general Table clean task coverage
+
+The [final clean task record](verification/results/m46-clean-task-coverage-2026-10-07.json)
+covers all **75 ordinary tasks** with successful executions in clean checkouts:
+
+| Selection | Source revision | Passing tasks |
+| --- | --- | ---: |
+| Complete core prefix of the interrupted ordinary run | `436a0797` | 22 |
+| Complete growth lane, including the native 28-descriptor matrix | `e8585d6e` | 26 |
+| Complete experience lane | `72d9a6e3` | 7 |
+| Complete launcher lane | `d4c4362f` | 2 |
+| Completed bindings prefix, through .NET | `738ac2cc` | 10 |
+| Fresh selected bindings suffix, BEAM through connector preparation | `9537839a` | 8 |
+
+This is task coverage across the stated revisions, **not one complete ordinary
+run or five complete lanes at one revision**. The original interrupted runs
+remain failed in the clean development record. Runtime semantics are unchanged
+since `436a0797`; the later Elixir formatting has independently equal normalized
+ASTs. The record checks changed paths, exact task coverage, source revisions,
+completion metadata and log digests. It retains the selected-suffix driver and
+fresh-checkout supervisor; each selected recipe and its assertions are unchanged.
+
+The final suffix passes in **3248.88 seconds**. BEAM takes **2192.12 seconds**,
+including Erlang/Elixir queue, retained-query, transport and catalog recovery.
+The public SDK ring passes all ten counter/query pairs in **697.14 seconds**
+including clean consumer installation, separately from artifact builds. Each
+pair preserves exact replies after restart/loss, automatic schema creation,
+queued Table recovery, authenticated busy replies and owned nested IPC.
+The model, delivery-model, SQL rewrite and SQL tasks pass, followed by published
+RPC crash/retirement and HTTP/gRPC preparation-failure recovery.
+
+The 18 bindings task durations total **11038.99 seconds** across these clean
+checkouts. This is an aggregate functional measurement, not one hosted job's
+elapsed time or a feedback-budget qualification. The final full root check at
+`781b2da5`, Board API/Chromium, packaged installation, all-type native recovery,
+accepted interactive budgets and matched performance evidence remain separately
+scoped. Same-revision hosted CI and integration are still pending.

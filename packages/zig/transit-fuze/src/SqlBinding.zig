@@ -1,7 +1,19 @@
 //! Optional owned compiler failure context. Never a wire value or authority.
 const std = @import("std");
 const sql = @import("Sql.zig");
-const Name = @import("model.zig").Name;
+pub const Name = struct {
+    bytes: [255]u8 = @splat(0),
+    len: u8 = 0,
+    pub fn init(text: []const u8) !Name {
+        if (text.len == 0 or text.len > 255 or !std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidColumnName;
+        var name: Name = .{ .len = @intCast(text.len) };
+        @memcpy(name.bytes[0..text.len], text);
+        return name;
+    }
+    pub fn slice(self: *const Name) []const u8 {
+        return self.bytes[0..self.len];
+    }
+};
 const Self = @This();
 location: ?sql.Location = null,
 subject: ?Name = null,
@@ -18,7 +30,7 @@ actual_count: ?usize = null,
 expected_schema: ?[32]u8 = null,
 actual_schema: ?[32]u8 = null,
 schema_version: ?u8 = null,
-scope: [64]u8 = @splat(0),
+scope: [255]u8 = @splat(0),
 scope_len: usize = 0,
 literal: [192]u8 = @splat(0),
 literal_len: usize = 0,
@@ -46,7 +58,7 @@ pub fn parameterAt(self: ?*Self, sites: sql.ParameterSites, index: u32) void {
 
 pub fn at(self: ?*Self, column: sql.Column, scope: []const u8) void {
     const value = self orelse return;
-    value.subject = column.name;
+    value.subject = Name.init(column.name.slice()) catch null;
     value.location = if (column.offset) |offset| .{ .offset = offset } else null;
     value.scope_len = @min(scope.len, value.scope.len);
     @memcpy(value.scope[0..value.scope_len], scope[0..value.scope_len]);
@@ -55,8 +67,40 @@ pub fn at(self: ?*Self, column: sql.Column, scope: []const u8) void {
 pub fn atError(self: ?*Self, column: sql.Column, scope: []const u8, cause: anyerror) void {
     at(self, column, scope);
     if (self) |value| if (cause == error.UnknownQualifier) {
-        value.subject = column.qualifier;
+        value.subject = if (column.qualifier) |qualifier| Name.init(qualifier.slice()) catch null else null;
     };
+}
+
+/// A logical binder records the failing token offset. Recover only that caller
+/// identifier, without lookup, allocation or guessing from a later parser token.
+pub fn nameFailure(self: ?*Self, text: []const u8, scope: []const u8, cause: anyerror, location: sql.Location) void {
+    const detail = self orelse return;
+    switch (cause) {
+        error.UnknownColumn, error.UnknownQualifier, error.UnknownSource => {},
+        else => return,
+    }
+    if (detail.subject != null or location.offset >= text.len) return;
+    var lexer: sql.Lexer = .{ .text = text, .position = location.offset, .parameters_enabled = true };
+    const token = lexer.next() catch return;
+    if (lexer.start != location.offset or (token.tag != .word and token.tag != .quoted)) return;
+    var bytes: [255]u8 = undefined;
+    var count: usize = 0;
+    const raw = if (token.tag == .quoted) token.text[1 .. token.text.len - 1] else token.text;
+    var index: usize = 0;
+    while (index < raw.len) : (index += 1) {
+        if (count == bytes.len) return;
+        bytes[count] = if (token.tag == .quoted) raw[index] else std.ascii.toLower(raw[index]);
+        count += 1;
+        if (token.tag == .quoted and raw[index] == '"') {
+            if (index + 1 == raw.len or raw[index + 1] != '"') return;
+            index += 1;
+        }
+    }
+    detail.subject = Name.init(bytes[0..count]) catch return;
+    detail.scope_len = @min(scope.len, detail.scope.len);
+    while (!std.unicode.utf8ValidateSlice(scope[0..detail.scope_len])) detail.scope_len -= 1;
+    @memcpy(detail.scope[0..detail.scope_len], scope[0..detail.scope_len]);
+    detail.location = location;
 }
 
 /// Caller-supplied scalar correction context, bounded and inert. No stored row
@@ -69,22 +113,45 @@ pub fn supplied(self: ?*Self, value: anytype) void {
         inline .int64, .uint64 => |number| out.print("{d}", .{number}) catch unreachable,
         .float64 => |number| out.print("{e}", .{number}) catch unreachable,
         .boolean => |boolean| out.writeAll(if (boolean) "TRUE" else "FALSE") catch unreachable,
-        .utf8, .binary => |bytes| {
-            out.writeByte('"') catch unreachable;
-            for (bytes[0..@min(bytes.len, 32)]) |byte| switch (byte) {
-                '"', '\\' => {
-                    out.writeByte('\\') catch unreachable;
-                    out.writeByte(byte) catch unreachable;
-                },
-                0x20...0x21, 0x23...0x5b, 0x5d...0x7e => out.writeByte(byte) catch unreachable,
-                else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
-            };
-            out.writeByte('"') catch unreachable;
-            detail.literal_truncated = bytes.len > 32;
-            if (detail.literal_truncated) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
-        },
+        .utf8, .binary => |bytes| suppliedBytes(detail, &out, bytes),
     }
     detail.literal_len = out.end;
+}
+
+/// Descriptor-independent atom evidence preserves exact widths. Temporal values
+/// name their physical units; decimal values expose the supplied coefficient.
+/// Invalid inputs are printable without first admitting them as typed values.
+pub fn suppliedLogical(self: ?*Self, value: @import("Types.zig").Values.Atom) void {
+    const detail = self orelse return;
+    detail.literal_truncated = false;
+    var out: std.Io.Writer = .fixed(&detail.literal);
+    switch (value) {
+        inline .signed, .unsigned => |number| out.print("{d}", .{number}) catch unreachable,
+        .float => |number| out.print("{e}", .{number}) catch unreachable,
+        .decimal => |number| out.print("coefficient {d}", .{number}) catch unreachable,
+        .boolean => |boolean| out.writeAll(if (boolean) "TRUE" else "FALSE") catch unreachable,
+        .bytes => |bytes| suppliedBytes(detail, &out, bytes),
+        .date => |number| out.print("{d} days since epoch", .{number}) catch unreachable,
+        .time => |number| out.print("{d} ns since midnight", .{number}) catch unreachable,
+        .timestamp => |number| out.print("{d} microseconds since epoch", .{number}) catch unreachable,
+        .interval => |parts| out.print("{d} months, {d} days, {d} ns", .{ parts.months, parts.days, parts.nanos }) catch unreachable,
+        .uuid => |bytes| out.print("{x}", .{bytes}) catch unreachable,
+    }
+    detail.literal_len = out.end;
+}
+fn suppliedBytes(detail: *Self, out: *std.Io.Writer, bytes: []const u8) void {
+    out.writeByte('"') catch unreachable;
+    for (bytes[0..@min(bytes.len, 32)]) |byte| switch (byte) {
+        '"', '\\' => {
+            out.writeByte('\\') catch unreachable;
+            out.writeByte(byte) catch unreachable;
+        },
+        0x20...0x21, 0x23...0x5b, 0x5d...0x7e => out.writeByte(byte) catch unreachable,
+        else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
+    };
+    out.writeByte('"') catch unreachable;
+    detail.literal_truncated = bytes.len > 32;
+    if (detail.literal_truncated) out.writeAll(" [truncated after 32 bytes]") catch unreachable;
 }
 
 /// Scalar evidence for INSERT/UPDATE/DELETE uses the same bound as parameters.

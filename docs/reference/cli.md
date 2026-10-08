@@ -1,7 +1,7 @@
 # Transit CLI reference
 
 `transit` starts a local server, manages installed applications and opens signed
-query sessions, explicit Table mutation commands and catalog operations. It is separate from the retained `rey-cli` administration utility
+query sessions, general Table DDL/DML and catalog operations. It is separate from the retained `rey-cli` administration utility
 and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
@@ -14,7 +14,6 @@ transit serve [--config FILE] [--initialize] [--no-ui]
 transit server [--config FILE] [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
-transit mutate COMMAND [OPTIONS]
 transit catalog COMMAND [OPTIONS]
 transit app install --config FILE --file DECLARATION --operation ID
 transit app replace --config FILE --file REPLACEMENT --operation ID
@@ -28,7 +27,6 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
-| `mutate` | Compile, save, explicitly submit and observe bounded SQL commands through an authorized Table writer |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
@@ -40,7 +38,9 @@ The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml`; `--config`
 selects exactly one file instead. `TRANSIT_` variables override typed properties,
 using `__` for nesting. No matching file means defaults; a bad selected file
-fails without fallback. Initialization remains explicit.
+fails without fallback. Configuration files are bounded to 64 KiB, 96 nested
+containers and 65,536 syntax nodes; logical schemas retain their own depth,
+node and name budgets. Initialization remains explicit.
 
 The console derives its connection from the local server topology and retained
 installation; no generated console configuration file is needed. Defaults use
@@ -205,7 +205,7 @@ commands are unsupported. Completion never submits.
 
 | Command | Meaning |
 | --- | --- |
-| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Show SQL, commands and configured write routes |
+| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Show SQL, commands and configured write routes |
 | `.sources`, `.schema` | Inspect the authorized query source and schema |
 | `.tables` | List the configured catalog, or the query source when no catalog is configured |
 | `.mode table\|json` | Select result presentation |
@@ -214,20 +214,30 @@ commands are unsupported. Completion never submits.
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
 | `.status`, `.info` | Saved write/query status, or query evidence |
 | `.resume [ID]` | Recover the saved write or durable query; an ID selects a durable query |
-| `.cancel` | Request cancellation of the saved mutation or durable query; CREATE TABLE has no cancellation |
+| `.cancel` | Request cancellation of saved Table work or a durable query; publication cannot be undone |
 | `.quit`, EOF | Disconnect; durable accepted work persists |
 
 SELECT uses a fresh leased snapshot by default and executes locally without durable
 query state. In `execution: durable` mode, SELECT chooses a fresh identity, records
-exact intent, advances its upload and prints verified results. Recovery commands
-also handle saved writes in either mode. The automatic local connection supplies
-`writes.table` for `items`; separate connection files must configure that route
-explicitly. CREATE TABLE requires `writes.catalog`. All writes require current
-authority. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+exact intent, advances its upload and prints verified results. Recovery commands also handle saved Table operations. The automatic local
+connection supplies a general catalog; separate connections configure their
+explicit catalog owner. CREATE/ALTER/DROP and DML share that route and private
+recovery file. Each operation still requires current native and catalog rights. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 for exact saved commands, Ctrl-C behavior and terminal outcomes. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` remains a callable
 shell with its explicit protocol and dot commands;
 root help advertises `console` as the query interface.
+
+## Catalog commands
+
+`transit catalog` saves general Table SQL or typed intent, prepares one signed
+step at a time and explicitly submits original saved bytes. CREATE compilation
+is offline; other statements resolve an authorized object and exact schema.
+`next`, `observe`, `progress` and `status` keep input admission, processing,
+upload state and terminal domain outcomes distinct. Lifecycle cancellation and
+candidate cleanup have explicit saved controls; neither undoes publication.
+The [catalog guide](../../apps/transit-cli/docs/catalog.md) defines flags,
+private artifacts, metadata pages and recovery after uncertainty.
 
 ## Table mutation commands
 
@@ -240,7 +250,7 @@ an explicit apply/cancel control. Only `submit` dispatches a saved command.
 Preparation requires a new private output file and refuses to replace existing
 paths. An unknown outcome requires the same saved command and connection for
 exact retry. There is no automatic retry or sequence coordinator. See the
-[mutation guide](../../apps/transit-cli/docs/mutations.md) for flags, connection
+[mutation guide](../../apps/transit-cli/docs/catalog.md) for flags, connection
 fields, file bounds and the explicit preparation/submission workflow.
 
 ## Configuration, output and recovery

@@ -1,15 +1,15 @@
 """Build installed Node artifacts with package-owned native executable discovery."""
 import json
+import argparse
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output: Path, packages: list[str]) -> None:
+def build(output: Path, packages: list[str], native_prefix: Path = ROOT / 'zig-out') -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in packages:
@@ -30,8 +30,8 @@ def build(output: Path, packages: list[str]) -> None:
                 elif path.is_file(): shutil.copy2(path, staging / name_or_directory)
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
-                executable = ROOT / 'zig-out/bin' / f'transit-{family}-host'
-                if not executable.is_file(): raise SystemExit('Run just bindings::build before packaging native artifacts')
+                executable = native_prefix / 'bin' / f'transit-{family}-host'
+                if not executable.is_file(): raise SystemExit(f'Missing native artifact: {executable}')
                 (staging / 'bin').mkdir(exist_ok=True)
                 shutil.copy2(executable, staging / 'bin' / executable.name)
             subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'],
@@ -39,5 +39,10 @@ def build(output: Path, packages: list[str]) -> None:
 
 
 if __name__ == '__main__':
-    build(Path(sys.argv[1]), sys.argv[2:] or ['transit-native-client', 'transit-client',
-        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/typescript'])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('packages', nargs='*')
+    parser.add_argument('--native-prefix', type=Path, default=ROOT / 'zig-out')
+    args = parser.parse_args()
+    build(args.output, args.packages or ['transit-native-client', 'transit-client',
+        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/typescript'], args.native_prefix.resolve())

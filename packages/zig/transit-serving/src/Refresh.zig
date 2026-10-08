@@ -93,14 +93,14 @@ fn selected(turn: *Turn, principal: u64, selection: m.Selection, context: ?*f.Co
 fn proof(turn: *Turn, value: m.View) !m.Proof {
     return c.decode(m.Proof, 'I', (try turn.read(m.proofKey(value.principal, value.generation))) orelse return error.InvalidServingRecord);
 }
-fn sameBasis(watch: root.TableWatch.Observation, captured: q.fuze.Unified.Basis, context: ?*f.Context) !void {
+fn sameBasis(watch: root.TableWatch.Observation, captured: q.Basis, context: ?*f.Context) !void {
     var basis = captured;
-    basis.revision = watch.data_revision;
+    basis.cut.revision = watch.data_revision;
     if (!root.TableWatch.covered(watch, basis)) {
-        const witness: f.Witness = if (captured.kind != .table)
-            .{ .source_kind = .{ .expected = .table, .actual = captured.kind } }
-        else if (captured.resource != watch.basis.resource)
-            .{ .target = .{ .expected = watch.basis.resource, .actual = captured.resource, .kind = .resource } }
+        const witness: f.Witness = if (captured.cut.kind != .table)
+            .{ .source_kind = .{ .expected = .table, .actual = captured.cut.kind } }
+        else if (captured.cut.resource != watch.basis.cut.resource)
+            .{ .target = .{ .expected = watch.basis.cut.resource, .actual = captured.cut.resource, .kind = .resource } }
         else if (!std.mem.eql(u8, &captured.contract, &watch.basis.contract))
             .{ .basis = .{ .kind = .contract, .expected = watch.basis.contract, .actual = captured.contract } }
         else
@@ -109,7 +109,7 @@ fn sameBasis(watch: root.TableWatch.Observation, captured: q.fuze.Unified.Basis,
         return error.InvalidRefreshTemplate;
     }
 }
-/// Reader contract: authorize(principal, source, proof), observe(source), and
+/// Reader contract: authorize(principal, source, proof), observe(principal, source), and
 /// result(turn, namespace, source). Result must use the shared manifest/current
 /// result reader. No caller-supplied watermark is trusted for scheduling.
 pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_reader: anytype, upper_ms: u64) !void {
@@ -132,9 +132,9 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             }
             try reader.authorize(principal, watch, input.proof);
             const captured = try reader.result(turn, input.view.template.value, watch);
-            const observed = try reader.observe(watch);
+            const observed = try reader.observe(principal, watch);
             try sameBasis(observed, captured, self.diagnostic);
-            const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.revision, .limit = input.view.limit };
+            const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.cut.revision, .limit = input.view.limit };
             try save(turn, value);
             try turn.write(m.proofKey(principal, value.generation), try c.encode('I', input.proof));
             try turn.write(m.headKey(principal, value.session.session), try c.encode('F', value.generation));
@@ -148,7 +148,7 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             }
             if (!value.enabled) return;
             try reader.authorize(principal, watch, try proof(turn, value));
-            const observed = try reader.observe(watch);
+            const observed = try reader.observe(principal, watch);
             if (observed.data_revision > value.dirty) {
                 value.dirty = observed.data_revision;
                 try save(turn, value);
@@ -163,9 +163,9 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
             }
             try reader.authorize(principal, value.source, try proof(turn, value));
             const captured = try reader.result(turn, value.namespace.value, value.source);
-            const observed = try reader.observe(value.source);
+            const observed = try reader.observe(principal, value.source);
             try sameBasis(observed, captured, self.diagnostic);
-            value.covered = captured.revision;
+            value.covered = captured.cut.revision;
             value.dirty = @max(value.dirty, observed.data_revision);
             value.phase = if (!value.enabled) .paused else if (value.starts >= value.limit) .exhausted else .idle;
             if (value.phase == .exhausted) value.failure = failure.record(turn.delivery.input.position, .budget_exhausted, .{});
@@ -199,7 +199,7 @@ pub fn sessionStopped(turn: *Turn, principal: u64, identity: r.SessionIdentity) 
 }
 fn denial(err: anyerror) bool {
     return switch (err) {
-        error.ServingDenied, error.AccessDenied, error.QueryDenied, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ResultUnavailable, error.PublicationNotPublished => true,
+        error.ServingDenied, error.AccessDenied, error.QueryDenied, error.CatalogDenied, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ResultUnavailable, error.PublicationNotPublished => true,
         else => false,
     };
 }

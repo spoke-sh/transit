@@ -59,3 +59,8 @@ cancellation and exceptions do not acknowledge inputs or request durable
 cancellation. Recover exact persisted bytes or establish fresh ownership before
 recomputing. Native allocation-failure enumeration is shared evidence; fatal CLR
 resource exhaustion is outside the managed recovery promise.
+
+Generated schema validation resolves recursive local `$defs`/`$ref` names only
+within their owning root. Missing/external references, unknown validation
+keywords, non-consuming cycles and excessive data/reference depth reject.
+Cancelling a caller's wait does not relax validation or release native ownership.

@@ -207,6 +207,10 @@ growing *args:
 growing-service:
     zig build test-growing-service -Doptimize=ReleaseSafe
 
+# Read-only retained startup through owned provider connection/availability faults.
+node-recovery:
+    zig build test-node-recovery -Doptimize=ReleaseSafe
+
 # Focus service/Station quota refusal and reserved control progress after restart.
 growing-quota:
     zig build test-growing-quota
@@ -286,20 +290,28 @@ sql-rewrites:
 sql:
     nix shell .#sql-tools --command zig build test-sql
 
-# Real Table mutation authority gates, exact frozen recovery and disk restart.
-[positional-arguments]
-table-mutation *args:
-    zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
+# General Table DDL grammar, exact schema bytes and pure evolution semantics.
+table-ddl-sql:
+    nix shell .#sql-tools --command zig build test-table-ddl-sql -Doptimize=ReleaseSafe
+
+# General Table DML grammar and independently encoded typed intent plans.
+table-dml-sql:
+    nix shell .#sql-tools --command zig build test-table-dml-sql -Doptimize=ReleaseSafe
 
 # Catalog Table publication, exact receipt recovery and native fencing on disk.
 [positional-arguments]
 catalog *args:
     python3 -B tests/catalog_fixture.py
-    zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
 
-# Disk-backed metadata beyond resident pages, current cursors and restart.
+# General typed metadata and rows beyond resident pages, cold reads and restart.
 catalog-growth:
-    just test::catalog --grow 65
+    just test::typed-tables --grow 139 --cold
+
+# General typed Table owner/caller, bounded turns and exact disk recovery.
+[positional-arguments]
+typed-tables *args:
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]
@@ -333,7 +345,11 @@ unified-counts *args="-Doptimize=ReleaseSafe":
 serving-http:
     zig build test-serving-http -Doptimize=ReleaseSafe
 
-# Signed HTTP gateway/Station admission, isolated disk restart and current reads.
+# Typed counter queue, frozen deltas, overflow and private-turn rollback.
+serving-counter:
+    zig build test-serving-counter -Doptimize=ReleaseSafe
+
+# Signed HTTP admission and application recovery over disk authority.
 serving:
     zig build test-serving -Doptimize=ReleaseSafe
 
@@ -571,6 +587,15 @@ vortex-profile profile:
 fuze-types:
     python3 -B tests/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
+
+# General Table schema identities, row constraints and independent byte oracle.
+table-schema:
+    python3 -B tests/table_schema.py
+    python3 -B tests/table_storage.py
+    python3 -B tests/table_catalog.py
+    zig test packages/zig/transit-fuze/src/TableRow.zig
+    zig test packages/zig/transit-fuze/src/TableEvolution.zig
+    zig test packages/zig/transit-fuze/src/SqlTypes.zig
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:

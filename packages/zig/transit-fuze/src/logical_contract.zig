@@ -9,6 +9,8 @@ pub fn main(init: std.process.Init) !void {
     try f.LogicalSchema.write(f.LogicalJson.TypeEnvelope, &json);
     try json.objectField("value");
     try f.LogicalSchema.write(f.LogicalJson.Envelope, &json);
+    try json.objectField("table-schema");
+    try f.LogicalSchema.write(f.TableSchemaJson.Schema, &json);
     try json.endObject();
     try output.interface.writeByte('\n');
     try output.interface.flush();

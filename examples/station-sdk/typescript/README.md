@@ -21,3 +21,11 @@ Requester correlation is stored with its wait and outgoing call, then checked
 against authenticated reply provenance in a later turn. Handler object fields
 hold configuration only. The query example reads the verified manifest and
 streams bounded original IPC segments; it does not retain an entire result.
+
+The Table service implements the [durable FIFO contract](../TABLES.md): four
+typed columns, explicit creation quotas, original input identities, and one
+bounded native step per recorded self continuation. Insert, update and delete
+wait in durable state until their terminal outcomes are recorded. Queries receive
+NotReady while work is pending, allowing a later explicit Start. Table completion
+and queue bookkeeping can commit in separate turns without replacing the original
+mutation. Each turn keeps the four-write budget.

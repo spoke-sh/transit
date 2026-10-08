@@ -43,7 +43,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var recovery = observations.begin(diagnostics, .recovery, if (mode.initialize or mode.bootstrap) "bootstrap" else "open", null);
     journal.journal.parent_context = recovery.span.context;
     pages.authority.parent_context = recovery.span.context;
-    var engine = (if (mode.initialize or mode.bootstrap) Engine.bootstrap(&journal, &pages, config.genesis) else Engine.open(&journal, &pages, config.genesis)) catch |err| {
+    var engine = (if (mode.initialize or mode.bootstrap) Engine.bootstrap(&journal, &pages, config.genesis) else openRetained(init.io, &journal, &pages, config.genesis)) catch |err| {
         recovery.fail(err);
         recovery.finish();
         return err;
@@ -66,6 +66,35 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var context: Context = .{ .server = &server, .diagnostics = diagnostics };
     diagnostics.event(.{ .name = "service.ready" });
     try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
+}
+
+fn openRetained(io: std.Io, journal: *adapter.Store, pages: *adapter.PackedPageStore, genesis: core.growing.Genesis) !Engine {
+    // Ordinary recovery only reads published history. A transient provider
+    // failure can be retried without creating a realm or replaying effects.
+    // Corrupt, missing, denied or incompatible history remains a hard failure.
+    for (0..3) |attempt| {
+        return Engine.open(journal, pages, genesis) catch |err| {
+            const temporary = switch (err) {
+                error.ServiceUnavailable,
+                error.NameServerFailure,
+                error.ConnectionRefused,
+                error.ConnectionTimedOut,
+                error.NetworkUnreachable,
+                error.HostUnreachable,
+                error.ConnectionResetByPeer,
+                error.HttpConnectionClosing,
+                error.EndOfStream,
+                error.ReadFailed,
+                error.WriteFailed,
+                => true,
+                else => false,
+            };
+            if (!temporary or attempt == 2) return err;
+            try io.sleep(.fromMilliseconds(100), .awake);
+            continue;
+        };
+    }
+    unreachable;
 }
 
 const Server = struct {
@@ -153,7 +182,7 @@ const Server = struct {
     fn json(self: *Server, request: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
         // The response owns its bytes. Slow peers must not hold authority access.
         self.release();
-        const bytes = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
+        const bytes = try wire.protocol.Json.valueAlloc(self.allocator, value);
         defer self.allocator.free(bytes);
         self.observation.status = @backingInt(status);
         if (@hasField(@TypeOf(value), "err")) {

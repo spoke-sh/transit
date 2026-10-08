@@ -20,14 +20,26 @@ export type {
   Budgets,
 } from "./values.ts";
 export { Runner } from "./runner.ts";
-export * as unified from "./unified.ts";
-export * as mutations from "./mutations.ts";
+export * as unified from "./unified-api.ts";
 export type { Handler, RunnerOptions, ExchangeDiagnosticKind } from "./runner.ts";
 export { Turn, State, Source } from "./turn.ts";
-export { TableSchema, Table } from "./table.ts";
-export type { Cell, CellType, Row } from "./table.ts";
+export { TableSchema, Table, TableMutation, TableMutationReference, RowIdentity } from "./table.ts";
+export type {
+  Cell,
+  Row,
+  Column,
+  TableLimits,
+  TableBasis,
+  TablePage,
+  TableCreation,
+  TableMutationStatus,
+  Mutation,
+  Assignment,
+} from "./table.ts";
 export { QueryPlan, ResultReader, IpcSegment } from "./query.ts";
 export type {
+  QueryFailure,
+  QueryFailureReason,
   QueryJob,
   ResultManifest,
   Projection,
@@ -108,5 +120,5 @@ export type {
   DocumentProgress,
 } from "./document.ts";
 
-export * as catalog from "./catalog.ts";
+export * as catalog from "./catalog-api.ts";
 export * as logical from "./logical.ts";

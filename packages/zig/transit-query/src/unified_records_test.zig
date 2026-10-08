@@ -5,6 +5,8 @@ const r = q.UnifiedRecords;
 const m = q.fuze.Unified;
 const p = q.protocol;
 test "larger canonical request bundles use an independent immutable commitment" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const Fixture = struct { kind: []const u8, wire_hex: []const u8, reference_hex: []const u8, named_wire_hex: []const u8, counted_wire_hex: []const u8 };
     const cases = try std.json.parseFromSlice([]Fixture, t.allocator, @embedFile("fixtures/bundles.json"), .{});
     defer cases.deinit();
@@ -35,6 +37,7 @@ test "larger canonical request bundles use an independent immutable commitment" 
         }
         var bad = bundle;
         bad.plan.projection = &.{7};
+        bad.plan.output_names = &.{};
         try t.expectError(error.UnknownColumn, bad.encode(&output));
         bad = bundle;
         bad.limits.pages = 0;
@@ -42,30 +45,35 @@ test "larger canonical request bundles use an independent immutable commitment" 
     }
 }
 test "durable source records fit unchanged values and preserve all continuation identities" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
-    const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{ 0, 1 } }, .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
-    const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .declaration = try q.Bundle.declaration(source), .allow = true, .limits = bundle.limits };
+    const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{ 0, 1 }), .limits = .{ .pages = 1000, .segments = 500, .result_bytes = 1048576 } };
+    const policy: r.Policy = .{ .peer = 9, .requests = 8, .revision = 1, .target = .{ .declaration = try q.Bundle.declaration(source) }, .allow = true, .limits = bundle.limits };
     try t.expectEqualDeep(policy, try r.Policy.decode(try policy.encode()));
     const job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101 };
     try t.expectEqualDeep(job, try r.Job.decode(try job.encode()));
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(source, 42), try source.schema(&columns));
-    var checkpoint: r.Checkpoint = .{ .progress = m.Stream.Progress.start(bound) };
+    const basis = try q.UnifiedSource.basis(source, 42);
+    const bound = try bundle.bind(try basis.fingerprint());
+    var checkpoint: r.Checkpoint = .{ .cut = basis.cut, .progress = try q.fuze.LogicalStream.Progress.start(bound) };
+    checkpoint.progress.pages = 1;
+    checkpoint.cursor.ordinal = 1;
     checkpoint.cursor.after = try p.Value.init(&@as([32]u8, @splat('a')));
     try t.expectEqual(@as(u16, 254), (try checkpoint.encode()).len);
     try t.expectEqualDeep(checkpoint, try r.Checkpoint.decode(try checkpoint.encode()));
     for ([_]m.SourceKind{ .table, .document }) |kind| {
         var changed = checkpoint;
-        changed.progress.basis.kind = kind;
+        changed.cut.kind = kind;
         changed.cursor.after = null;
-        if (kind == .table) changed.cursor.table_after = std.math.minInt(i64) else changed.cursor.traversal = .{ .current = .{ .counter = std.math.maxInt(u64), .replica = std.math.maxInt(u64) }, .phase = .siblings };
+        if (kind == .table) changed.cursor.table_scanned = 8;
+        if (kind == .table) changed.cursor.table_after = .{ .origin = 1, .operation = std.math.maxInt(u64), .ordinal = 0 } else changed.cursor.traversal = .{ .current = .{ .counter = std.math.maxInt(u64), .replica = std.math.maxInt(u64) }, .phase = .siblings };
         try t.expectEqualDeep(changed, try r.Checkpoint.decode(try changed.encode()));
     }
     const segment: r.Segment = .{ .ordinal = 0, .row_start = 0, .rows = 1, .reference = .{ .domain = .query_result, .resource = 7, .namespace = job.namespace(), .record = 1, .spec = try q.station.Publication.Digest.of(r.arrow_format, "fixture") }, .arrow_digest = @splat(3) };
     try t.expectEqualDeep(segment, try r.Segment.decode(try segment.encode()));
     checkpoint.progress.pages = 1;
-    checkpoint.progress.scanned = 1;
-    checkpoint.progress.selected = 1;
+    checkpoint.progress.counters.scanned = 1;
+    checkpoint.progress.counters.selected = 1;
     checkpoint.progress.segments = 1;
     checkpoint.progress.rows = 1;
     checkpoint.progress.finished = .source_end;
@@ -95,6 +103,8 @@ test "durable source records fit unchanged values and preserve all continuation 
 }
 
 test "failure records reject missing witnesses and preserve full-width budget evidence" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
     const failure: q.QueryFailure = .{ .code = .budget_exceeded, .stage = .execution, .dimension = .result_bytes, .limit = 1, .observed = std.math.maxInt(u64) };
     const encoded = try failure.encode();
     var expected: [q.QueryFailure.encoded_bytes]u8 = @splat(0);
@@ -116,7 +126,7 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     invalid.code = .arithmetic_overflow;
     try t.expectError(error.InvalidQueryFailure, invalid.encode());
     const source: q.SourceDefinition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = .{}, .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
-    const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
+    const bundle: q.Bundle = .{ .source = source, .plan = try @import("catalog_store_test.zig").plan(test_arena.allocator(), source, &.{1}), .limits = .{ .pages = 10, .segments = 10, .result_bytes = 1024 } };
     var job: r.Job = .{ .id = 100, .destination = 9, .correlation = 55, .policy_revision = 1, .source = .{ .pid = 3, .input = 100, .index = 0 }, .request = try bundle.reference(8, 2), .continuation = 101, .phase = .failed };
     try t.expectError(error.InvalidQueryRecord, job.encode());
     job.failure = failure;
@@ -149,4 +159,41 @@ test "failure records reject missing witnesses and preserve full-width budget ev
     var reserved = encoded;
     reserved.data[111] = 1;
     try t.expectError(error.InvalidQueryFailure, q.QueryFailure.decode(reserved));
+}
+
+test "query policies bind explicit catalog delegation and reject old foreign or truncated records" {
+    var test_arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer test_arena.deinit();
+    const fixtures = try std.json.parseFromSlice([]const struct { wire_hex: []const u8, target: u8 }, t.allocator, @embedFile("fixtures/query-policy.json"), .{});
+    defer fixtures.deinit();
+    for (fixtures.value) |fixture| {
+        var buffer: [r.Policy.max_bytes]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, fixture.wire_hex);
+        const value = try p.Value.init(bytes);
+        const policy = try r.Policy.decode(value);
+        try t.expectEqualSlices(u8, bytes, (try policy.encode()).slice());
+        try t.expectEqual(fixture.target, @backingInt(std.meta.activeTag(policy.target)));
+        if (policy.target == .catalog) {
+            try t.expectEqual(std.math.maxInt(u64), policy.target.catalog.scope.catalog);
+            try t.expectEqual(@as(u64, 17), policy.target.catalog.principal);
+            try t.expect(!policy.target.declarationMatches(@splat(0)));
+        } else try t.expect(policy.target.declarationMatches(policy.target.declaration));
+        for (0..bytes.len) |length| {
+            if (r.Policy.decode(try p.Value.init(bytes[0..length]))) |_| return error.AcceptedTruncatedPolicy else |_| {}
+        }
+        var malformed = value;
+        malformed.data[4] ^= 1;
+        try t.expectError(error.IncompatibleDefinition, r.Policy.decode(malformed));
+        malformed = value;
+        malformed.data[60] = 0;
+        try t.expectError(error.InvalidQueryPolicy, r.Policy.decode(malformed));
+        malformed = value;
+        malformed.data[malformed.len] = 0;
+        malformed.len += 1;
+        try t.expectError(error.InvalidQueryRecord, r.Policy.decode(malformed));
+    }
+    // Superseded 85-byte policies have no definition or target discriminator.
+    var old: [85]u8 = @splat(0);
+    old[0..4].* = "UQA1".*;
+    try t.expectError(error.IncompatibleDefinition, r.Policy.decode(try p.Value.init(&old)));
 }

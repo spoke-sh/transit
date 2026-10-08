@@ -85,6 +85,10 @@ class StationReference(Reference):
                 "public_key": i.key(role + "/initial.key"), "permissions": 88, "pid": record["pid"]}})
             i.command("provider-state-" + role, {'grant_resource': {"resource": record["resource"],
                 "subject": record["principal"], "permissions": 7}})
+            if role in ('ledger', 'requester'):
+                peer = i.records()['requester' if role == 'ledger' else 'ledger']
+                i.command('provider-query-read-' + role, {'grant_resource': {
+                    'resource': peer['resource'], 'subject': record['principal'], 'permissions': 3}})
             controller_role = "runtime-" + role
             i.command("grant-" + controller_role, {"grant": {"subject": self.controllers[role],
                 "public_key": i.key(controller_role + "/seed.key"), "permissions": 17, "pid": record["pid"]}})

@@ -55,8 +55,7 @@ pub(crate) struct Caps {
     pub message: usize,
     pub value: usize,
     pub key: usize,
-    pub cell: usize,
-    pub name: usize,
+    pub table_page: usize,
     pub page: usize,
     pub segment: usize,
     pub queries: bool,
@@ -85,11 +84,14 @@ impl Drop for Buffer<'_> {
 }
 impl Buffer<'_> {
     fn bytes(&self) -> Result<Vec<u8>> {
+        self.bounded_bytes(MAX_BODY)
+    }
+    fn bounded_bytes(&self, bound: usize) -> Result<Vec<u8>> {
         if self.pointer.is_null() {
             return Ok(Vec::new());
         }
         let size = unsafe { (self.api.station_buffer_size)(self.pointer) };
-        if size > MAX_BODY {
+        if size > bound {
             return Err(Error::new(
                 ErrorKind::IncompatibleNative,
                 "native-buffer-bound",
@@ -105,6 +107,15 @@ impl Buffer<'_> {
         Ok(unsafe { slice::from_raw_parts(data, size) }.to_vec())
     }
     fn result(&self, status: u32, phase: &'static str, mutation: bool) -> Result<Value> {
+        self.bounded_result(status, phase, mutation, MAX_BODY)
+    }
+    fn bounded_result(
+        &self,
+        status: u32,
+        phase: &'static str,
+        mutation: bool,
+        bound: usize,
+    ) -> Result<Value> {
         let invalid = || {
             Error::new(
                 if mutation {
@@ -115,7 +126,7 @@ impl Buffer<'_> {
                 phase,
             )
         };
-        let bytes = self.bytes().map_err(|_| invalid())?;
+        let bytes = self.bounded_bytes(bound).map_err(|_| invalid())?;
         let value = if bytes.is_empty() {
             Value::Null
         } else {
@@ -199,8 +210,7 @@ impl Local {
                 message: size(&value["message_bytes"], false)?,
                 value: size(&value["value_bytes"], false)?,
                 key: size(&value["key_bytes"], false)?,
-                cell: size(&value["table_cell_bytes"], false)?,
-                name: size(&value["table_name_bytes"], false)?,
+                table_page: size(&value["table_page_rows"], false)?,
                 page: size(&value["page_entries"], false)?,
                 segment: size(&value["query_segment_bytes"], false)?,
                 queries: boolean(&value["query_results"], "native-capabilities")?,
@@ -729,90 +739,6 @@ impl Drop for QueryNative {
     }
 }
 
-pub(crate) struct MutationNative {
-    local: Local,
-    pointer: *mut abi::station_mutation_client,
-}
-impl MutationNative {
-    pub fn open(
-        config: &transit_client::ClientConfig,
-        credential: &transit_client::Credential,
-        connection: &crate::mutations::Connection,
-    ) -> Result<Self> {
-        let (url, timeout, directory) = settings(config);
-        let local = Local::open(directory)?;
-        let key = credential_seed(credential)?;
-        let bytes = serde_json::to_vec(
-            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout}),
-        )
-        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "mutation-config"))?;
-        let mut pointer = ptr::null_mut();
-        let status = unsafe {
-            (local.api.station_table_mutation_create)(
-                abi::ABI_VERSION,
-                url.as_ptr(),
-                url.len(),
-                key.pointer(),
-                bytes.as_ptr(),
-                bytes.len(),
-                &mut pointer,
-            )
-        };
-        if status != 0 {
-            return Err(native_error(status, None, "open-mutation"));
-        }
-        if pointer.is_null() {
-            return Err(Error::new(ErrorKind::IncompatibleNative, "open-mutation"));
-        }
-        let mut out = Self { local, pointer };
-        let caps = out.call(json!({"capabilities":{}}))?;
-        let caps = field(&caps, "capabilities")?;
-        if caps["version"] != 1
-            || caps["max_rows"] != 3
-            || caps["max_request_bytes"] != 799
-            || caps["max_saved_bytes"] != 8192
-            || ["insert", "update_primary_key", "delete_primary_key"]
-                .iter()
-                .any(|name| caps[name] != true)
-        {
-            return Err(Error::new(
-                ErrorKind::UnsupportedCapability,
-                "mutation-capabilities",
-            ));
-        }
-        Ok(out)
-    }
-    pub fn call(&mut self, action: Value) -> Result<Value> {
-        let mutation = action.get("submit").is_some();
-        let bytes = serde_json::to_vec(&action)
-            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "mutation-action"))?;
-        if bytes.len() > MAX_BODY {
-            return Err(Error::new(
-                ErrorKind::InvalidArgument,
-                "mutation-action-bound",
-            ));
-        }
-        let mut buffer = Buffer {
-            api: &self.local.api,
-            pointer: ptr::null_mut(),
-        };
-        let status = unsafe {
-            (self.local.api.station_table_mutation_call)(
-                self.pointer,
-                bytes.as_ptr(),
-                bytes.len(),
-                &mut buffer.pointer,
-            )
-        };
-        buffer.result(status, "mutation-action", mutation)
-    }
-}
-impl Drop for MutationNative {
-    fn drop(&mut self) {
-        unsafe { (self.local.api.station_table_mutation_destroy)(self.pointer) };
-    }
-}
-
 pub(crate) struct CatalogNative {
     local: Local,
     pointer: *mut abi::station_catalog_client,
@@ -851,19 +777,7 @@ impl CatalogNative {
         let mut out = Self { local, pointer };
         let caps = out.call(json!({"capabilities":{}}))?;
         let caps = field(&caps, "capabilities")?;
-        if caps["version"] != 1
-            || caps["definition"] != abi::ABI_DEFINITION
-            || caps["table_columns"] != 2
-            || caps["max_saved_bytes"] != 8192
-            || [
-                "initialize",
-                "create_table",
-                "conditional_policy",
-                "current_metadata",
-            ]
-            .iter()
-            .any(|name| caps[name] != true)
-        {
+        if !crate::catalog::Capabilities::parse(caps)?.supported() {
             return Err(Error::new(
                 ErrorKind::UnsupportedCapability,
                 "catalog-capabilities",
@@ -875,7 +789,7 @@ impl CatalogNative {
         let mutation = action.get("submit").is_some();
         let bytes = serde_json::to_vec(&action)
             .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-action"))?;
-        if bytes.len() > MAX_BODY {
+        if bytes.len() > abi::CATALOG_ACTION_BYTES {
             return Err(Error::new(
                 ErrorKind::InvalidArgument,
                 "catalog-action-bound",
@@ -893,7 +807,47 @@ impl CatalogNative {
                 &mut buffer.pointer,
             )
         };
-        buffer.result(status, "catalog-action", mutation)
+        let value =
+            buffer.bounded_result(status, "catalog-action", mutation, abi::CATALOG_LINE_BYTES)?;
+        self.diagnostics(&value).map_err(|_| {
+            Error::new(
+                if mutation {
+                    ErrorKind::UnknownOutcome
+                } else {
+                    ErrorKind::IncompatibleNative
+                },
+                "catalog-diagnostic",
+            )
+        })?;
+        Ok(value)
+    }
+    fn diagnostics(&self, value: &Value) -> Result<()> {
+        if let Some(object) = value.as_object() {
+            for (key, child) in object {
+                if key == "diagnostic" {
+                    let bytes = serde_json::to_vec(child).map_err(|_| {
+                        Error::new(ErrorKind::IncompatibleNative, "catalog-diagnostic")
+                    })?;
+                    if !child.is_object()
+                        || bytes.len() > 32768
+                        || unsafe {
+                            (self.local.api.station_diagnostic_validate)(
+                                bytes.as_ptr(),
+                                bytes.len(),
+                            )
+                        } != 1
+                    {
+                        return Err(Error::new(
+                            ErrorKind::IncompatibleNative,
+                            "catalog-diagnostic",
+                        ));
+                    }
+                } else if child.is_object() {
+                    self.diagnostics(child)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 impl Drop for CatalogNative {

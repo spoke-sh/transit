@@ -13,6 +13,7 @@ pub const Reason = enum(u8) {
     service_denied,
     native_denied,
     query_denied,
+    catalog_denied,
     resource_unavailable,
     query_source_unavailable,
     result_unavailable,
@@ -31,10 +32,11 @@ pub fn reason(cause: anyerror) ?Reason {
     return switch (cause) {
         error.ReactiveSessionClosed => .session_closed,
         error.ReactiveSessionExpired => .session_expired,
-        error.ReactiveResetRequired => .source_changed,
+        error.ReactiveResetRequired, error.TableNotFound, error.UnsupportedReactiveSource => .source_changed,
         error.ServiceUnpublished => .binding_unpublished,
         error.ServingDenied => .service_denied,
         error.AccessDenied => .native_denied,
+        error.CatalogDenied => .catalog_denied,
         error.QueryDenied => .query_denied,
         error.ResourceUnavailable => .resource_unavailable,
         error.QuerySourceUnavailable => .query_source_unavailable,
@@ -47,7 +49,7 @@ pub fn reason(cause: anyerror) ?Reason {
 }
 pub fn denied(value: Reason) bool {
     return switch (value) {
-        .service_denied, .native_denied, .query_denied => true,
+        .service_denied, .native_denied, .query_denied, .catalog_denied => true,
         else => false,
     };
 }
@@ -69,6 +71,7 @@ pub fn project(realm: u64, resource: u64, view: root.RefreshModel.View) !?d {
         .binding_unpublished => "A required service binding was absent or unpublished at the scheduling check. Follow stopped selecting new queries. Existing selected queries retain their recorded source and outcome.",
         .service_denied => "Current service read permission denied Follow progress. No new result coverage was established. Previously selected query work retains its own outcome; inspect current service rights before continuing.",
         .native_denied => "Current native authority denied Follow progress. No new result coverage was established. Inspect the exact selected query and current native scope; restoring authority does not implicitly restart this generation.",
+        .catalog_denied => "Current catalog inspect/read policy denied the Follow caller. No new coverage was established. The service identity does not grant catalog access to this caller; restoring permission does not restart the generation.",
         .query_denied => "Current query authority denied Follow progress. No new result coverage was established. Inspect the exact selected query and source policy before explicitly reviewing further work.",
         .resource_unavailable => "A required process or resource was unavailable, so Follow stopped progressing. This is not evidence that permission was revoked or that a previously selected query failed. Inspect the exact resource and query outcome.",
         .query_source_unavailable => "The required query source was unavailable, so Follow stopped progressing. Retain the last exact result basis and inspect the selected query; source unavailability does not cancel it.",
@@ -113,7 +116,7 @@ pub fn project(realm: u64, resource: u64, view: root.RefreshModel.View) !?d {
 test "every scheduler stop preserves bounded original evidence independently of query outcome" {
     const std = @import("std");
     const t = std.testing;
-    var view: root.RefreshModel.View = .{ .principal = p.max_counter, .session = .{ .session = p.max_counter, .generation = p.max_counter }, .generation = p.max_counter, .source = .{ .revision = p.max_counter, .target = p.max_counter, .resource = p.max_counter, .table = 1, .progress_key = try p.Value.init(&@as([32]u8, @splat(255))), .schema = @splat(255) }, .template = .{ .value = std.math.maxInt(u64) }, .namespace = .{ .value = std.math.maxInt(u64) }, .dirty = p.max_counter, .covered = p.max_counter, .limit = 8, .starts = 8 };
+    var view: root.RefreshModel.View = .{ .principal = p.max_counter, .session = .{ .session = p.max_counter, .generation = p.max_counter }, .generation = p.max_counter, .source = .{ .revision = p.max_counter, .target = p.max_counter, .resource = p.max_counter, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(255) }, .template = .{ .value = std.math.maxInt(u64) }, .namespace = .{ .value = std.math.maxInt(u64) }, .dirty = p.max_counter, .covered = p.max_counter, .limit = 8, .starts = 8 };
     const original: f.Witness = f.sourceWitness(view.source, p.max_counter);
     var max_bytes: usize = 0;
     for (std.enums.values(Reason)) |why| {
@@ -150,5 +153,5 @@ test "every scheduler stop preserves bounded original evidence independently of 
         try t.expect(std.mem.indexOf(u8, json, "18446744073709551615") != null);
         for (diagnostic.actions) |action| if (action) |value| try t.expect(value.kind == .inspect_status or value.kind == .inspect_scope);
     }
-    try t.expectEqual(@as(usize, 251), max_bytes);
+    try t.expectEqual(@as(usize, 250), max_bytes);
 }

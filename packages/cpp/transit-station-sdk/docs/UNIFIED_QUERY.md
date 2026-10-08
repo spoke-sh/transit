@@ -8,9 +8,9 @@ encoding, signatures and query semantics remain in shared Zig.
 ```cpp
 namespace q = transit::sdk::station::unified;
 q::Source source = q::KvSource{
-    resource, {'d', 'a', 't', 'a', '/'}, {q::Type::Binary}, {q::Type::UInt64}
+    resource, {'d', 'a', 't', 'a', '/'}, {q::DecoderType::Binary}, {q::DecoderType::UInt64}
 };
-auto bundle = q::prepare(source, {{1}, All{}, Aggregate::Rows, std::nullopt},
+auto bundle = q::prepare(source, {{1}, All{}, Aggregate::Rows, std::nullopt, std::nullopt},
                          {1000, 100, 1048576});
 auto client = q::Client::open(config, credential, connection);
 auto capabilities = client.describe(source);
@@ -21,7 +21,12 @@ The surrounding application supplies realm-scoped process/resource refs, the
 explicit credential and a durable positive namespace. `Source` is a variant of
 `KvSource`, `TableSource` and `DocumentSource`. `Plan` uses ordered projections,
 `All`, `IsState`, typed `Compare` or `PredicateProgram`, an optional full-width limit and an explicit
-aggregate. Unsupported decoder versions, types and paths reject.
+aggregate. `TableSource` owns its catalog owner, metadata and schema; metadata
+retains the immutable publication commitment. `Column` uses `logical::Type` with
+nullable/optional flags. Result projections allow 128 columns and 255-byte UTF-8
+names. KV decoders and Document `DecoderColumn` projections retain their six
+scalar types and the eight-column Document projection limit. Unsupported decoder
+versions, types and paths reject.
 
 `PredicateProgram` owns a vector of one to 64 `PredicateInstruction` values.
 Each instruction is either a `PredicateAtom` variant (`All`, `IsState`, `Compare`)
@@ -42,7 +47,7 @@ owned `Bundle`. `parameters` is an optional vector of `Scalar`: omission or
 placeholders. The result survives the source and binding inputs.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -65,12 +70,14 @@ recover it using `Prepared::recover` and resubmit the identical bytes. Admission
 `prepare_next` result means inspect status, not completed results.
 
 After completion, `page` returns owned IPC, typed columns, manifest evidence and
-an optional owned cursor. `Page::decode` copies rows into variants:
-`Missing`, `Null`, `TypeError`, `Scalar` or ordered `Conflict` alternatives.
-Scalar is a variant of `int64_t`, `uint64_t`, `double`, `bool`, `std::string` and
-`Bytes`. Both pages and decoded values outlive the client. A local decode checks
-Arrow shape; only an authorized page read checks current source availability and
-result coverage. No Arrow C++ dependency is selected by the core SDK.
+an optional owned cursor. Manifest evidence includes the retained source head.
+`Page::decode` returns owned `logical::Cell` values, preserving missing, null,
+type errors, nested values and ordered conflicts. `Scalar` is `logical::Atom`;
+use constructors such as `Scalar::signed_integer`, `unsigned_integer` and `utf8`.
+Integers preserve their complete 128-bit range. Both pages and decoded values
+outlive the client. A local decode checks Arrow shape; only an authorized page
+read checks current source availability and result coverage. No Arrow C++
+dependency is selected by the core SDK.
 
 Clients, bundles, prepared commands and cursors are move-only. Calls block on the
 C SDK's bounded worker. Close/RAII joins work without cancelling the durable

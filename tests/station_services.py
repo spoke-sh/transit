@@ -5,6 +5,7 @@ import time
 
 from inspection import System
 from station import frame
+from station_ledger import AUDIT, audit_state, audit_total
 
 
 def run(node, cli, worker, courier, controller):
@@ -90,6 +91,21 @@ def run(node, cli, worker, courier, controller):
             entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
             return bytes.fromhex(entry['value']) if entry else None
 
+        def pump_until(predicate, pids=(ledger, requester)):
+            until = time.monotonic() + 60
+            while not predicate():
+                assert time.monotonic() < until, 'Staged ledger work did not complete'
+                progressed = False
+                for pid in pids:
+                    if s.native_query({'process': pid})['body']['process']['input'] is not None:
+                        worker_once(pid)
+                        progressed = True
+                if not progressed: time.sleep(.025)
+
+        command(ledger, b'prepare-table')
+        prepared = command(ledger, b'0')
+        pump_until(lambda: value(ledger, AUDIT + prepared.to_bytes(8, 'big')) is not None)
+
         # Coordinator initialization records a separate self-turn to respect
         # the shared four-mutation bound.
         await_input(coordinator)
@@ -115,7 +131,9 @@ def run(node, cli, worker, courier, controller):
         resolved = value(requester, b"\x00r" + lookup_input.to_bytes(8, "little") + b"\x00")
         assert int.from_bytes(resolved[24:32], "little") == ledger
         await_input(ledger)
-        worker_once(ledger)  # delivery used the recorded old PID
+        # Registry.route sends an uncorrelated cast to the recorded old PID.
+        # Its second audit entry proves completion even though the value is zero.
+        pump_until(lambda: audit_state(s.native_query, resources[ledger]) == (0, 2))
 
         # Deadline observations are explicit mailbox input. The worker can be
         # replaced while a call waits without losing its timeout or correlation.
@@ -131,16 +149,13 @@ def run(node, cli, worker, courier, controller):
         waiting = value(requester, b"\x00w" + timed_input.to_bytes(8, "little"))
         assert len(waiting) == 34
         assert waiting[1] == 3
-        await_input(ledger)
-        worker_once(ledger)  # accepted request may still finish after cancellation
-        await_input(ledger)
-        worker_once(ledger)  # cancellation is an ordered advisory message
-        await_input(requester)
-        worker_once(requester)  # late result is recorded, never reopens the wait
+        pump_until(lambda: audit_total(s.native_query, resources[ledger]) == 7)
+        pump_until(lambda: value(requester, b'\x00disposition') == b'station.closed-reply.v1')
         assert value(requester, b"answer") == b"timeout"
 
         # A supervisor records intent; only the separately scoped admin applies it.
         bad_input = command(ledger, b"invalid")
+        pump_until(lambda: (s.native_query({'process': ledger})['body']['process']['input'] or {}).get('position') == bad_input, (ledger,))
         worker_once(ledger, success=False)
         watch = [{"pid": coordinator, "resource": resources[coordinator], "child": ledger}]
         control("observe", watch)

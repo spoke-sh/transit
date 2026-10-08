@@ -2,35 +2,34 @@ const std = @import("std");
 const t = std.testing;
 const p = @import("transit_client").protocol;
 const Turn = @import("Turn.zig");
-const Table = @import("Table.zig");
 const Frame = @import("Frame.zig");
 const Waiting = @import("Waiting.zig");
 const Registry = @import("Registry.zig");
 const Store = @import("TestStore.zig");
+fn stateKey(index: usize) !p.Value {
+    var bytes: [16]u8 = undefined;
+    return p.Value.init(try std.fmt.bufPrint(&bytes, "row-{d:0>4}", .{index}));
+}
 
 test "explicit committed reads exclude private inserts updates and deletes at one captured cut" {
     var store: Store = .{};
-    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
-    const table: Table = .{ .resource = 7, .id = 1, .schema = schema };
-    store.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 0 };
-    for (0..2) |i| store.entries[i + 1] = .{ .key = Table.rowKey(1, @intCast(i)), .value = try table.encodeCell(.{ .int64 = @intCast(i + 10) }), .revision = 0 };
+    for (0..2) |i| store.entries[i] = .{ .key = try stateKey(i), .value = p.Value.integer(@intCast(i + 10)), .revision = 0 };
     var turn = try store.turn(.{});
     var source = turn.committed();
-    try table.update(&turn, .{ .key = 0, .value = .{ .int64 = 90 } });
-    try table.delete(&turn, 1);
-    try table.insert(&turn, .{ .key = 2, .value = .{ .int64 = 92 } });
+    try turn.put(try stateKey(0), p.Value.integer(90));
+    try turn.delete(try stateKey(1));
+    try turn.put(try stateKey(2), p.Value.integer(92));
     const proposal = turn.decision;
-    try t.expectEqual(90, (try table.get(&turn, 0)).?.value.int64);
-    try t.expectEqual(null, try table.get(&turn, 1));
-    try t.expectEqual(92, (try table.get(&turn, 2)).?.value.int64);
-    try t.expectError(error.QueryAfterMutation, table.page(&turn, null));
-    const captured = try Table.open(&source, 1);
-    const page = try captured.page(&source, null);
-    try t.expectEqual(2, page.len);
-    try t.expectEqual(10, page.rows[0].value.int64);
-    try t.expectEqual(11, page.rows[1].value.int64);
-    try t.expectEqual(10, (try captured.get(&source, 0)).?.value.int64);
-    try t.expectEqual(null, try captured.get(&source, 2));
+    try t.expectEqual(90, try (try turn.read(try stateKey(0))).?.asInteger());
+    try t.expectEqual(null, try turn.read(try stateKey(1)));
+    try t.expectEqual(92, try (try turn.read(try stateKey(2))).?.asInteger());
+    try t.expectError(error.QueryAfterMutation, turn.page(null));
+    const page = try source.page(null);
+    try t.expect(page.entries[0] != null and page.entries[1] != null and page.entries[2] == null);
+    try t.expectEqual(10, try page.entries[0].?.value.asInteger());
+    try t.expectEqual(11, try page.entries[1].?.value.asInteger());
+    try t.expectEqual(10, try (try source.read(try stateKey(0))).?.asInteger());
+    try t.expectEqual(null, try source.read(try stateKey(2)));
     try t.expect(std.meta.eql(proposal, turn.decision));
     try turn.validate();
     for ([_]bool{ false, true }) |page_failure| {
@@ -39,7 +38,7 @@ test "explicit committed reads exclude private inserts updates and deletes at on
         source = turn.committed();
         store.fail = !page_failure;
         store.fail_page = page_failure;
-        if (page_failure) try t.expectError(error.Unavailable, source.page(null)) else try t.expectError(error.Unavailable, source.read(Table.descriptorKey(1)));
+        if (page_failure) try t.expectError(error.Unavailable, source.page(null)) else try t.expectError(error.Unavailable, source.read(try stateKey(0)));
         try t.expectError(error.Unavailable, turn.validate());
         try t.expectError(error.Unavailable, turn.read(try p.Value.init("private")));
         store.fail = false;
@@ -110,93 +109,22 @@ test "growing registry routing keeps a verified resolution and rolls back exhaus
     try t.expect(std.meta.eql(before, turn.decision));
 }
 
-test "growing Table pages bind a view and stop at Table boundaries without losing extreme keys" {
+test "growing KV point reads and private mutation bounds do not depend on retained cardinality" {
     var store: Store = .{};
-    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("amount") }, .value_type = .int64 };
-    store.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 1 };
-    for (0..41) |i| {
-        const key: i64 = if (i == 0) std.math.minInt(i64) else if (i == 40) std.math.maxInt(i64) else @as(i64, @intCast(i)) - 20;
-        var value: [10]u8 = .{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
-        std.mem.writeInt(i64, value[2..10], @intCast(i), .little);
-        store.entries[i + 1] = .{ .key = Table.rowKey(1, key), .value = try p.Value.init(&value), .revision = 1 };
-    }
-    store.entries[42] = .{ .key = Table.descriptorKey(2), .value = try Table.encodeSchema(schema), .revision = 1 };
-    store.entries[43] = .{ .key = Table.rowKey(2, 0), .value = try p.Value.init(&.{ 1, 0 }), .revision = 1 };
-    store.entries[44] = .{ .key = Table.descriptorKey(3), .value = try Table.encodeSchema(schema), .revision = 1 };
+    for (0..store.entries.len) |i| store.entries[i] = .{ .key = try stateKey(i), .value = p.Value.integer(@intCast(i)), .revision = 1 };
     var turn = try store.turn(.{});
-    const table = try Table.open(&turn, 1);
-    var cursor: ?Table.Cursor = null;
-    var first_cursor: ?Table.Cursor = null;
-    var count: usize = 0;
-    var previous: ?i64 = null;
-    while (true) {
-        const batch = try table.page(&turn, cursor);
-        try t.expectEqual(turn.view.revision, batch.basis.revision);
-        for (batch.rows[0..batch.len]) |row| {
-            if (previous) |key| try t.expect(row.key > key);
-            if (count == 0) try t.expectEqual(std.math.minInt(i64), row.key);
-            if (count == 40) try t.expectEqual(std.math.maxInt(i64), row.key);
-            try t.expectEqual(@as(i64, @intCast(count)), row.value.int64);
-            previous = row.key;
-            count += 1;
-        }
-        cursor = batch.next;
-        if (first_cursor == null) first_cursor = cursor;
-        if (cursor == null) break;
-    }
-    try t.expectEqual(@as(usize, 41), count);
-    try t.expectEqual(@as(usize, 6), store.pages);
-    const second = try Table.open(&turn, 2);
-    try t.expectError(error.StaleTableCursor, second.page(&turn, first_cursor));
-    const second_page = try second.page(&turn, null);
-    try t.expectEqual(@as(u8, 1), second_page.len);
-    try t.expect(second_page.rows[0].value == .null and second_page.next == null);
-    const empty = try (try Table.open(&turn, 3)).page(&turn, null);
-    try t.expect(empty.len == 0 and empty.next == null);
-    turn.view.id += 1;
-    try t.expectError(error.StaleTableCursor, table.page(&turn, first_cursor));
-    turn.view.id -= 1;
-    var forged = first_cursor.?;
-    forged.schema[0] ^= 1;
-    try t.expectError(error.StaleTableCursor, table.page(&turn, forged));
-    forged = first_cursor.?;
-    forged.resource += 1;
-    try t.expectError(error.StaleTableCursor, table.page(&turn, forged));
-    forged = first_cursor.?;
-    forged.revision += 1;
-    try t.expectError(error.StaleTableCursor, table.page(&turn, forged));
-    try table.delete(&turn, 0);
-    try t.expectError(error.QueryAfterMutation, table.page(&turn, null));
-    turn = try store.turn(.{});
-    store.fail_page = true;
-    try t.expectError(error.Unavailable, table.page(&turn, null));
-    try t.expectError(error.Unavailable, turn.validate());
-}
-
-test "growing Table point operations share codecs and atomic rollback without a whole-resource read" {
-    var store: Store = .{};
-    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("amount") }, .value_type = .int64 };
-    store.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 1 };
-    for (1..store.entries.len) |i| {
-        var value: [10]u8 = .{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
-        std.mem.writeInt(i64, value[2..10], @intCast(i), .little);
-        store.entries[i] = .{ .key = Table.rowKey(1, @intCast(i)), .value = try p.Value.init(&value), .revision = 1 };
-    }
-    var turn = try store.turn(.{});
-    const table = try Table.open(&turn, 1);
-    try t.expectEqual(@as(i64, 100), (try table.get(&turn, 100)).?.value.int64);
-    try t.expect(store.reads <= 3);
-    try table.update(&turn, .{ .key = 100, .value = .{ .int64 = 200 } });
-    try t.expectEqual(@as(i64, 200), (try table.get(&turn, 100)).?.value.int64);
+    try t.expectEqual(100, try (try turn.read(try stateKey(100))).?.asInteger());
+    try t.expectEqual(@as(usize, 1), store.reads);
+    try turn.put(try stateKey(100), p.Value.integer(200));
+    try t.expectEqual(200, try (try turn.read(try stateKey(100))).?.asInteger());
+    try t.expectEqual(@as(usize, 1), store.reads);
+    for (128..131) |i| try turn.put(try stateKey(i), .{});
     const before = turn.decision;
-    var other = table;
-    other.resource += 1;
-    try t.expectError(error.CrossResourceTransaction, Table.atomic(&turn, &.{ .{ .table = table, .operation = .{ .delete = 100 } }, .{ .table = other, .operation = .{ .delete = 1 } } }));
-    try t.expect(std.meta.eql(before, turn.decision));
-    try table.insert(&turn, .{ .key = 200, .value = .null });
-    try turn.validate(); // 129th retained key is not a resident-array limit.
+    try t.expectError(error.MutationBudgetExceeded, turn.put(try stateKey(131), .{}));
+    try t.expectEqualDeep(before, turn.decision);
+    try turn.validate(); // More than 128 retained keys is not a runtime array limit.
     try t.expect(!@hasField(Turn, "entries"));
-    try t.expectEqual(@as(i64, 100), std.mem.readInt(i64, store.entries[100].?.value.data[2..10], .little));
+    try t.expectEqual(100, try store.entries[100].?.value.asInteger());
 }
 
 test "caught growing read failures poison private proposals without hiding uncertain state" {
@@ -324,12 +252,13 @@ test "growing waits preserve wide observer identities and authenticate closure" 
     try t.expect((try next.waiting(correlation)).?.phase == .timed_out);
 }
 
-test "retained Table sources survive new handler views and stage their dependency automatically" {
+test "retained state sources survive new handler views and stage their dependency automatically" {
     const Fixture = struct {
         live: Store = .{},
         snapshot: Store = .{},
         identity: p.Growth.ReadVersionId = .{ .pid = 2, .input = 1, .index = 0 },
         fail: bool = false,
+        reads: usize = 0,
         fn metadata(raw: *anyopaque, id: p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion {
             const self: *@This() = @ptrCast(@alignCast(raw));
             try t.expect(std.meta.eql(self.identity, id));
@@ -337,6 +266,7 @@ test "retained Table sources survive new handler views and stage their dependenc
         }
         fn entries(raw: *anyopaque, basis: p.Growth.ReadVersion, key: ?p.Value, after: ?p.Value) anyerror!@import("Turn.zig").Page {
             const self: *@This() = @ptrCast(@alignCast(raw));
+            self.reads += 1;
             if (self.fail) return error.Unavailable;
             try t.expect(std.meta.eql(self.identity, basis.id));
             const view: p.Growth.View = .{ .id = 6, .pid = 2, .principal = 65536, .generation = 3, .input = 4, .process_revision = 0, .resource = 7, .revision = 8, .deadline_ms = 100 };
@@ -353,18 +283,12 @@ test "retained Table sources survive new handler views and stage their dependenc
         }
         fn turn(self: *@This()) !Turn {
             var result = try self.live.turn(.{});
-            result.reader = .{ .context = self, .read = liveRead, .version = metadata, .version_entries = entries };
+            result.reader = .{ .context = self, .cache_reads = true, .read = liveRead, .version = metadata, .version_entries = entries };
             return result;
         }
     };
     var fixture: Fixture = .{};
-    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("amount") }, .value_type = .int64 };
-    fixture.snapshot.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 8 };
-    for (0..12) |i| {
-        var value: [10]u8 = .{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
-        std.mem.writeInt(i64, value[2..10], @intCast(i), .little);
-        fixture.snapshot.entries[i + 1] = .{ .key = Table.rowKey(1, @intCast(i)), .value = try p.Value.init(&value), .revision = 8 };
-    }
+    for (0..12) |i| fixture.snapshot.entries[i] = .{ .key = try stateKey(i), .value = p.Value.integer(@intCast(i)), .revision = 8 };
     var first = try fixture.turn();
     const retained = try first.retain();
     try t.expect(std.meta.eql(retained, try first.retain())); // One private slot.
@@ -372,9 +296,8 @@ test "retained Table sources survive new handler views and stage their dependenc
     try t.expectEqual(@as(?u64, 6), first.decision.retain[0]);
     try first.put(try p.Value.init("manifest"), p.Value.integer(1));
     var source = try first.openVersion(fixture.identity);
-    const table = try Table.open(&source, 1);
-    const one = try table.page(&source, null);
-    try t.expectEqual(@as(u8, 8), one.len);
+    const one = try source.page(null);
+    try t.expect(one.entries[7] != null and one.next != null);
     try t.expect(std.meta.eql(fixture.identity, first.decision.read_versions[0].?));
     try t.expect(first.decision.read_versions[1] == null); // Repeated reads deduplicate.
     try first.validate(); // Manifest writes do not mix into retained source rows.
@@ -384,22 +307,53 @@ test "retained Table sources survive new handler views and stage their dependenc
     next.delivery.input.position = 101;
     next.delivery.generation = 4;
     var resumed = try next.openVersion(fixture.identity);
-    const two = try table.page(&resumed, one.next);
-    try t.expectEqual(@as(u8, 4), two.len);
-    try t.expectEqual(@as(i64, 8), two.rows[0].key);
+    const two = try resumed.page(one.next);
+    try t.expect(two.entries[3] != null and two.entries[4] == null);
+    try t.expectEqual(@as(i64, 8), try two.entries[0].?.value.asInteger());
     try t.expect(two.next == null);
     try next.release(fixture.identity);
     try next.release(fixture.identity);
     try t.expect(next.decision.release[1] == null);
     try t.expect(std.meta.eql(fixture.identity, next.decision.read_versions[0].?));
-    var wrong = one.next.?;
-    wrong.source = .{ .version = .{ .pid = 2, .input = 2, .index = 0 } };
-    try t.expectError(error.StaleTableCursor, table.page(&resumed, wrong));
-    wrong.source = .{ .view = 9 };
-    try t.expectError(error.StaleTableCursor, table.page(&resumed, wrong));
     try t.expectError(error.WrongActivation, next.release(.{ .pid = 3, .input = 1, .index = 0 }));
     fixture.fail = true;
-    try t.expectError(error.Unavailable, resumed.read(Table.rowKey(1, 0)));
+    try t.expectError(error.Unavailable, resumed.read(try stateKey(0)));
     try next.put(try p.Value.init("ignored"), .{});
     try t.expectError(error.Unavailable, next.validate());
+
+    // Repeated point reads, including absence, reuse only this opened cut.
+    // Eviction rereads immutable data; private writes never enter that cache.
+    fixture.fail = false;
+    fixture.reads = 0;
+    for (0..Turn.read_cache_entries + 1) |i| fixture.snapshot.entries[i] = .{ .key = try stateKey(i), .value = p.Value.integer(@intCast(i)), .revision = 8 };
+    var cached_turn = try fixture.turn();
+    var cached = try cached_turn.openVersion(fixture.identity);
+    for (0..2) |_| for (0..Turn.read_cache_entries) |i| {
+        try t.expectEqual(@as(i64, @intCast(i)), try (try cached.read(try stateKey(i))).?.asInteger());
+    };
+    try t.expectEqual(Turn.read_cache_entries, fixture.reads);
+    _ = try cached.read(try stateKey(Turn.read_cache_entries));
+    _ = try cached.read(try stateKey(0));
+    try t.expectEqual(Turn.read_cache_entries + 2, fixture.reads);
+    const absent = try stateKey(Turn.read_cache_entries + 1);
+    try t.expectEqual(null, try cached.read(absent));
+    try cached_turn.put(absent, p.Value.integer(99));
+    try t.expectEqual(null, try cached.read(absent));
+    try t.expectEqual(Turn.read_cache_entries + 3, fixture.reads);
+    cached_turn.decision.read_versions = @splat(null);
+    _ = try cached.read(absent);
+    try t.expect(std.meta.eql(fixture.identity, cached_turn.decision.read_versions[0].?));
+    var reopened = try cached_turn.openVersion(fixture.identity);
+    _ = try reopened.read(absent);
+    try t.expectEqual(Turn.read_cache_entries + 4, fixture.reads);
+    // A distinct retained basis cannot reuse a prior entry under the same key.
+    fixture.identity.input += 1;
+    cached.view.id = fixture.identity;
+    fixture.snapshot.entries[0].?.value = p.Value.integer(200);
+    try t.expectEqual(200, try (try cached.read(try stateKey(0))).?.asInteger());
+    try t.expectEqual(Turn.read_cache_entries + 5, fixture.reads);
+    fixture.fail = true;
+    try t.expectError(error.Unavailable, cached.page(null));
+    try t.expectError(error.Unavailable, cached.read(try stateKey(0)));
+    try t.expectError(error.Unavailable, cached_turn.validate());
 }

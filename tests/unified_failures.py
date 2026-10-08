@@ -11,7 +11,7 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
     bundle = bytearray((root / 'bundle.bin').read_bytes())
     assert bundle[:4] == b'UQB1'
     # The frozen source/plan is unchanged. Admit a one-byte result budget.
-    struct.pack_into('<QQQ', bundle, 8, 1000, 100, 1)
+    struct.pack_into('<QQQ', bundle, 40, 1000, 100, 1)
     lost = dict(attempt=None, receipt=None, retries=0)
     lock = threading.Lock()
 

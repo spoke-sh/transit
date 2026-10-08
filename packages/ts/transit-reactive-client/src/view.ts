@@ -228,7 +228,7 @@ export class LiveView<T> {
               this.connected = true;
             }
             if (this.template) await this.queryTick(epoch, signal);
-            else if (this.dirty > (this.state.snapshot?.basis.revision ?? 0)) {
+            else if (this.dirty > (this.state.snapshot?.basis.cut.revision ?? 0)) {
               this.publish({
                 phase: "refreshing",
                 detail: "Reading the newest available snapshot…",
@@ -237,7 +237,7 @@ export class LiveView<T> {
               if (!signal.aborted && epoch === this.epoch) this.publish({ snapshot });
             }
             if (this.connected && !signal.aborted && this.state.phase !== "paused") {
-              const covered = (this.state.snapshot?.basis.revision ?? 0) >= this.dirty;
+              const covered = (this.state.snapshot?.basis.cut.revision ?? 0) >= this.dirty;
               this.publish({
                 phase: covered ? "current" : "refreshing",
                 detail: covered

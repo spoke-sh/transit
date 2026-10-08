@@ -24,16 +24,12 @@ the exact descriptor-member path, violated rule, supplied values and measured
 budget. File queries expose this context in human and structured diagnostics;
 see the [schema-file guide](../../../apps/transit-cli/docs/file-query.md#schemas-and-exact-values).
 
-These are local type/codec APIs. Native query plans, catalogs, stored Tables,
-native Arrow query transports and SDK queries accept the narrower profiles below.
-Local file queries can export the rich values through the separately identified
-[logical Arrow profile](../../../contracts/FUZE_ARROW_V1.md).
-The native local codec and the
-[Python](../../../packages/python/transit-station/docs/logical.md) and
-[TypeScript](../../../packages/ts/transit-station-sdk/docs/logical.md) logical
-document APIs expose owned values, fingerprints, casts and Arrow export. Other
-language public query APIs keep their existing scalar profiles; generated ABI
-declarations alone do not establish idiomatic logical value support.
+General catalog Tables and native finite/session/durable queries carry these
+logical descriptors and values. The enabled language SDKs own typed logical
+models and use the shared neutral boundary; generated declarations alone do not
+establish a caller capability. Logical Arrow exports preserve descriptors and
+cell states. The local logical codec additionally exposes fingerprints and
+selected checked casts; see the [SDK reference](../sdks.md).
 `Types.Operations` supplies validated structural equality/hash and partial
 lexicographic ordering. Structural null/missing equality remains distinct from
 SQL predicates; errors/conflicts never become ordinary values. JSON has no
@@ -46,40 +42,37 @@ file-query command can project their logical values, with exactly typed six-scal
 SQL comparison literals and int64 SUM. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
 for precise admitted conversions, temporal representations and resident bounds.
 
-## Scalar types
+## SQL types, aliases and constants
 
-| Query v1 type | Read a declared column | SQL comparison literal | Offline declaration token |
-| --- | --- | --- | --- |
-| int64 | Yes | Signed decimal integer, such as `-42` | `INT64` |
-| uint64 | Yes | `'18446744073709551615'::uint64` | None |
-| float64 | Yes | `'1.25e2'::float64` | None |
-| boolean | Yes | `TRUE`, `FALSE` | `BOOL` |
-| UTF-8 | Yes | Single-quoted text, such as `'ready'` | `UTF8` |
-| binary | Yes | Hex bytes, such as `'\x00ff'::bytea` | `BINARY` |
+General Table declarations admit every logical family in the table below.
+Canonical width spellings INT8/16/32/64/128 and UINT8/16/32/64/128 state their bit
+width. SMALLINT means INT16; INTEGER/INT means INT32; BIGINT means INT64. INT8
+always means eight bits. REAL means FLOAT32; DOUBLE PRECISION means FLOAT64;
+BOOLEAN/BOOL, TEXT/UTF8 and unbounded VARCHAR/CHARACTER VARYING are aliases.
+NUMERIC and DECIMAL declare exact decimal values. The complete alias and
+parameter rules live in the [Table type resolver](../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver).
 
-The last column applies to the shared offline [CREATE TABLE](create-table.md)
-and [CREATE KV](create-kv.md) compiler. Compilation validates a definition; it
-does not provision a resource. The separate catalog operation can publish a
-compatible empty Table under current permission. KV publication is unavailable.
-Its Table adapter requires
-exactly two columns: an int64 non-null key and a nullable value of int64, boolean,
-UTF-8 or binary, with explicit nullability. Other valid offline definitions do
-not establish storage support. See the
-[state declaration contract](../../../contracts/STATE_DECLARATION_V1.md).
-Types available to a typed query plan do not automatically acquire SQL literal,
-DDL, mutation or transport support. There are no implicit conversions; a
-comparison must match the column's exact scalar type.
+DECIMAL defaults to precision 38 and scale 0, with precision 1–38 and scale
+0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length;
+nested VARCHAR(n), CHAR padding, BINARY(n)/VARBINARY and FLOAT(p) reject because
+they have no selected semantics. TIME defaults to nanosecond precision and
+TIMESTAMP to microsecond precision. Civil and UTC timestamps are distinct;
+TIME WITH TIME ZONE and named IANA zones are unsupported.
 
-The signed integer range is -9223372036854775808 through 9223372036854775807.
-Decoded SQL text/binary literal cells have a 220-byte bound. See
-[syntax and literals](syntax.md#query-literals) for escaping and parser bounds.
+[CREATE TABLE](create-table.md) and typed DML bind constants directly to the
+column descriptor. Strings use doubled single quotes; binary uses X'hex'.
+Date/time/timestamp/UUID accept exact string forms. STRUCT, LIST, ARRAY, MAP,
+UNION and INTERVAL constructors and JSON strings have the
+[shared typed constant grammar](../../../contracts/TABLE_DDL_V1.md#type-and-literal-profile).
+A storable nested value does not acquire a SQL comparison or aggregate operator.
 
-SQL has no `DECIMAL`, date, time, timestamp, interval, array, map or JSON type
-syntax. SQL file-reading functions are unsupported; the file-query command
-captures and binds inputs explicitly before SQL compilation.
-Accepted Document fields can be exposed through an explicit scalar
-projection; this does not add JSON path expressions to SQL. The interface does
-not choose a fixed-point representation for application monetary values.
+Read SQL has a separately selected comparison-literal profile. Native general
+Table comparisons bind constants to the declared scalar type. Explicit uint64
+and float64 suffixes remain available; file and configured scalar-source query
+profiles keep their documented exact scalar operands. SQL file-reading functions
+are unsupported: the file-query command captures and binds inputs explicitly.
+Accepted Document fields retain their explicit projection; Table JSON does not
+add Document merge semantics or SQL JSON-path expressions.
 
 ## Cell states
 
@@ -87,7 +80,7 @@ Query cells retain a state as well as a declared type:
 
 | State | Meaning | SQL behavior |
 | --- | --- | --- |
-| Value | A value of the declared scalar type | `IS VALUE` selects it; comparisons require exactly typed operands |
+| Value | A value of the declared logical type | `IS VALUE` selects it; comparisons require exactly typed operands |
 | Null | Explicit absence of a value | `IS NULL` selects it |
 | Missing | No value at a declared projection or optional field | `IS MISSING` selects it; distinct from null |
 | Type error | The source cannot supply the declared type | `IS TYPE_ERROR` selects it; preserved in row results |
@@ -110,9 +103,8 @@ by native query v1 does not imply support through every SQL transport. See
 ## Logical family capabilities
 
 All families below have canonical descriptors/fingerprints, owned neutral binary
-and JSON values, logical Arrow IPC export, and the local Python/TypeScript codec
-APIs. These capabilities do not imply storage, SQL syntax or native transport
-admission. Parameters, traits and exact encodings are specified in the
+and JSON values, logical Arrow IPC export, and typed values in the enabled SDKs. Storage, SQL operators and individual
+transports retain separate admission limits. Parameters, traits and exact encodings are specified in the
 [type contract](../../../contracts/FUZE_TYPES_V1.md).
 
 | Family | Values and operations | File decoding |
@@ -145,21 +137,18 @@ batch. A value can be valid logically and too large for a selected transport.
 
 | Surface | Admitted types and behavior |
 | --- | --- |
-| Zig logical types, neutral codecs and local Python/TypeScript codec owners | All logical families above, with the selected conversion/trait operations; no acquisition or durable admission |
-| Zig file sources and local CLI | Frozen CSV/JSONL schemas up to 128 root fields; logical projection, exactly typed scalar predicates, COUNT and int64 SUM; explicit host capture |
-| Native finite/session/durable query plans | Existing six-scalar profile, explicit KV/Table/Document sources and one to eight columns; no file-source admission |
-| SQL literals and offline declarations | The exact scalar/token table above; a parsed declaration does not create storage |
-| Catalog publication and stored Tables | Declared int64 key and one nullable int64/boolean/UTF-8/binary value; historical/richer schemas remain separately scoped |
-| Board and native/foreign query SDKs | Views/callers of the admitted native contracts; no file acquisition or separate inference authority. Other language SDKs do not advertise rich logical owners merely because an ABI declaration exists. |
-| Logical Arrow IPC export | All logical families plus exact type metadata and five-state wrappers; no logical IPC import or C Data admission |
-| Native Arrow and Flight SQL | Native six-scalar query profile with cell states; Flight retains its primitive-int64 Table subset |
+| Zig logical types, neutral codecs and enabled typed SDK owners | All logical families above; exact owned values and selected conversions/traits |
+| Zig file sources and local CLI | Frozen CSV/JSONL schemas up to 128 root fields; logical projection, selected scalar predicates, COUNT and int64 SUM; explicit host capture |
+| Native finite/session/durable query plans | Logical schemas up to 128 columns over declared KV/Table/Document sources; no file acquisition |
+| Catalog publication and stored Tables | General typed schemas, typed defaults, optional single/composite primary keys, selected CREATE/ALTER/DROP and atomic DML |
+| Board and native/foreign query SDKs | Views/callers of the admitted native contracts; no separate inference authority or implicit write grants |
+| Logical Arrow IPC export and native results | All logical families, exact type metadata and five-state wrappers; no logical IPC import or C Data admission |
+| Flight SQL | Its configured primitive-int64 Table subset; logical native support does not widen Flight admission |
+| Reactive Table transport | The explicitly qualified two-int64-column profile; general finite Table reads do not widen watch admission |
 
-Adding a local type or codec action leaves existing accepted native query work,
-stored formats and operation meanings unchanged. The new logical type/source/
-Arrow documents require their own exact current definitions. Missing or foreign
-definitions reject before execution; saved bindings never infer a current
-identifier or reinterpret old work. Future incompatible changes follow the
-[v1 hard-cutover policy](../versioning.md).
+Missing or foreign format definitions reject before execution. Saved bindings
+never infer a current identifier or reinterpret old work. Incompatible changes
+follow the [v1 hard-cutover policy](../versioning.md).
 
 ## Schema discovery and binding
 

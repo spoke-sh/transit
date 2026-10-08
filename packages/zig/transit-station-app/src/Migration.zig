@@ -16,6 +16,8 @@ pub const Phase = enum(u8) { active = 1, applied = 2, abandoned = 3 };
 pub const Progress = struct { next: Wide = .{ .value = 1 }, phase: Phase = .active, cursor: p.Value = .{}, input: u64 = 0 };
 pub const Step = struct { plan: Wide, ordinal: Wide, operation: u16, arguments: p.Value = .{} };
 pub const Receipt = struct { plan: Wide, ordinal: Wide, digest: [32]u8, input: u64, progress: Progress };
+pub const Pending = struct { step: Step, digest: [32]u8, input: u64 };
+const StepRecord = union(enum) { pending: Pending, complete: Receipt };
 pub const Transition = union(enum) { advance: p.Value, activate: void };
 configuration: Configuration,
 failure: ?*root.MigrationFailure.Witness = null,
@@ -79,9 +81,13 @@ pub fn setPolicy(self: Self, turn: *Turn, principal: u64, expected: Wide, next: 
     }
     try turn.write(self.address('P', principal, 0), try c.encode('P', next));
 }
-fn authorize(self: Self, turn: *Turn) !u64 {
+/// Check current external migration authority before application-specific inspection.
+pub fn authorize(self: Self, turn: *Turn) !u64 {
     try self.check(turn);
     const principal = try who(turn);
+    return self.authorizePrincipal(turn, principal);
+}
+fn authorizePrincipal(self: Self, turn: *Turn, principal: u64) !u64 {
     const current = try self.policy(turn, principal);
     if (current == null or !current.?.migrate) {
         self.remember(.{ .policy = .{ .principal = principal, .expected = .{}, .actual = if (current) |value| value.revision else .{}, .present = current != null, .migrate = if (current) |value| value.migrate else false } });
@@ -98,8 +104,37 @@ pub fn plan(self: Self, reader: anytype, id: Wide) !?Plan {
 pub fn progress(self: Self, reader: anytype, id: Wide) !Progress {
     return c.decode(Progress, 'G', (try reader.read(self.address('G', id.value, 0))) orelse return error.MigrationPlanAbsent);
 }
+fn stepRecord(self: Self, reader: anytype, step: Step) !?StepRecord {
+    const value = (try reader.read(self.address('S', step.plan.value, step.ordinal.value))) orelse return null;
+    try value.validate();
+    if (value.len < 4) return error.InvalidApplicationRecord;
+    switch (value.data[3]) {
+        'T' => {
+            const result = try c.decode(Pending, 'T', value);
+            if (result.step.plan.value != step.plan.value or result.step.ordinal.value != step.ordinal.value or result.input == 0) return error.InvalidApplicationRecord;
+            return .{ .pending = result };
+        },
+        'S' => {
+            const result = try c.decode(Receipt, 'S', value);
+            if (result.plan.value != step.plan.value or result.ordinal.value != step.ordinal.value or result.input == 0) return error.InvalidApplicationRecord;
+            return .{ .complete = result };
+        },
+        else => return error.InvalidApplicationRecord,
+    }
+}
 pub fn receipt(self: Self, reader: anytype, step: Step) !?Receipt {
-    return if (try reader.read(self.address('S', step.plan.value, step.ordinal.value))) |value| try c.decode(Receipt, 'S', value) else null;
+    return if (try self.stepRecord(reader, step)) |record| switch (record) {
+        .complete => |value| value,
+        .pending => null,
+    } else null;
+}
+/// Admission evidence is separate from a completed step receipt. Current read
+/// authorization remains the caller's responsibility, as for plan/progress.
+pub fn pending(self: Self, reader: anytype, step: Step) !?Pending {
+    return if (try self.stepRecord(reader, step)) |record| switch (record) {
+        .pending => |value| value,
+        .complete => null,
+    } else null;
 }
 fn hash(comptime domain: []const u8, bytes: p.Value) [32]u8 {
     var value = std.crypto.hash.sha2.Sha256.init(.{});
@@ -149,20 +184,53 @@ pub fn begin(self: Self, turn: *Turn, proposal: Proposal) !Progress {
 /// It may write at most two domain records, or one for an activation. Errors roll
 /// back the complete decision, including tentative domain mutations.
 pub fn apply(self: Self, turn: *Turn, step: Step, domain: anytype) !Receipt {
-    const principal = try self.authorize(turn);
+    return (try self.applyInternal(false, false, turn, step, domain)).?;
+}
+/// First records the immutable step without invoking the domain. Subsequent
+/// domain.stage(turn, plan, progress, pending) calls return null while staging
+/// (up to four domain writes) or a terminal Transition. Completion reserves two
+/// ledger writes, or three for activation. Every continuation checks current
+/// policy and the exact arguments; only completion advances ledger progress.
+pub fn stage(self: Self, turn: *Turn, step: Step, domain: anytype) !?Receipt {
+    return self.applyInternal(true, false, turn, step, domain);
+}
+/// Only this native owner's self-message can continue a previously admitted
+/// step. The original principal's current migration policy remains mandatory.
+pub fn continueStage(self: Self, turn: *Turn, step: Step, domain: anytype) !?Receipt {
+    return self.applyInternal(true, true, turn, step, domain);
+}
+fn applyInternal(self: Self, comptime staged: bool, continuation: bool, turn: *Turn, step: Step, domain: anytype) !?Receipt {
+    const principal = if (continuation) value: {
+        if (turn.delivery.input.origin != .process or turn.delivery.input.origin.process.pid != turn.delivery.pid) return error.MigrationDenied;
+        try self.check(turn);
+        const recorded = (try self.plan(turn, step.plan)) orelse return error.MigrationPlanAbsent;
+        break :value try self.authorizePrincipal(turn, recorded.principal);
+    } else try self.authorize(turn);
     const selected = (try self.plan(turn, step.plan)) orelse return error.MigrationPlanAbsent;
     if (selected.principal != principal) {
         self.remember(.{ .owner = .{ .principal = selected.principal, .caller = principal } });
         return error.MigrationDenied;
     }
     const digest = try self.stepDigest(selected, step);
-    if (try self.receipt(turn, step)) |previous| {
-        if (!std.mem.eql(u8, &previous.digest, &digest)) {
-            self.remember(.{ .step = .{ .expected = previous.digest, .actual = digest } });
+    var admitted: ?Pending = null;
+    if (try self.stepRecord(turn, step)) |record| {
+        if (record == .pending) {
+            const stored_digest = self.stepDigest(selected, record.pending.step) catch return error.InvalidApplicationRecord;
+            if (!std.mem.eql(u8, &record.pending.digest, &stored_digest)) return error.InvalidApplicationRecord;
+        }
+        const previous_digest = switch (record) {
+            inline else => |value| value.digest,
+        };
+        if (!std.mem.eql(u8, &previous_digest, &digest)) {
+            self.remember(.{ .step = .{ .expected = previous_digest, .actual = digest } });
             return error.MigrationStepConflict;
         }
-        return previous;
+        switch (record) {
+            .complete => |value| return value,
+            .pending => |value| admitted = value,
+        }
     }
+    if (continuation and admitted == null) return error.MigrationDenied;
     var current = try self.head(turn);
     var state = try self.progress(turn, step.plan);
     if (current.active.value != step.plan.value or state.phase != .active or state.next.value != step.ordinal.value) {
@@ -179,7 +247,12 @@ pub fn apply(self: Self, turn: *Turn, step: Step, domain: anytype) !Receipt {
     };
     const before = turn.decision;
     errdefer turn.decision = before;
-    const transition = try domain.apply(turn, selected, state, step);
+    const frozen: Pending = admitted orelse .{ .step = step, .digest = digest, .input = turn.delivery.input.position };
+    if (staged and admitted == null) {
+        try turn.write(self.address('S', step.plan.value, step.ordinal.value), try c.encode('T', frozen));
+        return null;
+    }
+    const transition = if (staged) (try domain.stage(turn, selected, state, frozen)) orelse return null else try domain.apply(turn, selected, state, step);
     state.next.value = next_ordinal;
     state.input = turn.delivery.input.position;
     switch (transition) {
@@ -194,7 +267,7 @@ pub fn apply(self: Self, turn: *Turn, step: Step, domain: anytype) !Receipt {
             try turn.write(self.address('H', 0, 0), try c.encode('H', current));
         },
     }
-    const result: Receipt = .{ .plan = step.plan, .ordinal = step.ordinal, .digest = digest, .input = turn.delivery.input.position, .progress = state };
+    const result: Receipt = .{ .plan = step.plan, .ordinal = step.ordinal, .digest = digest, .input = frozen.input, .progress = state };
     try turn.write(self.address('G', step.plan.value, 0), try c.encode('G', state));
     try turn.write(self.address('S', step.plan.value, step.ordinal.value), try c.encode('S', result));
     return result;

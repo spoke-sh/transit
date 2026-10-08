@@ -4,7 +4,9 @@ use std::{
     io::{self, BufRead, Write},
 };
 use transit_client::{ClientConfig, Credential, ProcessRef, ResourceRef};
-use transit_station_sdk::{Aggregate, Comparison, DocumentReference, unified as q};
+use transit_station_sdk::{
+    Aggregate, Comparison, DocumentReference, catalog as c, logical as l, unified as q,
+};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 fn hex(v: &[u8]) -> String {
     v.iter().map(|b| format!("{b:02x}")).collect()
@@ -37,13 +39,13 @@ fn reference(
 }
 fn projection(
     name: &str,
-    datatype: q::Type,
+    datatype: q::DecoderType,
     relative: bool,
     mode: q::ProjectionMode,
     path: Vec<String>,
 ) -> q::Projection {
     q::Projection {
-        column: q::Column {
+        column: q::DecoderColumn {
             name: name.into(),
             value_type: datatype,
         },
@@ -52,6 +54,49 @@ fn projection(
         mode,
         text_bytes: 4096,
         text_steps: 4096,
+    }
+}
+fn table_source(columns: Vec<c::Column>) -> transit_client::Result<q::Source> {
+    Ok(q::Source::Table {
+        owner: ProcessRef::new(1, 3)?,
+        metadata: c::Metadata {
+            scope: c::Scope::new(ResourceRef::new(1, 7)?, 9)?,
+            object: 9,
+            revision: 1,
+            name: "items".into(),
+            schema_fingerprint: [1; 32],
+            principal: 17,
+            operation: 1,
+            admitted_input: 1,
+            commitment: c::MetadataCommitment {
+                bytes: 200,
+                digest: [1; 32],
+            },
+        },
+        schema: c::Schema {
+            object: 9,
+            revision: 1,
+            next_column: columns.len() as u64 + 1,
+            columns,
+            primary_key: vec![],
+        },
+    })
+}
+fn wire_type(value: &l::Descriptor) -> Value {
+    use l::Descriptor as D;
+    fn element(v: &l::Element) -> Value {
+        json!({"type":wire_type(&v.datatype),"nullable":v.nullable})
+    }
+    match value {
+        D::Scalar(kind) => json!({format!("{kind:?}").to_lowercase():{}}),
+        D::Decimal { precision, scale } => json!({"decimal":{"precision":precision,"scale":scale}}),
+        D::Timestamp(zone) => json!({"timestamp":format!("{zone:?}").to_lowercase()}),
+        D::Structure(fields) | D::TaggedUnion(fields) => {
+            json!({if matches!(value,D::Structure(_)){"structure"}else{"tagged_union"}:fields.iter().map(|f|json!({"name":f.name,"type":wire_type(&f.datatype),"nullable":f.nullable,"optional":f.optional})).collect::<Vec<_>>()})
+        }
+        D::List(v) => json!({"list":element(v)}),
+        D::Array { element: v, length } => json!({"array":{"element":element(v),"length":length}}),
+        D::Map { key, value } => json!({"map":{"key":wire_type(key),"value":element(value)}}),
     }
 }
 fn inspected_atom(value: q::InspectedAtom) -> Value {
@@ -65,7 +110,7 @@ fn inspected_atom(value: q::InspectedAtom) -> Value {
             comparison,
             value_type,
         } => {
-            json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}})
+            json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":wire_type(&value_type)}})
         }
     }
 }
@@ -75,29 +120,34 @@ fn codecs(config: &Value) -> AnyResult<()> {
         q::Source::KV {
             resource,
             prefix: b"data/".to_vec(),
-            key: q::Decoder::v1(q::Type::Binary),
-            value: q::Decoder::v1(q::Type::Uint64),
+            key: q::Decoder::v1(q::DecoderType::Binary),
+            value: q::Decoder::v1(q::DecoderType::Uint64),
         },
-        q::Source::Table {
-            resource,
-            table: 9,
-            names: ["id".into(), "label".into()],
-            value_type: q::Type::Utf8,
-        },
+        table_source(vec![
+            c::Column {
+                nullable: false,
+                ..c::Column::new(1, "id".into(), l::Descriptor::Scalar(l::ScalarType::Int64))
+            },
+            c::Column::new(
+                2,
+                "label".into(),
+                l::Descriptor::Scalar(l::ScalarType::Utf8),
+            ),
+        ])?,
         q::Source::Document {
             reference: reference(resource, u64::MAX, 3, 42)?,
             expand: None,
             projections: vec![
                 projection(
                     "title",
-                    q::Type::Utf8,
+                    q::DecoderType::Utf8,
                     false,
                     q::ProjectionMode::Scalar,
                     vec!["title".into()],
                 ),
                 projection(
                     "body",
-                    q::Type::Utf8,
+                    q::DecoderType::Utf8,
                     false,
                     q::ProjectionMode::Text,
                     vec!["body".into()],
@@ -114,7 +164,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
                 column: 1,
                 comparison: Comparison::Ne,
                 value: if index == 0 {
-                    q::Scalar::Uint64(u64::MAX)
+                    q::Scalar::Unsigned(u128::from(u64::MAX))
                 } else {
                     q::Scalar::Utf8("x".repeat(512))
                 },
@@ -170,16 +220,16 @@ fn codecs(config: &Value) -> AnyResult<()> {
     }
     let boolean_fixtures: Value = serde_json::from_slice(&fs::read(text(config, "boolean"))?)?;
     let types = [
-        q::Type::Int64,
-        q::Type::Uint64,
-        q::Type::Float64,
-        q::Type::Boolean,
-        q::Type::Utf8,
-        q::Type::Binary,
+        q::DecoderType::Int64,
+        q::DecoderType::Uint64,
+        q::DecoderType::Float64,
+        q::DecoderType::Boolean,
+        q::DecoderType::Utf8,
+        q::DecoderType::Binary,
     ];
     let scalars = [
-        q::Scalar::Int64(i64::MIN),
-        q::Scalar::Uint64(u64::MAX),
+        q::Scalar::Signed(i128::from(i64::MIN)),
+        q::Scalar::Unsigned(u128::from(u64::MAX)),
         q::Scalar::Float64(-0.0),
         q::Scalar::Boolean(true),
         q::Scalar::Utf8("café é 🙂".into()),
@@ -192,7 +242,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
             resource,
             prefix: vec![],
             key: q::Decoder::v1(types[number(fixture, "type") as usize - 1]),
-            value: q::Decoder::v1(q::Type::Uint64),
+            value: q::Decoder::v1(q::DecoderType::Uint64),
         };
         let instructions = if index < 7 {
             vec![
@@ -247,8 +297,8 @@ fn codecs(config: &Value) -> AnyResult<()> {
         let source = q::Source::KV {
             resource,
             prefix: vec![],
-            key: q::Decoder::v1(q::Type::Int64),
-            value: q::Decoder::v1(q::Type::Uint64),
+            key: q::Decoder::v1(q::DecoderType::Int64),
+            value: q::Decoder::v1(q::DecoderType::Uint64),
         };
         let mut oversized = vec![I::Atom(A::All)];
         oversized.extend(vec![I::Negate; 64]);
@@ -294,9 +344,9 @@ fn codecs(config: &Value) -> AnyResult<()> {
         prefix: vec![],
         key: q::Decoder {
             version: 2,
-            value_type: q::Type::Binary,
+            value_type: q::DecoderType::Binary,
         },
-        value: q::Decoder::v1(q::Type::Utf8),
+        value: q::Decoder::v1(q::DecoderType::Utf8),
     };
     assert!(
         q::Bundle::prepare(
@@ -318,17 +368,26 @@ fn codecs(config: &Value) -> AnyResult<()> {
         .is_err()
     );
     let columns = [
-        ("int64", q::Type::Int64),
-        ("uint64", q::Type::Uint64),
-        ("float64", q::Type::Float64),
-        ("boolean", q::Type::Boolean),
-        ("utf8", q::Type::Utf8),
-        ("binary", q::Type::Binary),
+        ("int64", q::DecoderType::Int64),
+        ("uint64", q::DecoderType::Uint64),
+        ("float64", q::DecoderType::Float64),
+        ("boolean", q::DecoderType::Boolean),
+        ("utf8", q::DecoderType::Utf8),
+        ("binary", q::DecoderType::Binary),
     ]
     .into_iter()
-    .map(|(name, value_type)| q::Column {
+    .map(|(name, _)| q::Column {
         name: name.into(),
-        value_type,
+        value_type: l::Descriptor::Scalar(match name {
+            "int64" => l::ScalarType::Int64,
+            "uint64" => l::ScalarType::Uint64,
+            "float64" => l::ScalarType::Float64,
+            "boolean" => l::ScalarType::Boolean,
+            "utf8" => l::ScalarType::Utf8,
+            _ => l::ScalarType::Binary,
+        }),
+        nullable: true,
+        optional: true,
     })
     .collect::<Vec<_>>();
     let rows = q::decode_arrow(&columns, &fs::read(text(config, "arrow"))?, 5, None)?;
@@ -338,18 +397,18 @@ fn codecs(config: &Value) -> AnyResult<()> {
     assert!(
         rows[2]
             .iter()
-            .all(|v| matches!(v,q::Cell::TypeError(k) if k=="map"))
+            .all(|v| matches!(v, q::Cell::TypeError(l::TypeKind::Map)))
     );
     let expected = [
-        q::Scalar::Int64(i64::MIN),
-        q::Scalar::Uint64(u64::MAX),
+        q::Scalar::Signed(i128::from(i64::MIN)),
+        q::Scalar::Unsigned(u128::from(u64::MAX)),
         q::Scalar::Float64(-0.0),
         q::Scalar::Boolean(false),
         q::Scalar::Utf8("café é 東京🙂".into()),
         q::Scalar::Binary(vec![0, 255, 128]),
     ];
     for (index, expected) in expected.iter().enumerate() {
-        assert!(matches!(&rows[3][index],q::Cell::Value(v) if v==expected));
+        assert!(matches!(&rows[3][index],q::Cell::Value(l::CellValue::Atom(v)) if v==expected));
         let q::Cell::Conflict(values) = &rows[4][index] else {
             panic!("Missing conflict")
         };
@@ -363,16 +422,72 @@ fn codecs(config: &Value) -> AnyResult<()> {
             ),
             (u64::MAX, 1, u64::MAX, 2)
         );
-        assert!(matches!(&values[0].value,q::AlternativeValue::Value(v) if v==expected));
+        assert!(
+            matches!(&values[0].value,q::AlternativeValue::Value(l::CellValue::Atom(v)) if v==expected)
+        );
         assert!(matches!(values[1].value, q::AlternativeValue::Null));
     }
     assert!(
-        matches!(rows[3][2],q::Cell::Value(q::Scalar::Float64(v)) if v.to_bits()==(-0.0f64).to_bits())
+        matches!(rows[3][2],q::Cell::Value(l::CellValue::Atom(q::Scalar::Float64(v))) if v.to_bits()==(-0.0f64).to_bits())
     );
     assert!(q::decode_arrow(&columns, &fs::read(text(config, "empty"))?, 0, None)?.is_empty());
     assert!(q::decode_arrow(&columns, &fs::read(text(config, "malformed"))?, 5, None).is_err());
+    let wide_source = table_source(
+        (0..128)
+            .map(|i| {
+                c::Column::new(
+                    i + 1,
+                    format!("列 {i}"),
+                    l::Descriptor::Scalar(l::ScalarType::Uint128),
+                )
+            })
+            .collect(),
+    )?;
+    let wide = q::Bundle::prepare(
+        &wide_source,
+        &q::Plan {
+            projection: (0..128).collect(),
+            output_names: None,
+            predicate: q::Predicate::Compare {
+                column: 127,
+                comparison: Comparison::Eq,
+                value: q::Scalar::Unsigned(u128::MAX),
+            },
+            limit: None,
+            aggregate: Aggregate::Rows,
+        },
+        q::Budgets {
+            pages: 1,
+            segments: 1,
+            result_bytes: 65536,
+        },
+        None,
+    )?;
+    assert!(wide.data().len() > 1000);
+    let datatype = l::Descriptor::List(l::Element::new(
+        l::Descriptor::Scalar(l::ScalarType::Uint128),
+        true,
+    ));
+    let nested = q::decode_arrow(
+        &[q::Column {
+            name: "value".into(),
+            value_type: datatype,
+            nullable: false,
+            optional: false,
+        }],
+        &fs::read(text(config, "nested"))?,
+        1,
+        None,
+    )?;
+    assert_eq!(
+        nested,
+        vec![vec![q::Cell::Value(l::CellValue::List(vec![
+            q::Cell::Value(l::CellValue::Atom(q::Scalar::Unsigned(u128::MAX))),
+            q::Cell::Null
+        ]))]]
+    );
     println!(
-        "Rust installed unified codecs: three sources, nine Boolean bundles, six types, five states and malformed rejection passed"
+        "Rust installed unified codecs: three sources, nine Boolean bundles, six scalar types, 128 columns, nested uint128, five states and malformed rejection passed"
     );
     Ok(())
 }
@@ -381,7 +496,7 @@ fn inspection(value: q::Inspection) -> Value {
         json!(
             values
                 .into_iter()
-                .map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()}))
+                .map(|v| json!({"name":v.name,"type":wire_type(&v.value_type),"nullable":v.nullable,"optional":v.optional}))
                 .collect::<Vec<_>>()
         )
     }
@@ -411,7 +526,7 @@ fn inspection(value: q::Inspection) -> Value {
                     comparison,
                     value_type,
                 } => {
-                    json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}})
+                    json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":wire_type(&value_type)}})
                 }
                 q::InspectedPredicate::Program(instructions) => {
                     json!({"program":instructions.into_iter().map(|v|match v {
@@ -447,43 +562,52 @@ fn serve(config: &Value) -> AnyResult<()> {
         "kv" => q::Source::KV {
             resource,
             prefix: b"k".to_vec(),
-            key: q::Decoder::v1(q::Type::Binary),
-            value: q::Decoder::v1(q::Type::Utf8),
+            key: q::Decoder::v1(q::DecoderType::Binary),
+            value: q::Decoder::v1(q::DecoderType::Utf8),
         },
-        "table" => q::Source::Table {
-            resource,
-            table: 1,
-            names: ["id".into(), "value".into()],
-            value_type: q::Type::Utf8,
-        },
+        "table" => {
+            let owner = connection.source();
+            let mut catalog = c::Client::open(
+                ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
+                Credential::new(realm, number(v, "principal"), text(config, "seed_file"))?,
+                c::Connection::new(owner, c::Scope::new(resource, 1)?)?,
+            )?;
+            let definition = catalog.lookup("items")?.expect("Missing catalog Table");
+            catalog.close()?;
+            q::Source::Table {
+                owner,
+                metadata: definition.metadata,
+                schema: definition.schema,
+            }
+        }
         _ => q::Source::Document {
             reference: reference(resource, 17, 1, 13)?,
             expand: Some(vec!["items".into()]),
             projections: vec![
                 projection(
                     "value",
-                    q::Type::Utf8,
+                    q::DecoderType::Utf8,
                     true,
                     q::ProjectionMode::Scalar,
                     vec![],
                 ),
                 projection(
                     "counter",
-                    q::Type::Uint64,
+                    q::DecoderType::Uint64,
                     true,
                     q::ProjectionMode::ElementCounter,
                     vec![],
                 ),
                 projection(
                     "replica",
-                    q::Type::Uint64,
+                    q::DecoderType::Uint64,
                     true,
                     q::ProjectionMode::ElementReplica,
                     vec![],
                 ),
                 projection(
                     "optional",
-                    q::Type::Utf8,
+                    q::DecoderType::Utf8,
                     false,
                     q::ProjectionMode::Scalar,
                     vec!["optional".into()],
@@ -560,7 +684,7 @@ fn serve(config: &Value) -> AnyResult<()> {
     let description = client.describe(&source)?;
     assert_eq!(
         (description.bundle_bytes, description.batch_rows),
-        (16384, 8)
+        (25069, 8)
     );
     println!("{}", json!({"ready":true}));
     io::stdout().flush()?;
@@ -581,11 +705,11 @@ fn serve(config: &Value) -> AnyResult<()> {
                                 let (kind, data) =
                                     value.as_object().unwrap().iter().next().unwrap();
                                 match kind.as_str() {
-                                    "int64" => {
-                                        q::Scalar::Int64(data.as_str().unwrap().parse().unwrap())
+                                    "signed" => {
+                                        q::Scalar::Signed(data.as_str().unwrap().parse().unwrap())
                                     }
-                                    "uint64" => {
-                                        q::Scalar::Uint64(data.as_str().unwrap().parse().unwrap())
+                                    "unsigned" => {
+                                        q::Scalar::Unsigned(data.as_str().unwrap().parse().unwrap())
                                     }
                                     "float_bits" => q::Scalar::Float64(f64::from_le_bytes(
                                         unhex(data.as_str().unwrap()).try_into().unwrap(),
@@ -665,7 +789,8 @@ fn serve(config: &Value) -> AnyResult<()> {
             "{}",
             match result {
                 Ok(value) => json!({"status":0,"value":value}),
-                Err(error) => json!({"status":error.status,"value":{"err":error.code,"diagnostic":error.diagnostic,"diagnostic_invalid":error.diagnostic_invalid}}),
+                Err(error) =>
+                    json!({"status":error.status,"value":{"err":error.code,"diagnostic":error.diagnostic,"diagnostic_invalid":error.diagnostic_invalid}}),
             }
         );
         io::stdout().flush()?;

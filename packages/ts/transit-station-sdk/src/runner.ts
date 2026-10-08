@@ -17,7 +17,7 @@ import { DocumentReader } from "./document.ts";
 import { context } from "./context.ts";
 import { unhex } from "./framing.ts";
 import { createTurn, type Turn } from "./turn.ts";
-import { ResultReader } from "./query.ts";
+import { ResultReader, type QueryFailure } from "./query.ts";
 import {
   decodeHttpWithBridge,
   HttpOutcome,
@@ -60,6 +60,7 @@ export interface Handler<M> {
   handle(turn: Turn, incoming: Incoming<M>): Promise<void>;
   handleControl?(turn: Turn, input: Control): Promise<void>;
   handleResult?(turn: Turn, result: ResultReader): Promise<void>;
+  handleQueryFailure?(turn: Turn, failure: QueryFailure): Promise<void>;
   handleGrpcReply?(turn: Turn, input: Reply<GrpcReply>): Promise<void>;
   handleHttpReply?(turn: Turn, input: Reply<HttpReply>): Promise<void>;
 }
@@ -318,6 +319,18 @@ export class Runner<M> implements AsyncDisposable {
             correlation,
           });
           dispatch = () => this.#handler.handle(turn, incoming);
+        } else if (input.kind === "result_failed") {
+          if (typeof this.#handler.handleQueryFailure !== "function")
+            throw new HandlerError("A negative query outcome requires handleQueryFailure");
+          if (!input.query_failure) throw new HandlerError("Missing native query failure");
+          const failure: QueryFailure = Object.freeze({
+            position: input.position,
+            origin: provenance,
+            correlation,
+            result: input.query_failure.result,
+            reason: input.query_failure.reason,
+          });
+          dispatch = () => this.#handler.handleQueryFailure!(turn, failure);
         } else if (input.kind === "result_complete") {
           if (typeof this.#handler.handleResult !== "function")
             throw new HandlerError("A verified query result requires handleResult");

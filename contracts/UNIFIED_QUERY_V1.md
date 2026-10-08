@@ -16,7 +16,7 @@ A source definition declares one resource and exactly one of these adapters:
 | Source   | Declared decoding / projection                                                                                                                                     | Ordering                                           |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
 | KV       | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys                        |
-| Table    | Exact Table ID and schema fingerprint; key and nullable value columns                                                                                              | Signed primary-key order                           |
+| Table    | Exact catalog scope, owner, stable object, immutable metadata and complete logical row type                                                                                              | Stable internal row identity order                           |
 | Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion                           | One root row, or accepted sequence traversal order |
 
 There is no KV schema inference or application callback. A decoder mismatch is a
@@ -32,19 +32,27 @@ budget and fails on overflow rather than returning a truncated string. All text
 projections share a 4096-transition page budget.
 
 Every batch binds source kind, resource ID, exact resource revision, source
-contract digest and input schema digest. The contract digest covers the complete
+contract digest and input schema digest. Table capture additionally commits the
+complete captured `TableHead` under SHA-256 of `transit.query.table-head.v1\0`
+followed by its canonical bytes. The full capture fingerprint hashes
+`transit.query.capture.v1\0`, kind u8, resource/revision u64 little-endian,
+contract digest, schema digest and head digest. KV/Document head digests are zero. The contract digest covers the complete
 adapter definition, including decoder/projection versions and Document identity.
 A query has one source cut. There are no cross-resource snapshots or joins.
-Current grants and Document floor/retirement remain live even when bytes come
-from a retained cut. Retention cannot turn a retired Document into a readable one.
+Current grants, catalog inspect/read policies and Document floor/retirement
+remain live even when bytes come from a retained cut. A new Table admission
+requires the exact live metadata; admitted jobs retain the original schema/head
+through ALTER, DROP and name reuse. Current catalog revocation still prevents
+continuation and result disclosure, including empty/LIMIT 0 reads. Retention cannot turn a retired Document into a readable one.
 
 ## Typed expressions and results
 
-The new schema admits up to eight named columns of int64, uint64, finite float64,
-boolean, UTF-8 or binary. Names and column order participate in its fingerprint.
-One model serves all three adapters. Typed rows borrow bounded adapter storage;
-plans borrow their explicitly owned immutable buffers. No native pointer is
-persisted in durable progress.
+Table schemas admit 1–128 named columns and every qualified Fuze logical family.
+KV retains its two explicit scalar decoders, and Document retains at most eight
+scalar projections. The adapters all produce the shared logical row descriptors
+and five-state values. Schema names and column order participate in identity;
+recursive fields retain nullability and optionality. Typed pages and plans borrow
+or own explicit bounded allocator storage; native pointers never persist.
 
 A cell has one of five states: `missing`, `null`, `type_error`, `value`, `conflict`.
 A typed projection of a conflict preserves up to eight ordered assignment IDs
@@ -67,9 +75,9 @@ unknown. Operands evaluate eagerly in instruction order; the first error aborts
 evaluation even when another operand determines the Boolean result. Validation
 checks every atom before source processing. Programs cannot contain jumps,
 references, recursion or nested programs; stack underflow and multiple final
-values reject. Evaluation uses a fixed 64-byte truth stack. Instruction storage
-is owned inline in the plan; text/binary literals keep their existing borrowed
-lifetime. Copying a plan does not borrow its original instruction storage.
+values reject. Evaluation uses a fixed 64-byte truth stack. Instructions, descriptors and literal storage belong to the plan owner; a shallow
+plan copy borrows those allocations. Canonical decode returns a complete owned
+plan, while embedded decoding shares its enclosing request arena.
 Sum ignores missing/null, rejects error/conflict and checks overflow in source
 order across page boundaries. Count includes selected rows, regardless of cell
 state. The `count_values` aggregate counts top-level value cells in its one
@@ -88,66 +96,38 @@ schema. Batches and total results have separate limits; durable cardinality is
 not a fixed resident array. Independent Arrow readers must qualify these layouts
 before they are advertised.
 
-The implemented pure profile uses at most eight rows per input page, 4096 bytes
-per variable-width scalar, a 64 KiB Arrow segment and 4 MiB of caller-owned Arrow
-workspace. Segment overflow is an error; callers cannot publish its partial
-output buffer. `FZP1` plans have an 8192-byte encoding budget. The 175-byte `FZS1`
-checkpoint binds source evidence and plan digest to global progress, value count, checked sum
-and explicit end/limit disposition. Adapter continuation is a separate owned
-record. These are resident/batch limits, not total source or result cardinality.
-
-`FZS1` encodes magic, source kind (u8), resource/revision (u64 each), source
-contract/schema digests (32 bytes each), plan digest (32 bytes), then six u64
-counters in order: pages, scanned, selected, value_count, segments, rows. A
-one-byte sum-present flag and i64 sum follow; absent sum requires zero bits.
-The final byte is 0 (unfinished), 1 (source end) or 2 (input limit). All integers
-are little-endian. `value_count` must not exceed selected rows and must be zero
-for other aggregate kinds; `count_values` cannot carry a sum. Missing/null rows
-consume the selected-row limit even though they do not increment value_count.
-The prior 167-byte encoding rejects; no accumulator is inferred or reset.
-The neutral result manifest exposes value_count as an unsigned decimal string.
+The logical stream profile uses at most eight rows per input page, 128 columns,
+a 64 KiB Arrow segment and 4 MiB of caller-owned Arrow workspace. Segment overflow
+rejects the complete candidate. Nested/value budgets remain those of
+[logical types](FUZE_TYPES_V1.md), independently of transport workspace budgets.
+Native source hosts also bound source/plan decoding to a 1 MiB adapter buffer.
+Exhausting that explicit buffer records `adapter_memory_budget`; exhausting the
+Arrow encoder workspace records `arrow_workspace_budget`. Both discard the
+candidate, retain the original query identity, close its failed execution and
+release its source pin. Neither asserts a measured required allocation size.
+External publication/storage errors and failures of a caller-supplied general
+allocator remain infrastructure failures; they do not become budget outcomes.
+A storable row may exceed a query transport working set. These bounds are
+independent of Table row/value limits and do not change stored data.
+Total source and result cardinality are governed by durable work limits.
 
 ## Canonical plans and output names
 
-A typed plan owns up to eight optional output names. A name applies to its
-output position, not its source column: a repeated source column is permitted
-when the resulting output names are distinct. An omitted name preserves the
-source name for rows or `count`/`sum` for an aggregate. Names use the schema's
-one-to-thirty-two-byte ASCII identifier rules and canonical zero padding. Slots
-beyond the output width must be empty. Duplicate output names reject; aliases
-never rename the source schema or confer access to another source.
+The current `FQP1` plan and 126-byte `FQS1` progress are defined by the
+[logical query contract](TABLE_QUERY_V1.md#canonical-logical-plans). Plans bind
+complete logical schema and source commitments, with an 8192-byte identity
+budget and at most 8448 encoded bytes. Output names are optional per position,
+1–255 UTF-8 bytes, with duplicate resulting names rejected. Repeated input
+columns need distinct output names. Native request plans bind to their source
+declaration; only authorized source capture replaces that binding with its exact
+capture fingerprint for execution.
 
-The current `FZP1` encoding starts with its four-byte magic and the mandatory
-32-byte SHA-256 of `transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01`. Missing or
-foreign plan definitions reject before the plan can bind or execute. Next come
-the aggregate byte (`rows` 0, `count` 1, `sum` 2, `count_values` 3),
-projection-count byte, and that many source-column bytes.
-Each output position then has a one-byte name length and exactly that many name
-bytes; zero means no explicit output name. The existing limit-present byte,
-little-endian u64 limit and predicate encoding follow. Absent limits retain a
-zero value. Canonical decoding rejects trailing bytes and malformed names.
-
-Predicate tags are 0 (all), 1 (state), 2 (compare) and 3 (program). A state atom
-contains a column byte and state byte. A comparison contains a column byte,
-comparison byte and scalar-type byte followed by the scalar payload: little-endian
-8-byte signed/unsigned integer or float bits, one canonical Boolean byte, or a
-little-endian u32 length followed by UTF-8/binary bytes. A program contains a
-one-byte instruction count and exactly that many instructions. Instruction tags
-0, 1 and 2 use the atom encodings above; tags 3, 4 and 5 are payload-free negate,
-conjunction and disjunction. An instruction cannot contain a program. Encodings
-preserve instruction order without simplification; a one-atom program remains
-distinct from a direct atom. Decoding is allocator-free: instructions and output
-names are owned, while projections and variable-width literals borrow the input.
-Truncation, invalid tags, noncanonical scalars and programs exceeding either the
-instruction or total plan-byte budget reject before binding.
-
-Output names participate in the plan fingerprint and the output-schema
-fingerprint. Execution, EXPLAIN and Arrow use the same validated output schema,
-including for empty results. Input basis/schema identity, filtering, aggregate
-arithmetic, source order, five-state cells and resource bounds are unchanged.
-The shared native definition also changes for this stored-framework cutover;
-old saved requests and authority heads require their matching build for recovery.
-There is no fallback decoder, automatic migration or data reset.
+Record decoding validates structural progress. Before resume or disclosure the
+host reconstructs the captured binding from the immutable request and checkpoint,
+then validates every counter against the exact bound plan. A structurally valid
+record alone is insufficient. Missing/foreign definitions, obsolete formats and
+changed bindings reject; no fallback decoder, inferred accumulator or data reset
+is permitted.
 
 ## Larger requests and durable publication
 
@@ -165,19 +145,46 @@ an existing upload. One active upload/query bounds admission independently of
 retained history. Abandon/cancel is explicit; a timeout or frontend disconnect is
 not remote cancellation.
 
-The canonical `UQB1` bundle has a 32-byte header: magic, u16 source length,
+The canonical `UQB1` bundle has a 64-byte header: magic, the 32-byte shared
+current definition, u16 source length,
 u16 plan length, then u64 maximum input pages, segments and result bytes. Integers
-are little-endian. Canonical `UQS1` source and `FZP1` plan bytes follow. Its total
-budget is 16 KiB; each component retains its own smaller bound. All three work
+are little-endian. Canonical `UQS1` source and `FQP1` plan bytes follow. Its total
+budget is 25069 bytes; source and plan bounds are 16557 and 8448 bytes. All three work
 budgets are positive and must fit the current durable source policy. The bundle
 uses the query-request publication domain, record 1, format `0x31425155`, referenced by Station's 72-byte `SPF1` encoding.
 Neither truncation nor trailing bytes is canonical.
 
+`UQS1` source declarations start with magic, the 32-byte shared definition,
+resource u64 and source kind u8. KV and Document retain their declared decoder/
+path payloads. A Table payload is a u16 length followed by the complete `TQS1`
+[Table source declaration](TABLE_QUERY_V1.md). Its declaration fingerprint is the
+`TQS1` fingerprint; KV/Document hash `transit.query.source.v1\0` and all `UQS1`
+bytes. The enclosing resource must equal the Table catalog resource.
+
 The source's revisioned `UQA1` policy binds the authenticated requester PID,
-request resource, allowed declaration and maximum budgets. Its declaration digest
-covers all decoder/projection details. Only an accepted Document revision may
-vary within that declaration; Document epoch, type, identity and change format
+request resource, target, enabled flag and maximum budgets. Its canonical bytes
+are `UQA1`, the 32-byte shared current definition, requester/request-resource/policy
+revision u64s, target, enabled byte and pages/segments/result-bytes u64s. Integers
+are little-endian. Missing/foreign definitions, noncanonical booleans, truncated
+records and extra bytes reject before execution; the definition is never supplied
+as a default when reading stored records.
+
+Target tag `1` carries a 32-byte declaration digest; the policy is 118 bytes.
+The digest covers decoder/projection details. Only an accepted Document revision
+may vary within that declaration; Document epoch, type, identity and change format
 remain fenced. Every accepted job also records the complete exact source digest.
+
+Target tag `2` carries five u64s: catalog realm/resource/namespace, owning process
+and delegated catalog principal; the policy is 126 bytes. Installation checks the
+catalog realm/resource/owner against the owning turn. The requester PID selects
+the committed policy; it is not interpreted as a principal. Neither query SQL nor
+a submitted Table declaration supplies the delegation. Current catalog inspect
+and read rights still apply independently. Mapping changes require a new policy
+revision and invalidate jobs admitted under the old policy revision. One catalog
+target can cover new Table objects without a new per-Table policy. It cannot
+permit KV/Document declarations or another catalog/owner. Declaration targets
+cannot supply catalog delegation. The general Table source adapter consumes this
+mapping; enabling it in durable job admission remains an integration requirement.
 
 The command envelope uses these distinct magic bytes: `UQI1` initialize,
 `UQB1` begin plus `SPF1`, `UQP1` part (u64 namespace, u32 chunk ordinal, one
@@ -222,8 +229,15 @@ record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
 reference, policy revision and retained version. Its final failure-presence byte
 and optional `UQF1` make it 143 or 255 bytes. Failed/denied jobs require a
 matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
-the `FZS1` engine progress, source-specific cursor, total bytes and ordered segment
-chain in at most 254 bytes. It fits the unchanged 256-byte KV value.
+magic, source kind u8, resource/revision u64, captured head digest (32 bytes),
+126-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
+after-key presence flag and optional length/bytes (at most 32). Table stores a
+presence flag, 20-byte row identity (zero if absent), and scanned-row u64.
+Document stores counter/replica u64 and traversal-phase u8. Total result bytes
+u64 and the ordered segment digest (32 bytes) finish the record. Integers are
+little-endian except the row identity's canonical big-endian encoding. Cursor
+ordinal is the progress page count. Maximum lengths are KV 254, Table 249 and
+Document 237 bytes, within the unchanged 256-byte KV value.
 
 `UQS1` segment metadata (in the separate result-record context) is 125 bytes:
 magic, u64 ordinal, u64 first row, u8 row count, `SPF1` reference and raw Arrow
@@ -248,13 +262,13 @@ counters include the rejected candidate segment, not committed progress.
 Tag 4 carries the original runtime witness. Its 104 bytes hold resource u56,
 revision u56, frozen binding SHA-256, one-based scanned row u64, source kind u8,
 operation u8 (validate/predicate/count/sum = 1/2/3/4), column u8, instruction u8
-(255 means absent), flags u8, expected scalar type u8, column-length u8, complete
+(255 means absent), flags u8, expected logical type u8, column-length u8, complete
 key-length u16, decoder actual-byte-count u16 and 39 detail bytes. The high bit
-of column-length marks truncation; the remaining bits give at most 23 ASCII
-column bytes. Detail contains that column prefix followed by the key prefix,
+of column-length marks truncation; the remaining bits give at most 23 complete UTF-8
+column bytes (19 for a Table, reserving its complete row identity). Detail contains that column prefix followed by the key prefix,
 then zero padding. Flags bits 0–1 name no key/KV/Table/Document element; bits 2–4
 name no decoder failure/invalid UTF-8/invalid length/invalid boolean/nonfinite
-float. All other flag bits are zero. Table keys use exact i64 bytes; Document
+float. All other flag bits are zero. Table keys use exact 20-byte stable row identities; Document
 element keys use two u64 values (counter, replica). Long KV keys use available
 remaining bytes and retain their complete length, so presentation marks truncation.
 An unexpanded Document has no element key. No stored cell value is included.
@@ -271,13 +285,16 @@ witness even if live source data changes. Earlier 24-byte failures reject; the
 shared definition cutover also rejects peers and saved work from that definition.
 
 Tag 5 carries source/policy evidence in the same 104-byte slot: reason u8,
-presence flags u8, budget dimension u8, one zero byte, resource u64, expected u64,
-actual u64, expected digest (32 bytes), actual digest (32 bytes), and 12 zero
-bytes. Presence bits 0–3 select the two numbers and two digests respectively;
+presence flags u8, budget dimension u8, object-presence boolean, resource u64,
+expected u64, actual u64, expected digest (32 bytes), actual digest (32 bytes),
+optional object u64 and four zero bytes. An absent object uses zero bytes. Presence bits 0–3 select the two numbers and two digests respectively;
 absent values have all-zero bytes. Reasons 1–9 are policy missing, policy
 disabled, policy revision changed, request resource mismatch, source resource
 mismatch, policy declaration mismatch, Table schema mismatch, frozen source
-contract mismatch and policy budget exceeded. Policy budget dimension uses
+contract mismatch and policy budget exceeded. Reason 10 is Table metadata
+mismatch: it requires the stable object ID, both metadata revisions and both
+publication digests from the original authorized comparison. Other reasons
+forbid an object. Equal revision-and-digest pairs are not mismatch evidence. Policy budget dimension uses
 1/2/3 for pages/segments/result bytes; other reasons require zero. Each reason
 validates its required number/hash shape; unused flags, bytes and noncanonical
 encodings reject. Tag 5 excludes runtime or execution-budget evidence.
@@ -381,6 +398,20 @@ This inventory does not claim to cover compiler, transport or other domain error
 | 56 | `writer_not_ready` | failed | The combined Table query and writer owner has not completed initialization. |
 | 57 | `request_resource_expired` | denied | The query request resource expired. |
 | 58 | `request_resource_missing` | denied | The query request resource no longer exists. |
+| 59 | `catalog_read_denied` | denied | Current catalog policy denies inspect/read. |
+| 60 | `catalog_owner_changed` | denied | The configured catalog owner no longer matches. |
+| 61 | `catalog_configuration_changed` | denied | Stored catalog configuration changed. |
+| 62 | `catalog_uninitialized` | denied | The catalog has no committed initialization. |
+| 63 | `table_absent` | denied | The requested Table object is absent. |
+| 64 | `table_retired` | denied | New admission cannot use a retired Table. |
+| 65 | `table_definition_changed` | failed | The immutable metadata reference changed; recompile new work. |
+| 66 | `definition_mismatch` | failed | The shared current definition does not match. |
+| 67 | `value_budget` | failed | A logical value exceeds its explicit decode/encode budget. |
+| 68 | `unsupported_comparison` | failed | The logical type has no supported comparison. |
+| 69 | `source_definition_too_large` | failed | The complete source declaration exceeds its source-profile bound. |
+| 70 | `catalog_scope_changed` | denied | The Table source and authorized catalog scopes differ. |
+| 71 | `adapter_memory_budget` | failed | The explicit source/plan decoding buffer is exhausted. |
+| 72 | `arrow_workspace_budget` | failed | The fixed logical Arrow encoding workspace is exhausted. |
 
 Native/port and SDK query status include required `failure`, either null or an
 object with `code`, `stage`, `dimension`, `limit` and `observed`. The two counters
@@ -406,12 +437,12 @@ tagged values, including the full-width counter/replica pair of each alternative
 
 Neutral plans include `output_names`: null retains all default names; otherwise
 the array has exactly one entry per projection position. A null entry retains
-that position's default, and a string supplies a valid name of at most 32 ASCII
-identifier bytes. Empty arrays, width mismatches, invalid names and resulting
+that position's default, and a string supplies a valid name of at most 255 UTF-8
+bytes. Empty arrays, width mismatches, invalid names and resulting
 output-name collisions reject. Decoding emits null for an all-default vector;
 named vectors preserve null slots and own their text. Decode → prepare preserves
 canonical bundle bytes and Publication identity. Compiled workspace metadata
-uses this same plan representation. SQL names retain their separate 16-byte bound.
+uses this same plan representation. SQL and typed names share the 255-byte bound.
 
 Neutral predicates also admit `{"program":[...]}`. Each instruction is
 `{"atom":<all/state/compare predicate>}`, `{"negate":{}}`, `{"conjunction":{}}`
@@ -420,14 +451,18 @@ complete postfix shape, exact scalar types and source column bounds. Decoding
 copies instructions and literal values into the caller's result allocator;
 preparing that result preserves canonical bytes and Publication identity.
 Generated schemas derive the program bound from the Fuze instruction owner,
-separately from the eight-column and eight-row bounds. Native SQL lowers Boolean
+separately from the 128-column and eight-row bounds. Native SQL lowers Boolean
 composition to this program representation through the shared native/port codec.
 All ten language SDKs expose typed program constructors and inspected programs.
 C/C++ plan and explanation layouts require the current shared ABI definition and
-matching headers/libraries; this host-layout cutover does not change FZP1 bytes.
+matching headers/libraries; this cutover replaces the old fixed Table/source/plan layout.
 
-Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
-limits still apply independently. Native outputs are owned buffers that callers
+Input JSON is bounded at 256 KiB and 96 JSON container levels. The shared
+caller parser checks byte size, UTF-8 and container depth before allocating or
+recursively decoding typed values, including unknown fields. The JSON wrapper
+budget admits all 16 logical descriptor levels; source, plan, bundle, scalar,
+page and Arrow limits still apply independently. Malformed caller envelopes
+reject before dispatch and do not produce an uncertain-send result. Native outputs are owned buffers that callers
 release explicitly; port responses copy them before native release. Pure local
 codecs need no endpoint, signing credential or execution handle. The same schema
 and semantic validation apply to the library and the port.
@@ -437,10 +472,16 @@ and semantic validation apply to the library and the port.
 ### SQL capability profile
 
 The v1 SQL compiler reuses the complete-input SQL parser and reference grammar.
+Current Table description and new SQL compilation validate the immutable
+metadata reference and logical row type against the live catalog. Permission
+alone does not establish that a configured schema is current. Exact upload
+recovery and retained result reads check current authorization independently;
+an ALTER or DROP does not rebind accepted work to another schema.
+
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
-star (all declared columns), one to eight ordered named columns, Boolean
+star (all declared columns), one to 128 ordered named columns, Boolean
 composition of typed comparisons and exact cell-state tests, row output, `COUNT(*)`, `COUNT(column)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
@@ -448,13 +489,13 @@ restricted aggregate subquery preserves filter → limit → aggregate order.
 checks the declared source name. Qualified columns use the alias when present;
 the original source name then rejects as a qualifier. Unqualified columns remain
 valid. Inner source aliases and the restricted subquery's outer alias have
-separate scopes. `AS` is required, and aliases obey the 16-byte identifier rules.
+separate scopes. `AS` is required, and aliases obey the 255-byte UTF-8 name rules.
 A source alias does not rename output columns or change the source basis. It lowers
 away before plan encoding, so equivalent aliased and unaliased queries have
 identical canonical plan bytes and execution semantics.
 
 `column AS name`, either COUNT form with `AS name`, and `SUM(column) AS name` supply owned
-output names. `AS` is required, using the same 16-byte identifier rules. The
+output names. `AS` is required, using the same 255-byte UTF-8 name rules. The
 resulting names must be distinct; repeated source indices are allowed with
 distinct names. Names, types and cell states in the source remain unchanged.
 Output aliases do not enter predicate scope. A renamed inner projection supplies
@@ -474,22 +515,17 @@ including errors after a determining Boolean operand. A program has at most 64
 instructions, counting each atom and each Boolean operator. The parser also
 bounds pending operators/group delimiters to 64 entries. Redundant grouping of
 one atom preserves that atom's canonical encoding; operators are never simplified.
-Comparisons require an exact literal type. The grammar has int64, boolean,
-UTF-8 and binary literals, plus string literals with `::uint64` or `::float64`.
-Uint64 accepts decimal digits through 18446744073709551615; float64 accepts
-finite decimal notation with optional sign and exponent, rounded to binary64.
-It preserves negative zero. Non-finite values, overflow, whitespace, underscores
-and hexadecimal floating point reject. `column = NULL` and other null
-comparisons reject as `UnsupportedNullComparison` because the v1 plan has no
-null comparison scalar. SQL lowers to the existing typed scalar and state operators.
-No implicit integer conversion, collation or rewrite is introduced.
-UTF-8/binary comparisons use the plan's lexicographic byte order.
+Comparison binding uses the column's exact logical descriptor, including
+numeric widths, decimal precision/scale and temporal representation. Canonical
+numeric syntax and typed temporal/UUID/binary constructors use the shared
+[Table literal rules](TABLE_DDL_V1.md). Stored containers, JSON and interval do
+not gain comparisons. NULL comparison rejects; use a state predicate.
+UTF-8/binary comparison is lexicographic byte order.
 
-Parser bounds remain 4096 statement bytes, 16-byte identifiers, eight explicit
-projection names and 220 decoded literal bytes. Star can project eight declared
-columns, including columns whose names exceed the SQL identifier bound. Both counts
-return uint64 with zero for no contributing values; sum returns checked int64
-with null for no contributing values.
+Parser bounds are 4096 statement bytes, 255-byte names and 128 projection slots.
+Logical descriptors and bound plans retain their separate budgets. Counts return
+uint64 with zero for no contributing values; sum returns checked int64 with null
+for no contributing values.
 Compilation owns projection/literal storage in a caller-supplied allocator and
 validates the resulting plan; it performs no reads and confers no authority.
 

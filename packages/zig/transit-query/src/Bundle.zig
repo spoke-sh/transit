@@ -2,21 +2,33 @@
 //! input and bounded arena. Publication is immutable transport, not admission.
 const std = @import("std");
 const q = @import("root.zig");
-const m = q.fuze.Unified;
+const f = q.fuze;
+const t = f.Types;
+const logical = f.LogicalQuery;
+const codec = f.LogicalPlanCodec;
 const Self = @This();
-pub const max_bytes = 16384;
+pub const header_bytes = 64;
+pub const max_bytes = header_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;
 pub const format: u32 = 0x31425155; // UQB1
 source: q.SourceDefinition,
-plan: m.Plan,
+plan: logical.Plan,
 limits: Limits,
 /// The SQL name is a caller-owned alias for this explicit source definition.
 /// Returned plan slices belong to allocator; source slices retain their owner.
-pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: m.Name, text: []const u8, limits: Limits) !Self {
+pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits) !Self {
     return fromSqlDiagnostic(allocator, source, name, text, limits, null);
 }
-pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinition, name: m.Name, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
-    var columns: [m.max_columns]m.Column = undefined;
-    const plan = try m.Sql.planDiagnostic(allocator, text, .{ .name = name, .schema = try source.schema(&columns) }, diagnostic);
+pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
+    if (diagnostic) |detail| detail.* = .{};
+    return fromSqlInner(allocator, source, name, text, limits, diagnostic) catch |err| {
+        if (diagnostic) |detail| if (detail.location) |at| f.Sql.Binding.nameFailure(detail, text, name, err, at);
+        return err;
+    };
+}
+fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
+    var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
+    const schema = try (try source.schema(&fields)).cloneInto(allocator);
+    const plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
     return result;
@@ -34,18 +46,29 @@ pub const Limits = struct {
 };
 pub fn validate(self: Self) !void {
     try self.limits.validate();
-    var columns: [m.max_columns]m.Column = undefined;
-    try self.plan.validate(try self.source.schema(&columns));
+    var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
+    const schema = try self.source.schema(&fields);
+    try self.plan.validate();
+    if (!try self.plan.schema.eql(schema) or !std.mem.eql(u8, &self.plan.source_basis, &try self.source.fingerprint())) return error.SourceChanged;
+}
+/// The source owner derives this binding from its captured, authorized cut.
+/// Rebinding changes execution identity, never the immutable submitted bundle.
+pub fn bind(self: Self, captured: [32]u8) !logical.Plan {
+    try self.validate();
+    var plan = self.plan;
+    plan.source_basis = captured;
+    return plan;
 }
 pub fn encode(self: Self, output: []u8) ![]const u8 {
     try self.validate();
     var source_bytes: [q.SourceDefinition.max_bytes]u8 = undefined;
-    var plan_bytes: [m.Codec.max_plan_bytes]u8 = undefined;
+    var plan_bytes: [codec.max_bytes]u8 = undefined;
     const source = try self.source.encode(&source_bytes);
-    const plan = try m.Codec.encode(self.plan, &plan_bytes);
-    if (32 + source.len + plan.len > max_bytes) return error.QueryBundleTooLarge;
-    var writer: std.Io.Writer = .fixed(output);
+    const plan = try codec.encode(self.plan, &plan_bytes);
+    if (header_bytes + source.len + plan.len > max_bytes) return error.QueryBundleTooLarge;
+    var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
     try writer.writeAll("UQB1");
+    try writer.writeAll(&q.catalog.TableMetadata.definition());
     try writer.writeInt(u16, @intCast(source.len), .little);
     try writer.writeInt(u16, @intCast(plan.len), .little);
     inline for (.{ "pages", "segments", "result_bytes" }) |name| try writer.writeInt(u64, @field(self.limits, name), .little);
@@ -57,13 +80,16 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.QueryBundleTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "UQB1")) return error.InvalidQueryBundle;
+    if (!std.mem.eql(u8, try reader.take(32), &q.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
     const source_length = try reader.takeInt(u16, .little);
     const plan_length = try reader.takeInt(u16, .little);
     const limits: Limits = .{ .pages = try reader.takeInt(u64, .little), .segments = try reader.takeInt(u64, .little), .result_bytes = try reader.takeInt(u64, .little) };
+    const source = try q.SourceDefinition.decode(allocator, try reader.take(source_length));
+    var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const result: Self = .{
         .limits = limits,
-        .source = try q.SourceDefinition.decode(allocator, try reader.take(source_length)),
-        .plan = try m.Codec.decode(try reader.take(plan_length)),
+        .source = source,
+        .plan = try codec.decodeInto(allocator, try source.schema(&fields), try source.fingerprint(), try reader.take(plan_length)),
     };
     if (reader.bufferedLen() != 0) return error.InvalidQueryBundle;
     try result.validate();
@@ -77,7 +103,7 @@ pub fn reference(self: Self, resource: u64, namespace: u64) !q.station.Publicati
 }
 pub fn checkReference(ref: q.station.PublicationReference) !void {
     try ref.validate();
-    if (ref.domain != .query_request or ref.record != 1 or ref.spec.format != format or ref.spec.length < 32 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
+    if (ref.domain != .query_request or ref.record != 1 or ref.spec.format != format or ref.spec.length < header_bytes or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
 }
 /// A policy-bound request resource is still not a substitute for its publisher.
 pub fn checkPublisher(ref: q.station.PublicationReference, source: anytype, peer: u64) !void {

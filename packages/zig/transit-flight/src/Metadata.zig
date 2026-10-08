@@ -47,33 +47,43 @@ fn info(id: u32) !Info {
         504 => .{ .text = "\"" },
         508 => .strings,
         517 => .conversions,
-        541, 542 => .{ .bigint = f.model.max_cell_bytes },
-        543, 559 => .{ .bigint = 16 },
-        547, 548 => .{ .bigint = 2 },
+        541, 542 => .{ .bigint = (f.Types.Limits{}).value_bytes },
+        543, 559 => .{ .bigint = 255 },
+        547, 548 => .{ .bigint = f.TableSchema.max_columns },
         557 => .{ .bigint = f.Sql.max_statement_bytes },
         560 => .{ .bigint = 1 },
         else => error.UnsupportedFlightMetadata,
     };
 }
-/// SQL LIKE matching for the single bounded ASCII published name. Iterative
+/// SQL LIKE matching for the single bounded UTF-8 published name. Iterative
 /// backtracking handles '%' without recursion or input-sized allocation.
 fn matches(pattern: ?[]const u8, value: []const u8) !bool {
     const p = pattern orelse return true;
-    if (p.len > 128) return error.InvalidFlightMetadata;
+    if (p.len > 255 or !std.unicode.utf8ValidateSlice(p) or !std.unicode.utf8ValidateSlice(value)) return error.InvalidFlightMetadata;
     var pi: usize = 0;
     var vi: usize = 0;
     var star: ?usize = null;
     var retry: usize = 0;
     while (vi < value.len) {
-        if (pi < p.len and (p[pi] == '_' or p[pi] == value[vi])) {
+        if (pi < p.len and p[pi] == '_') {
             pi += 1;
-            vi += 1;
+            vi += try std.unicode.utf8ByteSequenceLength(value[vi]);
+        } else if (pi < p.len and p[pi] == value[vi]) {
+            const width = try std.unicode.utf8ByteSequenceLength(value[vi]);
+            if (pi + width <= p.len and std.mem.eql(u8, p[pi..][0..width], value[vi..][0..width])) {
+                pi += width;
+                vi += width;
+            } else if (star) |index| {
+                retry += try std.unicode.utf8ByteSequenceLength(value[retry]);
+                vi = retry;
+                pi = index + 1;
+            } else return false;
         } else if (pi < p.len and p[pi] == '%') {
             star = pi;
             pi += 1;
             retry = vi;
         } else if (star) |index| {
-            retry += 1;
+            retry += try std.unicode.utf8ByteSequenceLength(value[retry]);
             vi = retry;
             pi = index + 1;
         } else return false;
@@ -87,22 +97,26 @@ fn catalogMatches(value: ?[]const u8) bool {
 
 /// Compile through the current query grammar and derive the same primitive
 /// schema used when adapting verified captured rows. No admission or source I/O.
-pub fn querySchema(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8) ![]const u8 {
+pub fn querySchema(name: []const u8, schema: f.Types.Type, sql: []const u8, output: []u8, workspace: []u8) ![]const u8 {
     return querySchemaDiagnostic(name, schema, sql, output, workspace, null);
 }
-pub fn querySchemaDiagnostic(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8, diagnostic: ?*f.Sql.Binding) ![]const u8 {
+pub fn querySchemaDiagnostic(name: []const u8, schema: f.Types.Type, sql: []const u8, output: []u8, workspace: []u8, diagnostic: ?*f.Sql.Binding) ![]const u8 {
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
-    const bundle = try root.query.Bundle.fromSqlDiagnostic(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 }, diagnostic);
-    // Layout owns the names and nullability before the Arrow workspace is reused.
-    const layout = try root.TableResult.init(schema, bundle.plan);
-    const rows: f.Unified.Inspect.Batch = .{ .columns = layout.len };
-    const bytes = try layout.encode(&rows, output, workspace);
+    // Compile through the shared parser, with no invented catalog identity.
+    // Copy layout names before the compile arena is released/reused by Arrow.
+    const layout = layout: {
+        var arena: std.heap.ArenaAllocator = .init(fixed.allocator());
+        defer arena.deinit();
+        const plan = try f.TableSelect.planDiagnostic(arena.allocator(), sql, name, schema, @splat(0), diagnostic);
+        break :layout try root.TableResult.init(plan);
+    };
+    const bytes = try layout.encode(&.{}, output, workspace);
     return (try root.Ipc.parts(bytes, workspace)).schema_message;
 }
 
-pub fn encode(command: w.Any, name: []const u8, schema: f.model.Schema, output: []u8, workspace: []u8) ![]const u8 {
-    if (schema.value_type != .int64) return error.UnsupportedFlightType;
-    _ = try f.model.Name.init(name);
+pub fn encode(command: w.Any, name: []const u8, schema: f.Types.Type, output: []u8, workspace: []u8) ![]const u8 {
+    try schema.validate(.{});
+    _ = try f.Sql.Binding.Name.init(name);
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
     const allocator = fixed.allocator();
     if (!std.mem.startsWith(u8, command.type_url, root.command_prefix)) return error.UnsupportedFlightCommand;
@@ -116,7 +130,7 @@ pub fn encode(command: w.Any, name: []const u8, schema: f.model.Schema, output: 
     var columns: [5]Column = undefined;
     var count: usize = 0;
     var present = true;
-    var table_schema: [2048]u8 = undefined;
+    var table_schema: [f.LogicalArrow.segment_bytes]u8 = undefined;
     if (std.mem.eql(u8, kind, "CommandGetCatalogs")) {
         var decoded = try pb.decode(w.CommandGetCatalogs, allocator, command.value, .{ .max_arena_bytes = 65536 });
         defer decoded.deinit();
@@ -152,11 +166,14 @@ pub fn encode(command: w.Any, name: []const u8, schema: f.model.Schema, output: 
         count = 4;
         if (request.include_schema) {
             // Use a separate bounded workspace: metadata decoding remains live.
-            const scratch = try allocator.alloc(u8, f.execution.working_bytes);
+            const scratch = try allocator.alloc(u8, f.LogicalArrow.working_bytes);
             defer allocator.free(scratch);
-            var sql_buffer: [64]u8 = undefined;
-            const sql = try std.fmt.bufPrint(&sql_buffer, "SELECT * FROM {s}", .{name});
-            columns[4] = .{ .name = "table_schema", .value = try querySchema(name, schema, sql, &table_schema, scratch), .binary = true };
+            var projection: [f.TableSchema.max_columns]u8 = undefined;
+            if (schema != .structure or schema.structure.len > projection.len) return error.InvalidQuerySchema;
+            for (projection[0..schema.structure.len], 0..) |*index, i| index.* = @intCast(i);
+            const layout = try root.TableResult.init(.{ .schema = schema, .source_basis = @splat(0), .projection = projection[0..schema.structure.len] });
+            const bytes = try layout.encode(&.{}, &table_schema, scratch);
+            columns[4] = .{ .name = "table_schema", .value = (try root.Ipc.parts(bytes, scratch)).schema_message, .binary = true };
             count = 5;
         }
     } else return error.UnsupportedFlightCommand;
@@ -282,7 +299,7 @@ test "bounded standard metadata schemas and exact optional filtering" {
     const workspace = try t.allocator.alloc(u8, 8 * 1024 * 1024);
     defer t.allocator.free(workspace);
     var output: [16384]u8 = undefined;
-    const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("count") }, .value_type = .int64 };
+    const schema: f.Types.Type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "count", .type = .int64, .nullable = true } } };
     inline for (.{ "CommandGetCatalogs", "CommandGetDbSchemas", "CommandGetTables", "CommandGetTableTypes", "CommandGetSqlInfo" }) |kind| {
         const bytes = try encode(.{ .type_url = root.command_prefix ++ kind }, "counter", schema, &output, workspace);
         const ipc = try root.Ipc.parts(bytes, workspace);
@@ -294,5 +311,9 @@ test "bounded standard metadata schemas and exact optional filtering" {
     try t.expectEqual(@as(u64, 0), (try root.Ipc.parts(bytes, workspace)).rows);
     try t.expect(try matches("c%_er", "counter"));
     try t.expect(!try matches("c%_er", "count"));
+    try t.expect(try matches("_京%", "東京🙂"));
+    try t.expect(try matches("%_", "東京🙂"));
+    try t.expect(!try matches("__", "東京🙂"));
+    try t.expect(!try matches("_三%", "東京🙂"));
     try t.expectError(error.UnsupportedFlightMetadata, info(9999));
 }

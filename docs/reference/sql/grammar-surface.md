@@ -33,20 +33,23 @@ Every row is **Implemented — execution** within its stated profile.
 
 | Form | Executable profile | Public owner |
 | --- | --- | --- |
-| `SELECT *`, ordered column list | One declared KV, Table or accepted Document projection; one to eight output positions with distinct result names | [SELECT](select.md) |
-| `WHERE column comparison literal` | One exactly typed comparison: `=`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | [Expressions](expressions.md) |
-| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | One exact cell-state predicate; missing and null remain distinct | [Types and cell states](types.md) |
+| `SELECT *`, ordered column list | One declared KV, Table or accepted Document projection; logical Table output supports up to 128 positions with distinct result names | [SELECT](select.md) |
+| `WHERE column comparison literal` | Exactly typed comparisons combined by bounded NOT/AND/OR: `=`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | [Expressions](expressions.md) |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state predicates; general Table predicates also accept IS NOT; missing and null remain distinct | [Types and cell states](types.md) |
 | `LIMIT n` | Full uint64 row count; omission does not truncate or remove execution budgets | [SELECT](select.md) |
 | `COUNT(*)`, `COUNT(column)`, `SUM(column)` | One aggregate; uint64 count or ordered checked int64 sum | [Aggregates](expressions.md#aggregate-functions) |
 | Aggregate over one derived table | Only the restricted filter → limit → aggregate form, with its required alias | [Limited aggregate input](select.md#aggregate-a-limited-input) |
 | `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
 | Output `AS name` | Names row or aggregate output positions; distinct names allow repeated inputs; renamed inner columns resolve in the outer aggregate | [Project rows](select.md#project-rows) |
-| `DESCRIBE name`, `SHOW TABLES` | Current authorized metadata for the configured source; not a realm-wide catalog | [DESCRIBE](describe.md), [SHOW](show.md) |
+| `DESCRIBE name`, `SHOW TABLES` | Authorized configured-catalog Tables in the console, or the explicit source in query-source scope | [DESCRIBE](describe.md), [SHOW](show.md) |
 | `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission, snapshot acquisition or execution | [EXPLAIN](explain.md) |
 
 The [syntax reference](syntax.md) owns names, comments, literals and parser
-bounds. Int64, uint64, finite float64, boolean, UTF-8 and binary comparisons are
-implemented; their literal forms do not imply general casts or DDL type support.
+bounds. General Table predicates bind literals against logical column descriptors
+and require the selected comparison trait. JSON has no equality/order trait;
+intervals and maps have equality without ordering. The local finite scalar
+compiler has its separately documented six-scalar literal profile. Neither
+profile implies general SQL casts.
 
 Query callers, the CLI/console and Board share Fuze's finite compiler and source
 contract. [Flight SQL](../flight.md) exposes its narrower configured Table
@@ -59,27 +62,31 @@ different [recovery behavior](../queries.md).
 
 | Form | Support | Caller and boundary |
 | --- | --- | --- |
-| `INSERT INTO ... VALUES ...` | **Implemented — execution** | One to three literal rows through an explicitly enabled Table writer, shared client, typed SDKs or configured console |
-| `UPDATE ... SET ... WHERE key = literal` | **Implemented — execution** | One value-column assignment at one primary key through that writer |
-| `DELETE FROM ... WHERE key = literal` | **Implemented — execution** | One primary key through that writer |
-| `CREATE TABLE`, `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Shared offline state compiler; owned definitions and canonical review SQL |
-| Compatible empty `CREATE TABLE` publication | **Implemented — execution** | Explicit catalog host/caller/console; two columns: int64 non-null key and explicitly nullable int64/bool/UTF-8/binary value |
+| `INSERT INTO ... VALUES ...` | **Implemented — execution** | Bounded multi-row typed values, reordered/omitted fields, DEFAULT and NULL through the configured catalog; up to 1,024 rows and a 4 MiB typed intent, with a separate 4 KiB SQL text bound |
+| `UPDATE ... SET ... [WHERE ...]` | **Implemented — execution** | Multiple constant/default assignments and typed Boolean/state predicates; frozen selection and one atomic publication |
+| `DELETE FROM ... [WHERE ...]` | **Implemented — execution** | Point or selected finite predicates; committed matched/changed counts |
+| `CREATE TABLE` | **Implemented — execution** | 1–128 columns, all logical families, explicit single/composite/no primary key, nullable defaults and deterministic typed defaults; authorized catalog routing |
+| `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and selected exact type changes; retained schema identity and atomic rewrite publication |
+| `DROP TABLE` | **Implemented — execution** | IF EXISTS and RESTRICT, explicit dependency checks, live-name retirement and safe name reuse; retained evidence remains separate from cleanup |
+| `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Separate offline definitions and canonical review SQL |
 | `CREATE KV`, `CREATE DOCUMENT` publication | **Planned — checked grammar** | No catalog creation operation, provisioning or default decoder/replica follows from offline compilation |
 | `CREATE INTERFACE`, `CREATE THEME`, `CREATE SCREEN`, `CREATE BINDING`, `CREATE ACTION` | **Implemented — compilation**, with separate implemented publication | One complete application definition; explicit reviewed conditional publication, outside the query grammar |
 
 Use [INSERT](insert.md), [UPDATE](update.md), [DELETE](delete.md),
 [state declarations](../../../contracts/STATE_DECLARATION_V1.md),
-[CREATE TABLE](create-table.md) and [application declarations](application.md)
+[CREATE TABLE](create-table.md), [ALTER TABLE](alter-table.md),
+[DROP TABLE](drop-table.md) and [application declarations](application.md)
 for exact schemas and bounds. Query transports reject writes and administration.
 Table creation does not provision its native resource or implicitly grant query
 or mutation policy. Mutation callers retain admission, processing and application
 outcomes separately, including accepted work with a lost reply.
 
-The [SDK matrix](../sdks.md#table-mutation-callers) and
+The [SDK matrix](../sdks.md#catalog-callers) and
 [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
-available language callers. All ten SDKs expose typed catalog creation, controls,
-exact saved recovery and owned lookup/definition/page values through the shared
-native implementation. The console exposes compatible CREATE TABLE through an explicit catalog route;
+available language callers. All ten SDKs expose general typed catalog lifecycle,
+DML, controls, exact saved recovery and owned lookup/definition/page values through
+the shared native implementation. The console routes supported Table statements
+through its configured catalog;
 other administrative SQL families retain their own stated support boundaries.
 
 ## Planned declarations and relational composition
@@ -93,9 +100,9 @@ other administrative SQL families retain their own stated support boundaries.
 | `JOIN`, `GROUP BY` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
-| Timestamp/interval types, event-time windows and watermarks | **Planned — syntax undecided** | Time domains, lateness, corrections and finality; resource revisions are not event time |
+| Event-time windows and watermarks | **Planned — syntax undecided** | Time domains, lateness, corrections and finality; resource revisions are not event time |
 | Query-to-sink bindings and triggers | **Planned — syntax undecided** | Explicit activation, stable recorded intent, atomic input progress plus intent, authorized attempt and captured outcome |
-| `ALTER`, `DROP`, `TRUNCATE` | **Planned — syntax undecided** | Conditional definition/dependency lifecycle; logical retirement is separate from physical cleanup |
+| Broader object ALTER/DROP, `TRUNCATE` | **Planned — syntax undecided** | Lifecycle for other object families and TRUNCATE; selected Table ALTER/DROP is implemented above |
 | `COPY`, SQL `MERGE INTO`, upsert | **Planned — syntax undecided** | Bounded typed transfer or one-resource mutation/conflict semantics; no implicit file/network authority |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | **Planned — syntax undecided** | A defined transaction scope above Station; no implicit cross-resource atomicity or rollback of uncertain commits |
 | `PREPARE`, `EXECUTE`, parameters | **Explicit parameter bindings; named statements planned** | [Typed `$n` binding](parameters.md) owns plans, checks complete source definitions and current policy; CLI and all SDKs accept explicit bindings; named statements have no execution route |
@@ -216,7 +223,8 @@ are not implied: writes require separately activated recorded effects.
 | Branch diff, three-way merge and schema-only promotion | **Planned — syntax undecided** | Frozen base/source/target, reviewable conflicts and constraints, conditional target-head publication; separate from SQL `MERGE INTO` |
 | Restore and dataflow activation | **Planned — syntax undecided** | New application-state successor; preserve current authority and recorded effects, with explicit pending-work disposition |
 
-**Planned — proposed syntax.** These examples do not parse or execute:
+**Planned — proposed syntax.** This branch workflow does not parse or execute.
+The isolated ALTER TABLE rename form is implemented for a current catalog Table.
 
 ```text
 CREATE SNAPSHOT before_change FROM BRANCH main;

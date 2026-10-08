@@ -10,12 +10,21 @@ pinned independent clients. It deletes only its temporary installation on exit.
 The private JSON file is limited to 16 KiB. Required fields are `url` (trusted
 native authority), `inspector`, `inspector_seed_file`, `ticket_seed_file`, `port`
 and `callers`. Each caller supplies `credential_file`, `seed_file`, `connection`
-(realm, principal, source, resource, table, name, requester and requests), `service`, `binding_revision` and two `columns`.
+(realm, principal, source, resource, name, requester and requests), `service`,
+`binding_revision` and a `definition` in the shared neutral query-source format.
+The definition must select a Table with catalog scope, owner, decimal-string
+object identity, immutable metadata reference and recursive logical `row_type`.
+Its realm/resource/owner must match the connection. It replaces the positional
+`table` and `columns` configuration. Missing identities are rejected.
 The native principal is dedicated to that requester's admission sequence and is
 scoped to its PID. Associate its source resource explicitly and grant current
 source/requester inspect and read rights. Publish the matching binding and read/
 command policy through `FiniteService`; grant the inspector read-only inspection.
-The configured schema must match the current Table schema.
+Provision the definition from authorized catalog metadata. A published definition
+is fixed; updating it changes ticket scope and cannot reinterpret an earlier
+accepted query. Keep the original configuration and request identity for recovery.
+The definition may include richer fields, but statement outputs must fit the
+[primitive Flight profile](../../../packages/zig/transit-flight/docs/compatibility.md).
 
 A credential file contains 32–128 ASCII letters, digits, underscores or hyphens,
 with no newline. Generate high-entropy credentials; only their SHA-256 hashes

@@ -11,6 +11,13 @@ Ordinary startup requires an existing history/checkpoint with the current
 contract definition and matching genesis. An outage or incompatible history
 cannot initialize an empty realm. The node needs no root signing seed.
 
+Ordinary startup makes at most three attempts to read retained history when
+storage returns a temporary transport failure or service-unavailable response,
+with 100 ms between attempts. These attempts do not create storage or publish
+state. Missing, denied, corrupt or incompatible history fails immediately, and
+the listener opens only after recovery validates the retained authority. This
+attempt limit does not establish a deadline for an individual provider request.
+
 `--maintain` uses a dedicated realm-wide principal with admin, effect and
 delivery grants. Its bounded scans suggest ordinary signed transitions; current
 authorization and lifecycle rules still decide acceptance. It materializes known

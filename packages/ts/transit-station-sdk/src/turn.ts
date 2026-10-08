@@ -15,6 +15,7 @@ import {
   decode,
   Key,
   ReadVersion,
+  readVersionWire,
   nativeWide,
   wide,
   type Codec,
@@ -26,7 +27,7 @@ import {
   type Budgets,
 } from "./values.ts";
 import { hex, unhex } from "./framing.ts";
-import { Table, TableSchema, type Cell } from "./table.ts";
+import { Table, TableSchema, type TableLimits, type TableCreation } from "./table.ts";
 import { QueryPlan, ResultReader, type QueryJob } from "./query.ts";
 import type { GrowingAction, GrowingEvent } from "./wire.ts";
 import { PreparedHttpRequest, HttpOutcome, type HttpFollowupReason } from "./http.ts";
@@ -51,7 +52,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const name = keyBytes(key, bridge.caps.key_bytes);
       const action: GrowingAction = this.#version
-        ? { version_get: { id: this.#version, key: name } }
+        ? { version_get: { id: readVersionWire(this.#version), key: name } }
         : { get: name };
       const value = result(await bridge.apply(token, action), "value");
       return value === null
@@ -69,7 +70,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const name = keyBytes(key, bridge.caps.key_bytes);
       const action: GrowingAction = this.#version
-        ? { version_get: { id: this.#version, key: name } }
+        ? { version_get: { id: readVersionWire(this.#version), key: name } }
         : { get: name };
       const value = result(await bridge.apply(token, action), "value");
       if (value === null) throw new MissingValue("Required associated-state value is absent");
@@ -94,7 +95,7 @@ export class State {
     return operation(this.#turn, async ({ bridge, token }) => {
       const position = cursor(after);
       const action: GrowingAction = this.#version
-        ? { version_page: { id: this.#version, cursor: position } }
+        ? { version_page: { id: readVersionWire(this.#version), cursor: position } }
         : { page: position };
       const page = result(await bridge.apply(token, action), "page");
       const entries = page.entries
@@ -121,8 +122,8 @@ export class Source {
     this.state = new State(turn, identity);
     Object.freeze(this);
   }
-  table<C extends Cell>(schema: TableSchema<C>): Promise<Table<C>> {
-    return Table.open(this.#turn, schema, this.identity);
+  table(objectId: bigint): Promise<Table> {
+    return Table.open(this.#turn, objectId, this.identity);
   }
 }
 const construction = Symbol("native-turn");
@@ -420,11 +421,11 @@ export class Turn {
       result(await bridge.apply(token, { cancel: wide(correlation).toString() }), "cancelled"),
     );
   }
-  table<C extends Cell>(schema: TableSchema<C>): Promise<Table<C>> {
-    return Table.open(this, schema);
+  table(objectId: bigint): Promise<Table> {
+    return Table.open(this, objectId);
   }
-  createTable<C extends Cell>(schema: TableSchema<C>): Promise<Table<C>> {
-    return Table.create(this, schema);
+  createTable(schema: TableSchema, limits: TableLimits): Promise<TableCreation> {
+    return Table.create(this, schema, limits);
   }
   retain(): Promise<ReadVersion> {
     return operation(this, async ({ bridge, token }) => {
@@ -439,35 +440,35 @@ export class Turn {
   release(identity: ReadVersion): Promise<void> {
     return operation(this, async ({ bridge, token }) => {
       if (!(identity instanceof ReadVersion)) throw new TypeError("Expected ReadVersion");
-      await bridge.apply(token, { release: identity });
+      await bridge.apply(token, { release: readVersionWire(identity) });
     });
   }
-  allowQuery<C extends Cell>(
+  allowQuery(
     peer: ProcessRef,
-    table: TableSchema<C>,
-    options: { expectedRevision: number; allow: boolean },
+    table: bigint,
+    options: { expectedRevision: bigint; allow: boolean },
   ): Promise<void> {
     return operation(this, async ({ bridge, token }) => {
       const pid = this.#peer(peer);
-      if (!(table instanceof TableSchema) || typeof options.allow !== "boolean")
-        throw new TypeError("Expected a Table schema and boolean policy");
+      if (wide(table) === 0n || typeof options.allow !== "boolean")
+        throw new TypeError("Expected a Table identity and boolean policy");
       await bridge.apply(token, {
         query_policy: {
           peer: pid,
-          table: table.id,
-          expected_revision: integer(options.expectedRevision, "policy revision", 0),
+          table: table.toString(),
+          expected_revision: wide(options.expectedRevision).toString(),
           allow: options.allow,
         },
       });
     });
   }
-  startQuery<C extends Cell>(schema: TableSchema<C>, plan: QueryPlan): Promise<QueryJob> {
+  startQuery(objectId: bigint, plan: QueryPlan): Promise<QueryJob> {
     return operation(this, async (current) => {
       if (!(plan instanceof QueryPlan)) throw new TypeError("Expected QueryPlan");
-      await Table.capture(current, this, schema);
+      await Table.capture(current, this, objectId);
       const value = result(
         await current.bridge.apply(current.token, {
-          query_start: { id: schema.id, plan: plan.wire(current.bridge.caps.table_cell_bytes) },
+          query_start: { id: objectId.toString(), plan: plan.wire() },
         }),
         "query",
       );

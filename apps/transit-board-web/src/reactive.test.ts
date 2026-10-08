@@ -45,7 +45,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+        definition: "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -138,7 +138,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "57343ef043d4dc7f9612a7ca3309e9218dd527c0f3826a519ff0d29b761b4a82",
+          definition: "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -368,9 +368,12 @@ test.each(["valid", "foreign_generation", "foreign_resource", "foreign_query", "
           revision: 1,
           target: 4,
           resource: 9,
-          table: 1,
-          progress_key: "00",
-          schema: Array(32).fill(0),
+          realm: 1,
+          catalog: "9",
+          object: "100",
+          metadata_revision: "1",
+          metadata_length: 200,
+          metadata_digest: Array(32).fill(1),
           published: true,
         },
         template: "1",

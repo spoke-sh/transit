@@ -35,4 +35,4 @@ static transit_sdk_error handle(void *ctx,transit_station_turn *turn,const trans
     else { assert(is(v,"0") || is(v,"1")); const size_t index=v->bytes[0]-'0'; TRY(transit_station_turn_document_stage(turn,UINT64_MAX,index+1,owner->changes[index],256,&progress)); }
     owner->phase=(int)progress.phase; return (transit_sdk_error){0};
 }
-transit_station_handler document_test_handler(document_test_context *ctx) { return (transit_station_handler){ctx,initialize,handle,NULL,NULL}; }
+transit_station_handler document_test_handler(document_test_context *ctx) { return (transit_station_handler){ctx,initialize,handle,NULL,NULL,NULL}; }

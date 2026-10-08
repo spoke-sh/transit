@@ -35,10 +35,15 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
 
     # Use the new public operation's output in the existing exact-upload,
     # lost-receipt and node/store/worker recovery schedule. A separately built
-    # Zig typed-plan fixture is the expected byte identity.
+    # literal SQL fixture is the expected byte identity; installed SDKs also
+    # construct typed plans independently when they open this source.
     projection = 'value AS "Result"' + (', counter, replica, optional' if kind == 'document' else '')
     request = {'scope': scope, 'sql': f'SELECT {projection} FROM items WHERE value <> $1',
                'parameters': [{'utf8': 'x' * 512}]}
+    if json.loads((root / 'client.json').read_bytes()).get('compound', False):
+        padding, last = (64, '10') if kind == 'document' else (128, '39')
+        request['sql'] += ' AND NOT (value >= $2 OR value IS NULL)'
+        request['parameters'].append({'utf8': f"東京🙂/{'x'*padding}/{last}"})
     requests.append({'compile': request})
     original = (root / 'bundle.bin').read_bytes()
     for owner in owners:
@@ -46,10 +51,10 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
         assert bytes.fromhex(compiled['bundle']) == original
     (root / 'bundle.bin').write_bytes(bytes.fromhex(compiled['bundle']))
     (root / 'parameter-compilation.json').write_text(json.dumps(request))
-    wrong_types = ({'int64': '-9223372036854775808'}, {'uint64': '18446744073709551615'},
+    wrong_types = ({'signed': '-9223372036854775808'}, {'unsigned': '18446744073709551615'},
                    {'float_bits': '0000000000000080'}, {'boolean': False}, {'binary': '00ff80'})
     invalid_bindings = [([], 'ParameterCountMismatch'), (None, 'UnboundParameters')]
-    invalid_bindings.extend(([value], 'TypeMismatch') for value in wrong_types)
+    invalid_bindings.extend(([value, *request['parameters'][1:]], 'TypeMismatch') for value in wrong_types)
     for parameters, error in invalid_bindings:
         invalid = {**request, 'parameters': parameters}
         original_diagnostic = None

@@ -20,7 +20,7 @@ const Config = struct {
         connection: flight.Gateway.Connection,
         service: u64,
         binding_revision: u64,
-        columns: [2][]const u8,
+        definition: q.Values.Source,
     },
 };
 pub fn main(init: std.process.Init) !void {
@@ -37,18 +37,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len != 2) return error.ExpectedPrivateConfiguration;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(16384));
     defer init.gpa.free(bytes);
-    const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
+    const parsed = try q.Values.parse(Config, init.gpa, bytes);
     defer parsed.deinit();
     const config = parsed.value;
     try config.options.validate();
     if (config.callers.len == 0 or config.callers.len > gateway.max_callers or config.port == 0) return error.InvalidFlightConfiguration;
     var callers: [gateway.max_callers]gateway.Caller = undefined;
     defer std.crypto.secureZero(u8, std.mem.asBytes(&callers));
+    var definitions: std.heap.ArenaAllocator = .init(init.gpa);
+    defer definitions.deinit();
     for (config.callers, 0..) |caller, index| {
+        const definition = try caller.definition.native(definitions.allocator());
+        if (definition.source != .table or definition.resource != caller.connection.resource) return error.InvalidFlightConfiguration;
         const token = try std.Io.Dir.cwd().readFileAlloc(init.io, caller.credential_file, init.gpa, .limited(128));
         defer init.gpa.free(token);
         defer std.crypto.secureZero(u8, token);
-        callers[index] = .{ .credential = try gateway.credentialHash(token), .key = try q.wire.readKey(init.gpa, init.io, caller.seed_file), .connection = caller.connection, .service = caller.service, .ingress_resource = caller.connection.requests, .binding_revision = caller.binding_revision, .schema = .{ .names = .{ try .init(caller.columns[0]), try .init(caller.columns[1]) }, .value_type = .int64 } };
+        callers[index] = .{ .credential = try gateway.credentialHash(token), .key = try q.wire.readKey(init.gpa, init.io, caller.seed_file), .connection = caller.connection, .service = caller.service, .ingress_resource = caller.connection.requests, .binding_revision = caller.binding_revision, .table = definition.source.table };
     }
     var inspector_key = try q.wire.readKey(init.gpa, init.io, config.inspector_seed_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&inspector_key));

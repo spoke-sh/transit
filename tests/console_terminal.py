@@ -204,7 +204,7 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.send('\r')
         page = terminal.read(timeout=420)
         terminal.expect('transit> SELECT COUNT(*)\r\n   ...> /* ; .quit */ FROM items;\r\n')
-        assert page['cells'][0][0]['value']['uint64'] in ('12', '41') and page['complete_coverage']
+        assert page['cells'][0][0]['value']['atom']['unsigned'] in ('12', '41') and page['complete_coverage']
         with open(f'/proc/{terminal.process.pid}/status') as status:
             high_water = int(next(line.split()[1] for line in status if line.startswith('VmHWM:')))*1024
         assert high_water < 64*1024*1024, high_water

@@ -62,6 +62,28 @@ test("full-width integer and byte-coordinate overflow cannot round into valid ev
   expect(ownedDiagnostic(value).invalid).toBe(true);
 });
 
+test("catalog cancellation requires a recorded pending operation", () => {
+  const value = fixture();
+  value.outcome = "pending";
+  value.evidence = "domain_status";
+  value.identity!.domain = "catalog";
+  value.actions = [{ kind: "cancel_mutation", target: value.identity }, null, null, null];
+  expect(ownedDiagnostic(value).invalid).toBe(false);
+  for (const outcome of [
+    "unknown",
+    "prepared",
+    "not_applicable",
+    "input_rejected",
+    "applied",
+    "rejected",
+    "cancelled",
+  ] as const)
+    expect(ownedDiagnostic({ ...value, outcome }).invalid).toBe(true);
+  expect(ownedDiagnostic({ ...value, evidence: "native_receipt" }).invalid).toBe(true);
+  value.actions[0]!.target = { ...value.identity!, id: "22" };
+  expect(ownedDiagnostic(value).invalid).toBe(true);
+});
+
 test("recorded effect uncertainty has owner evidence without authorizing fresh work", () => {
   const value = fixture();
   value.outcome = "unknown";

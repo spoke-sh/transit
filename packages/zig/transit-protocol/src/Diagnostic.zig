@@ -89,6 +89,9 @@ pub const Field = enum {
     resolution_policy,
     protocol_status,
     native_effect,
+    dependency,
+    dependency_kind,
+    dependency_owner,
 };
 pub const Text = BoundedText(256);
 pub const Code = BoundedText(96);
@@ -274,7 +277,12 @@ fn validateAction(self: Self, item: Action) !void {
         .resume_exact, .cancel_wait, .cancel_mutation, .reconcile_effect => {
             if (self.identity == null or item.target == null or !std.meta.eql(self.identity.?, item.target.?)) return error.InvalidDiagnostic;
             if (self.outcome != .unknown and self.outcome != .prepared and self.outcome != .pending and self.outcome != .input_rejected and !(self.outcome == .closed_unknown and item.kind == .reconcile_effect)) return error.InvalidDiagnostic;
-            if (item.kind == .cancel_mutation and item.target.?.domain != .mutation) return error.InvalidDiagnostic;
+            if (item.kind == .cancel_mutation and item.target.?.domain != .mutation) {
+                // General Table DDL retains catalog operation identity. Its
+                // owner can cancel recorded pending work before publication;
+                // a saved or uncertain command alone does not prove admission.
+                if (item.target.?.domain != .catalog or self.outcome != .pending or self.evidence != .domain_status) return error.InvalidDiagnostic;
+            }
             if (item.kind == .reconcile_effect and item.target.?.domain != .effect) return error.InvalidDiagnostic;
             if (item.target.?.domain == .effect and item.kind != .reconcile_effect) return error.InvalidDiagnostic;
         },
@@ -407,6 +415,29 @@ test "diagnostics retain full-width owned evidence and reject invented recovery"
     unknown.actions = @splat(null);
     try unknown.action(.reconcile_effect);
     try unknown.validate();
+}
+
+test "catalog cancellation requires a recorded pending operation and its exact identity" {
+    const t = std.testing;
+    var value = try init("table.pending", .lifecycle, .execute, .pending, .domain_status, "The original Table DDL is pending.");
+    value.identity = .{ .domain = .catalog, .id = .init(100), .realm = .init(1), .resource = .init(7) };
+    try value.action(.cancel_mutation);
+    try value.validate();
+    for ([_]Outcome{ .unknown, .prepared, .not_applicable, .input_rejected, .applied, .rejected, .cancelled }) |outcome| {
+        var invalid = value;
+        invalid.outcome = outcome;
+        try t.expectError(error.InvalidDiagnostic, invalid.validate());
+    }
+    var invalid = value;
+    invalid.evidence = .native_receipt;
+    try t.expectError(error.InvalidDiagnostic, invalid.validate());
+    invalid = value;
+    invalid.actions[0].?.target.?.id = .init(101);
+    try t.expectError(error.InvalidDiagnostic, invalid.validate());
+    invalid = value;
+    invalid.identity.?.domain = .query;
+    invalid.actions[0].?.target = invalid.identity;
+    try t.expectError(error.InvalidDiagnostic, invalid.validate());
 }
 
 test "diagnostic decoding is strict and absent detail is explicit" {

@@ -4,8 +4,13 @@
 [version-1 counter and query formats](../README.md), using Java records, sealed
 messages, typed handlers and full u64 `BigInteger` values. `Counter` and `Requester`
 save totals/correlations/results in associated state; replacing either object
-does not lose durable waiting state. `TableService` initializes the typed Table
-and explicit query policy. `QueryRequester` validates provenance and streams
+does not lose durable waiting state. `TableService` implements the
+[durable FIFO contract](../TABLES.md): four typed columns with text/list defaults,
+explicit creation quotas, queued insert/update/delete, and one native step per
+recorded self continuation. Global admission positions remain the original DML
+identities. Completion and queue bookkeeping keep the four-write budget;
+pending queries receive an authenticated NotReady reply and can be explicitly
+started later. `QueryRequester` validates provenance and streams
 owned IPC segments to its application callback.
 
 Build from the bindings shell with `just bindings::java-build`. Install

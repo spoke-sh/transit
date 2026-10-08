@@ -28,8 +28,8 @@ owned 8 MiB native worker and must be synchronous; `async void` handler and
 persistence callbacks are rejected before startup. Returning from a callback
 does not prove commitment. Local cancellation/stop does not cancel durable work.
 
-`Key<T>` carries a bounded versioned codec. `TableSchema<T>` selects nullable
-`long?`, `bool?`, `string?` or immutable `Bytes?` cells. Turn-derived helpers reject
+`Key<T>` carries a bounded versioned codec. [Handler Tables](docs/TABLES.md) discover
+general `Catalog.Schema` definitions and return owned logical rows. Turn-derived helpers reject
 wrong-thread, reentrant and expired access. Read errors poison the private turn.
 Retained-source identities need explicit durable retain/release operations.
 Queries expose complete metadata and copied original Arrow IPC; no optional .NET
@@ -45,10 +45,15 @@ with scoped jobs, full-width identities and joined cancellation/disposal.
 M18 adds [typed unified state queries](docs/UNIFIED_QUERY.md), with owned nested
 Arrow values, current source checks and explicit signed retry tokens.
 
-[Table mutation callers](docs/MUTATIONS.md) expose bounded SQL compilation,
-immutable recovery values, explicit admission and current status through an
-owned asynchronous client.
+[General Table callers](docs/CATALOG.md) expose arbitrary typed schemas, finite
+mutations, ALTER/DROP, accepted schema history and exact saved-intent recovery
+through the shared native ABI and an owned asynchronous worker.
 
-[Catalog callers](docs/CATALOG.md) expose typed initialization, conditional
-policy changes, named Table creation and exact saved-command recovery through
-the shared native ABI and an owned asynchronous worker.
+The [logical value guide](docs/LOGICAL.md) covers owned recursive descriptors,
+exact wide numbers, distinct cell states and bounded neutral codecs.
+
+
+Handler query failures use a typed callback with the authenticated origin,
+correlation, result identity and reason. See
+[negative query outcomes](../../../docs/reference/sdks.md#handler-query-failures)
+for callback names, write budgets and recovery behavior.

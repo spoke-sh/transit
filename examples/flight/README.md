@@ -1,5 +1,9 @@
 # Finite Flight example
 
+Fixture provisioning creates and populates the Table through signed catalog
+commands handled by the production catalog/query owner. Gateway configuration
+uses the resulting immutable catalog definition.
+
 The [gateway](../../apps/transit-flight-gateway/README.md) composes actual public
 Table query hosts and shared finite serving policy. Each owned installation runs
 PyArrow 23 and ADBC release 24's Flight SQL driver through verified TLS. The

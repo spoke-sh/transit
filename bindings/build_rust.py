@@ -1,16 +1,17 @@
 """Build source-crate artifacts with version-matched, embedded native libraries."""
 import io
+import argparse
 from pathlib import Path
 import re
-import sys
 import tarfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output, names):
+def build(output, names, native_prefix=None):
     output = Path(output).resolve()
+    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
         source = ROOT / name if '/' in name else ROOT / 'packages/rust' / name
@@ -25,7 +26,7 @@ def build(output, names):
                     if item.is_file(): files[item.relative_to(source)] = item.read_bytes()
         if name.startswith('transit-native-'):
             family = name.removeprefix('transit-native-')
-            library = ROOT / 'zig-out/lib' / f'libtransit_{family}.so'
+            library = native_prefix / 'lib' / f'libtransit_{family}.so'
             if not library.is_file(): raise SystemExit('Run just bindings::build before packaging Rust artifacts')
             files[Path('lib') / library.name] = library.read_bytes()
         with tarfile.open(output / f'{stem}.crate', 'w:gz') as archive:
@@ -37,5 +38,10 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client',
-        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/rust'])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output')
+    parser.add_argument('names', nargs='*')
+    parser.add_argument('--native-prefix')
+    args = parser.parse_args()
+    build(args.output, args.names or ['transit-native-client', 'transit-client',
+        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/rust'], args.native_prefix)

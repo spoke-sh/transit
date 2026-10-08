@@ -1,10 +1,11 @@
 # Transit console
 
-`transit console` executes finite reads over the
-configured KV, Table or Document source. Each SELECT compiles SQL, acquires a
-fresh leased snapshot and executes Fuze in the client, printing native Arrow
-batches. Completion or cancellation releases the snapshot. No durable query
-upload, execution progress or result publication is written by a SELECT.
+`transit console` executes finite reads over catalog-routed general Tables or a
+separately configured source. An interactive SELECT compiles SQL, acquires a
+fresh leased snapshot and executes Fuze in the client. General Tables return
+logical typed rows; the separate source profile returns verified Arrow batches.
+Completion or cancellation releases the snapshot. An interactive SELECT writes
+no durable query upload, execution progress or result publication.
 
 `DESCRIBE items`, `SHOW TABLES` and `EXPLAIN SELECT ...` inspect the configured
 source and proposed plans under current read access. They acquire no snapshot
@@ -16,7 +17,8 @@ including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads alloca
 resource identities from the existing installation and uses its scoped
 `caller.seed`. No console configuration file is
 generated or required for this connection. The local server also provisions an
-authorized writer for `items`; INSERT, UPDATE and DELETE use it automatically.
+authorized general Table catalog with an empty `items` Table. CREATE, ALTER,
+DROP, INSERT, UPDATE, DELETE and SELECT use that catalog automatically.
 The default endpoint is `http://127.0.0.1:19105`, and the
 default installation is `./.transit`. The console never initializes the server.
 
@@ -70,7 +72,7 @@ Use `--parameters FILE` with `-c SQL` to bind one finite SELECT. For example,
 save this scalar array as `parameters.json`:
 
 ```json
-[{"uint64":"3"}]
+[{"unsigned":"3"}]
 ```
 
 ```sh
@@ -80,7 +82,7 @@ transit console --parameters parameters.json -c 'SELECT * FROM items LIMIT $1;'
 In a terminal or script, `.execute query.json` runs one query object:
 
 ```json
-{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"uint64":"3"}]}
+{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"unsigned":"3"}]}
 ```
 
 The same file command works in either console execution mode. It executes a
@@ -92,8 +94,7 @@ quoted dot-command paths support spaces. Startup rc files do not execute them.
 Bindings use the [exact scalar codec](../../../contracts/SQL_PARAMETERS_V1.md):
 wide integers are decimal strings, binary bytes and float bits use their existing
 hex encodings, and scalar types are never coerced. The input file is at most
-131072 bytes, SQL is at most 4096 bytes, and at most three values bind the current
-comparison/LIMIT grammar sites. Omitting `parameters` or using null in a query
+131072 bytes, SQL is at most 4096 bytes, and at most 65 exact scalar values bind the Boolean predicate and LIMIT grammar sites. Omitting `parameters` or using null in a query
 object selects ordinary SQL; `[]` selects a template without placeholders.
 The `--parameters` file must always contain an array. Named SQL
 `PREPARE`/`EXECUTE` and parameters for captured file sources remain unsupported.
@@ -101,8 +102,10 @@ The `--parameters` file must always contain an array. Named SQL
 Template errors identify the parameter index and its original SQL use sites.
 Conflicting repeated uses report both required types; a binding count mismatch
 reports expected and supplied counts. Type and scalar-encoding failures include
-the expected type and at most 32 bytes of the supplied value, escaped for terminal
-safety. These details come from the failing compilation and do not read stored
+the expected type and the exact supplied scalar. Integer widths remain exact;
+decimal previews identify the coefficient and temporal previews name their
+physical units. Text/binary previews show at most 32 bytes, escaped for terminal
+safety with explicit truncation. These details come from the failing compilation and do not read stored
 values. SQL locations use one-based lines and byte columns.
 
 Values are owned for the current execution and are never SQL text substitution
@@ -126,39 +129,35 @@ its serialized caller and recovery-file locks.
 
 ```yaml
 version: 1
-profile: "unified_v1"
+profile: "catalog_v1"
 url: "http://127.0.0.1:8301"
 transport: "loopback"
 seed_file: "caller.key"
-connection:
-  realm: 42
-  principal: 1234
-  source: 1
-  resource: 7
-  requester: 2
-  requests: 8
-workspace:
-  name: "items"
-  source:
-    version: 1
+catalog:
+  scope:
+    realm: 42
     resource: 7
-    source:
-      table:
-        id: 1
-        names: ["id", "value"]
-        value_type: "int64"
-  limits:
-    pages: "1000"
-    segments: "100"
-    result_bytes: "1048576"
+    catalog: 1
+  owner: 1
+  principal: 1234
+table_limits:
+  requests: 10000
+  rows: 10000
+  result_bytes: 16777216
 request_timeout_ms: 5000
 format: "table"
 execution: "interactive"
 ```
 
 The example is a configuration shape, not allocated identities or a grant.
-Use the actual provisioned IDs and source contract. Table names, KV decoders
-and Document projections follow the [unified source guide](unified-query.md).
+Use the actual provisioned catalog IDs. Omitting `writes` creates a read-only
+console configuration: SELECT, EXPLAIN, discovery and assistance use the catalog
+without a write recovery file. Current permissions still decide each operation.
+The catalog profile does not accept fixed `connection`/`workspace` fields or a
+durable query `recovery_file`. Separately configured KV and Document queries use
+`profile: unified_v1` with `connection` and `workspace` as described in the
+[unified source guide](unified-query.md); those fields cannot be mixed with a
+catalog route.
 The timeout defaults to 5000 ms and must be 1–60000 ms.
 
 `loopback` accepts literal `127.0.0.1` or `::1` HTTP endpoints. Remote connections
@@ -170,99 +169,112 @@ Neither transport selection nor configuration grants native access.
 
 ## Writing Tables and catalogs
 
-Use `.help INSERT`, `.help UPDATE`, `.help DELETE` and `.help CREATE TABLE` to
-learn the supported SQL and configuration without network access. `.help` reports
-whether each route is configured; authority is checked when executing it. Both
-interactive and durable query modes support writes. Bare local-server connections
-supply both query and Table writer routes for `items`, using the installation's
-allocated identities and scoped caller credential. Write recovery lives in
-`console-writes.json` inside the installation. Opening the console loads saved
-work without resubmitting it; use `.status` and `.resume` after interruption.
-The credential lock permits one write-capable console per local caller seed.
-Server restart preserves current mutation policy, including revocation.
+The catalog connection routes CREATE, ALTER, DROP, INSERT, UPDATE, DELETE and
+interactive SELECT by Table name. Tables created in that catalog are immediately
+available to the same console under current permissions. No per-Table writer or
+query configuration is required. `.tables`, `SHOW TABLES`, `.schema` and `.sources`
+list current catalog names; `DESCRIBE name` and `.schema name` inspect an actual
+schema. Listings hold one bounded page at a time and reject changed revisions.
 
-For a separately configured connection, add explicit routes to its YAML using
-provisioned identities. Selecting a connection file replaces the automatic local
-connection; omitted write routes remain unavailable. Catalog creation always
-requires a separately provisioned catalog route:
+Use `.help CREATE TABLE`, `.help ALTER TABLE`, `.help DROP TABLE`, `.help INSERT`,
+`.help UPDATE` and `.help DELETE` for offline syntax help. A configured route does
+not grant access: native grants and separate catalog inspect/create/read/insert/
+update/delete/alter/drop policies apply when each operation runs.
+
+Enable writes on that same catalog connection with:
 
 ```yaml
 writes:
   recovery_file: "console-writes.json"
-  table:
-    name: "items"
-    connection:
-      realm: 42
-      principal: 1234
-      writer: 1
-      resource: 7
-      table: 1
-  catalog:
-    scope:
-      realm: 42
-      resource: 9
-      catalog: 1
-    owner: 3
-    principal: 1234
 ```
 
-Either route may be omitted. Realm and principal must match the console's
-credential; the named writer/catalog must already expose its respective public
-operation. Native grants and separate current mutation or catalog create/inspect
-policy are required. Query permissions do not grant writes. The write recovery
-path must differ from the query recovery path; paths resolve relative to the
-connection file. A credential lock serializes local consoles using writes.
+The catalog principal must match the signing credential. Paths resolve relative
+to the connection file. One credential lock serializes local write-capable
+consoles. `.info` reads current catalog configuration and policy; it does not
+report a fixed Table schema as the catalog's scope.
+
+Completion obtains fresh authorized metadata and uses the general Table parsers
+for syntax and typed continuations. It supports 255-byte names and escapes quoted
+identifiers. Source search retains one catalog page and returns at most eight
+suggestions after at most 128 pages; narrow the prefix when the bounded search
+has no matching item. Metadata can change while editing: the console reacquires
+and validates the suggestion before inserting it. A changed revision or revoked
+inspection permission discards the suggestion; completion never applies SQL.
 
 ```sql
-INSERT INTO items (id, value) VALUES (1, 100);
-UPDATE items SET value = 101 WHERE id = 1;
-DELETE FROM items WHERE id = 1;
-CREATE TABLE readings (id INT64 NOT NULL, value INT64 NULL);
+CREATE TABLE people (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    salary DECIMAL(18, 2)
+);
+INSERT INTO people (id, name, salary) VALUES (1, 'Ada', 125000.00);
+SELECT id, name, salary FROM people;
+UPDATE people SET name = 'Ada Lovelace' WHERE id = 1;
+ALTER TABLE people ADD COLUMN email VARCHAR(320);
+ALTER TABLE people RENAME COLUMN name TO full_name;
+DELETE FROM people WHERE id = 1;
+DROP TABLE people;
 ```
 
-INSERT requires both columns and one to three literal rows. UPDATE/DELETE require
-primary-key equality. CREATE TABLE accepts exactly two columns with explicit
-nullability: a non-null int64 key and a nullable int64, boolean, UTF-8 or binary
-value. Creation publishes the empty Table descriptor and catalog definition.
-It does not configure a query source, choose a Table writer or grant permissions.
-SELECT continues to use the configured query workspace. With a catalog configured,
-SHOW TABLES and `.tables` stream its bounded metadata pages; DESCRIBE resolves
-catalog names. `.schema` describes the query source; `.schema writer` describes
-the separately configured Table writer. Writer binding errors direct you to that
-writer inspection. It prepares no mutation and preserves saved work. If the catalog
-changes between pages, discard the partial listing and run it again.
+Schemas admit up to 128 named columns and the logical types defined by the
+[Table schema contract](../../../contracts/TABLE_SCHEMA_V1.md). Omitted
+nullability means nullable; a declared primary key implies NOT NULL. Without a
+primary key, internal stable row identities preserve duplicate rows. INTEGER is
+int32; INT64 and BIGINT are int64. VARCHAR(n) counts Unicode scalars. Decimal and
+temporal parameters, nested constructors and valid key types have explicit
+contracts; unsupported aliases and constraints reject before submission.
 
-The console saves the original typed request and each exact signed command before
-submission in a private file (0600, at most 32 KiB). The mandatory current contract
-definition, public key and route identities are checked before recovery; no keys
-or result rows are saved. Recovery is canonical JSON: retain its original bytes;
-do not edit or reformat it. Missing nested compatibility fields reject. Atomic file replacement synchronizes both file and
-parent directory. A native receipt proves admission only. The console observes
-processed input and its rejection before advancing an upload, and prints affected
-rows only after the writer's terminal applied result. JSON uses `mutation` or
-`creation` envelopes; full-width operation identities are decimal strings.
+INSERT accepts 1–1024 literal rows, ordered or named columns, omitted defaults,
+DEFAULT and NULL within the SQL/intent budgets. UPDATE uses typed constant or
+DEFAULT assignments. UPDATE and DELETE use the selected finite predicate grammar;
+an exact primary-key predicate takes the point path. Multi-row statements publish
+atomically. Matched and changed counts come from the committed result, including
+zero matches and unchanged updates. ALTER supports the selected rename, column,
+default, nullability and exact-conversion operations. DROP uses RESTRICT and
+retains original recovery evidence. See the [DDL](../../../contracts/TABLE_DDL_V1.md)
+and [DML](../../../contracts/TABLE_DML_V1.md) contracts for exact bounds.
 
-Preparing and observing a write retries temporarily unavailable reads after
-50 ms. Retries share one five-minute wait deadline without resetting it;
-in-flight reads retain the configured per-request timeout. Each read checks
-current authority; denial, malformed responses and conflicts stop immediately.
-Submission itself is attempted once. A failed send preserves its exact prepared
-identity for explicit recovery, and a read retry never resends that mutation.
-The standalone `.status` command performs one observation attempt.
+General Table SELECT currently uses `execution: interactive` and typed SQL
+constants. Parameterized and durable query execution use their separately
+qualified source profiles. EXPLAIN captures and releases a schema-bound snapshot,
+compiles the proposed plan and executes no rows. A later SELECT captures its own
+basis. Text results format logical values directly; neutral JSON preserves exact
+types, wide integers, decimal coefficients, temporal values and nested cells.
+JSON emits a `table_snapshot_v1` schema header, incomplete row envelopes and a
+final completion envelope with source/plan commitments and exact row counters.
+Every preceding row remains an incomplete prefix if execution fails.
 
-Opening the console never resubmits saved work. `.status` observes under current
-rights; `.resume` reconciles the original signed request and continues its saved
-operation. Ctrl-C stops waiting, preserves the operation and discards the remaining
-submitted batch; disconnecting does not undo a write. `.cancel` first reconciles
-any uncertain mutation input, then requests cancellation. An admitted inline
-mutation can finish during reconciliation; `.cancel` reports its applied outcome.
-It cannot undo an applied mutation, and CREATE TABLE has no cancellation
-operation. Recovery commands refer to the last saved write until replaced by
-another write or durable query.
-An explicit `.resume ID` selects a durable query only after pending writes finish.
-Do not repeat SQL after uncertainty: it creates a new operation. Unresolved work
-blocks new writes, queries and connection switching; inspection/help remain usable.
-If recovery persistence fails, execution stops before sending a successor.
+Before any send, the console saves immutable canonical intent in a private
+`.intent-<digest>` file beside the recovery JSON. The JSON is at most 32 KiB and
+contains only the original identity, intent commitment and exact signed progress;
+large request bodies are not rewritten at every upload step. Both file and parent
+directory are synchronized. Opening recovery checks exact bytes, current contract
+definition, key, scope and signed-command binding before any transport operation.
+Missing or incompatible fields reject; orphan intent files are never adopted.
+Keep these files private: the intent contains original caller-supplied values.
+
+A native receipt proves admission only. The console observes processing and the
+original terminal outcome before reporting success. JSON uses `table_operation`
+with decimal-string operation/object identities and matched/changed counts, plus
+separate outcome and input diagnostics. A rejected continuation never replaces an
+already accepted operation's result.
+
+Current read/preparation failures retry temporary unavailability after 50 ms and
+an explicitly identified stale resource revision after 1 ms, under one five-minute
+deadline. Captured query reads, submission and persistence are outside this loop.
+Other conflicts, denial and malformed replies stop. Submission is attempted once;
+a failed send preserves the exact prepared identity for explicit reconciliation.
+
+Opening recovery never resubmits. `.status` observes under current rights without
+preparing or sending commands. `.resume` reconciles the original signed request
+and continues its saved operation. `.cancel` first reconciles uncertain input,
+then requests cancellation of that operation or upload. Applied work stays
+applied. Ctrl-C and disconnecting stop the caller without undoing accepted work.
+Recovery commands refer to the saved write until another completed command
+replaces it. Never repeat SQL after uncertainty: that creates a different operation.
+Unresolved work blocks new writes, reads and connection switching; inspection and
+help remain available. Persistence failure stops before any successor send.
 
 ## Input, commands and results
 
@@ -296,17 +308,17 @@ error and returns to the prompt when recovery permits.
 
 | Command | Purpose |
 | --- | --- |
-| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Offline SQL help, route configuration and commands |
+| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE\|ALTER TABLE\|DROP TABLE]` | Offline SQL help, route configuration and commands |
 | `.tables` | Catalog tables when configured, otherwise the query source |
-| `.sources`, `.schema` | Currently authorized query source and schema |
-| `.schema writer` | Currently authorized Table writer name, columns, types and metadata revision |
+| `.sources`, `.schema` | Current catalog names, or the separately configured query source |
+| `.schema NAME` | Current catalog Table schema; `.schema writer` lists the catalog |
 | `.mode table\|json` | Result presentation |
 | `.timer on\|off` | Set query wall-time reporting (off by default) |
 | `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
 | `.status`, `.info` | Saved write/query status, or query result evidence |
 | `.resume [ID]` | Recover the saved write; in durable query mode, recover the saved query or selected query ID |
-| `.cancel` | Request cancellation of a saved Table mutation or durable query; CREATE TABLE cannot be cancelled |
+| `.cancel` | Reconcile saved input and request cancellation of a pending Table operation/upload or durable query |
 | `.quit`, EOF | Exit; active interactive execution is canceled |
 
 There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
@@ -336,7 +348,14 @@ Inspection does not change settings, submit or retry a query, or change query
 result formatting. A script containing `.show` includes these text rows on stdout
 even when its SQL results use JSON envelopes.
 
-Table mode is the default. It renders the verified Arrow batch directly, with
+Table mode is the default. General Table cells use logical types with an explicit
+`... [truncated]` marker after the 256-byte preview budget; JSON retains their
+complete typed representation. General Table output streams through a 16 KiB
+buffer; escaping and repeated projections do not impose another fixed row-size
+limit. The query's explicit result budget still applies to canonical typed bytes.
+An interrupted or failed write can leave an incomplete JSON line; only the
+verified final marker establishes completion. The separate query-source profile renders its
+verified Arrow batch directly, with
 box borders, column names and native types, right-aligned numbers and a row total.
 Strings are quoted and escaped so literal `"NULL"`, null, missing, type errors and
 conflicts stay distinguishable; binary values use hex. Each bounded page has its
@@ -526,8 +545,8 @@ The categories distinguish syntax errors, unsupported constructs, exceeded
 bounds, source/type binding failures, grammar-only families and operations
 unavailable on the query interface. Grammar-family recognition alone does not
 validate the submitted syntax. `INSERT`, `UPDATE` and `DELETE` use an explicitly
-authorized Table writer configured in `writes.table`. INSERT also requires
-explicit column names. Compatible CREATE TABLE uses `writes.catalog`. Missing
+authorized catalog configured in `catalog`. CREATE, ALTER and DROP use
+the same catalog and their own current permissions. Missing
 routes point to `.help INSERT` or `.help CREATE TABLE`; grammar-only forms are
 identified without claiming executable support.
 
@@ -538,15 +557,27 @@ recovery guidance and retain the original saved identity. A syntax correction is
 not a reason to replace unresolved durable work with a new request.
 
 Use `transit --diagnostics=json console ...` for the shared diagnostic envelope
-on stderr, independently of `--format table|json` result output. Known mutation
-rejections retain the actual Table/key/input-row witness and have no resume or
-cancel action. Rejected inputs retain their native input identity separately
+on stderr, independently of `--format table|json` result output. Terminal Table
+rejections have no resume or cancel action. Duplicate keys identify their columns,
+escaped values and original INSERT row or immutable source row identity. Failed
+ALTER validation identifies the column, value and expected type. Execution value
+previews contain at most 64 bytes with explicit truncation. Current catalog read
+permission gates stored-row identity and value disclosure; denied facts are
+marked `withheld`. Original INSERT input remains inspectable without that read
+permission. Missing evidence is explicitly `unrecorded`; the console never
+rereads a different Table to explain an earlier failure.
+
+Rejected inputs retain their native input identity separately
 from any overall mutation outcome. Unresolved saved writes identify the original
 operation, preserve a validated native error category when available, and support
 exact reconciliation. A 503 remains an uncertain outcome, including a capacity
-response; the console does not automatically resend it. CREATE TABLE has no cancel action.
+response; the console does not automatically resend it.
 The [CLI reference](../../../docs/reference/cli.md#structured-errors) specifies
 source coordinates, timing records and stream boundaries.
+
+General Table header errors retain their original SQL positions before any
+catalog lookup. EXPLAIN diagnostics use positions in the complete EXPLAIN
+statement, including its prefix and intervening comments or whitespace.
 
 ## Exact recovery and bounds
 

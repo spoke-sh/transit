@@ -4,12 +4,16 @@ pub const protocol = station.protocol;
 pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
+pub const catalog = @import("transit_catalog");
+pub const TableQuery = @import("TableQuery.zig");
+pub const TableSource = @import("TableSource.zig");
 pub const Bundle = @import("Bundle.zig");
+pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const Interactive = @import("Interactive.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
-pub const TableQueryWriter = @import("TableQueryWriter.zig");
+pub const CatalogQueryOwner = @import("CatalogQueryOwner.zig");
 pub const UnifiedRequest = @import("UnifiedRequest.zig");
 pub const UnifiedUpload = @import("UnifiedUpload.zig");
 pub const Draft = @import("Draft.zig");
@@ -20,18 +24,14 @@ pub const UnifiedSource = @import("UnifiedSource.zig");
 pub const Decoder = @import("Decoder.zig");
 pub const SourceDefinition = @import("SourceDefinition.zig");
 test {
+    _ = @import("table_source_test.zig");
     _ = @import("source_test.zig");
     _ = @import("sql_template_test.zig");
     _ = @import("sql_compilation_test.zig");
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
-    _ = @import("table_mutation_request_test.zig");
-    _ = @import("table_mutation_admission_test.zig");
-    _ = @import("table_mutation_client_test.zig");
-    _ = @import("table_mutation_writer_test.zig");
-    _ = @import("table_query_writer_test.zig");
-    _ = @import("table_mutation_bridge_test.zig");
+    _ = @import("catalog_query_owner_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -39,22 +39,15 @@ pub const Values = @import("Values.zig");
 pub const Bridge = @import("Bridge.zig");
 pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
+pub const TableAssistance = @import("TableAssistance.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
 pub const SqlCompilation = @import("SqlCompilation.zig");
-pub const TableMutationRequest = @import("TableMutationRequest.zig");
-pub const MutationDiagnostic = @import("MutationDiagnostic.zig");
-pub const TableMutationRecords = @import("TableMutationRecords.zig");
-pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
-pub const TableMutationClient = @import("TableMutationClient.zig");
-pub const TableMutationWriter = @import("TableMutationWriter.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {
     pub const Store = @import("source_store_test.zig");
 } else struct {};
-
-pub const TableMutationBridge = @import("TableMutationBridge.zig");
 
 pub const SourceWitness = @import("SourceWitness.zig");
 pub const RuntimeWitness = @import("RuntimeWitness.zig");

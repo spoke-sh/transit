@@ -6,13 +6,20 @@ wire schemas. Shared Zig owns validation, codecs, signed operations and query
 semantics; the Erlang SDK owns immutable values and a bounded native-port worker.
 
 Declare a `transit_unified_kv` with versioned key/value decoders, a
-`transit_unified_table` with its ID/schema, or a `transit_unified_document` with an
+`transit_unified_table` with its catalog owner, metadata and schema, or a `transit_unified_document` with an
 accepted reference and bounded projections. `prepare/3` takes this source, a
 `transit_unified_plan` and positive `transit_unified_budgets`. Ordered projection,
 `all`, `{state, Column, State}` and `{compare, Column, Op, Scalar}` predicates share
-one model. Scalars are tagged `{int64, N}`, `{uint64, N}`, `{float64, F}`,
-`{boolean, B}`, `{utf8, Binary}` or `{binary, Binary}`; full-width integers are
-checked before crossing the boundary.
+one model. Predicates and parameters use the shared logical atoms, including
+`{signed, N}`, `{unsigned, N}`, `{float64, F}`, `{boolean, B}`, `{utf8, Binary}`
+and `{binary, Binary}`. Integers retain their full 128-bit range. Table metadata
+includes the immutable publication commitment returned by catalog lookup; an
+object ID alone does not bind a source definition.
+
+Result columns use full logical descriptors with explicit nullable/optional
+flags. Projections allow 128 columns and 255-byte UTF-8 output names. KV decoders
+and Document `transit_unified_decoder_column` projections retain their six
+scalar decoder types; Document projections remain bounded to eight columns.
 
 `#transit_unified_predicate_program{instructions = Instructions}` composes one
 to 64 postfix instructions. `{atom, Predicate}` wraps one of the atoms above;
@@ -39,7 +46,7 @@ form or `undefined` selects ordinary SQL; `[]` selects a template without
 placeholders. The immutable bundle is independent of the client lifetime.
 
 The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
-three exact scalar values, with uint64 for LIMIT; no casts, null parameters or
+65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot
 and submits no query. Use the existing upload workflow for the returned bundle;
@@ -59,12 +66,16 @@ Table listing covers only the configured source.
 
 `page/2,3` checks current source grants/lifecycle and complete ordered manifest
 coverage before returning owned IPC, typed provenance and an opaque cursor.
+Manifest evidence includes the retained source head alongside the source and
+schema digests.
 Undefined continuation means verified complete coverage; cursors grant nothing.
 `prepare_control/3` prepares `cancel`, `retire` or `collect` for explicit recorded
 lifecycle work with the same submission/retry rules.
 
 `decode_arrow/3` returns bounded immutable row lists with `missing`, `null`,
-`{type_error, Kind}`, `{value, Scalar}` or `{conflict, Alternatives}` cells.
+`{type_error, Kind}`, `{value, LogicalValue}` or `{conflict, Alternatives}` cells.
+Logical values include `{atom, Atom}` and nested structures, collections and
+unions. Conflict alternatives use `transit_logical_alternative`.
 Alternatives preserve ordered counter/replica IDs and explicit value states.
 Standalone decoding establishes shape, not current access or completion. Owned
 binaries and decoded cells survive client close; no optional BEAM Arrow adapter
