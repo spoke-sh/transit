@@ -12536,6 +12536,8 @@ just test::mutation-latency --repeat 20 --instrument --output /var/tmp/mutations
 just test::mutation-latency --repeat 20 --rows 100 --age 100 --resident-pages 64 --output /var/tmp/mutations-aged.json
 just test::mutation-latency --repeat 20 --idle-ms 1500 --worker-interval-ms 20 --output /var/tmp/mutations-poll20.json
 just test::mutation-latency --repeat 20 --readers 1 --client .cache/transit-latency/release/bin/transit-mutation-latency-client --output /var/tmp/mutations-client.json
+just test::mutation-latency --repeat 3 --schema-profile wide --output /var/tmp/mutations-wide.json
+just test::mutation-latency --repeat 3 --schema-profile nested --output /var/tmp/mutations-nested.json
 ```
 
 The ordinary task freezes ReleaseSafe binaries, creates an owned disk fixture,

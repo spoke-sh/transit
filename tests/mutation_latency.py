@@ -138,6 +138,28 @@ def distribution(values):
     return result
 
 
+def schema_profile(name):
+    """Synthetic wider storage controls; the original narrow fixture is unchanged."""
+    def text_cell(value):
+        return {'value': {'atom': {'utf8': value}}}
+    if name == 'narrow':
+        return None, []
+    if name == 'wide':
+        values = [f'column-{index:02}-' + 'x' * 54 for index in range(30)]
+        columns = [f"c{index} UTF8 NOT NULL DEFAULT '{value}'" for index, value in enumerate(values)]
+        expected = [text_cell(value) for value in values]
+    elif name == 'nested':
+        label = 'nested-' + 'y' * 121
+        values = [None if index % 8 == 0 else f'tag-{index:02}-' + 'z' * 42 for index in range(32)]
+        literals = ','.join('NULL' if value is None else f"'{value}'" for value in values)
+        columns = [f"payload STRUCT(label UTF8, tags LIST(UTF8)) DEFAULT STRUCT('{label}',LIST({literals}))"]
+        expected = [{'value': {'structure': [text_cell(label), {'value': {'list': [
+            {'null': {}} if value is None else text_cell(value) for value in values]}}]}}]
+    else:
+        raise ValueError('unknown synthetic schema profile')
+    return 'CREATE TABLE items (id INT64 PRIMARY KEY, value INT64, ' + ','.join(columns) + ')', expected
+
+
 def completion_timeline(events, started, completed, principal=10):
     """Correlate only fixed native identities, never decode SQL/value payloads.
 
@@ -201,6 +223,7 @@ def main():
         parser.add_argument(name)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repeat', type=int, default=3, choices=range(1, 1001))
+    parser.add_argument('--schema-profile', choices=('narrow', 'wide', 'nested'), default='narrow')
     parser.add_argument('--rows', type=int, default=0, choices=range(100001))
     parser.add_argument('--age', type=int, default=0, choices=range(100001), help='extra retained mutations at fixed row cardinality')
     parser.add_argument('--resident-pages', type=int, choices=range(1025))
@@ -212,6 +235,8 @@ def main():
     parser.add_argument('--readers', type=int, default=0, choices=range(5))
     parser.add_argument('--client', help='persistent public Zig caller executable (no console rendering)')
     args = parser.parse_args()
+    if args.client and args.schema_profile != 'narrow':
+        parser.error('wide/nested profiles require the typed console verifier')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     report = {'status': 'running', 'samples': [], 'errors': [], 'unknown_outcomes': 0,
               'reader_queries': [0] * args.readers, 'reader_failures': [],
@@ -275,6 +300,20 @@ def main():
                 'connection': fixture.console_config()['catalog']}))
         writer = Console(fixture, writer_config, args.client)
         shells.append(writer)
+        creation, expected_extra = schema_profile(args.schema_profile)
+        report['schema_profile'] = {'name': args.schema_profile, 'columns': 2 + len(expected_extra),
+                                    'creation_sql': creation, 'setup': []}
+        if creation:
+            for statement in ('DROP TABLE items', creation):
+                try:
+                    result, measurement = writer.call(statement)
+                except Exception:
+                    report['unknown_outcomes'] += 1
+                    report['failed_sample'] = {'case': 'schema_setup', **writer.last_measurement}
+                    raise
+                assert result['table_operation']['phase'] == 'applied', result
+                report['schema_profile']['setup'].append(measurement)
+                save()
 
         def mutate(sql, affected, case=None):
             if case and args.idle_ms:
@@ -351,6 +390,7 @@ def main():
                 value, _ = verifier.call('SELECT * FROM items WHERE id=-1;')
                 expected = [] if case.startswith('delete') else [1 if case == 'insert_3' else 100 if case == 'insert_1' else 200]
                 assert [int(row[1]['value']['atom']['signed']) for row in value['rows']] == expected, value
+                assert all(row[2:] == expected_extra for row in value['rows']), value
             for key in (-1, -2, -3):
                 mutate(f'DELETE FROM items WHERE id={key}', 1)
         value, _ = verifier.call('SELECT COUNT(*) FROM items;')

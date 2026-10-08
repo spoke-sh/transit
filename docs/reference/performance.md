@@ -293,7 +293,13 @@ acknowledgement, define completion.
 Controls vary retained rows (`--rows`) separately from retained mutation history
 (`--age`), one/three-row INSERT, existing/same-value/absent UPDATE and DELETE,
 resident cache pages, fixed worker polling, idle gaps and concurrent independent
-readers. Each experiment has a one-second idle counter interval. Optional
+readers. Each experiment has a one-second idle counter interval.
+`--schema-profile wide` uses 32 columns with 30 fixed synthetic text defaults;
+`--schema-profile nested` adds a struct containing text and a nullable text list.
+Both verify every additional typed value after each measured mutation and record
+their DROP/CREATE setup timings separately. The default `narrow` profile preserves
+the two-column workload for comparisons with earlier implementations; wider
+profiles are separate storage controls, not matched historical baselines. Optional
 `--instrument` proxies add overhead; compare them separately from ordinary
 latency runs. Opt-in native diagnostics report complete per-attempt work and
 provider counters independently of sampled logs. Lock waits can overlap across
