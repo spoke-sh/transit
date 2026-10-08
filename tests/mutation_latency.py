@@ -355,7 +355,9 @@ def main():
             shell = None
             try:
                 path = fixture.root / f'reader-{index}.json'
-                path.write_text(json.dumps(dict(fixture.console_config(), execution='interactive', recovery_file=str(fixture.root / f'reader-{index}-recovery.json'))))
+                # Catalog reads are interactive and retain no durable query
+                # recovery file. Each reader still owns its console process.
+                path.write_text(json.dumps(dict(fixture.console_config(), execution='interactive')))
                 shell = Console(fixture, path)
                 while not stop.is_set():
                     value, _ = shell.call('SELECT COUNT(*) FROM items;')

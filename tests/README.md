@@ -18487,3 +18487,14 @@ compilation means these are not matched latency measurements.
 Raw `general-definition-native-proofs2.log` SHA-256: `d16ad85beb819e2d532a04ff2436f5f78893806f1fc8c576643fb8e4b96f02d9`.
 
 Raw `general-definition-document3.log` SHA-256: `3a66227b028c5cfe06572716e9a47ad2993c9792a031217ba3fbdb8c86d560ce`.
+
+### Concurrent mutation control configuration
+
+`general-mutation-latency-current-load1.json` completes its 21 writer samples but
+fails the concurrent-reader gate: the reader rejects a superseded top-level
+`recovery_file` in its `catalog_v1` configuration before executing any SQL. It
+records `cli.invalid_configuration`, zero completed reader queries and a failed
+report. It is not concurrent-load performance evidence. The fixture now uses the
+same interactive catalog configuration as its independent verifier; readers own
+separate console processes and need no durable query recovery files. A corrected
+native rerun is required.
