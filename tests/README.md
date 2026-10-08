@@ -18534,3 +18534,15 @@ The Document fixture contains 12 rows; the KV fixture contains 41.
 Raw `general-definition-interactive-kv1.log` SHA-256: `f265486dcfbdc82688ea11e6cf575b8a7ff52e618a7e811b44e87578cb91638f`.
 
 Raw `general-definition-interactive-document1.log` SHA-256: `b342dd0f8400b80bda7480138a6a25f11d8fdccb2f70fbfd2d8a39f9e4c191fd`.
+
+### Clean binding compiler resolution
+
+`general-definition-ci-clean1.log` stops in the first ordinary task at committed
+`c82a01eb`: the recursive TypeScript declaration proof invokes `tsc` from the
+workspace root, which has no compiler dependency. A stale root executable in
+the working checkout masked this failure. The proof now invokes the already
+pinned compiler through `@transit/client`, its declared package owner. No
+dependency version or lockfile changes. `general-definition-clean-binding-types1.log`
+passes that corrected proof against the isolated checkout's frozen installation,
+including recursive shapes and expected type errors. This focused pass does not
+complete the interrupted 75-task clean suite; a fresh committed run is required.

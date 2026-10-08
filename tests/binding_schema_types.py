@@ -71,7 +71,10 @@ void [leaf, root, other, invalidInteger, invalidChild, invalidRoot];
                                 'target': 'ES2022', 'skipLibCheck': True},
             'files': ['fixture.ts'],
         }))
-        subprocess.run(['vp', 'exec', 'tsc', '--project', str(path / 'tsconfig.json')], cwd=ROOT, check=True)
+        # The client package declares the pinned compiler. The workspace root
+        # does not; invoking there can accidentally use stale installed tools.
+        subprocess.run(['vp', 'exec', '--filter', '@transit/client', 'tsc', '--project',
+                        str(path / 'tsconfig.json')], cwd=ROOT, check=True)
     print('Recursive host declarations preserve nested shapes and root-local references.')
 
 
