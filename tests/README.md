@@ -18546,3 +18546,31 @@ dependency version or lockfile changes. `general-definition-clean-binding-types1
 passes that corrected proof against the isolated checkout's frozen installation,
 including recursive shapes and expected type errors. This focused pass does not
 complete the interrupted 75-task clean suite; a fresh committed run is required.
+
+### Signed envelope byte-array serialization
+
+`general-definition-ci-clean2.log` passes 17 ordinary tasks at `043188bf`,
+including the clean core check, package builds, client ABI, Station and storage.
+It then fails the service schedule when a signed runtime intent's fixed byte
+arrays happen to be valid UTF-8: an ordinary JSON writer emits strings that the
+strict signed-envelope decoder rejects. This is not a completed clean run.
+
+Signed request/query owners now preserve schema-declared arrays through ordinary
+JSON writers, including envelopes nested in saved work. The signing CLI and
+native responses use the shared schema-aligned writer. Existing typed signing
+digests and rejection of malformed array strings remain unchanged. Protocol
+tests cover control-byte runtime identities, printable snapshot nonces, signatures
+and nested saved-envelope round trips. The reviewed inventory adds only the
+serializer error-return boundaries.
+
+`general-definition-byte-arrays-unit1.log` passes the protocol suite.
+`general-definition-byte-arrays-service1.log` passes the original full signed
+service schedule: independent signing vectors, native waits, bounded ingress,
+current denial, worker fencing, disk recovery, checkpoint/trim, retirement and
+effect replay without redispatch. A fresh committed clean run remains required.
+The [clean development record](verification/results/m46-clean-development-2026-10-07.json)
+retains both incomplete runs' revisions, task outcomes, host metadata and raw-log
+hashes; neither is labeled complete.
+`general-definition-byte-arrays-check1.log` passes the full `just check`, including
+contract/signature drift, strict decoding, CLI checks, frontend checks and the
+documentation production build, with the serialization correction applied.

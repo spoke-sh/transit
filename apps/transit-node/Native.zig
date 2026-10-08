@@ -182,7 +182,7 @@ const Server = struct {
     fn json(self: *Server, request: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
         // The response owns its bytes. Slow peers must not hold authority access.
         self.release();
-        const bytes = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
+        const bytes = try wire.protocol.Json.valueAlloc(self.allocator, value);
         defer self.allocator.free(bytes);
         self.observation.status = @backingInt(status);
         if (@hasField(@TypeOf(value), "err")) {

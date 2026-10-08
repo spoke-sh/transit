@@ -34,6 +34,10 @@ body. Missing or foreign definitions fail decoding before signature verification
 or execution, including when a signed envelope is nested in saved caller work.
 Unsigned request authoring can use the current-definition construction default;
 that default is never applied while decoding a signed wire body.
+Signed envelopes also preserve fixed byte arrays when encoded by ordinary Zig
+JSON writers, including envelopes nested in saved work. Valid UTF-8 bytes do not
+change a nonce, signature or runtime identity into a wire string. This transport
+encoding uses the existing typed signing digests and strict decoder.
 
 Capabilities describe supported operations, not cached authorization. Each read
 rechecks current keys, PID scope, resource grants and lifetime, then verifies the

@@ -4,6 +4,18 @@
 const std = @import("std");
 const Json = @import("Json.zig");
 
+/// Keep every native byte array in its schema-declared array form, including
+/// when ordinary std.json encoders reach this envelope inside saved work.
+/// Signing hashes the typed body separately; this does not change that digest.
+pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void {
+    try out.beginObject();
+    inline for (@typeInfo(@TypeOf(value)).@"struct".field_names) |name| {
+        try out.objectField(name);
+        try Json.write(@field(value, name), out);
+    }
+    try out.endObject();
+}
+
 pub fn Wire(comptime Envelope: type, comptime body_field: []const u8) type {
     const info = @typeInfo(Envelope).@"struct";
     var types = info.field_types[0..info.field_types.len].*;

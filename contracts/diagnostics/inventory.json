@@ -9166,8 +9166,10 @@
         "Definition.spelling()": "<inferred>",
         "SignedQuery.jsonParse()": "<inferred>",
         "SignedQuery.jsonParseFromValue()": "<inferred>",
+        "SignedQuery.jsonStringify()": "std . Io . Writer . Error",
         "SignedRequest.jsonParse()": "<inferred>",
         "SignedRequest.jsonParseFromValue()": "<inferred>",
+        "SignedRequest.jsonStringify()": "std . Io . Writer . Error",
         "counters()": "<inferred>",
         "digest()": "<inferred>",
         "hash()": "<inferred>",
@@ -9187,7 +9189,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 55,
         "catch": 1
       },
       "imports": [
@@ -9365,11 +9367,12 @@
       "error_sets": {},
       "error_returns": {
         "fromValue()": "std . json . ParseFromValueError",
-        "parse()": "std . json . ParseError ( @ TypeOf ( source . * ) )"
+        "parse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
+        "write()": "std . Io . Writer . Error"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 6,
         "catch": 1
       },
       "imports": [

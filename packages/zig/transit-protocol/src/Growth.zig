@@ -143,6 +143,9 @@ pub const Request = struct { version: u32 = version, definition: Definition = cu
 pub const SignedRequest = struct {
     request: Request,
     signature: [64]u8,
+    pub fn jsonStringify(self: @This(), out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try @import("SignedEnvelope.zig").write(self, out);
+    }
     pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "request");
     pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
         return @import("SignedEnvelope.zig").parse(@This(), "request", allocator, source, options);
@@ -287,6 +290,9 @@ pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_
 pub const SignedQuery = struct {
     query: Query,
     signature: [64]u8,
+    pub fn jsonStringify(self: @This(), out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try @import("SignedEnvelope.zig").write(self, out);
+    }
     pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "query");
     pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
         return @import("SignedEnvelope.zig").parse(@This(), "query", allocator, source, options);
@@ -654,14 +660,22 @@ test "signed wire envelopes require definitions and preserve strict JSON shapes"
     const t = std.testing;
     inline for (.{
         .{ SignedRequest, "request", SignedRequest{ .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try .init("x") } } }, .signature = @splat(0) } },
+        .{ SignedRequest, "request", SignedRequest{ .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .runtime_intent = .{ .pid = 3, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } } }, .signature = @splat(0) } },
         .{ SignedQuery, "query", SignedQuery{ .query = .{ .realm = 42, .principal = 0, .kind = .{ .open_snapshot = .{ .resource = 7, .nonce = @splat(105) } } }, .signature = @splat(0) } },
     }) |case| {
         const T = case[0];
-        const bytes = try p.Json.valueAlloc(t.allocator, case[2]);
+        // Real native senders and saved-work owners use ordinary std.json.
+        // UTF-8-compatible byte arrays must still survive the strict decoder.
+        const bytes = try std.json.Stringify.valueAlloc(t.allocator, case[2], .{});
         defer t.allocator.free(bytes);
         const parsed = try std.json.parseFromSlice(T, t.allocator, bytes, .{});
         defer parsed.deinit();
         try t.expectEqualDeep(case[2], parsed.value);
+        const wrapped = try std.json.Stringify.valueAlloc(t.allocator, .{ .saved = case[2] }, .{});
+        defer t.allocator.free(wrapped);
+        const recovered = try std.json.parseFromSlice(struct { saved: T }, t.allocator, wrapped, .{});
+        defer recovered.deinit();
+        try t.expectEqualDeep(case[2], recovered.value.saved);
         var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer tree.deinit();
         const arena = tree.arena.allocator();
