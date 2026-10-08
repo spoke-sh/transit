@@ -53,7 +53,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M43](M43.md) | Durable Table mutation latency | Implemented and locally qualified: shared candidates/caller work, authorized wake-ups, compact pages, provider correction and 75-task clean recovery qualification |
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 | [M45](M45.md) | Mutation completion and authority efficiency | Complete: bounded completion waits, leaf staging batches, attribution and finite load controls |
-| [M46](M46.md) | General typed Tables and schema lifecycle | In progress: shared schema/row identity, generalized storage, CREATE/ALTER/DROP and typed DML before relational execution |
+| [M46](M46.md) | General typed Tables and schema lifecycle | Implemented and locally qualified: general Tables, CREATE/ALTER/DROP and typed DML; same-revision CI and integration pending |
 | [M47](M47.md) | General Table storage and query efficiency | Planned: reduce accepted schema, immutable-record and publication costs without blocking the qualified relational intake |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed

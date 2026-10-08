@@ -18776,3 +18776,41 @@ command passes, and independently normalized parsed ASTs compare equal before
 and after formatting (`general-elixir-format-ast1.log`). This changes no runtime
 semantics or definition. The remaining eight standard tasks require fresh clean
 execution; the successful prefix is not relabeled a complete bindings lane.
+
+### Final general Table clean task coverage
+
+The [final clean task record](verification/results/m46-clean-task-coverage-2026-10-07.json)
+covers all **75 ordinary tasks** with successful executions in clean checkouts:
+
+| Selection | Source revision | Passing tasks |
+| --- | --- | ---: |
+| Complete core prefix of the interrupted ordinary run | `436a0797` | 22 |
+| Complete growth lane, including the native 28-descriptor matrix | `e8585d6e` | 26 |
+| Complete experience lane | `72d9a6e3` | 7 |
+| Complete launcher lane | `d4c4362f` | 2 |
+| Completed bindings prefix, through .NET | `738ac2cc` | 10 |
+| Fresh selected bindings suffix, BEAM through connector preparation | `9537839a` | 8 |
+
+This is task coverage across the stated revisions, **not one complete ordinary
+run or five complete lanes at one revision**. The original interrupted runs
+remain failed in the clean development record. Runtime semantics are unchanged
+since `436a0797`; the later Elixir formatting has independently equal normalized
+ASTs. The record checks changed paths, exact task coverage, source revisions,
+completion metadata and log digests. It retains the selected-suffix driver and
+fresh-checkout supervisor; each selected recipe and its assertions are unchanged.
+
+The final suffix passes in **3248.88 seconds**. BEAM takes **2192.12 seconds**,
+including Erlang/Elixir queue, retained-query, transport and catalog recovery.
+The public SDK ring passes all ten counter/query pairs in **697.14 seconds**
+including clean consumer installation, separately from artifact builds. Each
+pair preserves exact replies after restart/loss, automatic schema creation,
+queued Table recovery, authenticated busy replies and owned nested IPC.
+The model, delivery-model, SQL rewrite and SQL tasks pass, followed by published
+RPC crash/retirement and HTTP/gRPC preparation-failure recovery.
+
+The 18 bindings task durations total **11038.99 seconds** across these clean
+checkouts. This is an aggregate functional measurement, not one hosted job's
+elapsed time or a feedback-budget qualification. The final full root check at
+`781b2da5`, Board API/Chromium, packaged installation, all-type native recovery,
+accepted interactive budgets and matched performance evidence remain separately
+scoped. Same-revision hosted CI and integration are still pending.

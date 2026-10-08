@@ -1,0 +1,1515 @@
+{
+  "scope": "Ordinary task coverage across exact clean source revisions. This is not one completed ci.py all run, nor five complete same-revision lanes. Runtime semantics are unchanged; two Elixir source files have independently verified AST-preserving formatting.",
+  "head": "9537839ad165696534222c68d739fa5a3073381c",
+  "runtime_semantics_revision": "436a07979a89ea7077ad382607cc107d97e1aa7d",
+  "formatting_evidence": {
+    "scope": "Whitespace formatting only; normalized parsed Elixir ASTs remain identical. The failing clean BEAM task is not a runtime pass.",
+    "checks": [
+      {
+        "log": "general-elixir-format-ast1.log",
+        "log_sha256": "ee373130d5db149f1a28f9009b72823468ed4dcb5f564c490508a976b015e04a",
+        "exit_code": 0
+      },
+      {
+        "log": "general-elixir-format-check1.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exit_code": 0
+      }
+    ],
+    "files": [
+      {
+        "path": "packages/beam/transit-station-elixir/lib/runner.ex",
+        "before_sha256": "f7e66e2cd52641839b049f2d8cc0bf8c84657d042ccaece6d76abea1c9192dee",
+        "after_sha256": "943e3b81bc9fad5aec5b3556344cc8584e464267535ca6f947170ff8e63c23ed"
+      },
+      {
+        "path": "packages/beam/transit-station-elixir/lib/value.ex",
+        "before_sha256": "d9eb76e3e87675fb11c210ce006e53410124f66945e71da08ae4d554e51cf82a",
+        "after_sha256": "fbce8c72e9776fead956fb669a5af4a58851730f3cbc100ae202b823ae8a35c6"
+      }
+    ]
+  },
+  "changed_paths_since_runtime": [
+    "docs/reference/performance.md",
+    "docs/roadmap/M46.md",
+    "docs/roadmap/M47.md",
+    "docs/roadmap/README.md",
+    "packages/beam/transit-station-elixir/lib/runner.ex",
+    "packages/beam/transit-station-elixir/lib/value.ex",
+    "packages/ts/transit-station-sdk/README.md",
+    "tests/README.md",
+    "tests/board_query.py",
+    "tests/board_query_client.mjs",
+    "tests/catalog_cli.py",
+    "tests/interactive_query.py",
+    "tests/mutation_latency/results/2026-10-07/README.md",
+    "tests/python_catalog_sdk.py",
+    "tests/server_board_package.py",
+    "tests/table_logical_types.py",
+    "tests/typed_table_native.py",
+    "tests/verification/results/m46-accepted-interactive-2026-10-07.json",
+    "tests/verification/results/m46-clean-development-2026-10-07.json",
+    "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+  ],
+  "expected_tasks": [
+    "check-core",
+    "test::properties",
+    "test::simulation",
+    "test::resource-simulation-smoke",
+    "test::scheduler-simulation",
+    "test::domain-simulation",
+    "test::vortex",
+    "test::codecs",
+    "test::dev-environment",
+    "test::kubectl-transit",
+    "test::deployments",
+    "test::telemetry",
+    "test::packages-build",
+    "test::compute",
+    "test::client-abi",
+    "test::station",
+    "test::storage",
+    "test::service",
+    "test::runtime-upgrade",
+    "test::callers",
+    "test::inspection",
+    "test::state",
+    "test::arrow",
+    "test::fuze-types",
+    "test::fuze-sources",
+    "test::file-query",
+    "test::logical-arrow",
+    "test::logical-codec",
+    "test::pages",
+    "test::growing",
+    "test::growing-service",
+    "test::public-query",
+    "test::publication",
+    "test::table-query-writer",
+    "test::catalog",
+    "test::typed-tables",
+    "test::http-transport",
+    "test::tls-alpn",
+    "test::grpc-libraries",
+    "test::grpc-codegen",
+    "test::grpc-transport",
+    "test::grpc-server",
+    "test::flight-metadata",
+    "test::grpc-worker",
+    "test::grpc-faults",
+    "test::http-worker",
+    "examples::http",
+    "examples::grpc",
+    "transit-board::check",
+    "transit-docs::check",
+    "bindings::node-check",
+    "test::observability",
+    "transit-board::test",
+    "transit-board::query-test",
+    "launchers::local::test-station",
+    "test::build",
+    "launchers::local::test",
+    "bindings::check",
+    "bindings::native",
+    "bindings::python-test",
+    "bindings::node-sdk-test",
+    "bindings::logical-test",
+    "bindings::rust-sdk-test",
+    "bindings::ruby-sdk-test",
+    "bindings::c-sdk-test",
+    "bindings::java-sdk-test",
+    "bindings::dotnet-sdk-test",
+    "bindings::beam-sdk-test",
+    "bindings::sdk-interop",
+    "test::model",
+    "test::model-delivery",
+    "test::sql-rewrites",
+    "test::sql",
+    "bindings::grpc-faults",
+    "bindings::connector-preparation"
+  ],
+  "complete_task_coverage": true,
+  "passed_tasks": 75,
+  "segments": [
+    {
+      "lane": "core",
+      "selection": "Completed selected tasks from an incomplete run; the original full run failed.",
+      "expected_tasks": [
+        "check-core",
+        "test::properties",
+        "test::simulation",
+        "test::resource-simulation-smoke",
+        "test::scheduler-simulation",
+        "test::domain-simulation",
+        "test::vortex",
+        "test::codecs",
+        "test::dev-environment",
+        "test::kubectl-transit",
+        "test::deployments",
+        "test::telemetry",
+        "test::packages-build",
+        "test::compute",
+        "test::client-abi",
+        "test::station",
+        "test::storage",
+        "test::service",
+        "test::runtime-upgrade",
+        "test::callers",
+        "test::inspection",
+        "test::state"
+      ],
+      "log": "general-definition-ci-clean4.log",
+      "log_sha256": "f74ba41abc7091cfd732f5258057f6048c2a9636b3ff51c14729b348acb3d8b2",
+      "metadata": {
+        "version": 1,
+        "revision": "436a07979a89ea7077ad382607cc107d97e1aa7d",
+        "tier": "all",
+        "expected_tasks": [
+          "check-core",
+          "test::properties",
+          "test::simulation",
+          "test::resource-simulation-smoke",
+          "test::scheduler-simulation",
+          "test::domain-simulation",
+          "test::vortex",
+          "test::codecs",
+          "test::dev-environment",
+          "test::kubectl-transit",
+          "test::deployments",
+          "test::telemetry",
+          "test::packages-build",
+          "test::compute",
+          "test::client-abi",
+          "test::station",
+          "test::storage",
+          "test::service",
+          "test::runtime-upgrade",
+          "test::callers",
+          "test::inspection",
+          "test::state",
+          "test::arrow",
+          "test::fuze-types",
+          "test::fuze-sources",
+          "test::file-query",
+          "test::logical-arrow",
+          "test::logical-codec",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::table-query-writer",
+          "test::catalog",
+          "test::typed-tables",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc",
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station",
+          "test::build",
+          "launchers::local::test",
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": false,
+        "active_task": null,
+        "seconds": 2865.12,
+        "checkpoint_unix": 1791426923.1916993,
+        "result_count": 51
+      },
+      "tasks": [
+        {
+          "lane": "core",
+          "task": "check-core",
+          "seconds": 122.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::properties",
+          "seconds": 12.07,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::simulation",
+          "seconds": 12.82,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::resource-simulation-smoke",
+          "seconds": 3.27,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::scheduler-simulation",
+          "seconds": 11.26,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::domain-simulation",
+          "seconds": 11.42,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::vortex",
+          "seconds": 8.83,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::codecs",
+          "seconds": 5.01,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::dev-environment",
+          "seconds": 0.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::kubectl-transit",
+          "seconds": 3.28,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::deployments",
+          "seconds": 1.66,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::telemetry",
+          "seconds": 1.63,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::packages-build",
+          "seconds": 157.46,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::compute",
+          "seconds": 0.36,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::client-abi",
+          "seconds": 6.62,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::station",
+          "seconds": 135.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::storage",
+          "seconds": 71.69,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::service",
+          "seconds": 39.4,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::runtime-upgrade",
+          "seconds": 4.82,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::callers",
+          "seconds": 14.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::inspection",
+          "seconds": 3.42,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::state",
+          "seconds": 7.86,
+          "exit_code": 0
+        }
+      ],
+      "requires_completed_run": false,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": [
+        "docs/reference/performance.md",
+        "docs/roadmap/M46.md",
+        "docs/roadmap/M47.md",
+        "docs/roadmap/README.md",
+        "packages/beam/transit-station-elixir/lib/runner.ex",
+        "packages/beam/transit-station-elixir/lib/value.ex",
+        "packages/ts/transit-station-sdk/README.md",
+        "tests/README.md",
+        "tests/board_query.py",
+        "tests/board_query_client.mjs",
+        "tests/catalog_cli.py",
+        "tests/interactive_query.py",
+        "tests/mutation_latency/results/2026-10-07/README.md",
+        "tests/python_catalog_sdk.py",
+        "tests/server_board_package.py",
+        "tests/table_logical_types.py",
+        "tests/typed_table_native.py",
+        "tests/verification/results/m46-accepted-interactive-2026-10-07.json",
+        "tests/verification/results/m46-clean-development-2026-10-07.json",
+        "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+      ]
+    },
+    {
+      "lane": "growth",
+      "selection": "Complete separate clean lane.",
+      "expected_tasks": [
+        "test::arrow",
+        "test::fuze-types",
+        "test::fuze-sources",
+        "test::file-query",
+        "test::logical-arrow",
+        "test::logical-codec",
+        "test::pages",
+        "test::growing",
+        "test::growing-service",
+        "test::public-query",
+        "test::publication",
+        "test::table-query-writer",
+        "test::catalog",
+        "test::typed-tables",
+        "test::http-transport",
+        "test::tls-alpn",
+        "test::grpc-libraries",
+        "test::grpc-codegen",
+        "test::grpc-transport",
+        "test::grpc-server",
+        "test::flight-metadata",
+        "test::grpc-worker",
+        "test::grpc-faults",
+        "test::http-worker",
+        "examples::http",
+        "examples::grpc"
+      ],
+      "log": "general-definition-clean-growth1.log",
+      "log_sha256": "ebc260f7654b7b23d6c0d1bd2651be1d14a8b3597be4318939c1fe91b199d5d9",
+      "metadata": {
+        "version": 1,
+        "revision": "e8585d6ee3664e8b5741b36fecc49691d7f7956a",
+        "tier": "growth",
+        "expected_tasks": [
+          "test::arrow",
+          "test::fuze-types",
+          "test::fuze-sources",
+          "test::file-query",
+          "test::logical-arrow",
+          "test::logical-codec",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::table-query-writer",
+          "test::catalog",
+          "test::typed-tables",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 2207.28,
+        "checkpoint_unix": 1791433638.7595074,
+        "result_count": 26
+      },
+      "tasks": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-types",
+          "seconds": 0.64,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-sources",
+          "seconds": 0.73,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::file-query",
+          "seconds": 27.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-arrow",
+          "seconds": 10.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-codec",
+          "seconds": 11.56,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 5.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 56.64,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 234.88,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::public-query",
+          "seconds": 186.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::publication",
+          "seconds": 109.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::table-query-writer",
+          "seconds": 182.14,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::catalog",
+          "seconds": 261.22,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::typed-tables",
+          "seconds": 112.05,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-transport",
+          "seconds": 23.09,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::tls-alpn",
+          "seconds": 2.97,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-libraries",
+          "seconds": 11.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-codegen",
+          "seconds": 7.07,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-transport",
+          "seconds": 12.91,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-server",
+          "seconds": 23.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::flight-metadata",
+          "seconds": 50.03,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-worker",
+          "seconds": 251.21,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-faults",
+          "seconds": 218.01,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-worker",
+          "seconds": 339.52,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::http",
+          "seconds": 26.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::grpc",
+          "seconds": 31.21,
+          "exit_code": 0
+        }
+      ],
+      "requires_completed_run": true,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": [
+        "packages/beam/transit-station-elixir/lib/runner.ex",
+        "packages/beam/transit-station-elixir/lib/value.ex",
+        "tests/README.md",
+        "tests/verification/results/m46-clean-development-2026-10-07.json",
+        "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+      ]
+    },
+    {
+      "lane": "experience",
+      "selection": "Complete separate clean lane.",
+      "expected_tasks": [
+        "transit-board::check",
+        "transit-docs::check",
+        "bindings::node-check",
+        "test::observability",
+        "transit-board::test",
+        "transit-board::query-test",
+        "launchers::local::test-station"
+      ],
+      "log": "general-definition-clean-experience2.log",
+      "log_sha256": "b72be526164b475112fa2ddb3d7f561abeba9d128dd0a98393e3fe7ff0643f3a",
+      "metadata": {
+        "version": 1,
+        "revision": "72d9a6e3d72778726db2a62d3e43985ef4266a70",
+        "tier": "experience",
+        "expected_tasks": [
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 553.56,
+        "checkpoint_unix": 1791428547.988595,
+        "result_count": 7
+      },
+      "tasks": [
+        {
+          "lane": "experience",
+          "task": "transit-board::check",
+          "seconds": 74.09,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-docs::check",
+          "seconds": 61.75,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "bindings::node-check",
+          "seconds": 8.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "test::observability",
+          "seconds": 12.83,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::test",
+          "seconds": 10.26,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::query-test",
+          "seconds": 117.27,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "launchers::local::test-station",
+          "seconds": 268.58,
+          "exit_code": 0
+        }
+      ],
+      "requires_completed_run": true,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": [
+        "docs/roadmap/M46.md",
+        "packages/beam/transit-station-elixir/lib/runner.ex",
+        "packages/beam/transit-station-elixir/lib/value.ex",
+        "tests/README.md",
+        "tests/catalog_cli.py",
+        "tests/python_catalog_sdk.py",
+        "tests/table_logical_types.py",
+        "tests/typed_table_native.py",
+        "tests/verification/results/m46-clean-development-2026-10-07.json",
+        "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+      ]
+    },
+    {
+      "lane": "launchers",
+      "selection": "Complete separate clean lane.",
+      "expected_tasks": [
+        "test::build",
+        "launchers::local::test"
+      ],
+      "log": "general-definition-clean-launchers1.log",
+      "log_sha256": "68a5eb582c31beb77c5bf1fdab32d0cc68bf1e07b60afceb6230eb4bb40161dc",
+      "metadata": {
+        "version": 1,
+        "revision": "d4c4362f4548459c61e880a48f1b624bc60c8e68",
+        "tier": "launchers",
+        "expected_tasks": [
+          "test::build",
+          "launchers::local::test"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 328.54,
+        "checkpoint_unix": 1791427651.9407225,
+        "result_count": 2
+      },
+      "tasks": [
+        {
+          "lane": "launchers",
+          "task": "test::build",
+          "seconds": 27.93,
+          "exit_code": 0
+        },
+        {
+          "lane": "launchers",
+          "task": "launchers::local::test",
+          "seconds": 300.6,
+          "exit_code": 0
+        }
+      ],
+      "requires_completed_run": true,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": [
+        "docs/roadmap/M46.md",
+        "packages/beam/transit-station-elixir/lib/runner.ex",
+        "packages/beam/transit-station-elixir/lib/value.ex",
+        "tests/README.md",
+        "tests/board_query.py",
+        "tests/board_query_client.mjs",
+        "tests/catalog_cli.py",
+        "tests/python_catalog_sdk.py",
+        "tests/server_board_package.py",
+        "tests/table_logical_types.py",
+        "tests/typed_table_native.py",
+        "tests/verification/results/m46-clean-development-2026-10-07.json",
+        "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+      ]
+    },
+    {
+      "lane": "bindings",
+      "selection": "Completed selected tasks from an incomplete run; the original full run failed.",
+      "expected_tasks": [
+        "bindings::check",
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::logical-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test"
+      ],
+      "log": "general-definition-clean-bindings2.log",
+      "log_sha256": "7a189a61ac3aaddd462006c488b6450bfd59473afbf8fdb37eb573a67330589c",
+      "metadata": {
+        "version": 1,
+        "revision": "738ac2cc62fef5add73c8248ab53f6ffb2a26fbe",
+        "tier": "bindings",
+        "expected_tasks": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": false,
+        "active_task": null,
+        "seconds": 7826.3,
+        "checkpoint_unix": 1791436673.4826276,
+        "result_count": 11
+      },
+      "tasks": [
+        {
+          "lane": "bindings",
+          "task": "bindings::check",
+          "seconds": 14.82,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::native",
+          "seconds": 187.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::python-test",
+          "seconds": 1107.88,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::node-sdk-test",
+          "seconds": 971.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::logical-test",
+          "seconds": 36.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::rust-sdk-test",
+          "seconds": 1053.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::ruby-sdk-test",
+          "seconds": 869.04,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::c-sdk-test",
+          "seconds": 1746.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test",
+          "seconds": 915.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::dotnet-sdk-test",
+          "seconds": 888.07,
+          "exit_code": 0
+        }
+      ],
+      "requires_completed_run": false,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": [
+        "docs/roadmap/M46.md",
+        "packages/beam/transit-station-elixir/lib/runner.ex",
+        "packages/beam/transit-station-elixir/lib/value.ex",
+        "tests/README.md",
+        "tests/table_logical_types.py",
+        "tests/typed_table_native.py",
+        "tests/verification/results/m46-clean-development-2026-10-07.json",
+        "tests/verification/results/m46-consumer-checkpoints-2026-10-07.json"
+      ]
+    },
+    {
+      "lane": "bindings",
+      "selection": "Fresh selected suffix of unchanged standard recipes; not a complete bindings lane.",
+      "expected_tasks": [
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
+        "test::model",
+        "test::model-delivery",
+        "test::sql-rewrites",
+        "test::sql",
+        "bindings::grpc-faults",
+        "bindings::connector-preparation"
+      ],
+      "log": "general-definition-clean-bindings-tail1.log",
+      "log_sha256": "de147d80e38db0d74ca7f3288551760c0f7133f4b90d9441238be8d8fc5ec643",
+      "metadata": {
+        "version": 1,
+        "revision": "9537839ad165696534222c68d739fa5a3073381c",
+        "tier": "bindings_tail",
+        "expected_tasks": [
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 3248.88,
+        "checkpoint_unix": 1791440191.2353866,
+        "result_count": 8
+      },
+      "tasks": [
+        {
+          "lane": "bindings_tail",
+          "task": "bindings::beam-sdk-test",
+          "seconds": 2192.12,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "bindings::sdk-interop",
+          "seconds": 888.84,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "test::model",
+          "seconds": 5.93,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "test::model-delivery",
+          "seconds": 1.02,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "test::sql-rewrites",
+          "seconds": 4.14,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "test::sql",
+          "seconds": 18.02,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "bindings::grpc-faults",
+          "seconds": 102.01,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings_tail",
+          "task": "bindings::connector-preparation",
+          "seconds": 36.79,
+          "exit_code": 0
+        }
+      ],
+      "driver": {
+        "scope": "Selected suffix of the standard bindings inventory; not a complete bindings lane.",
+        "original_inventory": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "selected_tasks": [
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "driver_source": "import hashlib, importlib.util, json, sys\nfrom pathlib import Path\nroot=Path.cwd()\nspec=importlib.util.spec_from_file_location(\"transit_ci\", root/\"tests/ci.py\")\nci=importlib.util.module_from_spec(spec)\nspec.loader.exec_module(ci)\noriginal=ci.LANES[\"bindings\"]\nselected=original[original.index(\"bindings::beam-sdk-test\"):]\nassert selected == [\"bindings::beam-sdk-test\", \"bindings::sdk-interop\", \"test::model\", \"test::model-delivery\", \"test::sql-rewrites\", \"test::sql\", \"bindings::grpc-faults\", \"bindings::connector-preparation\"]\nci.LANES[\"bindings_tail\"]=selected\nproof={\"scope\":\"Selected suffix of the standard bindings inventory; not a complete bindings lane.\", \"original_inventory\":original, \"selected_tasks\":selected, \"driver_source\":Path(__file__).read_text(), \"driver_sha256\":hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), \"runner_sha256\":hashlib.sha256((root/\"tests/ci.py\").read_bytes()).hexdigest(), \"suite_sha256\":hashlib.sha256((root/\"tests/verification/suite.json\").read_bytes()).hexdigest()}\n(root/\".cache/ci\").mkdir(parents=True,exist_ok=True)\n(root/\".cache/ci/bindings_tail.selection.json\").write_text(json.dumps(proof,indent=2)+\"\\n\")\nprint(\"Selected clean task inventory: \"+json.dumps(selected),flush=True)\nsys.argv=[\"tests/ci.py\",\"bindings_tail\"]\nci.main()\n",
+        "driver_sha256": "455179b1dc61150840e0663c1fdb6ecf839d9978a8d037287350a05525fdd105",
+        "runner_sha256": "5743cb32ebcd8e6756bb2710aec7fbb31ff17a6efb48011c17f20300cc3932f6",
+        "suite_sha256": "4efe4f21d07c54d2a177dde6eadb7fb8eea46b3accd69fec527e70c95d85a742"
+      },
+      "requires_completed_run": true,
+      "selected_tasks_passed": true,
+      "changed_paths_after_source_revision": []
+    }
+  ],
+  "root_check": {
+    "task": "just check",
+    "source_revision": "781b2da5479083b6b643c8130a9716d97a2dd565",
+    "log": "general-final-check1.log",
+    "log_sha256": "9d3993e685e0eb5a57475eb7105323654dfdf267b403f70fa35be9a4ec352b24",
+    "exit_code": 0
+  },
+  "public_sdk_interop": {
+    "version": 1,
+    "status": "passed",
+    "recorded_at": "2026-10-08T06:13:42.582064+00:00",
+    "environment": {
+      "platform": "Linux",
+      "architecture": "x86_64",
+      "available_cpus": 48,
+      "authority_cpus": 48,
+      "admin_timeout_ms": 15000
+    },
+    "source_revision": "9537839ad165696534222c68d739fa5a3073381c",
+    "proof_sha256": {
+      "tests/sdk_public_interop.py": "6e445543222ba413346f53a2b14a6317457fdcc9b0bbce090ed1bf7e4ac903a6",
+      "tests/python_station_sdk.py": "7da0c56e454cb5146493ca7602782407e790a3bc9b58f3720befedb5abac7395",
+      "tests/node_station_sdk.py": "bf449a82e060cd6184e1d3485d719bd828815ec495fe000360c7817f699e3ffe",
+      "tests/rust_station_sdk.py": "cb6c6e3566a09542f22c7b24365e0574111def1c9858bbaf5d3f70fb57ab2de5",
+      "tests/ruby_station_sdk.py": "1184a3b2458548f4a86d3666a2bd2f0de7e60630306f9d75591e90cdb52668c1",
+      "tests/c_station_sdk.py": "5fca8150bcd935a3bc89663f8cfff0946815d3cec3c6c9320924f41e9d255aba",
+      "tests/java_station_sdk.py": "448a1221d1e9df461bc0a132007a620ab87c249e21c707485d052f6cf7011e3b",
+      "tests/dotnet_station_sdk.py": "b879cdaea8ffb3e9e60e06f89b1fe82643c6acd0f925e3116dfdda69ffe72967",
+      "tests/beam_station_sdk.py": "8d1e8be51e3aed086ab8ff0ecf26a438112e62211e115cc5abd4ea40cfe2965f"
+    },
+    "elapsed_seconds": 697.14,
+    "consumer_install_seconds": 118.924,
+    "pairs": [
+      {
+        "pair": "Python -> Node",
+        "elapsed_seconds": 50.844,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Node -> Rust",
+        "elapsed_seconds": 57.704,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Rust -> Ruby",
+        "elapsed_seconds": 54.045,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Ruby -> C",
+        "elapsed_seconds": 53.593,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "C -> C++",
+        "elapsed_seconds": 52.277,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "C++ -> Java",
+        "elapsed_seconds": 57.352,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Java -> .NET",
+        "elapsed_seconds": 60.442,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": ".NET -> Erlang",
+        "elapsed_seconds": 59.268,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Erlang -> Elixir",
+        "elapsed_seconds": 66.278,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Elixir -> Python",
+        "elapsed_seconds": 66.403,
+        "table_drain_turns": 14,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      }
+    ],
+    "reconciled_transient_results": 10,
+    "injected_lost_receipts": 10,
+    "transient_read_retries": 10,
+    "injected_unavailable_reads": 10,
+    "admin_exact_retries": 1,
+    "injected_lost_delivery_receipts": 1,
+    "storage": {
+      "hot_bytes_limit": 8388608,
+      "resident_pages": 64,
+      "cold_objects": 300,
+      "cold_file_bytes": 78779746
+    },
+    "limits": "Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement."
+  },
+  "clean_suffix_supervisor_source": "\"\"\"Execute unchanged remaining recipes in a fresh committed-source checkout.\"\"\"\nfrom pathlib import Path\nimport hashlib\nimport json\nimport os\nimport shutil\nimport subprocess\nimport tempfile\n\nROOT = Path('/home/alex/workspace/rupurt/rey')\nCAMPAIGN = Path('/var/tmp/transit-table-75-_el6xx0v')\nassert not subprocess.check_output(['git','status','--porcelain'], cwd=ROOT)\nrevision = subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip()\ndirectory = Path(tempfile.mkdtemp(prefix='transit-ci-', dir='/var/tmp'))\ncheckout, scratch = directory/'src', directory/'tmp'\nscratch.mkdir()\nstate = {'revision':revision, 'checkout':str(checkout), 'directory':str(directory), 'tier':'bindings_tail', 'completed':False}\n(CAMPAIGN/'clean-bindings-tail-state.json').write_text(json.dumps(state,indent=2)+'\\n')\nenv = {k:v for k,v in os.environ.items() if not k.startswith('REY_') and k not in ('KUBECONFIG','LOG_LEVEL','LOG_FORMAT')}\ndef run(*args, cwd=ROOT):\n    subprocess.run(args,cwd=cwd,env=env,check=True)\n\n# Reuse the committed inventory runner without editing it or any task. The\n# separate tier name and eight-task expected inventory prevent a full-lane claim.\ndriver = CAMPAIGN/'selected-bindings-tail-driver.py'\ndriver.write_text('''import hashlib, importlib.util, json, sys\nfrom pathlib import Path\nroot=Path.cwd()\nspec=importlib.util.spec_from_file_location(\"transit_ci\", root/\"tests/ci.py\")\nci=importlib.util.module_from_spec(spec)\nspec.loader.exec_module(ci)\noriginal=ci.LANES[\"bindings\"]\nselected=original[original.index(\"bindings::beam-sdk-test\"):]\nassert selected == [\"bindings::beam-sdk-test\", \"bindings::sdk-interop\", \"test::model\", \"test::model-delivery\", \"test::sql-rewrites\", \"test::sql\", \"bindings::grpc-faults\", \"bindings::connector-preparation\"]\nci.LANES[\"bindings_tail\"]=selected\nproof={\"scope\":\"Selected suffix of the standard bindings inventory; not a complete bindings lane.\", \"original_inventory\":original, \"selected_tasks\":selected, \"driver_source\":Path(__file__).read_text(), \"driver_sha256\":hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), \"runner_sha256\":hashlib.sha256((root/\"tests/ci.py\").read_bytes()).hexdigest(), \"suite_sha256\":hashlib.sha256((root/\"tests/verification/suite.json\").read_bytes()).hexdigest()}\n(root/\".cache/ci\").mkdir(parents=True,exist_ok=True)\n(root/\".cache/ci/bindings_tail.selection.json\").write_text(json.dumps(proof,indent=2)+\"\\\\n\")\nprint(\"Selected clean task inventory: \"+json.dumps(selected),flush=True)\nsys.argv=[\"tests/ci.py\",\"bindings_tail\"]\nci.main()\n''')\ntry:\n    run('git','clone','--quiet','--local','--no-hardlinks','--no-checkout',str(ROOT),str(checkout))\n    run('git','checkout','--quiet','--detach',revision,cwd=checkout)\n    print(f'Clean selected bindings tail: {revision} in {checkout}',flush=True)\n    run('nix','develop','--option','eval-cache','false','--command','env',f'TMPDIR={scratch}','just','transit-board::install',cwd=checkout)\n    run('nix','develop','.#bindings','--option','eval-cache','false','--command','env',f'TMPDIR={scratch}','ERL_FLAGS=+S 2:2 +SDcpu 1 +SDio 1','python3','-B',str(driver),cwd=checkout)\nexcept BaseException:\n    print(f'Incomplete selected clean run retained at {directory}',flush=True)\n    raise\nelse:\n    evidence=ROOT/'.cache/ci/clean'/f'{revision[:12]}-{directory.name}'\n    shutil.copytree(checkout/'.cache/ci',evidence)\n    state.update(completed=True,evidence=str(evidence))\n    (CAMPAIGN/'clean-bindings-tail-state.json').write_text(json.dumps(state,indent=2)+'\\n')\n    shutil.rmtree(directory)\n    print(f'All eight selected tasks passed; exact evidence: {evidence}',flush=True)\n",
+  "clean_suffix_supervisor_sha256": "edd971b9f046811fa2759bccfdaa21f1e7050baf8101c78c2e7cdf18fe9f80a9",
+  "coverage_auditor_source": "\"\"\"Audit exact task coverage without promoting incomplete runs to full passes.\"\"\"\nimport hashlib\nimport json\nfrom pathlib import Path\nimport subprocess\nROOT=Path('/home/alex/workspace/rupurt/rey')\nCAMPAIGN=Path('/var/tmp/transit-table-75-_el6xx0v')\nsuite=json.loads((ROOT/'tests/verification/suite.json').read_text())\nexpected=[task for lane in suite['tiers']['ordinary'] for task in suite['lanes'][lane]]\nassert len(expected)==len(set(expected))==75\nhistory=json.loads((ROOT/'tests/verification/results/m46-clean-development-2026-10-07.json').read_text())['runs']\nsegments=[]\ndef prefix(log,lane,tasks):\n    old=next(r for r in history if r['log']==log)\n    selected=old['tasks'][:len(tasks)] if lane=='bindings' else [t for t in old['tasks'] if t['lane']==lane]\n    segments.append(dict(lane=lane,selection='Completed selected tasks from an incomplete run; the original full run failed.',expected_tasks=tasks,log=log,log_sha256=old['log_sha256'],metadata=old['metadata'],tasks=selected,requires_completed_run=False))\nprefix('general-definition-ci-clean4.log','core',suite['lanes']['core'])\nfor lane,revision,directory,log in [\n ('growth','e8585d6ee366','transit-ci-3xhcqru4','general-definition-clean-growth1.log'),\n ('experience','72d9a6e3d727','transit-ci-ips7rp9b','general-definition-clean-experience2.log'),\n ('launchers','d4c4362f4548','transit-ci-p3ckljdf','general-definition-clean-launchers1.log')]:\n    base=ROOT/'.cache/ci/clean'/f'{revision}-{directory}'\n    metadata=json.loads((base/f'{lane}.meta.json').read_text())\n    assert metadata['revision'].startswith(revision)\n    segments.append(dict(lane=lane,selection='Complete separate clean lane.',expected_tasks=suite['lanes'][lane],log=log,log_sha256=hashlib.sha256((CAMPAIGN/log).read_bytes()).hexdigest(),metadata=metadata,tasks=json.loads((base/f'{lane}.json').read_text()),requires_completed_run=True))\nbindings=suite['lanes']['bindings']; split=bindings.index('bindings::beam-sdk-test')\nprefix('general-definition-clean-bindings2.log','bindings',bindings[:split])\nstate=json.loads((CAMPAIGN/'clean-bindings-tail-state.json').read_text()); base=Path(state['checkout'])/'.cache/ci'\nif not base.exists(): base=Path(state['evidence'])\nlog='general-definition-clean-bindings-tail1.log'\nsegments.append(dict(lane='bindings',selection='Fresh selected suffix of unchanged standard recipes; not a complete bindings lane.',expected_tasks=bindings[split:],log=log,log_sha256=hashlib.sha256((CAMPAIGN/log).read_bytes()).hexdigest(),metadata=json.loads((base/'bindings_tail.meta.json').read_text()),tasks=json.loads((base/'bindings_tail.json').read_text()),driver=json.loads((base/'bindings_tail.selection.json').read_text()),requires_completed_run=True))\nhead=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()\nfor segment in segments:\n    wanted=segment['expected_tasks']; names=[t['task'] for t in segment['tasks']]\n    assert names==wanted[:len(names)], (segment['lane'],names)\n    segment['selected_tasks_passed']=names==wanted and all(t['exit_code']==0 for t in segment['tasks']) and (not segment['requires_completed_run'] or segment['metadata']['completed'])\n    segment['changed_paths_after_source_revision']=subprocess.check_output(['git','diff','--name-only',segment['metadata']['revision'],head],cwd=ROOT,text=True).splitlines()\nassert [task for segment in segments for task in segment['expected_tasks']]==expected\nruntime='436a07979a89ea7077ad382607cc107d97e1aa7d'\nchanges=subprocess.check_output(['git','diff','--name-only',runtime,head],cwd=ROOT,text=True).splitlines()\nformatting=json.loads((ROOT/'tests/verification/results/m46-consumer-checkpoints-2026-10-07.json').read_text())['elixir_format_check']\nallowed={f['path'] for f in formatting['files']}\nassert all(p.startswith(('tests/','docs/')) or p.endswith('.md') or p in allowed for p in changes), changes\nfor f in formatting['files']:\n    before=subprocess.check_output(['git','show',runtime+':'+f['path']],cwd=ROOT)\n    assert hashlib.sha256(before).hexdigest()==f['before_sha256']\n    assert hashlib.sha256((ROOT/f['path']).read_bytes()).hexdigest()==f['after_sha256']\ncompleted=all(s['selected_tasks_passed'] for s in segments)\noutput=dict(scope='Ordinary task coverage across exact clean source revisions. This is not one completed ci.py all run, nor five complete same-revision lanes. Runtime semantics are unchanged; two Elixir source files have independently verified AST-preserving formatting.',head=head,runtime_semantics_revision=runtime,formatting_evidence=formatting,changed_paths_since_runtime=changes,expected_tasks=expected,complete_task_coverage=completed,passed_tasks=sum(t['exit_code']==0 for s in segments for t in s['tasks']),segments=segments)\n(CAMPAIGN/'clean-coverage-current.json').write_text(json.dumps(output,indent=2)+'\\n')\nprint(json.dumps({k:output[k] for k in ('head','complete_task_coverage','passed_tasks')}))\n",
+  "bindings_task_seconds": 11038.99,
+  "limits": "Task coverage across the recorded committed revisions; not a complete same-revision ordinary CI run or hosted feedback-budget qualification. All incomplete runs remain failed in the development record. Hosted same-revision CI and integration remain pending."
+}
