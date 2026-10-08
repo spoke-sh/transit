@@ -301,7 +301,11 @@ def run(node, host, proof, board, browser=False):
             assert api({"status": "9007199254740991"})["status"] is None
             api({"status": "not-an-id"}, status=400)
             description = api({"describe": {}})["description"]
-            assert description["source"]["source"]["source"]["table"]["value_type"] == "int64"
+            table = description["source"]["source"]["source"]["table"]
+            assert table["row_type"] == {"structure": [
+                {"name": "id", "type": {"int64": {}}, "nullable": False, "optional": False},
+                {"name": "value", "type": {"int64": {}}, "nullable": True, "optional": False},
+            ]}, table
             sql_caps = api({"sql_capabilities": {}})["sql_capabilities"]
             assert sql_caps["version"] == 1 and sql_caps["parameters"] and sql_caps["statement_bytes"] == 4096
             before = admin("next-sequence").stdout
@@ -314,7 +318,7 @@ def run(node, host, proof, board, browser=False):
             api({"submit": {"token": json.dumps(invalid)}}, status=400)
             compiled = api({"compile": {"sql": "SELECT value FROM items WHERE value = 9007199254740994 LIMIT 1"}})["compiled"]
             parameter_request = {"sql": "SELECT value FROM items WHERE value = $1 LIMIT $2",
-                                 "parameters": [{"int64": "9007199254740994"}, {"uint64": "1"}]}
+                                 "parameters": [{"signed": "9007199254740994"}, {"unsigned": "1"}]}
             before = admin("next-sequence").stdout
             capacity.arm('/v1/query', 'read_entries', 2)
             parameterized = api({"compile": parameter_request}, retry=False)["compiled"]
@@ -322,7 +326,7 @@ def run(node, host, proof, board, browser=False):
             assert parameterized == compiled, 'parameter binding changed the canonical query'
             assert admin("next-sequence").stdout == before, 'compilation recovery allocated a command sequence'
             before = admin("next-sequence").stdout
-            for parameters in ([], [{"utf8": "wrong"}, {"uint64": "1"}]):
+            for parameters in ([], [{"utf8": "wrong"}, {"unsigned": "1"}]):
                 failure = api({"compile": parameter_request | {"parameters": parameters}}, status=400)
                 assert failure['err'] == 'UnsupportedQuery'
                 assert failure['diagnostic']['category'] == 'binding'
@@ -377,7 +381,7 @@ def run(node, host, proof, board, browser=False):
                 assert all(process.poll() is None for process in processes)
                 time.sleep(0.2)
             page = api({"page": {"namespace": "1"}})["page"]
-            assert page["cells"] == [[{"value": {"int64": "9007199254740994"}}]]
+            assert page["cells"] == [[{"value": {"atom": {"signed": "9007199254740994"}}}]]
             assert page["evidence"]["manifest"]["rows"] == "1" and page["evidence"]["next"] is None
             assert page["evidence"]["manifest"]["basis"]["contract"] == compiled["contract"]
             # One Board HTTP request must recover the classified read refusal.

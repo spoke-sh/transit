@@ -18645,3 +18645,23 @@ Removing that blank line changes no runtime or interface. The focused
 `general-node-check-format1.log` passes client tests, both package format/lint/type
 checks and all 57 Station SDK tests, including general Tables, recursive metadata,
 exact identities and recovery. Fresh clean consumer qualification remains required.
+
+### Current Board and packaged-console result fixtures
+
+The clean experience lane at `d4c4362f` passes five tasks, then rejects a
+superseded fixed-Table `value_type` assertion. The incomplete lane and its exact
+results remain in the clean development record. The Board proof now checks the
+complete logical row descriptor, current typed parameters and nested exact-value
+cells. Its generated-client negative control changes a valid current cell into
+an unsafe JavaScript number; a separate control rejects the removed scalar
+format. This avoids a false positive caused only by an obsolete envelope.
+
+`general-board-query-shape1.log` passes the real Board query schedule, including
+exact compilation, lost preparation/submission replies, native read capacity,
+current denial, incomplete-result refusal, cancellation and retired-source
+rejection. Its raw SHA-256 is
+`5b6c4cf7d62968e993c3696d288b56ea56a27d4626e2606bc214c74815149be5`.
+The packaged-console fixture also consumes the current schema/row/completion
+stream through the shared helper, which checks basis, plan and row count before
+asserting the empty Table COUNT. Its Nix package proof and the real query browser
+schedule are running; neither is counted as passed at this checkpoint.
