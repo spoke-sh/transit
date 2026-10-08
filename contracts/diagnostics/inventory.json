@@ -14699,6 +14699,7 @@
         "head()": "<inferred>",
         "job()": "<inferred>",
         "live()": "<inferred>",
+        "liveCurrent()": "<inferred>",
         "open()": "<inferred>",
         "prepare()": "<inferred>",
         "readChange()": "<inferred>",
@@ -14712,7 +14713,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 84,
+        "try": 85,
         "catch": 6
       },
       "imports": [
@@ -16932,6 +16933,7 @@
       "error_returns": {
         "Committed.check()": "<inferred>",
         "Committed.page()": "<inferred>",
+        "Committed.prefetch()": "<inferred>",
         "Committed.read()": "<inferred>",
         "Reader.many()": "anyerror",
         "Reader.page()": "anyerror",
@@ -16956,6 +16958,7 @@
         "put()": "<inferred>",
         "read()": "<inferred>",
         "readCommitted()": "<inferred>",
+        "readCommittedFresh()": "<inferred>",
         "release()": "<inferred>",
         "reply()": "<inferred>",
         "retain()": "<inferred>",
@@ -16968,7 +16971,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 35,
+        "try": 38,
         "catch": 7
       },
       "imports": [

@@ -229,6 +229,19 @@ test "current denial and permanent retirement block old snapshots and delayed wo
     _ = try prepare(&store, 1, c, 64);
     try upload(&store, 1, c);
     _ = try finish(&store, 1);
+    for ([_]bool{ false, true }) |resynchronize| {
+        store.denied = false;
+        var cached = try store.capture();
+        cached.reader.cache_reads = true;
+        _ = try service.readPath(&cached, 1, &.{try m.Name.init("x")});
+        store.denied = true;
+        if (resynchronize) {
+            try t.expectError(error.AccessDenied, service.resynchronize(&cached, 1));
+        } else {
+            try t.expectError(error.AccessDenied, service.readPath(&cached, 1, &.{try m.Name.init("x")}));
+        }
+        try t.expectError(error.AccessDenied, cached.validate());
+    }
     store.denied = true;
     var turn = try store.capture();
     try t.expectError(error.AccessDenied, service.open(&turn, 1));

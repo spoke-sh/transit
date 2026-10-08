@@ -232,6 +232,14 @@ fn readCommitted(self: *Turn, key: p.Value) !?p.Value {
         self.checkCache();
         for (self.read_cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
     }
+    return self.readCommittedFresh(key);
+}
+/// Reacquire one captured key through the source, even when its value is cached
+/// or privately overwritten. Native readers recheck current access on this call.
+/// A failed acquisition poisons the turn and cannot fall back to cached bytes.
+pub fn readCommittedFresh(self: *Turn, key: p.Value) !?p.Value {
+    try p.State.key(key);
+    if (self.read_error) |err| return err;
     const value = self.reader.read(self.reader.context, self.view, key) catch |err| {
         self.read_error = err;
         return err;
@@ -410,6 +418,7 @@ test "captured cache preserves private precedence, absence, poison and view boun
     var committed_source = turn.committed();
     try std.testing.expectEqual(null, try committed_source.read(key));
     source.fail = true;
+    try std.testing.expectError(error.Unavailable, turn.readCommittedFresh(key));
     try std.testing.expectError(error.Unavailable, turn.read(try p.Value.init("b")));
     try std.testing.expectError(error.Unavailable, turn.read(key));
     try std.testing.expectError(error.Unavailable, turn.validate());

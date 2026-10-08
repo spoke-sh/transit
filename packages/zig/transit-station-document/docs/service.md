@@ -47,7 +47,10 @@ work and requires a deliberate retry/admission decision, not expiry.
 
 `readPath` and `readSequence` open an exact accepted revision through a **current**
 growing turn or a public `ResourceReader`. They recheck logical retirement/history availability and rely on
-current resource grants for every source read. A sequence page returns at most
+current resource grants for every source read. A cached turn reacquires its head
+through the native reader before each disclosure or resynchronization; a wholly
+cached small index cannot bypass later permission revocation. A failed read
+poisons the turn, including any attempted commit. A sequence page returns at most
 eight elements and performs at most 32 traversal transitions; an empty page with
 a continuation is not EOF. Keep the same revision across pages. Raw component
 roots/readers are lower-level storage interfaces and do not enforce Document

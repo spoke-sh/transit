@@ -18447,3 +18447,16 @@ The large-value/multilevel fixture now admits another two-row statement after
 40 accepted rows, discards/reconstructs proposals and then verifies 22 predicate
 deletions. The first attempt accidentally reused a test operation ID and correctly
 rejected changed intent. Native reruns remain separate.
+
+### Cached Document disclosure rechecks native access
+
+`document-current-page-unit3.log` passes 30 Document tests;
+`document-current-page-station1.log` passes 114 Station tests. A public Document
+read/resynchronization through a cached turn now reacquires the head through its
+native reader before using cached values. The new test primes the cache, revokes
+access, then rejects both a repeated path read and resynchronization, with a
+poisoned turn that cannot commit. Station separately proves an uncached read
+cannot return a privately overwritten/cached key after source failure. Mapping,
+format and updated diagnostic inventory checks pass in
+`document-current-page-check1.log`. The original native revocation schedule is
+unchanged and its rerun remains the qualification gate.
