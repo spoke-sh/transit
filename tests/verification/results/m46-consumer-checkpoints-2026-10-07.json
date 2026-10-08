@@ -237,6 +237,264 @@
           "exit_code": 0
         }
       ]
+    },
+    {
+      "log": "general-definition-clean-growth1.log",
+      "log_sha256": "ebc260f7654b7b23d6c0d1bd2651be1d14a8b3597be4318939c1fe91b199d5d9",
+      "metadata": {
+        "version": 1,
+        "revision": "e8585d6ee3664e8b5741b36fecc49691d7f7956a",
+        "tier": "growth",
+        "expected_tasks": [
+          "test::arrow",
+          "test::fuze-types",
+          "test::fuze-sources",
+          "test::file-query",
+          "test::logical-arrow",
+          "test::logical-codec",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::table-query-writer",
+          "test::catalog",
+          "test::typed-tables",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 2207.28,
+        "checkpoint_unix": 1791433638.7595074,
+        "result_count": 26
+      },
+      "tasks": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-types",
+          "seconds": 0.64,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-sources",
+          "seconds": 0.73,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::file-query",
+          "seconds": 27.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-arrow",
+          "seconds": 10.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-codec",
+          "seconds": 11.56,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 5.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 56.64,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 234.88,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::public-query",
+          "seconds": 186.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::publication",
+          "seconds": 109.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::table-query-writer",
+          "seconds": 182.14,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::catalog",
+          "seconds": 261.22,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::typed-tables",
+          "seconds": 112.05,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-transport",
+          "seconds": 23.09,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::tls-alpn",
+          "seconds": 2.97,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-libraries",
+          "seconds": 11.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-codegen",
+          "seconds": 7.07,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-transport",
+          "seconds": 12.91,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-server",
+          "seconds": 23.24,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::flight-metadata",
+          "seconds": 50.03,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-worker",
+          "seconds": 251.21,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-faults",
+          "seconds": 218.01,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-worker",
+          "seconds": 339.52,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::http",
+          "seconds": 26.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::grpc",
+          "seconds": 31.21,
+          "exit_code": 0
+        }
+      ]
     }
   ],
   "catalog_identity_rerun": {

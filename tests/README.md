@@ -18741,3 +18741,19 @@ concurrent SDK qualification. The first two attempts reject fixture names and an
 incorrect unwrapped-schema expectation; neither is a complete pass. The consumer
 checkpoint record retains their hashes and the successful result. Clean growth
 qualification must exercise this new default profile at committed source.
+
+### Clean growth lane with complete native logical types
+
+`general-definition-clean-growth1.log` passes all 26 growth tasks at committed
+`e8585d6e` in 2207.28 seconds. It includes Arrow/logical codecs, growing services,
+public queries, publication, the combined Table query/writer, catalog and typed
+Tables, transports, Flight metadata, HTTP/gRPC recovery and both real connector
+examples. Catalog and standalone Table tasks exercise the new 28-descriptor
+matrix through node/store recovery. Publication retains exact append/collect/
+publish retries after four killed workers and the four-write/256-byte bounds.
+
+The completed lane metadata, every task result and raw-log digest are retained
+in the consumer checkpoint record. The clean SDK lane remains active; this is
+not a claim that the full ordinary suite has finished. All runtime source is
+unchanged since `436a0797`; later commits migrate fixtures, accept the explicitly
+selected performance ceilings and record/add qualification evidence.
