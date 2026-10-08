@@ -18398,3 +18398,13 @@ bounded at four. Cancellation, competing work, allocation failures and late
 duplicate rejection remain covered. The first test attempt failed compilation
 on a temporary mutable borrow; the second exposed the large-record reservation
 case. Neither is passing evidence. Native qualification remains separate.
+
+### Batch original command metadata
+
+`catalog-basis-prefetch2.log` passes all 77 Catalog tests. Command basis resolution
+uses three bounded point-read batches for a small schema: current policy,
+metadata/head addresses, then original acceptance receipt/schema addresses.
+The test refuses every unbatched read, injects failure at each acquisition and
+resolves the original schema after DROP/name reuse. Current execution and
+inspection revocation checks remain. The first attempt omitted the fixture's
+source-view ID and failed compilation; it is not passing evidence.

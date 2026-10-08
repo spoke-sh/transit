@@ -242,6 +242,11 @@ immutable metadata and compare actual names, retaining every colliding object.
 Records are at most 436 bytes because they refer to the complete schema rather
 than embedding it. `readSchema` verifies the referenced bytes, object and full
 fingerprint at the supplied source cut, returning allocator-owned schema values.
+Command resolution batches the known metadata/head addresses, then the original
+acceptance receipt and schema addresses. Each batch stays within eight keys and
+one authorized source cut. All acceptance, identity, schema and lifecycle checks
+still run; prefetched values supply no permission and cannot substitute a newer
+definition for an earlier command.
 It does not consult a newer Table head or reinterpret historical metadata.
 The caller must release the returned value with `deinit`.
 

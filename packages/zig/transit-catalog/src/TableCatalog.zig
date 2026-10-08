@@ -791,7 +791,30 @@ pub fn commandBasis(self: Self, allocator: std.mem.Allocator, source: anytype, w
     if (header.owner != self.configuration.owner) return error.CatalogOwnerChanged;
     if (purpose == .execute) _ = try self.authorize(source, who, header.right());
     if (header.metadata.id == 0) return null;
-    const record = try self.historical(source, who, header.object, header.metadata);
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) {
+        // All addresses follow the authenticated header. Acquire bounded
+        // metadata together; every identity/lifecycle check below still runs.
+        const keys = [_]p.Value{
+            Store.key(header.object, 'd', 0),
+            Store.key(header.object, if (header.metadata.spec.length <= p.Value.max_bytes) 'i' else 'r', header.metadata.id),
+            self.key('O', header.object, 0),
+            s.TableHead.key(header.object),
+        };
+        try source.prefetch(keys[0..if (purpose == .execute) keys.len else 2]);
+    }
+    const record = try (Store{ .scope = self.configuration.scope, .object = header.object }).read(source, header.metadata);
     const needs_schema = header.kind == .alter or header.kind == .insert or header.kind == .update or header.kind == .delete;
+    if (comptime @hasDecl(Source, "prefetch")) {
+        // The accepted-definition receipt and original schema are independent
+        // reads at this exact cut. Neither the prefetch nor its cache is policy.
+        const keys = [_]p.Value{
+            self.key('o', record.principal, record.operation),
+            s.TablePages.key(record.object, 'd', 0),
+            s.TablePages.key(record.object, if (record.schema.spec.length <= s.TablePages.inline_bytes) 'i' else 'r', record.schema.id),
+        };
+        try source.prefetch(keys[0..if (needs_schema) keys.len else 1]);
+    }
+    if (!try self.acceptedDefinition(source, header.object, header.metadata, record)) return error.CatalogDefinitionMissing;
     return .{ .record = record, .schema = if (needs_schema) try record.readSchema(allocator, source) else null };
 }

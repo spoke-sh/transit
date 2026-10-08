@@ -1090,8 +1090,40 @@ test "command basis resolves accepted historical schema after DROP with current 
     _ = try ddl(&store, .{ .principal = 17, .operation = 3, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } });
     _ = try ddl(&store, try createRequest(11, 4, "people"));
     turn = try store.capture(17);
-    var original = (try owner.commandBasis(t.allocator, &turn, 17, body.header, .execute)).?;
+    const Batched = struct {
+        store: *TestStore,
+        view: struct { id: u64 = 0, resource: u64 = 7, revision: u64 },
+        keys: [16]?p.Value = @splat(null),
+        count: usize = 0,
+        batches: usize = 0,
+        fail_batch: ?usize = null,
+        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+            try t.expect(keys.len <= p.Growth.page_size);
+            const before = self.count;
+            outer: for (keys) |key| {
+                for (self.keys[0..self.count]) |existing| if (existing.?.eql(key)) continue :outer;
+                try t.expect(self.count < self.keys.len);
+                self.keys[self.count] = key;
+                self.count += 1;
+            }
+            if (self.count != before) {
+                self.batches += 1;
+                if (self.fail_batch == self.batches) return error.Unavailable;
+            }
+        }
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            for (self.keys[0..self.count]) |existing| if (existing.?.eql(key)) return self.store.state.get(key);
+            return error.UnbatchedMetadataRead;
+        }
+    };
+    var batched: Batched = .{ .store = &store, .view = .{ .revision = store.revision } };
+    var original = (try owner.commandBasis(t.allocator, &batched, 17, body.header, .execute)).?;
     defer original.deinit();
+    try t.expectEqual(@as(usize, 3), batched.batches);
+    for (1..4) |failed| {
+        var unavailable: Batched = .{ .store = &store, .view = batched.view, .fail_batch = failed };
+        try t.expectError(error.Unavailable, owner.commandBasis(t.allocator, &unavailable, 17, body.header, .execute));
+    }
     try t.expectEqual(@as(u64, 10), original.record.object);
     var decoded = try c.TableCommand.decode(t.allocator, encoded, original.borrow());
     defer decoded.deinit();
