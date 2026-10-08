@@ -18663,5 +18663,34 @@ rejection. Its raw SHA-256 is
 `5b6c4cf7d62968e993c3696d288b56ea56a27d4626e2606bc214c74815149be5`.
 The packaged-console fixture also consumes the current schema/row/completion
 stream through the shared helper, which checks basis, plan and row count before
-asserting the empty Table COUNT. Its Nix package proof and the real query browser
-schedule are running; neither is counted as passed at this checkpoint.
+asserting the empty Table COUNT. `general-server-board-package1.log` passes its Nix package proof: defaults,
+YAML/environment identity, initialization/restart, the completion-qualified COUNT,
+embedded Board/headless/re-enable and downstream manifest work without runtime
+PATH tools. `general-board-query-browser1.log` passes the real Canvas/Browse
+schedule (one browser test, 54.7 seconds), including exact integers, explicit
+unchanged retry, retained resume, current revocation, retirement and accessibility.
+
+The clean experience lane at `72d9a6e3` passes all seven tasks. Its Station
+launcher proof recovers current reads after 293 injected refusals and one courier
+replacement, finishes the query, then verifies cleanup and persistent restart.
+The clean launcher lane at `d4c4362f` separately passes both tasks. The
+[consumer checkpoint record](verification/results/m46-consumer-checkpoints-2026-10-07.json)
+retains each revision, task result and raw-log digest. These lanes and focused
+passes do not constitute complete ordinary clean qualification.
+
+### Distinct identities for composed catalog fixtures
+
+The clean bindings lane at `d4c4362f` passes contract/native qualification and the
+Python client, Station, retained query and HTTP/gRPC schedules, then fails the
+installed catalog CREATE. The earlier CLI schedule and first SDK both use object
+12001. DROP retains that original object, so the catalog correctly rejects its
+reuse. The incomplete lane remains archived; its Python task is not a full pass.
+
+The CLI fixture now uses 22001/22002, separately from bridge 9001/9002 and SDK
+12001 + index * 10. Python also includes the returned outcome in a failed CREATE
+assertion. `general-python-catalog-identity1.log` passes the full native lifecycle
+and both independently installed Python modes in 116.215 seconds: 426 turns,
+159 sends, four mutations/256-byte values, lost send/turn/host receipts and a
+client disconnect. Both SDK modes retain their original typed mutation result
+and historical schema after DROP/name reuse. The consumer checkpoint record
+retains this result and log digest. No runtime identity or recovery rule changes.

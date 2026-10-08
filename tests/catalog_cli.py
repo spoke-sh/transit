@@ -136,7 +136,10 @@ def qualify(executable, root, url, query, lose_send):
                 break
         raise AssertionError('General Table CLI operation exceeded deadline')
 
-    created = compile('CREATE TABLE cli_people (id INTEGER PRIMARY KEY, name TEXT, tags LIST(INT32))', '12001')
+    # DROP retains original identities. Keep this fixture separate from the
+    # bridge's 9001/9002 and installed SDK consumers' 12001 + index * 10.
+    original_object, replacement_object = '22001', '22002'
+    created = compile('CREATE TABLE cli_people (id INTEGER PRIMARY KEY, name TEXT, tags LIST(INT32))', original_object)
     assert finish(created)['phase'] == 'applied'
     original = client.call({'lookup': 'cli_people'})['definition']
     assert len(original['schema']['columns']) == 3
@@ -178,9 +181,9 @@ def qualify(executable, root, url, query, lose_send):
     assert client.call({'status': large['intent']['reference']})['state'] == dict(outcome=None, upload=None)
     assert finish(compile('DELETE FROM cli_people'))['counts'] == dict(matched='2', changed='2')
     assert finish(compile('DROP TABLE cli_people'))['phase'] == 'applied'
-    assert finish(compile('CREATE TABLE cli_people (label TEXT)', '12002'))['phase'] == 'applied'
-    assert client.call({'lookup': 'cli_people'})['definition']['metadata']['object'] == '12002'
-    assert client.call({'status': created['intent']['reference']})['state']['outcome']['object'] == '12001'
+    assert finish(compile('CREATE TABLE cli_people (label TEXT)', replacement_object))['phase'] == 'applied'
+    assert client.call({'lookup': 'cli_people'})['definition']['metadata']['object'] == replacement_object
+    assert client.call({'status': created['intent']['reference']})['state']['outcome']['object'] == original_object
     assert finish(compile('DROP TABLE cli_people'))['phase'] == 'applied'
     client.close()
-    return dict(original_object='12001', replacement_object='12002', large_artifact_bytes=large_path.stat().st_size, recovered_input=receipt['position'])
+    return dict(original_object=original_object, replacement_object=replacement_object, large_artifact_bytes=large_path.stat().st_size, recovered_input=receipt['position'])

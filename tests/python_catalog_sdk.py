@@ -53,7 +53,8 @@ async def scenario(client, connect, path, index, principal):
     assert description.configuration.scope == client.connection.scope
     assert description.policy.principal == principal
     compiled = await resolve(client.compile_sql(f'CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))', identity(0), original_object))
-    assert (await finish(compiled)).phase == m.Phase.APPLIED
+    created = await finish(compiled)
+    assert created.phase == m.Phase.APPLIED, created
     original = await resolve(client.lookup(name))
     assert len(original.schema.columns) == 3 and isinstance(original.schema.columns[1].type, l.StructureType)
     atom = lambda kind, value: l.Present(l.Atom(kind, value))
