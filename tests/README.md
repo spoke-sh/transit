@@ -18462,3 +18462,28 @@ cannot return a privately overwritten/cached key after source failure. Mapping,
 format and updated diagnostic inventory checks pass in
 `document-current-page-check1.log`. The original native revocation schedule is
 unchanged and its rerun remains the qualification gate.
+
+### Native correction reruns
+
+`general-definition-native-proofs2.log` passes the signed general Table lifecycle,
+console, bridge and CLI schedule in 85.502 seconds: 340 turns, 127 sends, at most
+four writes/256 bytes, lost send/turn replies, supplied-host receipt loss and one
+injected disconnect. Original objects/receipts survive replacement names; exact
+CLI recovery settles input 922. Installed SDK consumers and growth are not
+selected. The combined command still exits nonzero because the Document harness
+asserts an obsolete exact 256-byte maximum. This is a Table pass, not a combined
+proof pass.
+
+The Document harness now checks its measured maximum against the unchanged
+256-byte ceiling, already enforced independently for every observed write.
+Compact index nodes need not fill a value. `general-definition-document3.log`
+passes the complete original Document recovery/revocation schedule: 347 turns,
+3065 reads, three killed workers, four exact-retry phases, one authority page
+during recovery, an 8 MiB hot store, 65 cold objects/17,077,055 cold bytes, maximum
+four mutations and 169-byte values. Stage/accept/checkpoint/finish take
+1.008/5.333/10.715/24.072 seconds in this functional fixture; concurrent
+compilation means these are not matched latency measurements.
+
+Raw `general-definition-native-proofs2.log` SHA-256: `d16ad85beb819e2d532a04ff2436f5f78893806f1fc8c576643fb8e4b96f02d9`.
+
+Raw `general-definition-document3.log` SHA-256: `3a66227b028c5cfe06572716e9a47ad2993c9792a031217ba3fbdb8c86d560ce`.

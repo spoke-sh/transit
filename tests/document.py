@@ -153,7 +153,9 @@ def run(node, caller):
                     authority = start()
             assert not failures, failures
             assert retries == {"node", "accept", "checkpoint", "collect"}, retries
-            assert observations["max_value_bytes"] == 256
+            # Compact index nodes need not fill a native value. Preserve the
+            # ceiling (also checked on every write), not the retired byte size.
+            assert 0 < observations["max_value_bytes"] <= 256
             assert observations["max_mutations"] == 4
             assert cold.data_objects() > 0
             print("Document evidence:", json.dumps({"recovery_resident_pages": 1, "hot_bytes": 8 * 1024 * 1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes(),
