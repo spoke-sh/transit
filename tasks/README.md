@@ -162,6 +162,11 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
+The bindings job has a 240-minute execution cap. The [recorded task durations](../tests/verification/results/m46-clean-task-coverage-2026-10-07.json)
+total about 184 minutes across clean checkouts, separately from hosted setup.
+This cap includes toolchain setup and leaves room for the complete matrix. Individual
+proof deadlines and the separately recorded feedback budgets remain unchanged.
+
 The growing query fixture allows 600 seconds for complete result delivery over
 physical disk and 180 seconds for each other phase. Delivery includes hundreds
 of durable paged turns; the proof records actual phase times and verifies the
