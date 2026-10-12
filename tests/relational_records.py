@@ -24,7 +24,8 @@ def fixtures():
     assert len(delta) == 116
     continuation = b'RMC1' + contract + struct.pack('<3Q', 3, 5, 11)
     assert (len(head), len(work), len(continuation)) == (217, 189, 60)
-    return dict(definition=definition, delta=delta.hex(), head=head.hex(), work=work.hex(), continuation=continuation.hex(),
+    return dict(definition=definition, selection=(b'RMX1' + contract + reference).hex(),
+                exchange=(b'RMI1' + contract + bytes([23]) * 32 + struct.pack('<Q', 88)).hex(), delta=delta.hex(), head=head.hex(), work=work.hex(), continuation=continuation.hex(),
                 key=(b'\0rmh' + struct.pack('>3Q', 3, 5, 0)).hex())
 
 

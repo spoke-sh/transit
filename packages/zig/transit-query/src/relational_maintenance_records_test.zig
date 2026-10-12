@@ -19,7 +19,7 @@ fn rejects(comptime T: type, value: q.protocol.Value) !void {
     try t.expectError(error.InvalidMaintainedRecord, T.decode(wrong));
 }
 test "maintained control and work records match independent bytes and reject missing definitions" {
-    const Fixture = struct { definition: []const u8, delta: []const u8, head: []const u8, work: []const u8, continuation: []const u8, key: []const u8 };
+    const Fixture = struct { selection: []const u8, exchange: []const u8, definition: []const u8, delta: []const u8, head: []const u8, work: []const u8, continuation: []const u8, key: []const u8 };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/relational-maintenance.json"), .{});
     defer parsed.deinit();
     try t.expectEqualStrings(@tagName(q.protocol.Growth.current_definition), parsed.value.definition);
@@ -40,6 +40,14 @@ test "maintained control and work records match independent bytes and reject mis
     try hex(parsed.value.delta, try delta.encode());
     try t.expectEqualDeep(delta, try m.Delta.decode(try delta.encode()));
     try rejects(m.Delta, try delta.encode());
+    const selection: m.ExchangeSelection = .{ .request = head.request };
+    try hex(parsed.value.selection, try selection.encode());
+    try t.expectEqualDeep(selection, try m.ExchangeSelection.decode(try selection.encode()));
+    try rejects(m.ExchangeSelection, try selection.encode());
+    const exchange: m.ExchangeInput = .{ .binding = @splat(23), .exchange = 88 };
+    try hex(parsed.value.exchange, try exchange.encode());
+    try t.expectEqualDeep(exchange, try m.ExchangeInput.decode(try exchange.encode()));
+    try rejects(m.ExchangeInput, try exchange.encode());
     var invalid = head;
     invalid.phase = .idle;
     try t.expectError(error.InvalidMaintainedRecord, invalid.encode());

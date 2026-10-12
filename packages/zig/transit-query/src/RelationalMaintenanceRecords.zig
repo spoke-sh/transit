@@ -43,6 +43,49 @@ pub const Identity = struct {
         return key('h', self.peer, self.correlation, 0);
     }
 };
+/// Explicit physical selection is written before admission. Its absence means
+/// the local-history execution selected by the original maintained interface.
+pub const ExchangeSelection = struct {
+    request: Ref,
+    pub fn encode(self: ExchangeSelection) !p.Value {
+        try q.RelationalBundle.checkReference(self.request);
+        var bytes: [36 + Ref.encoded_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try start(&writer, "RMX1");
+        try writer.writeAll((try self.request.encode()).slice());
+        return p.Value.init(writer.buffered());
+    }
+    pub fn decode(value: p.Value) !ExchangeSelection {
+        try value.validate();
+        var reader: std.Io.Reader = .fixed(value.slice());
+        try open(&reader, "RMX1");
+        const result: ExchangeSelection = .{ .request = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) };
+        if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value)) return error.InvalidMaintainedRecord;
+        return result;
+    }
+};
+/// One immutable exchange attachment for one exact maintained successor basis.
+pub const ExchangeInput = struct {
+    binding: [32]u8,
+    exchange: u64,
+    pub fn encode(self: ExchangeInput) !p.Value {
+        if (self.exchange == 0) return error.InvalidRelationalExchange;
+        var bytes: [76]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try start(&writer, "RMI1");
+        try writer.writeAll(&self.binding);
+        try writer.writeInt(u64, self.exchange, .little);
+        return p.Value.init(writer.buffered());
+    }
+    pub fn decode(value: p.Value) !ExchangeInput {
+        try value.validate();
+        var reader: std.Io.Reader = .fixed(value.slice());
+        try open(&reader, "RMI1");
+        const result: ExchangeInput = .{ .binding = (try reader.takeArray(32)).*, .exchange = try reader.takeInt(u64, .little) };
+        if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value)) return error.InvalidMaintainedRecord;
+        return result;
+    }
+};
 pub const Phase = enum(u8) { admitted = 1, running = 2, idle = 3, failed = 4, cancelled = 5, retired = 6 };
 pub const Head = struct {
     id: u64,

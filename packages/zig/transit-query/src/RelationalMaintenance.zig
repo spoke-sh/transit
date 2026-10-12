@@ -58,7 +58,7 @@ pub fn manifest(source: anytype, bundle: q.RelationalBundle, stored: r.Head) !?r
     if (value.id != stored.id or value.work.revision != stored.revision or value.work.manifest != stored.manifest or value.work.next_record != stored.next_record or value.work.state_bytes != stored.state_bytes) return error.InvalidMaintainedRecord;
     return value;
 }
-fn readBasis(source: anytype, bundle: q.RelationalBundle, stored: r.Head) !History.Vector {
+pub fn readBasis(source: anytype, bundle: q.RelationalBundle, stored: r.Head) !History.Vector {
     var vector: History.Vector = .{ .request = try bundle.fingerprint(), .count = stored.count };
     for (vector.entries[0..stored.count], stored.positions[0..stored.count], 0..) |*entry, position, i| {
         const value = (try source.read(r.key('b', stored.id, try stored.successor(), i))) orelse return error.MissingQueryProgress;
@@ -79,8 +79,60 @@ fn schedule(turn: *Turn, stored: *r.Head) !void {
     try turn.write(stored.identity().address(), try stored.encode());
     try turn.cast(turn.delivery.pid, try (r.Continuation{ .identity = stored.identity(), .input = stored.continuation }).encode());
 }
-fn memory(bundle: q.RelationalBundle, workspace: []u8) !void {
-    if (workspace.len > std.math.maxInt(u64) - resident_base or workspace.len + resident_base > bundle.plan.budgets.resident_bytes) return error.RelationalResidentBudget;
+fn memory(bundle: q.RelationalBundle, workspace: []u8, exchanged: bool) !void {
+    const base = resident_base + @as(u64, if (exchanged) q.RelationalExchange.resident_bytes else 0);
+    if (workspace.len > std.math.maxInt(u64) - base or workspace.len + base > bundle.plan.budgets.resident_bytes) return error.RelationalResidentBudget;
+}
+fn selectionKey(identity: r.Identity) q.protocol.Value {
+    return r.key('x', identity.peer, identity.correlation, 0);
+}
+fn inputKey(stored: r.Head) !q.protocol.Value {
+    return r.key('i', stored.id, try stored.successor(), 0);
+}
+pub fn exchangeSelected(source: anytype, identity: r.Identity, request: Ref) !bool {
+    const value = (try source.read(selectionKey(identity))) orelse return false;
+    const selected = try r.ExchangeSelection.decode(value);
+    if (!std.meta.eql(selected.request, request)) return error.RelationalExchangeConflict;
+    return true;
+}
+/// Trusted host control, before activation. A recorded selection cannot be
+/// removed or changed by activation, a wakeup, or an unavailable producer.
+pub fn selectExchanges(turn: *Turn, identity: r.Identity, request: Ref) !void {
+    try identity.validate();
+    const value = try (r.ExchangeSelection{ .request = request }).encode();
+    if (try turn.read(selectionKey(identity))) |previous| {
+        if (!previous.eql(value)) return error.RelationalExchangeConflict;
+        return;
+    }
+    if (try turn.read(identity.address()) != null) return error.CorrelationAlreadyUsed;
+    try turn.write(selectionKey(identity), value);
+}
+const Exchanged = q.RelationalExchange.Sources(*Turn, *History);
+/// Attach complete coverage for the already accepted basis and wake its owner.
+/// Hosts authenticate this control separately from the activation caller.
+pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, workspace: []u8) !void {
+    const decision = turn.decision;
+    errdefer turn.decision = decision;
+    var stored = try head(turn, identity);
+    if (stored.request_version.pid != turn.delivery.pid or (stored.phase != .admitted and stored.phase != .running)) return error.InvalidMaintainedRecord;
+    if (!try exchangeSelected(turn, identity, stored.request)) return error.InvalidRelationalExchange;
+    const grant = (try q.RelationalCapture.policy(turn, stored.peer)) orelse return error.QueryDenied;
+    if (!grant.allow or grant.revision != stored.policy_revision or grant.requests != stored.request.resource) return error.QueryDenied;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    var retained = try turn.openVersion(stored.request_version);
+    var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
+    const bundle = try q.RelationalBundle.decodeInto(fixed.allocator(), try readBody(stored.request, &retained, &bytes));
+    try memory(bundle, workspace, true);
+    if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    var history = try History.open(turn, fixed.allocator(), bundle, grant.principal, try readBasis(turn, bundle, stored), 1);
+    var inputs: Exchanged = .{ .reader = turn, .authority = &history, .id = exchange, .bound = history.bound() };
+    try inputs.validate(history.bound());
+    const value = try (r.ExchangeInput{ .binding = try history.bound().fingerprint(), .exchange = exchange }).encode();
+    const address = try inputKey(stored);
+    if (try turn.read(address)) |previous| {
+        if (!previous.eql(value)) return error.RelationalExchangeConflict;
+    } else try turn.write(address, value);
+    try schedule(turn, &stored);
 }
 /// Explicit activation by the configured caller. Admission retains the exact
 /// request and records both source heads with the root in at most four writes.
@@ -101,7 +153,7 @@ pub fn start(turn: *Turn, request: Ref, workspace: []u8) !r.Head {
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
     const bundle = try q.RelationalBundle.decodeInto(fixed.allocator(), try readBody(request, &current, &bytes));
     if (bundle.plan.lifetime != .maintained) return error.InvalidRelationalHistory;
-    try memory(bundle, workspace);
+    try memory(bundle, workspace, try exchangeSelected(turn, identity, request));
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     if (bundle.sources[0].scope.resource != turn.view.resource or bundle.sources[0].owner != turn.delivery.pid) return error.RelationalSourceChanged;
     if ((try request.publication().inspect(&current, request.record)).publisher != peer) return error.UnexpectedQueryPublisher;
@@ -189,7 +241,6 @@ const Groups = struct {
         return self.index.next(self.candidate, after);
     }
 };
-const Engine = f.RelationalExecution.Execution(*History, *Groups);
 fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Advance {
     const grant = (try q.RelationalCapture.policy(turn, stored.peer)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != stored.policy_revision or grant.requests != stored.request.resource) return error.QueryDenied;
@@ -198,7 +249,8 @@ fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Adv
     var retained = try turn.openVersion(stored.request_version);
     var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
     const bundle = try q.RelationalBundle.decodeInto(allocator, try readBody(stored.request, &retained, &bytes));
-    try memory(bundle, workspace);
+    const exchanged = try exchangeSelected(turn, stored.identity(), stored.request);
+    try memory(bundle, workspace, exchanged);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     const previous = try manifest(turn, bundle, stored);
     if (waking) {
@@ -214,8 +266,18 @@ fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Adv
     const data = try allocator.create(History);
     data.* = try History.open(turn, allocator, bundle, grant.principal, vector, 1);
     const work = try readWork(turn, stored);
+    if (exchanged) {
+        // Waiting consumes no new source rows and creates no private operator
+        // state. Each successor needs its own explicit, immutable attachment.
+        const value = (try turn.read(try inputKey(stored))) orelse return .idle;
+        const input = try r.ExchangeInput.decode(value);
+        if (!std.mem.eql(u8, &input.binding, &try data.bound().fingerprint())) return error.RelationalSourceChanged;
+        var inputs: Exchanged = .{ .reader = turn, .authority = data, .id = input.exchange, .bound = data.bound() };
+        try inputs.validate(data.bound());
+        if (work.phase == .compute) return compute(turn, allocator, stored, work, data.bound(), &inputs);
+    }
     return switch (work.phase) {
-        .compute => compute(turn, allocator, stored, work, data),
+        .compute => compute(turn, allocator, stored, work, data.bound(), data),
         .delta => delta(turn, bundle, stored, work, data, previous),
         .manifest => publish(turn, bundle, stored, work, data, previous),
         .complete, .failed => error.InvalidMaintainedRecord,
@@ -234,8 +296,8 @@ fn onlyScheduled(turn: *Turn, stored: r.Head) bool {
     for (turn.decision.mutations) |mutation| if (mutation) |entry| if (!entry.key.eql(stored.identity().address())) return false;
     return true;
 }
-fn compute(turn: *Turn, allocator: std.mem.Allocator, stored: r.Head, work: r.Work, data: *History) !Advance {
-    const bound = data.bound();
+fn compute(turn: *Turn, allocator: std.mem.Allocator, stored: r.Head, work: r.Work, bound: f.Relational.Bound, data: anytype) !Advance {
+    const Engine = f.RelationalExecution.Execution(@TypeOf(data), *Groups);
     const pages: q.RelationalState = .{ .publication = stored.publication(turn.view.resource) };
     const candidate = try allocator.create(Candidate);
     candidate.* = try Candidate.init(pages, turn, work.next_record, work.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);

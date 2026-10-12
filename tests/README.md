@@ -171,6 +171,17 @@ fixture and the combined producer/history continuation. An initial producer
 fixture used the wrong output-field name and failed compilation; it is not
 counted as an executed pass.
 
+Maintained attachment passes the pinned query suite at one and seven partitions
+(`query-exchange-maintained-attachment.log`, then the complete
+`query-exchange-maintained-wire.log`). It selects exchange execution before
+activation, waits without operator mutations for complete coverage, computes the
+original frozen result after a live Table update, and waits for a new attachment
+at the next successor. Reusing the previous exchange for that successor rejects.
+Every operator checkpoint still reconstructs on each turn and repeated proposals
+produce identical decisions. `tests/relational_records.py` independently supplies
+the exact `RMX1`/`RMI1` bytes, including truncated/foreign-definition rejection.
+This reference-store result does not establish the native exchange host gates.
+
 Initial attempts expose fixture name/API errors, a row key exceeding the native
 32-byte limit, and a quota fixture that had not actually filled its admitted
 capacity. The implementation uses 32-byte row keys; the quota schedule now fills

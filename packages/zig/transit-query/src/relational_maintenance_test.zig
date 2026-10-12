@@ -12,6 +12,9 @@ fn integer(value: i64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }
 fn admit(store: *Store, bundle: q.RelationalBundle, workspace: []u8) !r.Head {
+    return admitPhysical(store, bundle, workspace, false);
+}
+fn admitPhysical(store: *Store, bundle: q.RelationalBundle, workspace: []u8, exchanged: bool) !r.Head {
     var turn = try tables.turn(store);
     const old = try q.RelationalCapture.policy(&turn, 3);
     try q.RelationalCapture.setPolicy(&turn, .{ .peer = 3, .requests = store.resource, .principal = 17, .revision = if (old) |value| value.revision + 1 else 1, .request = try bundle.fingerprint(), .allow = true });
@@ -27,6 +30,11 @@ fn admit(store: *Store, bundle: q.RelationalBundle, workspace: []u8) !r.Head {
         if (ready) break;
     }
     try t.expect(ready);
+    if (exchanged) {
+        turn = try tables.turn(store);
+        try owner.selectExchanges(&turn, .{ .peer = 3, .correlation = reference.namespace }, reference);
+        try store.commit(turn);
+    }
     turn = try tables.turn(store);
     turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
     turn.delivery.input.value = try (s.Frame{ .kind = .call, .correlation = reference.namespace, .payload = try reference.encode() }).encode();
@@ -198,4 +206,79 @@ test "maintained revisions restart every bounded step and preserve last result a
     try store.commit(turn);
     turn = try tables.turn(&store);
     try t.expectError(error.InvalidReadVersion, turn.openVersion(stored.request_version));
+}
+
+test "maintained exchange attachment waits for exact complete coverage and every successor" {
+    const Fixture = @import("relational_exchange_test.zig").Fixture;
+    const codec = f.RelationalExchange;
+    for ([_]u64{ 1, 7 }) |partitions| {
+        var fixture: Fixture = .{};
+        defer fixture.deinit();
+        const store = &fixture.receiver;
+        try tables.create(store, "CREATE TABLE items (k BIGINT, v BIGINT)");
+        try tables.mutate(store, 2, .{ .insert = &.{ &.{ integer(1), integer(10) }, &.{ integer(1), integer(20) }, &.{ integer(2), integer(30) } } });
+        var definition = try tables.definition(store);
+        defer definition.deinit();
+        var source = try tables.source(store);
+        defer source.deinit();
+        const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = definition.schema.schema }};
+        const sources = [_]q.TableSource{source.source};
+        const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{ .{ .name = "n", .expression = .count_all }, .{ .name = "v", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } }, .lifetime = .maintained, .budgets = budgets } };
+        const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
+        defer t.allocator.free(workspace);
+        const admitted = try admitPhysical(store, bundle, workspace, true);
+        var turn = try continuation(store, admitted);
+        try t.expectEqual(.idle, try owner.advance(&turn, .{ .identity = admitted.identity(), .input = admitted.continuation }, workspace));
+        for (turn.decision.mutations) |slot| try t.expect(slot == null);
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        var history = try q.RelationalHistory.open(&turn, arena.allocator(), bundle, 17, try owner.readBasis(&turn, bundle, admitted), 4);
+        const bound = history.bound();
+        var rows: [3]f.RelationalExecution.Row = undefined;
+        var after: ?f.Relational.RowIdentity = null;
+        for (&rows) |*row| {
+            row.* = (try history.next(0, after)).?;
+            after = row.identity;
+        }
+        try t.expect(try history.next(0, after) == null);
+        // Backfill still uses the frozen basis after the live Table changes.
+        try tables.mutate(store, 3, .{ .insert = &.{&.{ integer(3), integer(40) }} });
+        try fixture.setup(bound, 88, partitions, 1, budgets.spill_bytes);
+        turn = try tables.turn(store);
+        try t.expectError(error.RelationalExchangePending, owner.attachExchange(&turn, admitted.identity(), 88, workspace));
+        for (turn.decision.mutations) |slot| try t.expect(slot == null);
+        var record: u64 = 1;
+        for (0..partitions) |i| {
+            const partition = partitions - i - 1;
+            var segment: codec.Segment = .{ .exchange = 88, .source = 0, .partitions = partitions, .partition = partition, .epoch = 3, .sequence = 0, .terminal = true };
+            for (rows) |row| {
+                if (try codec.route(bundle.plan, 0, partitions, row) != partition) continue;
+                segment.rows[segment.len] = row;
+                segment.len += 1;
+            }
+            const notice = try fixture.offer(bound, segment, record);
+            record += 1;
+            try fixture.accept(bound, 88, notice);
+            try fixture.consume(bound, 88, 0, partition);
+        }
+        turn = try tables.turn(store);
+        try owner.attachExchange(&turn, admitted.identity(), 88, workspace);
+        try store.commit(turn);
+        const complete = try finish(store, bundle, admitted.identity(), workspace);
+        const first = try readResult(store, bundle, complete);
+        try t.expectEqual(@as(u64, 1), complete.revision);
+        try t.expectEqual(@as(u128, 3), first.output.row.cells[0].value.atom.unsigned);
+        try t.expectEqual(@as(i128, 60), first.output.row.cells[1].value.atom.signed);
+        turn = try tables.turn(store);
+        try t.expectEqual(.progress, try owner.wake(&turn, admitted.identity(), workspace));
+        try store.commit(turn);
+        turn = try tables.turn(store);
+        const next = try owner.head(&turn, admitted.identity());
+        turn = try continuation(store, next);
+        try t.expectEqual(.idle, try owner.advance(&turn, .{ .identity = next.identity(), .input = next.continuation }, workspace));
+        for (turn.decision.mutations) |slot| try t.expect(slot == null);
+        // The previous exchange cannot satisfy this newly selected input cut.
+        try t.expectError(error.RelationalSourceChanged, owner.attachExchange(&turn, admitted.identity(), 88, workspace));
+        try t.expectEqual(@as(u64, 1), (try owner.head(&turn, admitted.identity())).revision);
+    }
 }

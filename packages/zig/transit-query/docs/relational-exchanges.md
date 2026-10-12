@@ -41,6 +41,16 @@ identities, routing and failure semantics.
    are independent of placement, arrival or batch boundaries. The enclosing
    captured/maintained owner still owns checkpoint and result publication.
 
+For a maintained activation, the authenticated host calls
+`RelationalMaintenance.selectExchanges` with its exact request reference and
+activation identity before `start`. After admission, `readBasis` exposes the
+recorded successor vector for producer setup. When all partitions complete,
+`attachExchange` validates and records that exchange and schedules computation.
+The same checkpoints and atomic result/delta revisions apply. Every later
+successor waits for its own attachment; an absent attachment returns `idle`
+without changing the last complete result. The host explicitly supplies and
+attaches each exchange. These controls do not implement an automatic scheduler.
+
 `RelationalExchangeProducer` owns the scan cursor for a manual worker layout.
 Its `create` takes partition count, worker count/index, batch size, physical epoch
 and producer quota, and also creates the producer publication. It assigns logical

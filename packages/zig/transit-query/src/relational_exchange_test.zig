@@ -49,12 +49,12 @@ const Authority = struct {
         if (self.denied) return error.CatalogDenied;
     }
 };
-const Fixture = struct {
+pub const Fixture = struct {
     receiver: Store = .{},
     producer: Store = .{ .resource = 8, .pid = 4 },
     authority: Authority = .{},
     denied_producer: bool = false,
-    fn deinit(self: *Fixture) void {
+    pub fn deinit(self: *Fixture) void {
         self.receiver.deinit();
         self.producer.deinit();
     }
@@ -76,7 +76,7 @@ const Fixture = struct {
         const source = try self.reader(view.resource);
         return source.page.?(source.context, view, after);
     }
-    fn capture(self: *Fixture) !s.Turn {
+    pub fn capture(self: *Fixture) !s.Turn {
         var result = try self.receiver.capture();
         result.reader = .{ .context = self, .read = read, .page = page };
         return result;
@@ -96,7 +96,7 @@ const Fixture = struct {
         result.delivery.input.value = try (s.Frame{ .kind = .cast, .payload = try notice.encode() }).encode();
         return result;
     }
-    fn setup(self: *Fixture, bound: f.Relational.Bound, id: u64, partitions: u64, credits: u64, quota: u64) !void {
+    pub fn setup(self: *Fixture, bound: f.Relational.Bound, id: u64, partitions: u64, credits: u64, quota: u64) !void {
         var turn = try self.capture();
         _ = try x.create(&turn, bound, &self.authority, id, partitions, .{ .retained_bytes = quota, .credit_bytes = 2 * codec.max_bytes, .credit_segments = credits });
         try self.receiver.commit(turn);
@@ -109,7 +109,7 @@ const Fixture = struct {
         _ = try x.createProducer(&turn, bound, &self.authority, id, plan.budgets.spill_bytes);
         try self.producer.commit(turn);
     }
-    fn offer(self: *Fixture, bound: f.Relational.Bound, segment: codec.Segment, record: u64) !r.Pending {
+    pub fn offer(self: *Fixture, bound: f.Relational.Bound, segment: codec.Segment, record: u64) !r.Pending {
         const pubn: s.Publication = .{ .resource = self.producer.resource, .domain = .query_exchange, .namespace = segment.exchange };
         for (0..100) |_| {
             var turn = try self.producer.capture();
@@ -125,7 +125,7 @@ const Fixture = struct {
         }
         return error.ProducerDidNotProgress;
     }
-    fn accept(self: *Fixture, bound: f.Relational.Bound, id: u64, notice: r.Pending) !void {
+    pub fn accept(self: *Fixture, bound: f.Relational.Bound, id: u64, notice: r.Pending) !void {
         var turn = try self.noticeTurn(notice);
         try t.expectEqual(.progress, try x.receive(&turn, bound, &self.authority, id, notice));
         try self.receiver.commit(turn);
@@ -141,7 +141,7 @@ const Fixture = struct {
         }
         return error.ReceiverDidNotProgress;
     }
-    fn consume(self: *Fixture, bound: f.Relational.Bound, id: u64, source: u8, partition: u64) !void {
+    pub fn consume(self: *Fixture, bound: f.Relational.Bound, id: u64, source: u8, partition: u64) !void {
         for (0..codec.max_rows + 1) |_| {
             var turn = try self.capture();
             const result = try x.consume(&turn, bound, &self.authority, id, source, partition);

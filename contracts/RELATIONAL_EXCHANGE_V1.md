@@ -180,6 +180,33 @@ read versions remain restricted to the capturing PID; they cannot be lent to a
 different producer. A captured history bundle freezes one basis and cannot call
 the maintained successor selector. This does not change `RQV1` captured-job pins.
 
+## Maintained execution attachment
+
+`RelationalMaintenance.selectExchanges` records an explicit physical choice
+before admission, keyed by activation peer/correlation. `RMX1` is 108 bytes:
+magic, mandatory 32-byte definition and the exact 72-byte `RQB1` publication
+reference. Its key is the maintained `key('x', peer, correlation, 0)`. Selection
+cannot change after admission and an exact retry is idempotent. Local activation
+has no selection record. An exchange selection applies to every successor; an
+absent exchange never enables local execution.
+
+`attachExchange` requires complete consumed coverage, the receiver's current
+source rights and an exact match to the already accepted successor basis. It
+writes `RMI1` under `key('i', job, successor_revision, 0)` and schedules the owner
+in the same turn. `RMI1` is 76 bytes: magic, mandatory definition, 32-byte bound
+fingerprint and nonzero exchange ID as little-endian uint64. This attachment is
+immutable; replacement or a different basis fails. Both records reject trailing
+bytes, missing/foreign definitions and noncanonical references.
+
+An unattached revision consumes its continuation and returns `idle` without
+operator work or publication; its head remains admitted/running and retains the
+previous complete revision. The authenticated host attaches coverage to resume
+it. Computation reads the exchange's canonical row index through the same finite
+engine, immutable checkpoints and atomic maintained result/delta publication.
+Current source authorization and complete exchange coverage are rechecked
+through final publication. Physical attachment never changes a logical result
+identity or admits external effects.
+
 `blocked` is unaccepted, retryable pressure or sequence ordering. `progress`
 preserves private staging/reservation. `accepted` and `duplicate` establish only
 durable receiver ownership. `complete` describes consumed partition coverage.
