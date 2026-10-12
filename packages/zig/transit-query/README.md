@@ -6,6 +6,17 @@ The console uses fresh interactive snapshots by default; explicitly durable
 queries retain frozen request and result recovery. The [v1 contract](../../../contracts/UNIFIED_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
+`TableChangeReader.open` captures a catalog Table snapshot. Consume
+`snapshotNext` through null, then save `checkpoint` with the complete snapshot.
+`openTail` takes that position and a fresh nonce; `next` yields paired row
+changes and complete transaction boundaries, including no-op progress. Save the
+next position only with the complete transaction's application. A caught-up
+event covers this lease; close it and open another tail to observe later work.
+The reader owns its lease and schemas; callers deinitialize returned row/change
+values, close explicitly and finally deinitialize the reader. Request budgets,
+cancellation and current native/catalog rights apply to every disclosure.
+See [Table change capture](../../../docs/reference/tables.md#snapshot-and-change-capture).
+
 `UnifiedClient` owns signed description, finite upload, frozen submission,
 committed-input observation, status, cancellation and verified result pages.
 `describe` checks current catalog metadata as well as permission: renamed,

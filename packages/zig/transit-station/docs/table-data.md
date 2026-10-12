@@ -88,13 +88,17 @@ data. This helper does not implement catalog DROP, name reuse or write admission
 `TableWrite.step` coordinates one typed insertion, complete-row replacement or
 row-identity deletion. The owner supplies authenticated principal/operation,
 captured schema and current policy. The helper recomputes intent identity, uses a
-four-write direct publication when possible, or reserves IDs and a frozen head
+four-write direct publication when possible including predecessor history,
+or reserves IDs and a frozen head
 for resumable staging. It checks the fresh candidate's write-slot cost before
 attempting direct publication. Admission uses remaining slots to stage the first
 records alongside the reservation; the old root and row count remain visible.
 The final head and exact matched/changed counts publish
 together. Other writes see `TableBusy` during staging. Repeated terminal intent
 returns its original receipt even after the Table changes or retires.
+A no-page change can still need staging when the application reserves terminal
+write slots. It consumes one unused record ID for its fenced pending interval;
+the no-op result and application receipt still complete atomically.
 `TableWrite.stepWithReserve` additionally reserves one or two native mutation
 slots for application progress and a terminal application receipt. The guarantee
 applies when the returned status is terminal; building steps may use all four

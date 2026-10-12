@@ -6,6 +6,7 @@ pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const TableQuery = @import("TableQuery.zig");
+pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const TableSource = @import("TableSource.zig");
 pub const RelationalResult = @import("RelationalResult.zig");
 pub const RelationalCapture = @import("RelationalCapture.zig");

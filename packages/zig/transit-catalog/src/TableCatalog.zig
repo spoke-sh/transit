@@ -482,6 +482,9 @@ fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operatio
     const record = self.candidate(pending, current, if (request.action == .rename) request.action.rename else request.name, head.schema, original.schema_fingerprint);
     if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
     if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };
+    // DROP's name, object, head and outcome still publish together in four
+    // writes. An earlier immutable predecessor stage does not retire anything.
+    if (request.action == .drop and try s.TableHistory.stage(head, turn) == .progress) return .{ .operation = pending };
     try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digest(), request.object), null);
     if (request.action == .rename) {
         try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.action.rename.digest(), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
@@ -498,6 +501,8 @@ fn alterStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: D
     if (!original.name.eql(&request.name) or original.revision != request.expected_revision or !std.mem.eql(u8, &original.schema_fingerprint, &try request.action.alter.schema.fingerprint())) return error.CatalogDefinitionChanged;
     const table_request = try request.tableAlter(self.configuration.scope);
     if (pending.state == .delegated) {
+        const head = try s.TableHead.load(turn, request.object);
+        if (head.pending != 0 and try s.TableHistory.stage(head, turn) == .progress) return .{ .operation = pending };
         const result = try s.TableAlter.step(allocator, turn, table_request);
         if (result.state != .building) {
             var next = current;
@@ -586,6 +591,10 @@ pub fn cancel(self: Self, turn: *s.Turn, who: u64, id: u64, digest: [32]u8) !Out
         if (try s.TableWrite.status(turn, ref)) |table| {
             if (table.state == .cancelled and pending.state == .preparing) return self.close(turn, pending, current, .cancelled, .none, pending.object);
             if (table.state != .building) return error.InvalidCatalogReceipt;
+            // Delegated cancellation also clears the catalog reservation. Keep
+            // that publication atomic with the Table receipt within four writes.
+            // A caller repeats the exact pending cancellation after staging.
+            if (pending.state == .delegated and try s.TableHistory.stage(try s.TableHead.load(turn, pending.object), turn) == .progress) return .{ .operation = pending };
             const cancelled = try s.TableAlter.cancel(turn, ref);
             if (pending.state == .delegated) {
                 var next = current;

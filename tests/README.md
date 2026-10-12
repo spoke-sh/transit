@@ -1,5 +1,55 @@
 # Validation and milestone evidence
 
+## Complete Table history and snapshot tail
+
+The Table history slice replaces the shared definition with
+`e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024`
+(SHA-256 of `transit.native.v1.complete-table-history.2026-10-12`). Stored Table
+semantics now require an immutable predecessor for each head replacement.
+Independent Python record fixtures and OpenSSL native signing vectors are
+regenerated with contracts and enabled binding resources.
+
+The first native `just test::typed-tables` run passes in 235.349 seconds, with
+720 turns, 225 sends, maximum four mutations and 256-byte native values. It
+freezes a snapshot while later insert/update/no-op/delete work commits, then
+replays every consecutive transaction with paired values and stable identities.
+Repeated complete cursors return the same transactions. Current catalog denial
+rejects a held tail; DROP and name reuse preserve the original object's tail;
+node and disk-store restart recover that same retired history. Existing captured
+relational recovery, console/bridge/CLI and the 28-descriptor Table matrix pass.
+No SDK language or growth option was selected. This aggregate runtime includes
+more work than the earlier 631-turn schedule and is not a mutation latency
+comparison or a maintained catch-up benchmark.
+
+Station and catalog focused suites pass after fixing fixture entry timestamps
+and explicit staging expectations. The broader root suite initially reports
+1035/1041 passing: one stale native digest, four work-item fixtures using current
+resource revisions for old entries, and a real no-page mutation failure when an
+application reserves two terminal writes. The latter now reserves a durable
+nonempty ID interval and stages completion without consuming the original
+operation. Initial `just check` attempts stop at a stale SDK signing digest and
+then the reviewed diagnostic inventory; neither is a complete passing check.
+The final native rerun also passes in 234.919 seconds with the same 720 turns and
+225 sends, including rejection of missing/foreign saved-position definitions.
+The final `just check` passes after moving repository-tool reproduction commands
+to this proof ledger: root unit and example tests, diagnostic contracts, binding
+resources, real CLI checks, TypeScript/frontend suites and documentation build.
+The schema-pair allocation-failure and every-history-coordinate checks are part
+of that passing run. Local raw logs are
+`.cache/relational-intake/native-table-history-final.log` and
+`.cache/relational-intake/check-table-history-final.log`.
+
+The measured native rerun passes in 229.817 seconds. Its four Table mutations
+(insert, changed update, unchanged update, delete) take 16 native turns and add
+10 predecessor records in 2.987 seconds. The delayed tail covers all 10 head
+transactions and three paired changes in 0.230 seconds. Across the entire
+schedule, 123 distinct accepted predecessor values total 26,455 bytes, with a
+241-byte maximum; exact accepted retries are deduplicated in these measurements.
+These are one local run's logical value bytes and elapsed observations, excluding
+keys, indexes, storage amplification and physical disk usage. The raw result is
+`.cache/relational-intake/native-table-history-measured.log`. Sustained-input
+maintenance and committed-HEAD clean qualification remain separate gates.
+
 ## Relational contract and oracle intake
 
 The finite continuation implements `RelationalExecution` and `RelationalSql`.

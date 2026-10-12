@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.current-view-guards.relational-capture.2026-10-11.
+/// SHA-256 of transit.native.v1.complete-table-history.2026-10-12.
 pub const Definition = enum {
-    e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5,
+    e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -963,8 +963,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("3660f5157b5b7e6033211645dfa701b0168fc4fdbc23057e50e96563a7d6763e", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("8e8e26842d53eeb59d5024ae7519044a3c81b48cee22c732ec986f4e6398ee99", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("513768e14f8d3ae9b3f8cd7b7ed6383b20d3cd2e2fc77cad3aac1ccc9df6be98", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("ea128f425668562ca8b602fb03a2dbd308c08a06b1fc1b470e7a75dde9c2f516", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

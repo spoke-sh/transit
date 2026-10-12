@@ -53,6 +53,17 @@ pub fn configurationAt(connection: c.TableClient.Connection, batch: *q.wire.Reso
     return config;
 }
 pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableMetadata.Name, nonce: [16]u8, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Scan {
+    var self = try openResource(allocator, client, nonce, request_limit, cancellation);
+    errdefer self.deinit();
+    const catalog: c.TableCatalog = .{ .configuration = self.configuration };
+    self.definition = (try catalog.lookup(allocator, &self, client.connection.principal, name)) orelse return error.TableNotFound;
+    return self;
+}
+/// Authorized backing cut for immutable Table history, including retired Tables.
+/// Opening a resource does not resolve a current name or adopt a new object.
+pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce: [16]u8, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Scan {
+    if (request_limit == 0) return error.InvalidQueryBudget;
+    try client.connection.validate();
     const resources: q.wire.ResourceReader = .{ .wire = client.transport, .realm = client.connection.scope.realm, .principal = client.connection.principal, .key = client.key };
     const support = try q.wire.SnapshotReader.support(resources);
     const requested = metadata(client.connection);
@@ -69,7 +80,6 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableM
     for (requested[0].?.keys, acquired.result.points) |key, value| if (key) |address| self.remember(address, value);
     const catalog: c.TableCatalog = .{ .configuration = self.configuration };
     _ = try catalog.authorize(&self, client.connection.principal, .read);
-    self.definition = (try catalog.lookup(allocator, &self, client.connection.principal, name)) orelse return error.TableNotFound;
     return self;
 }
 pub fn fingerprint(self: *const Scan) ![32]u8 {

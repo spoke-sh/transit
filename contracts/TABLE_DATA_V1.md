@@ -24,7 +24,8 @@ their complete 256-bit SHA-256 commitments. Prefix collisions can add bounded
 per-candidate reads but cannot substitute a row or weaken uniqueness checking.
 The shorter entries reduce every keyed leaf's encoded size. Two small keyed
 rows need a 234-byte leaf, within the 246-byte inline page payload, allowing a
-changed point write to compose its row, index, head and receipt in four writes.
+changed point write to compose its row, index, head and receipt in four writes
+after its predecessor history record has been staged.
 Unkeyed Tables have no `K` entries and permit duplicate payloads. A row's identity
 does not change when its primary key changes.
 
@@ -131,7 +132,8 @@ revision and head revision are distinct; pending work does not reinterpret rows.
 Creation requires an absent head, revision-one schema and empty data, after
 schema storage is readable in the enclosing turn. Replacement compares the
 complete expected head bytes, requires the next revision and a nondecreasing
-record floor, and prepares one private write. The owner validates all successor
+record floor, and stages the predecessor before preparing the head write.
+The owner validates all successor
 records before replacement and publishes outcome/input progress atomically.
 These helpers do not manufacture current permissions or operation admission.
 Large schema Publication cursors require a committed source: finish their
@@ -144,6 +146,45 @@ replacement can reset it. Its schema and immutable data remain available to
 separately authorized retained readers and recovery owners; loading a head alone
 does not admit a new read/write or resolve a live catalog name. Catalog DROP
 dependencies, name removal/reuse and physical cleanup remain explicit owner work.
+
+## Complete committed head history
+
+`TableHistory` stores each predecessor under Table namespace tag `j`, record ID
+equal to the head revision, chunk index zero. `STJ1` is magic (4 bytes), native
+entry revision:u64le, and the complete canonical `STH1` bytes, at most 241 bytes.
+The nested head's shared definition is mandatory. The native position comes
+from the committed head entry, not the later archive write or resource read cut.
+Positions are nonzero and fit the native counter range.
+
+Before replacing revision `n`, the owner records its exact predecessor. It can
+stage this immutable record in an earlier turn; current head revision `n` does
+not admit a successor merely because archive record `n` exists. Once the head
+advances to `n+1`, the predecessor is already durable. Conflicting history cannot
+be overwritten. This includes point/finite changes, reservation progress, no-op
+outcomes, ALTER, cancellation and retirement. Original terminal retry produces
+no new revision. Failed candidate cleanup never collects accepted history.
+
+`current` reads one bounded native page to recover the current head and its
+actual entry revision. `revision` requires an existing consecutive predecessor
+below its captured upper head. `at` uses at most 64 probes to resolve the latest
+Table head at or before a native resource position. It reconstructs Table data;
+it does not open a historical native view, restore authorization or supply a
+cross-resource snapshot. Missing history is `TableHistoryGap`, not an empty cut.
+
+`TableChanges.next` returns one consecutive before/after pair. Revisions differ
+by exactly one and native positions strictly increase. `Diff` merges immutable
+row identities and returns at most one paired change per step, owning at most
+two decoded row values and two schemas. Each side uses its own schema. An
+unchanged row returns bounded progress. Equal schema/index roots complete in
+constant work, including no-op and reservation revisions. A transaction with
+zero row changes still has a complete successor position. Diff cursors are
+trusted owner state; they are not public resume capabilities.
+
+History is unbounded durable storage with bounded per-record/read work. Each
+replaced head adds one retained record. Deployment quotas can reject further
+work; they never authorize deleting accepted history or skipping a successor.
+The shared contract definition changes with this mandatory stored framework
+semantics; old heads and saved commands reject before execution.
 
 ## Application-owned initialization and reads
 
@@ -258,8 +299,8 @@ They never resolve a later Table of the same name. Stored outcomes and their
 witnesses remain unchanged by disclosure, rename, DROP, name reuse or cleanup.
 
 The owner first builds a bounded private candidate against the current head and
-exact schema. It attempts to compose all needed pages, successor head and terminal
-receipt in one turn. If that cannot fit, it discards that private attempt and
+exact schema. It attempts to compose all needed pages, predecessor archive,
+successor head and terminal receipt in one turn. If that cannot fit, it discards that private attempt and
 atomically reserves the complete record range in the head with a building receipt.
 The head still points at the original rows/schema. Its pending identifier is the
 first reserved record ID; this is separate from the caller's operation ID.
@@ -301,10 +342,10 @@ It shares `STW1` outcome keys with point
 writes: changing coordinator or intent at an occupied identity rejects.
 
 Admission reserves a bounded immutable record interval and records the busy
-head, receipt and candidate progress atomically. The live schema/data root stays
-unchanged. INSERT may stage its first reachable record with the admission turn's
-remaining write. Its saved cursor stays at the start until the complete batch is
-staged; a record that needs more writes waits for a continuation. Every later
+head, receipt and candidate progress with the predecessor archive atomically.
+The live schema/data root stays unchanged. Admission uses the four writes;
+INSERT starts row staging on a continuation. Its saved cursor stays at the start
+until the complete batch is staged. Every later
 step verifies that exact head revision, pending identity,
 range and schema. INSERT assigns row identities `(principal+1, operation, ordinal)`.
 Candidate reconstruction reads the captured committed source even when admission
@@ -325,7 +366,7 @@ and reserving a new interval. Each interval contains `TableCandidate.max_records
 IDs; unused IDs stay consumed. This is a finite operation budget, not a collection
 cardinality bound. The candidate accumulates in durable immutable pages, not RAM.
 Native turns retain the four-mutation limit. A page-only turn may precede the
-three-write progress advance. The last INSERT batch can complete directly once
+four-write progress advance, including its predecessor. The last INSERT batch can complete directly once
 all its records are staged. Lost proposals repeat the same batch/row and reserved
 IDs; a saved cursor never points beyond unpublished candidate pages.
 

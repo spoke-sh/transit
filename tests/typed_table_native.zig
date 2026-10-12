@@ -325,6 +325,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
     if (std.mem.startsWith(u8, mode, "captured-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
+    if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "relational")) return relational(init, directory, &caller, args[4], std.mem.eql(u8, mode, "relational-held"), if (args.len > 5) args[5] else null);
     if (std.mem.startsWith(u8, mode, "select")) return select(init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.eql(u8, mode, "assist")) return print(init, try currentRead(init, &wire, q.TableAssistance.complete, .{ init.arena.allocator(), &caller, .{ .sql = args[4], .cursor = try std.fmt.parseInt(u16, args[5], 10), .generation = 7, .mode = .console } }));

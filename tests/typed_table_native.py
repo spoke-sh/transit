@@ -40,6 +40,7 @@ def run(node, proof, host, cli, station_host, *arguments):
         host_committed = threading.Event()
         release_host_reply = threading.Event()
         measurements = dict(turns=0, sends=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
+        archived_heads = {}
 
         observed_commands = []
         class Proxy(BaseHTTPRequestHandler):
@@ -70,6 +71,13 @@ def run(node, proof, host, cli, station_host, *arguments):
                                     measurements['max_value_bytes'] = max(measurements['max_value_bytes'], len(encoded))
                                     if encoded.startswith(b'TCA1E'):
                                         measurements['dispositions'].append(encoded[-1])
+                                    if encoded.startswith(b'STJ1'):
+                                        # Head resource is inside STJ1 + STH1;
+                                        # exact native retries cannot count twice.
+                                        identity = encoded[48:56].hex(), entry['key']
+                                        if identity in archived_heads:
+                                            assert archived_heads[identity] == encoded
+                                        archived_heads[identity] = encoded
                         for name, (original, receipt) in faults.items():
                             if body == original:
                                 assert data == receipt, 'Exact accepted request changed its receipt'
@@ -228,6 +236,55 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert filtered_point['scanned'] == 2 and filtered_point['rows'] == [], filtered_point
             assert call('select', 'SELECT COUNT(salary) FROM people')['rows'][0][0]['cell']['value']['atom']['unsigned'] == '2'
             assert call('select', 'SELECT * FROM people LIMIT 0')['rows'] == []
+            # Snapshot backfill pauses while later transactions remain durable.
+            applied(execute(910001, 'CREATE TABLE cdc_rows (k BIGINT, v BIGINT)', 910001))
+            applied(execute(910002, 'INSERT INTO cdc_rows VALUES (1,10)'))
+            backfill = hold('cdc_rows', 'history-snapshot-held')
+            history_mutation_start = time.monotonic()
+            history_turns_before = measurements['turns']
+            history_records_before = len(archived_heads)
+            applied(execute(910003, 'INSERT INTO cdc_rows VALUES (2,20)'))
+            applied(execute(910004, 'UPDATE cdc_rows SET v = 11 WHERE k = 1'))
+            applied(execute(910005, 'UPDATE cdc_rows SET v = 11 WHERE k = 1'))
+            applied(execute(910006, 'DELETE FROM cdc_rows WHERE k = 2'))
+            history_measurements = dict(mutation_seconds=round(time.monotonic() - history_mutation_start, 3),
+                mutation_turns=measurements['turns'] - history_turns_before,
+                added_history_records=len(archived_heads) - history_records_before)
+            assert release(backfill)['rows'] == [[1,10]]
+            saved_position = (root / 'table-tail.json').read_bytes()
+            for field in ('version', 'definition'):
+                malformed = json.loads(saved_position)
+                del malformed[field]
+                (root / 'table-tail.json').write_text(json.dumps(malformed, separators=(',', ':')))
+                call('history-tail', fail=True, expected_error='MissingField')
+            malformed = json.loads(saved_position)
+            malformed['definition'] = 'foreign-definition'
+            (root / 'table-tail.json').write_text(json.dumps(malformed, separators=(',', ':')))
+            call('history-tail', fail=True, expected_error='InvalidEnumTag')
+            (root / 'table-tail.json').write_bytes(saved_position)
+            catchup_started = time.monotonic()
+            tail = call('history-tail')
+            history_measurements['tail_seconds'] = round(time.monotonic() - catchup_started, 3)
+            history_measurements['transactions'] = len(tail['transactions'])
+            assert tail['complete'] and len(tail['transactions']) > 4, tail
+            changes = [row for tx in tail['transactions'] for row in tx['changes']]
+            assert [(row['before'], row['after']) for row in changes] == [(None,[2,20]),([1,10],[1,11]),([2,20],None)], changes
+            assert changes[0]['identity'] == changes[2]['identity']
+            assert any(not tx['changes'] for tx in tail['transactions'])
+            for previous, following in zip(tail['transactions'], tail['transactions'][1:]):
+                assert following['previous'] == previous['next'] and following['commit'] > previous['commit']
+            assert call('history-tail') == tail, 'Repeating a complete cursor changed its transactions'
+            denied_tail = hold('cdc_rows', 'history-tail-held')
+            call('policy', 'deny')
+            call('pump')
+            release(denied_tail, 'CatalogDenied')
+            call('policy', 'allow')
+            call('pump')
+            applied(execute(910007, 'DROP TABLE cdc_rows'))
+            applied(execute(910008, 'CREATE TABLE cdc_rows (v BIGINT)', 910008))
+            retired_tail = call('history-tail')
+            assert retired_tail['transactions'][:-1] == tail['transactions']
+            assert retired_tail['transactions'][-1]['retired']
             call('select', 'SELECT * FROM people', 1, 128, 100000, fail=True, expected_error='QueryPageBudget')
             call('select', 'SELECT * FROM people', 10000, 1, 100000, fail=True, expected_error='QueryResultBudget')
             call('select', 'SELECT * FROM people', 10000, 128, 1, fail=True, expected_error='QueryResultBudget')
@@ -315,6 +372,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             fixture.start()
             authority = start()
             call('captured-rotate')
+            assert call('history-tail') == retired_tail, 'Table history changed after authority and disk restart'
             call('captured-pump')
             captured = call('captured-status')
             assert captured['state'] == 'complete' and captured['outputs'] == 3 and not captured['released'], captured
@@ -617,6 +675,11 @@ def run(node, proof, host, cli, station_host, *arguments):
 
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
+            history_measurements.update(retained_records=len(archived_heads),
+                retained_value_bytes=sum(map(len, archived_heads.values())),
+                maximum_record_bytes=max(map(len, archived_heads.values())),
+                paired_changes=len(changes), restart=True, current_denial=True)
+            print(json.dumps(dict(profile='table-history-native', **history_measurements)))
             print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()

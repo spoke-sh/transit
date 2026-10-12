@@ -6,9 +6,14 @@ const t = std.testing;
 const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
 const Store = struct {
     entries: std.AutoHashMap(p.Value, p.Value) = .init(t.allocator),
+    changed_at: std.AutoHashMap(p.Value, u64) = .init(t.allocator),
     position: u64 = 0,
     pages: usize = 0,
     fail_read: bool = false,
+    fn deinit(self: *@This()) void {
+        self.entries.deinit();
+        self.changed_at.deinit();
+    }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) anyerror!?p.Value {
         const self: *@This() = @ptrCast(@alignCast(raw));
         if (self.fail_read) return error.MigrationDenied;
@@ -29,7 +34,7 @@ const Store = struct {
             }
         }.less);
         var result: Page = .{};
-        for (keys.items[0..@min(keys.items.len, p.Growth.page_size)], 0..) |key, i| result.entries[i] = .{ .key = key, .value = self.entries.get(key).?, .revision = self.position };
+        for (keys.items[0..@min(keys.items.len, p.Growth.page_size)], 0..) |key, i| result.entries[i] = .{ .key = key, .value = self.entries.get(key).?, .revision = self.changed_at.get(key) orelse self.position };
         if (keys.items.len > p.Growth.page_size) result.next = keys.items[p.Growth.page_size - 1];
         return result;
     }
@@ -40,7 +45,13 @@ const Store = struct {
     fn commit(self: *@This(), turn_value: *s.Turn) !void {
         try turn_value.validate();
         for (turn_value.decision.mutations) |slot| if (slot) |mutation| {
-            if (mutation.value) |value| try self.entries.put(mutation.key, value) else _ = self.entries.remove(mutation.key);
+            if (mutation.value) |value| {
+                try self.entries.put(mutation.key, value);
+                try self.changed_at.put(mutation.key, self.position);
+            } else {
+                _ = self.entries.remove(mutation.key);
+                _ = self.changed_at.remove(mutation.key);
+            }
         };
     }
     fn execute(self: *@This(), principal: u64, command: W.Command) !usize {
@@ -133,7 +144,7 @@ fn finish(store: *Store, id: u32) !usize {
 }
 test "real Table migration bounds batches, retains receipts and fences old writers" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 33);
     try t.expectEqual(3, try store.execute(44, .{ .begin = try owner().proposal(2) }));
     try t.expectError(error.WorkItemMigrationPaused, store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 88, .state = 0 } }));
@@ -160,7 +171,7 @@ test "real Table migration bounds batches, retains receipts and fences old write
 }
 test "empty migration and abandoned targets retain identities and verification is mandatory" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 0);
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
     try t.expectError(error.WorkItemVerificationIncomplete, store.execute(44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 2 } }));
@@ -171,14 +182,14 @@ test "empty migration and abandoned targets retain identities and verification i
     var read = try store.turn(44);
     try t.expect(try read.read(s.TableHead.key(2)) != null);
     var empty: Store = .{};
-    defer empty.entries.deinit();
+    defer empty.deinit();
     try setup(&empty, 0);
     _ = try empty.execute(44, .{ .begin = try owner().proposal(2) });
     try t.expectEqual(3, try finish(&empty, 2));
 }
 test "target corruption and current migration denial cannot activate or partly commit" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 1);
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
     _ = try store.execute(44, .{ .step = .{ .plan = .{ .value = 2 }, .ordinal = .{ .value = 1 }, .operation = 1 } });
@@ -220,7 +231,7 @@ fn failureAt(store: *Store, principal: u64, input: u64) !W.Failure.Disposition {
 }
 test "work-item handler retains original cursor policy ordinal and state witnesses" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 3);
     const invalid_state = try handleCommand(&store, 55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 19, .state = 99 } });
     const bad_state = try failureAt(&store, 55, invalid_state);
@@ -262,7 +273,7 @@ test "work-item handler retains original cursor policy ordinal and state witness
 
 test "invalid stored values and failed reads never become caller rejections" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 2);
     try corruptRow(&store, 1, -20);
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
@@ -293,7 +304,7 @@ fn corruptRow(store: *Store, object: u32, key: i64) !void {
 
 test "accepted puts block migration until exact Table completion" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 0);
     const command: W.Command = .{ .put = .{ .epoch = .{ .value = 1 }, .id = -9, .state = 1 } };
     var admission = try store.turn(55);
@@ -317,7 +328,7 @@ test "accepted puts block migration until exact Table completion" {
 
 test "catalog bootstrap and read grants require the independent administrator" {
     var store: Store = .{};
-    defer store.entries.deinit();
+    defer store.deinit();
     try setup(&store, 0);
     for ([_]W.Command{ .catalog_initialize, .{ .prepare_table = 4 }, .{ .read_policy = .{ .principal = 55, .expected = 0, .revision = 1, .allow = true } } }) |command| {
         var turn = try store.turn(44);

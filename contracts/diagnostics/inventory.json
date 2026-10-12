@@ -3197,7 +3197,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 273,
+        "try": 278,
         "catch": 2
       },
       "imports": [
@@ -9460,7 +9460,7 @@
           "deadline"
         ],
         "Definition": [
-          "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
+          "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024"
         ],
         "Effect.phase": [
           "pending",
@@ -11352,6 +11352,45 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/TableChangeReader.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "IncompleteTableChanges": 2,
+        "QueryClosed": 3,
+        "RelationalCallerChanged": 1,
+        "RelationalSourceChanged": 1,
+        "TableHeadChanged": 1,
+        "TableHistoryConflict": 1
+      },
+      "outcomes": {
+        "Event": [
+          "progress",
+          "change",
+          "transaction",
+          "caught_up"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Position.validate()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "close()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "openTail()": "<inferred>",
+        "snapshotNext()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/TableQuery.zig": {
       "errors": {
         "Cancelled": 1,
@@ -11388,6 +11427,7 @@
         "CatalogNotInitialized": 1,
         "CatalogOwnerChanged": 2,
         "Conflict": 1,
+        "InvalidQueryBudget": 1,
         "InvalidRelationalSourceOrder": 1,
         "InvalidResourceRead": 3,
         "InvalidTableIndex": 2,
@@ -11407,6 +11447,7 @@
         "nextAfter()": "<inferred>",
         "open()": "<inferred>",
         "openAt()": "<inferred>",
+        "openResource()": "<inferred>",
         "page()": "<inferred>",
         "prefetch()": "<inferred>",
         "read()": "<inferred>",
@@ -11415,7 +11456,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 32,
         "catch": 3
       },
       "imports": [
@@ -12128,6 +12169,7 @@
         "SqlInspection.zig",
         "SqlTemplate.zig",
         "TableAssistance.zig",
+        "TableChangeReader.zig",
         "TableQuery.zig",
         "TableSource.zig",
         "UnifiedBehavior.zig",
@@ -17352,6 +17394,40 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/TableChanges.zig": {
+      "errors": {
+        "InvalidTableHistory": 4,
+        "InvalidTableHistoryCursor": 1,
+        "TableCapacity": 2,
+        "TableHistoryConflict": 1
+      },
+      "outcomes": {
+        "Step": [
+          "progress",
+          "change",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Diff.open()": "<inferred>",
+        "Diff.step()": "<inferred>",
+        "Transaction.validate()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 3
+      },
+      "imports": [
+        "TableData.zig",
+        "TableHistory.zig",
+        "TablePages.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-station/src/TableCleanup.zig": {
       "errors": {
         "IncompatibleTableStorage": 1,
@@ -17497,17 +17573,52 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 63,
         "catch": 4
       },
       "imports": [
         "ImmutableIndex.zig",
         "TableData.zig",
+        "TableHistory.zig",
         "TablePages.zig",
         "Turn.zig",
         "std",
         "transit_client",
         "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-station/src/TableHistory.zig": {
+      "errors": {
+        "InvalidTableHistory": 9,
+        "InvalidTableHistoryCursor": 2,
+        "TableHeadChanged": 1,
+        "TableHistoryConflict": 1,
+        "TableHistoryGap": 1,
+        "TableNotAtCut": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Record.decode()": "<inferred>",
+        "Record.encode()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "at()": "<inferred>",
+        "current()": "<inferred>",
+        "revision()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "TableHead.zig",
+        "TablePages.zig",
+        "Turn.zig",
+        "std",
+        "transit_client"
       ]
     },
     "packages/zig/transit-station/src/TablePages.zig": {
@@ -17678,7 +17789,7 @@
         "InvalidTableIndex": 1,
         "InvalidTableWrite": 4,
         "InvalidTableWriteStatus": 19,
-        "MutationBudgetExceeded": 8,
+        "MutationBudgetExceeded": 7,
         "RowExists": 3,
         "RowIdentityExists": 2,
         "TableBusy": 1,
@@ -17745,7 +17856,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 76,
+        "try": 80,
         "catch": 14
       },
       "imports": [
@@ -17753,6 +17864,7 @@
         "TableCandidate.zig",
         "TableData.zig",
         "TableHead.zig",
+        "TableHistory.zig",
         "TablePages.zig",
         "Turn.zig",
         "std",
@@ -17910,10 +18022,12 @@
         "Supervisor.zig",
         "TableAlter.zig",
         "TableCandidate.zig",
+        "TableChanges.zig",
         "TableCleanup.zig",
         "TableCreation.zig",
         "TableData.zig",
         "TableHead.zig",
+        "TableHistory.zig",
         "TablePages.zig",
         "TableReader.zig",
         "TableStatement.zig",
