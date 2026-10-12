@@ -1,5 +1,43 @@
 # Validation and milestone evidence
 
+## Named relational definitions
+
+`just test::named-relational` runs the application-owned naming layer above the
+real captured/maintained owners on a native node and disk Ursula. The independent
+`tests/named_relational_records.py` fixture pins every control/record layout,
+full-width object/revision/namespace, exact name keys and definition digest. It
+also runs in the ordinary unit task. The native task belongs to the growth lane;
+the ordinary suite now has **79 tasks**.
+
+The application package units pass missing/truncated/foreign record rejection,
+canonical identifier bounds, administrator denial, allocation/quota rollback,
+explicit policy admission and both activation lifetimes. A 67-revision history
+retains exact earlier definitions and original query attribution using three
+mutations per publication, with no total-history resident list. Retrying an
+earlier revision or permission after later publication recovers its original
+record without changing the current name or reinstalling an older grant.
+
+The completed native schedule passes in **146.815 seconds**, observing **408
+turn responses**, at most four mutations and 256-byte values. It checks
+publication without activation, lost definition/authorization/admission receipts,
+node/disk-store restart and fresh workers, captured output, current source denial,
+immutable attribution after a name replacement, same-resource maintained history
+and exact complete delta retries. Three initial revisions reach the changed
+right-join result. After deletion and explicit no-op successors, inserting
+`[MAX_I64, 1, -1]` fails revision **9**, preserving complete revision **8** and its
+manifest. The retained witness identifies output 2, right operation 7, ordinal 1.
+A lost failure receipt also recovers exactly after worker/node/store replacement.
+
+Application units, independent fixtures, verification ownership and diagnostic
+mappings pass. Full `just check` passes the source, contracts, frontends and
+documentation build; the additional old-policy retry assertion passes its focused
+unit rerun afterward. The first native compile used an enum tag instead of the
+control union value; the second run's assertion expected plain integers instead
+of the actual typed envelopes. Both failures and successful reruns remain in
+`.cache/relational-intake/named-*`. SQL declaration and foreign naming transports
+remain outside this typed/Station message profile. No external effect is
+dispatched by the definition, result or delta operations.
+
 ## Explicit relational Board sessions
 
 [Implementation revision, logs, outcomes and limits](verification/results/relational-board-2026-10-12.json)

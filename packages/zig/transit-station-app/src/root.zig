@@ -18,12 +18,16 @@ pub const HostDiagnostic = @import("HostDiagnostic.zig");
 pub const MigrationFailure = @import("MigrationFailure.zig");
 pub const MigrationDiagnostic = @import("MigrationDiagnostic.zig");
 pub const Migration = @import("Migration.zig");
+pub const query = @import("transit_query");
+pub const NamedRelational = @import("NamedRelational.zig");
+pub const NamedRelationalRecords = @import("NamedRelationalRecords.zig");
 test {
     _ = @import("model_test.zig");
     _ = @import("publication_test.zig");
     _ = @import("native_test.zig");
     _ = @import("host_test.zig");
     _ = @import("migration_test.zig");
+    _ = @import("named_relational_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 

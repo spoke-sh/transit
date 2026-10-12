@@ -324,6 +324,11 @@ relational-callers:
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 
+# Immutable named definitions, explicit activation and revision recovery on disk.
+named-relational:
+    python3 -B tests/named_relational_records.py
+    zig build test-named-relational -Doptimize=ReleaseSafe
+
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
 typed-tables *args:

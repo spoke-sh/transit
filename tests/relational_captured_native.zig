@@ -12,6 +12,7 @@ pub const Metadata = struct { definition: g.Definition, reference: s.Publication
 const Pending = struct { definition: g.Definition, pending: s.client.Session.Pending };
 pub const correlation_key = p.Value.init("relational-proof-correlation") catch unreachable;
 const workspace_bytes = 4 * 1024 * 1024;
+const named = @import("named_relational_native.zig");
 pub const Handler = struct {
     bundle: q.RelationalBundle,
     bytes: []const u8,
@@ -19,6 +20,7 @@ pub const Handler = struct {
     workspace: []u8,
     pub fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self: *@This() = @ptrCast(@alignCast(raw.?));
+        if (try named.handle(turn, frame, self.workspace)) return;
         switch (frame.kind) {
             .reply => return,
             .call => {
@@ -31,18 +33,22 @@ pub const Handler = struct {
             else => return error.InvalidProofFrame,
         }
         const exchanged = std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload-exchange");
-        if (exchanged or std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload")) {
+        const stage_only = std.mem.eql(u8, frame.payload.slice(), "relational-proof-stage");
+        if (stage_only or exchanged or std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload")) {
             const peer = switch (turn.delivery.input.origin) {
                 .external => |external| if (external.principal == 0) turn.delivery.pid else return error.AccessDenied,
                 .process => |process| if (process.pid == turn.delivery.pid) process.pid else return error.AccessDenied,
                 .effect => return error.AccessDenied,
             };
             const fingerprint = try self.bundle.fingerprint();
-            if (try q.RelationalCapture.policy(turn, peer)) |old| {
-                if (!std.mem.eql(u8, &old.request, &fingerprint)) try q.RelationalCapture.setPolicy(turn, .{ .peer = peer, .requests = turn.view.resource, .principal = 1234, .revision = old.revision + 1, .request = fingerprint, .allow = true });
-            } else try q.RelationalCapture.setPolicy(turn, .{ .peer = peer, .requests = turn.view.resource, .principal = 1234, .revision = 1, .request = fingerprint, .allow = true });
+            if (!stage_only) {
+                if (try q.RelationalCapture.policy(turn, peer)) |old| {
+                    if (!std.mem.eql(u8, &old.request, &fingerprint)) try q.RelationalCapture.setPolicy(turn, .{ .peer = peer, .requests = turn.view.resource, .principal = 1234, .revision = old.revision + 1, .request = fingerprint, .allow = true });
+                } else try q.RelationalCapture.setPolicy(turn, .{ .peer = peer, .requests = turn.view.resource, .principal = 1234, .revision = 1, .request = fingerprint, .allow = true });
+            }
             const ready = try s.PublicationUpload.step(turn, .{ .domain = .query_request, .namespace = self.reference.namespace, .identity_key = r.key('u', self.reference.namespace, 0), .identity = try self.reference.encode(), .limits = .{ .record_bytes = q.RelationalBundle.max_bytes, .staging_bytes = q.RelationalBundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = self.reference.spec, .bytes = self.bytes }} });
             if (ready) {
+                if (stage_only) return;
                 const correlation = try turn.call(turn.delivery.pid, try self.reference.encode(), null);
                 if (exchanged) try q.RelationalMaintenance.selectExchanges(turn, .{ .peer = peer, .correlation = correlation }, self.reference);
                 try turn.write(correlation_key, q.UnifiedRecords.identityValue(correlation));
@@ -140,6 +146,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     defer init.gpa.free(bytes);
     var owned = try q.RelationalBundle.decode(init.gpa, bytes);
     defer owned.deinit();
+    if (std.mem.startsWith(u8, mode, "named-")) return named.run(Test, init, wire, &admin, directory, config, metadata.reference, maintained, mode[6..], args);
     if (std.mem.eql(u8, mode, "rotate")) {
         _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = config.worker } });
         var old: s.client.Session = .{ .client = wire, .realm = 46, .principal = config.worker, .pid = config.writer.pid, .generation = config.writer.generation, .key = try Test.key(8) };
@@ -153,12 +160,12 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         _ = try admin.submit(.{ .grant_resource = .{ .resource = metadata.secondary.?, .subject = config.worker, .permissions = 0 } });
         return Test.print(init, .{ .state = "denied" });
     }
-    if (std.mem.eql(u8, mode, "wake") or std.mem.eql(u8, mode, "enqueue") or std.mem.eql(u8, mode, "exchange-enqueue") or std.mem.eql(u8, mode, "retire") or std.mem.eql(u8, mode, "collect")) {
-        const payload = if (std.mem.eql(u8, mode, "wake")) "relational-proof-wake" else if (std.mem.eql(u8, mode, "enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "exchange-enqueue")) "relational-proof-upload-exchange" else if (std.mem.eql(u8, mode, "retire")) "relational-proof-retire" else "relational-proof-collect";
+    if (std.mem.eql(u8, mode, "stage") or std.mem.eql(u8, mode, "wake") or std.mem.eql(u8, mode, "enqueue") or std.mem.eql(u8, mode, "exchange-enqueue") or std.mem.eql(u8, mode, "retire") or std.mem.eql(u8, mode, "collect")) {
+        const payload = if (std.mem.eql(u8, mode, "stage")) "relational-proof-stage" else if (std.mem.eql(u8, mode, "wake")) "relational-proof-wake" else if (std.mem.eql(u8, mode, "enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "exchange-enqueue")) "relational-proof-upload-exchange" else if (std.mem.eql(u8, mode, "retire")) "relational-proof-retire" else "relational-proof-collect";
         _ = try admin.submit(.{ .send = .{ .pid = config.writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(payload) }).encode() } });
         return Test.print(init, .{ .state = "queued" });
     }
-    if (maintained and (std.mem.eql(u8, mode, "status") or std.mem.eql(u8, mode, "result") or std.mem.eql(u8, mode, "result-held") or std.mem.eql(u8, mode, "delta") or std.mem.eql(u8, mode, "next"))) {
+    if (maintained and (std.mem.eql(u8, mode, "failure") or std.mem.eql(u8, mode, "status") or std.mem.eql(u8, mode, "result") or std.mem.eql(u8, mode, "result-held") or std.mem.eql(u8, mode, "delta") or std.mem.eql(u8, mode, "next"))) {
         var source = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }).open(config.writer.resource);
         const value = (try source.read(correlation_key)) orelse return Test.print(init, .{ .state = "absent" });
         const identity: q.RelationalMaintenanceRecords.Identity = .{ .peer = config.writer.pid, .correlation = try q.UnifiedRecords.readIdentity(value) };
@@ -167,6 +174,19 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             return err;
         };
         if (std.mem.eql(u8, mode, "status")) return Test.print(init, .{ .state = @tagName(stored.phase), .job = stored.id, .revision = stored.revision, .manifest = stored.manifest, .state_bytes = stored.state_bytes, .released = stored.released });
+        if (std.mem.eql(u8, mode, "failure")) {
+            const mr = q.RelationalMaintenanceRecords;
+            const successor = try stored.successor();
+            const failure = try r.Failure.decode((try source.read(mr.key('f', stored.id, successor, 0))) orelse return error.MissingProofFailure);
+            const work = try mr.Work.decode((try source.read(mr.key('w', stored.id, successor, 0))) orelse return error.MissingProofFailure);
+            var vector: q.RelationalHistory.Vector = .{ .request = try owned.bundle.fingerprint(), .count = stored.count };
+            for (vector.entries[0..stored.count], 0..) |*entry, index| entry.* = .{ .position = stored.positions[index], .record = try s.TableHistory.Record.decode((try source.read(mr.key('b', stored.id, successor, index))).?) };
+            var cuts: [f.Relational.max_sources]f.Relational.Cut = undefined;
+            try vector.boundCuts(owned.bundle, &cuts);
+            const pages: q.RelationalState = .{ .publication = stored.publication(config.writer.resource) };
+            const checkpoint = try pages.checkpoint(&source, work.checkpoint, .{ .plan = owned.bundle.plan, .cuts = cuts[0..stored.count] });
+            return Test.print(init, .{ .cause = failure.cause.slice(), .witness = checkpoint.failure, .last_revision = stored.revision, .failed_revision = successor, .phase = work.phase });
+        }
         return maintainedResult(Test, init, wire, directory, config, owned.bundle, stored, mode, args);
     }
     if (std.mem.eql(u8, mode, "status")) {

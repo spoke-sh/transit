@@ -14612,6 +14612,102 @@
         "std"
       ]
     },
+    "packages/zig/transit-station-app/src/NamedRelational.zig": {
+      "errors": {
+        "ExpectedCall": 1,
+        "InvalidNamedQuery": 14,
+        "InvalidQueryBundle": 2,
+        "NamedQueryChanged": 2,
+        "NamedQueryConfigurationChanged": 1,
+        "NamedQueryConflict": 6,
+        "NamedQueryDenied": 3,
+        "NamedQueryNotFound": 2,
+        "NamedQueryQuota": 3,
+        "NamedQueryUninitialized": 1,
+        "PublicationReferenceChanged": 1,
+        "QueryAfterMutation": 1,
+        "QueryDenied": 2,
+        "RelationalSourceChanged": 1,
+        "UnexpectedQueryPublisher": 1
+      },
+      "outcomes": {
+        "Started": [
+          "captured",
+          "maintained"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "activate()": "<inferred>",
+        "administrator()": "<inferred>",
+        "attribution()": "<inferred>",
+        "authorize()": "<inferred>",
+        "budget()": "<inferred>",
+        "configured()": "<inferred>",
+        "control()": "<inferred>",
+        "definition()": "<inferred>",
+        "fresh()": "<inferred>",
+        "initialize()": "<inferred>",
+        "lookup()": "<inferred>",
+        "publish()": "<inferred>",
+        "requestBytes()": "<inferred>",
+        "reserve()": "<inferred>",
+        "scoped()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 88,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-station-app/src/NamedRelationalRecords.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidNamedQuery": 19
+      },
+      "outcomes": {
+        "Control": [
+          "initialize",
+          "publish",
+          "authorize"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Activation.decode()": "<inferred>",
+        "Activation.encode()": "<inferred>",
+        "Configuration.validate()": "<inferred>",
+        "Control.decode()": "<inferred>",
+        "Control.encode()": "<inferred>",
+        "Definition.reference()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Identity.validate()": "<inferred>",
+        "Name.init()": "<inferred>",
+        "Name.validate()": "<inferred>",
+        "Reference.decode()": "<inferred>",
+        "Reference.encode()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Scope.validate()": "<inferred>",
+        "decodeRecord()": "<inferred>",
+        "encodeRecord()": "<inferred>",
+        "nameKey()": "<inferred>",
+        "read()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 46,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-station-app/src/Native.zig": {
       "errors": {
         "ApplicationDigestMismatch": 2,
@@ -14984,6 +15080,8 @@
         "MigrationDiagnostic.zig",
         "MigrationFailure.zig",
         "Model.zig",
+        "NamedRelational.zig",
+        "NamedRelationalRecords.zig",
         "Native.zig",
         "Publication.zig",
         "PublicationDiagnostic.zig",
@@ -14992,6 +15090,7 @@
         "Request.zig",
         "Sql.zig",
         "Upload.zig",
+        "transit_query",
         "transit_serving"
       ]
     },

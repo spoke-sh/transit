@@ -1812,6 +1812,33 @@
       "limits": "Small int64 fixtures with one retained output row. Durable captured/maintained foreign callers, other language relational adapters and large-output/RSS growth remain separate qualification gates.",
       "model": null,
       "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
+    },
+    {
+      "id": "NAMED-RELATIONAL-01",
+      "claim": "Immutable relational definitions and authorization archives keep publication separate from activation and preserve original query attribution",
+      "owner": "contracts/NAMED_RELATIONAL_V1.md",
+      "implementation": [
+        "packages/zig/transit-station-app/src/NamedRelational.zig",
+        "packages/zig/transit-station-app/src/NamedRelationalRecords.zig",
+        "tests/named_relational_native.py"
+      ],
+      "profile": "Typed application-owned naming and authenticated Station controls over one native authority and disk Ursula",
+      "tasks": [
+        "test::named-relational",
+        "test::unit"
+      ],
+      "scenarios": [
+        "Publication and authorization do not activate a query",
+        "Conditional revisions reject conflicting names and preserve exact earlier retries",
+        "Quota and workspace failure roll back writes and retained pins",
+        "Original named attribution survives later definition and policy revisions",
+        "Saved references require the current shared definition and canonical records",
+        "Captured and same-resource maintained activation reuse the existing query owners",
+        "Exact native receipt retry survives worker, node and disk-store replacement"
+      ],
+      "limits": "Selected int64 Table profile with one native coordinator; no SQL declaration syntax, foreign naming transport, automatic retention or connector dispatch.",
+      "model": null,
+      "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
     }
   ]
 }

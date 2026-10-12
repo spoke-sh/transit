@@ -1,5 +1,9 @@
 # transit-station-app
 
+[Named relational definitions](docs/named-relational.md) compose immutable query
+names, separate current authorization and explicit captured/maintained activation.
+Their application-owned namespace is separate from UI interface definitions.
+
 M23's shared declarative application owner, above Station and serving. The
 [application contract](../../../contracts/APPLICATION_V1.md) owns neutral values,
 publication and migration boundaries. Implementation is in progress; package

@@ -329,6 +329,36 @@ unfinished qualification. The reference store tests proposal reconstruction,
 no-op coverage and failed-successor preservation; they do not prove durability.
 Native disk evidence, lag/state measurements and faults bound stronger claims.
 
+### Immutable names and query attribution
+
+Named query attribution asks a separate question: how can an accepted query
+retain its definition when a mutable name later points elsewhere? The
+application owner stores immutable definition revisions and a conditional name
+head. Publishing validates the frozen bundle and retains its native request cut;
+it neither captures source data nor activates execution. Current native and
+catalog policies remain assumptions of each operation.
+
+An explicit policy operation atomically writes the current query policy and an
+immutable archive keyed by publishing peer and policy revision. Existing query
+roots already retain both fields and their original request. They therefore join
+to a permanent named definition without adding a fifth admission mutation. A
+name replacement changes only the name head; policy replacement does not rewrite
+the archive or an earlier root. The archive supplies attribution, while the
+current policy supplies authority. Confusing those two would let an old allowed
+record bypass revocation.
+
+This design uses another retained record and explicit authorization step instead
+of enlarging the query root or introducing a separate execution engine. It
+preserves the existing one-resource atomic boundary and current-policy revision
+checks. Logical namespace quotas include immutable records and declared bundle
+bytes; they do not measure the complete physical retained resource cuts. History
+has no implicit expiry. The [naming contract](../../contracts/NAMED_RELATIONAL_V1.md)
+and [implementation](../../packages/zig/transit-station-app/src/NamedRelational.zig)
+specify this additive profile. Independent record bytes, conditional-retry tests
+and disk recovery are reproducible through the [proof ledger](../../tests/README.md#named-relational-definitions).
+This mechanism does not establish SQL view syntax, network subscription delivery
+or effect dispatch.
+
 ### Durable acceptance and canonical source order
 
 The exchange implementation asks how partitioned delivery can preserve the
