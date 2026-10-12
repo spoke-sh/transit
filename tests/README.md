@@ -1,5 +1,39 @@
 # Validation and milestone evidence
 
+## Ongoing maintenance and failed successors
+
+The [expanded native record](verification/results/relational-maintenance-faults-2026-10-12.json)
+passes at `85861c88` in the clean growth lane. It covers 26 complete
+revisions: the initial result, eight changing successors and 17 no-op successors.
+Every basis agrees with the independent finite interpreter, and applying each
+complete predecessor delta reconstructs the same relation with exact retry.
+Maintenance takes **1188.854 seconds**, **1739 turn responses**,
+and retains **183,707 logical query-state bytes**. The enclosing
+Table/captured/logical-type regression passes in **1536.136 seconds**.
+Native mutation and value limits remain four writes and 256 bytes.
+
+Three updates arrive during ten-turn maintenance quanta. Nine source-head
+revisions accumulate, then the backlog drains to zero. Catch-up after the final
+accepted update takes **415.235 seconds**;
+retained logical state grows from 104,216 to 169,451 bytes. Exact arrival,
+publication-lag, mutation and retained-state observations are in the record.
+This is a bounded arrival/drain experiment under shared-host load, not a
+steady-state capacity or isolated latency benchmark.
+
+ALTER publishes two valid no-op predecessors, then `TableSchemaChanged` fails
+successor 27 while preserving complete revision 26. Explicit retirement and
+readmission against the new schema succeed. DROP fails the new successor with
+`TableRetired`; reusing its SQL name under a new object cannot resume or rebind
+the old query. A separate reference-store history-gap check proves that restoring
+missing bytes cannot silently resume a failed identity; that corruption check is
+not presented as native storage evidence.
+
+The record retains the outdated DDL assertion, an interrupted redundant attempt,
+and an enclosing snapshot-deadline failure after the maintenance assertions had
+passed. The corrected fixture runs the original leased-snapshot schedule before
+growing maintenance history, preserving its deadlines and assertions. Full
+integrated clean-suite completion is recorded separately.
+
 ## Complete-history mutation cost
 
 The [complete-history campaign](mutation_latency/results/2026-10-12/README.md)
