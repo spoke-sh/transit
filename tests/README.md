@@ -86,6 +86,39 @@ definitions, schema substitutions and trailing bytes. Resource vectors, guards
 and plan artifacts alone do not qualify durable relational result execution,
 maintained revisions, exchanges or reassignment.
 
+### Immutable group checkpoints and bounded publication staging
+
+The standalone Fuze Debug suite and `just test::relational` pass after adding
+immutable group roots and operator checkpoints. The focused executor now runs
+59 tests including dependencies. All 15 named independent semantic fixtures run
+both with the original small reference map and with immutable group records,
+encoding/decoding/restoring the executor after every step, including complete
+and failed states. Results, row identities and canonical overflow witnesses agree.
+The Python oracle still independently checks its 300 generated cases; those
+additional generated cases are not yet production-executor comparisons.
+
+The index proof inserts 901 groups in ascending, descending and interleaved
+order, enumerates canonical null-first keys, replaces values and reads retained
+old roots. Every candidate-write failure in the selected insertion leaves its
+accepted root readable. Missing/corrupt records, changed bindings, invalid root
+counts/lengths and malformed aggregate state reject. Checkpoint tests reject
+every truncated prefix, foreign definitions, changed cuts, invalid counters and
+current denial before restoration.
+
+The query Debug and ReleaseSafe suites pass the new Station Publication staging schedule.
+Twenty updates repeatedly discard their candidate/operator memory between
+bounded turns, reconstruct exact reserved records, reopen the accepted root and
+publish the checkpoint reference last. Staging never advances that root. A
+five-group old root remains readable after all twenty updates. Separate tests
+exercise retained-byte/work limits, conflicting reuse of an allocated record and
+current read denial. These tests use the explicit in-memory reference turn store;
+they do not establish native durable query admission, source-pin/result cleanup,
+worker/node loss or distributed reassignment. Earlier compile attempts caught a
+changed Zig reflection API and a shadowing parameter; corrected runs pass.
+The full `just check` also passes, including generated contracts, diagnostic
+routes, CLI, Board and the documentation build. Committed-head clean qualification
+remains pending.
+
 ### Initial contract checkpoint
 
 The intake starts at merged `07918d7a` on the pinned Zig

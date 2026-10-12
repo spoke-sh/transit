@@ -6460,6 +6460,47 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/RelationalCheckpoint.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalCheckpoint": 26,
+        "RelationalSourceChanged": 1
+      },
+      "outcomes": {
+        "Phase": [
+          "input",
+          "empty_right",
+          "output",
+          "complete",
+          "failed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "boolean()": "<inferred>",
+        "checkKey()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "readId()": "<inferred>",
+        "readKey()": "<inferred>",
+        "validate()": "<inferred>",
+        "writeId()": "<inferred>",
+        "writeKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 68,
+        "catch": 3
+      },
+      "imports": [
+        "Relational.zig",
+        "RelationalExecution.zig",
+        "RelationalIndex.zig",
+        "Types.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/RelationalCodec.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -6511,13 +6552,6 @@
           "row",
           "complete"
         ],
-        "Execution().<return>.phase": [
-          "input",
-          "empty_right",
-          "output",
-          "complete",
-          "failed"
-        ],
         "Output.identity": [
           "pair",
           "group"
@@ -6530,6 +6564,7 @@
       },
       "error_returns": {
         "Execution().<return>.charge()": "<inferred>",
+        "Execution().<return>.checkpoint()": "<inferred>",
         "Execution().<return>.contribute()": "<inferred>",
         "Execution().<return>.coverEmptyRight()": "<inferred>",
         "Execution().<return>.emit()": "<inferred>",
@@ -6538,19 +6573,63 @@
         "Execution().<return>.input()": "<inferred>",
         "Execution().<return>.output()": "<inferred>",
         "Execution().<return>.read()": "<inferred>",
+        "Execution().<return>.restore()": "<inferred>",
         "Execution().<return>.step()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 23,
         "catch": 3
       },
       "imports": [
         "PredicateTruth.zig",
         "Relational.zig",
+        "RelationalCheckpoint.zig",
+        "RelationalIndex.zig",
         "TableSchema.zig",
         "Types.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RelationalIndex.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "IncompleteRelationalIndex": 1,
+        "InvalidRelationalGroup": 7,
+        "InvalidRelationalIndex": 14,
+        "RelationalResidentBudget": 1,
+        "RelationalSourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "balance()": "<inferred>",
+        "checkGroup()": "<inferred>",
+        "checkKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "load()": "<inferred>",
+        "next()": "<inferred>",
+        "put()": "<inferred>",
+        "readOptional()": "<inferred>",
+        "readReference()": "<inferred>",
+        "rotateLeft()": "<inferred>",
+        "rotateRight()": "<inferred>",
+        "save()": "<inferred>",
+        "validateReference()": "<inferred>",
+        "writeOptional()": "<inferred>",
+        "writeReference()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 69,
+        "catch": 1
+      },
+      "imports": [
+        "Relational.zig",
+        "RelationalExecution.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/RelationalSql.zig": {
@@ -8716,8 +8795,10 @@
         "LogicalStream.zig",
         "Prepared.zig",
         "Relational.zig",
+        "RelationalCheckpoint.zig",
         "RelationalCodec.zig",
         "RelationalExecution.zig",
+        "RelationalIndex.zig",
         "RelationalSql.zig",
         "SourceCodec.zig",
         "Sql.zig",
@@ -10637,6 +10718,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/RelationalState.zig": {
+      "errors": {
+        "InvalidRelationalState": 11,
+        "MutationBudgetExceeded": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSpillBudget": 3,
+        "RelationalWorkBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Candidate().<return>.charge()": "<inferred>",
+        "Candidate().<return>.checkpointId()": "<inferred>",
+        "Candidate().<return>.init()": "<inferred>",
+        "Candidate().<return>.read()": "<inferred>",
+        "Candidate().<return>.retainedBytes()": "<inferred>",
+        "Candidate().<return>.save()": "<inferred>",
+        "Candidate().<return>.stage()": "<inferred>",
+        "check()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "create()": "<inferred>",
+        "read()": "<inferred>",
+        "stageCheckpoint()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/RelationalTables.zig": {
       "errors": {
         "CatalogConfigurationChanged": 1,
@@ -11707,6 +11822,7 @@
         "QueryFailure.zig",
         "RelationalQuery.zig",
         "RelationalSpill.zig",
+        "RelationalState.zig",
         "RelationalTables.zig",
         "RuntimeWitness.zig",
         "SourceDefinition.zig",

@@ -9,6 +9,8 @@ pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
 pub const RelationalCodec = @import("RelationalCodec.zig");
+pub const RelationalCheckpoint = @import("RelationalCheckpoint.zig");
+pub const RelationalIndex = @import("RelationalIndex.zig");
 pub const RelationalSql = @import("RelationalSql.zig");
 pub const LogicalPlanCodec = @import("LogicalPlanCodec.zig");
 pub const LogicalStream = @import("LogicalStream.zig");
@@ -45,6 +47,7 @@ test {
     _ = RelationalExecution;
     _ = RelationalSql;
     _ = RelationalCodec;
+    _ = RelationalIndex;
     _ = LogicalDisplay;
     _ = TableWitness;
     _ = TableSchema;

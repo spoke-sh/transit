@@ -175,6 +175,56 @@ prepared definition, not source pins, accepted job identity or completion.
 The shared native definition changes with incompatible stored/wire semantics;
 older saved artifacts reject rather than being rebound to current data.
 
+## Immutable operator records and checkpoints
+
+`RelationalIndex` stores groups in an immutable AVL tree. An update copies a
+bounded search path and any rotated nodes, assigning fresh monotone record IDs.
+The previous root remains readable after a failed candidate write. Resident
+frames and candidate records depend on the 94-frame traversal bound, not the
+number of durable groups. A host budgets all retained record bytes, including
+old roots and unreachable staging records, separately from its active staging
+reservation. Neither this index nor pressure on that budget expires history.
+
+A reference contains uint64 record ID, uint32 byte length, 32-byte SHA-256 of the
+record, uint8 height and uint64 entry count. Optional references use a Boolean
+byte followed by that payload only when present. `FRN1` nodes contain magic,
+32-byte shared native definition, 32-byte bound fingerprint, optional left/right
+references, one-byte group/output counts, nullable int64 keys, then per-output
+uint64 row/value counts and nullable int64 sum. Nullable integers always occupy
+nine bytes: Boolean presence and little-endian int64, zero when absent. Child IDs
+precede their parent; lengths, integrity, binding, balance, height, subtree count
+and aggregate-state shape are checked when read. All integer fields are little
+endian. Hosts stage candidates privately; a node record's existence is not a
+published operator root.
+
+`RelationalCheckpoint` contains one exact root and execution cursor. Its `FRC1`
+encoding has magic, shared native definition, bound fingerprint, optional root,
+phase byte (input 1, empty-right coverage 2, grouped output 3, complete 4, failed
+5), optional left/right continuation row identities, optional retained left row,
+matched and right-covered Booleans, uint64 group/work/result-row/result-byte
+counts, optional last output group and optional failure witness. Optional
+identities have a Boolean prefix and the Table's 20-byte stable identity. A
+retained row contains its identity and one nullable int64 per schema column;
+unreferenced non-int64 columns remain null. Group keys have the prepared number
+of nullable int64 cells. A failure records left identity, optional right identity,
+one-byte output ordinal and group key. Decoders reject noncanonical Booleans,
+truncation, trailing bytes, wrong definitions/bindings and inconsistent progress.
+The record fits an 8192-byte caller-owned buffer; it is not a native inline value.
+
+`RelationalExecution.checkpoint` and `restore` preserve the join cursor, match
+state, output position, counters and canonical failure witness. Restoring requires
+current source validation and the exact immutable group root. Hosts must publish
+the checkpoint, input progress and output coverage atomically; decoding a record
+does not establish that transaction or authorize reading retained inputs.
+
+The query package's `RelationalState` stages these records through Station
+Publication with one active record reservation and bounded candidate memory.
+Group records use format `0x314e5246`; checkpoints use `0x31435246`. Reconstructed
+candidates retain their reserved IDs and bytes; conflicting reuse rejects. The
+host owns accepted allocation counters, continuation identity, retained source
+versions, cancellation and cleanup. These storage primitives do not themselves
+admit a durable query request or publish a complete result manifest.
+
 ## Disclosure and completion obligations
 
 Execution and each bounded disclosure/publication require current rights to

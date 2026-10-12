@@ -7,6 +7,7 @@ pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const TableQuery = @import("TableQuery.zig");
 pub const TableSource = @import("TableSource.zig");
+pub const RelationalState = @import("RelationalState.zig");
 pub const RelationalSpill = @import("RelationalSpill.zig");
 pub const RelationalTables = @import("RelationalTables.zig");
 pub const RelationalQuery = @import("RelationalQuery.zig");

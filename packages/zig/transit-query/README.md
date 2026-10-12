@@ -42,6 +42,12 @@ cancellation leave an incomplete prefix, never successful truncation. Callers
 release the stable allocated owner with `deinit`; interactive spill is not
 resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
 
+`RelationalState` stages immutable group records and exact execution checkpoints
+through Station Publication. Candidate memory is bounded by AVL height; retained
+bytes and active staging have separate quotas. A host must publish the checkpoint
+reference and allocation counters with input/output progress. These primitives do
+not independently expose a durable relational caller interface.
+
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
 principal's current catalog rights before and after each page, preserving the

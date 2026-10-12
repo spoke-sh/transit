@@ -18,6 +18,10 @@ extension and first-error order. Hosts own source capture, current permission,
 spill and complete-result publication. The
 [relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
 ownership, canonical order, budgets and remaining integration obligations.
+`RelationalIndex` supplies immutable group roots and bounded copy-on-write
+updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
+rechecks the bound source vector and current rights through its adapter. Hosts
+stage and atomically publish these records with input/output progress.
 Existing single-source profiles retain their separately admitted operators.
 
 `Types` owns bounded logical descriptors and the specialized scalar profile used

@@ -3,6 +3,7 @@
 //! The owner validates every source on every step and publishes only completion.
 const std = @import("std");
 const r = @import("Relational.zig");
+const Checkpoint = @import("RelationalCheckpoint.zig");
 const table = @import("TableSchema.zig");
 const Truth = @import("PredicateTruth.zig").Truth;
 pub const Cell = @import("Types.zig").Values.Cell;
@@ -49,7 +50,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
         bound: r.Bound,
         sources: Sources,
         groups: Groups,
-        phase: enum { input, empty_right, output, complete, failed } = .input,
+        phase: Checkpoint.Phase = .input,
         left: ?Row = null,
         after_left: ?r.RowIdentity = null,
         after_right: ?r.RowIdentity = null,
@@ -80,6 +81,26 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             if (encoded.len > bound.plan.budgets.result_bytes) return error.RelationalResultBudget;
             try sources.validate(bound);
             return .{ .bound = bound, .sources = sources, .groups = groups, .grouped = grouped, .result_bytes = encoded.len };
+        }
+
+        /// The host must bind this root and cursor to the same atomic publication.
+        pub fn checkpoint(self: Self, root: ?@import("RelationalIndex.zig").Reference) !Checkpoint {
+            var result: Checkpoint = .{ .binding = try self.bound.fingerprint(), .root = root };
+            inline for (comptime std.meta.fieldNames(Checkpoint)) |field| {
+                if (comptime !std.mem.eql(u8, field, "binding") and !std.mem.eql(u8, field, "root")) @field(result, field) = @field(self, field);
+            }
+            try result.validate(self.bound);
+            return result;
+        }
+        /// Adapters reopen exactly the checkpoint's group root and retained cuts.
+        /// Current authorization is checked before accepting any saved progress.
+        pub fn restore(bound: r.Bound, sources: Sources, groups: Groups, saved: Checkpoint) !Self {
+            try saved.validate(bound);
+            var result = try Self.init(bound, sources, groups);
+            inline for (comptime std.meta.fieldNames(Checkpoint)) |field| {
+                if (comptime !std.mem.eql(u8, field, "binding") and !std.mem.eql(u8, field, "root")) @field(result, field) = @field(saved, field);
+            }
+            return result;
         }
 
         /// Each call performs at most one source read and one group update.

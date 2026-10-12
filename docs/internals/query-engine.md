@@ -142,6 +142,30 @@ is enabled here. Private spill is unlinked and cannot recover a captured job.
 The heap accounting and bounded working buffers describe query-owned memory,
 not process RSS or the transport client's separate allocations.
 
+For resumable operator state, the question is how to advance a cursor without
+modifying the previous accepted group map. The implemented
+[immutable index](../../packages/zig/transit-fuze/src/RelationalIndex.zig) copies
+the search path and rotated nodes, then assigns the new root only after every
+candidate save succeeds. Under the host's fresh monotone-ID and immutable-read
+contract, failure cannot alter the old root's reachable records. Work is
+O(log G) new records per update; retaining all versions increases durable bytes
+with updates, while the resident path remains bounded. This trades write/storage
+amplification for a small atomic root publication. An in-place map would need a
+separate undo/WAL protocol to preserve that property; no comparative performance
+claim is made for either design.
+
+The [operator checkpoint](../../packages/zig/transit-fuze/src/RelationalCheckpoint.zig)
+binds this root to the exact source vector, join and output cursors, counters and
+failure witness. Query-side Publication staging reconstructs candidate bytes from
+the previous accepted state with the same reserved IDs. This establishes a useful
+local invariant: incomplete staging cannot advance the accepted root. A host
+must still commit the checkpoint reference together with consumed input and
+output coverage. The [checkpoint evidence](../../tests/README.md#immutable-group-checkpoints-and-bounded-publication-staging)
+reproduces every-step semantic restoration and bounded staging restarts; its
+in-memory reference turns do not establish native captured-job lifecycle,
+reassignment or cleanup after source revocation. Those obligations cannot be
+inferred from byte round trips or immutable storage alone.
+
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query
 and B a vector of exact source revisions. An attributable result would need to
