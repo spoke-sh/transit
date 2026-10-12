@@ -76,6 +76,14 @@ position advances only after complete delivery. The host explicitly activates
 and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
 for scheduling, recomputation costs, quotas, resume and retirement.
 
+`RelationalExchange` records producer eligibility, copies accepted segments into
+receiver-owned publications, and consumes them into a native paged row index.
+Its source adapter requires terminal coverage from every logical partition and
+restores original row order for the existing finite executor. Explicit hosts
+own scheduling, source validation, worker placement and combined state budgets.
+See [query exchanges](docs/relational-exchanges.md) for the typed operations,
+credit/retry protocol and current qualification boundary.
+
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
 principal's current catalog rights before and after each page, preserving the

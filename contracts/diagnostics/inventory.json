@@ -6562,6 +6562,36 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/RelationalExchange.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalExchange": 10,
+        "InvalidRelationalRouting": 1,
+        "InvalidRelationalSourceOrder": 1,
+        "InvalidRelationalSourceRow": 3,
+        "RelationalSourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Segment.decode()": "<inferred>",
+        "Segment.encode()": "<inferred>",
+        "route()": "<inferred>",
+        "validateRow()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 1
+      },
+      "imports": [
+        "Relational.zig",
+        "RelationalExecution.zig",
+        "TableSchema.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/RelationalExecution.zig": {
       "errors": {
         "FailedRelationalQuery": 1,
@@ -8865,6 +8895,7 @@
         "RelationalCheckpoint.zig",
         "RelationalCodec.zig",
         "RelationalDelta.zig",
+        "RelationalExchange.zig",
         "RelationalExecution.zig",
         "RelationalIndex.zig",
         "RelationalOutput.zig",
@@ -10081,7 +10112,9 @@
         "InvalidQuerySchema": 1,
         "InvalidQuerySearch": 1,
         "InvalidQueryUpload": 1,
+        "InvalidRelationalExchange": 1,
         "InvalidRelationalHistory": 1,
+        "InvalidRelationalRouting": 1,
         "InvalidRelationalSourceOrder": 1,
         "InvalidRelationalSpill": 1,
         "InvalidResourceRead": 1,
@@ -10117,6 +10150,9 @@
         "QueryUploadNotFound": 1,
         "Rejected": 1,
         "RelationalCallerChanged": 1,
+        "RelationalExchangeClosed": 1,
+        "RelationalExchangeConflict": 1,
+        "RelationalExchangePending": 1,
         "RelationalResidentBudget": 1,
         "RelationalResultBudget": 1,
         "RelationalSourceChanged": 1,
@@ -10883,6 +10919,101 @@
       },
       "imports": [
         "QueryMemory.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalExchange.zig": {
+      "errors": {
+        "InvalidRelationalExchange": 19,
+        "InvalidRelationalSourceOrder": 2,
+        "InvalidRelationalSources": 1,
+        "QueryNamespaceInUse": 2,
+        "QueryNotFound": 1,
+        "RelationalExchangeClosed": 2,
+        "RelationalExchangeConflict": 11,
+        "RelationalExchangePending": 3,
+        "RelationalResidentBudget": 2,
+        "RelationalSourceChanged": 5,
+        "RelationalSpillBudget": 6,
+        "UnexpectedQueryPublisher": 2
+      },
+      "outcomes": {
+        "Advance": [
+          "progress",
+          "accepted",
+          "duplicate",
+          "blocked",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Sources().<return>.next()": "<inferred>",
+        "Sources().<return>.validate()": "<inferred>",
+        "accepted()": "<inferred>",
+        "acknowledge()": "<inferred>",
+        "advance()": "<inferred>",
+        "channel()": "<inferred>",
+        "check()": "<inferred>",
+        "close()": "<inferred>",
+        "consume()": "<inferred>",
+        "create()": "<inferred>",
+        "createProducer()": "<inferred>",
+        "head()": "<inferred>",
+        "offer()": "<inferred>",
+        "receive()": "<inferred>",
+        "register()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 141,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalExchangeRecords.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalExchange": 18
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Accepted.decode()": "<inferred>",
+        "Accepted.encode()": "<inferred>",
+        "Channel.decode()": "<inferred>",
+        "Channel.encode()": "<inferred>",
+        "Channel.validate()": "<inferred>",
+        "Head.address()": "<inferred>",
+        "Head.decode()": "<inferred>",
+        "Head.encode()": "<inferred>",
+        "Head.total()": "<inferred>",
+        "Head.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Pending.decode()": "<inferred>",
+        "Pending.encode()": "<inferred>",
+        "Producer.decode()": "<inferred>",
+        "Producer.encode()": "<inferred>",
+        "Row.decode()": "<inferred>",
+        "Row.encode()": "<inferred>",
+        "done()": "<inferred>",
+        "key()": "<inferred>",
+        "readInts()": "<inferred>",
+        "readStart()": "<inferred>",
+        "rowKey()": "<inferred>",
+        "start()": "<inferred>",
+        "writeInts()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 104,
+        "catch": 1
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -12416,6 +12547,8 @@
         "RelationalCapture.zig",
         "RelationalCaptured.zig",
         "RelationalCompilation.zig",
+        "RelationalExchange.zig",
+        "RelationalExchangeRecords.zig",
         "RelationalHistory.zig",
         "RelationalMaintenance.zig",
         "RelationalMaintenanceRecords.zig",
@@ -17101,6 +17234,7 @@
           "application_definition",
           "table",
           "catalog",
+          "query_exchange",
           "_"
         ],
         "Outcome": [

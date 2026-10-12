@@ -122,6 +122,53 @@ measurement. Full root checks pass locally; committed-HEAD clean qualification
 and additional maintained overflow, schema/gap and overload schedules remain
 open. Reference-store failure checks above are not native failure qualification.
 
+## Relational exchange transitions
+
+The typed exchange records explicit logical partitions and immutable source
+segments, distinguishes acceptance from consumption, enforces credits and
+cumulative retention, and requires empty-partition terminal coverage. The
+[contract](../contracts/RELATIONAL_EXCHANGE_V1.md) names the one-authority/manual
+placement profile and excludes automatic placement or distributed write authority.
+
+Pinned Fuze `zig build test` passes all 315 independent finite cases after
+repartitioning/rebatching through `FXS1`, for one partition/one-row batches and
+seven partitions/four-row batches. Partition arrivals are reversed and every
+operator step is checkpointed/restarted. Original bag identities, NULL behavior,
+group order and first checked-overflow witness agree with the independent Python
+interpreter. Thirty routing cases and exact wire/control bytes come from
+`python3 -B tests/relational_exchange.py`; no production codec generates expected
+bytes. The earlier memory and immutable-index runs remain enabled.
+
+Pinned query `zig build test` passes the reference-store exchange schedule at
+1/7/31 partitions and 1/2/4 rows per segment. It restarts private staging,
+repeats uncommitted decisions, retries accepted notices before/after consumption,
+retires producer bytes after acceptance, denies producer rereads and still reads
+the receiver copy. Every required empty partition completes explicitly; the
+native paged index restores source order and the actual finite executor agrees
+with separately enumerated join pairs. Reordered notices and credit pressure
+remain unaccepted; cumulative quota failure preserves accepted records and
+own-resource closure. Producer quota is reserved before staging, conflicting
+pending bytes reject, and exhaustion retains every offered segment. Receiver
+reservations cannot be spent by later channel registration. Current source denial
+prevents disclosure after a prefix.
+These use a reference KV store and synthetic authority, not a native durability
+or fencing proof.
+
+Initial attempts expose fixture name/API errors, a row key exceeding the native
+32-byte limit, and a quota fixture that had not actually filled its admitted
+capacity. The implementation uses 32-byte row keys; the quota schedule now fills
+the remaining space before requiring rejection. Passing logs include
+`.cache/relational-intake/fuze-exchange-oracle.log`,
+`query-exchange-execution.log` and `query-exchange-wire-fixed.log` in that same
+directory. The full `just check` run in `check-exchange.log` passes before the
+final producer/reservation quota additions; the later query package run in
+`query-exchange-quota.log` passes those additions. Diagnostic outcomes pass
+3,233 projections across 29 surfaces. An earlier new exchange-conflict fixture
+incorrectly inherited native rejection evidence; the reviewed projection
+preserves uncertain-send semantics. Native producer and
+receiver hosts, disk/node/worker faults, handoff qualification, ongoing-input
+measurements and committed-HEAD clean verification remain open.
+
 ## Relational contract and oracle intake
 
 The finite continuation implements `RelationalExecution` and `RelationalSql`.

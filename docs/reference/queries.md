@@ -204,10 +204,10 @@ chunks in bounded turns while preserving control evidence. The
 [captured owner guide](../../packages/zig/transit-query/docs/relational-capture.md)
 defines the host's exact-retry and authorization responsibilities.
 
-Maintained relational queries, foreign-language bindings and Flight relational
-execution are not exposed by these interfaces. Current Table
-notifications support finite refresh, not a complete update/delete stream for
-maintaining a join.
+The console does not activate maintained queries. Foreign-language bindings and
+Flight do not execute the relational profile. Typed Zig maintained ownership and
+complete Table history have their own interfaces below; coalesced invalidation
+notifications remain distinct from complete transaction capture.
 
 SUM checks overflow in source order, including across pages. Reordering inputs
 or combining partition totals can change whether it fails; no parallel reduction
@@ -348,3 +348,21 @@ complete transaction. Resume requests the next recorded revision; pending keeps
 the old position, and a mismatch requires explicit reset. Cancellation or failure
 preserves previous complete results; retirement makes them unavailable. Every
 read rechecks current policy and native/catalog rights to all sources.
+
+## Explicit query exchanges
+
+Typed Zig hosts can route frozen source rows into logical partitions and stage
+them in bounded segments. The receiver shares the first Table owner's resource;
+producers have explicit PIDs and separate resources under the same authority.
+Each accepted segment has a receiver-owned copy and an exact deduplication
+identity. Consumption separately indexes its rows and returns credits. Every
+partition, including an empty one, must publish and consume terminal coverage
+before execution can read the exchanged source.
+
+The native paged row index restores original source order, so different delivery
+or batch schedules preserve the existing join and checked-SUM semantics. Current
+source rights apply during staging, consumption and execution. Hosts supply
+placement, scheduling and combined operator/exchange budgets; these primitives
+do not provision an automatic runtime controller or grant execution authority.
+The [typed host guide](../../packages/zig/transit-query/docs/relational-exchanges.md)
+defines the operations and links their concrete qualification limits.

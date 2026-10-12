@@ -22,6 +22,11 @@ ownership, canonical order, budgets and remaining integration obligations.
 updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
 rechecks the bound source vector and current rights through its adapter. Hosts
 stage and atomically publish these records with input/output progress.
+`RelationalExchange` specifies canonical int64/null routing and source-qualified
+row segments with exact bound identities and explicit terminal coverage. Hosts
+own durable acceptance, credits and current authorization under the
+[exchange contract](../../../contracts/RELATIONAL_EXCHANGE_V1.md).
+
 `RelationalDelta` encodes paired changes between complete maintained outputs,
 binding both source vectors and preserving stable identities independently of
 output ordinals. It acquires no publication or disclosure authority.

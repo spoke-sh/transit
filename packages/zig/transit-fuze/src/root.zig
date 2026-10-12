@@ -11,6 +11,7 @@ pub const RelationalExecution = @import("RelationalExecution.zig");
 pub const RelationalCodec = @import("RelationalCodec.zig");
 pub const RelationalOutput = @import("RelationalOutput.zig");
 pub const RelationalDelta = @import("RelationalDelta.zig");
+pub const RelationalExchange = @import("RelationalExchange.zig");
 pub const RelationalCheckpoint = @import("RelationalCheckpoint.zig");
 pub const RelationalIndex = @import("RelationalIndex.zig");
 pub const RelationalSql = @import("RelationalSql.zig");

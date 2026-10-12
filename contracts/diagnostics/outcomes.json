@@ -5754,6 +5754,41 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ]
         }
       }
     },
@@ -7924,6 +7959,46 @@
             "inspect_status"
           ],
           "transport_status": 400
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
         }
       }
     },
@@ -9235,6 +9310,46 @@
             "inspect_status"
           ],
           "transport_status": 8
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 10
         }
       }
     },
@@ -12252,6 +12367,89 @@
         "MaintainedRevisionExhausted": {
           "code": "query.maintained_revision_exhausted",
           "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
           "actions": [
             "inspect_status"
           ]

@@ -312,6 +312,56 @@ unfinished qualification. The reference store tests proposal reconstruction,
 no-op coverage and failed-successor preservation; they do not prove durability.
 Native disk evidence, lag/state measurements and faults bound stronger claims.
 
+### Durable acceptance and canonical source order
+
+The exchange implementation asks how partitioned delivery can preserve the
+finite executor's original source order without retaining all partitions in
+memory. Its scope is explicit worker placement under one growing authority,
+with immutable bound inputs and current source authorization. It assumes the
+producer implementation reads the declared basis honestly; native admission
+does not certify its computation. The exact model is in the
+[exchange contract](../../contracts/RELATIONAL_EXCHANGE_V1.md).
+
+For each source/partition pair, let A be the number of consecutively accepted
+segments and C the number consumed, with `0 <= C <= A`. Acceptance copies verified
+bytes into receiver-owned storage before advancing A. Consumption inserts one
+source-qualified row-index entry with its cursor atomically and advances C only
+after the complete segment. Credit is charged at A and returned at C, so an
+acknowledgement retry changes neither backlog nor credit. A producer can retire
+its copy after acceptance without invalidating the receiver's evidence.
+
+The receiver admits no acceptance gap. Otherwise several future segments could
+fill all shared credit while their missing predecessors remain unaccepted,
+preventing any consumption. Reordered notices instead retain their producer
+identity and wait for the missing sequence. This is a scheduling choice, not
+loss of accepted work. Hosts must service consumption and exact-notice retries.
+
+Completion requires every registered source/partition to consume its explicit
+terminal segment. Stable row identities are unique within each source and form
+native ordered KV keys. Therefore the resulting index enumerates exactly the
+accepted bag in original source order, irrespective of arrival or partition
+layout. The unchanged finite executor sees the same contributor sequence and
+thus the same first checked-arithmetic failure. This avoids assuming associative
+int64 SUM or prematurely declaring an unmatched-left row.
+
+The tradeoff is an extra durable copy and source-order index, followed by central
+operator evaluation. It distributes source delivery but does not establish
+parallel aggregate throughput. A k-way merge would avoid some indexing but needs
+bounded multi-pass fan-in and retained run coverage; partial sums additionally
+need an error-preserving algebra. Neither alternative is assumed by this profile.
+One staging record, four-row segments and native eight-entry reads bound resident
+work independently of total partitions. Retained state grows with accepted rows
+and segments; conservative logical quotas and physical deployment quotas remain
+separate. No pressure-based expiry is allowed.
+
+Reproduce the [executed checks](../../tests/README.md#relational-exchange-transitions)
+with pinned Fuze/query package tests and the independent Python exchange fixture
+checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
+the reference-store schedule exercises nine partition/batch combinations,
+duplicate acknowledgement, denied producer rereads, credit and quota pressure.
+These checks do not yet qualify real network/storage faults, worker handoff or
+sustainable throughput. The ledger retains those open gates explicitly.
+
 ## Tradeoffs and evidence
 
 Materializing an entire result simplifies presentation but makes memory scale

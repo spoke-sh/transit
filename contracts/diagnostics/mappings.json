@@ -1494,6 +1494,26 @@
         "MaintainedRevisionExhausted": {
           "code": "query.maintained_revision_exhausted",
           "category": "limit"
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity"
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity"
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle"
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle"
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict"
         }
       },
       "exceptions": [],
@@ -3044,6 +3064,26 @@
         "MaintainedRevisionExhausted": {
           "code": "query.maintained_revision_exhausted",
           "category": "limit"
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity"
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity"
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle"
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle"
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict"
         }
       },
       "exceptions": [],

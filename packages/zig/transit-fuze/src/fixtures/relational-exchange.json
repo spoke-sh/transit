@@ -1,0 +1,156 @@
+{
+  "definition": "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024",
+  "segment": "46585331e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f0249b378d637f6241c926aad0b265d42b2c744e579ee805f429bf52abcad42d542f580000000000000000070000000000000004000000000000000300000000000000000000000000000001020000000000000001000000000000000100000000010700000000000000010900000000000000000000000000000100000000000000020000000001070000000000000000",
+  "routing": [
+    {
+      "key": null,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": 0,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": -1,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": 7,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 1,
+      "partition": 0
+    },
+    {
+      "key": null,
+      "partitions": 2,
+      "partition": 1
+    },
+    {
+      "key": 0,
+      "partitions": 2,
+      "partition": 0
+    },
+    {
+      "key": -1,
+      "partitions": 2,
+      "partition": 0
+    },
+    {
+      "key": 7,
+      "partitions": 2,
+      "partition": 0
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 2,
+      "partition": 0
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 2,
+      "partition": 0
+    },
+    {
+      "key": null,
+      "partitions": 7,
+      "partition": 1
+    },
+    {
+      "key": 0,
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": -1,
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": 7,
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 7,
+      "partition": 0
+    },
+    {
+      "key": null,
+      "partitions": 257,
+      "partition": 186
+    },
+    {
+      "key": 0,
+      "partitions": 257,
+      "partition": 20
+    },
+    {
+      "key": -1,
+      "partitions": 257,
+      "partition": 228
+    },
+    {
+      "key": 7,
+      "partitions": 257,
+      "partition": 114
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 257,
+      "partition": 234
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 257,
+      "partition": 211
+    },
+    {
+      "key": null,
+      "partitions": 18446744073709551615,
+      "partition": 5537515322683060221
+    },
+    {
+      "key": 0,
+      "partitions": 18446744073709551615,
+      "partition": 3321873155233261498
+    },
+    {
+      "key": -1,
+      "partitions": 18446744073709551615,
+      "partition": 15873632679056485472
+    },
+    {
+      "key": 7,
+      "partitions": 18446744073709551615,
+      "partition": 8281501741586120114
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 18446744073709551615,
+      "partition": 7863220156081990272
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 18446744073709551615,
+      "partition": 14380963935108771882
+    }
+  ]
+}

@@ -104,10 +104,43 @@ fn cuts() ![2]r.Cut {
 fn base() r.Plan {
     return .{ .sources = sources[0..1], .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .interactive, .budgets = .{ .resident_bytes = Run.residentBytes, .spill_bytes = 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 } };
 }
+fn rebatch(bound: r.Bound, input: *Input, partitions: u64, batch: u8, retained: *[2]std.ArrayList([3]?i64)) !void {
+    const x = @import("RelationalExchange.zig");
+    for (0..bound.plan.sources.len) |source_index| {
+        const source: u8 = @intCast(source_index);
+        // Arrival order deliberately disagrees with logical source order.
+        for (0..partitions) |step| {
+            const partition = partitions - step - 1;
+            var after: ?r.RowIdentity = null;
+            var segment: x.Segment = .{ .exchange = 7, .source = source, .partitions = partitions, .partition = partition, .epoch = 3, .sequence = 0, .terminal = false };
+            while (true) {
+                while (segment.len < batch) {
+                    const value = (try input.next(source, after)) orelse {
+                        segment.terminal = true;
+                        break;
+                    };
+                    after = value.identity;
+                    if (try x.route(bound.plan, source, partitions, value) != partition) continue;
+                    segment.rows[segment.len] = value;
+                    segment.len += 1;
+                }
+                var bytes: [x.max_bytes]u8 = undefined;
+                const decoded = try x.Segment.decode(bound, try segment.encode(bound, &bytes));
+                for (decoded.rows[0..decoded.len]) |value| try retained[source].append(t.allocator, .{ @intCast(value.identity.operation), value.values[0], value.values[1] });
+                if (decoded.terminal) break;
+                segment.len = 0;
+                segment.sequence += 1;
+            }
+        }
+    }
+    input.rows = .{ retained[0].items, retained[1].items };
+}
 test "bounded relational executor agrees with independent bags groups nulls and first errors" {
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/relational.json"), .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
-    inline for (.{ false, true }) |durable| {
+    const Mode = enum { memory, durable, partitions_1_batch_1, partitions_7_batch_4 };
+    inline for (std.enums.values(Mode)) |mode| {
+        const durable = mode != .memory;
         const GroupStore = if (durable) ImmutableGroups else Groups;
         const Engine = e.Execution(*Input, *GroupStore);
         for (parsed.value.cases) |case| {
@@ -133,6 +166,9 @@ test "bounded relational executor agrees with independent bags groups nulls and 
             const basis = try cuts();
             var input: Input = .{ .rows = .{ case.left, case.right } };
             const bound: r.Bound = .{ .plan = plan, .cuts = basis[0..plan.sources.len] };
+            var exchanged: [2]std.ArrayList([3]?i64) = .{ .empty, .empty };
+            defer for (&exchanged) |*rows| rows.deinit(t.allocator);
+            if (mode == .partitions_1_batch_1 or mode == .partitions_7_batch_4) try rebatch(bound, &input, if (mode == .partitions_1_batch_1) 1 else 7, if (mode == .partitions_1_batch_1) 1 else 4, &exchanged);
             var groups: GroupStore = if (durable) .{ .tree = try Index.init(bound, null) } else .{};
             defer groups.deinit();
             var run = try Engine.init(bound, &input, &groups);
