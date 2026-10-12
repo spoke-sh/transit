@@ -1,5 +1,25 @@
 # Validation and milestone evidence
 
+## Relational physical capacity
+
+`just test::relational-capacity` passes on a newly allocated **2 GiB ext4 image**
+with native disk Ursula and owned MinIO. Real 32 MiB allocations fail with
+`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
+accepted exchange work refuse advancement without changing their recorded heads.
+Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
+restarting the same node/store permits exact recovery and bounded advancement.
+Both complete results agree with the independent oracle afterward.
+
+The full schedule takes **487.562 seconds**, including both partition layouts,
+handoff faults and source lifetime expiry. Captured/exchange refusal takes
+24/49 ms; health reads take 14/8 ms; reserve-release/restart/first-advance takes
+0.634/1.175 seconds. Those are finite shared-host observations during other
+qualification, not latency or sustained-throughput claims. The [record and
+retained failed fixture attempt](verification/results/relational-capacity-2026-10-12.json)
+include binary and raw-log hashes. The physical task remains an explicit Linux/
+Docker reference task, separate from the 79 ordinary clean tasks. It tests
+process replacement, not power-loss durability.
+
 ## Relational exchange faults and checkpoint growth
 
 The expanded `just test::relational-exchanges` schedule passes in **305.707
