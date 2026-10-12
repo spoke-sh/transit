@@ -316,10 +316,11 @@ catalog-growth:
 relational-maintenance:
     just test::typed-tables --maintained --cold
 
-# Bounded producer/receiver exchange recovery and maintained publication on disk.
+# Shared interactive callers and explicit Board pages over real catalog routes.
 relational-callers:
-    zig build test-relational-callers -Doptimize=ReleaseSafe
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true
 
+# Bounded producer/receiver exchange recovery and maintained publication on disk.
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 

@@ -1076,6 +1076,10 @@ pub fn build(b: *std.Build) void {
     relational_callers_native.addArtifactArg(node_artifact);
     relational_callers_native.addArtifactArg(typed_table_proof);
     relational_callers_native.addArtifactArg(station_host);
+    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) {
+        relational_callers_native.addArg("--board");
+        relational_callers_native.addArtifactArg(board);
+    }
     relational_callers_native.addPassthruArgs();
     relational_callers_native.has_side_effects = true;
     relational_callers_native.stdio = .inherit;

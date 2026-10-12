@@ -10,3 +10,5 @@ export function GrpcResponse(value: unknown): boolean;
 export function DocumentResponse(value: unknown): boolean;
 export function UnifiedQueryRequest(value: unknown): boolean;
 export function UnifiedQueryResponse(value: unknown): boolean;
+export function RelationalRequest(value: unknown): boolean;
+export function RelationalResponse(value: unknown): boolean;

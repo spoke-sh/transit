@@ -118,6 +118,9 @@ metadata is explicit. No request/response body or raw header member is read.
 
 ## Unified state query workspace
 
+The separate [relational worksheet](relational.md) configures explicit catalog
+routes and interactive joins/groups through its own optional `relational` field.
+
 Queries are disabled unless `query` is configured. The object contains
 `seed_file`, `connection` (realm, principal, source, resource, requester, requests),
 and the `workspace` source/name/limits object from the

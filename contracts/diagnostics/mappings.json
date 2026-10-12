@@ -833,7 +833,8 @@
         "packages/zig/transit-query/src/SqlTemplate.zig",
         "packages/zig/transit-query/src/TableQuery.zig",
         "packages/zig/transit-query/src/TableScan.zig",
-        "packages/zig/transit-query/src/RelationalBridge.zig"
+        "packages/zig/transit-query/src/RelationalBridge.zig",
+        "packages/zig/transit-query/src/RelationalCaller.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -1522,6 +1523,20 @@
         }
       },
       "exceptions": [
+        {
+          "source": "packages/zig/transit-query/src/RelationalCaller.zig",
+          "cause": "InvalidRelationalSources",
+          "disposition": "mapped_boundary",
+          "reason": "Configured caller creation rejects an invalid route count before directory acquisition or transport, using the shared relational admission contract.",
+          "projection": "packages/zig/transit-fuze/src/SqlCodes.zig",
+          "code": "sql.invalid_relational_sources",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/RelationalCaller.zig",
+              "name": "relational caller rejects mixed identities before directory acquisition"
+            }
+          ]
+        },
         {
           "source": "packages/zig/transit-query/src/RelationalBridge.zig",
           "cause": "InvalidRelationalSources",

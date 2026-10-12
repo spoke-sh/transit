@@ -149,6 +149,20 @@ pub const Session = struct {
         if (self.active) |active| active.query.deinit();
         self.active = null;
     }
+    pub const Progress = struct { opened: Opened, ordinal: []const u8, read: bool };
+    /// Inspect this host's current query under all current source rights. This
+    /// does not advance execution or restore a query lost with an earlier host.
+    pub fn current(self: *Session, allocator: Allocator) !?Progress {
+        const active = self.active orelse return null;
+        return .{ .opened = try self.opened(allocator), .ordinal = try v.decimal(allocator, active.ordinal), .read = active.read };
+    }
+    fn opened(self: *Session, allocator: Allocator) !Opened {
+        const query = (self.active orelse return error.InvalidQueryCursor).query;
+        try query.tables.validate(query.execution.bound);
+        const cuts = try allocator.alloc(Cut, query.execution.bound.cuts.len);
+        for (cuts, query.execution.bound.cuts) |*out, cut| out.* = .{ .resource = cut.resource, .revision = cut.revision, .commitment = try v.hex(allocator, &cut.commitment), .schema = try v.hex(allocator, &cut.schema) };
+        return .{ .reference = try self.reference(allocator), .description = try describe(allocator, query.execution.bound.plan), .cuts = cuts };
+    }
     fn selected(self: *Session, statement: Statement, storage: *[r.max_sources]*q.catalog.TableClient) ![]const *q.catalog.TableClient {
         if (self.clients.len == 0 or self.clients.len > r.max_sources or statement.routes.len == 0 or statement.routes.len > r.max_sources) return error.InvalidRelationalSources;
         for (statement.routes, 0..) |route, i| {
@@ -231,11 +245,7 @@ pub const Session = struct {
                     errdefer query.deinit();
                     self.active = .{ .query = query, .id = nonce, .input = fingerprint, .plan = try query.execution.bound.plan.fingerprint(), .basis = try query.execution.bound.fingerprint() };
                 }
-                const query = self.active.?.query;
-                try query.tables.validate(query.execution.bound);
-                const cuts = try allocator.alloc(Cut, query.execution.bound.cuts.len);
-                for (cuts, query.execution.bound.cuts) |*out, cut| out.* = .{ .resource = cut.resource, .revision = cut.revision, .commitment = try v.hex(allocator, &cut.commitment), .schema = try v.hex(allocator, &cut.schema) };
-                return .{ .opened = .{ .reference = try self.reference(allocator), .description = try describe(allocator, query.execution.bound.plan), .cuts = cuts } };
+                return .{ .opened = try self.opened(allocator) };
             },
             .page => |input| {
                 try self.check(input.reference);

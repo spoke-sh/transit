@@ -320,6 +320,14 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     const config = try load(Config, init, directory, "catalog.json");
+    if (std.mem.eql(u8, mode, "board-inspector")) {
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        if (config.worker == 65536) _ = try admin.submit(.{ .grant = .{ .subject = 1240, .public_key = (try key(12)).public_key.toBytes(), .permissions = p.permission(.inspect) } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1240, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        try saveBytes(init, directory, "board-inspector.seed", &std.fmt.bytesToHex(@as([32]u8, @splat(12)), .lower));
+        return print(init, .{ .principal = @as(u64, 1240) });
+    }
     const owner = configuration(config);
     var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = owner.scope, .owner = owner.owner, .principal = 1234 }, .key = try key(10) };
     if (std.mem.eql(u8, mode, "host")) return host(init, &wire, directory, config, args[1]);

@@ -11,12 +11,8 @@ const Impl = struct {
     wire: q.wire.Client,
     client: ?q.UnifiedClient = null,
     key: q.protocol.Ed25519.KeyPair,
-    catalog_count: usize = 0,
     url: []u8,
-    relational: ?q.RelationalBridge.Session = null,
-    directory: ?std.Io.Dir = null,
-    catalogs: [2]q.catalog.TableClient = undefined,
-    routes: [2]*q.catalog.TableClient = undefined,
+    relational: ?*q.RelationalCaller = null,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
@@ -52,28 +48,15 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     return .ok;
 }
 fn initializeRelational(client: *Impl, config: q.RelationalBridge.Config) !void {
-    if (config.catalogs.len == 0 or config.catalogs.len > 2 or config.spill_directory.len == 0 or config.spill_directory.len > 4096) return error.InvalidRelationalSources;
-    const options = try config.options.native();
-    for (config.catalogs, 0..) |connection, i| {
+    for (config.catalogs) |connection| {
         const native = try connection.native();
-        const first = try config.catalogs[0].native();
-        if (native.scope.realm != first.scope.realm or native.principal != first.principal) return error.RelationalCallerChanged;
         if (client.client) |unified| if (native.scope.realm != unified.connection.realm or native.principal != unified.connection.principal) return error.RelationalCallerChanged;
-        client.catalogs[i] = .{ .transport = &client.wire, .connection = native, .key = client.key };
-        client.routes[i] = &client.catalogs[i];
-        client.catalog_count += 1;
     }
-    const directory = try std.Io.Dir.cwd().openDir(client.threaded.io(), config.spill_directory, .{});
-    client.directory = directory;
-    client.relational = .{ .allocator = allocator, .io = client.threaded.io(), .directory = directory, .clients = client.routes[0..config.catalogs.len], .options = options };
+    client.relational = try q.RelationalCaller.create(allocator, client.threaded.io(), &client.wire, client.key, config);
 }
 pub fn destroy(pointer: ?*Client) callconv(.c) void {
     const client = cast(pointer orelse return);
-    if (client.relational) |*session| {
-        session.deinit();
-    }
-    if (client.directory) |directory| directory.close(client.threaded.io());
-    for (client.catalogs[0..client.catalog_count]) |*catalog| std.crypto.secureZero(u8, std.mem.asBytes(&catalog.key));
+    if (client.relational) |relational| relational.destroy();
     if (client.client) |*unified| std.crypto.secureZero(u8, std.mem.asBytes(&unified.key));
     std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     client.wire.deinit();
@@ -108,7 +91,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     const result = apply(client, alloc, action.value, &detail) catch |err| {
         const original_rejection = client.wire.last_rejection;
         var diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
-        if (action.value == .relational) if (client.relational) |*session| if (diagnostic) |*value| session.diagnostic(action.value.relational, err, value);
+        if (action.value == .relational) if (client.relational) |relational| if (diagnostic) |*value| relational.session.diagnostic(action.value.relational, err, value);
         if (action.value != .relational) if (client.client) |unified| q.ApiDiagnostic.qualify(&diagnostic, unified.connection);
         if (diagnostic) |*value| if (original_rejection) |native| {
             value.text(.native_cause, .authority, @tagName(native)) catch {};
@@ -134,10 +117,10 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
 fn apply(client: *Impl, alloc: std.mem.Allocator, action: bridge.Action, detail: *q.fuze.Sql.Binding) !bridge.Result {
     if (action == .relational) {
         if (action.relational == .capabilities) return .{ .relational = .{ .capabilities = .{} } };
-        const session = if (client.relational) |*value| value else return error.QueryInterfaceUnavailable;
+        const relational = client.relational orelse return error.QueryInterfaceUnavailable;
         var location: q.fuze.Sql.Location = .{};
         defer detail.location = location;
-        return .{ .relational = try session.apply(alloc, action.relational, &location) };
+        return .{ .relational = try relational.session.apply(alloc, action.relational, &location) };
     }
     const unified = if (client.client) |*value| value else return error.QueryInterfaceUnavailable;
     return bridge.applyDiagnostic(alloc, unified, action, detail);

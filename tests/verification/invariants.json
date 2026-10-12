@@ -1784,13 +1784,19 @@
       "owner": "docs/reference/queries.md",
       "implementation": [
         "packages/zig/transit-query/src/RelationalBridge.zig",
+        "packages/zig/transit-query/src/RelationalCaller.zig",
         "packages/zig/transit-station-bindings/src/QueryAbi.zig",
-        "tests/relational_callers_native.py"
+        "tests/relational_callers_native.py",
+        "tests/sdk_relational.py",
+        "tests/board_relational.py"
       ],
-      "profile": "Interactive one/two-catalog caller through the Station query ABI and port, one native authority and disk Ursula",
+      "profile": "Interactive one/two-catalog caller through the Station ABI/port, installed TypeScript/Python adapters and explicit Board HTTP/browser, one native authority and disk Ursula",
       "tasks": [
         "test::relational-callers",
-        "test::unit"
+        "test::unit",
+        "bindings::relational-node",
+        "bindings::relational-python",
+        "transit-board::relational-browser"
       ],
       "scenarios": [
         "Same-resource aliases share a cut while distinct resources preserve independent vectors",
@@ -1798,9 +1804,12 @@
         "Exact active-open, current-page and last-close retries preserve their identities",
         "Current catalog denial blocks a previously disclosed cached page",
         "Host replacement expires interactive handles without reexecuting SQL",
-        "Result quota and ordered SUM overflow retain incomplete status and the original failure"
+        "Result quota and ordered SUM overflow retain incomplete status and the original failure",
+        "Installed TypeScript and Python sync/async clients preserve exact plans, rows and owned boundaries",
+        "Authorized active-session inspection recovers a lost open response or browser reload without another Run",
+        "The browser displays complete coverage only after the terminal page and clears protected output on current denial"
       ],
-      "limits": "Small int64 fixtures with one retained output row. Durable captured and maintained foreign callers, installed language SDK wrappers and Board have separate qualification gates.",
+      "limits": "Small int64 fixtures with one retained output row. Durable captured/maintained foreign callers, other language relational adapters and large-output/RSS growth remain separate qualification gates.",
       "model": null,
       "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
     }

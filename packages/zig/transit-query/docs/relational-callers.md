@@ -70,3 +70,20 @@ resume or silently run SQL again. Use the separate
 [captured](relational-capture.md) or [maintained](relational-maintenance.md) typed
 owners for durable execution. Those lifetimes are not enabled by this interactive
 foreign action; its capability response states that distinction explicitly.
+
+`RelationalCaller` owns stable catalog-client addresses, their key copies, a
+directory handle and the session while borrowing the host's transport and I/O.
+The host serializes operations and destroys the owner before those dependencies.
+Its workspace `Request`/`Response` wraps shared query actions and a `describe`
+operation. Responses allocate in a caller-owned response arena. Description
+checks every configured catalog's current metadata rights and, if a query is
+active, every source's current disclosure rights. It returns the active reference,
+source cuts and current ordinal without advancing execution. This permits recovery
+within the same host; it does not resume an earlier host's lost execution.
+
+The [Board worksheet](../../../../apps/transit-board/docs/relational.md) uses this
+owner, with a 16 KiB HTTP request limit and one active query shared by its private
+viewers. The Station ABI uses the same owned client/session construction. The
+[TypeScript](../../../ts/transit-station-sdk/docs/relational.md) and
+[Python](../../../python/transit-station/docs/relational.md) APIs expose interactive
+calls with immutable values and exact integers.

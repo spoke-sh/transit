@@ -15,10 +15,10 @@ assert "session_seconds" not in spec["components"]["schemas"]["Capabilities"]["p
 assert "/api/v1/session" not in spec["paths"] and "/api/v1/logout" not in spec["paths"]
 for path, methods in spec["paths"].items():
     assert path.startswith("/api/v1/")
-    query = path in ('/api/v1/query', '/api/v1/query')
+    query = path in ('/api/v1/query', '/api/v1/relational')
     assert set(methods) == ({"post"} if query else {"get"})
     if query:
-        request = 'UnifiedQueryRequest' if path.endswith('query') else 'QueryRequest'
+        request = 'UnifiedQueryRequest' if path.endswith('query') else 'RelationalRequest'
         assert methods["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"] == f"#/components/schemas/{request}"
     for route in methods.values():
         for status in route["responses"].values():

@@ -155,7 +155,7 @@ def exercise(host, url, root, readers, policy, typed):
     return dict(ordered_overflow_witness=True, layouts=layouts, calls=calls, max_response_bytes=max_response_bytes, repeat_open=True, repeat_page=True, repeat_close=True, source_denial_after_prefix=True, host_loss_expires_handle=True, budget_preserves_failure=True)
 
 
-def run(node, proof, host, languages=()):
+def run(node, proof, host, languages=(), board=None, browser=False):
     node, proof, host = [str(Path(path).resolve()) for path in (node, proof, host)]
     started = time.monotonic()
     with Fixture() as fixture:
@@ -212,6 +212,10 @@ def run(node, proof, host, languages=()):
                 from sdk_relational import exercise as sdk_exercise
                 catalogs = json.loads((root / 'relational-caller.json').read_text())['query_client']['relational']['catalogs']
                 result['installed'] = sdk_exercise(languages, url, root, catalogs, policy, lambda routes: call('relational', SQL, *([secondary] if routes == [0, 1] else [])), SQL)
+            if board:
+                from board_relational import exercise as board_exercise
+                for directory in (root, secondary): call('board-inspector', directory=directory)
+                result['board'] = board_exercise(str(Path(board).resolve()), fixture, url, root, policy, lambda routes: call('relational', SQL, *([secondary] if routes == [0, 1] else [])), SQL, proof, browser)
             print(json.dumps(dict(profile='relational-callers-native', seconds=round(time.monotonic()-started, 3), **result)))
         finally:
             for child in readers:
@@ -231,5 +235,7 @@ if __name__ == '__main__':
     parser.add_argument('proof')
     parser.add_argument('host')
     parser.add_argument('--sdk', action='append', choices=('node', 'python'), default=[])
+    parser.add_argument('--board')
+    parser.add_argument('--browser', action='store_true')
     args = parser.parse_args()
-    run(args.node, args.proof, args.host, args.sdk)
+    run(args.node, args.proof, args.host, args.sdk, args.board, args.browser)

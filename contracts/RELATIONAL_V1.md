@@ -542,6 +542,14 @@ Closing a read releases its lease and does not stop maintenance.
 
 ## Neutral interactive caller
 
+`RelationalCaller.Request`/`Response` composes this interface for an owned host.
+`describe` reads the explicit catalog routes and optionally the active query's
+opened reference, current decimal ordinal and read flag. It checks current
+catalog metadata and active-source disclosure rights, advances no execution and
+opens no data snapshot. The returned reference resumes only this host's session.
+`query` wraps the exact `RelationalBridge` actions/results below. Board reflects
+these shared types in its separately configured relational route.
+
 `transit-query.RelationalBridge` owns the neutral interactive action/result types;
 Station's query ABI and port reflect them without another executor. See the
 [caller guide](../packages/zig/transit-query/docs/relational-callers.md) for exact

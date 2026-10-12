@@ -70,7 +70,7 @@
         "IncompleteResult": 1,
         "InvalidApplicationConfiguration": 2,
         "InvalidApplicationOperation": 1,
-        "InvalidApplicationOperators": 1,
+        "InvalidApplicationOperators": 2,
         "InvalidApplicationPart": 1,
         "InvalidApplicationPolicy": 1,
         "InvalidApplicationProgram": 1,
@@ -83,7 +83,7 @@
         "InvalidGrpcCapture": 1,
         "InvalidOrigin": 2,
         "InvalidQuery": 57,
-        "InvalidQueryConfiguration": 1,
+        "InvalidQueryConfiguration": 3,
         "InvalidQueryOrdinal": 1,
         "InvalidReactiveConfiguration": 4,
         "InvalidSequence": 1,
@@ -107,6 +107,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "RelationalRuntime.create()": "<inferred>",
         "Server.applicationRequest()": "<inferred>",
         "Server.builtinInterface()": "<inferred>",
         "Server.failure()": "<inferred>",
@@ -117,6 +118,7 @@
         "Server.json()": "<inferred>",
         "Server.queryFailure()": "<inferred>",
         "Server.queryFailureDiagnostic()": "<inferred>",
+        "Server.relationalRequest()": "<inferred>",
         "Server.respond()": "<inferred>",
         "Server.unifiedQueryRequest()": "<inferred>",
         "Shared.handle()": "anyerror",
@@ -135,8 +137,8 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 50,
-        "catch": 45
+        "try": 54,
+        "catch": 47
       },
       "imports": [
         "Growing.zig",
@@ -2683,7 +2685,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 76,
+        "try": 78,
         "catch": 0
       },
       "imports": [
@@ -10815,7 +10817,7 @@
     "packages/zig/transit-query/src/RelationalBridge.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidQueryCursor": 5,
+        "InvalidQueryCursor": 6,
         "InvalidQueryRequest": 4,
         "InvalidQuerySchema": 1,
         "InvalidRelationalBudgets": 1,
@@ -10849,6 +10851,8 @@
         "Options.native()": "<inferred>",
         "Session.apply()": "<inferred>",
         "Session.check()": "<inferred>",
+        "Session.current()": "<inferred>",
+        "Session.opened()": "<inferred>",
         "Session.reference()": "<inferred>",
         "Session.selected()": "<inferred>",
         "describe()": "<inferred>",
@@ -10857,7 +10861,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
+        "try": 56,
         "catch": 20
       },
       "imports": [
@@ -10891,6 +10895,38 @@
       "propagation": {
         "try": 37,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalCaller.zig": {
+      "errors": {
+        "InvalidRelationalSources": 1,
+        "RelationalCallerChanged": 1
+      },
+      "outcomes": {
+        "Request": [
+          "describe",
+          "query"
+        ],
+        "Response": [
+          "description",
+          "query"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "applyStructured()": "<inferred>",
+        "create()": "<inferred>",
+        "describe()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 4
       },
       "imports": [
         "root.zig",
@@ -12699,6 +12735,7 @@
         "QueryFailure.zig",
         "RelationalBridge.zig",
         "RelationalBundle.zig",
+        "RelationalCaller.zig",
         "RelationalCapture.zig",
         "RelationalCaptured.zig",
         "RelationalCompilation.zig",
@@ -15570,13 +15607,12 @@
         "AccessDenied": 1,
         "Conflict": 1,
         "InvalidQueryRequest": 1,
-        "InvalidRelationalSources": 1,
         "OutOfMemory": 2,
         "QueryDenied": 1,
         "QueryInterfaceUnavailable": 3,
         "QueryReadConflict": 1,
         "Rejected": 1,
-        "RelationalCallerChanged": 2
+        "RelationalCallerChanged": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -15586,7 +15622,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 5,
+        "try": 3,
         "catch": 20
       },
       "imports": [

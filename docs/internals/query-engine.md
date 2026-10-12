@@ -188,6 +188,23 @@ separate deterministic/reference-store schedules from native fault execution.
 Neither immutable storage nor byte round trips alone establish worker
 reassignment or distributed authority.
 
+Interactive response recovery asks a narrower question: did this same host
+already produce the requested page? The
+[caller session](../../packages/zig/transit-query/src/RelationalBridge.zig) retains
+one native row before allocating a foreign response. An explicit ordinal can
+repeat that row or advance by one; it cannot skip or replay an arbitrarily old
+prefix. Resident response state therefore does not grow with result length.
+The [owned caller](../../packages/zig/transit-query/src/RelationalCaller.zig)
+can inspect the active reference and current ordinal without executing another
+step. Board uses this observation after a lost open response or browser reload.
+All disclosures, including current-page retries and terminal coverage, validate
+every source's current rights. Host replacement discards this state and rejects
+the old reference. This mechanism solves response uncertainty within one host;
+it supplies neither a durable checkpoint nor permission to recompute a lost query.
+The [caller evidence](../../tests/README.md#neutral-relational-caller-pages) and
+[installed SDK evidence](../../tests/README.md#installed-interactive-relational-sdks)
+separate this boundary from captured execution and maintenance.
+
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query
 and B a vector of exact source revisions. An attributable result would need to

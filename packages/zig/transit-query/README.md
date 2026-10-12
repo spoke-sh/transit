@@ -63,6 +63,9 @@ resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
 and repeatable one-row interactive pages through the Station query ABI/port.
 See [interactive relational callers](docs/relational-callers.md) for full-width
 values, source evidence, retry, close and host-loss semantics.
+`RelationalCaller` owns the configured clients and session for the ABI and
+Board. Its authorized workspace description reports the active reference and
+ordinal without rerunning or advancing a query.
 
 `RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
 Station call, retains every source cut and advances one bounded execution step

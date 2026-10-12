@@ -2,6 +2,16 @@ import type { StateResponse, Capabilities, Error as ErrorBody } from "./types";
 import { inspectionResponse, type Response } from "./effects";
 export { inspectionResponse, type Response } from "./effects";
 export type { StateResponse, Capabilities } from "./types";
+export { relationalQuery, validateRelational } from "./relational";
+export type {
+  RelationalRequest,
+  RelationalResponse,
+  RelationalReference,
+  RelationalPage,
+  RelationalOpened,
+  RelationalDescription,
+  RelationalProfile,
+} from "./relational";
 export type Page = Response["observation"];
 export type Process = NonNullable<Page["processes"][number]>;
 export type Event = NonNullable<Page["events"][number]>;
@@ -31,7 +41,10 @@ export const validateCapabilities = (value: unknown): value is Capabilities =>
 export async function request<T>(
   path: string,
   validate: (value: unknown) => value is T,
-  options?: { signal?: AbortSignal; body?: UnifiedQueryRequest },
+  options?: {
+    signal?: AbortSignal;
+    body?: UnifiedQueryRequest | import("./types").RelationalRequest;
+  },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   // Board permits a five-second request budget; leave bounded time for its

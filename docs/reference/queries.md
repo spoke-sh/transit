@@ -211,6 +211,9 @@ A complete page rechecks all source rights; host loss expires interactive handle
 The [TypeScript](../../packages/ts/transit-station-sdk/docs/relational.md) and
 [Python](../../packages/python/transit-station/docs/relational.md) SDKs expose
 that interactive owner with immutable references and full-width integer rows.
+Board's [relational worksheet](../../apps/transit-board/docs/relational.md) exposes
+the same owner through explicit routes and page controls. Active-session
+inspection can recover a browser's lost reference without rerunning the query.
 The console does not activate maintained queries. Flight rejects relational
 execution. Typed Zig maintained ownership and
 complete Table history have their own interfaces below; coalesced invalidation
