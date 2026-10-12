@@ -55,13 +55,15 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
 
     feed = None
 
-    def finish():
+    def finish(allow_failure=False):
         for _ in range(500):
             call('maintained-pump', 10 if feed else 100)
             status = call('maintained-status')
             if feed and status['state'] in ('admitted', 'running'):
                 feed()
             if status['state'] == 'idle':
+                return status
+            if allow_failure and status['state'] == 'failed':
                 return status
             assert status['state'] in ('admitted', 'running'), status
         raise AssertionError('Maintained revision did not finish within proof work bound')
@@ -97,10 +99,14 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     accepted = {}
     publications = []
 
-    def next_revision():
+    def next_revision(allow_failure=False):
         nonlocal previous, exact, noops, changes, revisions
         call('maintained-wake')
-        status = finish()
+        status = finish(allow_failure)
+        if status['state'] == 'failed':
+            assert status['revision'] == previous['revision']
+            assert status['manifest'] == previous['reference']['record']
+            return False
         if status['revision'] == previous['revision']:
             return False
         assert status['revision'] == previous['revision'] + 1, (status, previous)
@@ -234,15 +240,14 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     assert replay['manifest']['revision'] == 2
     # A newly committed schema cannot be interpreted as the old query schema.
     # Retained complete output remains bound to the original schema and basis.
-    last_complete = call('maintained-status')
+    before_schema = revisions
+    position_path.write_text(saved)
     applied(execute(910009, 'ALTER TABLE rel_right ADD COLUMN extra BIGINT', directory=secondary))
     for _ in range(10):
-        call('maintained-wake')
-        call('maintained-pump')
-        failed = call('maintained-status')
-        if failed['state'] == 'failed':
+        if not next_revision(allow_failure=True):
             break
-    assert failed['state'] == 'failed' and failed['manifest'] == last_complete['manifest'], failed
+    failed = call('maintained-status')
+    assert failed['state'] == 'failed' and failed['manifest'] == previous['reference']['record'], failed
     failure = call('maintained-failure')
     assert failure['cause'] == 'TableSchemaChanged' and failure['last_revision'] == previous['revision'], failure
     retained = call('maintained-result', previous['revision'])
@@ -256,18 +261,27 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     rebuilt = call('maintained-result', 1)
     assert {key(row): cells(row) for row in rebuilt['events']} == exact
     applied(execute(910010, 'DROP TABLE rel_right', directory=secondary))
-    call('maintained-wake')
-    call('maintained-pump')
+    for _ in range(10):
+        call('maintained-wake')
+        dropped = finish(allow_failure=True)
+        if dropped['state'] == 'failed':
+            assert dropped['manifest'] == rebuilt['manifest']['reference']['record']
+            break
+        successor = call('maintained-result', dropped['revision'])
+        assert successor['manifest']['revision'] == rebuilt['manifest']['revision'] + 1
+        assert successor['manifest']['previous'] == rebuilt['manifest']['reference']
+        assert {key(row): cells(row) for row in successor['events']} == exact
+        rebuilt = successor
     drop_failure = call('maintained-failure')
-    assert drop_failure['cause'] == 'TableRetired' and drop_failure['last_revision'] == 1, drop_failure
-    assert call('maintained-result', 1)['manifest'] == rebuilt['manifest']
+    assert drop_failure['cause'] == 'TableRetired' and drop_failure['last_revision'] == rebuilt['manifest']['revision'], drop_failure
+    assert call('maintained-result', rebuilt['manifest']['revision'])['manifest'] == rebuilt['manifest']
     # Reusing the SQL name assigns a different object. Saved work still names
     # the retired object and cannot switch to the replacement's empty relation.
     applied(execute(910011, 'CREATE TABLE rel_right (k BIGINT, v BIGINT)', object_id=2, directory=secondary))
     call('maintained-wake')
     call('maintained-pump')
     assert call('maintained-failure') == drop_failure
-    assert call('maintained-result', 1)['manifest'] == rebuilt['manifest']
+    assert call('maintained-result', rebuilt['manifest']['revision'])['manifest'] == rebuilt['manifest']
     call('maintained-worker-deny')
     call('maintained-retire')
     call('maintained-clean')
@@ -278,6 +292,7 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
                   turns=measurements['turns'] - initial_turns, retained_state_bytes=previous['state_bytes'],
                   exact_delta_retry=True, delayed_backfill=True, disk_restart=True, current_denial=True,
                   ongoing_input=ongoing, schema_successor_rejected=True, schema_failure=failure,
+                  schema_no_op_revisions=revisions - before_schema,
                   drop_successor_rejected=True, drop_name_reuse_preserves_failure=True, drop_failure=drop_failure)
     print(json.dumps(result))
     return result
