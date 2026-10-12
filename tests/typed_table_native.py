@@ -409,13 +409,6 @@ def run(node, proof, host, cli, station_host, *arguments):
                 nonlocal armed
                 armed = 'turn'
 
-            if options.maintained:
-                from relational_maintenance_native import run as maintained_proof
-                maintained = maintained_proof(call, execute, applied, secondary, root, grouped_sql,
-                    restart_maintenance, arm_maintenance, hold, release, measurements)
-                assert cold_store.data_objects() > 0, 'Maintenance did not exercise cold data'
-                maintained['cold_objects'] = cold_store.data_objects()
-                maintained['cold_bytes'] = cold_store.file_bytes()
             rejected_update = execute(13, 'UPDATE people SET id = 9')
             assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
                 source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
@@ -471,6 +464,16 @@ def run(node, proof, host, cli, station_host, *arguments):
             release(expired, 'QueryExpired')
             assert len(call('select', 'SELECT * FROM people')['rows']) == 2
             assert call('status') == rejected_insert
+            # Finish the original leased-snapshot schedule before growing the
+            # retained maintenance history. Its many cold-store writes are a
+            # separate workload; they do not extend the snapshot's deadline.
+            if options.maintained:
+                from relational_maintenance_native import run as maintained_proof
+                maintained = maintained_proof(call, execute, applied, secondary, root, grouped_sql,
+                    restart_maintenance, arm_maintenance, hold, release, measurements)
+                assert cold_store.data_objects() > 0, 'Maintenance did not exercise cold data'
+                maintained['cold_objects'] = cold_store.data_objects()
+                maintained['cold_bytes'] = cold_store.file_bytes()
             # Exercise the supplied deployment binary, not the fixture's manual
             # GenServer driver. One catalog owner routes every Table; a courier
             # scoped to that single destination delivers staged continuations.
