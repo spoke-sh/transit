@@ -1,5 +1,25 @@
 # Validation and milestone evidence
 
+## Relational exchange faults and checkpoint growth
+
+The expanded `just test::relational-exchanges` schedule passes in **305.707
+seconds** on one native authority, disk Ursula and owned cold storage. One- and
+seven-partition layouts retain exact oracle results through the recorded worker
+handoff and accepted-command receipt losses. Both checkpoints contain **270
+entries**, including 257 explicit application records scanned through bounded
+pages. The schedule observes **669 turn responses**, at most four mutations and
+256-byte values.
+
+A persistent authority outage, missing/corrupt checkpoint and denied source keep
+restoration fenced. Truncated reads and corrupted published exchange segments do
+not acknowledge corrupted data; receiver source denial preserves its head.
+Terminating the foreign source owner expires its native resource and blocks a
+separate fenced restoration; own-resource query retirement still succeeds. This
+is lifetime expiry, not a TTL or physical deletion claim. The [exact record,
+logs and failed attempts](verification/results/relational-exchange-faults-2026-10-12.json)
+retain the narrower earlier schedules separately. Physical ENOSPC, provider-bound
+workers and distributed write authority are separate qualifications.
+
 ## Relational resident growth
 
 The query package's generated-source/disk-spill component test completes **14,060
