@@ -211,7 +211,7 @@ def identity_fixture():
 
 
 def fixtures():
-    cases = semantic_cases()
+    cases = semantic_cases() + generated_cases()
     return {'definition': DEFINITION.decode(), 'identity': identity_fixture(),
             'nulls': [{'left': l, 'right': r, 'join': l is not None and r is not None and l == r,
                        'order': (group_key([l]) > group_key([r])) - (group_key([l]) < group_key([r]))}
@@ -222,6 +222,29 @@ def fixtures():
                      for values in [[], [None, None], [1, None, -1], [MAX_I64, 1, -1],
                                     [MIN_I64, -1, 1], [MAX_I64, -1, 1], [MIN_I64, 1, -1]]],
             'cases': [dict(case, expected=evaluate(case)) for case in cases]}
+
+
+def generated_cases():
+    """One seeded corpus shared by Python/SQLite and production-executor checks."""
+    prototype = semantic_cases()[0]
+    cases = []
+    rng = random.Random(70)
+    for index in range(300):
+        case = deepcopy(prototype)
+        case['name'] = f'seed-70-{index}'
+        case['join'] = rng.choice(['none', 'inner', 'left'])
+        for side in ('left', 'right'):
+            case[side] = [[i + 1, rng.choice([None, -1, 0, 1]), rng.choice([None, -3, 0, 3])]
+                          for i in range(rng.randrange(9))]
+            rng.shuffle(case[side])
+        if case['join'] == 'none':
+            case['outputs'] = [['key', 'column', 'l.key'], ['value', 'column', 'l.value']]
+        if rng.choice([True, False]):
+            case['group_by'] = ['l.key']
+            column = 'l.value' if case['join'] == 'none' else 'r.value'
+            case['outputs'] = [['key', 'column', 'l.key'], ['n', 'count_all'], ['v', 'count', column], ['s', 'sum', column]]
+        cases.append(case)
+    return cases
 
 
 def verify_oracle():
@@ -236,22 +259,7 @@ def verify_oracle():
     assert evaluate(cases[5])['rows'] == []
     assert evaluate(cases[7])['error']['identity'] == [2, None]
     assert evaluate(cases[9])['error']['group'] == [9]
-    rng = random.Random(70)
-    for index in range(300):
-        case = deepcopy(cases[0])
-        case['name'] = f'seed-70-{index}'
-        case['join'] = rng.choice(['none', 'inner', 'left'])
-        for side in ('left', 'right'):
-            case[side] = [[i + 1, rng.choice([None, -1, 0, 1]), rng.choice([None, -3, 0, 3])]
-                          for i in range(rng.randrange(9))]
-            rng.shuffle(case[side])
-        if case['join'] == 'none':
-            case['outputs'] = [['key', 'column', 'l.key'], ['value', 'column', 'l.value']]
-        if rng.choice([True, False]):
-            case['group_by'] = ['l.key']
-            column = 'l.value' if case['join'] == 'none' else 'r.value'
-            case['outputs'] = [['key', 'column', 'l.key'], ['n', 'count_all'], ['v', 'count', column], ['s', 'sum', column]]
-        cases.append(case)
+    cases += generated_cases()
     checked = 0
     for case in cases:
         expected = evaluate(case)

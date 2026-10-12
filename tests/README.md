@@ -121,6 +121,15 @@ remains pending.
 
 ### Captured relational owner and results
 
+The exported semantic fixture now includes all 300 seed-70 generated cases as
+well as the 15 named cases. `just test::relational` passes all 315 through the
+production executor with both reference groups and immutable group roots,
+including checkpoint restoration before every step and output-record validation.
+The same independent Python corpus supplies expected bags/identities; SQLite
+still checks the 312 non-overflow cases. This closes the earlier gap where only
+the named cases were compared with the Zig executor. It does not expand the
+small-input oracle into a runtime or storage proof.
+
 The query Debug suite passes frozen `RQB1` request admission, same-resource alias
 pin sharing, full schema identity rejection, retained reads after Table changes
 and request retirement,
