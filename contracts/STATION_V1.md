@@ -78,6 +78,30 @@ private work; a pending signed mutation must be reconciled.
 
 ## Paged and retained state
 
+The native Zig host's `GenServer.setReadResources` selects at most three
+additional read resources before an input starts. Its ordinary pending control
+requests open their native views before handler dispatch. The associated
+writable resource plus those views must fit the four-view turn bound. A repeated
+writable resource uses its existing view; other duplicate selections reject.
+Selections cannot change while an input or signed request is pending. Extra
+views do not extend mutation ownership, scoped grants or associations.
+
+`Turn.addView` accepts only an exact host-opened view for the current PID,
+principal, generation, input and process revision. It refuses a different cut
+for an already registered resource. `Turn.captured(resource)` provides bounded
+read-only access to a registered cut; read failures poison the entire proposal.
+`Turn.retainView`/`Captured.retain` stage only registered cuts, deduplicating the
+same view into one retained identity. Their visibility, current authorization
+and recovery follow the native retained-version contract below. Handler-failure
+proposals retain the complete registered view dependency set.
+
+`Captured.requireCurrent()` also registers its view in the native turn's
+`current_views` guard set. This condition requires that resource revision to stay
+unchanged through publication; read-only snapshot registration alone does not.
+Handler-failure proposals preserve requested guards. See the
+[state publication contract](STATE_V1.md#read-bases-and-atomic-turns) for rejection
+and historical receipt semantics.
+
 `Turn.page` and `Table.page` return at most eight entries/rows. A continuation binds
 the turn view or retained version, resource, revision, Table and schema. Only a
 null continuation establishes the end; an empty page can still have a continuation.

@@ -56,6 +56,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
 | `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
+| `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
@@ -84,9 +85,14 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
 | `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise separate catalog initialization/delegation, lost receipts and disk recovery, retained query cuts across same-namespace Table mutations, and independent query/write policies; optionally use installed catalog SDKs |
 | `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |
+| `just test::relational-maintenance` | Prove complete Table-history bases, independent finite/delta agreement, exact resume and disk/cold-store recovery under bounded resident storage |
+| `just test::relational-exchanges` | Compare explicit producer layouts with the independent oracle through bounded native exchanges, exact receipt recovery, worker replacement and maintained publication on disk |
+| `just test::relational-capacity` | Fill an owned ext4 image to real ENOSPC during captured and exchange work; release a physical reserve and recover the exact query/checkpoint before completing the oracle result |
 | `just test::catalog-growth` | Create 65 additional Tables on disk with eight resident pages; check nine ordered metadata pages, changed cursors, current disclosure rights and node/store restart; larger counts use `test::catalog --grow N` |
 | `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
 | `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
+| `just bindings::relational-node`, `just bindings::relational-python` | Build/install interactive relational callers outside the checkout; compare exact plans and rows with Zig across one/two-resource routes, repeated pages, current denial, host loss and ordered overflow |
+| `just transit-board::relational-browser` | Run the real relational Board API and browser against disk Ursula; prove explicit execution, a lost open response, browser reload without rerun, exact coverage and current denial |
 | `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
 | `just bindings::catalog-ruby` | Build/install Ruby gems outside the checkout; verify frozen values, saved catalog recovery, malformed-child uncertainty and joined cancellation |
 | `just bindings::catalog-c` | Build/install C11/C++17 packages; verify owned values, copied-owner rejection, exact saved catalog recovery and current denial |
@@ -128,6 +134,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
 | `just test::table-schema` | Independent Table schema bytes, stable column identities, typed defaults, nullable omission and row constraints |
+| `just test::relational-sql` | Compare selected JOIN/GROUP BY syntax and Boolean instruction order across production Zig, independent ANTLR and PostgreSQL ASTs; included in `test::sql` |
+| `just test::relational` | Relational plan/basis validation, bounded executor against independent NULL/ordered-overflow fixtures, identity bytes and finite Python/SQLite comparison; native source and disk proofs run separately |
 | `just test::file-query` | Real CSV/JSONL file/stdin/gzip queries, independent exact results, quotas, cancellation, immutable capture and bounded process memory |
 | `just test::file-benchmark --output PATH` | Pinned DuckDB file/discovery/execution comparison matrix in the benchmarks shell; raw reports and explicit metric scopes |
 | `just test::logical-codec`, `just bindings::logical-test` | Exact logical native/port codecs and installed Python/TypeScript owners, generated recursive schemas, hashes and Arrow |

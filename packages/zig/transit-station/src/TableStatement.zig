@@ -238,10 +238,9 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         head = reserved;
         break :blk admitted;
     };
-    // INSERT can use the admission turn's remaining write for its first
-    // reachable record. The reservation and bytes commit together; the saved
-    // cursor remains unchanged, so retry recomputes the exact same candidate.
-    if (prior == null and request.plan.action != .insert) return result;
+    // Admission publishes its predecessor, reservation, status and progress in
+    // four writes. Candidate staging starts from that accepted reservation.
+    if (prior == null) return result;
     var progress = try Progress.load(turn, result, head);
     try validateCandidate(head, progress, request.plan);
     const pages: Pages = .{ .resource = reference.resource, .object = reference.object };

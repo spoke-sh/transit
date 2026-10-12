@@ -30,7 +30,8 @@ It offers scalar comparisons only when the same name also identifies a column;
 an already qualified column cannot gain another qualifier. Checked SUM offers
 int64 columns only; typed literal suggestions use explicit `'0'::uint64` and `'0'::float64` forms for
 those column types. Exact cell-state tests retain all five states. General DDL,
-joins, windows and continuous queries cannot appear as executable candidates.
+joins, windows and continuous queries cannot appear as executable candidates in
+the `unified_v1` profile.
 The existing SQL AST limits named identifiers to sixteen bytes, even where the
 v1 schema can describe thirty-two-byte names. Those wider names do not become
 named SQL candidates; star projection retains its existing compiler semantics.
@@ -55,3 +56,31 @@ Independent native/browser/terminal fixtures must cover incomplete prefixes,
 mid-token replacement, qualified/quoted identifiers, comments, literals, source
 denial, schema changes, late responses, capability exclusions and meta arguments.
 Report measured latency and actual source sizes separately from these bounds.
+
+## Catalog and relational assistance
+
+The catalog console uses `TableAssistance` and reports `catalog_v1`. Its response
+identifies the configured resource, current resource/policy revisions and a
+commitment to the native definition, catalog connection, caller and those
+revisions. It shares the request, replacement-range and eight-item bounds above.
+It reads catalog metadata through `TableClient`; it does not open data snapshots
+or prepare a mutation. Source search reads at most 128 catalog pages.
+
+General Table DDL, DML and SELECT use their production parser and current schema.
+Names support up to 255 UTF-8 bytes and inserted identifiers are quoted with
+embedded quotes escaped. Relational drafts use the relational parser's cursor
+expectations. Header discovery can identify up to two aliases even while the
+projection is unfinished; this is metadata discovery, not accepted SQL. Both
+aliases resolve inside the configured catalog under its current inspection
+policy. The complete response is discarded if the catalog revision or policy
+changes during construction.
+
+Relational column suggestions admit int64 only. At an unqualified position,
+multiple sources produce separately quoted alias/column references; after a
+qualifier only its columns are offered. Unknown and ambiguous predicate names
+produce no guessed comparison operators. NULL appears for explicit state tests,
+not as a comparison literal. Other logical cell states, rich-type comparisons,
+LIMIT, HAVING and ORDER BY are excluded from this relational profile. Consumed
+JOIN/GROUP/aggregate syntax and aliases receive roles from that same production
+parser for console highlighting. Suggested text does not enable relational
+execution or bypass the explicit connection configuration and query admission.

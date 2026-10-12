@@ -13,6 +13,8 @@ inspection identity remains read-only. The [growing query profile](docs/configur
 The [v1 workspace](docs/configuration.md#unified-state-query-workspace)
 supports explicit KV/Table/Document declarations through the same query library
 as the shell and SDKs.
+The [relational worksheet](docs/relational.md) separately enables explicit catalog
+routes, joins/groups, exact interactive pages and authorized active-query recovery.
 
 ## Try it
 
@@ -68,8 +70,10 @@ production guarantee or permission to use a resource.
 
 The shared listener defaults to 16 accepted sockets, four data handlers and two
 reserved `/health` handlers. Headers have at most one second; the overall request
-deadline remains 100–5000 ms. Every handler owns its upstream client, arena and
-observation. Query operations are serialized within this Board instance; callers
+deadline remains 100–5000 ms. Inspection handlers own their upstream client,
+arena and observation. The relational route retains one bounded upstream caller
+and session, with a fresh response arena and observation for each operation.
+Query operations are serialized within this Board instance; callers
 still preserve exact frozen tokens and coordinate their principal's sequence.
 Separate instances still coordinate shared principal sequences through exact retry.
 Upstream calls have a shorter timeout; no redirects or response cache. The minimum spacing

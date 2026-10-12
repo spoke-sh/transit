@@ -67,6 +67,7 @@ check-core:
     python3 -B tests/fuze_sources.py
     python3 -B tests/fuze_types.py
     python3 -B tests/table_schema.py
+    python3 -B tests/relational.py
     python3 -B tests/table_storage.py
     python3 -B tests/table_catalog.py
     python3 -B tests/ci_runner.py

@@ -91,7 +91,7 @@ remain outside this evidence.
 
 ## Grammar coverage
 
-The read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
+The ordinary `statement` read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
 a projection bounded by the declared schema or star, row output, `COUNT(*)`, `COUNT(column)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
 AS alias` makes the alias its column qualifier. `AS` is required. The restricted
@@ -113,10 +113,26 @@ profile validates atoms against its own admitted logical types and byte budgets.
 `SELECT count(*) FROM (SELECT * FROM items WHERE id > 0 LIMIT 2) AS chosen`
 spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
-No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
+No optimizer rewrite is implied. General subqueries, sorting,
 expression arithmetic, general casts,
 and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
+
+`relationalQuery` is a separate checked root for the explicit Table relational
+profile. It accepts optional EXPLAIN, one or two Table targets with explicit or
+implicit aliases, one inner/left equijoin, mixed column/COUNT/SUM selections,
+Boolean WHERE and GROUP BY. The [relational corpus](corpus/relational.json)
+compares normalized sources, aliases, outputs, joins, group keys and predicate
+instruction order across ANTLR, PostgreSQL and production Zig. `just
+test::relational-sql` executes this comparison and is included in `test::sql`.
+The ordinary grammar root retains its existing one-source/subquery/LIMIT
+profile. Contextual join/group words remain identifiers where the existing
+language allows them; unquoted implicit source aliases cannot consume clause
+words. Type admission, distinct output names, grouping legality, source rights
+and execution budgets remain semantic checks. LIMIT, HAVING, DISTINCT, ORDER BY,
+parameters, additional joins and arbitrary expressions are excluded from the
+relational root. Reference grammar predicates share literal syntax; executable
+relational binding admits only exact int64 comparisons and NULL-state tests.
 
 `TableDdl.compile` owns general CREATE/ALTER/DROP compilation. CREATE defaults
 to nullable columns and supports aliases, logical descriptors, deterministic

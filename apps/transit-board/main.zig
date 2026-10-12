@@ -16,6 +16,7 @@ const Config = struct {
     principal: u64,
     profile: enum { native_v1 } = .native_v1,
     query: ?growing.UnifiedQueryConfig = null,
+    relational: ?struct { seed_file: []const u8, query: query_api.RelationalBridge.Config } = null,
     reactive: ?struct { principal: u64, seed_file: []const u8, gateway: hosting.Gateway } = null,
     application: ?application.Host.Config = null,
     interface: ?application.Native.Scope = null,
@@ -38,6 +39,7 @@ const Server = struct {
     observation: telemetry.Http = .{},
     next_read_ms: *std.atomic.Value(i64),
     query_lock: *std.Io.Mutex,
+    relational: ?*RelationalRuntime = null,
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
@@ -185,6 +187,25 @@ const Server = struct {
         };
         return self.json(req, .ok, result);
     }
+    fn relationalRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
+        const runtime = self.relational orelse return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
+        defer self.query_lock.unlock(self.io);
+        if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const parsed = query_api.Values.parse(api.RelationalRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
+        runtime.wire.observer = self.observation.span.runtime;
+        runtime.wire.parent_context = self.observation.span.context;
+        defer {
+            runtime.wire.observer = null;
+            runtime.wire.parent_context = null;
+        }
+        var diagnostic: ?client.protocol.Diagnostic = null;
+        const result = runtime.caller.applyStructured(arena.allocator(), parsed.value, &diagnostic) catch |err| return self.queryFailureDiagnostic(req, &runtime.wire, err, diagnostic);
+        return self.json(req, .ok, result);
+    }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const participation = parseParticipation(target) catch return self.failure(req, .bad_request, .InvalidQuery);
@@ -262,15 +283,17 @@ const Server = struct {
         if (target.len > 1024) return self.failure(&req, .bad_request, .InvalidQuery);
         const application_route = std.mem.eql(u8, target, "/api/v1/application");
         const query_route = std.mem.eql(u8, target, "/api/v1/query");
-        if (query_route or application_route) {
+        const relational_route = std.mem.eql(u8, target, "/api/v1/relational");
+        if (query_route or application_route or relational_route) {
             const origin = (try header(&req, "origin")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (relational_route) query_api.RelationalCaller.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
+        if (relational_route) return self.relationalRequest(&req, body);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         if (std.mem.eql(u8, target, "/api/v1/interface") and req.head.method == .GET) return self.interfaceRequest(&req);
         if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
@@ -297,6 +320,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/interface")) return "/api/v1/interface";
     if (std.mem.eql(u8, target, "/api/v1/application")) return "/api/v1/application";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
+    if (std.mem.eql(u8, target, "/api/v1/relational")) return "/api/v1/relational";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
@@ -584,6 +608,7 @@ const Shared = struct {
     next_read_ms: std.atomic.Value(i64) = .init(0),
     query_lock: std.Io.Mutex = .init,
     reactive: ?*hosting.Context = null,
+    relational: ?*RelationalRuntime = null,
 
     pub fn isControl(self: *@This(), request: *std.http.Server.Request) bool {
         return if (self.reactive) |context| context.isControl(request) else false;
@@ -598,6 +623,7 @@ const Shared = struct {
             .host = self.host,
             .next_read_ms = &self.next_read_ms,
             .query_lock = &self.query_lock,
+            .relational = self.relational,
             .observation = .{ .span = self.diagnostics.begin(.server, null) },
         };
         var failure: ?anyerror = null;
@@ -611,6 +637,28 @@ const Shared = struct {
         if (handler_started) return; // The request-local observation already finished.
         var observation: telemetry.Http = .{ .span = self.diagnostics.begin(.server, null) };
         observation.finish("board.http.request", err, err == error.HttpDeadline, false);
+    }
+};
+const RelationalRuntime = struct {
+    allocator: std.mem.Allocator,
+    wire: client.Client,
+    caller: *query_api.RelationalCaller,
+    fn create(allocator: std.mem.Allocator, io: std.Io, config: Config) !*RelationalRuntime {
+        const selected = config.relational orelse return error.InvalidQueryConfiguration;
+        const self = try allocator.create(RelationalRuntime);
+        errdefer allocator.destroy(self);
+        self.* = .{ .allocator = allocator, .wire = client.Client.init(allocator, io, config.upstream), .caller = undefined };
+        errdefer self.wire.deinit();
+        self.wire.timeout_ms = config.upstream_timeout_ms;
+        var key = try client.readKey(allocator, io, selected.seed_file);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        self.caller = try query_api.RelationalCaller.create(allocator, io, &self.wire, key, selected.query);
+        return self;
+    }
+    fn destroy(self: *RelationalRuntime) void {
+        self.caller.destroy();
+        self.wire.deinit();
+        self.allocator.destroy(self);
     }
 };
 fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]const u8 {
@@ -644,11 +692,17 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.query) |query| {
         if (config.profile != .native_v1 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0 or query.workspace.source.resource != query.connection.resource) return error.InvalidQueryConfiguration;
     }
+    if (config.relational) |relational| {
+        for (relational.query.catalogs) |connection| {
+            if (connection.scope.realm != config.realm or connection.principal == config.principal or connection.principal == 0) return error.InvalidQueryConfiguration;
+        }
+    }
     if (config.application) |app| {
         try app.validate();
         if (config.profile != .native_v1 or app.scope.realm != config.realm) return error.InvalidApplicationConfiguration;
         for (app.operators) |slot| if (slot) |principal| {
             if (principal == config.principal or (config.query != null and principal == config.query.?.connection.principal) or (config.reactive != null and principal == config.reactive.?.principal)) return error.InvalidApplicationOperators;
+            if (config.relational) |relational| for (relational.query.catalogs) |connection| if (connection.principal == principal) return error.InvalidApplicationOperators;
         };
     }
     if (config.interface) |scope| {
@@ -685,7 +739,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         reactive_context = .{ .config = .{ .url = config.upstream, .realm = config.realm, .principal = reactive.principal, .request_timeout_ms = config.upstream_timeout_ms, .gateway = gateway }, .key = try client.readKey(init.gpa, init.io, reactive.seed_file), .diagnostics = diagnostics };
         try reactive_context.?.loadViewer(init.gpa, init.io);
     }
-    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null };
+    const relational = if (config.relational != null) try RelationalRuntime.create(init.gpa, init.io, config) else null;
+    defer if (relational) |runtime| runtime.destroy();
+    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null, .relational = relational };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

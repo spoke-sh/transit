@@ -1,0 +1,142 @@
+{
+  "implementation_commit": "51bc76b75d0c51b5d894f9f5560325378720ce8a",
+  "definition": "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024",
+  "command": "nix develop --command just test::relational-exchanges",
+  "clean_checkout": false,
+  "result": "passed",
+  "topology": {
+    "authority": "one growing native node",
+    "storage": "disk-backed Ursula and owned MinIO cold-store fixture",
+    "hot_bytes": 8388608,
+    "cache_bytes": 8388608,
+    "resident_pages": 8,
+    "receiver_segment_credit": 1,
+    "active_producer_read_fan_in": 1
+  },
+  "log": {
+    "local_path": ".cache/relational-intake/exchange-native-view-lifecycle.log",
+    "sha256": "3dc2b128bfecf84272f55f39efaf1eb9687d021edffe3d43544683d7ff45f4f4"
+  },
+  "observations": [
+    {
+      "profile": "relational-exchange-layout",
+      "partitions": 1,
+      "workers": 1,
+      "batch": 1,
+      "exchange": 174,
+      "turns": 192,
+      "seconds": 71.453,
+      "retained_exchange_bytes": 11436,
+      "operator_bytes": 10422,
+      "rounds": 29,
+      "completed": 2,
+      "oracle": true,
+      "producer_loss": true,
+      "acceptance_loss": true,
+      "node_store_restart": true,
+      "stale_worker_rejected": true
+    },
+    {
+      "profile": "relational-exchange-layout",
+      "partitions": 7,
+      "workers": 3,
+      "batch": 4,
+      "exchange": 1014,
+      "turns": 242,
+      "seconds": 111.75,
+      "retained_exchange_bytes": 17252,
+      "operator_bytes": 10422,
+      "rounds": 16,
+      "completed": 14,
+      "oracle": true,
+      "producer_loss": true,
+      "acceptance_loss": true,
+      "node_store_restart": true,
+      "stale_worker_rejected": true
+    },
+    {
+      "profile": "relational-exchange-native",
+      "seconds": 188.327,
+      "layouts": [
+        {
+          "partitions": 1,
+          "workers": 1,
+          "batch": 1,
+          "exchange": 174,
+          "turns": 192,
+          "seconds": 71.453,
+          "retained_exchange_bytes": 11436,
+          "operator_bytes": 10422,
+          "rounds": 29,
+          "completed": 2,
+          "oracle": true,
+          "producer_loss": true,
+          "acceptance_loss": true,
+          "node_store_restart": true,
+          "stale_worker_rejected": true
+        },
+        {
+          "partitions": 7,
+          "workers": 3,
+          "batch": 4,
+          "exchange": 1014,
+          "turns": 242,
+          "seconds": 111.75,
+          "retained_exchange_bytes": 17252,
+          "operator_bytes": 10422,
+          "rounds": 16,
+          "completed": 14,
+          "oracle": true,
+          "producer_loss": true,
+          "acceptance_loss": true,
+          "node_store_restart": true,
+          "stale_worker_rejected": true
+        }
+      ],
+      "metrics": {
+        "turns": 468,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "accepted": 26
+      },
+      "cold_objects": 198,
+      "cold_bytes": 52007898,
+      "replays": [
+        "acceptance",
+        "producer"
+      ]
+    }
+  ],
+  "binaries": [
+    {
+      "local_path": ".zig-cache/o/085eb282e6bbbd27aa9064db6b44511b/transit-node",
+      "sha256": "f3e827a685932c9ae26f31187cd93a19ff4df765e41ebba56ce5c4e11af4bca3"
+    },
+    {
+      "local_path": ".zig-cache/o/65e3e3c925d7a71d1b373c3edcffc630/transit-typed-table-proof",
+      "sha256": "fe86c4c516e3abbad45d657300ebf7449310c4e021fa76ef9243bd290689d7e0"
+    }
+  ],
+  "failed_attempts": [
+    {
+      "log": {
+        "local_path": ".cache/relational-intake/exchange-native-first.log",
+        "sha256": "bc28938cd51144a1ab4aee2c3ec50e246b778d94c8e3d0f938bcaa9865dc7b8d"
+      },
+      "reason": "Fixture changed read resources during an in-progress GenServer delivery; PendingOperation rejected before exchange staging."
+    },
+    {
+      "log": {
+        "local_path": ".cache/relational-intake/exchange-native-build-first.log",
+        "sha256": "34b287d67d89bf441ffe7f3f2ca084175d81ccfbe9d79ade25f9c857e6a120a9"
+      },
+      "reason": "Compile command named nonexistent build-tests step. Actual probe compilation uses test-typed-tables -- --help."
+    }
+  ],
+  "limits": [
+    "Four rows per source and three grouped outputs; this is not cardinality or sustained-throughput evidence.",
+    "Turn-response counts include accepted exact retries; cold bytes include setup and both complete layouts.",
+    "Existing-key native generation replacement is crash recovery, not recorded credential-changing handoff.",
+    "No native exchange corruption, ENOSPC, power-loss or distributed-authority claim."
+  ]
+}

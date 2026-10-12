@@ -2061,3 +2061,54 @@ test "effect evidence and maximum opaque payloads fit the unchanged catalog reco
     const catalog = @import("catalog.zig");
     _ = try catalog.putMutation(try catalog.key(.effect, effect.id, 0, ""), effect);
 }
+
+test "current-view guards fence policy revisions without changing ordinary snapshot reads" {
+    const state = @import("growing_state.zig");
+    const Clock = struct {
+        fn read(_: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = 100 };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var context: u8 = 0;
+    f.engine.clock = .{ .context = &context, .read = Clock.read };
+    const writer = try f.root(.{ .spawn = .{} });
+    const reader = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = writer } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    for ([_]u64{ writer, reader }) |pid| {
+        _ = try f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("policy"), .resource = resource } });
+        _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    }
+    const reader_input = try f.root(.{ .send = .{ .pid = reader, .value = .{} } });
+    const reader_view = try f.root(.{ .open_view = .{ .pid = reader, .generation = 2, .input = reader_input, .expected_revision = 0, .resource = resource, .revision = resource, .deadline_ms = 200 } });
+    var turn: g.Turn = .{ .pid = reader, .generation = 2, .input = reader_input, .expected_revision = 0, .views = .{ reader_view, null, null, null } };
+    turn.current_views = .{ reader_view + 1, null, null, null };
+    try t.expectError(error.InvalidStateView, f.root(.{ .turn = turn }));
+    turn.current_views = .{ reader_view, reader_view, null, null };
+    try t.expectError(error.InvalidStateView, f.root(.{ .turn = turn }));
+    turn.current_views = .{ reader_view, null, null, null };
+    const writer_input = try f.root(.{ .send = .{ .pid = writer, .value = .{} } });
+    const writer_view = try f.root(.{ .open_view = .{ .pid = writer, .generation = 2, .input = writer_input, .expected_revision = 0, .resource = resource, .revision = resource, .deadline_ms = 200 } });
+    _ = try f.root(.{ .turn = .{ .pid = writer, .generation = 2, .input = writer_input, .expected_revision = 0, .views = .{ writer_view, null, null, null }, .write_view = writer_view, .mutations = .{ .{ .key = try core.Value.init("policy"), .value = core.Value.integer(1) }, null, null, null } } });
+    const before = f.engine.head;
+    try t.expectError(error.StaleStateResource, f.root(.{ .turn = turn }));
+    try t.expect(std.meta.eql(before, f.engine.head));
+    try t.expectEqual(0, (try f.engine.process(reader)).consumed);
+    try t.expectEqual(null, (try state.view(&f.engine, reader_view)).meta.closed_at);
+    // Frozen data may intentionally use the old cut without this condition.
+    turn.current_views = @splat(null);
+    _ = try f.root(.{ .turn = turn });
+    try t.expectEqual(1, (try f.engine.process(reader)).consumed);
+    const process = try f.engine.process(reader);
+    const next_input = try f.root(.{ .send = .{ .pid = reader, .value = .{} } });
+    const fresh = try f.root(.{ .open_view = .{ .pid = reader, .generation = 2, .input = next_input, .expected_revision = process.revision, .resource = resource, .revision = (try state.resource(&f.engine, resource)).revision, .deadline_ms = 200 } });
+    turn = .{ .pid = reader, .generation = 2, .input = next_input, .expected_revision = process.revision, .views = .{ fresh, null, null, null }, .current_views = .{ fresh, null, null, null } };
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.permission(.inspect) } });
+    try t.expectError(error.Forbidden, f.root(.{ .turn = turn }));
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    const accepted = try f.root(.{ .turn = turn });
+    try t.expectEqual(accepted, (try state.view(&f.engine, fresh)).meta.closed_at.?);
+}

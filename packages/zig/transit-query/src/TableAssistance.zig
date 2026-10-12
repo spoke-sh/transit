@@ -15,6 +15,9 @@ const Builder = struct {
     items: [a.max_items]a.Item = undefined,
     count: usize = 0,
     fn add(self: *Builder, raw: []const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
+        return self.addQualified(raw, null, kind, detail);
+    }
+    fn addQualified(self: *Builder, raw: []const u8, qualifier: ?[]const u8, kind: @FieldType(a.Item, "kind"), detail: []const u8) !void {
         if (self.count == self.items.len or raw.len < self.prefix.len) return;
         const identifier = kind == .source or kind == .column;
         if (self.quoted) {
@@ -23,15 +26,15 @@ const Builder = struct {
         // Quoted identifiers preserve case, embedded quotes and the full 255
         // byte name. Completion never inserts terminal control characters.
         for (raw) |byte| if (byte < 32 or byte == 127) return;
-        var buffer: [512]u8 = undefined;
+        if (qualifier) |name| for (name) |byte| if (byte < 32 or byte == 127) return;
+        var buffer: [1029]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         if (identifier) {
-            try writer.writeByte('"');
-            for (raw) |byte| {
-                try writer.writeByte(byte);
-                if (byte == '"') try writer.writeByte(byte);
+            if (qualifier) |name| {
+                try quotedName(&writer, name);
+                try writer.writeByte('.');
             }
-            try writer.writeByte('"');
+            try quotedName(&writer, raw);
         } else try writer.writeAll(raw);
         for (self.items[0..self.count]) |item| if (std.mem.eql(u8, item.text, writer.buffered())) return;
         self.items[self.count] = .{ .text = try self.allocator.dupe(u8, writer.buffered()), .kind = kind, .detail = detail };
@@ -41,6 +44,14 @@ const Builder = struct {
         for (self.items[0..self.count]) |item| self.allocator.free(item.text);
     }
 };
+fn quotedName(writer: *std.Io.Writer, name: []const u8) !void {
+    try writer.writeByte('"');
+    for (name) |byte| {
+        try writer.writeByte(byte);
+        if (byte == '"') try writer.writeByte(byte);
+    }
+    try writer.writeByte('"');
+}
 fn ignored(err: anyerror) !void {
     if (err == error.OutOfMemory) return err;
 }
@@ -171,6 +182,53 @@ fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source, qu
         if (text) |raw| try builder.add(raw, .symbol, "Table SQL grammar");
     };
 }
+const RelationalSource = struct { alias: []const u8, schema: f.TableSchema.Schema };
+fn relationalExpectations(allocator: std.mem.Allocator, text: []const u8, sources: []const RelationalSource) !Parser.Editor {
+    var editor: Parser.Editor = .{};
+    const Lookup = struct {
+        sources: []const RelationalSource,
+        fn resolve(raw: ?*const anyopaque, reference: f.RelationalSql.Reference) ?f.Types.Type {
+            const self: *const @This() = @ptrCast(@alignCast(raw.?));
+            var found: ?f.Types.Type = null;
+            for (self.sources) |source| {
+                if (reference.qualifier) |alias| if (!std.mem.eql(u8, alias, source.alias)) continue;
+                for (source.schema.columns) |column| if (std.mem.eql(u8, column.name, reference.name)) {
+                    if (found != null or column.type != .int64) return null;
+                    found = column.type;
+                };
+            }
+            return found;
+        }
+    };
+    const lookup: Lookup = .{ .sources = sources };
+    var syntax = f.RelationalSql.parseWithContext(allocator, text, null, .{ .editor = &editor, .lookup = .{ .context = &lookup, .resolve = Lookup.resolve } }) catch |err| {
+        try ignored(err);
+        return editor;
+    };
+    syntax.deinit();
+    return editor;
+}
+fn relationalSuggestions(builder: *Builder, editor: Parser.Editor, sources: []const RelationalSource) !void {
+    if (editor.name_role == .column) for (sources) |source| {
+        if (editor.qualifier) |alias| if (!std.mem.eql(u8, alias.slice(), source.alias)) continue;
+        for (source.schema.columns) |column| {
+            if (column.type != .int64) continue;
+            try builder.addQualified(column.name, if (editor.qualifier == null and sources.len > 1) source.alias else null, .column, "int64");
+        }
+    };
+    var admitted = editor;
+    for (&admitted.words) |*slot| if (slot.*) |word| {
+        if (editor.value_type != null and std.mem.eql(u8, word, "NULL")) {
+            slot.* = null;
+            continue;
+        }
+        for ([_][]const u8{ "MISSING", "TYPE_ERROR", "VALUE", "CONFLICT" }) |unsupported| if (std.mem.eql(u8, word, unsupported)) {
+            slot.* = null;
+            break;
+        };
+    };
+    try suggestions(builder, admitted, null, null);
+}
 pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a.Request) !a.Response {
     const range = try f.SqlInput.replacement(request.sql, request.cursor);
     const initial = try client.describe();
@@ -201,16 +259,39 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
         errdefer builder.clear();
         const full = if (schema_command) "" else try statement(arena.allocator(), request.sql);
         const selected_text = if (schema_command) "DESCRIBE " else try statement(arena.allocator(), request.sql[0..selected.start]);
-        const name = target(arena.allocator(), full) catch |err| blk: {
+        const is_relational = f.RelationalSql.required(full) catch |err| blk: {
+            try ignored(err);
+            break :blk false;
+        };
+        const name = if (is_relational) null else target(arena.allocator(), full) catch |err| blk: {
             try ignored(err);
             break :blk null;
         };
         var definition: ?c.TableCatalog.Definition = if (name) |value| try client.lookup(arena.allocator(), try .init(value)) else null;
         defer if (definition) |*value| value.deinit();
         const source: ?Source = if (definition) |*value| .{ .name = value.metadata.name.slice(), .schema = value.schema.schema } else null;
-        const editor = try expectations(arena.allocator(), selected_text, source);
+        var editor = if (is_relational) try relationalExpectations(arena.allocator(), selected_text, &.{}) else try expectations(arena.allocator(), selected_text, source);
         const qualifier = if (definition) |*value| f.TableSelect.targetQualifier(arena.allocator(), full) catch value.metadata.name.slice() else null;
-        try suggestions(&builder, editor, source, qualifier);
+        if (is_relational) {
+            var targets: [f.Relational.max_sources]f.RelationalSql.Target = undefined;
+            const count = f.RelationalSql.discoverTargets(arena.allocator(), full, &targets) catch |err| blk: {
+                try ignored(err);
+                break :blk 0;
+            };
+            var declarations: [f.Relational.max_sources]RelationalSource = undefined;
+            var definitions: [f.Relational.max_sources]?c.TableCatalog.Definition = @splat(null);
+            defer for (&definitions) |*entry| if (entry.*) |*value| value.deinit();
+            var found: usize = 0;
+            for (targets[0..count], 0..) |input, i| {
+                definitions[i] = try client.lookup(arena.allocator(), try .init(input.name));
+                if (definitions[i]) |value| {
+                    declarations[found] = .{ .alias = input.alias, .schema = value.schema.schema };
+                    found += 1;
+                }
+            }
+            editor = try relationalExpectations(arena.allocator(), selected_text, declarations[0..found]);
+            try relationalSuggestions(&builder, editor, declarations[0..found]);
+        } else try suggestions(&builder, editor, source, qualifier);
         if (editor.name_role == .source) {
             var cursor: ?c.TableCatalog.Cursor = null;
             for (0..max_pages) |_| {
@@ -294,4 +375,40 @@ test "completion owns strings and cleans up at every allocation failure" {
             try fixture(allocator, "UPDATE people SET display_name = ", &.{ "DEFAULT", "''" }, &.{"MISSING"});
         }
     }.run, .{});
+}
+
+fn relationalFixture(allocator: std.mem.Allocator, text: []const u8, expected: []const []const u8, forbidden: []const []const u8) !void {
+    const columns = [_]f.TableSchema.Column{
+        .{ .id = 1, .name = "key", .type = .int64 },
+        .{ .id = 2, .name = "value", .type = .int64 },
+        .{ .id = 3, .name = "label", .type = .utf8 },
+    };
+    const schema: f.TableSchema.Schema = .{ .object = 11, .revision = 1, .next_column = 4, .columns = &columns };
+    const sources = [_]RelationalSource{ .{ .alias = "l", .schema = schema }, .{ .alias = "r", .schema = schema } };
+    const range = (try f.SqlInput.replacement(text, @intCast(text.len))).?;
+    var builder: Builder = .{ .allocator = allocator, .prefix = text[range.start..], .quoted = false };
+    defer builder.clear();
+    const editor = try relationalExpectations(allocator, text[0..range.start], &sources);
+    try relationalSuggestions(&builder, editor, &sources);
+    for (expected) |word| {
+        var found = false;
+        for (builder.items[0..builder.count]) |item| if (std.mem.eql(u8, item.text, word)) {
+            found = true;
+        };
+        if (!found) std.debug.print("missing {s} for {s}\n", .{ word, text });
+        try std.testing.expect(found);
+    }
+    for (forbidden) |word| for (builder.items[0..builder.count]) |item| try std.testing.expect(!std.mem.eql(u8, item.text, word));
+}
+test "relational completion qualifies aliases and limits columns to the admitted type" {
+    try relationalFixture(std.testing.allocator, "SELECT ", &.{ "\"l\".\"key\"", "\"r\".\"key\"", "SUM", "COUNT" }, &.{ "\"key\"", "\"l\".\"label\"" });
+    try relationalFixture(std.testing.allocator, "SELECT r.va", &.{"\"value\""}, &.{ "\"r\".\"value\"", "\"key\"" });
+    try relationalFixture(std.testing.allocator, "SELECT absent.", &.{}, &.{ "\"key\"", "\"value\"" });
+    try relationalFixture(std.testing.allocator, "SELECT SUM(", &.{"\"r\".\"value\""}, &.{ "*", "\"r\".\"label\"" });
+    try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l LEFT ", &.{ "JOIN", "OUTER" }, &.{ "RIGHT", "FULL" });
+    try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l GROUP BY ", &.{"\"l\".\"key\""}, &.{ "LIMIT", "HAVING" });
+    try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE l.key IS ", &.{ "NOT", "NULL" }, &.{ "MISSING", "VALUE", "TYPE_ERROR", "CONFLICT" });
+    try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE l.key = ", &.{"0"}, &.{ "TRUE", "FALSE", "''", "NULL" });
+    try relationalFixture(std.testing.allocator, "SELECT l.key FROM lefts l WHERE key ", &.{}, &.{ "IS", "=", "<>" });
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, relationalFixture, .{ "SELECT l.va", &.{"\"value\""}, &.{"\"label\""} });
 }

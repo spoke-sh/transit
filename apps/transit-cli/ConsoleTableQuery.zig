@@ -13,6 +13,7 @@ pub fn explain(console: *Console, catalog: *c.TableClient, statement: []const u8
     explainTo(console, catalog, statement, start, &stream) catch |err| return stream.failure orelse err;
 }
 fn explainTo(console: *Console, catalog: *c.TableClient, statement: []const u8, start: usize, stream: *Output.Stream) !void {
+    if (try q.fuze.RelationalSql.required(statement[start..])) return @import("ConsoleRelational.zig").run(console, catalog, statement, start, true, stream);
     Signals.cancellation.store(false, .release);
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     var nonce: [16]u8 = undefined;
@@ -68,6 +69,7 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
         if (console.diagnostic.sql) |*detail| detail.hint = "General Table SELECT uses interactive execution and typed SQL constants. Select execution: interactive; parameterized and durable Table query paths require their own admission profile.";
         return error.UnsupportedConstruct;
     }
+    if (try q.fuze.RelationalSql.required(request.sql)) return @import("ConsoleRelational.zig").run(console, catalog, request.sql, 0, false, stream);
     console.query_running = true;
     Signals.cancellation.store(false, .release);
     if (Signals.interrupted()) return error.ConsoleInterrupted;

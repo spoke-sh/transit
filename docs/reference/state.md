@@ -34,6 +34,14 @@ scan work and active views. Preserve its continuation and source evidence when
 paging; do not merge pages from different cuts into an invented snapshot.
 Views and borrowed buffers have explicit lifetimes in the [caller API](callers.md).
 
+Read-only views preserve their cut when a resource advances. A turn can explicitly
+list a view in `current_views` when a policy or configuration read must remain at
+that resource revision until publication. A changed guarded resource rejects the
+whole proposal without consuming the input. Guards do not grant mutation rights;
+the one writable resource still has its own revision and owner checks. Station's
+Zig `Captured.requireCurrent()` records this condition. Current grants and
+lifetimes apply to guarded and unguarded reads alike.
+
 A turn validates its read/dependency basis and one mutated resource alongside
 input progress and outputs. Per-turn KV mutation/value limits apply; larger data uses staged [immutable publication](../../contracts/STATION_PUBLICATION_V1.md).
 Staging publishes bytes incrementally, but only the final accepted head makes the

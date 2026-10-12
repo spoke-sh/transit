@@ -98,6 +98,10 @@ browser-install:
 # Exercise the real embedded UI against an isolated disk-backed Transit node.
 browser:
     zig build test-transit-board -Dtransit-board-browser=true
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true -- --browser
+
+relational-browser:
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true -- --browser
 
 # Open a disposable counter realm for interactive inspection; Ctrl-C cleans it up.
 demo: build

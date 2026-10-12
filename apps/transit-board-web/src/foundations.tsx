@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
 import { useInterface } from "./interface";
 import { useScope } from "./state";
+import { RelationalWorkspace } from "./relational-workspace";
 export function Activity() {
   const [cursor, setCursor] = useState<AtlasCursor>();
   const [revision, refresh] = useState(0);
@@ -104,6 +105,7 @@ export function Operations() {
         </dl>
       )}
       <h2>Installed surfaces</h2>
+      <RelationalWorkspace />
       <dl>
         <dt>Inspection profile</dt>
         <dd>{scope?.profile}</dd>

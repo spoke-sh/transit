@@ -43,9 +43,11 @@ complete typed intent to the original object and metadata. Inspect, read,
 create, insert, update, delete, alter and drop are separate catalog rights.
 Successful SELECT or CREATE does not grant a mutation right.
 
-Small point changes can publish their row, index, head and terminal outcome in
-four native writes. Larger changes stage bounded work and freeze the source
-basis. Readers see the old head until the complete successor and original
+Each head replacement preserves its immutable predecessor and native commit
+position. Small point changes can publish their row, index, head and terminal
+outcome in four native writes when that predecessor is already staged; otherwise
+they use bounded staging. Larger changes also freeze the source basis.
+Readers see the old head until the complete successor and original
 operation outcome publish atomically. A bad later row, duplicate key or failed
 constraint never exposes a successful statement prefix. Concurrent conflicting
 writes and DDL are fenced while that work is pending.
@@ -88,6 +90,32 @@ metadata and schema, without claiming a current live head.
 DROP does not physically erase retained data. Cleanup reclaims only qualified
 rejected/cancelled candidate storage, preserves identity floors and receipts,
 and remains separate from accepted-history retention.
+
+## Snapshot and change capture
+
+`transit-query.TableChangeReader` captures a frozen Table snapshot and returns a
+resume position only after its complete traversal. Later writes remain in the
+Table's immutable head history while backfill is paused. `openTail` resumes that
+exact object, including after rename, retirement or reuse of its former name.
+The signed caller needs current native resource access and catalog inspection
+and read rights throughout snapshot and tail delivery.
+
+The tail covers every committed head revision in order. Inserts have an after
+row, deletes have a before row, and updates pair both values under one stable
+row identity. Each transaction ends with exact previous/new positions, including
+explicit transactions with no row changes. Schema changes carry both schema
+references; changed schemas decode each side with its own definition.
+Reservation and unchanged-data revisions advance progress without scanning the
+whole relation. A caught-up event covers the reader's captured upper bound;
+reopen from the last complete position to observe later writes.
+
+Apply a transaction and save its position atomically in the consumer. A delivered
+row prefix is incomplete; reconnecting from the previous position repeats that
+transaction. Missing history, conflicting roots, corrupt records, expired leases
+and current denial fail explicitly. There is no implicit reset or history skip.
+History is retained without an opt-in expiry policy, independently of resident
+memory. These Table changes do not establish a global resource snapshot or a
+maintained query result. Coalesced reactive watches remain a separate interface.
 
 ## Query and observe
 

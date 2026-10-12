@@ -171,6 +171,19 @@ pub fn build(b: *std.Build) void {
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
+    const relational_sql = b.addExecutable(.{ .name = "transit-relational-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/relational_sql.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const relational_sql_test = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_sql_test.addFileArg(b.path("tests/sql/relational.py"));
+    relational_sql_test.addArtifactArg(relational_sql);
+    relational_sql_test.has_side_effects = true;
+    relational_sql_test.stdio = .inherit;
+    b.step("test-relational-sql", "Compare relational syntax across Zig, ANTLR and PostgreSQL").dependOn(&relational_sql_test.step);
+    sql_test.step.dependOn(&relational_sql_test.step);
     const sql_benchmark = b.addExecutable(.{ .name = "transit-sql-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_bench.zig"),
         .target = target,
@@ -266,6 +279,26 @@ pub fn build(b: *std.Build) void {
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
+    const relational_records_test = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_records_test.addFileArg(b.path("tests/relational_records.py"));
+    relational_records_test.has_side_effects = true;
+    relational_records_test.stdio = .inherit;
+    test_step.dependOn(&relational_records_test.step);
+    const named_relational_records_test = b.addSystemCommand(&.{ "python3", "-B" });
+    named_relational_records_test.addFileArg(b.path("tests/named_relational_records.py"));
+    named_relational_records_test.has_side_effects = true;
+    named_relational_records_test.stdio = .inherit;
+    test_step.dependOn(&named_relational_records_test.step);
+    const relational_exchange_test = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_exchange_test.addFileArg(b.path("tests/relational_exchange.py"));
+    relational_exchange_test.has_side_effects = true;
+    relational_exchange_test.stdio = .inherit;
+    test_step.dependOn(&relational_exchange_test.step);
+    const worker_handoff_test = b.addSystemCommand(&.{ "python3", "-B" });
+    worker_handoff_test.addFileArg(b.path("tests/worker_handoff.py"));
+    worker_handoff_test.has_side_effects = true;
+    worker_handoff_test.stdio = .inherit;
+    test_step.dependOn(&worker_handoff_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -1029,9 +1062,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/typed_table_native.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
     }) });
     build_test_step.dependOn(&typed_table_proof.step);
+    const relational_capacity_proof = b.step("relational-capacity-proof", "Build native relational physical-capacity fixtures");
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(node_artifact, .{}).step);
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(typed_table_proof, .{}).step);
     const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
     typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
     typed_table_native.addArtifactArg(node_artifact);
@@ -1043,6 +1079,33 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
+    relational_callers_native.addArtifactArg(node_artifact);
+    relational_callers_native.addArtifactArg(typed_table_proof);
+    relational_callers_native.addArtifactArg(station_host);
+    if (b.option(bool, "relational-board", "Qualify explicit relational Board requests") orelse false) {
+        relational_callers_native.addArg("--board");
+        relational_callers_native.addArtifactArg(board);
+    }
+    relational_callers_native.addPassthruArgs();
+    relational_callers_native.has_side_effects = true;
+    relational_callers_native.stdio = .inherit;
+    b.step("test-relational-callers", "Prove repeatable relational caller pages on disk").dependOn(&relational_callers_native.step);
+    const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
+    relational_exchange_native.addArtifactArg(node_artifact);
+    relational_exchange_native.addArtifactArg(typed_table_proof);
+    relational_exchange_native.has_side_effects = true;
+    relational_exchange_native.stdio = .inherit;
+    b.step("test-relational-exchanges", "Qualify bounded exchanges into maintained results on disk with worker and authority loss").dependOn(&relational_exchange_native.step);
+    const named_relational_native = b.addSystemCommand(&.{ "python3", "-B" });
+    named_relational_native.addFileArg(b.path("tests/named_relational_native.py"));
+    named_relational_native.addArtifactArg(node_artifact);
+    named_relational_native.addArtifactArg(typed_table_proof);
+    named_relational_native.has_side_effects = true;
+    named_relational_native.stdio = .inherit;
+    b.step("test-named-relational", "Prove separate named publication, activation and complete revision recovery on disk").dependOn(&named_relational_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
     combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
     combined_table_test.addArtifactArg(node_artifact);

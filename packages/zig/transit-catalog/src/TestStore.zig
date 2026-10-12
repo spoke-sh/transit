@@ -6,6 +6,7 @@ const t = std.testing;
 const Self = @This();
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 state: Map = .empty,
+changed_at: std.AutoHashMapUnmanaged(p.Value, u64) = .empty,
 revision: u64 = 1,
 input: u64 = 1,
 reads: usize = 0,
@@ -15,9 +16,12 @@ fail_page: bool = false,
 bad_page: enum { none, gap, next, revision, order } = .none,
 pub fn deinit(self: *Self) void {
     self.state.deinit(t.allocator);
+    self.changed_at.deinit(t.allocator);
 }
 pub fn clone(self: *Self) !Self {
-    return .{ .state = try self.state.clone(t.allocator), .revision = self.revision, .input = self.input };
+    var state = try self.state.clone(t.allocator);
+    errdefer state.deinit(t.allocator);
+    return .{ .state = state, .changed_at = try self.changed_at.clone(t.allocator), .revision = self.revision, .input = self.input };
 }
 fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
     const self: *Self = @ptrCast(@alignCast(raw));
@@ -44,14 +48,14 @@ fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !c.station.Turn.Page
             result.next = cursor;
             break;
         }
-        result.entries[index] = .{ .key = key, .value = self.state.get(key).?, .revision = self.revision };
+        result.entries[index] = .{ .key = key, .value = self.state.get(key).?, .revision = self.changed_at.get(key) orelse self.revision };
         cursor = key;
     }
     switch (self.bad_page) {
         .none => {},
         .gap => result.entries[0] = null,
         .next => result.next = try p.Value.init("invalid"),
-        .revision => result.entries[0].?.revision += 1,
+        .revision => result.entries[0].?.revision = self.revision + 1,
         .order => std.mem.swap(?p.Growth.Entry, &result.entries[0], &result.entries[1]),
     }
     return result;
@@ -63,7 +67,13 @@ pub fn commit(self: *Self, turn: c.station.Turn) !void {
     try turn.validate();
     if (turn.view.revision != self.revision) return error.Conflict;
     for (turn.decision.mutations) |slot| if (slot) |mutation| {
-        if (mutation.value) |value| try self.state.put(t.allocator, mutation.key, value) else _ = self.state.remove(mutation.key);
+        if (mutation.value) |value| {
+            try self.state.put(t.allocator, mutation.key, value);
+            try self.changed_at.put(t.allocator, mutation.key, self.revision + 1);
+        } else {
+            _ = self.state.remove(mutation.key);
+            _ = self.changed_at.remove(mutation.key);
+        }
     };
     self.revision += 1;
     self.input += 1;

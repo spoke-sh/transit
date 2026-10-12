@@ -40,6 +40,10 @@
       "test::table-query-writer",
       "test::catalog",
       "test::typed-tables",
+      "test::relational-callers",
+      "test::relational-maintenance",
+      "test::relational-exchanges",
+      "test::named-relational",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",
@@ -139,7 +143,8 @@
       "test::flight-placement",
       "test::work-items-placement",
       "test::server-capacity",
-      "test::server-application-capacity"
+      "test::server-application-capacity",
+      "test::relational-capacity"
     ],
     "discovery": [
       "test::vortex-profile",
@@ -219,7 +224,10 @@
       "test::catalog-growth",
       "bindings::rust-lifetime",
       "test::grpc-control",
-      "bindings::query-failures"
+      "bindings::query-failures",
+      "bindings::relational-node",
+      "bindings::relational-python",
+      "transit-board::relational-browser"
     ]
   },
   "nested_tasks": {

@@ -7,7 +7,7 @@ pub const entries = codes.entries;
 
 /// Classification cannot depend on allocating or retaining optional detail.
 pub fn category(action: q.Bridge.Action, cause: anyerror) d.Category {
-    if (action == .compile or action == .inspect) if (q.fuze.SqlDiagnostic.category(cause)) |value| return value;
+    if (action == .compile or action == .inspect or action == .relational) if (q.fuze.SqlDiagnostic.category(cause)) |value| return value;
     if (codes.fromError(cause)) |entry| return entry.category;
     if (q.wire.Client.unavailable(cause)) return .unavailable;
     if (q.QueryFailure.fromError(cause, .admission)) |failure| return failure.category();
@@ -15,6 +15,14 @@ pub fn category(action: q.Bridge.Action, cause: anyerror) d.Category {
 }
 
 pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Binding, dispatched: bool, identity: ?d.Identity) !d {
+    if (action == .relational) {
+        const operation = action.relational;
+        return attempt(@tagName(operation), if (operation == .explain or operation == .open) .compile else .read, switch (operation) {
+            .explain => |input| input.sql,
+            .open => |input| input.statement.sql,
+            else => null,
+        }, cause, binding, false, null);
+    }
     const stage: d.Stage = switch (action) {
         .compile => .compile,
         .prepare, .next => .prepare,

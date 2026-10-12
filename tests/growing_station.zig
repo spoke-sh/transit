@@ -313,6 +313,7 @@ pub fn main(init: std.process.Init) !void {
     wire.timeout_ms = 10000;
     var admin: Admin = .{ .wire = &wire, .key = root_key };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
+    if (std.mem.startsWith(u8, args[2], "views")) return @import("growing_views.zig").run(init, &wire, args[2], args[3]);
     const requester_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
     const writer_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     if (std.mem.eql(u8, args[2], "write")) {

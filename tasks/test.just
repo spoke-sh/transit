@@ -290,6 +290,10 @@ sql-rewrites:
 sql:
     nix shell .#sql-tools --command zig build test-sql
 
+# Shared relational parser against independent ANTLR/PostgreSQL trees.
+relational-sql:
+    nix shell .#sql-tools --command zig build test-relational-sql -Doptimize=ReleaseSafe
+
 # General Table DDL grammar, exact schema bytes and pure evolution semantics.
 table-ddl-sql:
     nix shell .#sql-tools --command zig build test-table-ddl-sql -Doptimize=ReleaseSafe
@@ -307,6 +311,28 @@ catalog *args:
 # General typed metadata and rows beyond resident pages, cold reads and restart.
 catalog-growth:
     just test::typed-tables --grow 139 --cold
+
+# Complete maintained revisions, independent deltas and disk/cold-store recovery.
+relational-maintenance:
+    just test::typed-tables --maintained --cold
+
+# Shared interactive callers and explicit Board pages over real catalog routes.
+relational-callers:
+    zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-board=true
+
+# Bounded producer/receiver exchange recovery and maintained publication on disk.
+relational-exchanges:
+    zig build test-relational-exchanges -Doptimize=ReleaseSafe
+
+# Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
+relational-capacity:
+    zig build relational-capacity-proof -Doptimize=ReleaseSafe
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-typed-table-proof
+
+# Immutable named definitions, explicit activation and revision recovery on disk.
+named-relational:
+    python3 -B tests/named_relational_records.py
+    zig build test-named-relational -Doptimize=ReleaseSafe
 
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
@@ -596,6 +622,12 @@ table-schema:
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig
+
+# Relational contracts, bounded executor and independent finite semantics.
+relational:
+    python3 -B tests/relational.py
+    zig test packages/zig/transit-fuze/src/Relational.zig
+    zig test --dep transit_protocol -Mroot=packages/zig/transit-fuze/src/RelationalExecution.zig -Mtransit_protocol=packages/zig/transit-protocol/src/root.zig
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:

@@ -225,8 +225,8 @@ fn writeCount(turn: *const Turn) usize {
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
-fn fitsSingleTurn(turn: *const Turn, overlay: anytype, reserved_mutations: u8) bool {
-    var required: usize = writeCount(turn) + reserved_mutations + 2;
+fn fitsSingleTurn(turn: *const Turn, overlay: anytype, reserved_mutations: u8, history_staged: bool) bool {
+    var required: usize = writeCount(turn) + reserved_mutations + 2 + @intFromBool(!history_staged);
     for (overlay.records.items) |item| if (item.reachable) {
         // Fresh reservation IDs cannot name earlier staged records. Large
         // publications need descriptor/quota slots as well as their chunks.
@@ -317,14 +317,19 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
         return result;
     };
     _ = try overlay.finish(changed.data.index);
-    if (previous != null and (overlay.nextId() != result.end_record or changed.matched != result.matched or changed.changed != result.changed)) return error.TableWriteBasisChanged;
-    result.end_record = overlay.nextId();
+    // A no-page operation can still need staging for caller-reserved terminal
+    // writes. Its building receipt consumes one unused ID to keep a nonempty,
+    // fenced reservation; reconstruction must preserve that exact floor.
+    const candidate_end = if (previous != null and overlay.nextId() == first) try increment(first) else overlay.nextId();
+    if (previous != null and (candidate_end != result.end_record or changed.matched != result.matched or changed.changed != result.changed)) return error.TableWriteBasisChanged;
+    result.end_record = candidate_end;
     result.matched = changed.matched;
     result.changed = changed.changed;
 
     if (previous == null) {
         const fast_before = turn.decision;
-        const ready = if (fitsSingleTurn(turn, &overlay, reserved_mutations)) stageAll(turn, pages, &overlay) catch |err| blk: {
+        const history_staged = try turn.read(@import("TableHistory.zig").key(head.object, head.revision)) != null;
+        const ready = if (fitsSingleTurn(turn, &overlay, reserved_mutations, history_staged)) stageAll(turn, pages, &overlay) catch |err| blk: {
             if (err != error.MutationBudgetExceeded) return err;
             break :blk false;
         } else false;
@@ -334,7 +339,7 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
         // No accepted input/head exists yet. Roll back the attempted private
         // fast path before reserving the immutable interval durably.
         turn.decision = fast_before;
-        if (result.end_record == result.first_record) return error.MutationBudgetExceeded;
+        if (result.end_record == result.first_record) result.end_record = try increment(result.first_record);
         var reserved = head;
         reserved.revision = try increment(head.revision);
         reserved.next_record = result.end_record;
@@ -357,7 +362,12 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
     };
     if (!ready) return result;
     return completion(turn, head, result, changed, request, reserved_mutations) catch |err| {
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == prior_writes) return err;
+        if (err != error.MutationBudgetExceeded) return err;
+        if (writeCount(turn) == prior_writes) {
+            // Two caller-reserved receipt slots still fit after the immutable
+            // predecessor has been staged in its own bounded turn.
+            if (try @import("TableHistory.zig").stage(head, turn) == .ready) return err;
+        }
         return result;
     };
 }

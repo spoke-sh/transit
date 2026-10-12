@@ -35,6 +35,58 @@ merge rules and the accepted index. The
 
 ## Typed state and causality
 
+### Complete Table history under a bounded turn
+
+The question is how a reader can finish a frozen backfill and later recover
+every intervening Table transaction without adding an unbounded resident log
+or exceeding the native four-write turn. The implemented Table history applies
+to one stable Table object; it is separate from the proposed branch mechanisms
+below and from a global snapshot.
+
+Let `H_n` be committed head revision `n`, and `c_n` the native revision of the
+entry that published it. Before accepting `H_(n+1)`, `TableHead.replace` preserves
+`(H_n, c_n)` under immutable key `j/n`. The current head is the upper bound on
+accepted revisions. This construction assumes one fenced resource writer,
+conditional native commit, immutable row/index records and current scoped read
+permission. [The codec and transition checks](../../contracts/TABLE_DATA_V1.md#complete-committed-head-history)
+specify those records precisely.
+
+Staging `j/n` early cannot falsely admit a successor: it contains only the
+already accepted predecessor, and the current head still names `n`. Conditional
+replacement either accepts the next head with its outcome and input progress,
+or leaves the previous root visible. Induction from the creation head therefore
+gives consecutive predecessor coverage for every accepted head. A retained
+reader finishing at `H_n` resumes at `n+1`, even if many writes completed while
+it was paused. A gap or conflicting predecessor falsifies the coverage premise
+and causes an error. Coalesced invalidation alone cannot provide this property.
+
+The native coordinate must be the head entry's own revision. Using the resource
+revision at the later archive read would move the old Table state forward in
+time; using the archive commit would be wrong for the same reason. The reader
+therefore obtains the head and entry revision together in one bounded native
+page. Reconstructing a Table head at a coordinate does not reconstruct native
+authority, grants or a resource-wide historical view.
+
+Diff traversal merges immutable row identities with at most two owned rows and
+two schemas. It pairs updates, preserves inserts/deletes, and exposes a complete
+transaction boundary even when no row changes. Equal schema/index roots permit
+constant-work no-op completion; other differences can require a full traversal.
+Each replaced head adds one retained record, and some publications need an extra
+staging turn. This favors exact history and bounded memory over minimum write
+latency. It does not imply sublinear change extraction or a measured catch-up
+rate for large changing relations.
+
+The [proof ledger](../../tests/README.md#complete-table-history-and-snapshot-tail)
+records the pinned toolchain commands for the reference-store, codec and signed
+snapshot/tail schedules. The
+[reference-store tests](../../packages/zig/transit-station/src/table_pages_test.zig)
+exercise missing/corrupt predecessors and allocation failures; the
+[native schedule](../../tests/typed_table_native.py) uses disk-backed Ursula.
+[Executed results](../../tests/README.md#complete-table-history-and-snapshot-tail)
+state which revisions and schedules passed. These observations do not establish
+distributed history availability, automatic retention collection or maintained
+query semantics.
+
 | Representation | Additional meaning | Boundary it does not remove |
 | --- | --- | --- |
 | KV | Explicit opaque keys and values | Current access and revision basis |

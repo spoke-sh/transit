@@ -105,6 +105,24 @@ Native/port codecs and native SQL use the same program contract. See
 and recovery. The C/C++ plan and explanation layouts require matching headers,
 SDK libraries and native artifacts under the current shared v1 definition.
 
+## Relational callers
+
+[TypeScript `relational.Client`](../../packages/ts/transit-station-sdk/docs/relational.md)
+and [Python `relational.Client` / `AsyncClient`](../../packages/python/transit-station/docs/relational.md)
+expose explicit catalog routes, metadata-only explanation, interactive open,
+one-row pages and close through the shared Zig relational owner. Typed Zig and
+these SQL callers use the same prepared plans, source rights and budgets.
+Returned references and rows are owned and immutable; integers preserve their
+full declared range. Current rights apply even to repeated and terminal pages.
+Only terminal coverage completes a result; errors leave any prefix incomplete.
+
+One client owns one active query. Its reference includes the exact contract
+definition, query ID, plan and source basis. Saving the reference does not make
+the query durable: host replacement rejects it. Captured and maintained
+relational lifetimes remain separate typed Zig interfaces. Other language SDKs
+retain their documented single-source query profiles; generated neutral schemas
+alone do not provide an idiomatic relational adapter.
+
 ## Catalog callers
 
 Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);

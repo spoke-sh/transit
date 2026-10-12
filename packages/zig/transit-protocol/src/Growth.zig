@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.general-typed-tables.schema-lifecycle.query-failures.compact-index.catalog-dml.2026-10-07.
+/// SHA-256 of transit.native.v1.complete-table-history.2026-10-12.
 pub const Definition = enum {
-    b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032,
+    e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -85,6 +85,9 @@ pub const Turn = struct {
     expected_revision: u64,
     permit: ?Id = null,
     views: [turn_views]?Id = @splat(null),
+    /// Declared read views whose resource revision must still equal the cut.
+    /// Ordinary views remain snapshots; guards add no write authority.
+    current_views: [turn_views]?Id = @splat(null),
     write_view: ?Id = null,
     mutations: [turn_mutations]?Mutation = @splat(null),
     outputs: [turn_outputs]?Output = @splat(null),
@@ -421,6 +424,10 @@ pub fn validate(request: Request) !void {
     }
 }
 fn validateTurn(turn: Turn) !void {
+    for (turn.current_views, 0..) |slot, i| if (slot) |id| {
+        if (id == 0 or std.mem.indexOfScalar(?Id, &turn.views, id) == null) return error.InvalidStateView;
+        for (turn.current_views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
+    };
     for (turn.mutations, 0..) |slot, i| if (slot) |mutation| {
         try validateKey(mutation.key);
         for (turn.mutations[0..i]) |previous| if (previous) |other| if (other.key.eql(mutation.key)) return error.DuplicateStateKey;
@@ -956,8 +963,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("fbf5789bbc6950c78f88e8aa52719ee7d15901fd4210e994d327ef7a7a766051", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("8905b56c2635276e47fc21cdc82ff1183642ec2404d7d04c65508b44d97ccdc6", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("513768e14f8d3ae9b3f8cd7b7ed6383b20d3cd2e2fc77cad3aac1ccc9df6be98", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("ea128f425668562ca8b602fb03a2dbd308c08a06b1fc1b470e7a75dde9c2f516", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

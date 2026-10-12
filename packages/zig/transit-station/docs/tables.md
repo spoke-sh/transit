@@ -63,6 +63,14 @@ current operation authorization. These helpers neither submit nor commit.
 Read [mutation recovery](../../../../contracts/TABLE_DML_V1.md) before composing
 application outputs and bookkeeping into the final four-write native proposal.
 
+Every replacement preserves its predecessor through `TableHistory.stage`.
+That record can commit before publication and does not make a successor visible.
+Account for its write when composing a turn; the point and finite coordinators
+stage work to preserve the four-write bound. `TableChanges.next` and `Diff`
+enumerate consecutive committed before/after transactions with paired rows and
+explicit no-op completion. Their caller supplies current authorized reads and
+durable consumer progress. See the [history format](../../../../contracts/TABLE_DATA_V1.md#complete-committed-head-history).
+
 External durable and interactive Table/KV/Document queries use
 [transit-query](../../transit-query/README.md). Catalog SQL resolves shared typed
 Table metadata and query sources under existing grants. Query output typing,

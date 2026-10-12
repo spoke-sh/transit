@@ -371,10 +371,19 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     if (process.turn_permit) |permit| {
         if (command.permit != permit.id or permit.input != command.input) return error.InvalidTurnPermit;
     } else if (command.permit != null or process.work_before_ms != null) return error.MissingTurnPermit;
+    for (command.current_views, 0..) |slot, i| if (slot) |id| {
+        for (command.current_views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
+        for (command.views) |view_id| {
+            if (view_id == id) break;
+        } else return error.InvalidStateView;
+    };
     var write: ?g.Resource = null;
     for (command.views, 0..) |slot, i| if (slot) |id| {
         for (command.views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
         var stored = try captured(engine, principal, process, id, command.input, sample);
+        for (command.current_views) |guard| if (guard == id) {
+            if ((try resource(engine, stored.meta.resource)).revision != stored.meta.revision) return error.StaleStateResource;
+        };
         if (command.write_view == id) {
             const data = try resource(engine, stored.meta.resource);
             if (data.writer != process.pid) return error.Forbidden;

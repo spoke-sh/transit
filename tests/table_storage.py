@@ -43,6 +43,8 @@ def fixtures():
         'creation_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('c'), 0, 0)).hex(),
         'head_hex': head.hex(),
         'head_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('h'), 0, 0)).hex(),
+        'history_hex': (b'STJ1' + struct.pack('<Q', 27) + head).hex(),
+        'history_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('j'), 4, 0)).hex(),
         'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
         'write_key_hex': (b'\0W' + struct.pack('>QQQ', 9, 1, 21)).hex(),
         'write_status_hex': status.hex(),

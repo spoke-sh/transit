@@ -25,7 +25,9 @@ def run(node, caller, *, resident_pages=64):
         manifest = fixture.root / "pending.json"
         fault = {"read": False, "pending": None, "receipt": None, "retried": False,
                  "point_reads": 0,
-                 "version_reads": 0, "version_steps": 0, "namespace_checks": 0}
+                 "version_reads": 0, "version_steps": 0, "namespace_checks": 0, "history_head_reads": 0}
+        view_faults = {name: {"pending": None, "receipt": None, "retried": False}
+                       for name in ("open", "retain")}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -44,12 +46,23 @@ def run(node, caller, *, resident_pages=64):
                         retained = "version_entries" in query["kind"]
                         entries = query["kind"].get("version_entries" if retained else "entries")
                         if query["principal"] != 0 and entries is not None and response.status == 200:
-                            # Creation proves that its namespace is empty with
-                            # one bounded prefix page. Row reads follow indexes.
+                            # Creation checks an empty namespace once. History
+                            # replacement separately reads the exact head entry
+                            # and its native commit revision in one bounded page.
+                            # Neither operation scans the Table's rows.
                             if entries.get("key") is None:
                                 assert not retained and entries.get("view") is not None
-                                assert entries.get("after") == (b"\x00P" + (8).to_bytes(4, "big") + (1).to_bytes(8, "big")).hex()
-                                fault["namespace_checks"] += 1
+                                prefix = b"\x00P" + (8).to_bytes(4, "big") + (1).to_bytes(8, "big")
+                                if entries.get("after") == prefix.hex():
+                                    fault["namespace_checks"] += 1
+                                else:
+                                    head = prefix + b'h' + bytes(12)
+                                    assert entries.get("after") == head[:-1].hex(), entries
+                                    page = json.loads(data)['body']['entries']['page']
+                                    observed = page['entries'][0]
+                                    assert observed['key'] == head.hex() and observed['revision'] > 0, observed
+                                    assert bytes.fromhex(observed['value']).startswith(b'STH1'), observed
+                                    fault['history_head_reads'] += 1
                             else:
                                 fault["version_reads" if retained else "point_reads"] += 1
                             if entries.get("key") == b"read-fault".hex() and not fault["read"]:
@@ -71,6 +84,20 @@ def run(node, caller, *, resident_pages=64):
                         elif body == fault["pending"] and response.status == 200:
                             assert data == fault["receipt"], "Exact retry changed the receipt"
                             fault["retried"] = True
+                    if self.path == "/v1/command" and envelope["request"]["principal"] == 65541:
+                        request = envelope["request"]
+                        command = request["command"]
+                        kind = ("open" if "open_view" in command and request["sequence"] == 2
+                                else "retain" if any(command.get("turn_with_versions", {}).get("retain", []))
+                                else None)
+                        if kind is not None and response.status == 200:
+                            retained = view_faults[kind]
+                            if retained["pending"] is None:
+                                retained["pending"], retained["receipt"] = body, data
+                                data = b'{"position":0}'
+                            elif body == retained["pending"]:
+                                assert data == retained["receipt"], "View retry changed accepted identity"
+                                retained["retried"] = True
                     self.send_response(response.status)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(data)))
@@ -103,6 +130,8 @@ def run(node, caller, *, resident_pages=64):
             subprocess.run([caller, proxy_url, "write", str(manifest)], check=True, timeout=240)
             write_seconds = round(time.monotonic() - started, 3)
             assert fault["read"] and fault["retried"] and fault["point_reads"] > 128
+            subprocess.run([caller, proxy_url, "views", str(manifest) + ".views"], check=True, timeout=60)
+            assert all(value["retried"] for value in view_faults.values()), view_faults
             authority.kill()
             authority.wait(timeout=10)
             authority = None
@@ -116,8 +145,10 @@ def run(node, caller, *, resident_pages=64):
             config.write_text(json.dumps(recovered))
             authority = start()
             started = time.monotonic()
+            subprocess.run([caller, proxy_url, "views-recover", str(manifest) + ".views"], check=True, timeout=60)
             subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=60)
             assert fault["namespace_checks"] == 1, "Only creation needs an empty-namespace prefix page"
+            assert fault['history_head_reads'] > 0, "History must capture the native head commit coordinate"
             assert fault["version_steps"] == 1 and fault["version_reads"] > 0, ("Exactly one retained Table page before interruption", fault["version_steps"], fault["version_reads"])
             authority.kill()
             authority.wait(timeout=10)
@@ -131,6 +162,7 @@ def run(node, caller, *, resident_pages=64):
                 "write_resident_pages": resident_pages, "recover_resident_pages": 1,
                 "write_seconds": write_seconds,
                 "recover_seconds": round(time.monotonic() - started, 3),
+                "namespace_checks": fault['namespace_checks'], "history_head_reads": fault['history_head_reads'],
                 "retained_steps": fault["version_steps"], "cold_objects": cold.data_objects()}), flush=True)
         except BaseException:
             log.flush()

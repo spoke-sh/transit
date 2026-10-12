@@ -111,7 +111,16 @@ pub fn parameterValue(site: sql.Parameter, parameters: ?[]const t.Values.Atom, e
     return value;
 }
 pub fn syntax(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror) !Syntax {
-    var expression: Expression = .{ .parser = parser, .hints = hints, .name = name, .unsupported = unsupported };
+    return syntaxWithLookup(parser, hints, name, unsupported, null);
+}
+/// Editor-only type lookup over the caller's authorized declarations. Parsing
+/// and later binding keep their ordinary ownership and acceptance semantics.
+pub const Lookup = struct {
+    context: ?*const anyopaque,
+    resolve: *const fn (?*const anyopaque, Reference) ?t.Type,
+};
+pub fn syntaxWithLookup(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror, lookup: ?Lookup) !Syntax {
+    var expression: Expression = .{ .parser = parser, .hints = hints, .name = name, .unsupported = unsupported, .lookup = lookup };
     try expression.parse();
     return .{ .instructions = try parser.allocator.dupe(Syntax.Instruction, expression.instructions[0..expression.count]) };
 }
@@ -123,6 +132,7 @@ const Expression = struct {
     parser: *Parser,
     hints: ?t.Type,
     name: []const u8,
+    lookup: ?Lookup,
     instructions: [Predicate.Program.max_instructions]Syntax.Instruction = undefined,
     count: usize = 0,
     operators: [Predicate.Program.max_instructions]Operator = undefined,
@@ -188,6 +198,9 @@ const Expression = struct {
         var expected: ?t.Type = null;
         if (self.hints) |schema| if (schema == .structure) {
             if (column.resolve(self.name, schema.structure, null)) |index| expected = schema.structure[index].type else |_| {}
+        };
+        if (self.parser.editor != null) if (self.lookup) |lookup| {
+            expected = lookup.resolve(lookup.context, column);
         };
         // Parser acceptance remains independent of binding. Editor guidance is
         // scoped to the supplied schema, including a bare qualifier/column

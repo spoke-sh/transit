@@ -81,6 +81,17 @@ fit resource availability and the process settlement window. Capturing a read
 is an observation; it does not require every read-only resource to remain at its
 captured revision until commit.
 
+`current_views` adds an explicit revision condition for selected members of the
+turn's `views` set. Each non-null ID must occur once in that guard set and name a
+declared view. Its resource must still have the captured revision at publication,
+otherwise the turn rejects with `StaleStateResource`. This is useful for policy
+or configuration reads whose freshness determines whether proposed work may be
+published. A guard grants no write permission and does not extend a view's
+deadline, ownership or lifetime. The authority's conditional journal append
+fences intervening changes after validation. Ordinary unguarded views remain
+frozen observations. Historical exact-retry receipt disclosure rechecks current
+rights; it does not rerun a guard against later data or reverse accepted work.
+
 A turn lists its views and optionally selects one as `write_view`. Each view must
 remain authorized, unexpired and bound to that turn. The writable resource must
 still have the captured revision and matching writer PID. Null mutations delete

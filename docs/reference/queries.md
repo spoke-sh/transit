@@ -169,7 +169,7 @@ Use the [SQL reference](sql.md), [query compatibility matrix](../../packages/zig
 and [Fuze package](../../packages/zig/transit-fuze/README.md) for exact types,
 operators and errors. The [delivery contract](../../contracts/STATION_QUERY_V1.md) and
 [query v1 contract](../../contracts/UNIFIED_QUERY_V1.md) own wire details.
-Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
+General sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Relational boundary
 
@@ -177,11 +177,59 @@ COUNT(*) counts selected rows. COUNT(column) counts top-level values of any
 admitted column type, skips missing/null and rejects type errors/conflicts.
 Both return uint64; null/missing still consume the input LIMIT. Checked int64
 SUM adds the selected values of one declared source.
-They do not provide grouping or multi-source aggregation. Each query has one
-resource cut; there is no source-vector consistency mode, JOIN or GROUP BY
-execution contract. Querying two resources separately does not establish an
-atomic shared snapshot. Current Table notifications support finite refresh,
-not a complete update/delete stream for maintaining a join.
+Those single-source interfaces retain their original cut and operator profile.
+The separate [finite relational contract](../../contracts/RELATIONAL_V1.md)
+supports one or two explicitly routed Tables, one inner/left int64 equijoin,
+grouping by int64 columns, projection, COUNT and ordered checked int64 SUM.
+SQL declares int64 as BIGINT. Join nulls do not match; grouping places null keys
+together and before integer keys. Duplicate rows retain their multiplicity.
+
+`transit-query.RelationalQuery` seals a per-resource snapshot vector before
+execution. Aliases in one resource share its cut, while different resources may
+be captured at different times. This does not provide an atomic or causal shared
+snapshot. Every source's current rights still apply, including empty inputs.
+The [console configuration](../../apps/transit-cli/docs/console.md#finite-relational-queries)
+explicitly enables this interactive profile. Its private disk group index and
+bounded operator state have separate resident, spill, work and result limits.
+Rows remain incomplete until terminal source/output checks succeed.
+
+The Zig `RelationalCapture` owner provides a separate durable lifetime. An
+authenticated call admits a frozen plan and schema vector, retains its data cuts,
+and records immutable operator checkpoints and output coverage. The coordinator
+is the first Table owner; other sources remain read-only. `RelationalResult`
+checks the complete manifest, ordered rows, byte counts and digest chain, with
+current rights to every source before disclosure. Cancellation, failure and
+retirement release pins; explicitly scheduled collection removes publication
+chunks in bounded turns while preserving control evidence. The
+[captured owner guide](../../packages/zig/transit-query/docs/relational-capture.md)
+defines the host's exact-retry and authorization responsibilities.
+
+The Station query ABI and port expose explicit catalog configuration, explanation,
+repeatable one-row pages and close through the shared
+[interactive caller](../../packages/zig/transit-query/docs/relational-callers.md).
+A complete page rechecks all source rights; host loss expires interactive handles.
+The [TypeScript](../../packages/ts/transit-station-sdk/docs/relational.md) and
+[Python](../../packages/python/transit-station/docs/relational.md) SDKs expose
+that interactive owner with immutable references and full-width integer rows.
+Board's [relational worksheet](../../apps/transit-board/docs/relational.md) exposes
+the same owner through explicit routes and page controls. Active-session
+inspection can recover a browser's lost reference without rerunning the query.
+The console does not activate maintained queries. Flight rejects relational
+execution. Typed Zig maintained ownership and
+complete Table history have their own interfaces below; coalesced invalidation
+notifications remain distinct from complete transaction capture.
+
+| Caller | Relational lifetime and operations |
+| --- | --- |
+| Typed Zig query hosts | Interactive pages; captured admission, recovery and result reads; maintained activation, complete revisions and exact deltas; explicit exchanges |
+| Typed Zig application host | Immutable named definitions, separate query authorization and explicit captured/maintained activation |
+| Station ABI/port, TypeScript and Python | Interactive explain, open, repeatable pages and close |
+| SQL console and Board worksheet | Explicit interactive submission and result pages |
+| Flight and other language SDK adapters | Relational execution is unsupported |
+
+Named definitions use the [application-owned interface](applications.md#contracts-and-commands).
+Saved typed requests and cursors require the exact current contract definition;
+none of these callers substitutes a fresh query for missing accepted work.
 
 SUM checks overflow in source order, including across pages. Reordering inputs
 or combining partition totals can change whether it fails; no parallel reduction
@@ -290,3 +338,53 @@ frames. Storage, allocation and local cancellation failures still abort private
 work; they do not manufacture a terminal result. See the
 [handler query contract](../../contracts/STATION_QUERY_V1.md) for framing,
 wait closure, retained evidence and duplicate handling.
+
+
+## Maintained Table revisions
+
+The typed Zig `RelationalMaintenance` owner publishes a complete result for each
+recorded Table-history basis, including no-op transaction coverage. It captures
+an initial basis, backfills while later history remains durable, then advances
+one eligible resource transaction at a time. Required Tables in one resource
+move together. Different resources have an explicit vector and recorded processing
+order; this is not a global or causal snapshot.
+
+The owner recomputes each basis with the same finite relational executor and
+stages an ordered paired delta against the previous complete result. One commit
+publishes the source vector, checkpoint, result and delta coverage together.
+Until then, readers retain the previous revision. A semantic failure records the
+failed successor and stops advancement; later input cannot skip that failure.
+Missing history or a changed schema requires explicit rebuild under a new query
+identity. Current source rights remain necessary even for noncontributing inputs.
+
+Activation and wakeups are explicit authenticated host operations. The owner does
+not supply a background daemon, automatic SQL activation, or an event-time finality
+claim. Its first-source owner placement, workspace/state budgets and cumulative
+retention costs are described in the
+[maintained caller guide](../../packages/zig/transit-query/docs/relational-maintenance.md).
+
+`RelationalRevision` reads full revisions or deltas against an exact previous
+manifest. A partial delivery cannot replace the consumer's relation. After
+terminal coverage validation, save its position atomically with applying the
+complete transaction. Resume requests the next recorded revision; pending keeps
+the old position, and a mismatch requires explicit reset. Cancellation or failure
+preserves previous complete results; retirement makes them unavailable. Every
+read rechecks current policy and native/catalog rights to all sources.
+
+## Explicit query exchanges
+
+Typed Zig hosts can route frozen source rows into logical partitions and stage
+them in bounded segments. The receiver shares the first Table owner's resource;
+producers have explicit PIDs and separate resources under the same authority.
+Each accepted segment has a receiver-owned copy and an exact deduplication
+identity. Consumption separately indexes its rows and returns credits. Every
+partition, including an empty one, must publish and consume terminal coverage
+before execution can read the exchanged source.
+
+The native paged row index restores original source order, so different delivery
+or batch schedules preserve the existing join and checked-SUM semantics. Current
+source rights apply during staging, consumption and execution. Hosts supply
+placement, scheduling and combined operator/exchange budgets; these primitives
+do not provision an automatic runtime controller or grant execution authority.
+The [typed host guide](../../packages/zig/transit-query/docs/relational-exchanges.md)
+defines the operations and links their concrete qualification limits.

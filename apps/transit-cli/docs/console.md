@@ -167,6 +167,53 @@ query strings, fragments and path prefixes are rejected. The existing native
 client verifies the peer and never follows redirects with signed requests.
 Neither transport selection nor configuration grants native access.
 
+## Finite relational queries
+
+The catalog console runs one INNER/LEFT equijoin over two Tables, or groups a
+single Table, through the shared Fuze relational plan. Referenced columns must
+be BIGINT (int64); INTEGER is int32. Projection, COUNT(*), COUNT(column) and
+ordered checked int64 SUM can be combined, with non-aggregate outputs listed
+in GROUP BY. WHERE applies after the join. Output aliases must be distinct.
+
+Enable this profile explicitly in the catalog connection:
+
+```yaml
+relational:
+  consistency: per_resource_snapshot_vector
+  budgets:
+    resident_bytes: 16777216
+    spill_bytes: 16777216
+    result_bytes: 8388608
+    output_rows: 1000
+    work_steps: 100000
+    source_pins: 2
+  requests: 100000
+  spill_work: 100000
+```
+
+Both SQL names resolve in the configured catalog. Their resource cut is shared;
+the underlying Zig caller also accepts two explicit catalog routes in one realm.
+Different resource cuts are independent, not an atomic or causal snapshot.
+Every dependency requires current rights even when it contributes no rows.
+
+```sql
+SELECT l.category, COUNT(*) AS matches, SUM(r.amount) AS total
+FROM orders AS l LEFT JOIN payments AS r ON l.id = r.order_id
+GROUP BY l.category;
+```
+
+The Tables and columns in this example must already exist with BIGINT types.
+`EXPLAIN` reports the proposed ordered scan/join and disk grouping using current
+authorized metadata only. It opens no snapshot or spill, returns a null execution
+basis, and rejects a metadata revision change during preparation. A later SELECT
+captures its own basis. Private execution spill uses TMPDIR (otherwise `/tmp`), private file modes
+and immediate unlinking. The operating system releases it on close or process
+termination. Exhausted work/disk/memory/result limits fail explicitly and leave
+any emitted prefix incomplete. JSON uses `relational_snapshot_v1`, prepared and
+bound fingerprints, and a final `complete_coverage` record. The profile excludes
+LIMIT, HAVING, arbitrary ORDER BY, DISTINCT, parameterized SQL, additional joins
+and durable resumption. Existing single-source SELECT keeps its own profile.
+
 ## Writing Tables and catalogs
 
 The catalog connection routes CREATE, ALTER, DROP, INSERT, UPDATE, DELETE and
@@ -200,6 +247,12 @@ suggestions after at most 128 pages; narrow the prefix when the bounded search
 has no matching item. Metadata can change while editing: the console reacquires
 and validates the suggestion before inserting it. A changed revision or revoked
 inspection permission discards the suggestion; completion never applies SQL.
+For relational SQL in the configured catalog, completion resolves both Table
+aliases and offers only int64 columns. An unqualified position inserts a quoted
+alias and column; a qualified position completes only that alias. Ambiguous
+predicate names do not receive guessed operators. JOIN, GROUP BY and aggregate
+highlighting comes from the same parser used for execution. These suggestions
+do not enable a relational connection or execute the draft.
 
 ```sql
 CREATE TABLE people (

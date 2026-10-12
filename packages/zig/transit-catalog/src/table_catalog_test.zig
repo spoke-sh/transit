@@ -585,8 +585,9 @@ test "cancel every ALTER phase preserves its old schema and permits later evolut
         try t.expectEqual(.applied, applied.table.?.state);
         try t.expectEqual(@as(u64, 3), applied.operation.metadata.id);
     }
-    // Packed chunks reduce phases; cancellation still covers every committed cut.
-    try t.expect(phases > 0 and phases <= 6);
+    // Six existing preparation cuts plus the immutable predecessor staging cut.
+    // Every one is independently cancelled, cleaned and followed by new DDL.
+    try t.expectEqual(@as(usize, 7), phases);
 }
 test "DDL conflicts bind original names schemas and absent DROP without retargeting" {
     var store: TestStore = .{};
@@ -826,12 +827,10 @@ test "catalog routes point and finite DML with exact counts and original post-dr
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
     try t.expectEqual(.point, std.meta.activeTag(try request.route(t.allocator, owner.configuration.scope, &scratch)));
     var turn = try store.capture(17);
-    const accepted = try owner.mutate(t.allocator, &turn, request);
+    const accepted = try dml(&store, request);
     try t.expectEqual(.applied, accepted.state);
-    try t.expectEqual(@as(usize, 4), countWrites(turn));
     try t.expectEqual(@as(u64, 1), accepted.matched);
     try t.expectEqual(@as(u64, 1), accepted.changed);
-    try store.commit(turn);
     var update = try c.fuze.TableDml.compile(t.allocator, "UPDATE people SET name = 'Ada' WHERE id = 1", "people", creation.action.create.schema, null);
     defer update.deinit();
     const patch: c.TableDmlRequest = .{ .principal = 17, .operation = 3, .metadata = created.operation.metadata, .plan = update.plan };
@@ -1061,8 +1060,14 @@ test "saved DML references retain their route and cannot cancel catalog ALTER" {
     try t.expectError(error.CatalogIdentityConflict, owner.cleanupMutationReference(&turn, alter_ref));
     try t.expectError(error.InvalidTableWriteStatus, s.TableStatement.cancel(&turn, alter_ref));
     try t.expectEqual(@as(usize, 0), countWrites(turn));
+    const pending = try owner.cancel(&turn, 17, 3, try alter.digest(owner.configuration.scope));
+    try t.expect(!pending.terminal());
+    try t.expectEqual(@as(usize, 1), countWrites(turn));
+    try store.commit(turn);
+    turn = try store.capture(17);
     const cancelled = try owner.cancel(&turn, 17, 3, try alter.digest(owner.configuration.scope));
     try t.expectEqual(.cancelled, cancelled.table.?.state);
+    try t.expectEqual(@as(usize, 4), countWrites(turn));
     try store.commit(turn);
     var other = admitted.reference;
     other.resource += 1;

@@ -112,10 +112,99 @@ columnar storage merely because output is Arrow.
 
 ## Relational correctness and data movement
 
-This section analyzes constraints of the implemented single-source contract at
-source revision `2c1a9d2d`. It does not describe implemented joins, grouped
-aggregation, maintained relations or distributed query execution. Those
-capabilities remain outside the [current query boundary](../reference/queries.md#relational-boundary).
+This section analyzes finite relational correctness and the additional
+obligations for maintained and distributed execution. The original single-source
+analysis uses revision `2c1a9d2d`; the implemented finite extension is scoped by
+the [current query boundary](../reference/queries.md#relational-boundary).
+
+The local [relational contract](../../contracts/RELATIONAL_V1.md) now implements
+plan/basis validation, shared SQL lowering and bounded execution for a finite int64
+profile. It uses stable Table row IDs rather than assuming primary keys identify
+every row: general Tables also allow duplicate rows without a declared key.
+Its [independent oracle](../../tests/relational.py) materializes small relations
+and compares the overlapping subset with SQLite; separate prefix arithmetic
+fixes the ordered-overflow counterexample below. The
+[intake evidence](../../tests/README.md#relational-contract-and-oracle-intake)
+distinguishes local checks, private-disk group growth, native interactive
+source capture, maintained publication and manual exchange recovery. Those
+profiles share one native authority; they do not establish distributed write
+authority. Agreement on small finite relations alone does not
+establish bounded execution over growing retained data.
+
+The finite physical model uses ordered nested loops and an external AVL group
+map. For L selected left rows, R right rows and G groups, the join can read
+O(LR) right rows; group operations use O(log G) record reads/writes with fixed
+record buffers and an index path bounded by the height possible for uint64
+cardinality. Explicit work and disk quotas stop expensive executions. This
+choice preserves canonical pair/error order directly and avoids a resident hash
+table proportional to R or G. A partitioned hash join may reduce repeated reads,
+but must restore canonical contributors before checked SUM; no such optimizer
+is enabled here. Private spill is unlinked and cannot recover a captured job.
+The heap accounting and bounded working buffers describe query-owned memory,
+not process RSS or the transport client's separate allocations.
+
+For resumable operator state, the question is how to advance a cursor without
+modifying the previous accepted group map. The implemented
+[immutable index](../../packages/zig/transit-fuze/src/RelationalIndex.zig) copies
+the search path and rotated nodes, then assigns the new root only after every
+candidate save succeeds. Under the host's fresh monotone-ID and immutable-read
+contract, failure cannot alter the old root's reachable records. Work is
+O(log G) new records per update; retaining all versions increases durable bytes
+with updates, while the resident path remains bounded. This trades write/storage
+amplification for a small atomic root publication. An in-place map would need a
+separate undo/WAL protocol to preserve that property; no comparative performance
+claim is made for either design.
+
+The [operator checkpoint](../../packages/zig/transit-fuze/src/RelationalCheckpoint.zig)
+binds this root to the exact source vector, join and output cursors, counters and
+failure witness. Query-side Publication staging reconstructs candidate bytes from
+the previous accepted state with the same reserved IDs. This establishes a useful
+local invariant: incomplete staging cannot advance the accepted root.
+The [captured owner](../../packages/zig/transit-query/src/RelationalCapture.zig)
+commits the checkpoint reference together with consumed input and output
+coverage. Admission retains the exact request as well as data cuts: retaining
+only a result's sources would leave restart dependent on a mutable or retired
+request publication. Current-revision guards prevent a policy read from racing
+the turn that accepts a checkpoint. They do not turn the separately acquired
+source cuts into a cross-resource transaction.
+
+Each candidate is reconstructed from the previous checkpoint and receives the
+same reserved record IDs. Consequently a restart during staging can validate and
+continue existing bytes before exposing any new output. A completed manifest
+binds the accepted job, source vector, checkpoint and ordered output digest
+chain. The public reader verifies that coverage and checks all source rights,
+including sources that contributed no rows. Compared with retaining a mutable
+cursor alone, this design incurs additional immutable records and native turns;
+it makes the acceptance boundary independently inspectable.
+
+Closure and collection have separate authority requirements. Releasing a pin
+uses recorded identities and needs no read of its protected bytes. Collection
+walks contiguous private publication IDs and removes a bounded number of chunks
+per turn, keeping permanent descriptors and failure evidence. A host that insists
+on opening every foreign dependency before any handler can still starve closure
+after revocation; the host must provide a fresh proposal using only its own
+resource. The [checkpoint evidence](../../tests/README.md#immutable-group-checkpoints-and-bounded-publication-staging)
+and [captured lifecycle evidence](../../tests/README.md#captured-relational-owner-and-results)
+separate deterministic/reference-store schedules from native fault execution.
+Neither immutable storage nor byte round trips alone establish worker
+reassignment or distributed authority.
+
+Interactive response recovery asks a narrower question: did this same host
+already produce the requested page? The
+[caller session](../../packages/zig/transit-query/src/RelationalBridge.zig) retains
+one native row before allocating a foreign response. An explicit ordinal can
+repeat that row or advance by one; it cannot skip or replay an arbitrarily old
+prefix. Resident response state therefore does not grow with result length.
+The [owned caller](../../packages/zig/transit-query/src/RelationalCaller.zig)
+can inspect the active reference and current ordinal without executing another
+step. Board uses this observation after a lost open response or browser reload.
+All disclosures, including current-page retries and terminal coverage, validate
+every source's current rights. Host replacement discards this state and rejects
+the old reference. This mechanism solves response uncertainty within one host;
+it supplies neither a durable checkpoint nor permission to recompute a lost query.
+The [caller evidence](../../tests/README.md#neutral-relational-caller-pages) and
+[installed SDK evidence](../../tests/README.md#installed-interactive-relational-sdks)
+separate this boundary from captured execution and maintenance.
 
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query
@@ -178,6 +267,190 @@ partition. Reproduction of the arithmetic counterexample follows the checked
 fold above; independent page/order/failure fixtures are needed before any new
 operator or rewrite can claim equivalence. Existing
 [verification limits](../reference/verification.md) still apply.
+
+### Complete revisions from retained Table transactions
+
+The implementation question is whether a consumer can keep an exact relation
+while a query restarts between small native writes and its inputs continue to
+change. The selected model is `R_k = Q(B_k)`: each basis contains one complete
+Table-history position per resource, each result uses the same canonical finite
+semantics, and each delta is the ordered difference from `R_(k-1)` to `R_k`.
+This scope excludes event-time finality and distributed write authority.
+
+[RelationalHistory](../../packages/zig/transit-query/src/RelationalHistory.zig)
+obtains each logical Table root from complete retained history under a fresh
+current authorized resource view. Its resource commitment includes every required
+Table at the selected coordinate. Thus two required Tables changed by one native
+commit cannot enter different sides of the basis. A recorded choice between
+resources establishes processing order without assuming a global snapshot.
+The argument assumes the Table owner preserves complete predecessor records and
+accepted immutable pages; gaps fail explicitly. A stored hash is evidence to
+validate, not authority to read it.
+
+[RelationalMaintenance](../../packages/zig/transit-query/src/RelationalMaintenance.zig)
+first records a successor basis, then reconstructs bounded finite work from its
+last accepted checkpoint. Immutable candidate nodes, output rows and delta pages
+remain private until one root publication binds their complete coverage. By
+induction over that root publication, the visible result is either the prior
+complete `R_(k-1)` or the complete `Q(B_k)`. Losing a proposal does not change the
+root. Losing a receipt requires the original native retry; regenerating a new
+submission is not part of this argument. The native current-view guards keep
+source policy checks conditional on the resource state used at acceptance.
+
+The delta merge compares stable identities, then values. A changed output ordinal
+without changed values creates no logical delta. A same-identity value change is
+one before/after pair. First/last outer matches change the set of pair identities;
+all their removals/insertions belong to one complete transaction. A consumer
+applies a private candidate and advances its saved position only after complete
+coverage. [RelationalRevision](../../packages/zig/transit-query/src/RelationalRevision.zig)
+checks the exact predecessor, both bindings, ordinals, digests and chain; partial
+replay cannot silently select a newer baseline.
+
+The initial implementation recomputes each exact basis, including no-op bases.
+This preserves the existing ordered SUM witness without a second aggregate
+algorithm. It costs a full canonical nested-loop scan and immutable group build
+per transaction: for two unfiltered inputs, up to `L × R` pair visits, with
+bounded tree work per aggregate update. It retains older checkpoints and output
+versions, so state grows with accepted work until an explicit quota stops it.
+Resident buffers depend on source/schema limits and tree height, not that retained
+cardinality. This is a correctness construction, not evidence of sustainable
+catch-up or an incremental speedup.
+
+Updating only affected join-key ranges/groups could avoid unchanged work. That
+alternative needs ordered contributor indexes, exact both-side cross terms,
+canonical error preservation after deletion, and a checked way to reuse state
+across different bound fingerprints. Reusing a stored group total alone fails the
+ordered-overflow counterexample above. Those optimizations must agree with this
+complete-basis construction; they cannot coalesce logical revisions or skip an
+earlier failure whose arithmetic would fit at a later basis.
+
+The [maintained proof ledger](../../tests/README.md#maintained-relational-revisions)
+records reproducible reference-store and native schedules separately, including
+unfinished qualification. The reference store tests proposal reconstruction,
+no-op coverage and failed-successor preservation; they do not prove durability.
+Native disk evidence, lag/state measurements and faults bound stronger claims.
+
+### Immutable names and query attribution
+
+Named query attribution asks a separate question: how can an accepted query
+retain its definition when a mutable name later points elsewhere? The
+application owner stores immutable definition revisions and a conditional name
+head. Publishing validates the frozen bundle and retains its native request cut;
+it neither captures source data nor activates execution. Current native and
+catalog policies remain assumptions of each operation.
+
+An explicit policy operation atomically writes the current query policy and an
+immutable archive keyed by publishing peer and policy revision. Existing query
+roots already retain both fields and their original request. They therefore join
+to a permanent named definition without adding a fifth admission mutation. A
+name replacement changes only the name head; policy replacement does not rewrite
+the archive or an earlier root. The archive supplies attribution, while the
+current policy supplies authority. Confusing those two would let an old allowed
+record bypass revocation.
+
+This design uses another retained record and explicit authorization step instead
+of enlarging the query root or introducing a separate execution engine. It
+preserves the existing one-resource atomic boundary and current-policy revision
+checks. Logical namespace quotas include immutable records and declared bundle
+bytes; they do not measure the complete physical retained resource cuts. History
+has no implicit expiry. The [naming contract](../../contracts/NAMED_RELATIONAL_V1.md)
+and [implementation](../../packages/zig/transit-station-app/src/NamedRelational.zig)
+specify this additive profile. Independent record bytes, conditional-retry tests
+and disk recovery are reproducible through the [proof ledger](../../tests/README.md#named-relational-definitions).
+This mechanism does not establish SQL view syntax, network subscription delivery
+or effect dispatch.
+
+### Durable acceptance and canonical source order
+
+The exchange implementation asks how partitioned delivery can preserve the
+finite executor's original source order without retaining all partitions in
+memory. Its scope is explicit worker placement under one growing authority,
+with immutable bound inputs and current source authorization. It assumes the
+producer implementation reads the declared basis honestly; native admission
+does not certify its computation. The exact model is in the
+[exchange contract](../../contracts/RELATIONAL_EXCHANGE_V1.md).
+
+For each source/partition pair, let A be the number of consecutively accepted
+segments and C the number consumed, with `0 <= C <= A`. Acceptance copies verified
+bytes into receiver-owned storage before advancing A. Consumption inserts one
+source-qualified row-index entry with its cursor atomically and advances C only
+after the complete segment. Credit is charged at A and returned at C, so an
+acknowledgement retry changes neither backlog nor credit. A producer can retire
+its copy after acceptance without invalidating the receiver's evidence.
+
+The receiver admits no acceptance gap. Otherwise several future segments could
+fill all shared credit while their missing predecessors remain unaccepted,
+preventing any consumption. Reordered notices instead retain their producer
+identity and wait for the missing sequence. This is a scheduling choice, not
+loss of accepted work. Hosts must service consumption and exact-notice retries.
+
+Completion requires every registered source/partition to consume its explicit
+terminal segment. Stable row identities are unique within each source and form
+native ordered KV keys. Therefore the resulting index enumerates exactly the
+accepted bag in original source order, irrespective of arrival or partition
+layout. The unchanged finite executor sees the same contributor sequence and
+thus the same first checked-arithmetic failure. This avoids assuming associative
+int64 SUM or prematurely declaring an unmatched-left row.
+
+The tradeoff is an extra durable copy and source-order index, followed by central
+operator evaluation. It distributes source delivery but does not establish
+parallel aggregate throughput. A k-way merge would avoid some indexing but needs
+bounded multi-pass fan-in and retained run coverage; partial sums additionally
+need an error-preserving algebra. Neither alternative is assumed by this profile.
+One staging record, four-row segments and native eight-entry reads bound resident
+work independently of total partitions. Retained state grows with accepted rows
+and segments; conservative logical quotas and physical deployment quotas remain
+separate. No pressure-based expiry is allowed.
+
+Reproduce the [executed checks](../../tests/README.md#relational-exchange-transitions)
+with pinned Fuze/query package tests and the independent Python exchange fixture
+checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
+the reference-store schedule exercises nine partition/batch combinations,
+duplicate acknowledgement, denied producer rereads, credit and quota pressure.
+The native exchange task separately runs producer and receiver hosts against
+disk Ursula with bounded hot/cache storage and a local cold store.
+It loses accepted staging/acceptance replies, reconstructs workers, restarts the
+node/store and publishes the maintained result for two partition/worker layouts.
+The four-row-per-source input establishes those recovery and semantic cases; it
+does not establish cardinality scaling or sustainable throughput. Native
+generation replacement with the same credential is also distinct from recorded
+handoff and credential retirement. The ledger retains the precise measurements,
+failed host attempts and each separate fault/capacity schedule.
+
+### Boundary for historical and shared execution
+
+Which evidence can the current plan safely carry into future historical or
+shared dataflows? The implemented bound plan contains exact source identities,
+schemas, resource cuts and a definition fingerprint. Same-resource aliases
+must share one cut. The maintained vector records complete Table transactions,
+including no-output progress. These facts let the present two-input executor
+distinguish a completed result from an observed prefix. The
+[relational contract](../../contracts/RELATIONAL_V1.md#source-basis-and-lifetime)
+and [history tests](../../packages/zig/transit-query/src/relational_history_test.zig)
+are the implementation evidence for that boundary.
+
+A future join of two versions of one resource needs two explicitly qualified
+bindings and identities; removing today's equal-cut check would make an old
+accepted plan mean something different. A future fan-out/rejoin needs per-edge
+coverage of the common basis. Its fast path at basis 11 and slow path at basis
+10 cannot establish completion of basis 11. Empty filtered paths must still
+publish progress. The present executor has no general dataflow DAG, historical
+namespace selector or branch resolution operation, so it cannot infer any of
+this evidence from resource revisions, branch names or arrival order.
+
+Sharing an immutable index is a physical optimization only when source,
+interpretation, key order and change coverage match and current rights still
+hold. Each query must retain its own publication, progress, cancellation and
+recovery identity. Current maintenance deliberately recomputes each complete
+basis; it does not reuse another query's group totals. That choice preserves
+canonical checked-SUM failures but incurs full-input work on every successor.
+The alternatives are an ordered contributor index or another summary proved
+equivalent for both results and first errors; neither follows merely from equal
+SQL text. Historical selectors, shared arrangements, multi-model adapters and
+temporal operators therefore require explicit additional contracts. The
+[historical binding model](#historical-schemas-and-query-binding) and
+[state ownership model](state-model.md#schema-history-and-branches) develop those
+proposals separately from current execution.
 
 ## Tradeoffs and evidence
 

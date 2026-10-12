@@ -89,7 +89,11 @@ row or an exact conjunction containing every primary-key equality and no extra
 predicate. Other selected finite statements use `TableStatement`. The catalog
 recomputes the enclosing-owner binding from the complete request, including
 predicates; switching routes or changing metadata/intent at an occupied operation
-rejects. The ordinary small-row insert retains its four-write publication path.
+rejects. A small-row insert can publish in four writes after its predecessor
+history record is staged; otherwise it advances through bounded continuation
+turns. Delegated ALTER, DROP and cancellation can also stage that predecessor
+before their atomic catalog/Table publication. A pending cancellation still
+requires another exact cancellation step; it is not a completed outcome.
 
 `mutate` requires current inspect and action-specific permission. Pending DDL
 fences new DML; a pending Table write fences new DDL. Exact terminal receipts are

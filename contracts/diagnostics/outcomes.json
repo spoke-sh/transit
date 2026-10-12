@@ -5614,6 +5614,188 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },
@@ -7624,6 +7806,214 @@
             "inspect_status"
           ],
           "transport_status": 400
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 409
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 502
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -8775,6 +9165,214 @@
             "inspect_status"
           ],
           "transport_status": 8
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 12
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 3
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 10
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 15
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 8
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 10
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 12
         }
       }
     },
@@ -11582,6 +12180,308 @@
           "category": "limit",
           "actions": [
             "inspect_status"
+          ]
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
           ]
         }
       }

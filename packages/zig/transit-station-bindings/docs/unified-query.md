@@ -144,3 +144,14 @@ receipt or terminal status. Unrecognized failures are internal diagnostics,
 mapped to native `invalid_response`, rather than SQL input errors. Failure to
 allocate diagnostic output preserves the native status and original recovery
 obligations. SDK exception adoption is documented by each caller interface.
+
+## Relational catalog callers
+
+The same query ABI/port accepts a `relational` action with its separately
+configured catalog routes. A relational-only configuration omits the legacy
+`connection` and supplies `relational.catalogs`, explicit budgets and a private
+spill directory. It opens no behavior activation. Explanation, exact active-open
+retry, one-row pages and explicit close share the Zig relational owner. Current
+source rights apply to repeated pages and completion. Interactive handle loss
+cannot become durable recovery. See the [relational caller guide](../../transit-query/docs/relational-callers.md)
+for exact actions, representations, bounds and supported lifetimes.

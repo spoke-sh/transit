@@ -5,12 +5,14 @@ pub const bridge = @import("QueryBridge.zig");
 const q = bridge.q;
 const allocator = std.heap.page_allocator;
 pub const Client = opaque {};
-pub const Config = struct { connection: q.UnifiedClient.Connection, timeout_ms: u32 = 5000 };
+pub const Config = struct { connection: ?q.UnifiedClient.Connection = null, timeout_ms: u32 = 5000, relational: ?q.RelationalBridge.Config = null };
 const Impl = struct {
     threaded: std.Io.Threaded,
     wire: q.wire.Client,
-    client: q.UnifiedClient,
+    client: ?q.UnifiedClient = null,
+    key: q.protocol.Ed25519.KeyPair,
     url: []u8,
+    relational: ?*q.RelationalCaller = null,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
@@ -25,23 +27,38 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     const parsed = q.Values.parse(Config, allocator, config[0..config_len]) catch |err| return base.status(err);
     defer parsed.deinit();
     const c = parsed.value;
-    inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| q.UnifiedRecords.identity(@field(c.connection, field)) catch return .invalid_argument;
+    if (c.connection) |connection| {
+        inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| q.UnifiedRecords.identity(@field(connection, field)) catch return .invalid_argument;
+    } else if (c.relational == null) return .invalid_argument;
     if (c.timeout_ms == 0 or c.timeout_ms > 60000) return .invalid_argument;
     const client = allocator.create(Impl) catch return .out_of_memory;
     const endpoint = allocator.dupe(u8, url[0..url_len]) catch {
         allocator.destroy(client);
         return .out_of_memory;
     };
-    client.* = .{ .url = endpoint, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .wire = undefined, .client = undefined };
+    client.* = .{ .url = endpoint, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .wire = undefined, .key = q.protocol.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
     client.wire = q.wire.Client.init(allocator, client.threaded.io(), endpoint);
     client.wire.timeout_ms = c.timeout_ms;
-    client.client = .{ .wire = &client.wire, .connection = c.connection, .key = q.protocol.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
+    if (c.connection) |connection| client.client = .{ .wire = &client.wire, .connection = connection, .key = client.key };
+    if (c.relational) |config_relational| initializeRelational(client, config_relational) catch |err| {
+        destroy(@ptrCast(client));
+        return base.status(err);
+    };
     out.* = @ptrCast(client);
     return .ok;
 }
+fn initializeRelational(client: *Impl, config: q.RelationalBridge.Config) !void {
+    for (config.catalogs) |connection| {
+        const native = try connection.native();
+        if (client.client) |unified| if (native.scope.realm != unified.connection.realm or native.principal != unified.connection.principal) return error.RelationalCallerChanged;
+    }
+    client.relational = try q.RelationalCaller.create(allocator, client.threaded.io(), &client.wire, client.key, config);
+}
 pub fn destroy(pointer: ?*Client) callconv(.c) void {
     const client = cast(pointer orelse return);
-    std.crypto.secureZero(u8, std.mem.asBytes(&client.client.key));
+    if (client.relational) |relational| relational.destroy();
+    if (client.client) |*unified| std.crypto.secureZero(u8, std.mem.asBytes(&unified.key));
+    std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     client.wire.deinit();
     client.threaded.deinit();
     allocator.free(client.url);
@@ -66,17 +83,20 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     var identity: ?q.protocol.Diagnostic.Identity = null;
     if (action.value == .submit) {
         const signed = bridge.prepared(alloc, action.value.submit) catch |err| return localFailure(action.value, err, out);
-        client.client.validate(signed) catch |err| return localFailure(action.value, err, out);
+        const unified = if (client.client) |*value| value else return localFailure(action.value, error.QueryInterfaceUnavailable, out);
+        unified.validate(signed) catch |err| return localFailure(action.value, err, out);
         identity = .{ .domain = .transport, .id = .init(signed.signed.request.sequence), .sequence = .init(signed.signed.request.sequence), .realm = .init(signed.signed.request.realm) };
     }
     var detail: q.fuze.Sql.Binding = .{};
-    const result = bridge.applyDiagnostic(alloc, &client.client, action.value, &detail) catch |err| {
+    const result = apply(client, alloc, action.value, &detail) catch |err| {
+        const original_rejection = client.wire.last_rejection;
         var diagnostic = q.ApiDiagnostic.project(action.value, err, detail, action.value == .submit, identity) catch null;
-        q.ApiDiagnostic.qualify(&diagnostic, client.client.connection);
-        if (diagnostic) |*value| if (client.wire.last_rejection) |native| {
+        if (action.value == .relational) if (client.relational) |relational| if (diagnostic) |*value| relational.session.diagnostic(action.value.relational, err, value);
+        if (action.value != .relational) if (client.client) |unified| q.ApiDiagnostic.qualify(&diagnostic, unified.connection);
+        if (diagnostic) |*value| if (original_rejection) |native| {
             value.text(.native_cause, .authority, @tagName(native)) catch {};
         };
-        base.output(.{ .err = @errorName(err), .protocol_error = client.wire.last_rejection, .diagnostic = diagnostic }, out) catch {};
+        base.output(.{ .err = @errorName(err), .protocol_error = original_rejection, .diagnostic = diagnostic }, out) catch {};
         if (action.value == .submit and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) return .uncertain;
         if (err == error.QueryReadConflict) return .conflict;
         if (err == error.QueryDenied) return .denied;
@@ -93,6 +113,17 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     };
     base.output(result, out) catch |err| return if (action.value == .submit) .uncertain else base.status(err);
     return .ok;
+}
+fn apply(client: *Impl, alloc: std.mem.Allocator, action: bridge.Action, detail: *q.fuze.Sql.Binding) !bridge.Result {
+    if (action == .relational) {
+        if (action.relational == .capabilities) return .{ .relational = .{ .capabilities = .{} } };
+        const relational = client.relational orelse return error.QueryInterfaceUnavailable;
+        var location: q.fuze.Sql.Location = .{};
+        defer detail.location = location;
+        return .{ .relational = try relational.session.apply(alloc, action.relational, &location) };
+    }
+    const unified = if (client.client) |*value| value else return error.QueryInterfaceUnavailable;
+    return bridge.applyDiagnostic(alloc, unified, action, detail);
 }
 fn invalidEnvelope(err: anyerror, out: *?*base.Buffer) base.Status {
     const diagnostic = if (err == error.OutOfMemory)

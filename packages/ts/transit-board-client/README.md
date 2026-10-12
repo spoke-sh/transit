@@ -62,6 +62,17 @@ independent Python consumers live in `tests/board.py`.
 
 ## Growing atlas and queries
 
+`relationalQuery(operation, signal?)` uses the separately configured
+`/api/v1/relational` route. Zig owns the generated request/response types;
+`validateRelational` additionally checks exact integer ranges, identities,
+source/cut agreement and terminal coverage. The transport owns its request
+before awaiting, verifies returned open/page identities and retries only an
+identical pre-dispatch 429 refusal, at most three times. It uses a 16 KiB request
+limit and 256 KiB decoded-response bound. A host description can recover the
+same active query and ordinal without opening or advancing it. See the
+[Board relational guide](../../../apps/transit-board/docs/relational.md) for
+configuration, current rights and interactive lifetimes.
+
 `records(resource, cursor?, signal?)` reads up to eight record identities and
 recognized exchange metadata from a growing resource. It requires the configured
 inspection principal's current resource read grant. A continuation carries the

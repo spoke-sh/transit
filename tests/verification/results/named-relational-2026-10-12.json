@@ -1,0 +1,375 @@
+{
+  "implementation_commit": "6a6d473847198493e46f9097950229aa52f53370",
+  "definition": "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024",
+  "result": "passed",
+  "clean_checkout": false,
+  "commands": [
+    "nix develop --command just test::named-relational",
+    "nix develop --command sh -c 'cd packages/zig/transit-station-app && zig build test'",
+    "nix develop --command just check"
+  ],
+  "logs": [
+    {
+      "local_path": ".cache/relational-intake/named-native-first.log",
+      "sha256": "3b6b3240c607c7081083ae8cc5a8f969e0664e94bd49541fa4ba7e69fa159010"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-native-second.log",
+      "sha256": "fcf404fce9547079833fdf24ced993c7a7fe55a1792637dfa51724f548d664d9"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-native-third.log",
+      "sha256": "13a6dd8314f6d813934ec63b1c8381963d44af1adbfff87061be98a827780eb9"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-native-final.log",
+      "sha256": "6fa1c52fa8fe1f7e15ebaf70a95b666e8411fa9d7a4fc8a6b0af1b87dd0519aa"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-first.log",
+      "sha256": "9570a9a8cea10fb7485c85990c09f1b4d91a1aa4bcf11092478d4eac22d6504b"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-second.log",
+      "sha256": "cb41b0b97b34eb1e5076b9bde435a9448f924b2903703702c949707e21b3c180"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-third.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-final.log",
+      "sha256": "15faef6be5dd7f0e6d7667f979d1ed0ec15afc877407b8af1ed643aef080e031"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-checks-first.log",
+      "sha256": "b50ce2b7884179fc4d3705ea15da3f116ba2d53963026a7d30c72cbe1c95eeb3"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-checks-second.log",
+      "sha256": "ae45a51b0bed44e31d004aa18931f2a91381a93676cea1d5fe77dd168908df5a"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-reviewed.log",
+      "sha256": "73888fbb44e589469c2e5ccbfae7da7f0e6fe90a5d5514826b7057137d594fcd"
+    },
+    {
+      "local_path": ".cache/relational-intake/named-app-retry-policy.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "local_path": ".cache/relational-intake/check-named-first.log",
+      "sha256": "ce0178a0310bb5cbeb6a6b3d28e21c373b8cda3befd7e1457658271e32db138b"
+    }
+  ],
+  "observations": [
+    {
+      "profile": "named-relational-native",
+      "seconds": 62.721,
+      "captured": [
+        [
+          7,
+          1,
+          8
+        ],
+        [
+          9,
+          1,
+          null
+        ]
+      ],
+      "maintained": [
+        [
+          7,
+          1,
+          8
+        ],
+        [
+          9,
+          1,
+          4
+        ]
+      ],
+      "revisions": 3,
+      "same_resource_vector": true,
+      "retained_attribution": true,
+      "publication_does_not_activate": true,
+      "recovered": [
+        "NRD1",
+        "NRP1",
+        "RQJ1",
+        "RMH1"
+      ],
+      "turns": 210,
+      "max_mutations": 4,
+      "max_value_bytes": 256
+    },
+    {
+      "profile": "named-relational-native",
+      "seconds": 146.815,
+      "captured": [
+        [
+          7,
+          1,
+          8
+        ],
+        [
+          9,
+          1,
+          null
+        ]
+      ],
+      "maintained": [
+        [
+          7,
+          1,
+          8
+        ],
+        [
+          9,
+          1,
+          4
+        ]
+      ],
+      "revisions": 3,
+      "overflow": {
+        "cause": "Overflow",
+        "witness": {
+          "pair": {
+            "left": {
+              "origin": 1235,
+              "operation": 3,
+              "ordinal": 0
+            },
+            "right": {
+              "origin": 1235,
+              "operation": 7,
+              "ordinal": 1
+            }
+          },
+          "output": 2,
+          "group": {
+            "values": [
+              7,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "len": 1
+          }
+        },
+        "last_revision": 8,
+        "failed_revision": 9,
+        "phase": "failed"
+      },
+      "same_resource_vector": true,
+      "retained_attribution": true,
+      "publication_does_not_activate": true,
+      "recovered": [
+        "NRD1",
+        "NRP1",
+        "RQJ1",
+        "RMH1",
+        "RQF1"
+      ],
+      "turns": 408,
+      "max_mutations": 4,
+      "max_value_bytes": 256
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".zig-cache/o/828ecf89aa67a6101be750e5188d54e3/transit-node",
+      "sha256": "ff0bdebe60df2a7ec072d47d8f2e7e84b0e6e4730fe0d5fc0fbcc68c62069bef"
+    },
+    {
+      "path": ".zig-cache/o/b4de4948e49ec26918878e1499f7e2eb/transit-typed-table-proof",
+      "sha256": "bbd99b4c374c4b1236dcaa66a501e8d3a906f53c8c0dc1d41f23a0578c575f6d"
+    }
+  ],
+  "profile": {
+    "authorities": 1,
+    "node_resident_pages": 8,
+    "tables": 2,
+    "source_resources": 1,
+    "query_lifetimes": [
+      "captured",
+      "maintained"
+    ],
+    "publication_mutations": 3,
+    "authorization_mutations": 3,
+    "max_native_mutations": 4,
+    "max_native_value_bytes": 256,
+    "record_quota": 4096,
+    "logical_byte_quota": 33554432,
+    "retention": "unlimited; no namespace collection"
+  },
+  "checks": [
+    "45 application unit cases pass, including three named-definition cases",
+    "Independent canonical layouts, truncation and current-definition rejection",
+    "67 retained definition revisions with three writes each",
+    "Quota and decode-workspace failure leave writes/pins unchanged",
+    "Current administrator/source denial and separate publication/authorization/activation",
+    "Five exact lost native receipts across node/disk restart and fresh worker generations",
+    "Same-resource complete maintained revisions and exact delta retry",
+    "Canonical ordered overflow preserves complete revision 8, failing successor 9 and contributor witness",
+    "Full just check passes; focused old-policy-retry unit assertion added and passed afterward"
+  ],
+  "failed_attempts": [
+    {
+      "log": "named-app-first.log",
+      "reason": "Initial code used old reflection helpers and treated the shared Definition enum as bytes; fixed for pinned Zig."
+    },
+    {
+      "log": "named-app-second.log",
+      "reason": "Reflection fields changed to pinned field_names/field_types."
+    },
+    {
+      "log": "named-native-first.log",
+      "reason": "Fixture used a control enum tag instead of a control union value."
+    },
+    {
+      "log": "named-native-second.log",
+      "reason": "Fixture expected plain integer rows rather than public typed cell envelopes."
+    },
+    {
+      "log": "named-checks-first.log",
+      "reason": "Verification catalog did not register the existing focused SDK/Board tasks referenced by QUERY-CALLER-01; registered their actual task aliases."
+    },
+    {
+      "log": "named-checks-second.log",
+      "reason": "Missing-definition test serialized byte arrays with generic JSON string encoding; used the public JSON encoder before checking the missing field."
+    }
+  ],
+  "limits": [
+    "Typed Zig and authenticated Station naming boundary only; no foreign naming endpoint or SQL view/subscription syntax",
+    "One native authority with disk Ursula and owned cold tier; no physical power-loss or distributed authority claim",
+    "Logical quota accounts for declared bundle bytes, not all physical pinned-resource storage",
+    "No sustained-input rate or latency SLO from this small fixture",
+    "Final committed-HEAD clean lanes remain required"
+  ]
+}

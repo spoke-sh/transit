@@ -112,9 +112,19 @@ claiming a terminal caller rejection.
 
 ## Contracts and commands
 
+Named relational queries retain an immutable typed plan, source identities,
+schemas and captured/maintained lifetime. Publishing a definition and authorizing
+it are separate from explicitly activating its original publishing peer's call.
+Later name revisions cannot relabel accepted work; current native and catalog
+rights still govern every result. The [typed naming guide](../../packages/zig/transit-station-app/docs/named-relational.md)
+describes conditional revisions, quotas, exact retries and retained attribution.
+This profile does not enable SQL view declarations, subscriptions or connector
+dispatch.
+
 - [Local installation guide](../../apps/transit-cli/docs/applications.md): management commands, exports, replacement and recovery.
 - [Installation/bootstrap contract](../../contracts/APPLICATION_INSTALLATION_V1.md): neutral fields, identity and host obligations.
 - [Application definition contract](../../contracts/APPLICATION_V1.md): compiler and conditional publication.
+- [Named relational contract](../../contracts/NAMED_RELATIONAL_V1.md): immutable query names, separate authorization and explicit activation.
 - [Migration contract](../../contracts/APPLICATION_MIGRATION_V1.md): data-owner steps and exact recovery.
 - [Compiler package](../../packages/zig/transit-station-app/README.md): real parse/format/schema/module commands and native APIs.
 - [Browser package](../../packages/ts/transit-application/README.md): generated runtime validation, scoped signing and proposal recovery.

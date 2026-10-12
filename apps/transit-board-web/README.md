@@ -113,6 +113,14 @@ and clearing rules as the records view.
 
 ## Working in the frontend
 
+The Operations screen includes a [relational worksheet](../transit-board/docs/relational.md)
+with explicit catalog routes, metadata-only Explain, Run and current/next-page
+controls. It shows proposed and active plans separately and holds one row with
+explicit prefix/completion status. Current-page reads repeat every five seconds;
+hiding and failed access clear displayed rows and metadata. Browser reload uses
+authorized active-session inspection without rerunning SQL. Query identities
+remain separate from drafts, and no result or credential enters browser storage.
+
 | Source                                           | Owns                                                                              |
 | ------------------------------------------------ | --------------------------------------------------------------------------------- |
 | [routes/](src/routes/)                           | Overview, resource and PID/journey routes; stable URLs and route validation       |

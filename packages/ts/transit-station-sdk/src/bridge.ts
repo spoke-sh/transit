@@ -328,15 +328,28 @@ export class QueryBridge {
     const port = await openPort({ url, seed_file: seedFile, query_client: config }, nativeHost);
     try {
       const bridge = new QueryBridge(port);
-      const value = await bridge.call({ capabilities: {} });
-      if (
-        !("capabilities" in value) ||
-        value.capabilities.version !== 1 ||
-        !value.capabilities.kv ||
-        !value.capabilities.table ||
-        !value.capabilities.document
-      )
-        throw new UnsupportedCapability("Native query caller lacks v1 capabilities");
+      if (config.connection) {
+        const value = await bridge.call({ capabilities: {} });
+        if (
+          !("capabilities" in value) ||
+          value.capabilities.version !== 1 ||
+          !value.capabilities.kv ||
+          !value.capabilities.table ||
+          !value.capabilities.document
+        )
+          throw new UnsupportedCapability("Native query caller lacks v1 capabilities");
+      } else {
+        const value = await bridge.call({ relational: { capabilities: {} } });
+        if (
+          !("relational" in value) ||
+          !("capabilities" in value.relational) ||
+          !value.relational.capabilities.interactive ||
+          value.relational.capabilities.page_rows !== 1
+        )
+          throw new UnsupportedCapability(
+            "Native caller lacks interactive relational capabilities",
+          );
+      }
       return bridge;
     } catch (error) {
       await port.close();

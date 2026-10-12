@@ -127,6 +127,13 @@ fn classifyTableWithAllocator(text: []const u8, roles: []sql.TokenRole, allocato
     parser.roles = roles;
     const explain = try parser.takeWord("EXPLAIN");
     if (explain or parser.word("SELECT")) {
+        const start = parser.lexer.start;
+        const relational = @import("RelationalSql.zig");
+        if (try relational.required(text[start..])) {
+            var syntax = try relational.parseWithContext(allocator, text[start..], null, .{ .roles = roles[start..] });
+            defer syntax.deinit();
+            return;
+        }
         _ = try @import("TableSelect.zig").syntax(&parser, null);
     } else if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
         _ = try @import("TableDml.zig").syntax(&parser, null);
@@ -205,6 +212,12 @@ fn expectRoles(text: []const u8, expected: []const ExpectedRole) !void {
     }
     classify(text, actual[0..text.len]);
     try std.testing.expectEqualSlices(sql.TokenRole, wanted[0..text.len], actual[0..text.len]);
+}
+
+test "relational highlighting follows joins aliases and grouped aggregate syntax" {
+    try expectRoles("EXPLAIN SELECT l.k, SUM(r.v) AS total FROM lefts l LEFT JOIN rights r ON l.k=r.k GROUP BY l.k;", &.{
+        .{ "EXPLAIN", .keyword }, .{ "SELECT", .keyword }, .{ "l", .identifier }, .{ "k", .identifier }, .{ "SUM", .function }, .{ "r", .identifier }, .{ "v", .identifier }, .{ "AS", .keyword }, .{ "total", .identifier }, .{ "FROM", .keyword }, .{ "lefts", .identifier }, .{ "l", .identifier }, .{ "LEFT", .keyword }, .{ "JOIN", .keyword }, .{ "rights", .identifier }, .{ "r", .identifier }, .{ "ON", .keyword }, .{ "l", .identifier }, .{ "k", .identifier }, .{ "r", .identifier }, .{ "k", .identifier }, .{ "GROUP", .keyword }, .{ "BY", .keyword }, .{ "l", .identifier }, .{ "k", .identifier },
+    });
 }
 
 test "highlighting distinguishes contextual names from consumed SQL syntax" {

@@ -8,6 +8,30 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`Relational` supplies pure admission, stable column resolution, output descriptors
+and prepared/bound identities for finite int64 Table join/group plans. It also
+defines distinct join/group NULL rules and checked aggregate steps.
+`RelationalSql` lowers the selected finite SQL profile through shared syntax and
+typed literals. `RelationalExecution` advances ordered source rows and externally
+stored groups with bounded resident state, preserving bag multiplicity, null
+extension and first-error order. Hosts own source capture, current permission,
+spill and complete-result publication. The
+[relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
+ownership, canonical order, budgets and remaining integration obligations.
+`RelationalIndex` supplies immutable group roots and bounded copy-on-write
+updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
+rechecks the bound source vector and current rights through its adapter. Hosts
+stage and atomically publish these records with input/output progress.
+`RelationalExchange` specifies canonical int64/null routing and source-qualified
+row segments with exact bound identities and explicit terminal coverage. Hosts
+own durable acceptance, credits and current authorization under the
+[exchange contract](../../../contracts/RELATIONAL_EXCHANGE_V1.md).
+
+`RelationalDelta` encodes paired changes between complete maintained outputs,
+binding both source vectors and preserving stable identities independently of
+output ordinals. It acquires no publication or disclosure authority.
+Existing single-source profiles retain their separately admitted operators.
+
 `Types` owns bounded logical descriptors and the specialized scalar profile used
 by `Unified`. `Types.Semantics` binds checked integer/decimal, finite float,
 boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.

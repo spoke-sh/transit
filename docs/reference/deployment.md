@@ -48,6 +48,15 @@ restart requires fresh eligible ownership. Provider names, restored snapshots or
 successful pod creation cannot grant execution rights or revive a retired PID.
 Logical Station supervision and physical process management remain separate.
 
+For an unbound PID, the typed Zig client supports
+[recorded manual replacement](../../packages/zig/transit-client/docs/worker-handoff.md)
+under one authority. One trusted manager persists exact phase records and signed
+requests, quiesces the writer, verifies its complete application resource,
+conditionally fences it, revalidates dependencies and rotates its credential.
+The selected profile requires one writer-owned application resource and no
+outstanding finite turn permit. Missing manager records or corrupt checkpoints
+stop recovery. Provider-bound PIDs retain the controller's separate lifecycle.
+
 Applications have no raw Ursula credentials. Board uses public read surfaces and
 a private viewer boundary. Connector workers hold only their scoped effect/secret
 capabilities. Local same-user processes are trusted code, not a sandbox.

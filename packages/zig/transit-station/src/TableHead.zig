@@ -149,6 +149,8 @@ pub fn create(self: Self, allocator: std.mem.Allocator, turn: *Turn) !void {
 /// Conditional replacement is only a private KV write. The owner must first
 /// validate/stage all successor references and compose the final outcome.
 pub fn replace(self: Self, turn: *Turn, after: Self) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
     try self.validate();
     try after.validate();
     if (self.resource != turn.view.resource) return error.CrossResourceTransaction;
@@ -156,5 +158,6 @@ pub fn replace(self: Self, turn: *Turn, after: Self) !void {
     if (after.resource != self.resource or after.object != self.object or after.revision != (std.math.add(u64, self.revision, 1) catch return error.TableCapacity) or after.next_record < self.next_record) return error.InvalidTableHead;
     const current = (try turn.read(key(self.object))) orelse return error.TableNotFound;
     if (!current.eql(try self.encode())) return error.TableHeadChanged;
+    _ = try @import("TableHistory.zig").stage(self, turn);
     try turn.write(key(self.object), try after.encode());
 }

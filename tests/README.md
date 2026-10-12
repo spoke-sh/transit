@@ -1,5 +1,852 @@
 # Validation and milestone evidence
 
+## Integrated relational qualification
+
+[Issue #70](https://github.com/rupurt/rey/issues/70)'s selected implementation is
+qualified at **`85861c88`**, integrated on the Table foundation `07918d7a`.
+The [complete record](verification/results/relational-qualification-2026-10-12.json)
+contains all **79 ordinary tasks**, with five complete clean lanes at that same
+committed revision: core 22, growth 30, experience 7, launchers 2 and bindings 18.
+Each lane runs `just ci-clean --lane <lane>` from an isolated disk-backed clone,
+with locked dependencies and no inherited workspace build outputs. Full
+`just check` also passes at that revision. Later evidence/documentation commits
+are identified separately; they do not silently become the tested source.
+
+| Selected package | Executed evidence |
+| --- | --- |
+| Neutral semantics and finite execution | [315-case independent oracle, captured jobs and recovery](#captured-relational-owner-and-results), [resident spill growth](#relational-resident-growth) |
+| SQL and public callers | [Neutral ABI/port](#neutral-relational-caller-pages), [installed TypeScript/Python](#installed-interactive-relational-sdks), [explicit Board sessions](#explicit-relational-board-sessions), console and grammar checks |
+| Complete changes and maintenance | [Snapshot/tail](#complete-table-history-and-snapshot-tail), [ongoing input and failed successors](#ongoing-maintenance-and-failed-successors), [mutation costs](#complete-history-mutation-cost) |
+| Bounded exchanges | [Native fault schedules](#relational-exchange-faults-and-checkpoint-growth), [real disk exhaustion](#relational-physical-capacity), independent routing and rebatching fixtures |
+| Worker reassignment | [Recorded single-authority handoff](#recorded-manual-worker-handoff), paged checkpoints, stale credentials, source expiry and fenced restore refusal |
+| Named activation | [Immutable definitions, authorization and explicit activation](#named-relational-definitions), complete revisions/deltas and native overflow recovery |
+
+The record retains both earlier clean attempts. One fails on the legacy growing
+Table test's assumption that every non-point read is the creation-prefix page;
+the corrected assertion validates the exact bounded Table-history head prefix,
+returned head key, revision and STH1 value. Board's 41-row provisioning reaches
+its original 60-second deadline during three concurrent attempts, including two
+with four physical cores and disjoint CPU sets. The focused rerun with eight
+physical cores passes without changing that deadline;
+the final clean experience lane is recorded separately. Interrupted lanes are
+not passed checks. No timeout, snapshot lease, resident-page or native mutation
+bound increases substitute for qualification.
+
+These are local functional checks on a shared host with ext4-backed runtime
+scratch. They do not establish a latency SLO, sustainable input rate, global
+snapshot, automatic placement or distributed write authority. Physical capacity
+and the focused relational browser proof are separate from the 79 ordinary
+checks. GitHub-hosted execution and any external billing failure are reported
+separately from these executed results.
+
+## Ongoing maintenance and failed successors
+
+The [expanded native cold-store schedule](verification/results/relational-maintenance-faults-2026-10-12.json) passes **26 complete
+revisions**: the initial result, 8 changing successors
+and 17 no-op successors. Every published basis agrees
+with the independent finite interpreter; applying each complete predecessor delta
+reconstructs the same relation, and exact retries preserve identities and bytes.
+It takes **1188.854 seconds** and **1739 turn responses**;
+the last complete query state retains **183,707 logical
+bytes**. The enclosing Table/captured/logical-type regression also passes in
+**1536.136 seconds**. These measurements retain native four-write and
+256-byte-value limits.
+
+Three updates arrive while maintenance advances in ten-turn quanta. They leave
+at most **9 source-head revisions** pending;
+all are consumed, including no-op progress, with **zero final backlog**. Observed
+publication lags are **124.517, 242.755, 414.773
+seconds**. Catch-up after the final accepted update takes
+**415.235 seconds**. Retained logical state
+grows from **104,216** to
+**169,451 bytes**. Input mutation timings, revision
+identities and turn counts are in the integrated record. The run overlaps other
+qualification; it is a bounded arrival/drain experiment, not steady-state capacity
+or an isolated mutation benchmark. Full recomputation per basis explains the
+work model; these timings do not isolate every source of elapsed cost.
+
+ALTER publishes 2 valid no-op heads, then
+`TableSchemaChanged` closes the successor while retaining the immediately prior
+complete result. Explicit retirement and readmission against the new schema
+succeed. DROP closes the new query with `TableRetired`; recreating the same SQL
+name under a new object cannot resume or rebind the failed query. Native overflow
+and fresh-owner/lost-receipt recovery are covered separately by the named-query
+schedule. The reference-store history-gap test restores missing bytes and proves
+that the failed identity still cannot silently resume; explicit new admission is
+required. That corruption test is not presented as a native storage experiment.
+
+Earlier attempts remain in the record: an obsolete assertion ignored DDL's
+no-op predecessors; a redundant attempt was interrupted; a corrected maintained
+schedule passed its new assertions but the enclosing older snapshot test then
+refused with `DeadlineUncertain` after history growth. The final fixture executes
+the original leased-snapshot checks before growing maintenance history, preserving
+their existing deadline and assertions. No failed enclosing run counts as passed.
+
+## Complete-history mutation cost
+
+The [complete-history campaign](mutation_latency/results/2026-10-12/README.md)
+completes 140 ordinary console mutations and seven instrumented cases with no
+errors or unknown outcomes. It retains comparisons with both the earlier
+fixed-profile and accepted general Table baselines. One-row INSERT and changing
+UPDATE now use two native turns instead of one; the extra history write respects
+the existing four-write bound. Three-row INSERT remains four turns. The record
+reports the increased provider work and elapsed times explicitly. Runtime
+measurements overlap maintained-query qualification, so the timing difference
+does not isolate history overhead or establish a latency SLO.
+
+## Relational physical capacity
+
+`just test::relational-capacity` passes on a newly allocated **2 GiB ext4 image**
+with native disk Ursula and owned MinIO. Real 32 MiB allocations fail with
+`ENOSPC` after leaving 4 MiB available. Both an active captured checkpoint and
+accepted exchange work refuse advancement without changing their recorded heads.
+Releasing only a **512 MiB preallocated reserve**, retaining the filler, and
+restarting the same node/store permits exact recovery and bounded advancement.
+Both complete results agree with the independent oracle afterward.
+
+The full schedule takes **487.562 seconds**, including both partition layouts,
+handoff faults and source lifetime expiry. Captured/exchange refusal takes
+24/49 ms; health reads take 14/8 ms; reserve-release/restart/first-advance takes
+0.634/1.175 seconds. Those are finite shared-host observations during other
+qualification, not latency or sustained-throughput claims. The [record and
+retained failed fixture attempt](verification/results/relational-capacity-2026-10-12.json)
+include binary and raw-log hashes. The physical task remains an explicit Linux/
+Docker reference task, separate from the 79 ordinary clean tasks. It tests
+process replacement, not power-loss durability.
+
+## Relational exchange faults and checkpoint growth
+
+The expanded `just test::relational-exchanges` schedule passes in **305.707
+seconds** on one native authority, disk Ursula and owned cold storage. One- and
+seven-partition layouts retain exact oracle results through the recorded worker
+handoff and accepted-command receipt losses. Both checkpoints contain **270
+entries**, including 257 explicit application records scanned through bounded
+pages. The schedule observes **669 turn responses**, at most four mutations and
+256-byte values.
+
+A persistent authority outage, missing/corrupt checkpoint and denied source keep
+restoration fenced. Truncated reads and corrupted published exchange segments do
+not acknowledge corrupted data; receiver source denial preserves its head.
+Terminating the foreign source owner expires its native resource and blocks a
+separate fenced restoration; own-resource query retirement still succeeds. This
+is lifetime expiry, not a TTL or physical deletion claim. The [exact record,
+logs and failed attempts](verification/results/relational-exchange-faults-2026-10-12.json)
+retain the narrower earlier schedules separately. Physical ENOSPC, provider-bound
+workers and distributed write authority are separate qualifications.
+
+## Relational resident growth
+
+The query package's generated-source/disk-spill component test completes **14,060
+input rows**, **7,030 groups** and **7,030 output rows** with an explicit combined
+operator/spill resident bound of **94,905 bytes**. Its **759,240-byte** private
+spill and **182,829 charged result bytes** both exceed that bound; even the
+input's int64 value bytes exceed it. All canonical group keys and counts agree
+with an independent arithmetic expectation without collecting input or output
+rows in memory. Execution uses **21,092 logical steps**.
+
+The complete query package unit task passes, including this case. Exact source,
+raw log hashes and the initial wrong measurement-field compile attempt are in
+the [growth record](verification/results/relational-resident-growth-2026-10-12.json).
+This proves component resident accounting and disk-spill growth. Generated input
+is not native Table ingestion; the bound excludes transport/process runtime, so
+it is not a measured RSS or provider-amplification claim.
+
+## Named relational definitions
+
+[Exact implementation revision, binary/log hashes and retained attempts](verification/results/named-relational-2026-10-12.json)
+record the naming slice separately from broader query qualification.
+
+`just test::named-relational` runs the application-owned naming layer above the
+real captured/maintained owners on a native node and disk Ursula. The independent
+`tests/named_relational_records.py` fixture pins every control/record layout,
+full-width object/revision/namespace, exact name keys and definition digest. It
+also runs in the ordinary unit task. The native task belongs to the growth lane;
+the ordinary suite now has **79 tasks**.
+
+The application package units pass missing/truncated/foreign record rejection,
+canonical identifier bounds, administrator denial, allocation/quota rollback,
+explicit policy admission and both activation lifetimes. A 67-revision history
+retains exact earlier definitions and original query attribution using three
+mutations per publication, with no total-history resident list. Retrying an
+earlier revision or permission after later publication recovers its original
+record without changing the current name or reinstalling an older grant.
+
+The completed native schedule passes in **146.815 seconds**, observing **408
+turn responses**, at most four mutations and 256-byte values. It checks
+publication without activation, lost definition/authorization/admission receipts,
+node/disk-store restart and fresh workers, captured output, current source denial,
+immutable attribution after a name replacement, same-resource maintained history
+and exact complete delta retries. Three initial revisions reach the changed
+right-join result. After deletion and explicit no-op successors, inserting
+`[MAX_I64, 1, -1]` fails revision **9**, preserving complete revision **8** and its
+manifest. The retained witness identifies output 2, right operation 7, ordinal 1.
+A lost failure receipt also recovers exactly after worker/node/store replacement.
+
+Application units, independent fixtures, verification ownership and diagnostic
+mappings pass. Full `just check` passes the source, contracts, frontends and
+documentation build; the additional old-policy retry assertion passes its focused
+unit rerun afterward. The first native compile used an enum tag instead of the
+control union value; the second run's assertion expected plain integers instead
+of the actual typed envelopes. Both failures and successful reruns remain in
+`.cache/relational-intake/named-*`. SQL declaration and foreign naming transports
+remain outside this typed/Station message profile. No external effect is
+dispatched by the definition, result or delta operations.
+
+## Explicit relational Board sessions
+
+[Implementation revision, logs, outcomes and limits](verification/results/relational-board-2026-10-12.json)
+record the real Board service and browser against one native node and disk Ursula.
+`just test::relational-callers` now includes the optional Board route schedule in
+the ordinary growth lane. `just transit-board::relational-browser` adds the actual
+browser; the regular Board browser task includes it as well.
+
+The native schedule passes in **15.742 seconds**, including the neutral caller
+baseline. Both one-resource aliases and two-resource joins agree with the typed
+Zig plan and three-row oracle. It checks explicit configuration, origin rejection,
+current metadata/source rights, repeatable pages, authorized active-query
+inspection, close under source denial and rejection after Board replacement.
+The generated validator accepts those real responses and rejects numeric JSON
+substitution for a full-width integer string.
+
+The browser schedule passes in **28.540 seconds** overall; its one Playwright
+case takes **10.9 seconds**. Editing and Explain submit no query. A deliberately
+lost accepted-open response and a browser reload recover the same active query
+and ordinal without another Run. Exact page reads reach terminal coverage.
+Current right-source denial clears the visible prefix and SQL draft; closing
+still releases the query. The case reports no page errors or Axe violations.
+
+Three browser-boundary units pass exact signed/unsigned values, reference/coverage
+rejection and owned requests across pre-dispatch rate refusals. Strict TypeScript,
+formatting/lint, focused query/Station ABI suites and diagnostic mappings pass.
+The full `just check` also passes the repository units, contracts, projections,
+CLI, frontends and production documentation build. The record preserves the first
+UI check's wrong diagnostic prop and misplaced standalone type-check invocation.
+The final package README navigation sentence follows that full check; committed
+HEAD clean lanes still remain a separate final gate.
+
+The fixture holds one output row and uses the existing 16 MiB executor/spill,
+8 MiB result, 1,000-row and 100,000-work/request budgets. It makes no large-output
+RSS, sustained-input or durable foreign-lifetime claim.
+
+## Installed interactive relational SDKs
+
+[Exact implementation revision, artifact hashes, logs and retained attempts](verification/results/relational-sdks-2026-10-12.json)
+record TypeScript and Python sync/async consumers installed outside the checkout.
+`just bindings::relational-node` and `just bindings::relational-python` build
+their matching native artifacts and run the signed disk-backed caller fixture.
+The ordinary Node and Python SDK tasks also run these schedules.
+
+Both one-resource aliases and two-resource joins agree with the typed Zig
+executor's prepared plan hash and the independent three-row fixture. Exact open,
+current-page and close retries preserve identity. Current catalog denial blocks
+an already returned prefix, fresh hosts reject the old reference, and ordered
+overflow preserves its original output/contributor witness and incomplete status.
+The reviewed Node schedule passes in **19.058 seconds** and the Python sync/async
+schedule in **18.122 seconds**, including their neutral caller baseline. Each
+baseline uses 72 port calls with a maximum 1,603-byte response. These small
+fixtures do not measure sustained input, large-output memory or throughput.
+
+Node checks pass **60** tests, including three relational boundary cases.
+Python passes five relational boundary/ownership tests and strict typing across
+22 source files. Full signed/unsigned integer bounds, nulls, owned row identities,
+missing/foreign definitions, altered page identities and invalid coverage are
+checked. Python cancellation leaves the native operation owned; overlapping work
+is rejected, and close joins before releasing its handle.
+
+The record preserves the initial missing build-task recipe, four Python typing
+findings and a guide formatting failure, along with the successful reruns.
+Board, foreign durable lifetimes and final committed-HEAD clean lanes remain
+separate gates; this SDK evidence does not imply they have passed.
+
+## Neutral relational caller pages
+
+[Exact revision, budgets, logs and retained attempts](verification/results/relational-callers-2026-10-12.json)
+record the caller boundary separately from durable owners and SDK consumers.
+
+`just test::relational-callers` runs the real Station query port and C ABI over
+signed catalog routes, a native node with eight resident pages and disk-backed
+Ursula. One-resource aliases and two-resource joins produce three exact grouped
+rows each. The neutral EXPLAIN/open and typed executor agree on their prepared
+plan hashes. Active open, current-page and last-close retries preserve identities;
+changed references, skipped/old ordinals and references from a replaced host
+reject. Current right-source denial blocks re-reading a cached left-join prefix.
+Output quota failure preserves the original cause and incomplete status. Ordered
+`[MAX_I64, 1, -1]` SUM fails with the second contributor's identity and original
+output expression, under current source disclosure checks.
+
+The initial completed schedule passes in **7.432 seconds**, 63 port calls and a
+maximum 1,603-byte response (`neutral-native-cut-fixed.log`). The expanded
+plan-agreement and ordered-overflow schedule passes in **10.258 seconds**, 68
+calls and the same maximum response (`neutral-native-final.log`). These are
+small local fixtures, not throughput or large-output/RSS qualification. Both
+use 16 MiB executor-resident and spill budgets, an 8 MiB result budget, 1,000 rows,
+100,000 operator/request/spill-work limits and two source pins. The ordinary task
+inventory now includes this focused caller proof.
+
+The focused query package and Station ABI suites pass; the TypeScript binding
+check passes 57 tests. `just test::query` also passes the existing disk query
+staging/sealing/recovery/publication/delivery schedule with 41 rows and 22,880
+bytes. Full-width neutral codec tests preserve signed minimum, unsigned maximum,
+20-byte stable row identity and null. Generated schemas and resources for all
+binding languages agree with the same Zig types; this is not installed idiomatic
+SDK relational qualification.
+
+Failed attempts remain in `.cache/relational-intake/`. The first native fixture
+incorrectly compares complete alias cuts, including their intentionally distinct
+Table schemas; it is corrected to compare resource/revision/commitment. A later
+fixture expects the generic ambiguity name instead of the owner's specific
+`AmbiguousRelationalColumn`; the actual located diagnostic is preserved. Earlier
+compile logs retain a shadowed name, nullable location-pointer mismatch and two
+Zig error/statement corrections. Initial full checks stop at the new unconfigured
+interface's missing semantic mapping and then its missing independently reviewed
+outcome cases. The mappings and all **3,239** executed outcome projections now
+pass. Installed SDK wrappers, Board, foreign durable lifetimes and committed-HEAD
+clean qualification remain separate gates.
+
+`check-neutral-callers-outcomes.log` passes the full repository check, including
+root units/examples, contracts, diagnostic projections, CLI, frontends and the
+production documentation build. Final review then tightens malformed cursor
+classification, validates the typed session's configured route count and preserves
+the original protocol rejection when a diagnostic performs a current-rights
+check. The focused Station ABI suite passes those changes
+(`neutral-abi-reviewed.log`); the final native schedule passes in **10.573 seconds**,
+**72** port calls and a 1,603-byte maximum response
+(`neutral-native-reviewed.log`). It also asserts the overflow contributor's exact
+ordinal. These are working-tree executions; final committed-HEAD clean validation
+remains required before pushing.
+
+## Complete Table history and snapshot tail
+
+The Table history slice replaces the shared definition with
+`e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024`
+(SHA-256 of `transit.native.v1.complete-table-history.2026-10-12`). Stored Table
+semantics now require an immutable predecessor for each head replacement.
+Independent Python record fixtures and OpenSSL native signing vectors are
+regenerated with contracts and enabled binding resources.
+
+The first native `just test::typed-tables` run passes in 235.349 seconds, with
+720 turns, 225 sends, maximum four mutations and 256-byte native values. It
+freezes a snapshot while later insert/update/no-op/delete work commits, then
+replays every consecutive transaction with paired values and stable identities.
+Repeated complete cursors return the same transactions. Current catalog denial
+rejects a held tail; DROP and name reuse preserve the original object's tail;
+node and disk-store restart recover that same retired history. Existing captured
+relational recovery, console/bridge/CLI and the 28-descriptor Table matrix pass.
+No SDK language or growth option was selected. This aggregate runtime includes
+more work than the earlier 631-turn schedule and is not a mutation latency
+comparison or a maintained catch-up benchmark.
+
+Station and catalog focused suites pass after fixing fixture entry timestamps
+and explicit staging expectations. The broader root suite initially reports
+1035/1041 passing: one stale native digest, four work-item fixtures using current
+resource revisions for old entries, and a real no-page mutation failure when an
+application reserves two terminal writes. The latter now reserves a durable
+nonempty ID interval and stages completion without consuming the original
+operation. Initial `just check` attempts stop at a stale SDK signing digest and
+then the reviewed diagnostic inventory; neither is a complete passing check.
+The final native rerun also passes in 234.919 seconds with the same 720 turns and
+225 sends, including rejection of missing/foreign saved-position definitions.
+The final `just check` passes after moving repository-tool reproduction commands
+to this proof ledger: root unit and example tests, diagnostic contracts, binding
+resources, real CLI checks, TypeScript/frontend suites and documentation build.
+The schema-pair allocation-failure and every-history-coordinate checks are part
+of that passing run. Local raw logs are
+`.cache/relational-intake/native-table-history-final.log` and
+`.cache/relational-intake/check-table-history-final.log`.
+
+The measured native rerun passes in 229.817 seconds. Its four Table mutations
+(insert, changed update, unchanged update, delete) take 16 native turns and add
+10 predecessor records in 2.987 seconds. The delayed tail covers all 10 head
+transactions and three paired changes in 0.230 seconds. Across the entire
+schedule, 123 distinct accepted predecessor values total 26,455 bytes, with a
+241-byte maximum; exact accepted retries are deduplicated in these measurements.
+These are one local run's logical value bytes and elapsed observations, excluding
+keys, indexes, storage amplification and physical disk usage. The raw result is
+`.cache/relational-intake/native-table-history-measured.log`. Sustained-input
+maintenance and committed-HEAD clean qualification remain separate gates.
+
+## Maintained relational revisions
+
+The typed owner records complete Table-history bases, recomputes each through the
+finite executor, merges complete results into paired deltas, and publishes one
+manifest/root atomically. Idle work requires an explicit host wake. This is not
+a throughput claim or automatic SQL activation. The source/resource, operator,
+workspace and cumulative-state limits are in the
+[relational contract](../contracts/RELATIONAL_V1.md#maintained-table-owner-operations).
+
+Executed local checks use the pinned development environment. The Fuze package's
+`zig build test` passes delta identity/basis checks, duplicate projected values,
+first/last outer-match identity ordering, null-first group order, paired updates,
+truncated/foreign encodings and shifted output ordinals. The query package's
+`zig build test` passes history-vector capture/roundtrip, consecutive transaction
+selection, same-resource two-Table atomicity, frozen backfill, gaps and current
+denial. Independent `python3 tests/relational_records.py` checks exact control,
+work, continuation, delta-descriptor and key bytes rather than deriving them from
+the Zig codecs.
+
+The reference-store maintained-owner test rebuilds its workspace every turn and
+repeats uncommitted proposals to compare complete decisions. It preserves the old
+visible manifest through private staging, includes each no-op source transaction,
+checks paired aggregate deltas, rejects stale continuations, and stops at ordered
+SUM overflow while preserving the last complete result. This fixture is an
+in-memory transition check, not a native authority or durability proof. Initial
+attempts fail on a shadowed Zig name and an explicitly undersized fixture resident
+budget; the fixture now budgets the exported owner base plus its workspace.
+Passing logs are `.cache/relational-intake/fuze-maintained-delta.log` and
+`.cache/relational-intake/query-maintained-owner-budget.log`. The full enclosing
+native Table/captured regression also passes in 229.689 seconds, 720 turns and
+225 sends; that earlier invocation does not execute the new maintenance schedule.
+
+The real maintained schedule is `just test::relational-maintenance` through
+`tests/relational_maintenance_native.py`. It checks every recorded basis against
+the independent finite Python interpreter and applies each complete delta to a
+separate consumer relation. Its delayed-backfill, lost-receipt, disk-restart,
+both-side-change, outer-match, cursor and current-denial gates pass in the
+disk-backed run below. Raw native attempts are retained under
+`.cache/relational-intake/native-maintained-*.log`.
+The first native attempt fails during fixture provisioning because it tries to
+recreate the captured proof's existing source association (`StaleAssociation`).
+The fixture now reads and reuses that exact association, rejecting a different
+resource/required flag. Initial full-check attempts stop at the newly added
+caller-outcome projections and then the reviewed delta-validation inventory;
+neither is counted as a complete passing check. The reviewed outcome task passes
+3203 projections across 29 declared surfaces. The hot-only native rerun reaches revision 5, then fails when Ursula's
+64 MiB total hot-storage limit returns `ColdBackpressure`, surfaced as
+`AuthorityUnavailable`. This is retained as a failed run, not recovered completion.
+The dedicated ordinary growth-lane task now selects the existing disk-backed
+cold-store fixture (`--maintained --cold`), retaining its 8 MiB hot/cache limits;
+it does not raise the hot-only bound or expire history. The general Table and SDK
+schedules remain separate from this longer growing-history proof.
+
+The [cold-store record](verification/results/relational-maintained-2026-10-12.json)
+passes with the implementation committed as `79a8246d`:
+15 complete revisions (five changing successors, nine no-op successors and the
+initial result), 929 maintenance turns, 524.093 seconds and 104,216 retained
+logical query-state bytes. Every basis agrees with the independent interpreter;
+retrying each delta produces identical identities, pairs and manifest evidence.
+Delayed backfill, a lost accepted receipt, node/disk-store restart, fresh owner,
+current denial after a visible prefix, exact old-position resume and own-resource
+retirement all pass. The enclosing Table/captured/logical-type fixture takes
+776.149 seconds and 1,649 turns, retaining the four-mutation/256-byte limits.
+
+At fixture completion the cold store contains 531 objects and 139,446,494 bytes.
+This includes the entire Table/captured/maintenance fixture and native storage
+history; it is not solely query-state amplification. These are observed costs,
+not sustainable throughput, latency guarantees or an ongoing-input catch-up
+measurement. At that earlier slice, clean integration and the additional failure/
+ongoing-input schedules were still open. The [integrated qualification](#integrated-relational-qualification)
+and [expanded maintenance schedule](#ongoing-maintenance-and-failed-successors)
+record their subsequent results without broadening this earlier experiment.
+Reference-store failure checks above are not native failure qualification.
+
+## Relational exchange transitions
+
+The typed exchange records explicit logical partitions and immutable source
+segments, distinguishes acceptance from consumption, enforces credits and
+cumulative retention, and requires empty-partition terminal coverage. The
+[contract](../contracts/RELATIONAL_EXCHANGE_V1.md) names the one-authority/manual
+placement profile and excludes automatic placement or distributed write authority.
+
+Pinned Fuze `zig build test` passes all 315 independent finite cases after
+repartitioning/rebatching through `FXS1`, for one partition/one-row batches and
+seven partitions/four-row batches. Partition arrivals are reversed and every
+operator step is checkpointed/restarted. Original bag identities, NULL behavior,
+group order and first checked-overflow witness agree with the independent Python
+interpreter. Thirty routing cases and exact wire/control bytes come from
+`python3 -B tests/relational_exchange.py`; no production codec generates expected
+bytes. The earlier memory and immutable-index runs remain enabled.
+
+Pinned query `zig build test` passes the reference-store exchange schedule at
+1/7/31 partitions and 1/2/4 rows per segment. It restarts private staging,
+repeats uncommitted decisions, retries accepted notices before/after consumption,
+retires producer bytes after acceptance, denies producer rereads and still reads
+the receiver copy. Every required empty partition completes explicitly; the
+native paged index restores source order and the actual finite executor agrees
+with separately enumerated join pairs. Reordered notices and credit pressure
+remain unaccepted; cumulative quota failure preserves accepted records and
+own-resource closure. Producer quota is reserved before staging, conflicting
+pending bytes reject, and exhaustion retains every offered segment. Receiver
+reservations cannot be spent by later channel registration. Current source denial
+prevents disclosure after a prefix.
+These use a reference KV store and synthetic authority, not a native durability
+or fencing proof.
+
+The producer-cursor continuation passes reference-store schedules with one or
+three logical workers, seven partitions and one- or four-row batches. Each
+attempt reads at most eight source rows; interrupted proposals reconstruct the
+same pending segment, and every row/empty partition appears exactly once across
+the assigned workers. Eligible notices retry after publisher retirement without
+redirecting their destination. Source denial blocks retry while own-resource
+acknowledgement remains possible. These are worker-layout transition tests,
+not native physical movement proofs. Frozen Table-history vectors admit captured
+inputs separately from maintained successors; a captured vector cannot be
+reinterpreted or advanced as maintained work. Native retained pins still require
+the capturing PID. Passing logs are `query-exchange-producer-fixed.log` and
+`query-exchange-history-basis.log` under the same intake directory. The final
+`query-exchange-producer-final.log` also passes the independent 162-byte cursor
+fixture and the combined producer/history continuation. An initial producer
+fixture used the wrong output-field name and failed compilation; it is not
+counted as an executed pass.
+
+Maintained attachment passes the pinned query suite at one and seven partitions
+(`query-exchange-maintained-attachment.log`, then the complete
+`query-exchange-maintained-wire.log`). It selects exchange execution before
+activation, waits without operator mutations for complete coverage, computes the
+original frozen result after a live Table update, and waits for a new attachment
+at the next successor. Reusing the previous exchange for that successor rejects.
+Every operator checkpoint still reconstructs on each turn and repeated proposals
+produce identical decisions. `tests/relational_records.py` independently supplies
+the exact `RMX1`/`RMI1` bytes, including truncated/foreign-definition rejection.
+This reference-store result does not establish the native exchange host gates.
+
+Initial attempts expose fixture name/API errors, a row key exceeding the native
+32-byte limit, and a quota fixture that had not actually filled its admitted
+capacity. The implementation uses 32-byte row keys; the quota schedule now fills
+the remaining space before requiring rejection. Passing logs include
+`.cache/relational-intake/fuze-exchange-oracle.log`,
+`query-exchange-execution.log` and `query-exchange-wire-fixed.log` in that same
+directory. The full `just check` run in `check-exchange.log` passes before the
+final producer/reservation quota additions; the later query package run in
+`query-exchange-quota.log` passes those additions. Diagnostic outcomes pass
+3,233 projections across 29 surfaces. An earlier new exchange-conflict fixture
+incorrectly inherited native rejection evidence; the reviewed projection
+preserves uncertain-send semantics.
+
+`just test::relational-exchanges` passes the native disk/cold-store host schedule
+in `exchange-native-view-lifecycle.log`.
+[Exact source, binaries, measurements and failed attempts](verification/results/relational-exchanges-2026-10-12.json)
+are retained separately. One partition/one producer/one-row
+batches completes in **71.453 s / 192 turn responses**, retaining **11,436**
+logical receiver bytes. Seven partitions/three producers/four-row batches
+completes in **111.750 s / 242 turn responses**, retaining **17,252** bytes. Both
+publish the independent grouped left-join answer through the actual maintained
+owner, with **10,422** logical operator/result bytes each. Four rows per source
+include duplicate hot keys, NULL and unmatched keys. All 2/14 channels consume
+explicit terminal coverage; receiver credit is one segment and selected producer
+read fan-in is one resource. Every host invocation reconstructs its state.
+
+Both layouts lose a receipt after producer staging and at receiver acceptance
+before consumption. They restart the node and disk Ursula, replay the exact
+saved proposal, replace producer/receiver native generations and reject stale
+sessions. Reversed worker scheduling retries outstanding notices until accepted;
+acknowledgements clear only their matching pending notice. This exercises crash
+replacement with existing credentials, not the recorded credential-changing
+handoff protocol. The enclosing fixture takes **188.327 s**, observes at most
+four mutations/256-byte values, and retains **198 cold objects / 52,007,898
+bytes** across setup and both layouts. Logical charges do not measure physical
+provider amplification. Turn-response counts include accepted exact retries.
+
+The first native attempt fails `PendingOperation`: the fixture tried to change
+resource selection during a prepared delivery. The corrected host changes views
+only between turns. A preceding compile command used a nonexistent task name;
+the actual native probe compilation and run are separate passing evidence.
+The recorded handoff schedule below extends this evidence. Native exchange
+payload corruption/ENOSPC/current-denial schedules, ongoing-input measurements
+and committed-HEAD clean verification remain open.
+
+### Recorded manual worker handoff
+
+Pinned client `zig build test` passes phase recovery, stale execution progress,
+changed credentials, malformed/truncated records, missing checkpoints and
+complete ordered state scans. `python3 -B tests/worker_handoff.py` independently
+encodes the canonical manager record and SHA-256 digest of **10,003 entries**;
+the client scans them in **1,251 eight-entry pages** with constant resident
+buffers. `worker-handoff-independent.log` records that passing package run.
+The native record is a trusted manager's private fsynced file; native history
+remains execution authority. No distributed manager or provider binding is used.
+
+`just test::relational-exchanges` passes the extended schedule in
+`exchange-native-handoff-final.log`.
+[Source, binaries, raw measurements and earlier runs](verification/results/worker-handoff-2026-10-12.json)
+record **197.044 s** overall, **74.608 s / 195 turn
+responses** for one producer and **117.366 s / 250 turn responses** for three.
+Each layout transfers one producer after an acknowledged segment and an eligible
+unacknowledged segment. Its **12-entry** checkpoint includes publication bytes,
+scan progress, eligibility, acknowledgement and original pending notice. The
+replacement keeps the old segment's physical epoch and both maintained results
+still agree with the independent oracle.
+
+The manager process is reconstructed at each phase; the node and disk store are
+restarted at every recorded boundary. Lost receipts after native suspension,
+conditional resume and key rotation retain and replay the original root-signed
+request before recording the successor phase. Missing/corrupt checkpoints and a
+revoked source grant block restoration without activation. A known pending
+worker request blocks handoff admission until reconciled. After activation the
+old key fails authenticated identity reads, and the new key resumes the original
+cursor with existing resource grants. Physical test workers are finite process
+invocations whose exits are observed by the fixture.
+
+The run retains **204 cold objects / 53,583,110 bytes** across setup and both
+layouts; logical receiver/operator charges match the earlier exchange run.
+It observes at most four mutations and 256-byte values. Earlier passing handoff
+runs (`exchange-native-handoff-first.log` and
+`exchange-native-handoff-receipts.log`) cover narrower checkpoint/receipt gates
+and are not substituted for the final schedule. Source-expiry injection,
+unavailable revocation authority, physical checkpoint cardinality growth and
+power-loss behavior remain separate gates. The full clean suite still needs a
+committed source revision.
+
+`just check` passes in `check-worker-handoff-docs-fixed.log`, including generated
+contracts, the independent fixtures, Zig units, CLI/semantic diagnostics,
+frontend checks and documentation build. Its predecessor
+`check-worker-handoff.log` fails the documentation ownership rule because an
+Internals explanation embedded a repository task command. Reproduction commands
+now live in this proof ledger; the public explanation links here. The failure is
+retained and is not counted as a passed full check.
+
+## Relational contract and oracle intake
+
+The finite continuation implements `RelationalExecution` and `RelationalSql`.
+The executor agrees with the 15 independent named cases, including first failing
+contributor/output across groups. It rejects source/store failures and exhausted
+resident/work/result budgets without completion. The focused task passes 54 Zig
+tests including dependencies; the standalone Fuze and query Debug suites pass.
+The query suite includes 901 disk groups inserted in ascending, descending and
+interleaved order, replacement and ordered enumeration, plus quota, cancellation,
+short-record and digest failures. A 600-row/300-group execution uses that actual
+disk map. These storage tests use temporary OS files, not durable job recovery.
+
+The first native attempt fails because its fixture declared SQL INTEGER (int32)
+for an int64-only operator. Correcting the fixture to BIGINT preserves the
+operator restriction. The subsequent `just test::typed-tables` passes in 129.492 s,
+including six duplicate inner-join pairs, three grouped left-join rows, empty
+grouped/ungrouped results, same-resource cut equality, self-join multiplicity,
+frozen results across UPDATE and current policy denial. Existing exact caller and
+owner lost-receipt recovery and the 28-descriptor Table matrix also pass. No SDK
+language was selected in this run.
+
+The subsequent cross-resource attempt exposes a proof setup error: granting the
+same caller again advances its incarnation and invalidates the first resource's
+grant. The fixture now reuses the established caller when provisioning the second
+resource. The retry passes in 146.271 s: independently frozen resource cuts,
+reused numeric catalog/object IDs without aliasing, retained rows across UPDATE,
+and denial when only the second catalog revokes reads. It also executes opt-in
+console JSON results, complete coverage, EXPLAIN and precise ambiguous-column
+diagnostics. Immediate private spill unlinking is included. The full native run
+records 481 turns, 201 sends, at most four mutations and 256-byte values per turn.
+The reported representative relational query uses 50 source requests, 474 spill
+bytes and 3153 bytes of accounted heap; these are observations, not latency or
+memory-wide guarantees. An earlier console run was interrupted after fixture
+edits during its build and supplies no passing evidence. Committed-head clean
+qualification remains pending.
+
+The complete `just check` for finite implementation `bc68b688` passes: root
+unit tests, reviewed diagnostic mappings/outcomes, real CLI diagnostic cases,
+console history, Board checks and the documentation build. Earlier attempts
+failed on missing new diagnostic expectations and missing relational SQL
+presentation routes; the mappings and executable projections now agree.
+This check precedes the additional Station view work and does not qualify it.
+
+### Captured resource vectors and publication guards
+
+The native definition is replaced by
+`e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5` for explicit
+`current_views` publication conditions. Public schemas, bindings, current
+fixtures and independent signing hashes/signatures are regenerated together.
+Historical records retain their original identifiers. Missing/foreign definition
+rejection is preserved; this does not migrate or reset accepted histories.
+
+Station's unit proof checks registered views, exact shared retention slots,
+bounded caches, one writable resource, invalid/duplicate selections, sticky read
+failure and frozen pending work. The core proof distinguishes ordinary frozen
+observations from guarded revisions: missing/duplicate guards reject; an advanced
+guarded resource leaves input progress and view closure unchanged; native current
+rights still gate publication. Unguarded snapshot behavior is preserved.
+
+`just test::growing-station` passes the additional two-resource schedule, lost
+additional-view and retention replies, exact receipt recovery, foreign revision
+guard rejection, native revocation, two retained roots and release after a new
+activation and disk node/store restart. The existing 40/41-row Table schedule,
+poisoned read, lost turn reply and six retained-page continuations also pass.
+The run records 143.894 s for the existing write segment and 50.02 s for its
+recovery segment, with 64 write-cache pages, one recovery-cache page and 94 cold
+objects. These timings are observations of this proof, not service objectives.
+
+An initial test incorrectly expected an ordinary read-only view to conflict when
+its resource advanced. The state contract intentionally preserves that snapshot;
+explicit guards now provide the required separate condition. The next attempt
+reaches revocation but expects generic `Rejected` instead of the client's
+specific `AccessDenied`; the corrected retry above passes. Earlier root checks
+also identify stale signing expectations during cutover; independently recomputed
+Python/OpenSSL fixtures correct those expectations. None of these failed runs is
+counted as passing evidence. The subsequent complete `just check` passes,
+including root units, diagnostic projections, generated contract drift, CLI,
+Board and the documentation build. Committed-head clean qualification is pending.
+
+`RelationalCodec` owns complete immutable schemas and the prepared identity in
+its definition-bound artifact. Root tests cover independent identity agreement,
+input-buffer ownership, allocation failures, every truncated prefix, foreign
+definitions, schema substitutions and trailing bytes. Resource vectors, guards
+and plan artifacts alone do not qualify durable relational result execution,
+maintained revisions, exchanges or reassignment.
+
+### Immutable group checkpoints and bounded publication staging
+
+The standalone Fuze Debug suite and `just test::relational` pass after adding
+immutable group roots and operator checkpoints. The focused executor now runs
+59 tests including dependencies. All 15 named independent semantic fixtures run
+both with the original small reference map and with immutable group records,
+encoding/decoding/restoring the executor after every step, including complete
+and failed states. Results, row identities and canonical overflow witnesses agree.
+The Python oracle still independently checks its 300 generated cases; those
+additional generated cases are not yet production-executor comparisons.
+
+The index proof inserts 901 groups in ascending, descending and interleaved
+order, enumerates canonical null-first keys, replaces values and reads retained
+old roots. Every candidate-write failure in the selected insertion leaves its
+accepted root readable. Missing/corrupt records, changed bindings, invalid root
+counts/lengths and malformed aggregate state reject. Checkpoint tests reject
+every truncated prefix, foreign definitions, changed cuts, invalid counters and
+current denial before restoration.
+
+The query Debug and ReleaseSafe suites pass the new Station Publication staging schedule.
+Twenty updates repeatedly discard their candidate/operator memory between
+bounded turns, reconstruct exact reserved records, reopen the accepted root and
+publish the checkpoint reference last. Staging never advances that root. A
+five-group old root remains readable after all twenty updates. Separate tests
+exercise retained-byte/work limits, conflicting reuse of an allocated record and
+current read denial. These tests use the explicit in-memory reference turn store;
+they do not establish native durable query admission, source-pin/result cleanup,
+worker/node loss or distributed reassignment. Earlier compile attempts caught a
+changed Zig reflection API and a shadowing parameter; corrected runs pass.
+The full `just check` also passes, including generated contracts, diagnostic
+routes, CLI, Board and the documentation build. Committed-head clean qualification
+remains pending.
+
+### Captured relational owner and results
+
+The exported semantic fixture now includes all 300 seed-70 generated cases as
+well as the 15 named cases. `just test::relational` passes all 315 through the
+production executor with both reference groups and immutable group roots,
+including checkpoint restoration before every step and output-record validation.
+The same independent Python corpus supplies expected bags/identities; SQLite
+still checks the 312 non-overflow cases. This closes the earlier gap where only
+the named cases were compared with the Zig executor. It does not expand the
+small-input oracle into a runtime or storage proof.
+
+The query Debug suite passes frozen `RQB1` request admission, same-resource alias
+pin sharing, full schema identity rejection, retained reads after Table changes
+and request retirement,
+checkpoint reconstruction, complete manifests and output chains. Requests are
+decoded with allocation-failure coverage and every truncated prefix rejects.
+The actual Fuze executor produces COUNT/SUM results after its host state is
+discarded between bounded turns. Work and retained-byte exhaustion close without
+a manifest; ordered overflow keeps its original contributor/output witness.
+Retirement releases the request/data pins once. Bounded collection reaches every
+record, preserves failed checkpoints and is a no-op after completion. Complete
+manifests reject vectors from a different owner. Fuze output records reject every
+truncated prefix, a foreign definition, a changed binding and an out-of-budget
+ordinal. These
+schedules use the in-memory reference turn store, with the native four-mutation
+and 256-byte value bounds; they are not disk or authority evidence.
+
+`just test::typed-tables` passes captured multi-resource execution, source mutation
+after checkpointing, exact lost-turn receipt retry across node and disk-store
+restart, a fresh ownership generation, authorized complete result iteration,
+current source policy denial, pin release and explicit collection after foreign
+native-grant denial. The final run takes 213.161 seconds and observes 631 turns,
+207 external sends, at most four mutations and 256-byte values. The captured
+three-group result remains `[NULL,1,0,NULL], [7,2,2,16], [9,1,0,NULL]` after the
+right Table changes from 8 to 90. Old-generation observation rejects before
+resumption. The enclosing proof also passes the 28-descriptor Table matrix,
+console, supplied-host lost receipts and general Table restart checks; this
+command does not install the language SDKs or run the optional cold/growth modes.
+
+Initial native runs found missing scoped-worker association setup and incorrect
+fixture reactivation; neither is recorded as a passing schedule. `test-build`
+also caught proof-helper type/exhaustiveness errors, corrected before native
+execution. The standalone query suite passes after adding bounded collection;
+the first invocation with an incorrect build root failed configuration and did
+not execute tests. Full `just check`, focused relational/diagnostic checks and
+the documentation build pass. Committed-head clean qualification remains pending.
+
+### Relational editor agreement
+
+Fuze and query Debug suites pass shared relational parser expectations and token
+roles, alias-qualified int64 completion, unknown/ambiguous predicate suppression,
+and allocation-failure checks. The native console exercises these suggestions
+through its authorized catalog route. Its complete `typed-tables` run passes in
+209.063 seconds, including the captured restart/denial schedule above, with 631
+turns, 207 sends and unchanged four-mutation/256-byte bounds. The logs are
+`relational-editor-fuze-final.log`, `relational-editor-query-final.log` and
+`native-relational-editor.log` under `.cache/relational-intake/`. No installed SDK
+or distributed query profile is covered by this run.
+
+### Relational grammar and metadata-only EXPLAIN
+
+`test::relational-sql` compares 33 positive ASTs across production Zig,
+independent ANTLR and PostgreSQL, including aliases, unaliased clauses, mixed
+aggregates and Boolean instruction order. All 22 excluded forms reject. The
+ordinary grammar proof still passes its 174 SELECT comparisons, 32 exclusions
+and 14 extensions; all 79 SQL documentation examples parse. Diagnostic grammar
+qualification covers 337 compiler cases and 467 rule/alternative/boundary
+obligations, including binding failures and the existing contextual identifiers.
+
+The query Debug suite passes metadata-only preparation. The native Table schedule
+passes in 207.549 seconds, with 631 turns and 207 sends: relational EXPLAIN has a
+null execution basis and emits no snapshot/mutation command, while the complete
+captured restart, fencing and denial schedule remains intact. These observations
+do not qualify a foreign SDK or maintained query. A later Fuze regression checks
+that columns, aliases and Tables named `join` or `group` do not select the wrong
+query profile.
+
+The first full check identifies missing diagnostic-grammar branch coverage;
+the expanded cases pass. Two subsequent attempts encounter a missing stale-cache
+test executable after cache cleanup; successful test prefixes are not whole-run
+passes. Full `just check` passes twice using an explicit fresh local Zig cache,
+including the final routing correction, native units, contract drift, CLI,
+frontend and documentation build. Logs are `relational-three-parser-first.log`,
+`grammar-relational-docs.log`, `native-metadata-explain.log`,
+`fuze-relational-routing.log` and `check-relational-sql-routing.log` under
+`.cache/relational-intake/`. Committed-head `ci-clean` remains pending.
+
+### Initial contract checkpoint
+
+The intake starts at merged `07918d7a` on the pinned Zig
+`0.17.0-dev.2267+48abf1a34` compiler. `just test::relational` executes the new
+pure Fuze plan/basis validation and independent fixtures. The Python oracle
+checks 15 named finite cases, 300 seed-70 generated cases and physical input
+permutations. Its 312 successful-result cases agree with Python's SQLite engine;
+three ordered-overflow cases use explicit independent prefix arithmetic instead.
+Thirty-six NULL/key-order combinations, checked aggregate boundaries and
+independently encoded prepared/bound SHA-256 identities also agree with Zig.
+
+The Zig cases reject ambiguous aliases/columns, unsupported referenced types,
+invalid grouping/predicate scope, insufficient budgets, partial vectors, changed
+schemas and inconsistent cuts for aliases of one resource. Output descriptors
+preserve left null extension. These are local semantic/admission checks, not
+proofs of SQL lowering, native source capture, bounded row execution, spill,
+authorization, maintained revisions or distributed recovery. The specification
+oracle deliberately materializes at most 32 input rows per side and 1024 pairs;
+those are test bounds, not runtime cardinality limits.
+
+The pre-change standalone Fuze ReleaseSafe run reports 252/253 package tests
+passing. `compact DML preserves exact typed intent predicates defaults and
+ownership` fails with `NondeterministicMemoryUsage`; running the same cached
+pre-change binary reproduces it. The allocation schedule now uses the same
+no-resize backing allocator as the logical-plan codec proof. Each arena growth
+therefore gets a deterministic allocation/failure index without weakening
+ownership, exact-byte or failure-cleanup assertions. The standalone Fuze
+ReleaseSafe suite then passes. Earlier failed runs remain failures.
+
+The locked frontend installation and full `just check` pass, including root
+units, contract/diagnostic drift, 596 real CLI diagnostic cases, console history,
+Board checks and the documentation site build. After adding the wide-plan
+byte-budget adversary, the final focused `just test::relational` passes all
+42 Zig tests and the independent Python/SQLite checks; the final root unit rerun
+also passes. The new primitive types
+change no native/ABI/stored definition and enable no SQL operator.
+
+The recorded general Table 75-task coverage still spans several source revisions.
+Same-revision native integration and committed-HEAD `just ci-clean` have not run
+for this working-tree slice; no complete native or clean intake is claimed.
+
+Fixtures live in [the relational corpus](../packages/zig/transit-fuze/src/fixtures/relational.json),
+generated independently by [the oracle](relational.py). The
+[local contract](../contracts/RELATIONAL_V1.md) and
+[plan tests](../packages/zig/transit-fuze/src/relational_test.zig) define the
+implemented boundary.
+
 ## Mutation completion follow-up
 
 The follow-up to merged `96943293` starts with a fresh ReleaseSafe physical-disk

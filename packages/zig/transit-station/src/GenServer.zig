@@ -24,6 +24,12 @@ confirmation: ?Confirmation = null,
 delivery: ?Session.Delivery = null,
 resource: ?Resource = null,
 view_id: ?u64 = null,
+// Explicit read dependencies, independent of the writable association. These
+// bounded host selections are opened before dispatch, through ordinary pending
+// control requests. Call setReadResources only between inputs.
+read_resources: [p.Growth.turn_views - 1]?u64 = @splat(null),
+read_view_ids: [p.Growth.turn_views - 1]?u64 = @splat(null),
+opening_read: ?u8 = null,
 blocked: bool = false,
 handler_error: ?anyerror = null,
 ready: ?Turn = null,
@@ -52,6 +58,18 @@ pub fn init(session: Session, association: []const u8) !GenServer {
     const name = try p.Value.init(association);
     try p.State.key(name);
     return .{ .session = session, .association = name };
+}
+
+pub fn setReadResources(self: *GenServer, resources: []const u64) !void {
+    if (self.pending != null or self.delivery != null or self.ready != null) return error.PendingOperation;
+    if (resources.len > self.read_resources.len) return error.StateViewBudgetExceeded;
+    var selection: @TypeOf(self.read_resources) = @splat(null);
+    for (resources, 0..) |resource, i| {
+        if (resource == 0 or resource > p.max_counter) return error.InvalidStateView;
+        for (resources[0..i]) |previous| if (resource == previous) return error.InvalidStateView;
+        selection[i] = resource;
+    }
+    self.read_resources = selection;
 }
 
 /// The proposed read deadline is checked by authority, never accepted as a
@@ -114,8 +132,22 @@ pub fn prepare(self: *GenServer, read_deadline_ms: u64) !Poll {
         }
         self.pending = try self.session.prepareView(self.delivery.?, self.resource.?, deadline);
         self.pending_kind = .open;
+        self.opening_read = null;
         return .progress;
     }
+    for (self.read_resources, 0..) |slot, i| if (slot) |id| {
+        if (id == self.resource.?.id or self.read_view_ids[i] != null) continue;
+        const resource = (try self.session.client.query(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .resource = id } }, self.session.key)).body.resource;
+        if (resource.id != id or resource.phase != .active) return error.InvalidStateView;
+        var deadline = read_deadline_ms;
+        if (resource.deadline_ms) |limit| deadline = @min(deadline, limit);
+        const delivery = try self.freshDelivery();
+        if (delivery.settle_before_ms) |limit| deadline = @min(deadline, limit);
+        self.pending = try self.session.prepareView(delivery, resource, deadline);
+        self.pending_kind = .open;
+        self.opening_read = @intCast(i);
+        return .progress;
+    };
     self.prepareTurn() catch |err| {
         // Restart an expired read before any handler or mutation runs.
         if (err == error.Conflict and self.session.client.last_rejection == .QueryExpired) return .progress;
@@ -154,11 +186,15 @@ pub fn dispatchPending(self: *GenServer) !Poll {
     self.pending = null;
     switch (self.pending_kind) {
         .permit => self.delivery = null,
-        .open => self.view_id = receipt.position,
+        .open => {
+            if (self.opening_read) |index| self.read_view_ids[index] = receipt.position else self.view_id = receipt.position;
+            self.opening_read = null;
+        },
         .commit => {
             self.delivery = null;
             self.resource = null;
             self.view_id = null;
+            self.read_view_ids = @splat(null);
             if (self.handler_error != null) {
                 self.blocked = true;
                 return .blocked;
@@ -194,7 +230,7 @@ pub fn finish(self: *GenServer, failure: ?anyerror) !void {
         try self.discard();
         return err;
     };
-    if (self.handler_error != null) turn.decision = .{ .views = .{ turn.view, null, null, null }, .failed = true };
+    if (self.handler_error != null) turn.decision = .{ .views = turn.decision.views, .current_views = turn.decision.current_views, .failed = true };
     self.pending = try self.session.prepareCommit(turn.delivery, turn.decision);
     self.pending_kind = .commit;
     self.ready = null;
@@ -242,6 +278,13 @@ fn prepareTurn(self: *GenServer) !void {
     if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
     const fresh = try self.freshDelivery();
     self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries });
+    errdefer self.ready = null;
+    for (self.read_view_ids, self.read_resources) |id, resource| if (id) |selected| {
+        const response = try self.session.readView(selected, descriptor_key, null);
+        const read_view = response.view orelse return error.InvalidAuthorityResponse;
+        if (resource == null or resource.? != read_view.resource) return error.InvalidAuthorityResponse;
+        try self.ready.?.addView(read_view);
+    };
     self.ready.?.seedRead(descriptor_key, if (page.page.entries[0]) |entry| entry.value else null);
 }
 fn freshDelivery(self: *GenServer) !Session.Delivery {

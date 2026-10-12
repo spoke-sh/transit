@@ -350,6 +350,16 @@ for arbitrary schema/cardinality growth. The earlier failed-budget reports remai
 part of the evidence. [Further optimization](https://github.com/rupurt/rey/issues/76)
 tracks metadata reuse, bounded batch disclosure and immutable-record/publication
 costs while preserving authority, recovery and resource bounds.
+
+Complete Table history adds one retained old-head record at each replacement.
+In the narrow mutation fixture, the additional write moves one-row INSERT and
+changing UPDATE from one native turn to two; the four-write turn bound stays
+fixed. Three-row INSERT remains four turns. The
+[complete-history campaign](../../tests/mutation_latency/results/2026-10-12/README.md)
+records all 140 outcomes and a separate provider-work control, including the
+measured cost increase and concurrent-load limits. Its elapsed times overlap
+maintenance qualification and do not isolate the cost of change capture.
+
 Idle workers use bounded authorized waits on the observed process or output
 position. Waits release the authority lock, have separate admission capacity,
 and revalidate current authorization after a publication or timeout. Notifications

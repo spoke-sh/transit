@@ -43,7 +43,7 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.endArray();
     if (std.mem.eql(u8, method, "post")) {
         try out.objectField("requestBody");
-        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = "#/components/schemas/UnifiedQueryRequest" } } } });
+        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = if (std.mem.eql(u8, name, "RelationalResponse")) "#/components/schemas/RelationalRequest" else "#/components/schemas/UnifiedQueryRequest" } } } });
     }
     try out.objectField("responses");
     try out.beginObject();
@@ -67,6 +67,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/resources/{resource}/participation", "get", "ParticipationResponse", true, false);
     try route(&out, "/api/v1/atlas", "get", "AtlasResponse", false, false);
     try route(&out, "/api/v1/query", "post", "UnifiedQueryResponse", false, false);
+    try route(&out, "/api/v1/relational", "post", "RelationalResponse", false, false);
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
     try route(&out, "/api/v1/processes", "get", "Response", false, true);
     try route(&out, "/api/v1/processes/{pid}", "get", "Response", true, true);
@@ -87,10 +88,12 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "ParticipationResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.ParticipationResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "ParticipationResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse", "RelationalRequest", "RelationalResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.ParticipationResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse, api.RelationalRequest, api.RelationalResponse }) |name, T| {
         try out.objectField(name);
         if (T == api.UnifiedQueryRequest or T == api.UnifiedQueryResponse)
             try s.writeRecursiveAt(T, &out, if (T == api.UnifiedQueryRequest) api.unified_query_request_schema_options else api.unified_query_schema_options, "/components/schemas/" ++ name)
+        else if (T == api.RelationalRequest or T == api.RelationalResponse)
+            try s.writeRecursiveAt(T, &out, if (T == api.RelationalRequest) api.relational_request_schema_options else api.relational_schema_options, "/components/schemas/" ++ name)
         else
             try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = 256 });
     }

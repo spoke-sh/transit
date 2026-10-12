@@ -6,6 +6,17 @@ The console uses fresh interactive snapshots by default; explicitly durable
 queries retain frozen request and result recovery. The [v1 contract](../../../contracts/UNIFIED_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
+`TableChangeReader.open` captures a catalog Table snapshot. Consume
+`snapshotNext` through null, then save `checkpoint` with the complete snapshot.
+`openTail` takes that position and a fresh nonce; `next` yields paired row
+changes and complete transaction boundaries, including no-op progress. Save the
+next position only with the complete transaction's application. A caught-up
+event covers this lease; close it and open another tail to observe later work.
+The reader owns its lease and schemas; callers deinitialize returned row/change
+values, close explicitly and finally deinitialize the reader. Request budgets,
+cancellation and current native/catalog rights apply to every disclosure.
+See [Table change capture](../../../docs/reference/tables.md#snapshot-and-change-capture).
+
 `UnifiedClient` owns signed description, finite upload, frozen submission,
 committed-input observation, status, cancellation and verified result pages.
 `describe` checks current catalog metadata as well as permission: renamed,
@@ -25,6 +36,66 @@ Stopping at LIMIT does not allocate the remaining row values. Each output is one
 authorization precede disclosure, including completion and empty output. Explicit
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
+
+`RelationalCompilation.prepare` resolves explicit catalog routes through current
+inspection reads, owns immutable schemas and compiles a prepared relational plan
+without opening data snapshots or spill. It rechecks each resource revision and
+returns no captured basis; execution separately acquires cuts and read authority.
+The console uses this owner for relational EXPLAIN.
+
+`RelationalQuery` executes finite int64 Table joins and grouped COUNT/SUM through
+the shared Fuze compiler and executor. Callers explicitly select
+`per_resource_snapshot_vector`, ordered catalog routes, resident/spill/result/work
+budgets, native-request and spill-operation limits. The owner seals every Table's
+schema and cut before execution; same-resource aliases share one lease. A final
+combined native read validates current catalog policies and native rights for
+all dependencies, including noncontributing sources. It holds frozen data through
+later mutations without rebinding a Table name or schema.
+
+Private grouping uses a disk AVL map with bounded buffers, per-record integrity
+checks and immediate file unlinking. Heap allocation is budgeted independently
+of retained groups; transport buffers belong to the supplied client. Errors and
+cancellation leave an incomplete prefix, never successful truncation. Callers
+release the stable allocated owner with `deinit`; interactive spill is not
+resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
+
+`RelationalBridge` exposes explicit catalog routes, metadata-only explanation
+and repeatable one-row interactive pages through the Station query ABI/port.
+See [interactive relational callers](docs/relational-callers.md) for full-width
+values, source evidence, retry, close and host-loss semantics.
+`RelationalCaller` owns the configured clients and session for the ABI and
+Board. Its authorized workspace description reports the active reference and
+ordinal without rerunning or advancing a query.
+
+`RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
+Station call, retains every source cut and advances one bounded execution step
+per checkpoint. `RelationalState` stages immutable group records, outputs and
+checkpoints through Station Publication; their acceptance is atomic with input
+progress. `RelationalResult` verifies complete results through public native
+reads and current rights to every dependency. The coordinator shares the first
+Table owner's PID and resource. See the [captured relational guide](docs/relational-capture.md)
+for policy, host recovery, memory, closure and collection requirements.
+
+`RelationalMaintenance` records every complete Table-history basis, stages its
+result and paired delta, and atomically publishes a complete revision. A failed
+successor preserves the preceding result. `RelationalRevision` verifies full
+results or exact predecessor deltas under current source rights; its saved
+position advances only after complete delivery. The host explicitly activates
+and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
+for scheduling, recomputation costs, quotas, resume and retirement.
+
+`RelationalExchange` records producer eligibility, copies accepted segments into
+receiver-owned publications, and consumes them into a native paged row index.
+Its source adapter requires terminal coverage from every logical partition and
+restores original row order for the existing finite executor. Explicit hosts
+own scheduling, source validation, worker placement and combined state budgets.
+See [query exchanges](docs/relational-exchanges.md) for the typed operations,
+credit/retry protocol and current qualification boundary.
+`RelationalExchangeProducer` adds a durable bounded scan cursor for explicit
+worker counts and assignments. It resumes the same pending segment after restart,
+preserves the original destination, and records receiver acknowledgements through
+own-resource control. Workers reopen the frozen Table-history vector with their
+own current grants; native retained pins remain scoped to their capturing PID.
 
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
@@ -211,6 +282,15 @@ fixtures cover quoted/qualified names, suffix replacement, hidden/foreign names,
 unsupported comparisons, checked sums, slash arguments and allocation failures.
 The console vocabulary is shared data; introducing it does not implement a CLI
 command or administrative SQL operation.
+
+`TableAssistance` handles the catalog console's Table and relational SQL.
+Relational completion discovers up to two declared aliases, reads their current
+authorized schemas, and rechecks the catalog revision/policy before disclosure.
+It qualifies shared column names, limits suggestions to the admitted int64
+profile, and suppresses predicate operators for unknown or ambiguous names.
+Partial projection discovery supplies editor metadata only; it does not establish
+SQL acceptance. Fuze's same relational parser owns JOIN/GROUP/aggregate token
+roles and cursor expectations.
 
 `SqlInspection` owns `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` over one
 configured source. `UnifiedClient.inspectSql`, `Bridge.inspect` and

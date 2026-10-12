@@ -29,6 +29,7 @@ requires a catalog name; it is not evidence that a named catalog is unsupported.
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Measure declarative components and inspect TPC coverage | [Benchmarks](benchmarks.md)                                                                                                                                                                                                                                                              |
 | Compare implemented and planned grammar                 | [Grammar surface and semantic targets](sql/grammar-surface.md)                                                                                                                                                                                                                           |
+| Join Tables or group int64 values | [Table joins and grouped aggregation](sql/relational.md) |
 | Read rows, filter or aggregate                          | [SELECT](sql/select.md)                                                                                                                                                                                                                                                                  |
 | Understand names and literal syntax                     | [Syntax](sql/syntax.md)                                                                                                                                                                                                                                                                  |
 | Check scalar types, nulls and missing values            | [Data types and cell states](sql/types.md)                                                                                                                                                                                                                                               |
@@ -215,21 +216,23 @@ define precedence, unknown values, eager errors and the 64-instruction bound.
 
 ## Bounds and unsupported operations
 
-Input is at most 4096 UTF-8 bytes; names are at most 16 ASCII identifier bytes;
-nested block comments are bounded to 16 levels. One optional semicolon, whitespace,
+Input is at most 4096 UTF-8 bytes. The scalar query profile bounds names to 16
+ASCII identifier bytes; general Table and relational names admit 255 UTF-8
+bytes. Nested block comments are bounded to 16 levels. One optional semicolon, whitespace,
 line comments and nested block comments are accepted. Additional statements and
 trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
-Joins, sorting, aggregation grouping, arithmetic,
-general casts and continuous queries are unsupported.
+The separately configured [relational Table profile](sql/relational.md) supports
+one inner/left int64 equijoin and grouped COUNT/SUM. Sorting, arithmetic, general
+casts and continuous queries remain unsupported.
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.
 `CREATE TABLE/KV/DOCUMENT` compile offline through Fuze's
-[`Declaration` API](../../contracts/STATE_DECLARATION_V1.md). Compatible empty
-Tables can also be created through explicit Zig/C ABI/native-port catalog callers
-and `transit catalog`; native
-provisioning and query/mutation policy remain separate. Other `CREATE`
+[`Declaration` API](../../contracts/STATE_DECLARATION_V1.md). General typed
+Tables can also be created, altered and dropped through the configured catalog
+console and [catalog SDK callers](sdks.md#catalog-callers); native provisioning
+and query/mutation policy remain separate. Other `CREATE`
 forms, `GRANT`, `REVOKE` and connector forms of `SHOW` in the
 [reference grammar](../../contracts/sql/README.md) are grammar-only.
 None executes in the console, Board query workspace or Flight SQL.

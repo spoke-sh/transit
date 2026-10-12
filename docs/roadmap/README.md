@@ -41,9 +41,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M31](M31.md) | Protocol consolidation and v1 hard cutover | In progress; one current definition per owned protocol, legacy removal and coordinated consumer/proof updates |
 | [M32](M32.md) | Public Internals and scientific documentation | Complete: nine scientific accounts, separate roadmap/design/history owners, source checks and root/prefixed browser proofs |
 | [M33](M33.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
-| [M34](M34.md) | Relational guarantees, joins and aggregation | Proposed; explicit source vectors, finite Table joins/grouping, maintained revisions and semantic gates for reshuffling |
-| [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
-| [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: finite queries/inspection, combined Table reads/writes, ten mutation SDKs, saved-file CLI mutations and conditional Zig Table catalog; administrative callers, remaining declarations and maintained dataflows remain |
+| [M34](M34.md) | Relational guarantees, joins and aggregation | Selected finite/maintained Table profile qualified; shared SQL, enabled interactive callers, complete history and failure/recovery evidence |
+| [M35](M35.md) | Clustered execution and portability | Typed bounded exchanges and manual single-authority worker handoff qualified; automatic growing placement and distributed authority remain |
+| [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: queries/inspection, Table reads/writes/catalogs and immutable typed named relational activation; declaration/subscription syntax, foreign durable transports and effect bindings remain |
 | [M37](M37.md) | Simulation and external fault verification | Implemented deterministic and Vortex-style profiles; repository-wide clean and hosted qualification remain open |
 | [M38](M38.md) | Standards, multi-model dataflows and schema branching | Handbook grammar inventory published; implementation sequence starts with the standards ledger and historical contracts; graph/foreign relations, branches and merges remain planned |
 | [M39](M39.md) | Comprehensive types and bounded schema on demand | Complete for the delivered profile: shared logical types, frozen CSV/JSONL discovery, Arrow/SDK owners, 75 ordinary clean tasks and physical-disk recovery |
