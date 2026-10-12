@@ -5789,6 +5789,13 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },
@@ -7999,6 +8006,14 @@
             "inspect_status"
           ],
           "transport_status": 409
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9350,6 +9365,14 @@
             "inspect_status"
           ],
           "transport_status": 10
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 12
         }
       }
     },
@@ -12452,6 +12475,13 @@
           "category": "conflict",
           "actions": [
             "inspect_status"
+          ]
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported",
+          "actions": [
+            "inspect_scope"
           ]
         }
       }

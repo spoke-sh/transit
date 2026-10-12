@@ -1,5 +1,59 @@
 # Validation and milestone evidence
 
+## Neutral relational caller pages
+
+`just test::relational-callers` runs the real Station query port and C ABI over
+signed catalog routes, a native node with eight resident pages and disk-backed
+Ursula. One-resource aliases and two-resource joins produce three exact grouped
+rows each. The neutral EXPLAIN/open and typed executor agree on their prepared
+plan hashes. Active open, current-page and last-close retries preserve identities;
+changed references, skipped/old ordinals and references from a replaced host
+reject. Current right-source denial blocks re-reading a cached left-join prefix.
+Output quota failure preserves the original cause and incomplete status. Ordered
+`[MAX_I64, 1, -1]` SUM fails with the second contributor's identity and original
+output expression, under current source disclosure checks.
+
+The initial completed schedule passes in **7.432 seconds**, 63 port calls and a
+maximum 1,603-byte response (`neutral-native-cut-fixed.log`). The expanded
+plan-agreement and ordered-overflow schedule passes in **10.258 seconds**, 68
+calls and the same maximum response (`neutral-native-final.log`). These are
+small local fixtures, not throughput or large-output/RSS qualification. Both
+use 16 MiB executor-resident and spill budgets, an 8 MiB result budget, 1,000 rows,
+100,000 operator/request/spill-work limits and two source pins. The ordinary task
+inventory now includes this focused caller proof.
+
+The focused query package and Station ABI suites pass; the TypeScript binding
+check passes 57 tests. `just test::query` also passes the existing disk query
+staging/sealing/recovery/publication/delivery schedule with 41 rows and 22,880
+bytes. Full-width neutral codec tests preserve signed minimum, unsigned maximum,
+20-byte stable row identity and null. Generated schemas and resources for all
+binding languages agree with the same Zig types; this is not installed idiomatic
+SDK relational qualification.
+
+Failed attempts remain in `.cache/relational-intake/`. The first native fixture
+incorrectly compares complete alias cuts, including their intentionally distinct
+Table schemas; it is corrected to compare resource/revision/commitment. A later
+fixture expects the generic ambiguity name instead of the owner's specific
+`AmbiguousRelationalColumn`; the actual located diagnostic is preserved. Earlier
+compile logs retain a shadowed name, nullable location-pointer mismatch and two
+Zig error/statement corrections. Initial full checks stop at the new unconfigured
+interface's missing semantic mapping and then its missing independently reviewed
+outcome cases. The mappings and all **3,239** executed outcome projections now
+pass. Installed SDK wrappers, Board, foreign durable lifetimes and committed-HEAD
+clean qualification remain separate gates.
+
+`check-neutral-callers-outcomes.log` passes the full repository check, including
+root units/examples, contracts, diagnostic projections, CLI, frontends and the
+production documentation build. Final review then tightens malformed cursor
+classification, validates the typed session's configured route count and preserves
+the original protocol rejection when a diagnostic performs a current-rights
+check. The focused Station ABI suite passes those changes
+(`neutral-abi-reviewed.log`); the final native schedule passes in **10.573 seconds**,
+**72** port calls and a 1,603-byte maximum response
+(`neutral-native-reviewed.log`). It also asserts the overflow contributor's exact
+ordinal. These are working-tree executions; final committed-HEAD clean validation
+remains required before pushing.
+
 ## Complete Table history and snapshot tail
 
 The Table history slice replaces the shared definition with

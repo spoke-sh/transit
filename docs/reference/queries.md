@@ -204,8 +204,12 @@ chunks in bounded turns while preserving control evidence. The
 [captured owner guide](../../packages/zig/transit-query/docs/relational-capture.md)
 defines the host's exact-retry and authorization responsibilities.
 
-The console does not activate maintained queries. Foreign-language bindings and
-Flight do not execute the relational profile. Typed Zig maintained ownership and
+The Station query ABI and port expose explicit catalog configuration, explanation,
+repeatable one-row pages and close through the shared
+[interactive caller](../../packages/zig/transit-query/docs/relational-callers.md).
+A complete page rechecks all source rights; host loss expires interactive handles.
+The console does not activate maintained queries. Flight rejects relational
+execution. Typed Zig maintained ownership and
 complete Table history have their own interfaces below; coalesced invalidation
 notifications remain distinct from complete transaction capture.
 

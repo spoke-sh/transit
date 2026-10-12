@@ -2,6 +2,7 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, action: d.ActionKind, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.QueryInterfaceUnavailable, .code = "query.interface_unavailable", .category = .unsupported, .action = .inspect_scope, .message = "This caller handle does not provide the selected query interface. Inspect its explicit catalog or query-owner configuration; this attempt did not activate or submit a query." },
     .{ .cause = error.InvalidRelationalExchange, .code = "query.exchange_invalid", .category = .integrity, .action = .contact_operator, .message = "Query exchange evidence is malformed or inconsistent. Preserve the bound query and accepted segment identities; incomplete coverage cannot become a result." },
     .{ .cause = error.InvalidRelationalRouting, .code = "query.exchange_routing_invalid", .category = .integrity, .action = .contact_operator, .message = "A source row does not belong to its recorded logical partition. Inspect the bound plan and original producer segment without changing their identities." },
     .{ .cause = error.RelationalExchangeClosed, .code = "query.exchange_closed", .category = .lifecycle, .action = .inspect_status, .message = "The query exchange is closed. Its accepted evidence remains retained; inspect the original execution before explicitly activating new work." },

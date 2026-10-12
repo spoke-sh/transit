@@ -1777,6 +1777,32 @@
       "limits": "Native producer checkpoint contains 12 entries. The pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, source-expiry injection or physical power-loss claim.",
       "model": null,
       "qualification": "Actual commands, passing runs and remaining gates are recorded in tests/README.md."
+    },
+    {
+      "id": "QUERY-CALLER-01",
+      "claim": "Explicit relational catalog routes preserve canonical plans, repeated pages and current dependency authorization across the neutral boundary",
+      "owner": "docs/reference/queries.md",
+      "implementation": [
+        "packages/zig/transit-query/src/RelationalBridge.zig",
+        "packages/zig/transit-station-bindings/src/QueryAbi.zig",
+        "tests/relational_callers_native.py"
+      ],
+      "profile": "Interactive one/two-catalog caller through the Station query ABI and port, one native authority and disk Ursula",
+      "tasks": [
+        "test::relational-callers",
+        "test::unit"
+      ],
+      "scenarios": [
+        "Same-resource aliases share a cut while distinct resources preserve independent vectors",
+        "Explain and typed execution agree on the prepared plan",
+        "Exact active-open, current-page and last-close retries preserve their identities",
+        "Current catalog denial blocks a previously disclosed cached page",
+        "Host replacement expires interactive handles without reexecuting SQL",
+        "Result quota and ordered SUM overflow retain incomplete status and the original failure"
+      ],
+      "limits": "Small int64 fixtures with one retained output row. Durable captured and maintained foreign callers, installed language SDK wrappers and Board have separate qualification gates.",
+      "model": null,
+      "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
     }
   ]
 }

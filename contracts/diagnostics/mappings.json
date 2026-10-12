@@ -832,7 +832,8 @@
         "packages/zig/transit-query/src/SqlCompilation.zig",
         "packages/zig/transit-query/src/SqlTemplate.zig",
         "packages/zig/transit-query/src/TableQuery.zig",
-        "packages/zig/transit-query/src/TableScan.zig"
+        "packages/zig/transit-query/src/TableScan.zig",
+        "packages/zig/transit-query/src/RelationalBridge.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -1514,9 +1515,42 @@
         "RelationalExchangeConflict": {
           "code": "query.exchange_conflict",
           "category": "conflict"
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+          "cause": "InvalidRelationalSources",
+          "disposition": "mapped_boundary",
+          "reason": "Explicit relational route and budget admission failures use the shared SQL binding classification when projected with the caller statement. Configuration creation rejects locally before transport.",
+          "projection": "packages/zig/transit-fuze/src/SqlCodes.zig",
+          "code": "sql.invalid_relational_sources",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+              "name": "relational neutral options and references reject lossy and foreign input before I/O"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+          "cause": "InvalidRelationalBudgets",
+          "disposition": "mapped_boundary",
+          "reason": "Explicit relational route and budget admission failures use the shared SQL binding classification when projected with the caller statement. Configuration creation rejects locally before transport.",
+          "projection": "packages/zig/transit-fuze/src/SqlCodes.zig",
+          "code": "sql.invalid_relational_budgets",
+          "tests": [
+            {
+              "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+              "name": "relational neutral options and references reject lossy and foreign input before I/O"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-query/src/ApiDiagnostic.zig",
@@ -3084,6 +3118,10 @@
         "RelationalExchangeConflict": {
           "code": "query.exchange_conflict",
           "category": "conflict"
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported"
         }
       },
       "exceptions": [],

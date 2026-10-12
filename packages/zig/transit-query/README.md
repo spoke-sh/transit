@@ -59,6 +59,11 @@ cancellation leave an incomplete prefix, never successful truncation. Callers
 release the stable allocated owner with `deinit`; interactive spill is not
 resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
 
+`RelationalBridge` exposes explicit catalog routes, metadata-only explanation
+and repeatable one-row interactive pages through the Station query ABI/port.
+See [interactive relational callers](docs/relational-callers.md) for full-width
+values, source evidence, retry, close and host-loss semantics.
+
 `RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
 Station call, retains every source cut and advances one bounded execution step
 per checkpoint. `RelationalState` stages immutable group records, outputs and

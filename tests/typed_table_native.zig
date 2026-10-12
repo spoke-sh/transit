@@ -277,7 +277,7 @@ fn relational(init: std.process.Init, directory: []const u8, caller: *c.TableCli
     const schema = try query.schema(&fields);
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try out.interface.writeAll("{\"cuts\":");
+    try out.interface.print("{{\"plan\":\"{s}\",\"cuts\":", .{std.fmt.bytesToHex(try query.execution.bound.plan.fingerprint(), .lower)});
     try std.json.Stringify.value(query.tables.cuts[0..query.tables.count], .{}, &out.interface);
     try out.interface.writeAll(",\"rows\":[");
     var count: usize = 0;

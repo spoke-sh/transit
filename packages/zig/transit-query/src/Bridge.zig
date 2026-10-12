@@ -28,6 +28,7 @@ pub const Command = union(enum) {
     }
 };
 pub const Action = union(enum) {
+    relational: q.RelationalBridge.Action,
     capabilities,
     sql_capabilities,
     describe: c.Source,
@@ -113,6 +114,7 @@ pub const Page = struct {
     next: ?[]const u8,
 };
 pub const Result = union(enum) {
+    relational: q.RelationalBridge.Result,
     capabilities: q.UnifiedClient.Capabilities,
     sql_capabilities: q.SqlCompilation.Capabilities,
     description: Description,
@@ -142,6 +144,7 @@ pub fn apply(alloc: Allocator, client: *q.UnifiedClient, action: Action) !Result
 pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Action, detail: ?*q.fuze.Sql.Binding) !Result {
     if (detail) |value| value.* = .{};
     switch (action) {
+        .relational => return error.QueryInterfaceUnavailable,
         .capabilities => return .{ .capabilities = .{} },
         .sql_capabilities => return .{ .sql_capabilities = .{} },
         .inspect => |request| return .{ .inspection = try q.SqlInspection.applyDiagnostic(alloc, client, request, detail) },

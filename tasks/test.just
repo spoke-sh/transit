@@ -317,6 +317,9 @@ relational-maintenance:
     just test::typed-tables --maintained --cold
 
 # Bounded producer/receiver exchange recovery and maintained publication on disk.
+relational-callers:
+    zig build test-relational-callers -Doptimize=ReleaseSafe
+
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 

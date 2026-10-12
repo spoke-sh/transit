@@ -1071,6 +1071,14 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
+    relational_callers_native.addArtifactArg(node_artifact);
+    relational_callers_native.addArtifactArg(typed_table_proof);
+    relational_callers_native.addArtifactArg(station_host);
+    relational_callers_native.has_side_effects = true;
+    relational_callers_native.stdio = .inherit;
+    b.step("test-relational-callers", "Prove repeatable relational caller pages on disk").dependOn(&relational_callers_native.step);
     const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
     relational_exchange_native.addArtifactArg(node_artifact);

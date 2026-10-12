@@ -539,3 +539,28 @@ an explicit complete snapshot or newly activated definition. A partial retry
 replays the entire transaction from the previous complete position. Missing
 compatibility fields reject rather than defaulting to the current definition.
 Closing a read releases its lease and does not stop maintenance.
+
+## Neutral interactive caller
+
+`transit-query.RelationalBridge` owns the neutral interactive action/result types;
+Station's query ABI and port reflect them without another executor. See the
+[caller guide](../packages/zig/transit-query/docs/relational-callers.md) for exact
+configuration and action fields. Routes are explicit indices into at most two
+configured catalog connections and share one authenticated realm caller.
+
+An open ID is nonzero 16-byte lowercase hex. Active exact open retries preserve
+the captured basis; changed IDs/statements reject. References require the current
+native definition, open ID, prepared plan hash and bound hash. Missing or foreign
+definitions reject. Ordinals and full-width quantities are canonical decimal
+strings. Pair row identities are the 20-byte Table identity encodings; group
+identities preserve the ordered nullable int64 keys as decimal strings.
+
+One page contains one row or a terminal null row. Only the current ordinal and
+its immediate successor are admissible; a successor requires a previous row.
+The terminal ordinal equals delivered row count and is the sole
+`complete_coverage: true` page. Each disclosure rechecks all current source rights,
+including cached and terminal pages. A response allocation/encoding failure does
+not discard its pending row. A semantic failure retains the original cause and
+cannot publish completion. Closing releases the interactive execution, and an
+exact retry of its last close succeeds. Host loss expires references; this
+interface neither persists interactive spill nor restarts SQL implicitly.

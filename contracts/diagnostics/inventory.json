@@ -10188,6 +10188,7 @@
         "QueryDraftExhausted": 1,
         "QueryDraftNotFound": 1,
         "QueryIdentityMismatch": 1,
+        "QueryInterfaceUnavailable": 1,
         "QueryPageBudget": 1,
         "QueryReadConflict": 1,
         "QueryRequesterFailed": 1,
@@ -10341,10 +10342,12 @@
       "errors": {
         "InvalidQueryCursor": 3,
         "InvalidQueryRequest": 3,
-        "OutOfMemory": 2
+        "OutOfMemory": 2,
+        "QueryInterfaceUnavailable": 1
       },
       "outcomes": {
         "Action": [
+          "relational",
           "capabilities",
           "sql_capabilities",
           "describe",
@@ -10368,6 +10371,7 @@
           "retire"
         ],
         "Result": [
+          "relational",
           "capabilities",
           "sql_capabilities",
           "description",
@@ -10805,6 +10809,59 @@
         "catch": 0
       },
       "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalBridge.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidQueryCursor": 5,
+        "InvalidQueryRequest": 4,
+        "InvalidQuerySchema": 1,
+        "InvalidRelationalBudgets": 1,
+        "InvalidRelationalSources": 2,
+        "QueryIdentityMismatch": 8,
+        "RelationalResidentBudget": 1,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {
+        "Action": [
+          "capabilities",
+          "explain",
+          "open",
+          "page",
+          "close"
+        ],
+        "Identity": [
+          "pair",
+          "group"
+        ],
+        "Result": [
+          "capabilities",
+          "explained",
+          "opened",
+          "page",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Options.native()": "<inferred>",
+        "Session.apply()": "<inferred>",
+        "Session.check()": "<inferred>",
+        "Session.reference()": "<inferred>",
+        "Session.selected()": "<inferred>",
+        "describe()": "<inferred>",
+        "id()": "<inferred>",
+        "row()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 53,
+        "catch": 20
+      },
+      "imports": [
+        "root.zig",
         "std"
       ]
     },
@@ -12640,6 +12697,7 @@
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
+        "RelationalBridge.zig",
         "RelationalBundle.zig",
         "RelationalCapture.zig",
         "RelationalCaptured.zig",
@@ -15512,18 +15570,24 @@
         "AccessDenied": 1,
         "Conflict": 1,
         "InvalidQueryRequest": 1,
+        "InvalidRelationalSources": 1,
         "OutOfMemory": 2,
         "QueryDenied": 1,
+        "QueryInterfaceUnavailable": 3,
         "QueryReadConflict": 1,
-        "Rejected": 1
+        "Rejected": 1,
+        "RelationalCallerChanged": 2
       },
       "outcomes": {},
       "error_sets": {},
-      "error_returns": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "initializeRelational()": "<inferred>"
+      },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 0,
-        "catch": 19
+        "try": 5,
+        "catch": 20
       },
       "imports": [
         "Abi.zig",

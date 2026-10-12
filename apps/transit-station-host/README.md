@@ -105,3 +105,8 @@ This works in authority and local-codec modes. Await the acknowledgement and
 successful child exit when joining cleanup; loss of either is a cleanup failure.
 Shutdown neither commits private handler work nor cancels previously accepted
 mutations. Retain pending material and known receipts independently.
+
+A `query_client` can instead configure `relational` catalog routes and explicit
+interactive budgets, without a legacy query `connection`. Its `unified_query`
+requests wrap the shared `relational` action. See [relational callers](../../packages/zig/transit-query/docs/relational-callers.md)
+for page retries, current source checks and handle expiry on host loss.

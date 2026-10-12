@@ -40,6 +40,7 @@
       "test::table-query-writer",
       "test::catalog",
       "test::typed-tables",
+      "test::relational-callers",
       "test::relational-maintenance",
       "test::relational-exchanges",
       "test::http-transport",

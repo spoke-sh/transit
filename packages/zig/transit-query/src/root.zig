@@ -24,6 +24,7 @@ pub const RelationalExchangeProducer = @import("RelationalExchangeProducer.zig")
 pub const RelationalSpill = @import("RelationalSpill.zig");
 pub const RelationalTables = @import("RelationalTables.zig");
 pub const RelationalCompilation = @import("RelationalCompilation.zig");
+pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const RelationalQuery = @import("RelationalQuery.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const Basis = @import("Basis.zig");
