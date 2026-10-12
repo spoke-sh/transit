@@ -8,6 +8,14 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`Relational` supplies pure admission, stable column resolution, output descriptors
+and prepared/bound identities for finite int64 Table join/group plans. It also
+defines distinct join/group NULL rules and checked aggregate steps. These borrowed
+types acquire no source and have no SQL lowering or row executor. The
+[relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
+ownership, canonical order, budgets and remaining integration obligations.
+Existing finite query execution remains single-source.
+
 `Types` owns bounded logical descriptors and the specialized scalar profile used
 by `Unified`. `Types.Semantics` binds checked integer/decimal, finite float,
 boolean, UTF-8/binary, Gregorian date, time, civil/UTC timestamp and UUID atoms.

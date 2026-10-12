@@ -6,6 +6,7 @@ pub const model = @import("model.zig");
 pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
+pub const Relational = @import("Relational.zig");
 pub const LogicalPlanCodec = @import("LogicalPlanCodec.zig");
 pub const LogicalStream = @import("LogicalStream.zig");
 pub const LogicalInspect = @import("LogicalInspect.zig");
@@ -37,6 +38,7 @@ pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
+    _ = Relational;
     _ = LogicalDisplay;
     _ = TableWitness;
     _ = TableSchema;

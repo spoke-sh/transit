@@ -183,6 +183,11 @@ execution contract. Querying two resources separately does not establish an
 atomic shared snapshot. Current Table notifications support finite refresh,
 not a complete update/delete stream for maintaining a join.
 
+Fuze's local [relational plan contract](../../contracts/RELATIONAL_V1.md) validates
+typed int64 join/group definitions and their supplied schema/source identities.
+It has no SQL lowering, source capture or row executor. These pure helpers do
+not enable JOIN, GROUP BY or multi-source native requests.
+
 SUM checks overflow in source order, including across pages. Reordering inputs
 or combining partition totals can change whether it fails; no parallel reduction
 or optimizer rewrite is implied. Worker replacement preserves accepted query

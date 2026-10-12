@@ -1,0 +1,1103 @@
+{
+  "definition": "transit.fuze.relational.v1.2026-10-11",
+  "identity": {
+    "prepared": "a1862824cf5b6429e6ba7ee507aa1c5bbb1708547ba207678e9a696e8fd92185",
+    "bound": "9b378d637f6241c926aad0b265d42b2c744e579ee805f429bf52abcad42d542f"
+  },
+  "nulls": [
+    {
+      "left": null,
+      "right": null,
+      "join": false,
+      "order": 0
+    },
+    {
+      "left": null,
+      "right": -9223372036854775808,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": null,
+      "right": -1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": null,
+      "right": 0,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": null,
+      "right": 1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": null,
+      "right": 9223372036854775807,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -9223372036854775808,
+      "right": null,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": -9223372036854775808,
+      "right": -9223372036854775808,
+      "join": true,
+      "order": 0
+    },
+    {
+      "left": -9223372036854775808,
+      "right": -1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -9223372036854775808,
+      "right": 0,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -9223372036854775808,
+      "right": 1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -9223372036854775808,
+      "right": 9223372036854775807,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -1,
+      "right": null,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": -1,
+      "right": -9223372036854775808,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": -1,
+      "right": -1,
+      "join": true,
+      "order": 0
+    },
+    {
+      "left": -1,
+      "right": 0,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -1,
+      "right": 1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": -1,
+      "right": 9223372036854775807,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": 0,
+      "right": null,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 0,
+      "right": -9223372036854775808,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 0,
+      "right": -1,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 0,
+      "right": 0,
+      "join": true,
+      "order": 0
+    },
+    {
+      "left": 0,
+      "right": 1,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": 0,
+      "right": 9223372036854775807,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": 1,
+      "right": null,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 1,
+      "right": -9223372036854775808,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 1,
+      "right": -1,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 1,
+      "right": 0,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 1,
+      "right": 1,
+      "join": true,
+      "order": 0
+    },
+    {
+      "left": 1,
+      "right": 9223372036854775807,
+      "join": false,
+      "order": -1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": null,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": -9223372036854775808,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": -1,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": 0,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": 1,
+      "join": false,
+      "order": 1
+    },
+    {
+      "left": 9223372036854775807,
+      "right": 9223372036854775807,
+      "join": true,
+      "order": 0
+    }
+  ],
+  "sums": [
+    {
+      "values": [],
+      "error_at": null,
+      "value": null
+    },
+    {
+      "values": [
+        null,
+        null
+      ],
+      "error_at": null,
+      "value": null
+    },
+    {
+      "values": [
+        1,
+        null,
+        -1
+      ],
+      "error_at": null,
+      "value": 0
+    },
+    {
+      "values": [
+        9223372036854775807,
+        1,
+        -1
+      ],
+      "error_at": 1,
+      "value": 9223372036854775807
+    },
+    {
+      "values": [
+        -9223372036854775808,
+        -1,
+        1
+      ],
+      "error_at": 1,
+      "value": -9223372036854775808
+    },
+    {
+      "values": [
+        9223372036854775807,
+        -1,
+        1
+      ],
+      "error_at": null,
+      "value": 9223372036854775807
+    },
+    {
+      "values": [
+        -9223372036854775808,
+        1,
+        -1
+      ],
+      "error_at": null,
+      "value": -9223372036854775808
+    }
+  ],
+  "cases": [
+    {
+      "name": "duplicate bag",
+      "join": "inner",
+      "left": [
+        [
+          2,
+          7,
+          20
+        ],
+        [
+          1,
+          7,
+          10
+        ]
+      ],
+      "right": [
+        [
+          3,
+          7,
+          3
+        ],
+        [
+          1,
+          7,
+          1
+        ],
+        [
+          2,
+          7,
+          2
+        ]
+      ],
+      "outputs": [
+        [
+          "left",
+          "column",
+          "l.value"
+        ],
+        [
+          "right",
+          "column",
+          "r.value"
+        ]
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              1,
+              1
+            ],
+            "values": [
+              10,
+              1
+            ]
+          },
+          {
+            "identity": [
+              1,
+              2
+            ],
+            "values": [
+              10,
+              2
+            ]
+          },
+          {
+            "identity": [
+              1,
+              3
+            ],
+            "values": [
+              10,
+              3
+            ]
+          },
+          {
+            "identity": [
+              2,
+              1
+            ],
+            "values": [
+              20,
+              1
+            ]
+          },
+          {
+            "identity": [
+              2,
+              2
+            ],
+            "values": [
+              20,
+              2
+            ]
+          },
+          {
+            "identity": [
+              2,
+              3
+            ],
+            "values": [
+              20,
+              3
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "left unmatched count distinction",
+      "join": "left",
+      "left": [
+        [
+          1,
+          4,
+          8
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "key",
+          "column",
+          "l.key"
+        ],
+        [
+          "rows",
+          "count_all"
+        ],
+        [
+          "values",
+          "count",
+          "r.value"
+        ],
+        [
+          "total",
+          "sum",
+          "r.value"
+        ]
+      ],
+      "group_by": [
+        "l.key"
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              4
+            ],
+            "values": [
+              4,
+              1,
+              0,
+              null
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "nulls do not join",
+      "join": "inner",
+      "left": [
+        [
+          1,
+          null,
+          1
+        ]
+      ],
+      "right": [
+        [
+          1,
+          null,
+          2
+        ]
+      ],
+      "outputs": [
+        [
+          "left",
+          "column",
+          "l.value"
+        ],
+        [
+          "right",
+          "column",
+          "r.value"
+        ]
+      ],
+      "expected": {
+        "rows": [],
+        "error": null
+      }
+    },
+    {
+      "name": "nulls form one group",
+      "join": "none",
+      "left": [
+        [
+          3,
+          1,
+          7
+        ],
+        [
+          2,
+          null,
+          4
+        ],
+        [
+          1,
+          null,
+          3
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "key",
+          "column",
+          "l.key"
+        ],
+        [
+          "n",
+          "count_all"
+        ],
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "group_by": [
+        "l.key"
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              null
+            ],
+            "values": [
+              null,
+              2,
+              7
+            ]
+          },
+          {
+            "identity": [
+              1
+            ],
+            "values": [
+              1,
+              1,
+              7
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "empty ungrouped",
+      "join": "none",
+      "left": [],
+      "right": [],
+      "outputs": [
+        [
+          "n",
+          "count_all"
+        ],
+        [
+          "v",
+          "count",
+          "l.value"
+        ],
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [],
+            "values": [
+              0,
+              0,
+              null
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "empty grouped",
+      "join": "none",
+      "left": [],
+      "right": [],
+      "outputs": [
+        [
+          "key",
+          "column",
+          "l.key"
+        ],
+        [
+          "n",
+          "count_all"
+        ]
+      ],
+      "group_by": [
+        "l.key"
+      ],
+      "expected": {
+        "rows": [],
+        "error": null
+      }
+    },
+    {
+      "name": "all null sum",
+      "join": "none",
+      "left": [
+        [
+          1,
+          1,
+          null
+        ],
+        [
+          2,
+          1,
+          null
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "n",
+          "count_all"
+        ],
+        [
+          "v",
+          "count",
+          "l.value"
+        ],
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [],
+            "values": [
+              2,
+              0,
+              null
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "ordered positive overflow",
+      "join": "none",
+      "left": [
+        [
+          3,
+          1,
+          -1
+        ],
+        [
+          2,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          9223372036854775807
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "expected": {
+        "rows": [],
+        "error": {
+          "code": "Overflow",
+          "operator": "sum",
+          "identity": [
+            2,
+            null
+          ],
+          "output": 0,
+          "group": []
+        }
+      }
+    },
+    {
+      "name": "ordered negative overflow",
+      "join": "none",
+      "left": [
+        [
+          1,
+          1,
+          -9223372036854775808
+        ],
+        [
+          2,
+          1,
+          -1
+        ],
+        [
+          3,
+          1,
+          1
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "expected": {
+        "rows": [],
+        "error": {
+          "code": "Overflow",
+          "operator": "sum",
+          "identity": [
+            2,
+            null
+          ],
+          "output": 0,
+          "group": []
+        }
+      }
+    },
+    {
+      "name": "first failure follows contributors not group sorting",
+      "join": "none",
+      "left": [
+        [
+          1,
+          9,
+          9223372036854775807
+        ],
+        [
+          2,
+          9,
+          1
+        ],
+        [
+          3,
+          -9,
+          9223372036854775807
+        ],
+        [
+          4,
+          -9,
+          1
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "key",
+          "column",
+          "l.key"
+        ],
+        [
+          "s",
+          "sum",
+          "l.value"
+        ]
+      ],
+      "group_by": [
+        "l.key"
+      ],
+      "expected": {
+        "rows": [],
+        "error": {
+          "code": "Overflow",
+          "operator": "sum",
+          "identity": [
+            2,
+            null
+          ],
+          "output": 1,
+          "group": [
+            9
+          ]
+        }
+      }
+    },
+    {
+      "name": "self join distinct aliases",
+      "join": "inner",
+      "left": [
+        [
+          2,
+          7,
+          20
+        ],
+        [
+          1,
+          7,
+          10
+        ]
+      ],
+      "right": [
+        [
+          2,
+          7,
+          20
+        ],
+        [
+          1,
+          7,
+          10
+        ]
+      ],
+      "outputs": [
+        [
+          "left",
+          "column",
+          "l.value"
+        ],
+        [
+          "right",
+          "column",
+          "r.value"
+        ]
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              1,
+              1
+            ],
+            "values": [
+              10,
+              10
+            ]
+          },
+          {
+            "identity": [
+              1,
+              2
+            ],
+            "values": [
+              10,
+              20
+            ]
+          },
+          {
+            "identity": [
+              2,
+              1
+            ],
+            "values": [
+              20,
+              10
+            ]
+          },
+          {
+            "identity": [
+              2,
+              2
+            ],
+            "values": [
+              20,
+              20
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "right prefilter preserves unmatched",
+      "join": "left",
+      "left": [
+        [
+          2,
+          7,
+          20
+        ],
+        [
+          1,
+          7,
+          10
+        ]
+      ],
+      "right": [
+        [
+          3,
+          7,
+          3
+        ],
+        [
+          1,
+          7,
+          1
+        ],
+        [
+          2,
+          7,
+          2
+        ]
+      ],
+      "outputs": [
+        [
+          "left",
+          "column",
+          "l.value"
+        ],
+        [
+          "right",
+          "column",
+          "r.value"
+        ]
+      ],
+      "right_filter": {
+        "column": "r.value",
+        "op": "gt",
+        "value": 3
+      },
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              1,
+              null
+            ],
+            "values": [
+              10,
+              null
+            ]
+          },
+          {
+            "identity": [
+              2,
+              null
+            ],
+            "values": [
+              20,
+              null
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "right postfilter removes unmatched",
+      "join": "left",
+      "left": [
+        [
+          2,
+          7,
+          20
+        ],
+        [
+          1,
+          7,
+          10
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "left",
+          "column",
+          "l.value"
+        ],
+        [
+          "right",
+          "column",
+          "r.value"
+        ]
+      ],
+      "filter": {
+        "column": "r.value",
+        "op": "gt",
+        "value": 3
+      },
+      "expected": {
+        "rows": [],
+        "error": null
+      }
+    },
+    {
+      "name": "grouping keys from both sides",
+      "join": "left",
+      "left": [
+        [
+          1,
+          1,
+          5
+        ],
+        [
+          2,
+          2,
+          6
+        ]
+      ],
+      "right": [
+        [
+          1,
+          1,
+          8
+        ]
+      ],
+      "outputs": [
+        [
+          "l",
+          "column",
+          "l.key"
+        ],
+        [
+          "r",
+          "column",
+          "r.key"
+        ],
+        [
+          "n",
+          "count_all"
+        ]
+      ],
+      "group_by": [
+        "l.key",
+        "r.key"
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              1,
+              1
+            ],
+            "values": [
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "identity": [
+              2,
+              null
+            ],
+            "values": [
+              2,
+              null,
+              1
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "group without aggregates",
+      "join": "none",
+      "left": [
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          2,
+          2,
+          1
+        ]
+      ],
+      "right": [],
+      "outputs": [
+        [
+          "key",
+          "column",
+          "l.key"
+        ]
+      ],
+      "group_by": [
+        "l.key"
+      ],
+      "expected": {
+        "rows": [
+          {
+            "identity": [
+              2
+            ],
+            "values": [
+              2
+            ]
+          }
+        ],
+        "error": null
+      }
+    }
+  ]
+}

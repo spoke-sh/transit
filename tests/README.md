@@ -1,5 +1,52 @@
 # Validation and milestone evidence
 
+## Relational contract and oracle intake
+
+The intake starts at merged `07918d7a` on the pinned Zig
+`0.17.0-dev.2267+48abf1a34` compiler. `just test::relational` executes the new
+pure Fuze plan/basis validation and independent fixtures. The Python oracle
+checks 15 named finite cases, 300 seed-70 generated cases and physical input
+permutations. Its 312 successful-result cases agree with Python's SQLite engine;
+three ordered-overflow cases use explicit independent prefix arithmetic instead.
+Thirty-six NULL/key-order combinations, checked aggregate boundaries and
+independently encoded prepared/bound SHA-256 identities also agree with Zig.
+
+The Zig cases reject ambiguous aliases/columns, unsupported referenced types,
+invalid grouping/predicate scope, insufficient budgets, partial vectors, changed
+schemas and inconsistent cuts for aliases of one resource. Output descriptors
+preserve left null extension. These are local semantic/admission checks, not
+proofs of SQL lowering, native source capture, bounded row execution, spill,
+authorization, maintained revisions or distributed recovery. The specification
+oracle deliberately materializes at most 32 input rows per side and 1024 pairs;
+those are test bounds, not runtime cardinality limits.
+
+The pre-change standalone Fuze ReleaseSafe run reports 252/253 package tests
+passing. `compact DML preserves exact typed intent predicates defaults and
+ownership` fails with `NondeterministicMemoryUsage`; running the same cached
+pre-change binary reproduces it. The allocation schedule now uses the same
+no-resize backing allocator as the logical-plan codec proof. Each arena growth
+therefore gets a deterministic allocation/failure index without weakening
+ownership, exact-byte or failure-cleanup assertions. The standalone Fuze
+ReleaseSafe suite then passes. Earlier failed runs remain failures.
+
+The locked frontend installation and full `just check` pass, including root
+units, contract/diagnostic drift, 596 real CLI diagnostic cases, console history,
+Board checks and the documentation site build. After adding the wide-plan
+byte-budget adversary, the final focused `just test::relational` passes all
+42 Zig tests and the independent Python/SQLite checks; the final root unit rerun
+also passes. The new primitive types
+change no native/ABI/stored definition and enable no SQL operator.
+
+The recorded general Table 75-task coverage still spans several source revisions.
+Same-revision native integration and committed-HEAD `just ci-clean` have not run
+for this working-tree slice; no complete native or clean intake is claimed.
+
+Fixtures live in [the relational corpus](../packages/zig/transit-fuze/src/fixtures/relational.json),
+generated independently by [the oracle](relational.py). The
+[local contract](../contracts/RELATIONAL_V1.md) and
+[plan tests](../packages/zig/transit-fuze/src/relational_test.zig) define the
+implemented boundary.
+
 ## Mutation completion follow-up
 
 The follow-up to merged `96943293` starts with a fresh ReleaseSafe physical-disk

@@ -128,6 +128,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
 | `just test::table-schema` | Independent Table schema bytes, stable column identities, typed defaults, nullable omission and row constraints |
+| `just test::relational` | Pure relational plan/basis validation, independent identity bytes, NULL/ordered-overflow fixtures and finite Python/SQLite comparison; no native execution or recovery claim |
 | `just test::file-query` | Real CSV/JSONL file/stdin/gzip queries, independent exact results, quotas, cancellation, immutable capture and bounded process memory |
 | `just test::file-benchmark --output PATH` | Pinned DuckDB file/discovery/execution comparison matrix in the benchmarks shell; raw reports and explicit metric scopes |
 | `just test::logical-codec`, `just bindings::logical-test` | Exact logical native/port codecs and installed Python/TypeScript owners, generated recursive schemas, hashes and Arrow |

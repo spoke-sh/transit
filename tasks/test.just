@@ -597,6 +597,11 @@ table-schema:
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig
 
+# Pure relational contracts and independent finite semantics; no native execution.
+relational:
+    python3 -B tests/relational.py
+    zig test packages/zig/transit-fuze/src/Relational.zig
+
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
     python3 -B tests/fuze_sources.py

@@ -117,6 +117,18 @@ source revision `2c1a9d2d`. It does not describe implemented joins, grouped
 aggregation, maintained relations or distributed query execution. Those
 capabilities remain outside the [current query boundary](../reference/queries.md#relational-boundary).
 
+The local [relational contract](../../contracts/RELATIONAL_V1.md) now implements
+pure plan/basis validation and scalar aggregate/null rules for a finite int64
+profile. It uses stable Table row IDs rather than assuming primary keys identify
+every row: general Tables also allow duplicate rows without a declared key.
+Its [independent oracle](../../tests/relational.py) materializes small relations
+and compares the overlapping subset with SQLite; separate prefix arithmetic
+fixes the ordered-overflow counterexample below. The
+[intake evidence](../../tests/README.md#relational-contract-and-oracle-intake)
+distinguishes those local checks from the still-missing native capture, executor,
+publication and recovery mechanisms. Agreement on small finite relations does
+not establish bounded execution over growing retained data.
+
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query
 and B a vector of exact source revisions. An attributable result would need to

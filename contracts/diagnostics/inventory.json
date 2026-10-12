@@ -6337,6 +6337,99 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/Relational.zig": {
+      "errors": {
+        "AmbiguousRelationalColumn": 1,
+        "CrossRealmRelationalQuery": 1,
+        "DuplicateRelationalAlias": 2,
+        "DuplicateRelationalGroup": 1,
+        "DuplicateRelationalOutput": 1,
+        "IncompleteRelationalBasis": 1,
+        "InconsistentRelationalCut": 1,
+        "InvalidRelationalBudgets": 1,
+        "InvalidRelationalCut": 1,
+        "InvalidRelationalFilterScope": 1,
+        "InvalidRelationalGroups": 1,
+        "InvalidRelationalJoin": 2,
+        "InvalidRelationalName": 1,
+        "InvalidRelationalOutputs": 2,
+        "InvalidRelationalPredicate": 4,
+        "InvalidRelationalSourceIdentity": 1,
+        "InvalidRelationalSources": 3,
+        "RelationalOutputBufferTooSmall": 1,
+        "RelationalPlanTooLarge": 1,
+        "RelationalSourceChanged": 2,
+        "UngroupedRelationalColumn": 1,
+        "UnknownColumn": 1,
+        "UnknownRelationalSource": 2,
+        "UnsupportedRelationalType": 1
+      },
+      "outcomes": {
+        "AggregateState.observe().kind": [
+          "count_all",
+          "count",
+          "sum"
+        ],
+        "Comparison": [
+          "equal",
+          "not_equal",
+          "less",
+          "less_equal",
+          "greater",
+          "greater_equal"
+        ],
+        "Expression": [
+          "column",
+          "count_all",
+          "count",
+          "sum"
+        ],
+        "Instruction": [
+          "compare",
+          "is_null",
+          "is_not_null",
+          "negate",
+          "conjunction",
+          "disjunction"
+        ],
+        "Join.kind": [
+          "inner",
+          "left"
+        ],
+        "Lifetime": [
+          "interactive",
+          "captured"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "AggregateState.observe()": "<inferred>",
+        "Bound.fingerprint()": "<inferred>",
+        "Bound.validate()": "<inferred>",
+        "Plan.fingerprint()": "<inferred>",
+        "Plan.outputSchema()": "<inferred>",
+        "Plan.resolveColumn()": "<inferred>",
+        "Plan.validate()": "<inferred>",
+        "Plan.validatePredicate()": "<inferred>",
+        "Plan.write()": "<inferred>",
+        "name()": "<inferred>",
+        "resolve()": "<inferred>",
+        "text()": "<inferred>",
+        "writeColumn()": "<inferred>",
+        "writePredicate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 61,
+        "catch": 0
+      },
+      "imports": [
+        "TableRow.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/Scalar.zig": {
       "errors": {
         "CellTooLarge": 1,
@@ -8439,6 +8532,7 @@
         "LogicalSchema.zig",
         "LogicalStream.zig",
         "Prepared.zig",
+        "Relational.zig",
         "SourceCodec.zig",
         "Sql.zig",
         "SqlDiagnostic.zig",
