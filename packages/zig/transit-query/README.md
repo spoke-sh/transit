@@ -237,6 +237,15 @@ unsupported comparisons, checked sums, slash arguments and allocation failures.
 The console vocabulary is shared data; introducing it does not implement a CLI
 command or administrative SQL operation.
 
+`TableAssistance` handles the catalog console's Table and relational SQL.
+Relational completion discovers up to two declared aliases, reads their current
+authorized schemas, and rechecks the catalog revision/policy before disclosure.
+It qualifies shared column names, limits suggestions to the admitted int64
+profile, and suppresses predicate operators for unknown or ambiguous names.
+Partial projection discovery supplies editor metadata only; it does not establish
+SQL acceptance. Fuze's same relational parser owns JOIN/GROUP/aggregate token
+roles and cursor expectations.
+
 `SqlInspection` owns `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` over one
 configured source. `UnifiedClient.inspectSql`, `Bridge.inspect` and
 `Workspace.inspect` share current authorization, bounded typed results and Fuze

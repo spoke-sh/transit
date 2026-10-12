@@ -4,7 +4,7 @@ const std = @import("std");
 const r = @import("Relational.zig");
 const sql = @import("Sql.zig");
 const Parser = @import("SqlTyped.zig");
-const Reference = @import("SqlReference.zig");
+pub const Reference = @import("SqlReference.zig");
 const Predicate = @import("SqlLogicalPredicate.zig");
 pub const Target = struct { name: []const u8, alias: []const u8 };
 /// Classifies syntax before any source is opened. This is routing, not parsing
@@ -102,9 +102,17 @@ pub const Owned = struct {
     }
 };
 pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Owned {
+    return parseWithContext(allocator, text, location, .{});
+}
+pub const Context = struct { editor: ?*Parser.Editor = null, roles: ?[]sql.TokenRole = null, lookup: ?Predicate.Lookup = null };
+/// Completion and presentation consume the same parser as executable SQL.
+/// Editor expectations and token roles do not establish semantic acceptance.
+pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, context: Context) !Owned {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     var parser = try Parser.init(arena.allocator(), text, location);
+    parser.editor = context.editor;
+    parser.roles = context.roles;
     try parser.requireWord("SELECT");
     var selections: [r.max_outputs]Selection = undefined;
     var count: usize = 0;
@@ -121,6 +129,7 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Loc
                 if (is_sum) return error.UnsupportedAggregate;
                 selection.expression = .count_all;
             } else {
+                if (parser.boundary()) |at| at.sum_only = is_sum;
                 const column = try Reference.parse(&parser);
                 selection.expression = if (is_sum) .{ .sum = column } else .{ .count = column };
             }
@@ -153,7 +162,7 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Loc
         const rhs = try Reference.parse(&parser);
         join = .{ .kind = if (left) .left else .inner, .left = lhs, .right = rhs };
     }
-    const predicate = if (try parser.takeWord("WHERE")) try Predicate.syntax(&parser, null, "", error.UnsupportedRelationalPredicate) else null;
+    const predicate = if (try parser.takeWord("WHERE")) try Predicate.syntaxWithLookup(&parser, null, "", error.UnsupportedRelationalPredicate, context.lookup) else null;
     var groups: [r.max_groups]Reference = undefined;
     var group_count: usize = 0;
     if (try parser.takeWord("GROUP")) {
@@ -171,10 +180,44 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Loc
     const keys = try arena.allocator().dupe(Reference, groups[0..group_count]);
     return .{ .arena = arena, .targets = inputs, .selections = outputs, .join = join, .predicate = predicate, .groups = keys };
 }
+/// Header discovery for authorized editor metadata, including an unfinished
+/// projection. Returned names borrow allocator-owned strings. This does not
+/// validate expressions, authorize a Table or create an execution plan.
+pub fn discoverTargets(allocator: std.mem.Allocator, text: []const u8, output: *[r.max_sources]Target) !usize {
+    var parser = try Parser.init(allocator, text, null);
+    try parser.requireWord("SELECT");
+    var depth: usize = 0;
+    while (parser.token.tag != .eof) {
+        if (depth == 0 and parser.word("FROM")) break;
+        if (parser.token.tag == .left) depth += 1;
+        if (parser.token.tag == .right) {
+            if (depth == 0) return error.InvalidSqlSyntax;
+            depth -= 1;
+        }
+        try parser.advance();
+    }
+    try parser.requireWord("FROM");
+    output[0] = try target(&parser);
+    const left = try parser.takeWord("LEFT");
+    if (left) _ = try parser.takeWord("OUTER");
+    const inner = if (!left) try parser.takeWord("INNER") else false;
+    if (left or inner or parser.word("JOIN")) {
+        try parser.requireWord("JOIN");
+        output[1] = try target(&parser);
+        return 2;
+    }
+    return 1;
+}
 fn target(parser: *Parser) !Target {
     const name = try parser.named(.source);
-    const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text))) try parser.name() else name;
+    const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else name;
     return .{ .name = name, .alias = alias };
+}
+fn clauseWord(word: []const u8) bool {
+    inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |keyword| {
+        if (std.ascii.eqlIgnoreCase(word, keyword)) return true;
+    }
+    return false;
 }
 fn resolve(reference: Reference, sources: []const r.Source, location: ?*sql.Location) !r.Column {
     return r.resolve(sources, reference.qualifier, reference.name) catch |err| {

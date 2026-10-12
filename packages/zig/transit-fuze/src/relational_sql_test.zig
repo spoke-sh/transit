@@ -56,3 +56,54 @@ test "relational compiler rejects unsupported composition before source binding"
         } else |_| {}
     }
 }
+
+test "relational editor expectations and source discovery share the executable parser" {
+    const Parser = @import("SqlTyped.zig");
+    const Case = struct { text: []const u8, word: ?[]const u8 = null, name: ?Parser.NameRole = null, qualifier: ?[]const u8 = null, sum_only: bool = false };
+    for ([_]Case{
+        .{ .text = "SELECT ", .word = "COUNT", .name = .column },
+        .{ .text = "SELECT SUM(", .name = .column, .sum_only = true },
+        .{ .text = "SELECT l.", .name = .column, .qualifier = "l" },
+        .{ .text = "SELECT l.key FROM lefts l LEFT ", .word = "JOIN" },
+        .{ .text = "SELECT l.key FROM lefts l JOIN ", .name = .source },
+        .{ .text = "SELECT l.key FROM lefts l JOIN rights r ON r.", .name = .column, .qualifier = "r" },
+        .{ .text = "SELECT l.key FROM lefts l GROUP ", .word = "BY" },
+        .{ .text = "SELECT l.key FROM lefts l GROUP BY ", .name = .column },
+    }) |case| {
+        var editor: Parser.Editor = .{};
+        if (sql.parseWithContext(t.allocator, case.text, null, .{ .editor = &editor })) |value| {
+            var owned = value;
+            owned.deinit();
+        } else |err| if (err == error.OutOfMemory) return err;
+        try t.expectEqual(case.name, editor.name_role);
+        try t.expectEqual(case.sum_only, editor.sum_only);
+        if (case.qualifier) |expected| try t.expectEqualStrings(expected, editor.qualifier.?.slice());
+        if (case.word) |word| {
+            var found_word = false;
+            for (editor.words) |slot| if (slot) |value| {
+                if (std.mem.eql(u8, value, word)) found_word = true;
+            };
+            try t.expect(found_word);
+        }
+    }
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var found: [2]sql.Target = undefined;
+    try t.expectEqual(2, try sql.discoverTargets(arena.allocator(), "SELECT l. FROM lefts l LEFT JOIN rights r ON l.key=r.key", &found));
+    try t.expectEqualStrings("lefts", found[0].name);
+    try t.expectEqualStrings("l", found[0].alias);
+    try t.expectEqualStrings("rights", found[1].name);
+    try t.expectEqualStrings("r", found[1].alias);
+    try t.expectError(error.InvalidSqlSyntax, sql.discoverTargets(arena.allocator(), "SELECT 'FROM private'", &found));
+}
+test "relational clauses are not mistaken for an implicit source alias" {
+    var joined = try sql.parse(t.allocator, "SELECT lefts.key, rights.value FROM lefts LEFT JOIN rights ON lefts.key=rights.key", null);
+    defer joined.deinit();
+    try t.expectEqualStrings("lefts", joined.targets[0].alias);
+    try t.expectEqualStrings("rights", joined.targets[1].alias);
+    try t.expectEqual(.left, joined.join.?.kind);
+    var grouped = try sql.parse(t.allocator, "SELECT key, COUNT(*) AS n FROM lefts GROUP BY key", null);
+    defer grouped.deinit();
+    try t.expectEqualStrings("lefts", grouped.targets[0].alias);
+    try t.expectEqual(1, grouped.groups.len);
+}

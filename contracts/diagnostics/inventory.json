@@ -6664,6 +6664,7 @@
         "InvalidRelationalGroups": 1,
         "InvalidRelationalOutputs": 1,
         "InvalidRelationalSources": 1,
+        "InvalidSqlSyntax": 1,
         "Overflow": 1,
         "RelationalSourceChanged": 1,
         "UnboundParameters": 1,
@@ -6684,14 +6685,16 @@
       "error_sets": {},
       "error_returns": {
         "Owned.bind()": "<inferred>",
+        "discoverTargets()": "<inferred>",
         "parse()": "<inferred>",
+        "parseWithContext()": "<inferred>",
         "required()": "<inferred>",
         "resolve()": "<inferred>",
         "target()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 60,
         "catch": 2
       },
       "imports": [
@@ -7279,10 +7282,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 3
       },
       "imports": [
+        "RelationalSql.zig",
         "Sql.zig",
         "SqlTyped.zig",
         "TableDdl.zig",
@@ -7385,9 +7389,10 @@
         "parameterValue()": "<inferred>",
         "parse()": "<inferred>",
         "syntax()": "<inferred>",
+        "syntaxWithLookup()": "<inferred>",
         "validateParameter()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 4,
       "propagation": {
         "try": 39,
         "catch": 2
@@ -11291,18 +11296,23 @@
       "error_sets": {},
       "error_returns": {
         "Builder.add()": "<inferred>",
+        "Builder.addQualified()": "<inferred>",
         "complete()": "<inferred>",
         "expectations()": "<inferred>",
         "fixture()": "<inferred>",
         "ignored()": "<inferred>",
+        "quotedName()": "<inferred>",
+        "relationalExpectations()": "<inferred>",
+        "relationalFixture()": "<inferred>",
+        "relationalSuggestions()": "<inferred>",
         "statement()": "<inferred>",
         "suggestions()": "<inferred>",
         "target()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 59,
-        "catch": 11
+        "try": 77,
+        "catch": 14
       },
       "imports": [
         "root.zig",

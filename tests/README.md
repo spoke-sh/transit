@@ -166,6 +166,18 @@ the first invocation with an incorrect build root failed configuration and did
 not execute tests. Full `just check`, focused relational/diagnostic checks and
 the documentation build pass. Committed-head clean qualification remains pending.
 
+### Relational editor agreement
+
+Fuze and query Debug suites pass shared relational parser expectations and token
+roles, alias-qualified int64 completion, unknown/ambiguous predicate suppression,
+and allocation-failure checks. The native console exercises these suggestions
+through its authorized catalog route. Its complete `typed-tables` run passes in
+209.063 seconds, including the captured restart/denial schedule above, with 631
+turns, 207 sends and unchanged four-mutation/256-byte bounds. The logs are
+`relational-editor-fuze-final.log`, `relational-editor-query-final.log` and
+`native-relational-editor.log` under `.cache/relational-intake/`. No installed SDK
+or distributed query profile is covered by this run.
+
 ### Initial contract checkpoint
 
 The intake starts at merged `07918d7a` on the pinned Zig

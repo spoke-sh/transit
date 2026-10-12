@@ -466,6 +466,14 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert listed[-1]['complete'], listed
             assisted = call('assist', 'SELECT na FROM console_people', str(len('SELECT na')))
             assert assisted['profile'] == 'catalog_v1' and [item['text'] for item in assisted['items']] == ['"name"'], assisted
+            relational_draft = 'SELECT r.v FROM rel_left l JOIN rel_right r ON l.k = r.k'
+            assisted = call('assist', relational_draft, len('SELECT r.v'))
+            assert [item['text'] for item in assisted['items']] == ['"v"'], assisted
+            relational_draft = 'SELECT  FROM rel_left l JOIN rel_right r ON l.k = r.k'
+            assisted = call('assist', relational_draft, len('SELECT '))
+            assert {'"l"."k"', '"l"."v"', '"r"."k"', '"r"."v"'} <= {item['text'] for item in assisted['items']}, assisted
+            assisted = call('assist', grouped_sql + ' ', len(grouped_sql + ' '))
+            assert not {'LIMIT', 'HAVING', 'ORDER'} & {item['text'] for item in assisted['items']}, assisted
             sources = call('assist', 'SELECT * FROM console_', str(len('SELECT * FROM console_')))
             assert '"console_people"' in [item['text'] for item in sources['items']], sources
             altered = call('assist', 'ALTER TABLE console_people ALTER COLUMN name SET ', str(len('ALTER TABLE console_people ALTER COLUMN name SET ')))

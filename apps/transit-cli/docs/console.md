@@ -245,6 +245,12 @@ suggestions after at most 128 pages; narrow the prefix when the bounded search
 has no matching item. Metadata can change while editing: the console reacquires
 and validates the suggestion before inserting it. A changed revision or revoked
 inspection permission discards the suggestion; completion never applies SQL.
+For relational SQL in the configured catalog, completion resolves both Table
+aliases and offers only int64 columns. An unqualified position inserts a quoted
+alias and column; a qualified position completes only that alias. Ambiguous
+predicate names do not receive guessed operators. JOIN, GROUP BY and aggregate
+highlighting comes from the same parser used for execution. These suggestions
+do not enable a relational connection or execute the draft.
 
 ```sql
 CREATE TABLE people (
