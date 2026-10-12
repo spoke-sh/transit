@@ -2,6 +2,9 @@
 
 ## Neutral relational caller pages
 
+[Exact revision, budgets, logs and retained attempts](verification/results/relational-callers-2026-10-12.json)
+record the caller boundary separately from durable owners and SDK consumers.
+
 `just test::relational-callers` runs the real Station query port and C ABI over
 signed catalog routes, a native node with eight resident pages and disk-backed
 Ursula. One-resource aliases and two-resource joins produce three exact grouped
