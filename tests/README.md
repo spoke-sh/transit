@@ -1,5 +1,22 @@
 # Validation and milestone evidence
 
+## Relational resident growth
+
+The query package's generated-source/disk-spill component test completes **14,060
+input rows**, **7,030 groups** and **7,030 output rows** with an explicit combined
+operator/spill resident bound of **94,905 bytes**. Its **759,240-byte** private
+spill and **182,829 charged result bytes** both exceed that bound; even the
+input's int64 value bytes exceed it. All canonical group keys and counts agree
+with an independent arithmetic expectation without collecting input or output
+rows in memory. Execution uses **21,092 logical steps**.
+
+The complete query package unit task passes, including this case. Exact source,
+raw log hashes and the initial wrong measurement-field compile attempt are in
+the [growth record](verification/results/relational-resident-growth-2026-10-12.json).
+This proves component resident accounting and disk-spill growth. Generated input
+is not native Table ingestion; the bound excludes transport/process runtime, so
+it is not a measured RSS or provider-amplification claim.
+
 ## Named relational definitions
 
 [Exact implementation revision, binary/log hashes and retained attempts](verification/results/named-relational-2026-10-12.json)

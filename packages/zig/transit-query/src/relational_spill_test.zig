@@ -119,3 +119,52 @@ test "finite execution groups through private disk state with fixed operator mem
     try t.expectEqual(@as(u64, 300), rows);
     try t.expectEqual(@as(u64, 300), spill.count);
 }
+
+test "input groups and complete output exceed the explicit resident budget without a cardinality array" {
+    const Generated = struct {
+        groups: u64,
+        pub fn validate(_: *@This(), _: r.Bound) !void {}
+        pub fn next(self: *@This(), _: u8, after: ?r.RowIdentity) !?e.Row {
+            const ordinal = if (after) |id| id.operation else 0;
+            if (ordinal == self.groups * 2) return null;
+            var row: e.Row = .{ .identity = .{ .origin = 1, .operation = ordinal + 1, .ordinal = 0 } };
+            // Interleave a second contributor to every group without retaining
+            // either input relation or expected output in a resident collection.
+            row.values[0] = @intCast(ordinal % self.groups);
+            return row;
+        }
+    };
+    const Run = e.Execution(*Generated, *Spill);
+    const resident = Run.residentBytes + Spill.resident_bytes + @sizeOf(Generated);
+    const groups: u64 = (8 * resident + 107) / 108;
+    var definition = plan();
+    definition.budgets.resident_bytes = resident;
+    definition.budgets.spill_bytes = 16 * 1024 * 1024;
+    definition.budgets.result_bytes = 16 * 1024 * 1024;
+    definition.budgets.output_rows = groups;
+    definition.budgets.work_steps = groups * 16;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const cuts = [_]r.Cut{try cut()};
+    const bound: r.Bound = .{ .plan = definition, .cuts = &cuts };
+    var spill = try Spill.open(t.io, tmp.dir, "growth", bound, 100000000, null);
+    defer spill.deinit();
+    var source: Generated = .{ .groups = groups };
+    var execution = try Run.init(bound, &source, &spill);
+    var rows: u64 = 0;
+    while (true) switch (try execution.step()) {
+        .progress => {},
+        .row => |row| {
+            try t.expectEqual(@as(i128, rows), row.cells[0].value.atom.signed);
+            try t.expectEqual(@as(u128, 2), row.cells[1].value.atom.unsigned);
+            rows += 1;
+        },
+        .complete => break,
+    };
+    try t.expectEqual(groups, rows);
+    try t.expectEqual(groups, spill.count);
+    try t.expect(groups * 2 * @sizeOf(i64) > resident);
+    try t.expect(spill.count * spill.record_bytes > resident);
+    try t.expect(execution.result_bytes > resident);
+    std.debug.print("Relational component growth: {d} input rows, {d} groups, {d} resident bound, {d} spill bytes, {d} result bytes, {d} steps\n", .{ groups * 2, groups, resident, spill.count * spill.record_bytes, execution.result_bytes, execution.work });
+}
