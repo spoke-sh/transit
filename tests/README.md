@@ -1,5 +1,35 @@
 # Validation and milestone evidence
 
+## Installed interactive relational SDKs
+
+[Exact implementation revision, artifact hashes, logs and retained attempts](verification/results/relational-sdks-2026-10-12.json)
+record TypeScript and Python sync/async consumers installed outside the checkout.
+`just bindings::relational-node` and `just bindings::relational-python` build
+their matching native artifacts and run the signed disk-backed caller fixture.
+The ordinary Node and Python SDK tasks also run these schedules.
+
+Both one-resource aliases and two-resource joins agree with the typed Zig
+executor's prepared plan hash and the independent three-row fixture. Exact open,
+current-page and close retries preserve identity. Current catalog denial blocks
+an already returned prefix, fresh hosts reject the old reference, and ordered
+overflow preserves its original output/contributor witness and incomplete status.
+The reviewed Node schedule passes in **19.058 seconds** and the Python sync/async
+schedule in **18.122 seconds**, including their neutral caller baseline. Each
+baseline uses 72 port calls with a maximum 1,603-byte response. These small
+fixtures do not measure sustained input, large-output memory or throughput.
+
+Node checks pass **60** tests, including three relational boundary cases.
+Python passes five relational boundary/ownership tests and strict typing across
+22 source files. Full signed/unsigned integer bounds, nulls, owned row identities,
+missing/foreign definitions, altered page identities and invalid coverage are
+checked. Python cancellation leaves the native operation owned; overlapping work
+is rejected, and close joins before releasing its handle.
+
+The record preserves the initial missing build-task recipe, four Python typing
+findings and a guide formatting failure, along with the successful reruns.
+Board, foreign durable lifetimes and final committed-HEAD clean lanes remain
+separate gates; this SDK evidence does not imply they have passed.
+
 ## Neutral relational caller pages
 
 [Exact revision, budgets, logs and retained attempts](verification/results/relational-callers-2026-10-12.json)
