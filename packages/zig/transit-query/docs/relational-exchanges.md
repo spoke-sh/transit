@@ -2,9 +2,11 @@
 
 The typed Zig interface exchanges bounded source-row segments under one growing
 native authority. It uses explicit producer PIDs/resources and a receiver sharing
-the first Table owner's PID/resource. The source adapters remain
-`RelationalCaptured` or `RelationalHistory`; they validate the full bound basis
-and current rights to every Table. The
+the first Table owner's PID/resource. Exchanged inputs use `RelationalHistory`
+with an explicitly frozen Table-history vector. Each worker validates that exact
+basis and current rights to every Table under its own native identity. Native
+retained-read pins belong to the capturing PID; `RelationalCaptured` cannot lend
+its pins to a different producer PID. The
 [wire contract](../../../../contracts/RELATIONAL_EXCHANGE_V1.md) defines exact
 identities, routing and failure semantics.
 
@@ -38,6 +40,17 @@ identities, routing and failure semantics.
    partition consumes its terminal segment. Source order and first-error order
    are independent of placement, arrival or batch boundaries. The enclosing
    captured/maintained owner still owns checkpoint and result publication.
+
+`RelationalExchangeProducer` owns the scan cursor for a manual worker layout.
+Its `create` takes partition count, worker count/index, batch size, physical epoch
+and producer quota, and also creates the producer publication. It assigns logical
+channels by remainder modulo worker count. Repeated `step` calls read at most
+eight source rows and stage at most four matching rows per attempt; the cursor
+advances with eligibility only after publication. Different physical workers can
+recover the same cursor and pending bytes after native ownership replacement.
+Pass receiver-authenticated notices to `acknowledge` through a fresh own-resource
+turn, and use `retry` for exact outstanding notices. Acknowledgement does not
+return receiver credit. Neither operation redirects the frozen receiver PID.
 
 An empty partition requires a zero-row terminal segment. Missing or delayed
 coverage produces `RelationalExchangePending`; silence is not completion.

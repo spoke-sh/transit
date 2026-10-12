@@ -1,4 +1,4 @@
-//! Complete Table-history vectors for maintained execution. Logical data cuts
+//! Complete Table-history vectors for captured and maintained execution. Logical data cuts
 //! and the fresh backing views used for current authorization remain distinct.
 const std = @import("std");
 const q = @import("root.zig");
@@ -26,7 +26,7 @@ pub const Vector = struct {
     pub const max_bytes = 69 + r.max_sources * (8 + 2 + p.Value.max_bytes);
     pub fn validate(self: Vector, bundle: q.RelationalBundle) !void {
         try bundle.validate();
-        if (bundle.plan.lifetime != .maintained or self.count != bundle.sources.len or !std.mem.eql(u8, &self.request, &try bundle.fingerprint())) return error.InvalidRelationalHistory;
+        if (bundle.plan.lifetime == .interactive or self.count != bundle.sources.len or !std.mem.eql(u8, &self.request, &try bundle.fingerprint())) return error.InvalidRelationalHistory;
         for (self.entries[0..self.count], bundle.sources, 0..) |entry, source, i| {
             try entry.record.validate();
             if (entry.position == 0 or entry.position > p.max_counter or entry.record.committed > entry.position or entry.record.head.resource != source.scope.resource or entry.record.head.object != source.object) return error.InvalidRelationalHistory;
@@ -98,7 +98,7 @@ pub fn capture(turn: *s.Turn, allocator: std.mem.Allocator, bundle: q.Relational
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try bundle.validate();
-    if (bundle.plan.lifetime != .maintained) return error.InvalidRelationalHistory;
+    if (bundle.plan.lifetime == .interactive) return error.InvalidRelationalHistory;
     var vector: Vector = .{ .request = try bundle.fingerprint(), .count = @intCast(bundle.sources.len) };
     for (bundle.sources, bundle.plan.sources, 0..) |source, declared, i| {
         if (source.scope.realm != turn.delivery.realm) return error.CrossRealmRelationalQuery;
@@ -121,7 +121,7 @@ pub fn successor(turn: *s.Turn, bundle: q.RelationalBundle, principal: u64, prev
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try previous.validate(bundle);
-    if (preference >= previous.count) return error.InvalidRelationalHistory;
+    if (bundle.plan.lifetime != .maintained or preference >= previous.count) return error.InvalidRelationalHistory;
     var current: [r.max_sources]s.Turn.Captured = undefined;
     var upper: [r.max_sources]History.Record = undefined;
     var following: [r.max_sources]?History.Record = @splat(null);

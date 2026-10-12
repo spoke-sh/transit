@@ -71,6 +71,8 @@ partition:uint64be, sequence:uint64be. Tags are `h` for the receiver head (zero
 suffix), `c` for a channel (zero sequence), `p` for producer eligibility, `a` for
 receiver acceptance, `s` for the one reserved incoming segment (zero suffix), and
 `b` for the producer quota record (zero suffix).
+The producer also uses `w` for its scan cursor (zero suffix) and `k` for a
+receiver acknowledgement (the segment's source/partition/sequence).
 Row-index keys are 32 bytes: `00 78 72`, exchange:uint64be, source:uint8 and the
 20-byte stable identity. All values remain within native's 256-byte bound.
 
@@ -82,10 +84,29 @@ Row-index keys are 32 bytes: `00 78 72`, exchange:uint64be, source:uint8 and the
 | `RXA1` | exact 72-byte producer reference, exact 72-byte receiver reference |
 | `RXR1` | exact 72-byte receiver segment reference, row ordinal:uint8 |
 | `RXB1` | bound fingerprint; six uint64: exchange, producer PID, resource, cumulative quota, charged bytes, last offered publication record; pending-reference-present byte; 72-byte pending publication reference, all zero when absent |
+| `RXW1` | bound fingerprint; nine uint64: exchange, partition count, worker count, worker index, current channel, segment sequence, physical epoch, next publication record, accepted scan steps; batch-size and after-identity-present bytes; 20-byte after identity, all zero when absent |
 
 `RXH1`, `RXC1`, `RXP1`, `RXA1` and `RXR1` are respectively 175, 107, 125, 180 and
 109 bytes. `RXB1` is 189 bytes. Every saved reference binds format, length and
 publication digest.
+
+`RXW1` is 162 bytes. Worker count is positive, worker index is less than count,
+and batch size is 1–4. A channel ordinal is `partition * source_count + source`;
+worker `w` scans channels with `channel % worker_count == w`. Channel equal to
+the total source/partition count means complete. No array scales with that count.
+`RelationalExchangeProducer.step` reads at most eight source rows per attempt,
+constructs at most one segment, and advances its accepted cursor atomically with
+the producer eligibility record. Pure no-output scans persist their cursor in a
+bounded turn. A pending publication leaves the original cursor and epoch intact
+so restart reconstructs identical bytes. Accepted scan steps obey the plan's
+work budget; each attempt still has its separate bounded reads and host budgets.
+
+The producer records a receiver-authenticated acknowledgement as its exact
+`RXP1` value at the `k` key. It changes neither source progress nor credits and
+can be recorded through own-resource control after source denial. Producer quota
+reserves this acknowledgement record with the eligibility record. Exact retries
+read the durable eligibility ledger and retain the bound plan's original receiver
+PID even after acknowledged publisher chunks are retired.
 
 ## Acceptance, consumption and coverage
 
@@ -152,6 +173,12 @@ source adapters add native current-view guards before acceptance. The receiver
 adds a producer current-view guard while copying. Source pins, copied bytes,
 placement and old successful access do not grant current disclosure rights.
 Protocol checks do not prove that a worker computed honestly.
+
+Exchanged Table inputs use a frozen `RQH1` complete-history vector. Each producer
+reopens those exact immutable Table roots under its own grants. Native retained
+read versions remain restricted to the capturing PID; they cannot be lent to a
+different producer. A captured history bundle freezes one basis and cannot call
+the maintained successor selector. This does not change `RQV1` captured-job pins.
 
 `blocked` is unaccepted, retryable pressure or sequence ordering. `progress`
 preserves private staging/reservation. `accepted` and `duplicate` establish only

@@ -83,6 +83,11 @@ restores original row order for the existing finite executor. Explicit hosts
 own scheduling, source validation, worker placement and combined state budgets.
 See [query exchanges](docs/relational-exchanges.md) for the typed operations,
 credit/retry protocol and current qualification boundary.
+`RelationalExchangeProducer` adds a durable bounded scan cursor for explicit
+worker counts and assignments. It resumes the same pending segment after restart,
+preserves the original destination, and records receiver acknowledgements through
+own-resource control. Workers reopen the frozen Table-history vector with their
+own current grants; native retained pins remain scoped to their capturing PID.
 
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated

@@ -34,6 +34,14 @@ test "history vectors preserve consecutive transactions and one native cut acros
     const sources = [_]q.TableSource{ left.source, right.source };
     const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } }, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .maintained, .budgets = budgets } };
     const initial = try History.capture(&turn, t.allocator, bundle, 17);
+    // A finite exchange freezes the same complete Table-history evidence.
+    // Its distinct prepared lifetime cannot be advanced as a maintained job,
+    // nor can its vector be reinterpreted under that other lifetime.
+    var finite_bundle = bundle;
+    finite_bundle.plan.lifetime = .captured;
+    const finite_vector = try History.capture(&turn, t.allocator, finite_bundle, 17);
+    try t.expectError(error.InvalidRelationalHistory, History.successor(&turn, finite_bundle, 17, finite_vector, 0));
+    try t.expectError(error.InvalidRelationalHistory, finite_vector.validate(bundle));
     for (turn.decision.retain) |version| try t.expect(version == null);
     try t.expectEqual(turn.view.id, turn.decision.current_views[0].?);
     // Two Table heads can change in one native resource transaction. No vector
@@ -74,6 +82,8 @@ test "history vectors preserve consecutive transactions and one native cut acros
     var backfill = try History.open(&turn, t.allocator, bundle, 17, initial, 10);
     try t.expectEqual(@as(?i64, 10), (try backfill.next(0, null)).?.values[1]);
     try t.expect(try backfill.next(1, null) == null);
+    var finite_backfill = try History.open(&turn, t.allocator, finite_bundle, 17, finite_vector, 10);
+    try t.expectEqualDeep((try backfill.next(0, null)).?, (try finite_backfill.next(0, null)).?);
     try t.expectEqualSlices(u8, &backfill.bound().cuts[0].commitment, &backfill.bound().cuts[1].commitment);
     var previous = together;
     var count: usize = 0;

@@ -38,9 +38,11 @@ def fixtures():
     row = b'RXR1' + contract + local + b'\1'
     producer = b'RXB1' + contract + bytes([19]) * 32 + struct.pack('<6QB', 88, 4, 8, 65536, 1024, 0, 1) + remote
     assert len(producer) == 189
+    cursor = b'RXW1' + contract + binding + struct.pack('<9QBB', 99, 7, 3, 1, 1, 0, 3, 1, 8, 4, 1) + struct.pack('>QQI', 1, 3, 0)
+    assert len(cursor) == 162
     assert tuple(map(len, [head, channel, pending, accepted, row])) == (175, 107, 125, 180, 109)
     query = dict(definition=definition, head=head.hex(), channel=channel.hex(), pending=pending.hex(),
-                 accepted=accepted.hex(), row=row.hex(), producer=producer.hex(),
+                 accepted=accepted.hex(), row=row.hex(), producer=producer.hex(), cursor=cursor.hex(),
                  key=(b'\0xa' + struct.pack('>QBQQ', 88, 0, route(7, 7), 0)).hex(),
                  row_key=(b'\0xr' + struct.pack('>QBQQI', 88, 1, 1, 2, 0)).hex())
     return {'transit-fuze': fuze, 'transit-query': query}

@@ -10975,6 +10975,43 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/RelationalExchangeProducer.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalExchange": 9,
+        "InvalidRelationalSourceOrder": 1,
+        "QueryNotFound": 1,
+        "RelationalExchangeConflict": 3,
+        "RelationalExchangePending": 2,
+        "RelationalSourceChanged": 1,
+        "RelationalSpillBudget": 2,
+        "RelationalWorkBudget": 2,
+        "UnexpectedQueryPublisher": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Cursor.address()": "<inferred>",
+        "Cursor.decode()": "<inferred>",
+        "Cursor.encode()": "<inferred>",
+        "Cursor.total()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "acknowledge()": "<inferred>",
+        "create()": "<inferred>",
+        "cursor()": "<inferred>",
+        "retry()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/RelationalExchangeRecords.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -12548,6 +12585,7 @@
         "RelationalCaptured.zig",
         "RelationalCompilation.zig",
         "RelationalExchange.zig",
+        "RelationalExchangeProducer.zig",
         "RelationalExchangeRecords.zig",
         "RelationalHistory.zig",
         "RelationalMaintenance.zig",

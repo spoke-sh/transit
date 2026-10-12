@@ -473,6 +473,12 @@ definition. Integer fields are little endian unless stated otherwise.
   A resource's bound commitment hashes `transit.relational.table-history-cut.v1`,
   NUL, the bundle fingerprint, uint64 coordinate, and the encoded required heads
   in source order. Same-resource aliases share the entire resource commitment.
+  Captured query exchanges can freeze this Table-history vector under a captured
+  bundle; the bundle fingerprint distinguishes its lifetime. `RelationalHistory`
+  reads that exact basis under each worker's current rights, without borrowing
+  another PID's native retained-read pin. Only a maintained bundle can select a
+  successor. The existing `RQV1` captured owner keeps its native-pin semantics;
+  no decoder falls back between these distinct vector formats.
 - `RMH1`, 217 bytes: uint64 admission ID, peer, correlation, policy revision,
   current complete revision, manifest ID, next record ID, retained bytes and
   continuation input; 72-byte request reference; retained request version

@@ -254,7 +254,7 @@ pub const Producer = struct {
     pending: ?Ref = null,
     pub const base_bytes = 189 + 28 + 32 + 27;
     pub fn charge(spec: q.station.Publication.Spec) u64 {
-        return @as(u64, spec.length) + 125 + 28 + 104 + (@as(u64, spec.chunks()) + 1) * 27;
+        return @as(u64, spec.length) + 2 * (125 + 28) + 104 + (@as(u64, spec.chunks()) + 1) * 27;
     }
     const fields = .{ "id", "owner", "resource", "limit", "charged", "last" };
     pub fn encode(self: Producer) !p.Value {

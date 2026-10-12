@@ -154,6 +154,23 @@ prevents disclosure after a prefix.
 These use a reference KV store and synthetic authority, not a native durability
 or fencing proof.
 
+The producer-cursor continuation passes reference-store schedules with one or
+three logical workers, seven partitions and one- or four-row batches. Each
+attempt reads at most eight source rows; interrupted proposals reconstruct the
+same pending segment, and every row/empty partition appears exactly once across
+the assigned workers. Eligible notices retry after publisher retirement without
+redirecting their destination. Source denial blocks retry while own-resource
+acknowledgement remains possible. These are worker-layout transition tests,
+not native physical movement proofs. Frozen Table-history vectors admit captured
+inputs separately from maintained successors; a captured vector cannot be
+reinterpreted or advanced as maintained work. Native retained pins still require
+the capturing PID. Passing logs are `query-exchange-producer-fixed.log` and
+`query-exchange-history-basis.log` under the same intake directory. The final
+`query-exchange-producer-final.log` also passes the independent 162-byte cursor
+fixture and the combined producer/history continuation. An initial producer
+fixture used the wrong output-field name and failed compilation; it is not
+counted as an executed pass.
+
 Initial attempts expose fixture name/API errors, a row key exceeding the native
 32-byte limit, and a quota fixture that had not actually filled its admitted
 capacity. The implementation uses 32-byte row keys; the quota schedule now fills
