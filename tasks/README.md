@@ -89,6 +89,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::catalog-growth` | Create 65 additional Tables on disk with eight resident pages; check nine ordered metadata pages, changed cursors, current disclosure rights and node/store restart; larger counts use `test::catalog --grow N` |
 | `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
 | `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
+| `just bindings::relational-node`, `just bindings::relational-python` | Build/install interactive relational callers outside the checkout; compare exact plans and rows with Zig across one/two-resource routes, repeated pages, current denial, host loss and ordered overflow |
 | `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
 | `just bindings::catalog-ruby` | Build/install Ruby gems outside the checkout; verify frozen values, saved catalog recovery, malformed-child uncertainty and joined cancellation |
 | `just bindings::catalog-c` | Build/install C11/C++17 packages; verify owned values, copied-owner rejection, exact saved catalog recovery and current denial |

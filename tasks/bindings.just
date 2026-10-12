@@ -39,7 +39,7 @@ node-check:
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -47,6 +47,7 @@ python-build: build
 
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
+    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_relational_values.py
     PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_handler_tables.py
     PYTHONPATH=packages/python/transit-client:packages/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
     PYTHONPATH=packages/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
@@ -58,10 +59,20 @@ python-test: python-build
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
     just test::typed-tables --sdk python
+    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
     python3 -B bindings/build_node.py .cache/bindings/node
+
+# Qualify installed relational SQL callers through the shared Zig owner.
+relational-node: node-build node-check
+    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
+
+relational-python: python-build
+    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_relational_values.py
+    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
+    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
 
 # Qualify public Node clients/runners through the shared real-authority schedules.
 node-sdk-test: node-build
@@ -69,7 +80,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/table.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker
@@ -78,6 +89,7 @@ node-sdk-test: node-build
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just test::typed-tables --sdk node
+    zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
 logical-test: python-build node-build

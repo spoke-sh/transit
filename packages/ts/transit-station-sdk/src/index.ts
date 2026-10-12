@@ -122,3 +122,5 @@ export type {
 
 export * as catalog from "./catalog-api.ts";
 export * as logical from "./logical.ts";
+
+export * as relational from "./relational.ts";

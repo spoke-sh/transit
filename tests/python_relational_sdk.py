@@ -1,0 +1,70 @@
+"""Installed sync/async relational API consumer; never imports wire declarations."""
+import asyncio
+import dataclasses
+import inspect
+import json
+from pathlib import Path
+import sys
+from transit_client import ProcessRef, ResourceRef
+from transit_client.errors import TransitError
+from transit_station import catalog, relational as r
+
+
+def description(value):
+    return dict(plan=value.plan, sources=[dict(alias=s.alias, resource=dict(realm=s.resource.realm, resource=s.resource.resource), catalog=str(s.catalog), owner=s.owner, objectId=str(s.object_id), schema=s.schema) for s in value.sources],
+        columns=[dict(name=c.name, type=dict(kind=c.type.kind), nullable=c.nullable) for c in value.columns], join=value.join, grouped=value.grouped, executed=value.executed)
+
+
+def row(value):
+    if value is None: return None
+    if isinstance(value.identity, r.GroupIdentity): identity = dict(kind='group', keys=[None if k is None else str(k) for k in value.identity.keys])
+    else: identity = dict(kind='pair', left=value.identity.left.data.hex(), right=None if value.identity.right is None else value.identity.right.data.hex())
+    assert isinstance(value.cells, tuple)
+    return dict(identity=identity, cells=[None if c is None else str(c) for c in value.cells])
+
+
+async def resolve(value): return await value if inspect.isawaitable(value) else value
+
+
+async def main():
+    assert Path(r.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
+    config = json.loads(Path(sys.argv[2]).read_text())
+    catalogs = tuple(catalog.Connection(ProcessRef(c['scope']['realm'], c['owner']), catalog.Scope(ResourceRef(c['scope']['realm'], c['scope']['resource']), int(c['scope']['catalog']))) for c in config['catalogs'])
+    options = r.Options('per_resource_snapshot_vector', 16777216, 16777216, 8388608, 1000, 100000, 2, 100000, 100000, Path(config['spill_directory']))
+    cls = r.AsyncClient if sys.argv[1] == 'async' else r.Client
+    def connect(): return cls(config['url'], config['catalogs'][0]['principal'], Path(config['seed_file']), catalogs, options)
+    client = connect()
+    write = lambda value: print(json.dumps(value), flush=True)
+    try:
+        write(dict(ready=True))
+        for line in sys.stdin:
+            action = json.loads(line)
+            if 'close' in action: break
+            try:
+                if 'explain' in action:
+                    value = description(await resolve(client.explain(r.Statement(**action['explain']))))
+                elif 'open' in action:
+                    a = action['open']
+                    result = await resolve(client.open_query(a['id'], r.Statement(**a['statement'])))
+                    value = dict(reference=result.reference.save(), description=description(result.description), cuts=[dataclasses.asdict(c) for c in result.cuts], completeCoverage=result.complete_coverage)
+                elif 'page' in action:
+                    a = action['page']
+                    result = await resolve(client.page(r.Reference.restore(a['reference']), int(a['ordinal'])))
+                    value = dict(reference=result.reference.save(), ordinal=str(result.ordinal), row=row(result.row), completeCoverage=result.complete_coverage)
+                elif 'close_query' in action:
+                    await resolve(client.close_query(r.Reference.restore(action['close_query'])))
+                    value = {}
+                elif 'reconnect' in action:
+                    await resolve(client.close())
+                    client = connect()
+                    value = {}
+                else: raise AssertionError('Unknown proof operation')
+                write(dict(status=0, value=value))
+            except TransitError as error:
+                assert not error.diagnostic_invalid
+                write(dict(status=error.status or 1, value=dict(err=error.code, diagnostic=error.diagnostic)))
+    finally: await resolve(client.close())
+    write(dict(closed=True))
+
+
+asyncio.run(main())

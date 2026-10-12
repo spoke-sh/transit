@@ -208,6 +208,9 @@ The Station query ABI and port expose explicit catalog configuration, explanatio
 repeatable one-row pages and close through the shared
 [interactive caller](../../packages/zig/transit-query/docs/relational-callers.md).
 A complete page rechecks all source rights; host loss expires interactive handles.
+The [TypeScript](../../packages/ts/transit-station-sdk/docs/relational.md) and
+[Python](../../packages/python/transit-station/docs/relational.md) SDKs expose
+that interactive owner with immutable references and full-width integer rows.
 The console does not activate maintained queries. Flight rejects relational
 execution. Typed Zig maintained ownership and
 complete Table history have their own interfaces below; coalesced invalidation
