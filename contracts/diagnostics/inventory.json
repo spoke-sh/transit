@@ -354,6 +354,7 @@
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
         "InvalidEndpoint": 7,
+        "InvalidQueryBudget": 1,
         "InvalidQueryInput": 2,
         "InvalidRequestTimeout": 2,
         "InvalidSqlSyntax": 1,
@@ -496,6 +497,33 @@
         "std"
       ]
     },
+    "apps/transit-cli/ConsoleRelational.zig": {
+      "errors": {
+        "ConsoleInterrupted": 2,
+        "IncompleteSource": 1,
+        "UnsupportedConstruct": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "failed()": "anyerror",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 24,
+        "catch": 5
+      },
+      "imports": [
+        "Console.zig",
+        "Output.zig",
+        "Results.zig",
+        "Signals.zig",
+        "std",
+        "transit_catalog",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/ConsoleTableQuery.zig": {
       "errors": {
         "ConsoleInterrupted": 3,
@@ -513,11 +541,12 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 36,
+        "try": 38,
         "catch": 5
       },
       "imports": [
         "Console.zig",
+        "ConsoleRelational.zig",
         "Output.zig",
         "Results.zig",
         "Signals.zig",
@@ -6358,7 +6387,7 @@
         "InvalidRelationalSources": 3,
         "RelationalOutputBufferTooSmall": 1,
         "RelationalPlanTooLarge": 1,
-        "RelationalSourceChanged": 2,
+        "RelationalSourceChanged": 3,
         "UngroupedRelationalColumn": 1,
         "UnknownColumn": 1,
         "UnknownRelationalSource": 2,
@@ -6427,6 +6456,110 @@
         "TableRow.zig",
         "TableSchema.zig",
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RelationalExecution.zig": {
+      "errors": {
+        "FailedRelationalQuery": 1,
+        "IncompleteRelationalGroups": 1,
+        "InvalidRelationalGroup": 1,
+        "InvalidRelationalGroupOrder": 1,
+        "InvalidRelationalSourceOrder": 1,
+        "InvalidRelationalSourceRow": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalResultBudget": 4,
+        "RelationalWorkBudget": 1
+      },
+      "outcomes": {
+        "Event": [
+          "progress",
+          "row",
+          "complete"
+        ],
+        "Execution().<return>.phase": [
+          "input",
+          "empty_right",
+          "output",
+          "complete",
+          "failed"
+        ],
+        "Output.identity": [
+          "pair",
+          "group"
+        ]
+      },
+      "error_sets": {
+        "Execution().<return>.contribute().observed": [
+          "Overflow"
+        ]
+      },
+      "error_returns": {
+        "Execution().<return>.charge()": "<inferred>",
+        "Execution().<return>.contribute()": "<inferred>",
+        "Execution().<return>.coverEmptyRight()": "<inferred>",
+        "Execution().<return>.emit()": "<inferred>",
+        "Execution().<return>.endInput()": "<inferred>",
+        "Execution().<return>.init()": "<inferred>",
+        "Execution().<return>.input()": "<inferred>",
+        "Execution().<return>.output()": "<inferred>",
+        "Execution().<return>.read()": "<inferred>",
+        "Execution().<return>.step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 3
+      },
+      "imports": [
+        "PredicateTruth.zig",
+        "Relational.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RelationalSql.zig": {
+      "errors": {
+        "InvalidRelationalGroups": 1,
+        "InvalidRelationalOutputs": 1,
+        "InvalidRelationalSources": 1,
+        "Overflow": 1,
+        "RelationalSourceChanged": 1,
+        "UnboundParameters": 1,
+        "UnknownRelationalSource": 1,
+        "UnsupportedAggregate": 1,
+        "UnsupportedNullComparison": 1,
+        "UnsupportedRelationalPredicate": 2,
+        "UnsupportedRelationalType": 1
+      },
+      "outcomes": {
+        "Selection.expression": [
+          "column",
+          "count_all",
+          "count",
+          "sum"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Owned.bind()": "<inferred>",
+        "parse()": "<inferred>",
+        "required()": "<inferred>",
+        "resolve()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 50,
+        "catch": 2
+      },
+      "imports": [
+        "Relational.zig",
+        "Sql.zig",
+        "SqlLogicalPredicate.zig",
+        "SqlReference.zig",
+        "SqlTyped.zig",
         "std"
       ]
     },
@@ -6714,10 +6847,12 @@
     },
     "packages/zig/transit-fuze/src/SqlCodes.zig": {
       "errors": {
+        "AmbiguousRelationalColumn": 1,
         "CellTooLarge": 1,
         "CharacterLimitExceeded": 1,
         "CommentTooDeep": 1,
         "ConflictingTimeZone": 1,
+        "CrossRealmRelationalQuery": 1,
         "DuplicateAssignment": 1,
         "DuplicateColumn": 1,
         "DuplicateColumnConstraint": 1,
@@ -6726,6 +6861,9 @@
         "DuplicateMapKey": 1,
         "DuplicatePrimaryKeyColumn": 1,
         "DuplicateProjection": 1,
+        "DuplicateRelationalAlias": 1,
+        "DuplicateRelationalGroup": 1,
+        "DuplicateRelationalOutput": 1,
         "Inexact": 1,
         "InvalidArrayLength": 1,
         "InvalidBinaryLiteral": 1,
@@ -6757,6 +6895,11 @@
         "InvalidQueryInteger": 1,
         "InvalidQueryScalar": 1,
         "InvalidQuerySchema": 1,
+        "InvalidRelationalBudgets": 1,
+        "InvalidRelationalGroups": 1,
+        "InvalidRelationalJoin": 1,
+        "InvalidRelationalOutputs": 1,
+        "InvalidRelationalSources": 1,
         "InvalidRowWidth": 1,
         "InvalidSchemaTransition": 1,
         "InvalidSqlEncoding": 1,
@@ -6795,6 +6938,8 @@
         "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
         "QuerySourceChanged": 1,
+        "RelationalPlanTooLarge": 1,
+        "RelationalSourceChanged": 1,
         "ReusedColumnIdentity": 1,
         "RowBufferTooSmall": 1,
         "SourceChanged": 1,
@@ -6809,8 +6954,10 @@
         "TypeMismatch": 1,
         "UnboundParameters": 1,
         "UnexpectedEndOfInput": 1,
+        "UngroupedRelationalColumn": 1,
         "UnknownColumn": 1,
         "UnknownQualifier": 1,
+        "UnknownRelationalSource": 1,
         "UnknownSource": 1,
         "UnknownSqlType": 1,
         "UnknownUnionAlternative": 1,
@@ -6832,6 +6979,8 @@
         "UnsupportedNestedCharacterLimit": 1,
         "UnsupportedNullComparison": 1,
         "UnsupportedPrimaryKeyType": 1,
+        "UnsupportedRelationalPredicate": 1,
+        "UnsupportedRelationalType": 1,
         "UnsupportedSchema": 1,
         "UnsupportedSchemaConversion": 1,
         "UnsupportedStatement": 1,
@@ -8533,6 +8682,8 @@
         "LogicalStream.zig",
         "Prepared.zig",
         "Relational.zig",
+        "RelationalExecution.zig",
+        "RelationalSql.zig",
         "SourceCodec.zig",
         "Sql.zig",
         "SqlDiagnostic.zig",
@@ -9723,6 +9874,9 @@
         "Conflict": 1,
         "EndOfStream": 1,
         "FailedQuery": 1,
+        "FailedRelationalQuery": 1,
+        "IncompleteRelationalGroups": 1,
+        "IncompleteRelationalSpill": 1,
         "IncompleteResult": 1,
         "InteractiveQueriesUnavailable": 1,
         "InvalidAuthorityResponse": 1,
@@ -9740,6 +9894,8 @@
         "InvalidQuerySchema": 1,
         "InvalidQuerySearch": 1,
         "InvalidQueryUpload": 1,
+        "InvalidRelationalSourceOrder": 1,
+        "InvalidRelationalSpill": 1,
         "InvalidResourceRead": 1,
         "InvalidResultCoverage": 1,
         "InvalidResultDigest": 1,
@@ -9769,11 +9925,19 @@
         "QueryUploadIdentityConflict": 1,
         "QueryUploadNotFound": 1,
         "Rejected": 1,
+        "RelationalCallerChanged": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalResultBudget": 1,
+        "RelationalSourceChanged": 1,
+        "RelationalSpillBudget": 1,
+        "RelationalSpillWorkBudget": 1,
+        "RelationalWorkBudget": 1,
         "ResourceReadBatchUnavailable": 1,
         "ResultUnavailable": 1,
         "SourceDefinitionTooLarge": 1,
         "TableNotFound": 1,
-        "UnknownSource": 1
+        "UnknownSource": 1,
+        "UnsupportedRelationalConsistency": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10352,6 +10516,135 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/QueryMemory.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalQuery.zig": {
+      "errors": {
+        "FailedRelationalQuery": 2,
+        "InvalidQueryBudget": 1,
+        "InvalidRelationalBudgets": 1,
+        "InvalidRelationalSources": 1,
+        "OutOfMemory": 1,
+        "RelationalResidentBudget": 2,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "close()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 1
+      },
+      "imports": [
+        "QueryMemory.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalSpill.zig": {
+      "errors": {
+        "Cancelled": 2,
+        "FailedRelationalSpill": 3,
+        "IncompleteRelationalSpill": 1,
+        "InvalidRelationalGroup": 1,
+        "InvalidRelationalSpill": 8,
+        "InvalidSpillName": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSpillBudget": 3,
+        "RelationalSpillWorkBudget": 1,
+        "UnsupportedSpillLifetime": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "balance()": "<inferred>",
+        "charge()": "<inferred>",
+        "checkKey()": "<inferred>",
+        "get()": "<inferred>",
+        "height()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "read()": "<inferred>",
+        "readOptional()": "<inferred>",
+        "rotateLeft()": "<inferred>",
+        "rotateRight()": "<inferred>",
+        "updateHeight()": "<inferred>",
+        "write()": "<inferred>",
+        "writeOptional()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 61,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalTables.zig": {
+      "errors": {
+        "CatalogConfigurationChanged": 1,
+        "CatalogOwnerChanged": 1,
+        "CrossRealmRelationalQuery": 1,
+        "DuplicateRelationalAlias": 1,
+        "InvalidQueryBudget": 1,
+        "InvalidRelationalName": 1,
+        "InvalidRelationalSourceRow": 2,
+        "InvalidRelationalSources": 3,
+        "InvalidResourceRead": 1,
+        "QueryClosed": 3,
+        "QueryPageBudget": 3,
+        "RelationalCallerChanged": 1,
+        "RelationalSourceChanged": 2,
+        "UnknownRelationalSource": 1,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {
+        "Consistency": [
+          "per_resource_snapshot_vector",
+          "atomic"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "authorize()": "<inferred>",
+        "close()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "remaining()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 16,
+        "catch": 2
+      },
+      "imports": [
+        "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/RuntimeWitness.zig": {
       "errors": {
         "InvalidRuntimeWitness": 24
@@ -10619,37 +10912,16 @@
     },
     "packages/zig/transit-query/src/TableQuery.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "Cancelled": 2,
-        "CatalogConfigurationChanged": 2,
-        "CatalogNotInitialized": 1,
-        "CatalogOwnerChanged": 2,
-        "Conflict": 1,
+        "Cancelled": 1,
         "FailedQuery": 2,
         "InvalidQueryBudget": 1,
-        "InvalidResourceRead": 3,
-        "InvalidTableIndex": 2,
         "QueryClosed": 1,
-        "QueryPageBudget": 1,
-        "QueryResultBudget": 4,
-        "Rejected": 1,
-        "TableNotFound": 1
+        "QueryResultBudget": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Limits.validate()": "<inferred>",
-        "Scan.checkCancellation()": "<inferred>",
-        "Scan.configurationAt()": "<inferred>",
-        "Scan.current()": "<inferred>",
-        "Scan.fingerprint()": "<inferred>",
-        "Scan.next()": "<inferred>",
-        "Scan.open()": "<inferred>",
-        "Scan.page()": "<inferred>",
-        "Scan.prefetch()": "<inferred>",
-        "Scan.read()": "<inferred>",
-        "Scan.request()": "<inferred>",
-        "Scan.validateCurrent()": "<inferred>",
         "close()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
@@ -10657,8 +10929,52 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
-        "catch": 4
+        "try": 22,
+        "catch": 1
+      },
+      "imports": [
+        "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/TableScan.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "Cancelled": 1,
+        "CatalogConfigurationChanged": 2,
+        "CatalogNotInitialized": 1,
+        "CatalogOwnerChanged": 2,
+        "Conflict": 1,
+        "InvalidRelationalSourceOrder": 1,
+        "InvalidResourceRead": 3,
+        "InvalidTableIndex": 2,
+        "QueryPageBudget": 1,
+        "Rejected": 1,
+        "RelationalSourceChanged": 1,
+        "TableNotFound": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "checkCancellation()": "<inferred>",
+        "configurationAt()": "<inferred>",
+        "current()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "next()": "<inferred>",
+        "nextAfter()": "<inferred>",
+        "open()": "<inferred>",
+        "openAt()": "<inferred>",
+        "page()": "<inferred>",
+        "prefetch()": "<inferred>",
+        "read()": "<inferred>",
+        "request()": "<inferred>",
+        "validateCurrent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -11353,6 +11669,9 @@
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
+        "RelationalQuery.zig",
+        "RelationalSpill.zig",
+        "RelationalTables.zig",
         "RuntimeWitness.zig",
         "SourceDefinition.zig",
         "SourceWitness.zig",

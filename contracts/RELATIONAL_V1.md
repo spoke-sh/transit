@@ -6,19 +6,23 @@ prepared/bound fingerprints and scalar null/count/sum rules. Slices borrow
 immutable caller storage. Operations allocate no heap memory and acquire no
 source, permission, storage, clock or I/O.
 
-There is no relational SQL compiler, native admission route, row executor,
-checkpoint codec, ABI or result manifest yet. The small finite interpreter under
-`tests/` is an independent specification oracle. Capture, disclosure, spill,
-recovery and completion below are integration obligations, not implemented
-mechanisms or guarantees established by plan validation.
+`RelationalSql` lowers finite SELECT into these same definitions through the
+shared lexer, identifiers, literals and predicate grammar. `RelationalExecution`
+executes over supplied ordered sources and external group storage. The query
+package's `RelationalQuery` owns interactive native Table cuts, current rights,
+bounded allocation and private disk grouping. Durable captured/maintained
+admission, checkpoint codecs, foreign-language ABI and result manifests remain
+outside this interface. The small finite interpreter under `tests/` supplies an
+independent specification oracle.
 
 ## Plans and capabilities
 
 Plans contain one or two explicit Table sources in one realm. Two sources require
 one inner or left equijoin from source 0 to source 1. Each source includes alias,
 realm, resource, catalog, owner and complete immutable Table schema. Aliases are
-unique. The same catalog/object identity must have the same resource, owner and
-schema. Name resolution uses supplied normalized names only; unknown qualifiers,
+unique. Object identity includes resource and catalog scope. Aliases of one
+resource share its owner; aliases of one object share its schema.
+Name resolution uses supplied normalized names only; unknown qualifiers,
 unknown columns and ambiguous unqualified columns reject without discovery.
 
 Columns use source/alias ordinal and stable column ID. Renames preserve IDs but
@@ -27,6 +31,7 @@ Rows use Table `(origin, operation, ordinal)` identity, independent of primary
 keys; keyless and composite-key Tables use the same relational model.
 
 Referenced projection, join, grouping, predicate and SUM columns must be int64.
+SQL declares these columns with BIGINT; INTEGER denotes int32.
 COUNT(*) and COUNT(int64-column) return uint64; SUM returns nullable int64.
 Unreferenced columns may use other valid stored types. Left joins make right
 projections nullable, including originally NOT NULL columns. Output names are
@@ -45,7 +50,7 @@ plans, not retained collections. Budgets explicitly declare resident, spill and
 result bytes, output rows, work steps and source pins. Resident/result/work must
 be positive. Zero spill forbids spilling; zero output rows allows only empty
 results. Pins cover every distinct source resource, at most two. Actual resource
-enforcement is an executor obligation. Capacity pressure cannot truncate answers,
+enforcement belongs to the execution owner. Capacity pressure cannot truncate answers,
 discard accepted work or expire data.
 
 ## Evaluation and canonical order
@@ -56,6 +61,30 @@ only their source. Predicates are eager postfix comparisons, state tests, NOT,
 AND and OR using three-valued logic: NULL comparison is unknown and only true
 selects. IS NULL/IS NOT NULL are exact tests. Native integration must define and
 preserve validation-page/error precedence independently of execution batches.
+
+The finite executor advances at most one ordered source row and one group update
+per step. Its initial join strategy rescans the frozen right input for each
+selected left row, preserving canonical order without buffering a relation.
+Group updates process all aggregates provisionally before storing the group.
+Group output starts only after input completion and sorts by the entire key
+tuple. The host validates every dependency before disclosure and completion,
+including empty or fully filtered inputs. A failed execution is terminal.
+
+The interactive owner uses an AVL index in an exclusively created, immediately
+unlinked disk file. It holds fixed record buffers and a bounded index path, with
+no in-memory array of retained groups. Disk quotas count retained records;
+separate spill-work limits count every record read/write. Cancellation, quota,
+short reads, digest failure or I/O failure poison the execution. Private spill
+is not a durable checkpoint and is released on process termination. The owner
+accounts all query heap allocations and reserves its bounded working frames;
+the supplied native Client owns its separate transport memory.
+
+SQL admits explicit columns and multiple COUNT/SUM expressions, AS output names,
+one optional INNER/LEFT [OUTER] JOIN with one column equality, WHERE predicates
+and GROUP BY columns. `RelationalSql.parse` owns its syntax; `bind` borrows the
+acquired immutable Table descriptors. Source-local filters are typed-plan fields;
+SQL WHERE lowers after the join. No parameter substitution or implicit coercion
+is added. Unsupported LIMIT/HAVING/ORDER BY/DISTINCT and additional joins reject.
 
 Canonical source order for this new profile is lexicographic Table row identity
 order (`TableRow.Identity.encode`). Join order is left identity then right

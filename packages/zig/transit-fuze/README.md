@@ -10,11 +10,15 @@ native authority. No optimizer rewrites are enabled.
 
 `Relational` supplies pure admission, stable column resolution, output descriptors
 and prepared/bound identities for finite int64 Table join/group plans. It also
-defines distinct join/group NULL rules and checked aggregate steps. These borrowed
-types acquire no source and have no SQL lowering or row executor. The
+defines distinct join/group NULL rules and checked aggregate steps.
+`RelationalSql` lowers the selected finite SQL profile through shared syntax and
+typed literals. `RelationalExecution` advances ordered source rows and externally
+stored groups with bounded resident state, preserving bag multiplicity, null
+extension and first-error order. Hosts own source capture, current permission,
+spill and complete-result publication. The
 [relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
 ownership, canonical order, budgets and remaining integration obligations.
-Existing finite query execution remains single-source.
+Existing single-source profiles retain their separately admitted operators.
 
 `Types` owns bounded logical descriptors and the specialized scalar profile used
 by `Unified`. `Types.Semantics` binds checked integer/decimal, finite float,

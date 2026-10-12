@@ -185,8 +185,11 @@ oversized cells. The compiler returns no successful prefix or approximate plan.
 [Query SQL v1](../../../packages/zig/transit-fuze/docs/unified-sql.md) owns exact
 compiler APIs and errors.
 
-Joins, sorting, grouping, arithmetic, writes, general casts, historical clauses
-and continuous queries are unsupported. This is a selected SQL subset, with
+The separately configured [finite relational console profile](../../../apps/transit-cli/docs/console.md#finite-relational-queries)
+adds one inner/left int64 equijoin and grouped COUNT/SUM over explicit Tables.
+The single-source interfaces above do not inherit those operators. Sorting,
+arithmetic, general casts, historical clauses and continuous queries remain
+unsupported. This is a selected SQL subset, with
 parser agreement on a checked PostgreSQL corpus; it is not PostgreSQL execution
 compatibility. In particular, int64 sums remain checked int64 rather than widened
 numeric results. No optimizer rewrite is enabled by the separate rewrite proofs.

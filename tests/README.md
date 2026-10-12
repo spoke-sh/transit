@@ -2,6 +2,42 @@
 
 ## Relational contract and oracle intake
 
+The finite continuation implements `RelationalExecution` and `RelationalSql`.
+The executor agrees with the 15 independent named cases, including first failing
+contributor/output across groups. It rejects source/store failures and exhausted
+resident/work/result budgets without completion. The focused task passes 54 Zig
+tests including dependencies; the standalone Fuze and query Debug suites pass.
+The query suite includes 901 disk groups inserted in ascending, descending and
+interleaved order, replacement and ordered enumeration, plus quota, cancellation,
+short-record and digest failures. A 600-row/300-group execution uses that actual
+disk map. These storage tests use temporary OS files, not durable job recovery.
+
+The first native attempt fails because its fixture declared SQL INTEGER (int32)
+for an int64-only operator. Correcting the fixture to BIGINT preserves the
+operator restriction. The subsequent `just test::typed-tables` passes in 129.492 s,
+including six duplicate inner-join pairs, three grouped left-join rows, empty
+grouped/ungrouped results, same-resource cut equality, self-join multiplicity,
+frozen results across UPDATE and current policy denial. Existing exact caller and
+owner lost-receipt recovery and the 28-descriptor Table matrix also pass. No SDK
+language was selected in this run.
+
+The subsequent cross-resource attempt exposes a proof setup error: granting the
+same caller again advances its incarnation and invalidates the first resource's
+grant. The fixture now reuses the established caller when provisioning the second
+resource. The retry passes in 146.271 s: independently frozen resource cuts,
+reused numeric catalog/object IDs without aliasing, retained rows across UPDATE,
+and denial when only the second catalog revokes reads. It also executes opt-in
+console JSON results, complete coverage, EXPLAIN and precise ambiguous-column
+diagnostics. Immediate private spill unlinking is included. The full native run
+records 481 turns, 201 sends, at most four mutations and 256-byte values per turn.
+The reported representative relational query uses 50 source requests, 474 spill
+bytes and 3153 bytes of accounted heap; these are observations, not latency or
+memory-wide guarantees. An earlier console run was interrupted after fixture
+edits during its build and supplies no passing evidence. Committed-head clean
+qualification remains pending.
+
+### Initial contract checkpoint
+
 The intake starts at merged `07918d7a` on the pinned Zig
 `0.17.0-dev.2267+48abf1a34` compiler. `just test::relational` executes the new
 pure Fuze plan/basis validation and independent fixtures. The Python oracle

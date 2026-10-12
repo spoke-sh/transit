@@ -5614,6 +5614,97 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
         }
       }
     },
@@ -7624,6 +7715,110 @@
             "inspect_status"
           ],
           "transport_status": 400
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 409
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
         }
       }
     },
@@ -8775,6 +8970,110 @@
             "inspect_status"
           ],
           "transport_status": 8
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 12
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 3
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ],
+          "transport_status": 10
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
         }
       }
     },
@@ -11580,6 +11879,97 @@
         "ArrowWorkspaceExceeded": {
           "code": "query.arrow_workspace_budget",
           "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle",
           "actions": [
             "inspect_status"
           ]

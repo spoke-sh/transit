@@ -171,6 +171,18 @@ test "relational output schema accounts for left null extension and independent 
     try testing.expectError(error.RelationalOutputBufferTooSmall, value.outputSchema(&.{}));
 }
 
+test "Table identities include resource scope while aliases in one resource share its owner" {
+    var value = plan();
+    var scoped = sources;
+    scoped[1].schema.object = scoped[0].schema.object;
+    value.sources = &scoped;
+    try value.validate();
+    scoped[1].resource = scoped[0].resource;
+    try value.validate();
+    scoped[1].owner += 1;
+    try testing.expectError(error.RelationalSourceChanged, value.validate());
+}
+
 test "relational source and post-join predicates have distinct scope identity and stack admission" {
     const positive = [_]r.Instruction{.{ .compare = .{ .column = right_value, .op = .greater, .value = 0 } }};
     var value = plan();
@@ -224,6 +236,7 @@ test "relational source vectors seal every alias and prohibit mixed cuts for one
     aliases[1] = sources[0];
     aliases[1].alias = "r";
     aliases[1].resource = 303;
+    bound.plan.budgets.source_pins = 2;
     try testing.expectError(error.RelationalSourceChanged, bound.validate());
 }
 

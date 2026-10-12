@@ -26,6 +26,7 @@ pub const Config = struct {
     execution: enum { interactive, durable } = .interactive,
     writes: ?Writes.Config = null,
     table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
+    relational: ?q.RelationalQuery.Options = null,
 };
 fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
     const Installation = @import("server/Installation.zig");
@@ -80,6 +81,10 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
             if (config.execution != .interactive) return error.UnsupportedConstruct;
             diagnostic.field = "table_limits";
             try config.table_limits.validate();
+            if (config.relational) |relational| {
+                diagnostic.field = "relational";
+                if (relational.consistency != .per_resource_snapshot_vector or relational.budgets.resident_bytes <= q.RelationalQuery.resident_base or relational.requests == 0 or relational.spill_work == 0 or relational.budgets.work_steps == 0 or relational.budgets.result_bytes == 0 or relational.budgets.source_pins == 0 or relational.budgets.source_pins > 2) return error.InvalidQueryBudget;
+            }
             diagnostic.field = "writes.recovery_file";
             if (config.writes) |writes| try Writes.validateConfig(writes);
         },
@@ -87,7 +92,7 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
             diagnostic.field = "connection / workspace";
             const connection_ = config.connection orelse return error.InvalidConfiguration;
             const workspace = config.workspace orelse return error.InvalidConfiguration;
-            if (config.catalog != null or config.writes != null) return error.InvalidConfiguration;
+            if (config.catalog != null or config.writes != null or config.relational != null) return error.InvalidConfiguration;
             inline for (@typeInfo(q.UnifiedClient.Connection).@"struct".field_names) |field| if (@field(connection_, field) == 0) {
                 diagnostic.field = "connection." ++ field;
                 return error.InvalidConfiguration;
@@ -204,7 +209,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
-    var console: Console = .{ .init = init, .session = &session, .wire = &wire, .client = if (client) |*selected| selected else null, .catalog = if (catalog) |*selected| selected else null, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null, .table_limits = config.table_limits };
+    var console: Console = .{ .init = init, .session = &session, .wire = &wire, .client = if (client) |*selected| selected else null, .catalog = if (catalog) |*selected| selected else null, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null, .table_limits = config.table_limits, .relational = config.relational };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.executeWithParameters(sql, parameters);
@@ -243,6 +248,7 @@ pub const Console = struct {
     recovery: ?*Recovery,
     writes: ?*Writes = null,
     table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
+    relational: ?q.RelationalQuery.Options = null,
     write_running: bool = false,
     write_preparing: bool = false,
     batch: bool,

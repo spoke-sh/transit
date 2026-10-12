@@ -88,10 +88,12 @@ pub const Plan = struct {
             var seen_resource = false;
             for (self.sources[0..i]) |earlier| {
                 if (std.mem.eql(u8, source.alias, earlier.alias)) return error.DuplicateRelationalAlias;
-                if (source.resource == earlier.resource) seen_resource = true;
-                if (source.catalog == earlier.catalog and source.schema.object == earlier.schema.object) {
-                    if (source.resource != earlier.resource or source.owner != earlier.owner or
-                        !std.mem.eql(u8, &try source.schema.fingerprint(), &try earlier.schema.fingerprint())) return error.RelationalSourceChanged;
+                if (source.resource == earlier.resource) {
+                    seen_resource = true;
+                    if (source.owner != earlier.owner) return error.RelationalSourceChanged;
+                }
+                if (source.resource == earlier.resource and source.catalog == earlier.catalog and source.schema.object == earlier.schema.object) {
+                    if (!std.mem.eql(u8, &try source.schema.fingerprint(), &try earlier.schema.fingerprint())) return error.RelationalSourceChanged;
                 }
             }
             if (!seen_resource) resources += 1;

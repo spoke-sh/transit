@@ -169,7 +169,7 @@ Use the [SQL reference](sql.md), [query compatibility matrix](../../packages/zig
 and [Fuze package](../../packages/zig/transit-fuze/README.md) for exact types,
 operators and errors. The [delivery contract](../../contracts/STATION_QUERY_V1.md) and
 [query v1 contract](../../contracts/UNIFIED_QUERY_V1.md) own wire details.
-Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
+General sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Relational boundary
 
@@ -177,16 +177,26 @@ COUNT(*) counts selected rows. COUNT(column) counts top-level values of any
 admitted column type, skips missing/null and rejects type errors/conflicts.
 Both return uint64; null/missing still consume the input LIMIT. Checked int64
 SUM adds the selected values of one declared source.
-They do not provide grouping or multi-source aggregation. Each query has one
-resource cut; there is no source-vector consistency mode, JOIN or GROUP BY
-execution contract. Querying two resources separately does not establish an
-atomic shared snapshot. Current Table notifications support finite refresh,
-not a complete update/delete stream for maintaining a join.
+Those single-source interfaces retain their original cut and operator profile.
+The separate [finite relational contract](../../contracts/RELATIONAL_V1.md)
+supports one or two explicitly routed Tables, one inner/left int64 equijoin,
+grouping by int64 columns, projection, COUNT and ordered checked int64 SUM.
+SQL declares int64 as BIGINT. Join nulls do not match; grouping places null keys
+together and before integer keys. Duplicate rows retain their multiplicity.
 
-Fuze's local [relational plan contract](../../contracts/RELATIONAL_V1.md) validates
-typed int64 join/group definitions and their supplied schema/source identities.
-It has no SQL lowering, source capture or row executor. These pure helpers do
-not enable JOIN, GROUP BY or multi-source native requests.
+`transit-query.RelationalQuery` seals a per-resource snapshot vector before
+execution. Aliases in one resource share its cut, while different resources may
+be captured at different times. This does not provide an atomic or causal shared
+snapshot. Every source's current rights still apply, including empty inputs.
+The [console configuration](../../apps/transit-cli/docs/console.md#finite-relational-queries)
+explicitly enables this interactive profile. Its private disk group index and
+bounded operator state have separate resident, spill, work and result limits.
+Rows remain incomplete until terminal source/output checks succeed.
+
+Durable captured/maintained relational queries, foreign-language bindings and
+Flight relational execution are not exposed by this interface. Current Table
+notifications support finite refresh, not a complete update/delete stream for
+maintaining a join.
 
 SUM checks overflow in source order, including across pages. Reordering inputs
 or combining partition totals can change whether it fails; no parallel reduction

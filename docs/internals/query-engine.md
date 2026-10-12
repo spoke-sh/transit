@@ -112,22 +112,35 @@ columnar storage merely because output is Arrow.
 
 ## Relational correctness and data movement
 
-This section analyzes constraints of the implemented single-source contract at
-source revision `2c1a9d2d`. It does not describe implemented joins, grouped
-aggregation, maintained relations or distributed query execution. Those
-capabilities remain outside the [current query boundary](../reference/queries.md#relational-boundary).
+This section analyzes finite relational correctness and the additional
+obligations for maintained and distributed execution. The original single-source
+analysis uses revision `2c1a9d2d`; the implemented finite extension is scoped by
+the [current query boundary](../reference/queries.md#relational-boundary).
 
 The local [relational contract](../../contracts/RELATIONAL_V1.md) now implements
-pure plan/basis validation and scalar aggregate/null rules for a finite int64
+plan/basis validation, shared SQL lowering and bounded execution for a finite int64
 profile. It uses stable Table row IDs rather than assuming primary keys identify
 every row: general Tables also allow duplicate rows without a declared key.
 Its [independent oracle](../../tests/relational.py) materializes small relations
 and compares the overlapping subset with SQLite; separate prefix arithmetic
 fixes the ordered-overflow counterexample below. The
 [intake evidence](../../tests/README.md#relational-contract-and-oracle-intake)
-distinguishes those local checks from the still-missing native capture, executor,
-publication and recovery mechanisms. Agreement on small finite relations does
-not establish bounded execution over growing retained data.
+distinguishes local checks, private-disk group growth and native interactive
+source capture from the still-missing maintained publication and distributed
+recovery mechanisms. Agreement on small finite relations alone does not
+establish bounded execution over growing retained data.
+
+The finite physical model uses ordered nested loops and an external AVL group
+map. For L selected left rows, R right rows and G groups, the join can read
+O(LR) right rows; group operations use O(log G) record reads/writes with fixed
+record buffers and an index path bounded by the height possible for uint64
+cardinality. Explicit work and disk quotas stop expensive executions. This
+choice preserves canonical pair/error order directly and avoids a resident hash
+table proportional to R or G. A partitioned hash join may reduce repeated reads,
+but must restore canonical contributors before checked SUM; no such optimizer
+is enabled here. Private spill is unlinked and cannot recover a captured job.
+The heap accounting and bounded working buffers describe query-owned memory,
+not process RSS or the transport client's separate allocations.
 
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query

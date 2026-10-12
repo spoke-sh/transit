@@ -3,7 +3,7 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
@@ -13,7 +13,8 @@
         "packages/zig/transit-fuze/src/TableEvolution.zig",
         "packages/zig/transit-fuze/src/TableDml.zig",
         "packages/zig/transit-fuze/src/TableSelect.zig",
-        "packages/zig/transit-fuze/src/LogicalPrepared.zig"
+        "packages/zig/transit-fuze/src/LogicalPrepared.zig",
+        "packages/zig/transit-fuze/src/RelationalSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -40,6 +41,10 @@
         {
           "source": "packages/zig/transit-fuze/src/SqlDiagnostic.zig",
           "name": "general Table literal failures keep typed causes and original locations"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/relational_sql_test.zig",
+          "name": "relational SQL binds shared three-valued predicates and precise unknown names"
         }
       ],
       "exceptions": [
@@ -602,6 +607,70 @@
         "UnorderedType": {
           "code": "sql.unordered_type",
           "category": "unsupported"
+        },
+        "RelationalSourceChanged": {
+          "code": "sql.relational_source_changed",
+          "category": "conflict"
+        },
+        "AmbiguousRelationalColumn": {
+          "code": "sql.ambiguous_relational_column",
+          "category": "binding"
+        },
+        "UnknownRelationalSource": {
+          "code": "sql.unknown_relational_source",
+          "category": "binding"
+        },
+        "UnsupportedRelationalType": {
+          "code": "sql.unsupported_relational_type",
+          "category": "unsupported"
+        },
+        "UngroupedRelationalColumn": {
+          "code": "sql.ungrouped_relational_column",
+          "category": "binding"
+        },
+        "DuplicateRelationalOutput": {
+          "code": "sql.duplicate_relational_output",
+          "category": "binding"
+        },
+        "DuplicateRelationalAlias": {
+          "code": "sql.duplicate_relational_alias",
+          "category": "binding"
+        },
+        "DuplicateRelationalGroup": {
+          "code": "sql.duplicate_relational_group",
+          "category": "binding"
+        },
+        "InvalidRelationalJoin": {
+          "code": "sql.invalid_relational_join",
+          "category": "binding"
+        },
+        "UnsupportedRelationalPredicate": {
+          "code": "sql.unsupported_relational_predicate",
+          "category": "unsupported"
+        },
+        "RelationalPlanTooLarge": {
+          "code": "sql.relational_plan_too_large",
+          "category": "limit"
+        },
+        "InvalidRelationalGroups": {
+          "code": "sql.invalid_relational_groups",
+          "category": "limit"
+        },
+        "InvalidRelationalOutputs": {
+          "code": "sql.invalid_relational_outputs",
+          "category": "limit"
+        },
+        "InvalidRelationalSources": {
+          "code": "sql.invalid_relational_sources",
+          "category": "binding"
+        },
+        "InvalidRelationalBudgets": {
+          "code": "sql.invalid_relational_budgets",
+          "category": "limit"
+        },
+        "CrossRealmRelationalQuery": {
+          "code": "sql.cross_realm_relational_query",
+          "category": "unsupported"
         }
       }
     },
@@ -762,7 +831,8 @@
         "packages/zig/transit-query/src/SourceDefinition.zig",
         "packages/zig/transit-query/src/SqlCompilation.zig",
         "packages/zig/transit-query/src/SqlTemplate.zig",
-        "packages/zig/transit-query/src/TableQuery.zig"
+        "packages/zig/transit-query/src/TableQuery.zig",
+        "packages/zig/transit-query/src/TableScan.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -1344,6 +1414,58 @@
         "ArrowWorkspaceExceeded": {
           "code": "query.arrow_workspace_budget",
           "category": "limit"
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit"
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit"
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit"
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit"
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit"
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported"
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding"
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict"
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity"
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity"
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity"
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity"
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle"
         }
       },
       "exceptions": [],
@@ -2814,6 +2936,58 @@
         "ArrowWorkspaceExceeded": {
           "code": "query.arrow_workspace_budget",
           "category": "limit"
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit"
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit"
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit"
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit"
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit"
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported"
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding"
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict"
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity"
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity"
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity"
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity"
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle"
         }
       },
       "exceptions": [],

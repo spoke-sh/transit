@@ -119,8 +119,8 @@ def run(node, proof, host, cli, station_host, *arguments):
                 wait_ready(fixture.http, process, direct + '/health')
                 return process
 
-            def call(mode, *args, fail=False, expected_error=None):
-                result = subprocess.run([proof, url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=300)
+            def call(mode, *args, fail=False, expected_error=None, directory=None):
+                result = subprocess.run([proof, url, mode, str(directory or root), *map(str, args)], capture_output=True, text=True, timeout=300)
                 if fail:
                     assert result.returncode != 0, f'{mode} unexpectedly succeeded at lost-reply boundary'
                     if expected_error:
@@ -130,13 +130,13 @@ def run(node, proof, host, cli, station_host, *arguments):
                     raise RuntimeError(f'{mode}: {result.stderr[-12000:]}')
                 return json.loads(result.stdout)
 
-            def finish():
+            def finish(directory=None):
                 deadline = time.monotonic() + 300
                 for _ in range(1000):
                     assert time.monotonic() < deadline, 'Typed operation exceeded its time budget'
                     if hosted:
                         assert all(worker.poll() is None for worker in workers), 'Supplied host stopped'
-                    result = call('next')
+                    result = call('next', directory=directory)
                     if result['state'] == 'terminal':
                         return result
                     assert result['state'] in ('sent', 'running'), result
@@ -144,12 +144,12 @@ def run(node, proof, host, cli, station_host, *arguments):
                         if result['state'] == 'running':
                             time.sleep(.02)
                     else:
-                        pumped = call('pump')
+                        pumped = call('pump', directory=directory)
                         if result['state'] == 'running' and pumped['state'] == 'idle' and pumped['committed'] == 0:
                             raise AssertionError(f'Owner stopped before terminal SQL: {measurements}')
                     if result['state'] == 'sent':
                         while True:
-                            processed = call('progress')
+                            processed = call('progress', directory=directory)
                             if processed['state'] != 'pending' or not hosted:
                                 break
                             assert time.monotonic() < deadline, 'Supplied host failed to process input'
@@ -157,16 +157,16 @@ def run(node, proof, host, cli, station_host, *arguments):
                         assert processed['state'] != 'disposed', processed
                 raise AssertionError('Typed operation failed to finish within its finite proof budget')
 
-            def execute(operation, sql, object_id='-'):
-                call('compile', operation, object_id, sql)
-                return finish()
+            def execute(operation, sql, object_id='-', directory=None):
+                call('compile', operation, object_id, sql, directory=directory)
+                return finish(directory)
 
             def applied(result):
                 assert result['state'] == 'terminal', result
                 assert result['outcome'] == 'applied' or (result['outcome'] == 'delegated' and result['table_outcome'] == 'applied'), result
 
-            def hold(sql):
-                process = subprocess.Popen([proof, url, 'select-held', str(root), sql], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            def hold(sql, mode='select-held', second=None):
+                process = subprocess.Popen([proof, url, mode, str(root), sql, *([str(second)] if second else [])], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 readers.append(process)
                 assert select.select([process.stdout], [], [], 30)[0], 'Table SELECT did not acquire its snapshot'
                 ready = process.stdout.readline()
@@ -229,6 +229,68 @@ def run(node, proof, host, cli, station_host, *arguments):
             call('select', 'SELECT * FROM people', 1, 128, 100000, fail=True, expected_error='QueryPageBudget')
             call('select', 'SELECT * FROM people', 10000, 1, 100000, fail=True, expected_error='QueryResultBudget')
             call('select', 'SELECT * FROM people', 10000, 128, 1, fail=True, expected_error='QueryResultBudget')
+            # Real signed relational SQL over general Tables. Both objects live
+            # in one resource, so every alias must bind one shared native cut.
+            applied(execute(900001, 'CREATE TABLE rel_left (k BIGINT, v BIGINT)', 900001))
+            applied(execute(900002, 'CREATE TABLE rel_right (k BIGINT, v BIGINT)', 900002))
+            applied(execute(900003, 'INSERT INTO rel_left VALUES (7,10),(7,20),(9,30),(NULL,40)'))
+            applied(execute(900004, 'INSERT INTO rel_right VALUES (7,1),(7,2),(7,3),(NULL,4)'))
+
+            def relational_values(result):
+                assert result['complete'], result
+                values = []
+                for row in result['rows']:
+                    cells = []
+                    for encoded in row:
+                        cell = encoded['cell']
+                        cells.append(None if 'null' in cell else int(next(iter(cell['value']['atom'].values()))))
+                    values.append(cells)
+                return values
+
+            joined = call('relational', 'SELECT l.v AS left_value, r.v AS right_value FROM rel_left l JOIN rel_right r ON l.k = r.k')
+            assert relational_values(joined) == [[10,1],[10,2],[10,3],[20,1],[20,2],[20,3]], joined
+            assert joined['cuts'][0]['revision'] == joined['cuts'][1]['revision']
+            assert joined['cuts'][0]['commitment'] == joined['cuts'][1]['commitment']
+            grouped_sql = 'SELECT l.k, COUNT(*) AS rows, COUNT(r.v) AS present, SUM(r.v) AS total FROM rel_left l LEFT JOIN rel_right r ON l.k = r.k GROUP BY l.k'
+            grouped = call('relational', grouped_sql)
+            assert relational_values(grouped) == [[None,1,0,None],[7,6,6,12],[9,1,0,None]], grouped
+            assert grouped['spill_bytes'] > 0
+            assert relational_values(call('relational', 'SELECT COUNT(*) AS n, SUM(l.v) AS total FROM rel_left l WHERE l.k = 999')) == [[0,None]]
+            assert relational_values(call('relational', 'SELECT l.k, COUNT(*) AS n FROM rel_left l WHERE l.k = 999 GROUP BY l.k')) == []
+            self_join = call('relational', 'SELECT COUNT(*) AS n FROM rel_left l JOIN rel_left r ON l.k = r.k')
+            assert relational_values(self_join) == [[5]], self_join
+            retained_relation = hold(grouped_sql, 'relational-held')
+            applied(execute(900005, 'UPDATE rel_right SET v = 100 WHERE k = 7'))
+            assert relational_values(release(retained_relation)) == [[None,1,0,None],[7,6,6,12],[9,1,0,None]]
+            assert relational_values(call('relational', grouped_sql)) == [[None,1,0,None],[7,6,6,600],[9,1,0,None]]
+            denied_relation = hold(grouped_sql, 'relational-held')
+            call('policy', 'deny')
+            call('pump')
+            release(denied_relation, 'CatalogDenied')
+            call('policy', 'allow')
+            call('pump')
+            secondary = root / 'secondary'
+            secondary.mkdir()
+            call('provision', 65538, directory=secondary)
+            call('initialize', directory=secondary)
+            call('pump', directory=secondary)
+            # Equal numeric catalog/object IDs in distinct resources remain
+            # distinct identities; they must not alias a cut or schema owner.
+            applied(execute(900001, 'CREATE TABLE rel_right (k BIGINT, v BIGINT)', 900001, directory=secondary))
+            applied(execute(900002, 'INSERT INTO rel_right VALUES (7,2)', directory=secondary))
+            separate = call('relational', grouped_sql, secondary)
+            assert separate['cuts'][0]['resource'] != separate['cuts'][1]['resource']
+            assert separate['cuts'][0]['commitment'] != separate['cuts'][1]['commitment']
+            assert relational_values(separate) == [[None,1,0,None],[7,2,2,4],[9,1,0,None]]
+            foreign_held = hold(grouped_sql, 'relational-held', secondary)
+            applied(execute(900003, 'UPDATE rel_right SET v = 8', directory=secondary))
+            assert relational_values(release(foreign_held)) == relational_values(separate)
+            foreign_denied = hold(grouped_sql, 'relational-held', secondary)
+            call('policy', 'deny', directory=secondary)
+            call('pump', directory=secondary)
+            release(foreign_denied, 'CatalogDenied')
+            call('policy', 'allow', directory=secondary)
+            call('pump', directory=secondary)
             rejected_update = execute(13, 'UPDATE people SET id = 9')
             assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
                 source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
@@ -340,6 +402,23 @@ def run(node, proof, host, cli, station_host, *arguments):
                 assert (result.returncode != 0) == fail, (args, result.stdout, result.stderr)
                 return result
 
+            required = console(grouped_sql, fail=True)
+            assert 'relational.consistency' in required.stderr, required.stderr
+            console_config = json.loads((root / 'console.json').read_text())
+            console_config['relational'] = dict(consistency='per_resource_snapshot_vector',
+                budgets=dict(resident_bytes=16777216, spill_bytes=16777216, result_bytes=8388608,
+                             output_rows=1000, work_steps=100000, source_pins=2),
+                requests=100000, spill_work=100000)
+            (root / 'console.json').write_text(json.dumps(console_config))
+            console_join = [json.loads(line) for line in console(grouped_sql).stdout.splitlines()]
+            assert console_join[0]['profile'] == 'relational_snapshot_v1', console_join
+            assert console_join[0]['consistency'] == 'per_resource_snapshot_vector'
+            assert console_join[-1]['complete_coverage'] and console_join[-1]['complete']['rows'] == '3', console_join
+            relational_explain = json.loads(console('EXPLAIN ' + grouped_sql).stdout)['explanation']
+            assert relational_explain['join'] == 'left' and relational_explain['grouped']
+            assert not relational_explain['executed'] and relational_explain['sources'] == 2
+            ambiguous = console('SELECT v FROM rel_left l JOIN rel_right r ON l.k = r.k', fail=True)
+            assert 'ambiguous' in ambiguous.stderr.lower() and 'line 1, column 8' in ambiguous.stderr, ambiguous.stderr
             console('CREATE TABLE console_people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE, salary DECIMAL(18,2))')
             listed = [json.loads(line) for line in console('SHOW TABLES').stdout.splitlines()]
             names = [name for page in listed for name in page['tables']]
@@ -484,7 +563,7 @@ def run(node, proof, host, cli, station_host, *arguments):
 
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth)))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak']))))
         finally:
             release_host_reply.set()
             for worker in workers:

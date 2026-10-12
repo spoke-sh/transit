@@ -26,6 +26,22 @@ authorization precede disclosure, including completion and empty output. Explici
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+`RelationalQuery` executes finite int64 Table joins and grouped COUNT/SUM through
+the shared Fuze compiler and executor. Callers explicitly select
+`per_resource_snapshot_vector`, ordered catalog routes, resident/spill/result/work
+budgets, native-request and spill-operation limits. The owner seals every Table's
+schema and cut before execution; same-resource aliases share one lease. A final
+combined native read validates current catalog policies and native rights for
+all dependencies, including noncontributing sources. It holds frozen data through
+later mutations without rebinding a Table name or schema.
+
+Private grouping uses a disk AVL map with bounded buffers, per-record integrity
+checks and immediate file unlinking. Heap allocation is budgeted independently
+of retained groups; transport buffers belong to the supplied client. Errors and
+cancellation leave an incomplete prefix, never successful truncation. Callers
+release the stable allocated owner with `deinit`; interactive spill is not
+resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
+
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
 principal's current catalog rights before and after each page, preserving the
