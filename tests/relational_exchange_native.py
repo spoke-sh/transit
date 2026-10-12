@@ -13,7 +13,7 @@ from relational import evaluate
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof):
+def run(node, proof, pressure=None):
     node, proof = map(lambda path: str(Path(path).resolve()), (node, proof))
     with ColdStore() as cold, Fixture(cold.config()) as fixture:
         root = fixture.root
@@ -169,6 +169,27 @@ def run(node, proof):
                     ['k', 'column', 'l.key'], ['rows', 'count_all'], ['present', 'count', 'r.value'], ['total', 'sum', 'r.value']]))
             assert expected['error'] is None
             expected = {tuple(row['identity']): row['values'] for row in expected['rows']}
+            if pressure:
+                call('captured-plan', sql, secondary)
+                call('captured-enqueue')
+                for _ in range(1000):
+                    call('captured-pump', 1)
+                    captured = call('captured-status')
+                    if captured['state'] == 'capturing' and captured['checkpoint']:
+                        break
+                else:
+                    raise AssertionError('Captured query did not retain an operator checkpoint')
+                pressure('captured', call, restart, direct)
+                call('captured-pump')
+                assert call('captured-status')['state'] == 'complete'
+                captured_rows = call('captured-result')
+                assert captured_rows['complete'], captured_rows
+                actual_rows = [[None if 'null' in cell['cell'] else int(next(iter(cell['cell']['value']['atom'].values())))
+                                for cell in row] for row in captured_rows['rows']]
+                assert actual_rows == list(expected.values()), (actual_rows, expected)
+                call('captured-retire')
+                call('captured-clean')
+                assert call('captured-status')['released']
             results = []
             for partitions, workers, batch in ((1, 1, 1), (7, 3, 4)):
                 begin = time.monotonic()
@@ -260,6 +281,8 @@ def run(node, proof):
                 accepted_before = metrics['accepted']
                 call('exchange-pump', 'r', fail=True, expected_error='InvalidPublicationDigest')
                 assert fault['read'] is None and metrics['accepted'] == accepted_before
+                if pressure and partitions == 1:
+                    pressure('exchange', call, restart, direct)
                 # The second fault is exactly acceptance, before consumption.
                 fault['armed'] = 'acceptance'
                 recovered = False

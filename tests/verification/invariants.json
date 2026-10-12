@@ -1723,7 +1723,10 @@
         "Every published basis agrees with the independent finite oracle and each exact delta updates a separate consumer relation",
         "Lost accepted receipts survive worker fencing and node/store restart without allocating a second revision",
         "Both-side changes and first/last outer matches preserve multiplicity and paired updates",
-        "Missing cursor definitions, mismatched predecessors and current source denial reject before complete disclosure"
+        "Missing cursor definitions, mismatched predecessors and current source denial reject before complete disclosure",
+        "Paced complete transactions arrive during bounded maintenance quanta; every basis retains independent oracle and exact-delta checks",
+        "Schema and DROP successors fail without replacing the last complete revision; name reuse cannot rebind saved work",
+        "A reference-store history gap preserves failure across restoration and requires a separate explicit rebuild identity"
       ],
       "limits": "Small two-resource int64 fixtures with three aggregate groups; recomputation per transaction, bounded eight-page authority and 8 MiB cold hot/cache budgets. No automatic scheduling, sustainable arrival-rate, power-loss or distributed-authority claim. Executed status and failed attempts remain in tests/README.md.",
       "model": null
@@ -1736,19 +1739,23 @@
         "packages/zig/transit-query/src/RelationalExchange.zig",
         "packages/zig/transit-query/src/RelationalExchangeProducer.zig",
         "packages/zig/transit-query/src/RelationalMaintenance.zig",
-        "tests/relational_exchange_native.py"
+        "tests/relational_exchange_native.py",
+        "tests/relational_capacity.py"
       ],
       "profile": "Manual producer placement against one native authority, disk Ursula and bounded cold storage",
       "tasks": [
-        "test::relational-exchanges"
+        "test::relational-exchanges",
+        "test::relational-capacity"
       ],
       "scenarios": [
         "One/seven partitions, one/three workers and one/four-row batches preserve independent grouped left-join answers",
         "One receiver segment credit separates durable acceptance from consumption and requires empty-partition terminals",
         "Accepted producer-stage and receiver-acceptance receipts recover exactly after node/store restart",
-        "Fresh producer and receiver native generations reject stale worker activation without changing the recorded source vector"
+        "Fresh producer and receiver native generations reject stale worker activation without changing the recorded source vector",
+        "Corrupt segments and truncated reads reject before acknowledgement; current receiver denial preserves its accepted head",
+        "Real ext4 ENOSPC refuses captured/exchange advancement; reserve release and node/store reconstruction preserve exact accepted heads before continued work"
       ],
-      "limits": "Small two-resource int64 input and explicit serial host scheduling. This task does not prove coordinated handoff, distributed write authority, sustained throughput or power-loss durability.",
+      "limits": "Small two-resource int64 input and explicit serial host scheduling; physical capacity owns a fresh ext4 image. Coordinated single-authority handoff has its own invariant. No distributed write authority, sustained throughput or power-loss claim.",
       "model": null,
       "qualification": "Executed passes and failed attempts are recorded separately in tests/README.md."
     },
@@ -1772,9 +1779,11 @@
         "Exact root-signed retries after lost quiesce, conditional fence and key-activation receipts",
         "Missing or corrupted checkpoint and denied source grant block restoration",
         "One acknowledged and one unacknowledged segment survive credential-changing handoff; old key rejects after activation",
-        "Independent canonical record and complete 10003-entry paged digest"
+        "Independent canonical record and complete 10003-entry paged digest",
+        "Persistent unavailable authority and native source-owner lifetime expiry keep restoration fenced",
+        "A 270-entry native checkpoint includes 257 explicit application records and scans across bounded pages"
       ],
-      "limits": "Native producer checkpoint contains 12 entries. The pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, source-expiry injection or physical power-loss claim.",
+      "limits": "Native producer checkpoints contain 270 entries, including application padding; the pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, TTL expiry or physical power-loss claim.",
       "model": null,
       "qualification": "Actual commands, passing runs and remaining gates are recorded in tests/README.md."
     },

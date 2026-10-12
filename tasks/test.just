@@ -324,6 +324,11 @@ relational-callers:
 relational-exchanges:
     zig build test-relational-exchanges -Doptimize=ReleaseSafe
 
+# Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
+relational-capacity:
+    zig build relational-capacity-proof -Doptimize=ReleaseSafe
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-typed-table-proof
+
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:
     python3 -B tests/named_relational_records.py

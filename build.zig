@@ -1065,6 +1065,9 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
     }) });
     build_test_step.dependOn(&typed_table_proof.step);
+    const relational_capacity_proof = b.step("relational-capacity-proof", "Build native relational physical-capacity fixtures");
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(node_artifact, .{}).step);
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(typed_table_proof, .{}).step);
     const typed_table_native = b.addSystemCommand(&.{ "python3", "-B" });
     typed_table_native.addFileArg(b.path("tests/typed_table_native.py"));
     typed_table_native.addArtifactArg(node_artifact);

@@ -143,7 +143,8 @@
       "test::flight-placement",
       "test::work-items-placement",
       "test::server-capacity",
-      "test::server-application-capacity"
+      "test::server-application-capacity",
+      "test::relational-capacity"
     ],
     "discovery": [
       "test::vortex-profile",
