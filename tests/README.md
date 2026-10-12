@@ -2,6 +2,9 @@
 
 ## Named relational definitions
 
+[Exact implementation revision, binary/log hashes and retained attempts](verification/results/named-relational-2026-10-12.json)
+record the naming slice separately from broader query qualification.
+
 `just test::named-relational` runs the application-owned naming layer above the
 real captured/maintained owners on a native node and disk Ursula. The independent
 `tests/named_relational_records.py` fixture pins every control/record layout,
