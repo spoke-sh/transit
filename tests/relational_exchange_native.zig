@@ -10,7 +10,7 @@ const r = q.RelationalExchangeRecords;
 const Producer = q.RelationalExchangeProducer;
 const Captured = @import("relational_captured_native.zig");
 const Admin = @import("growing_support.zig").Admin(46);
-const Worker = struct { process: Admin.Provision, principal: u64 };
+const Worker = struct { process: Admin.Provision, principal: u64, fresh_key: bool };
 const Metadata = struct {
     definition: g.Definition,
     id: u64,
@@ -152,7 +152,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             }
             const observed = (try admin.query(.{ .process = pid })).body.process.process;
             _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = observed.generation, .worker = principal } });
-            worker.* = .{ .principal = principal, .process = .{ .pid = pid, .resource = resource, .generation = observed.generation + 1 } };
+            worker.* = .{ .principal = principal, .process = .{ .pid = pid, .resource = resource, .generation = observed.generation + 1 }, .fresh_key = false };
         }
         // Optional producer links are established while the receiver is fenced.
         _ = try admin.submit(.{ .@"suspend" = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
@@ -194,9 +194,16 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     }
     const worker: ?usize = if (args.len <= 4 or std.mem.eql(u8, args[4], "r")) null else try std.fmt.parseInt(usize, args[4], 10);
     if (worker) |index| if (index >= metadata.workers.len) return error.InvalidProofLayout;
+    if (std.mem.eql(u8, mode, "handoff")) return @import("worker_handoff_native.zig").run(Test, init, wire, directory, bundle, basis, &metadata, worker orelse return error.InvalidProofLayout, args[5]);
     const process = if (worker) |index| metadata.workers[index].process else config.writer;
     const principal = if (worker) |index| metadata.workers[index].principal else config.worker;
+    const worker_key = if (worker != null and metadata.workers[worker.?].fresh_key) try Test.key(11) else try Test.key(8);
     const pending_name = try std.fmt.allocPrint(init.arena.allocator(), "exchange-worker-{d}.json", .{process.pid});
+    if (std.mem.eql(u8, mode, "deny") or std.mem.eql(u8, mode, "allow")) {
+        if (worker == null) return error.InvalidProofLayout;
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = bundle.sources[bundle.sources.len - 1].scope.resource, .subject = principal, .permissions = if (std.mem.eql(u8, mode, "deny")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
+        return Test.print(init, .{ .state = mode });
+    }
     if (std.mem.eql(u8, mode, "tick") or std.mem.eql(u8, mode, "attach")) {
         _ = try admin.submit(.{ .send = .{ .pid = process.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(if (std.mem.eql(u8, mode, "attach")) "x:attach" else "x:tick") }).encode() } });
         return Test.print(init, .{ .state = "queued" });
@@ -211,7 +218,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     }
     if (std.mem.eql(u8, mode, "rotate")) {
         _ = try admin.submit(.{ .own = .{ .pid = process.pid, .expected_generation = process.generation, .worker = principal } });
-        var stale: s.client.Session = .{ .client = wire, .realm = 46, .principal = principal, .pid = process.pid, .generation = process.generation, .key = try Test.key(8) };
+        var stale: s.client.Session = .{ .client = wire, .realm = 46, .principal = principal, .pid = process.pid, .generation = process.generation, .key = worker_key };
         try std.testing.expectError(error.StaleActivation, stale.receive());
         if (worker) |index| {
             metadata.workers[index].process.generation += 1;
@@ -227,7 +234,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     const workspace = try init.gpa.alloc(u8, workspace_bytes);
     defer init.gpa.free(workspace);
     var handler: Handler = .{ .bundle = bundle, .basis = basis, .metadata = metadata, .worker = worker, .workspace = workspace, .captured = .{ .bundle = bundle, .bytes = bytes, .reference = request.reference, .workspace = workspace }, .table = .{ .allocator = init.gpa, .configuration = Test.configuration(config) } };
-    var server = try s.GenServer.init(.{ .client = wire, .realm = 46, .principal = principal, .pid = process.pid, .generation = process.generation, .key = try Test.key(8) }, "state");
+    var server = try s.GenServer.init(.{ .client = wire, .realm = 46, .principal = principal, .pid = process.pid, .generation = process.generation, .key = worker_key }, "state");
     const limit = if (args.len > 5) try std.fmt.parseInt(usize, args[5], 10) else 100;
     var committed: usize = 0;
     while (committed < limit) {

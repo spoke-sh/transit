@@ -1751,6 +1751,32 @@
       "limits": "Small two-resource int64 input and explicit serial host scheduling. This task does not prove coordinated handoff, distributed write authority, sustained throughput or power-loss durability.",
       "model": null,
       "qualification": "Executed passes and failed attempts are recorded separately in tests/README.md."
+    },
+    {
+      "id": "WORKER-HANDOFF-01",
+      "claim": "Recorded manual handoff verifies current state and conditionally replaces a scoped worker credential without resetting accepted exchange work",
+      "owner": "docs/reference/deployment.md",
+      "implementation": [
+        "packages/zig/transit-client/src/WorkerHandoff.zig",
+        "tests/worker_handoff_native.zig",
+        "tests/worker_handoff.py",
+        "tests/relational_exchange_native.py"
+      ],
+      "profile": "One trusted manager with durable private records, one unbound PID and writer-owned resource, one native authority",
+      "tasks": [
+        "test::relational-exchanges",
+        "test::unit"
+      ],
+      "scenarios": [
+        "Manager and node/store reconstruction at every recorded phase",
+        "Exact root-signed retries after lost quiesce, conditional fence and key-activation receipts",
+        "Missing or corrupted checkpoint and denied source grant block restoration",
+        "One acknowledged and one unacknowledged segment survive credential-changing handoff; old key rejects after activation",
+        "Independent canonical record and complete 10003-entry paged digest"
+      ],
+      "limits": "Native producer checkpoint contains 12 entries. The pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, source-expiry injection or physical power-loss claim.",
+      "model": null,
+      "qualification": "Actual commands, passing runs and remaining gates are recorded in tests/README.md."
     }
   ]
 }

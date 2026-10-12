@@ -62,6 +62,13 @@ Pass receiver-authenticated notices to `acknowledge` through a fresh own-resourc
 turn, and use `retry` for exact outstanding notices. Acknowledgement does not
 return receiver credit. Neither operation redirects the frozen receiver PID.
 
+For credential-changing replacement, the host can use the client's
+[recorded manual handoff](../../transit-client/docs/worker-handoff.md). Bind
+the handoff application field to the exact relational bound, checkpoint the
+producer's whole application resource and revalidate all source rights and
+history heads before activation. Pending notices keep their original bytes and
+physical epoch. Fresh placement never rewrites an eligible segment.
+
 An empty partition requires a zero-row terminal segment. Missing or delayed
 coverage produces `RelationalExchangePending`; silence is not completion.
 Receiver `close` requires only its own current resource and keeps accepted work

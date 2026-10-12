@@ -359,8 +359,8 @@ with pinned Fuze/query package tests and the independent Python exchange fixture
 checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
 duplicate acknowledgement, denied producer rereads, credit and quota pressure.
-`just test::relational-exchanges` separately runs the native producer and receiver
-hosts against disk Ursula with bounded hot/cache storage and a local cold store.
+The native exchange task separately runs producer and receiver hosts against
+disk Ursula with bounded hot/cache storage and a local cold store.
 It loses accepted staging/acceptance replies, reconstructs workers, restarts the
 node/store and publishes the maintained result for two partition/worker layouts.
 The four-row-per-source input establishes those recovery and semantic cases; it

@@ -60,7 +60,8 @@ def run(node, proof):
                                 assert data == receipt, 'Exact exchange turn retry changed its receipt'
                                 fault['replays'].add(label)
                         selected = fault['armed']
-                        if turn and (selected == 'producer' or (selected == 'acceptance' and acceptance)):
+                        handoff_command = {'handoff_quiesced': 'suspend', 'handoff_fenced': 'resume', 'handoff_activated': 'rotate_worker'}.get(selected)
+                        if (turn and (selected == 'producer' or (selected == 'acceptance' and acceptance))) or (handoff_command and handoff_command in command):
                             fault['records'][selected] = body, data
                             fault['armed'] = None
                             data = b'{"position":0}'
@@ -99,10 +100,10 @@ def run(node, proof):
                 fixture.start()
                 authority = start()
 
-            def call(mode, *args, directory=root, fail=False):
+            def call(mode, *args, directory=root, fail=False, expected_error='InvalidAuthorityResponse'):
                 result = subprocess.run([proof, url, mode, str(directory), *map(str, args)], capture_output=True, text=True, timeout=300)
                 if fail:
-                    assert result.returncode and 'InvalidAuthorityResponse' in result.stderr, result.stderr
+                    assert result.returncode and expected_error in result.stderr, result.stderr
                     return None
                 if result.returncode:
                     raise RuntimeError(f'{mode}: {result.stderr[-12000:]}')
@@ -153,8 +154,55 @@ def run(node, proof):
                 call('exchange-pump', 0, 1, fail=True)
                 assert list(root.glob('exchange-worker-*.json'))
                 restart()
+                call('exchange-handoff', 0, 'begin', fail=True, expected_error='PendingOperation')
                 call('exchange-rotate', 0)
                 assert 'producer' in fault['replays']
+                # Retain one acknowledged segment and one eligible unacknowledged
+                # segment before movement. The checkpoint includes their bytes,
+                # cursor, eligibility, ack ledger and original pending notice.
+                for segment in range(2):
+                    for _ in range(100):
+                        if call('exchange-status')['workers'][0]['outstanding']:
+                            break
+                        call('exchange-tick', 0)
+                        call('exchange-pump', 0)
+                    else:
+                        raise AssertionError('Producer did not retain an eligible segment')
+                    if segment == 0:
+                        call('exchange-pump', 'r')
+                        call('exchange-pump', 0)
+                assert call('exchange-handoff', 0, 'begin')['phase'] == 'planned'
+                phases = ['planned']
+                checkpoint_path = root / f"handoff-{metadata['workers'][0]['process']['pid']}.json"
+                for phase in ('quiesced', 'checkpointed', 'fenced', 'restored', 'activated', 'retired'):
+                    # Both the manager and authority/storage disappear at every
+                    # recorded boundary. One-shot proof workers are already dead.
+                    restart()
+                    if phase == 'restored':
+                        original = checkpoint_path.read_bytes()
+                        checkpoint_path.unlink()
+                        call('exchange-handoff', 0, 'step', fail=True, expected_error='FileNotFound')
+                        checkpoint_path.write_bytes(original)
+                        corrupt = json.loads(original)
+                        corrupt['checkpoint']['state']['digest'][0] ^= 1
+                        checkpoint_path.write_text(json.dumps(corrupt, separators=(',', ':')))
+                        call('exchange-handoff', 0, 'step', fail=True, expected_error='InvalidWorkerCheckpoint')
+                        checkpoint_path.write_bytes(original)
+                        call('exchange-deny', 0)
+                        call('exchange-handoff', 0, 'step', fail=True, expected_error='AccessDenied')
+                        assert call('exchange-handoff', 0, 'status')['phase'] == 'fenced'
+                        call('exchange-allow', 0)
+                    if phase in ('quiesced', 'fenced', 'activated'):
+                        fault['armed'] = 'handoff_' + phase
+                        call('exchange-handoff', 0, 'step', fail=True)
+                        assert list(root.glob('handoff-pending-*.json'))
+                        restart()
+                    assert call('exchange-handoff', 0, 'step')['phase'] == phase
+                    if phase in ('quiesced', 'fenced', 'activated'):
+                        assert 'handoff_' + phase in fault['replays']
+                    phases.append(phase)
+                transferred = call('exchange-handoff', 0, 'status')
+                assert transferred['checkpoint']['state']['entries'] > 6
                 # The second fault is exactly acceptance, before consumption.
                 fault['armed'] = 'acceptance'
                 recovered = False
@@ -204,7 +252,10 @@ def run(node, proof):
                     turns=metrics['turns'] - before, seconds=round(time.monotonic() - begin, 3),
                     retained_exchange_bytes=status['head']['retained_bytes'], operator_bytes=maintained['state_bytes'],
                     rounds=attempt + 1, completed=status['head']['completed'], oracle=True,
-                    producer_loss=True, acceptance_loss=True, node_store_restart=True, stale_worker_rejected=True))
+                    producer_loss=True, acceptance_loss=True, node_store_restart=True, stale_worker_rejected=True,
+                    handoff_phases=phases, checkpoint_entries=transferred['checkpoint']['state']['entries'],
+                    corrupt_checkpoint_rejected=True, missing_checkpoint_rejected=True, denied_restore_blocked=True,
+                    old_credential_rejected=True))
                 print(json.dumps(dict(profile='relational-exchange-layout', **results[-1])), flush=True)
             assert not failures, failures
             assert metrics['max_mutations'] <= 4 and metrics['max_value_bytes'] <= 256

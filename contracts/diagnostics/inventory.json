@@ -4256,6 +4256,54 @@
         "std"
       ]
     },
+    "packages/zig/transit-client/src/WorkerHandoff.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidWorkerCheckpoint": 9,
+        "InvalidWorkerHandoff": 13,
+        "RequestBudgetExceeded": 1,
+        "WorkerHandoffConflict": 10
+      },
+      "outcomes": {
+        "Phase": [
+          "planned",
+          "quiesced",
+          "checkpointed",
+          "fenced",
+          "restored",
+          "activated",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Checkpoint.matches()": "<inferred>",
+        "Plan.validate()": "<inferred>",
+        "Record.activate()": "<inferred>",
+        "Record.capture()": "<inferred>",
+        "Record.command()": "<inferred>",
+        "Record.expect()": "<inferred>",
+        "Record.fence()": "<inferred>",
+        "Record.quiesce()": "<inferred>",
+        "Record.restore()": "<inferred>",
+        "Record.restored()": "<inferred>",
+        "Record.retire()": "<inferred>",
+        "Record.save()": "<inferred>",
+        "Record.start()": "<inferred>",
+        "Record.stopped()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "snapshot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/abi_contract.zig": {
       "errors": {},
       "outcomes": {},
@@ -4411,6 +4459,7 @@
         "Session.zig",
         "SnapshotReader.zig",
         "WaitHint.zig",
+        "WorkerHandoff.zig",
         "bootstrap.zig",
         "delivery.zig",
         "std",

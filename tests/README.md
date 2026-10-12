@@ -223,8 +223,57 @@ The first native attempt fails `PendingOperation`: the fixture tried to change
 resource selection during a prepared delivery. The corrected host changes views
 only between turns. A preceding compile command used a nonexistent task name;
 the actual native probe compilation and run are separate passing evidence.
-Recorded handoff, native corruption/ENOSPC/current-denial schedules for exchanges,
-ongoing-input measurements and committed-HEAD clean verification remain open.
+The recorded handoff schedule below extends this evidence. Native exchange
+payload corruption/ENOSPC/current-denial schedules, ongoing-input measurements
+and committed-HEAD clean verification remain open.
+
+### Recorded manual worker handoff
+
+Pinned client `zig build test` passes phase recovery, stale execution progress,
+changed credentials, malformed/truncated records, missing checkpoints and
+complete ordered state scans. `python3 -B tests/worker_handoff.py` independently
+encodes the canonical manager record and SHA-256 digest of **10,003 entries**;
+the client scans them in **1,251 eight-entry pages** with constant resident
+buffers. `worker-handoff-independent.log` records that passing package run.
+The native record is a trusted manager's private fsynced file; native history
+remains execution authority. No distributed manager or provider binding is used.
+
+`just test::relational-exchanges` passes the extended schedule in
+`exchange-native-handoff-final.log`: **197.044 s** overall, **74.608 s / 195 turn
+responses** for one producer and **117.366 s / 250 turn responses** for three.
+Each layout transfers one producer after an acknowledged segment and an eligible
+unacknowledged segment. Its **12-entry** checkpoint includes publication bytes,
+scan progress, eligibility, acknowledgement and original pending notice. The
+replacement keeps the old segment's physical epoch and both maintained results
+still agree with the independent oracle.
+
+The manager process is reconstructed at each phase; the node and disk store are
+restarted at every recorded boundary. Lost receipts after native suspension,
+conditional resume and key rotation retain and replay the original root-signed
+request before recording the successor phase. Missing/corrupt checkpoints and a
+revoked source grant block restoration without activation. A known pending
+worker request blocks handoff admission until reconciled. After activation the
+old key fails authenticated identity reads, and the new key resumes the original
+cursor with existing resource grants. Physical test workers are finite process
+invocations whose exits are observed by the fixture.
+
+The run retains **204 cold objects / 53,583,110 bytes** across setup and both
+layouts; logical receiver/operator charges match the earlier exchange run.
+It observes at most four mutations and 256-byte values. Earlier passing handoff
+runs (`exchange-native-handoff-first.log` and
+`exchange-native-handoff-receipts.log`) cover narrower checkpoint/receipt gates
+and are not substituted for the final schedule. Source-expiry injection,
+unavailable revocation authority, physical checkpoint cardinality growth and
+power-loss behavior remain separate gates. The full clean suite still needs a
+committed source revision.
+
+`just check` passes in `check-worker-handoff-docs-fixed.log`, including generated
+contracts, the independent fixtures, Zig units, CLI/semantic diagnostics,
+frontend checks and documentation build. Its predecessor
+`check-worker-handoff.log` fails the documentation ownership rule because an
+Internals explanation embedded a repository task command. Reproduction commands
+now live in this proof ledger; the public explanation links here. The failure is
+retained and is not counted as a passed full check.
 
 ## Relational contract and oracle intake
 

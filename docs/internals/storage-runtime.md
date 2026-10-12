@@ -230,6 +230,60 @@ Automatic live recovery from rolled-back history is outside the supported
 deployment boundary. SIGKILL recovery against current disk state supplies no
 proof of arbitrary corruption or host power-loss behavior.
 
+### Checking state across manual worker handoff
+
+The question is how a trusted manager can replace an unbound worker while
+detecting changed recovery state and excluding the old credential. The
+[handoff contract](../../contracts/WORKER_HANDOFF_V1.md) selects one native
+authority, one writer-owned application resource, no outstanding finite turn
+permit and a durably serialized manager. The manager's private phase record is
+recovery evidence; it cannot grant execution. Provider-bound processes and
+rollback of authority history are excluded from this model.
+
+Let the original generation be `g`. Native suspension removes ownership at
+`g+1`, allowing a complete resource scan while ordinary worker writes are fenced.
+The checkpoint binds every ordered key/value and its revision, plus native
+execution progress. Conditional resume requires `g+1` and establishes an unowned
+ready process at `g+2`. If another manager intervenes, a different generation
+rejects this transition. A second complete scan must equal the checkpoint before
+credential rotation requires `g+2` and activates at `g+3`. Changed resources or
+process progress fail restoration; a competing owner after the scan fails the
+activation generation condition. The
+[client state machine](../../packages/zig/transit-client/src/WorkerHandoff.zig)
+implements these checks outside the kernel.
+
+The native mailbox can admit inputs while the writer is stopped. Requiring exact
+equality of its earlier admitted count would unnecessarily block recovery;
+rolling it back would lose accepted work. The checkpoint therefore requires
+unchanged consumed/cancelled progress and a nondecreasing admitted count. Native
+history keeps output destinations and delivery outcomes. The application
+resource retains operator roots, exchange deduplication and pending notices.
+Restoration reads that current authority state and never writes an earlier copy
+over it. Current dependencies remain separate: the manager checks them for
+restore, and subsequent turns and reads still enforce current grants. A saved
+checkpoint is neither a permission cache nor proof against later revocation.
+
+Changing only a generation excludes a stale session but leaves its credential
+valid. This protocol additionally rotates to a distinct key. Authentication
+precedes duplicate receipt lookup, so known old-key proposals must be settled
+first; the replacement recovers unknown accepted work from authority rather than
+re-signing an invented retry. Manager control requests use their original root
+signature through lost receipts. The manager retains each exact pending request
+until the successor phase record is durable. Missing manager history blocks
+recovery instead of authorizing fresh initialization.
+
+Two whole-resource scans cost linear reads in retained entries with constant
+resident memory. They favor a simple auditable manual transfer over a faster
+native immutable-root attestation, which this public profile does not expose.
+Copying a provider snapshot would also require historical permission and
+rollback checks and is not an alternative source of authority. Liveness requires
+available storage/grants and completion before native lifetime gates; the finite
+suspension deadline is not renewed by a failed scan. The pinned client package
+tests, independent Python handoff fixtures and native exchange task reproduce
+the selected checks. Their exact commands and artifacts are recorded in the
+[proof ledger](../../tests/README.md#relational-exchange-transitions) separates
+executed cases, resource sizes, lost receipts and remaining fault boundaries.
+
 ## Observation without authority
 
 Logs and traces describe attempts and observations. Durable receipts establish

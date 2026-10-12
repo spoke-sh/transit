@@ -24,6 +24,10 @@ The [native caller guide](docs/growing.md) describes bounded views and retained
 versions. Read [caller semantics](../../../docs/reference/callers.md) for the
 language-neutral ownership boundary.
 
+[Recorded manual worker replacement](docs/worker-handoff.md) composes native
+quiescence, complete state verification, conditional fencing and credential
+rotation under one authority. Hosts retain exact manager records and proposals.
+
 ## Caller guide
 
 [Calling and recovery](docs/turns.md) explains Session, receive/prepare/submit,

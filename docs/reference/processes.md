@@ -39,6 +39,12 @@ Names and registries resolve to PIDs at the defined acceptance boundary. Rebindi
 a name cannot redirect an already accepted call or its recorded reply destination.
 Restoring a worker snapshot cannot renew ownership or bypass retirement.
 
+[Manual worker handoff](../../contracts/WORKER_HANDOFF_V1.md) records a complete
+application-state check between quiescence and credential-changing activation.
+It preserves current native mailbox/outbox history while fencing the old key.
+The host persists its manager record and exact pending commands; missing or
+corrupt recovery evidence cannot authorize a new activation.
+
 ## Admission, completion and uncertainty
 
 A send receipt means the input was admitted. It does not mean the receiver ran

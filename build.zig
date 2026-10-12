@@ -289,6 +289,11 @@ pub fn build(b: *std.Build) void {
     relational_exchange_test.has_side_effects = true;
     relational_exchange_test.stdio = .inherit;
     test_step.dependOn(&relational_exchange_test.step);
+    const worker_handoff_test = b.addSystemCommand(&.{ "python3", "-B" });
+    worker_handoff_test.addFileArg(b.path("tests/worker_handoff.py"));
+    worker_handoff_test.has_side_effects = true;
+    worker_handoff_test.stdio = .inherit;
+    test_step.dependOn(&worker_handoff_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
