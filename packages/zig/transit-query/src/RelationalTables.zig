@@ -27,14 +27,7 @@ pub fn open(allocator: std.mem.Allocator, bindings: []const Binding, nonces: [r.
     if (consistency != .per_resource_snapshot_vector) return error.UnsupportedRelationalConsistency;
     if (bindings.len == 0 or bindings.len > r.max_sources) return error.InvalidRelationalSources;
     if (requests == 0) return error.InvalidQueryBudget;
-    for (bindings, 0..) |binding, i| {
-        try binding.client.connection.validate();
-        if (binding.alias.len == 0 or binding.alias.len > 255 or !std.unicode.utf8ValidateSlice(binding.alias) or std.mem.indexOfScalar(u8, binding.alias, 0) != null) return error.InvalidRelationalName;
-        const first = bindings[0].client;
-        if (binding.client.connection.scope.realm != first.connection.scope.realm) return error.CrossRealmRelationalQuery;
-        if (binding.client.transport != first.transport or binding.client.connection.principal != first.connection.principal or !std.mem.eql(u8, &binding.client.key.public_key.bytes, &first.key.public_key.bytes)) return error.RelationalCallerChanged;
-        for (bindings[0..i]) |earlier| if (std.mem.eql(u8, earlier.alias, binding.alias)) return error.DuplicateRelationalAlias;
-    }
+    try validateBindings(bindings);
     var self: Self = .{ .allocator = allocator, .count = bindings.len, .request_limit = requests };
     errdefer self.deinit();
     for (bindings, 0..) |binding, i| {
@@ -57,6 +50,19 @@ pub fn open(allocator: std.mem.Allocator, bindings: []const Binding, nonces: [r.
     }
     try self.authorize();
     return self;
+}
+/// Shared route validation for metadata compilation and snapshot execution.
+/// Checking route coherence grants neither metadata access nor execution rights.
+pub fn validateBindings(bindings: []const Binding) !void {
+    if (bindings.len == 0 or bindings.len > r.max_sources) return error.InvalidRelationalSources;
+    for (bindings, 0..) |binding, i| {
+        try binding.client.connection.validate();
+        if (binding.alias.len == 0 or binding.alias.len > 255 or !std.unicode.utf8ValidateSlice(binding.alias) or std.mem.indexOfScalar(u8, binding.alias, 0) != null) return error.InvalidRelationalName;
+        const first = bindings[0].client;
+        if (binding.client.connection.scope.realm != first.connection.scope.realm) return error.CrossRealmRelationalQuery;
+        if (binding.client.transport != first.transport or binding.client.connection.principal != first.connection.principal or !std.mem.eql(u8, &binding.client.key.public_key.bytes, &first.key.public_key.bytes)) return error.RelationalCallerChanged;
+        for (bindings[0..i]) |earlier| if (std.mem.eql(u8, earlier.alias, binding.alias)) return error.DuplicateRelationalAlias;
+    }
 }
 pub fn deinit(self: *Self) void {
     // Borrowing scans release only descriptors; one owner closes each pin.

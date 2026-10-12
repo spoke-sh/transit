@@ -511,8 +511,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 24,
-        "catch": 5
+        "try": 25,
+        "catch": 6
       },
       "imports": [
         "Console.zig",
@@ -6680,6 +6680,13 @@
           "count_all",
           "count",
           "sum"
+        ],
+        "required().source": [
+          "none",
+          "target",
+          "tail",
+          "alias",
+          "done"
         ]
       },
       "error_sets": {},
@@ -6694,7 +6701,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 61,
         "catch": 2
       },
       "imports": [
@@ -10818,6 +10825,31 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/RelationalCompilation.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "InvalidQueryBudget": 1,
+        "InvalidRelationalSources": 1,
+        "RelationalResidentBudget": 1,
+        "TableNotFound": 1,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "QueryMemory.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/RelationalQuery.zig": {
       "errors": {
         "FailedRelationalQuery": 2,
@@ -11014,7 +11046,7 @@
         "InvalidQueryBudget": 1,
         "InvalidRelationalName": 1,
         "InvalidRelationalSourceRow": 2,
-        "InvalidRelationalSources": 3,
+        "InvalidRelationalSources": 4,
         "InvalidResourceRead": 1,
         "QueryClosed": 3,
         "QueryPageBudget": 3,
@@ -11036,11 +11068,12 @@
         "next()": "<inferred>",
         "open()": "<inferred>",
         "remaining()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateBindings()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 2
       },
       "imports": [
@@ -12081,6 +12114,7 @@
         "RelationalBundle.zig",
         "RelationalCapture.zig",
         "RelationalCaptured.zig",
+        "RelationalCompilation.zig",
         "RelationalQuery.zig",
         "RelationalRecords.zig",
         "RelationalResult.zig",
@@ -18129,6 +18163,13 @@
       "templateWhereClause": "WHERE templatePredicate",
       "templatePredicate": "columnReference ( IS cellState | comparison ( literal | PARAMETER ) )",
       "templateLimitClause": "LIMIT ( INTEGER | PARAMETER )",
+      "relationalQuery": "EXPLAIN ? relationalSelect SEMI ? EOF",
+      "relationalSelect": "SELECT relationalSelection ( COMMA relationalSelection ) * FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ?",
+      "relationalSelection": "( columnReference | COUNT LPAREN ( STAR | columnReference ) RPAREN | SUM LPAREN columnReference RPAREN ) outputAlias ?",
+      "relationalTarget": "identifier relationalAlias ?",
+      "relationalAlias": "AS identifier | relationalImplicitAlias",
+      "relationalImplicitAlias": "legacyIdentifier | BY",
+      "relationalJoin": "( INNER | LEFT OUTER ? ) ? JOIN relationalTarget ON columnReference EQ columnReference",
       "selectStatement": "SELECT selection FROM identifier sourceAlias ? whereClause ? limitClause ? | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceAlias ? whereClause ? limitClause ? RPAREN AS identifier limitClause ?",
       "sourceAlias": "AS identifier",
       "selection": "projection | aggregateSelection",
@@ -18182,7 +18223,20 @@
       "describeStatement": "DESCRIBE identifier",
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
-      "identifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING",
+      "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING",
+      "JOIN": "'JOIN'",
+      "INNER": "'INNER'",
+      "LEFT": "'LEFT'",
+      "OUTER": "'OUTER'",
+      "RIGHT": "'RIGHT'",
+      "FULL": "'FULL'",
+      "CROSS": "'CROSS'",
+      "NATURAL": "'NATURAL'",
+      "GROUP": "'GROUP'",
+      "BY": "'BY'",
+      "HAVING": "'HAVING'",
+      "ORDER": "'ORDER'",
       "SELECT": "'SELECT'",
       "WHERE": "'WHERE'",
       "LIMIT": "'LIMIT'",

@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, mutation, application } = .query,
+    profile: enum { query, template, declaration, table_ddl, mutation, application, relational } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -25,6 +25,24 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
             defer value.deinit();
         },
         .declaration => _ = try f.Declaration.compileDiagnostic(case.sql, binding),
+        .relational => {
+            var parser = try f.SqlTyped.init(allocator, case.sql, location);
+            const explain = try parser.takeWord("EXPLAIN");
+            const start = if (explain) parser.lexer.start else 0;
+            var syntax = f.RelationalSql.parse(allocator, case.sql[start..], location) catch |err| {
+                location.offset += start;
+                return err;
+            };
+            defer syntax.deinit();
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var sources: [2]f.Relational.Source = undefined;
+            for (syntax.targets, 0..) |target, i| sources[i] = .{ .alias = target.alias, .realm = 1, .resource = i + 1, .catalog = 1, .owner = i + 1, .schema = try basis.statement.create.bind(i + 1) };
+            _ = syntax.bind(sources[0..syntax.targets.len], .interactive, .{ .resident_bytes = 1048576, .spill_bytes = 1048576, .result_bytes = 1048576, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 }, location) catch |err| {
+                location.offset += start;
+                return err;
+            };
+        },
         .table_ddl, .mutation => {
             var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
             defer basis.deinit();
@@ -66,6 +84,7 @@ pub fn main(init: std.process.Init) !void {
                 const detail = (switch (case.profile) {
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
                     .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
+                    .relational => f.SqlDiagnostic.tableSelect(case.sql, err, location),
                     .declaration => f.SqlDiagnostic.writeCompiler(case.sql, err, .declaration, binding),
                     else => f.SqlDiagnostic.bound(case.sql, err, false, binding),
                 }) orelse {

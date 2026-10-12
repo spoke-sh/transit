@@ -26,6 +26,12 @@ authorization precede disclosure, including completion and empty output. Explici
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+`RelationalCompilation.prepare` resolves explicit catalog routes through current
+inspection reads, owns immutable schemas and compiles a prepared relational plan
+without opening data snapshots or spill. It rechecks each resource revision and
+returns no captured basis; execution separately acquires cuts and read authority.
+The console uses this owner for relational EXPLAIN.
+
 `RelationalQuery` executes finite int64 Table joins and grouped COUNT/SUM through
 the shared Fuze compiler and executor. Callers explicitly select
 `per_resource_snapshot_vector`, ordered catalog routes, resident/spill/result/work

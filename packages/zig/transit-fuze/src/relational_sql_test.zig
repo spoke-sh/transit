@@ -9,6 +9,25 @@ const sources = [_]r.Source{
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
 };
 const budgets: r.Budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
+test "relational routing distinguishes clause words from existing names" {
+    for ([_][]const u8{
+        "SELECT join, group FROM items",
+        "SELECT value FROM join",
+        "SELECT value FROM group",
+        "SELECT join.value FROM items AS join",
+        "SELECT group.value FROM items AS group",
+        "SELECT value FROM items WHERE join = 1 AND group = 2",
+        "SELECT value FROM \"group\" AS \"join\" WHERE value = 1",
+        "SELECT COUNT(*) FROM (SELECT * FROM items LIMIT 2) AS join",
+    }) |text| try t.expect(!try sql.required(text));
+    for ([_][]const u8{
+        "SELECT l.value FROM \"left\" l JOIN \"right\" r ON l.key=r.key",
+        "SELECT l.value FROM items AS \"left\" LEFT JOIN others r ON l.key=r.key",
+        "SELECT key, COUNT(*) FROM group GROUP BY key",
+        "SELECT key FROM items WHERE group = 1 GROUP BY key",
+        "SELECT COUNT(*), SUM(value) FROM items",
+    }) |text| try t.expect(try sql.required(text));
+}
 const statement = "SELECT l.key, COUNT(*) AS rows, COUNT(r.value) AS values, SUM(r.value) AS total FROM lefts l LEFT JOIN rights r ON r.key = l.key GROUP BY l.key";
 fn roundtrip(allocator: std.mem.Allocator) !void {
     var syntax = try sql.parse(allocator, statement, null);

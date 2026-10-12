@@ -16,15 +16,41 @@ pub fn required(text: []const u8) !bool {
     var aggregate = false;
     var comma = false;
     var depth: usize = 0;
+    var source: enum { none, target, tail, alias, done } = .none;
     while (true) {
         const token = try lexer.next();
         if (token.tag == .eof) return aggregate and comma;
         if (token.tag == .left) depth += 1;
         if (token.tag == .right and depth != 0) depth -= 1;
         if (selection and token.tag == .comma and depth == 0) comma = true;
-        if (token.tag != .word) continue;
-        if (std.ascii.eqlIgnoreCase(token.text, "JOIN") or std.ascii.eqlIgnoreCase(token.text, "GROUP")) return true;
-        if (std.ascii.eqlIgnoreCase(token.text, "FROM")) selection = false;
+        if (token.tag != .word) {
+            if (source == .target or source == .alias) source = if (token.tag == .quoted) .tail else .done;
+            continue;
+        }
+        if (depth == 0) {
+            if (selection and std.ascii.eqlIgnoreCase(token.text, "FROM")) {
+                selection = false;
+                source = .target;
+                continue;
+            }
+            if (source == .target or source == .alias) {
+                source = .tail;
+                continue;
+            }
+            if (source == .tail) {
+                if (std.ascii.eqlIgnoreCase(token.text, "AS")) {
+                    source = .alias;
+                    continue;
+                }
+                for ([_][]const u8{ "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "NATURAL" }) |word| if (std.ascii.eqlIgnoreCase(token.text, word)) return true;
+                if (std.ascii.eqlIgnoreCase(token.text, "WHERE")) source = .done;
+            }
+            if (!selection and std.ascii.eqlIgnoreCase(token.text, "GROUP")) {
+                var lookahead = lexer;
+                const next = try lookahead.next();
+                if (next.tag == .word and std.ascii.eqlIgnoreCase(next.text, "BY")) return true;
+            }
+        }
         if (selection and (std.ascii.eqlIgnoreCase(token.text, "COUNT") or std.ascii.eqlIgnoreCase(token.text, "SUM"))) aggregate = true;
     }
 }

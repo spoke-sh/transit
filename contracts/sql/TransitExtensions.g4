@@ -17,6 +17,23 @@ templateWhereClause: WHERE templatePredicate;
 templatePredicate: columnReference (IS cellState | comparison (literal | PARAMETER));
 templateLimitClause: LIMIT (INTEGER | PARAMETER);
 
+// Explicit Table relational root; admission/type checks remain with RelationalSql.
+// The single-source statement root retains its independent LIMIT/subquery profile.
+relationalQuery: EXPLAIN? relationalSelect SEMI? EOF;
+relationalSelect
+    : SELECT relationalSelection (COMMA relationalSelection)* FROM relationalTarget
+      relationalJoin? whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
+    ;
+relationalSelection
+    : (columnReference | COUNT LPAREN (STAR | columnReference) RPAREN
+       | SUM LPAREN columnReference RPAREN) outputAlias?
+    ;
+relationalTarget: identifier relationalAlias?;
+relationalAlias: AS identifier | relationalImplicitAlias;
+// Clause words cannot consume the next join/group token as an implicit alias.
+relationalImplicitAlias: legacyIdentifier | BY;
+relationalJoin: (INNER | LEFT OUTER?)? JOIN relationalTarget ON columnReference EQ columnReference;
+
 // Boolean predicates and a projection bounded by the declared schema at compile time.
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
@@ -223,7 +240,8 @@ asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
-identifier
+identifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
+legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     | INSERT | UPDATE | DELETE | SET | VALUES
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
@@ -233,6 +251,18 @@ identifier
 
 // ---- Lexer rules --------------------------------------------------------
 
+JOIN: 'JOIN';
+INNER: 'INNER';
+LEFT: 'LEFT';
+OUTER: 'OUTER';
+RIGHT: 'RIGHT';
+FULL: 'FULL';
+CROSS: 'CROSS';
+NATURAL: 'NATURAL';
+GROUP: 'GROUP';
+BY: 'BY';
+HAVING: 'HAVING';
+ORDER: 'ORDER';
 SELECT: 'SELECT';
 WHERE: 'WHERE';
 LIMIT: 'LIMIT';

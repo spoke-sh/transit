@@ -203,8 +203,10 @@ GROUP BY l.category;
 ```
 
 The Tables and columns in this example must already exist with BIGINT types.
-`EXPLAIN` reports the proposed ordered scan/join and disk grouping without
-executing rows. Private spill uses TMPDIR (otherwise `/tmp`), private file modes
+`EXPLAIN` reports the proposed ordered scan/join and disk grouping using current
+authorized metadata only. It opens no snapshot or spill, returns a null execution
+basis, and rejects a metadata revision change during preparation. A later SELECT
+captures its own basis. Private execution spill uses TMPDIR (otherwise `/tmp`), private file modes
 and immediate unlinking. The operating system releases it on close or process
 termination. Exhausted work/disk/memory/result limits fail explicitly and leave
 any emitted prefix incomplete. JSON uses `relational_snapshot_v1`, prepared and

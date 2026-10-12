@@ -178,6 +178,34 @@ turns, 207 sends and unchanged four-mutation/256-byte bounds. The logs are
 `native-relational-editor.log` under `.cache/relational-intake/`. No installed SDK
 or distributed query profile is covered by this run.
 
+### Relational grammar and metadata-only EXPLAIN
+
+`test::relational-sql` compares 33 positive ASTs across production Zig,
+independent ANTLR and PostgreSQL, including aliases, unaliased clauses, mixed
+aggregates and Boolean instruction order. All 22 excluded forms reject. The
+ordinary grammar proof still passes its 174 SELECT comparisons, 32 exclusions
+and 14 extensions; all 79 SQL documentation examples parse. Diagnostic grammar
+qualification covers 337 compiler cases and 467 rule/alternative/boundary
+obligations, including binding failures and the existing contextual identifiers.
+
+The query Debug suite passes metadata-only preparation. The native Table schedule
+passes in 207.549 seconds, with 631 turns and 207 sends: relational EXPLAIN has a
+null execution basis and emits no snapshot/mutation command, while the complete
+captured restart, fencing and denial schedule remains intact. These observations
+do not qualify a foreign SDK or maintained query. A later Fuze regression checks
+that columns, aliases and Tables named `join` or `group` do not select the wrong
+query profile.
+
+The first full check identifies missing diagnostic-grammar branch coverage;
+the expanded cases pass. Two subsequent attempts encounter a missing stale-cache
+test executable after cache cleanup; successful test prefixes are not whole-run
+passes. Full `just check` passes twice using an explicit fresh local Zig cache,
+including the final routing correction, native units, contract drift, CLI,
+frontend and documentation build. Logs are `relational-three-parser-first.log`,
+`grammar-relational-docs.log`, `native-metadata-explain.log`,
+`fuze-relational-routing.log` and `check-relational-sql-routing.log` under
+`.cache/relational-intake/`. Committed-head `ci-clean` remains pending.
+
 ### Initial contract checkpoint
 
 The intake starts at merged `07918d7a` on the pinned Zig

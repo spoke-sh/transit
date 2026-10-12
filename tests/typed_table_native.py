@@ -41,6 +41,7 @@ def run(node, proof, host, cli, station_host, *arguments):
         release_host_reply = threading.Event()
         measurements = dict(turns=0, sends=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
 
+        observed_commands = []
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
@@ -56,6 +57,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                     data = response.read()
                     if self.path == '/v1/command' and response.status == 200:
                         command = json.loads(body)['request']['command']
+                        observed_commands.extend(command)
                         measurements['sends'] += int('send' in command)
                         turn = command.get('turn', command.get('turn_with_versions', {}).get('turn'))
                         if turn:
@@ -454,9 +456,13 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert console_join[0]['profile'] == 'relational_snapshot_v1', console_join
             assert console_join[0]['consistency'] == 'per_resource_snapshot_vector'
             assert console_join[-1]['complete_coverage'] and console_join[-1]['complete']['rows'] == '3', console_join
+            explain_start = len(observed_commands)
             relational_explain = json.loads(console('EXPLAIN ' + grouped_sql).stdout)['explanation']
             assert relational_explain['join'] == 'left' and relational_explain['grouped']
             assert not relational_explain['executed'] and relational_explain['sources'] == 2
+            assert relational_explain['basis'] is None
+            explain_commands = set(observed_commands[explain_start:])
+            assert explain_commands <= {'inspect'}, explain_commands
             ambiguous = console('SELECT v FROM rel_left l JOIN rel_right r ON l.k = r.k', fail=True)
             assert 'ambiguous' in ambiguous.stderr.lower() and 'line 1, column 8' in ambiguous.stderr, ambiguous.stderr
             console('CREATE TABLE console_people (id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, active BOOLEAN DEFAULT TRUE, salary DECIMAL(18,2))')

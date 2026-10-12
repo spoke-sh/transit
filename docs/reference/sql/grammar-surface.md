@@ -42,7 +42,8 @@ Every row is **Implemented — execution** within its stated profile.
 | `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
 | Output `AS name` | Names row or aggregate output positions; distinct names allow repeated inputs; renamed inner columns resolve in the outer aggregate | [Project rows](select.md#project-rows) |
 | `DESCRIBE name`, `SHOW TABLES` | Authorized configured-catalog Tables in the console, or the explicit source in query-source scope | [DESCRIBE](describe.md), [SHOW](show.md) |
-| `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission, snapshot acquisition or execution | [EXPLAIN](explain.md) |
+| `JOIN`, `GROUP BY`, mixed COUNT/SUM | Explicit relational Table profile: one inner/left int64 equijoin, int64 grouping and ordered checked aggregates; separate opt-in console connection | [Table joins and grouping](relational.md) |
+| `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission or row execution; snapshot behavior depends on the inspection profile | [EXPLAIN](explain.md) |
 
 The [syntax reference](syntax.md) owns names, comments, literals and parser
 bounds. General Table predicates bind literals against logical column descriptors
@@ -97,7 +98,6 @@ other administrative SQL families retain their own stated support boundaries.
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
 | Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
-| `JOIN`, `GROUP BY` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
 | Event-time windows and watermarks | **Planned — syntax undecided** | Time domains, lateness, corrections and finality; resource revisions are not event time |
@@ -115,7 +115,7 @@ application materialization, watch/refresh and connector alternatives. A finite
 result delivered in batches is not a continuous query; a retracted row cannot
 undo an external effect.
 
-The first planned Table join/group profile excludes `HAVING`, `DISTINCT`,
+The implemented Table join/group profile excludes `HAVING`, `DISTINCT`,
 arbitrary sorting, general subqueries, non-equality/full/right joins and more than
 one join. It also excludes `LIMIT` on the new composed profile; implemented
 single-source limits keep their existing meaning. Broader composition does not

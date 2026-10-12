@@ -171,6 +171,19 @@ pub fn build(b: *std.Build) void {
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
+    const relational_sql = b.addExecutable(.{ .name = "transit-relational-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/relational_sql.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const relational_sql_test = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_sql_test.addFileArg(b.path("tests/sql/relational.py"));
+    relational_sql_test.addArtifactArg(relational_sql);
+    relational_sql_test.has_side_effects = true;
+    relational_sql_test.stdio = .inherit;
+    b.step("test-relational-sql", "Compare relational syntax across Zig, ANTLR and PostgreSQL").dependOn(&relational_sql_test.step);
+    sql_test.step.dependOn(&relational_sql_test.step);
     const sql_benchmark = b.addExecutable(.{ .name = "transit-sql-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sql_bench.zig"),
         .target = target,

@@ -49,7 +49,7 @@ def documentation_examples():
                 statement = block[start:end].strip()
                 start = end
                 if statement:
-                    rule = {'as-of': 'asOfFragment', 'parameters': 'parameterTemplate'}.get(path.stem, 'statement')
+                    rule = {'as-of': 'asOfFragment', 'parameters': 'parameterTemplate', 'relational': 'relationalQuery'}.get(path.stem, 'statement')
                     visit(tree(statement, rule))
                     count += 1
     assert required <= covered, f'Missing SQL reference examples: {sorted(required - covered)}'
@@ -84,6 +84,8 @@ def check():
     for sql in data['extensions']:
         tree(sql)
     tree('FOR SYSTEM_TIME AS OF 240', 'asOfFragment')
+    from relational import reference_check
+    reference_check()
     documentation_examples()
     print(f"SQL grammar: {len(data['select'])} SELECT ASTs agree with libpg_query; "
           f"{len(data['reject'])} syntax exclusions; {len(data['extensions'])} extensions; zero ANTLR diagnostics.")

@@ -290,6 +290,10 @@ sql-rewrites:
 sql:
     nix shell .#sql-tools --command zig build test-sql
 
+# Shared relational parser against independent ANTLR/PostgreSQL trees.
+relational-sql:
+    nix shell .#sql-tools --command zig build test-relational-sql -Doptimize=ReleaseSafe
+
 # General Table DDL grammar, exact schema bytes and pure evolution semantics.
 table-ddl-sql:
     nix shell .#sql-tools --command zig build test-table-ddl-sql -Doptimize=ReleaseSafe

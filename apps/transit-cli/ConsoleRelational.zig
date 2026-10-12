@@ -20,33 +20,25 @@ pub fn run(console: *Console, catalog: *c.TableClient, statement: []const u8, st
     var location: q.fuze.Sql.Location = .{};
     var syntax = q.fuze.RelationalSql.parse(console.init.gpa, statement[start..], &location) catch |err| return failed(console, catalog, statement, start, err, location);
     defer syntax.deinit();
-    var nonces: [2][16]u8 = undefined;
-    try console.init.io.randomSecure(std.mem.asBytes(&nonces));
-    var name: [64]u8 = undefined;
-    const filename = try std.fmt.bufPrint(&name, "transit-relational-{s}", .{std.fmt.bytesToHex(nonces[0], .lower)});
-    const directory = try std.Io.Dir.cwd().openDir(console.init.io, console.init.environ_map.get("TMPDIR") orelse "/tmp", .{});
-    defer directory.close(console.init.io);
     const clients = [_]*c.TableClient{ catalog, catalog };
-    const query = q.RelationalQuery.open(console.init.gpa, console.init.io, directory, filename, clients[0..syntax.targets.len], statement[start..], nonces, options, &Signals.cancellation, &location) catch |err| return failed(console, catalog, statement, start, err, location);
-    defer query.deinit();
-    var fields: [q.fuze.Relational.max_outputs]q.fuze.Types.Field = undefined;
-    const schema = try query.schema(&fields);
-    const plan = query.execution.bound.plan;
-    const prepared = std.fmt.bytesToHex(&try plan.fingerprint(), .lower);
-    const bound = std.fmt.bytesToHex(&try query.execution.bound.fingerprint(), .lower);
     const out = &stream.interface;
     if (explain) {
-        try query.close();
+        const compilation = q.RelationalCompilation.prepare(console.init.gpa, clients[0..syntax.targets.len], statement[start..], .interactive, options, &location) catch |err| return failed(console, catalog, statement, start, err, location);
+        defer compilation.deinit();
+        const plan = compilation.plan;
+        var fields: [q.fuze.Relational.max_outputs]q.fuze.Types.Field = undefined;
+        const schema = try plan.outputSchema(&fields);
+        const prepared = std.fmt.bytesToHex(&try plan.fingerprint(), .lower);
         if (console.session.format == .json) {
             try std.json.Stringify.value(.{ .explanation = .{
                 .profile = "relational_snapshot_v1",
                 .plan = &prepared,
-                .basis = &bound,
+                .basis = @as(?[]const u8, null),
                 .consistency = "per_resource_snapshot_vector",
                 .sources = plan.sources.len,
                 .join = if (plan.join) |join| @tagName(join.kind) else "none",
                 .scan = if (plan.join != null) "ordered_nested_loop" else "finite",
-                .grouped = query.execution.grouped,
+                .grouped = compilation.grouped(),
                 .group_columns = plan.group_by.len,
                 .group_storage = "private_disk_avl",
                 .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema },
@@ -54,11 +46,24 @@ pub fn run(console: *Console, catalog: *c.TableClient, statement: []const u8, st
             } }, .{}, out);
             try out.writeByte('\n');
         } else {
-            try out.print("Proposed relational plan; {d} source aliases\nPer-resource snapshot vector\nOrdered {s} -> {s} -> projection\n", .{ plan.sources.len, if (plan.join) |join| @tagName(join.kind) else "scan", if (query.execution.grouped) "disk grouping" else "filter" });
+            try out.print("Proposed relational plan; {d} source aliases\nPer-resource snapshot vector\nOrdered {s} -> {s} -> projection\n", .{ plan.sources.len, if (plan.join) |join| @tagName(join.kind) else "scan", if (compilation.grouped()) "disk grouping" else "filter" });
             try out.writeAll("No rows executed. A later SELECT captures its own source basis.\n");
         }
         return stream.flush();
     }
+    var nonces: [2][16]u8 = undefined;
+    try console.init.io.randomSecure(std.mem.asBytes(&nonces));
+    var name: [64]u8 = undefined;
+    const filename = try std.fmt.bufPrint(&name, "transit-relational-{s}", .{std.fmt.bytesToHex(nonces[0], .lower)});
+    const directory = try std.Io.Dir.cwd().openDir(console.init.io, console.init.environ_map.get("TMPDIR") orelse "/tmp", .{});
+    defer directory.close(console.init.io);
+    const query = q.RelationalQuery.open(console.init.gpa, console.init.io, directory, filename, clients[0..syntax.targets.len], statement[start..], nonces, options, &Signals.cancellation, &location) catch |err| return failed(console, catalog, statement, start, err, location);
+    defer query.deinit();
+    var fields: [q.fuze.Relational.max_outputs]q.fuze.Types.Field = undefined;
+    const schema = try query.schema(&fields);
+    const plan = query.execution.bound.plan;
+    const prepared = std.fmt.bytesToHex(&try plan.fingerprint(), .lower);
+    const bound = std.fmt.bytesToHex(&try query.execution.bound.fingerprint(), .lower);
     if (console.session.format == .json) {
         try std.json.Stringify.value(.{ .profile = "relational_snapshot_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .basis = &bound, .plan = &prepared, .consistency = "per_resource_snapshot_vector", .complete_coverage = false }, .{}, out);
         try out.writeByte('\n');
