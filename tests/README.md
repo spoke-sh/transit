@@ -1,38 +1,86 @@
 # Validation and milestone evidence
 
+## Integrated relational qualification
+
+[Issue #70](https://github.com/rupurt/rey/issues/70)'s selected implementation is
+qualified at **`85861c88`**, integrated on the Table foundation `07918d7a`.
+The [complete record](verification/results/relational-qualification-2026-10-12.json)
+contains all **79 ordinary tasks**, with five complete clean lanes at that same
+committed revision: core 22, growth 30, experience 7, launchers 2 and bindings 18.
+Each lane runs `just ci-clean --lane <lane>` from an isolated disk-backed clone,
+with locked dependencies and no inherited workspace build outputs. Full
+`just check` also passes at that revision. Later evidence/documentation commits
+are identified separately; they do not silently become the tested source.
+
+| Selected package | Executed evidence |
+| --- | --- |
+| Neutral semantics and finite execution | [315-case independent oracle, captured jobs and recovery](#captured-relational-owner-and-results), [resident spill growth](#relational-resident-growth) |
+| SQL and public callers | [Neutral ABI/port](#neutral-relational-caller-pages), [installed TypeScript/Python](#installed-interactive-relational-sdks), [explicit Board sessions](#explicit-relational-board-sessions), console and grammar checks |
+| Complete changes and maintenance | [Snapshot/tail](#complete-table-history-and-snapshot-tail), [ongoing input and failed successors](#ongoing-maintenance-and-failed-successors), [mutation costs](#complete-history-mutation-cost) |
+| Bounded exchanges | [Native fault schedules](#relational-exchange-faults-and-checkpoint-growth), [real disk exhaustion](#relational-physical-capacity), independent routing and rebatching fixtures |
+| Worker reassignment | [Recorded single-authority handoff](#recorded-manual-worker-handoff), paged checkpoints, stale credentials, source expiry and fenced restore refusal |
+| Named activation | [Immutable definitions, authorization and explicit activation](#named-relational-definitions), complete revisions/deltas and native overflow recovery |
+
+The record retains both earlier clean attempts. One fails on the legacy growing
+Table test's assumption that every non-point read is the creation-prefix page;
+the corrected assertion validates the exact bounded Table-history head prefix,
+returned head key, revision and STH1 value. Board's 41-row provisioning reaches
+its original 60-second deadline during three concurrent attempts, including two
+with four physical cores and disjoint CPU sets. The focused rerun with eight
+physical cores passes without changing that deadline;
+the final clean experience lane is recorded separately. Interrupted lanes are
+not passed checks. No timeout, snapshot lease, resident-page or native mutation
+bound increases substitute for qualification.
+
+These are local functional checks on a shared host with ext4-backed runtime
+scratch. They do not establish a latency SLO, sustainable input rate, global
+snapshot, automatic placement or distributed write authority. Physical capacity
+and the focused relational browser proof are separate from the 79 ordinary
+checks. GitHub-hosted execution and any external billing failure are reported
+separately from these executed results.
+
 ## Ongoing maintenance and failed successors
 
-The [expanded native record](verification/results/relational-maintenance-faults-2026-10-12.json)
-passes at `85861c88` in the clean growth lane. It covers 26 complete
-revisions: the initial result, eight changing successors and 17 no-op successors.
-Every basis agrees with the independent finite interpreter, and applying each
-complete predecessor delta reconstructs the same relation with exact retry.
-Maintenance takes **1188.854 seconds**, **1739 turn responses**,
-and retains **183,707 logical query-state bytes**. The enclosing
-Table/captured/logical-type regression passes in **1536.136 seconds**.
-Native mutation and value limits remain four writes and 256 bytes.
+The [expanded native cold-store schedule](verification/results/relational-maintenance-faults-2026-10-12.json) passes **26 complete
+revisions**: the initial result, 8 changing successors
+and 17 no-op successors. Every published basis agrees
+with the independent finite interpreter; applying each complete predecessor delta
+reconstructs the same relation, and exact retries preserve identities and bytes.
+It takes **1188.854 seconds** and **1739 turn responses**;
+the last complete query state retains **183,707 logical
+bytes**. The enclosing Table/captured/logical-type regression also passes in
+**1536.136 seconds**. These measurements retain native four-write and
+256-byte-value limits.
 
-Three updates arrive during ten-turn maintenance quanta. Nine source-head
-revisions accumulate, then the backlog drains to zero. Catch-up after the final
-accepted update takes **415.235 seconds**;
-retained logical state grows from 104,216 to 169,451 bytes. Exact arrival,
-publication-lag, mutation and retained-state observations are in the record.
-This is a bounded arrival/drain experiment under shared-host load, not a
-steady-state capacity or isolated latency benchmark.
+Three updates arrive while maintenance advances in ten-turn quanta. They leave
+at most **9 source-head revisions** pending;
+all are consumed, including no-op progress, with **zero final backlog**. Observed
+publication lags are **124.517, 242.755, 414.773
+seconds**. Catch-up after the final accepted update takes
+**415.235 seconds**. Retained logical state
+grows from **104,216** to
+**169,451 bytes**. Input mutation timings, revision
+identities and turn counts are in the integrated record. The run overlaps other
+qualification; it is a bounded arrival/drain experiment, not steady-state capacity
+or an isolated mutation benchmark. Full recomputation per basis explains the
+work model; these timings do not isolate every source of elapsed cost.
 
-ALTER publishes two valid no-op predecessors, then `TableSchemaChanged` fails
-successor 27 while preserving complete revision 26. Explicit retirement and
-readmission against the new schema succeed. DROP fails the new successor with
-`TableRetired`; reusing its SQL name under a new object cannot resume or rebind
-the old query. A separate reference-store history-gap check proves that restoring
-missing bytes cannot silently resume a failed identity; that corruption check is
-not presented as native storage evidence.
+ALTER publishes 2 valid no-op heads, then
+`TableSchemaChanged` closes the successor while retaining the immediately prior
+complete result. Explicit retirement and readmission against the new schema
+succeed. DROP closes the new query with `TableRetired`; recreating the same SQL
+name under a new object cannot resume or rebind the failed query. Native overflow
+and fresh-owner/lost-receipt recovery are covered separately by the named-query
+schedule. The reference-store history-gap test restores missing bytes and proves
+that the failed identity still cannot silently resume; explicit new admission is
+required. That corruption test is not presented as a native storage experiment.
 
-The record retains the outdated DDL assertion, an interrupted redundant attempt,
-and an enclosing snapshot-deadline failure after the maintenance assertions had
-passed. The corrected fixture runs the original leased-snapshot schedule before
-growing maintenance history, preserving its deadlines and assertions. Full
-integrated clean-suite completion is recorded separately.
+Earlier attempts remain in the record: an obsolete assertion ignored DDL's
+no-op predecessors; a redundant attempt was interrupted; a corrected maintained
+schedule passed its new assertions but the enclosing older snapshot test then
+refused with `DeadlineUncertain` after history growth. The final fixture executes
+the original leased-snapshot checks before growing maintenance history, preserving
+their existing deadline and assertions. No failed enclosing run counts as passed.
 
 ## Complete-history mutation cost
 
@@ -385,9 +433,11 @@ At fixture completion the cold store contains 531 objects and 139,446,494 bytes.
 This includes the entire Table/captured/maintenance fixture and native storage
 history; it is not solely query-state amplification. These are observed costs,
 not sustainable throughput, latency guarantees or an ongoing-input catch-up
-measurement. Full root checks pass locally; committed-HEAD clean qualification
-and additional maintained overflow, schema/gap and overload schedules remain
-open. Reference-store failure checks above are not native failure qualification.
+measurement. At that earlier slice, clean integration and the additional failure/
+ongoing-input schedules were still open. The [integrated qualification](#integrated-relational-qualification)
+and [expanded maintenance schedule](#ongoing-maintenance-and-failed-successors)
+record their subsequent results without broadening this earlier experiment.
+Reference-store failure checks above are not native failure qualification.
 
 ## Relational exchange transitions
 
