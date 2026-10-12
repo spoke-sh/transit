@@ -1,5 +1,41 @@
 # Validation and milestone evidence
 
+## Explicit relational Board sessions
+
+[Implementation revision, logs, outcomes and limits](verification/results/relational-board-2026-10-12.json)
+record the real Board service and browser against one native node and disk Ursula.
+`just test::relational-callers` now includes the optional Board route schedule in
+the ordinary growth lane. `just transit-board::relational-browser` adds the actual
+browser; the regular Board browser task includes it as well.
+
+The native schedule passes in **15.742 seconds**, including the neutral caller
+baseline. Both one-resource aliases and two-resource joins agree with the typed
+Zig plan and three-row oracle. It checks explicit configuration, origin rejection,
+current metadata/source rights, repeatable pages, authorized active-query
+inspection, close under source denial and rejection after Board replacement.
+The generated validator accepts those real responses and rejects numeric JSON
+substitution for a full-width integer string.
+
+The browser schedule passes in **28.540 seconds** overall; its one Playwright
+case takes **10.9 seconds**. Editing and Explain submit no query. A deliberately
+lost accepted-open response and a browser reload recover the same active query
+and ordinal without another Run. Exact page reads reach terminal coverage.
+Current right-source denial clears the visible prefix and SQL draft; closing
+still releases the query. The case reports no page errors or Axe violations.
+
+Three browser-boundary units pass exact signed/unsigned values, reference/coverage
+rejection and owned requests across pre-dispatch rate refusals. Strict TypeScript,
+formatting/lint, focused query/Station ABI suites and diagnostic mappings pass.
+The full `just check` also passes the repository units, contracts, projections,
+CLI, frontends and production documentation build. The record preserves the first
+UI check's wrong diagnostic prop and misplaced standalone type-check invocation.
+The final package README navigation sentence follows that full check; committed
+HEAD clean lanes still remain a separate final gate.
+
+The fixture holds one output row and uses the existing 16 MiB executor/spill,
+8 MiB result, 1,000-row and 100,000-work/request budgets. It makes no large-output
+RSS, sustained-input or durable foreign-lifetime claim.
+
 ## Installed interactive relational SDKs
 
 [Exact implementation revision, artifact hashes, logs and retained attempts](verification/results/relational-sdks-2026-10-12.json)
