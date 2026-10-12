@@ -22,6 +22,7 @@ const Metadata = struct {
 };
 const Pending = struct { definition: g.Definition, pending: s.client.Session.Pending };
 const outstanding = p.Value.init("exchange-outstanding") catch unreachable;
+const padding_progress = p.Value.init("proof-checkpoint-growth") catch unreachable;
 const workspace_bytes = 4 * 1024 * 1024;
 fn rootControl(turn: *s.Turn) !void {
     switch (turn.delivery.input.origin) {
@@ -43,6 +44,22 @@ const Handler = struct {
         try self.basis.boundCuts(self.bundle, &cuts);
         const bound: q.fuze.Relational.Bound = .{ .plan = self.bundle.plan, .cuts = cuts[0..self.basis.count] };
         const payload = frame.payload.slice();
+        if (frame.kind == .cast and std.mem.eql(u8, payload, "x:checkpoint-growth")) {
+            try rootControl(turn);
+            if (self.worker == null) return error.InvalidProofFrame;
+            const previous = if (try turn.read(padding_progress)) |value| try q.UnifiedRecords.readIdentity(value) else 0;
+            const next = @min(previous + 3, 257);
+            for (previous..next) |index| {
+                var key_bytes: [16]u8 = undefined;
+                key_bytes[0..8].* = "proofpad".*;
+                std.mem.writeInt(u64, key_bytes[8..16], index, .big);
+                const value: [256]u8 = @splat(@truncate(index));
+                try turn.write(try p.Value.init(&key_bytes), try p.Value.init(&value));
+            }
+            if (next != previous) try turn.write(padding_progress, q.UnifiedRecords.identityValue(next));
+            if (next < 257) try turn.cast(turn.delivery.pid, frame.payload);
+            return;
+        }
         if (frame.kind == .cast and std.mem.startsWith(u8, payload, "RXP1") and self.worker != null) {
             const notice = try r.Pending.decode(frame.payload);
             try Producer.acknowledge(turn, bound, self.metadata.id, notice);
@@ -199,13 +216,21 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     const principal = if (worker) |index| metadata.workers[index].principal else config.worker;
     const worker_key = if (worker != null and metadata.workers[worker.?].fresh_key) try Test.key(11) else try Test.key(8);
     const pending_name = try std.fmt.allocPrint(init.arena.allocator(), "exchange-worker-{d}.json", .{process.pid});
+    if (std.mem.eql(u8, mode, "expire-source")) {
+        const last = bundle.sources[bundle.sources.len - 1];
+        if (last.scope.resource == config.writer.resource) return error.InvalidProofLayout;
+        // This source resource has its Table PID as native lifetime owner.
+        // Permanent owner termination expires that dependency without deleting
+        // its retained bytes or moving query execution authority.
+        _ = try admin.submit(.{ .terminate = last.owner });
+        return Test.print(init, .{ .state = "source-owner-terminated", .resource = last.scope.resource });
+    }
     if (std.mem.eql(u8, mode, "deny") or std.mem.eql(u8, mode, "allow")) {
-        if (worker == null) return error.InvalidProofLayout;
         _ = try admin.submit(.{ .grant_resource = .{ .resource = bundle.sources[bundle.sources.len - 1].scope.resource, .subject = principal, .permissions = if (std.mem.eql(u8, mode, "deny")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
         return Test.print(init, .{ .state = mode });
     }
-    if (std.mem.eql(u8, mode, "tick") or std.mem.eql(u8, mode, "attach")) {
-        _ = try admin.submit(.{ .send = .{ .pid = process.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(if (std.mem.eql(u8, mode, "attach")) "x:attach" else "x:tick") }).encode() } });
+    if (std.mem.eql(u8, mode, "checkpoint-growth") or std.mem.eql(u8, mode, "tick") or std.mem.eql(u8, mode, "attach")) {
+        _ = try admin.submit(.{ .send = .{ .pid = process.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(if (std.mem.eql(u8, mode, "checkpoint-growth")) "x:checkpoint-growth" else if (std.mem.eql(u8, mode, "attach")) "x:attach" else "x:tick") }).encode() } });
         return Test.print(init, .{ .state = "queued" });
     }
     const pending = Test.load(Pending, init, directory, pending_name) catch |err| switch (err) {

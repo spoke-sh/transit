@@ -27,7 +27,7 @@ def run(node, proof):
             realm=46, root_key=public, max_clock_error_ms=10000),
             ursula_url=fixture.url, bucket='relational-exchanges', journal='authority',
             port=port, resident_pages=8, request_timeout_ms=10000)))
-        fault = dict(armed=None, records={}, replays=set())
+        fault = dict(armed=None, records={}, replays=set(), read=None, read_faults=[])
         metrics = dict(turns=0, max_mutations=0, max_value_bytes=0, accepted=0)
         failures = []
 
@@ -42,6 +42,41 @@ def run(node, proof):
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    if self.path == '/v1/query' and response.status == 200 and fault['read']:
+                        selected_read = fault['read']
+                        if selected_read in ('truncated', 'unavailable'):
+                            if selected_read == 'truncated':
+                                fault['read'] = None
+                            if not fault['read_faults'] or fault['read_faults'][-1] != selected_read:
+                                fault['read_faults'].append(selected_read)
+                            data = data[:-7] if selected_read == 'truncated' else b'{"err":"AuthorityUnavailable"}'
+                            if selected_read == 'unavailable':
+                                self.send_response(503)
+                                self.send_header('Content-Length', str(len(data)))
+                                self.end_headers()
+                                self.wfile.write(data)
+                                return
+                        elif selected_read == 'segment':
+                            value = json.loads(data)
+
+                            def corrupt(item):
+                                if isinstance(item, dict):
+                                    for key, child in item.items():
+                                        if key == 'value' and isinstance(child, str) and child.startswith(b'FXS1'.hex()):
+                                            raw = bytearray.fromhex(child)
+                                            raw[-1] ^= 1
+                                            item[key] = raw.hex()
+                                            return True
+                                        if corrupt(child):
+                                            return True
+                                elif isinstance(item, list):
+                                    return any(corrupt(child) for child in item)
+                                return False
+
+                            if corrupt(value):
+                                fault['read'] = None
+                                fault['read_faults'].append(selected_read)
+                                data = json.dumps(value, separators=(',', ':')).encode()
                     if self.path == '/v1/command' and response.status == 200:
                         command = json.loads(body)['request']['command']
                         turn = command.get('turn', command.get('turn_with_versions', {}).get('turn'))
@@ -171,6 +206,11 @@ def run(node, proof):
                     if segment == 0:
                         call('exchange-pump', 'r')
                         call('exchange-pump', 0)
+                # More than the node's eight resident entry pages. These are
+                # explicit application checkpoint records, not fabricated
+                # exchange rows or a claim about exchange-state amplification.
+                call('exchange-checkpoint-growth', 0)
+                call('exchange-pump', 0)
                 assert call('exchange-handoff', 0, 'begin')['phase'] == 'planned'
                 phases = ['planned']
                 checkpoint_path = root / f"handoff-{metadata['workers'][0]['process']['pid']}.json"
@@ -180,6 +220,11 @@ def run(node, proof):
                     restart()
                     if phase == 'restored':
                         original = checkpoint_path.read_bytes()
+                        fault['read'] = 'unavailable'
+                        call('exchange-handoff', 0, 'step', fail=True, expected_error='AuthorityUnavailable')
+                        fault['read'] = None
+                        assert checkpoint_path.read_bytes() == original
+                        assert call('exchange-handoff', 0, 'status')['phase'] == 'fenced'
                         checkpoint_path.unlink()
                         call('exchange-handoff', 0, 'step', fail=True, expected_error='FileNotFound')
                         checkpoint_path.write_bytes(original)
@@ -202,7 +247,19 @@ def run(node, proof):
                         assert 'handoff_' + phase in fault['replays']
                     phases.append(phase)
                 transferred = call('exchange-handoff', 0, 'status')
-                assert transferred['checkpoint']['state']['entries'] > 6
+                assert transferred['checkpoint']['state']['entries'] >= 257
+                before_fault = call('exchange-status')['head']
+                call('exchange-deny', 'r')
+                call('exchange-pump', 'r', fail=True, expected_error='AccessDenied')
+                call('exchange-allow', 'r')
+                assert call('exchange-status')['head'] == before_fault
+                fault['read'] = 'truncated'
+                call('exchange-pump', 'r', fail=True, expected_error='InvalidAuthorityResponse')
+                assert call('exchange-status')['head'] == before_fault
+                fault['read'] = 'segment'
+                accepted_before = metrics['accepted']
+                call('exchange-pump', 'r', fail=True, expected_error='InvalidPublicationDigest')
+                assert fault['read'] is None and metrics['accepted'] == accepted_before
                 # The second fault is exactly acceptance, before consumption.
                 fault['armed'] = 'acceptance'
                 recovered = False
@@ -255,14 +312,39 @@ def run(node, proof):
                     producer_loss=True, acceptance_loss=True, node_store_restart=True, stale_worker_rejected=True,
                     handoff_phases=phases, checkpoint_entries=transferred['checkpoint']['state']['entries'],
                     corrupt_checkpoint_rejected=True, missing_checkpoint_rejected=True, denied_restore_blocked=True,
+                    unavailable_restore_blocked=True, truncated_read_rejected=True, corrupt_segment_rejected=True,
+                    receiver_denial_preserved_head=True,
                     old_credential_rejected=True))
                 print(json.dumps(dict(profile='relational-exchange-layout', **results[-1])), flush=True)
+            # The final negative placement loses its source's native lifetime
+            # after checkpoint/fence. A retained hash cannot revive that source
+            # or authorize restoration. No later query needs this fixture source.
+            call('maintained-plan', sql, secondary)
+            call('maintained-exchange-enqueue')
+            call('maintained-pump')
+            expired_metadata = call('exchange-setup', 1, 1, 1)
+            call('exchange-pump', 0)
+            call('exchange-pump', 'r')
+            call('exchange-handoff', 0, 'begin')
+            for phase in ('quiesced', 'checkpointed', 'fenced'):
+                assert call('exchange-handoff', 0, 'step')['phase'] == phase
+            expired_path = root / f"handoff-{expired_metadata['workers'][0]['process']['pid']}.json"
+            fenced = expired_path.read_bytes()
+            call('exchange-expire-source', 'r')
+            call('exchange-handoff', 0, 'step', fail=True, expected_error='StateResourceExpired')
+            assert expired_path.read_bytes() == fenced
+            assert call('exchange-handoff', 0, 'status')['phase'] == 'fenced'
+            assert not json.loads((root / 'exchange-native.json').read_text())['workers'][0]['fresh_key']
+            call('maintained-retire')
+            call('maintained-clean')
+            assert call('maintained-status')['state'] == 'retired'
             assert not failures, failures
             assert metrics['max_mutations'] <= 4 and metrics['max_value_bytes'] <= 256
             assert cold.data_objects() > 0
             print(json.dumps(dict(profile='relational-exchange-native', seconds=round(time.monotonic() - started, 3),
                 layouts=results, metrics=metrics, cold_objects=cold.data_objects(), cold_bytes=cold.file_bytes(),
-                replays=sorted(fault['replays']))), flush=True)
+                replays=sorted(fault['replays']), read_faults=fault['read_faults'],
+                source_owner_expiry_blocks_restore=True, own_resource_retirement_after_expiry=True)), flush=True)
         except BaseException:
             log.flush()
             log.seek(0)
