@@ -1,5 +1,17 @@
 # Validation and milestone evidence
 
+## Complete-history mutation cost
+
+The [complete-history campaign](mutation_latency/results/2026-10-12/README.md)
+completes 140 ordinary console mutations and seven instrumented cases with no
+errors or unknown outcomes. It retains comparisons with both the earlier
+fixed-profile and accepted general Table baselines. One-row INSERT and changing
+UPDATE now use two native turns instead of one; the extra history write respects
+the existing four-write bound. Three-row INSERT remains four turns. The record
+reports the increased provider work and elapsed times explicitly. Runtime
+measurements overlap maintained-query qualification, so the timing difference
+does not isolate history overhead or establish a latency SLO.
+
 ## Relational physical capacity
 
 `just test::relational-capacity` passes on a newly allocated **2 GiB ext4 image**
