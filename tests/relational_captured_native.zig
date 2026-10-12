@@ -8,16 +8,16 @@ const g = p.Growth;
 const f = q.fuze;
 const r = q.RelationalRecords;
 const Admin = @import("growing_support.zig").Admin(46);
-const Metadata = struct { definition: g.Definition, reference: s.PublicationReference, secondary: ?u64 };
+pub const Metadata = struct { definition: g.Definition, reference: s.PublicationReference, secondary: ?u64 };
 const Pending = struct { definition: g.Definition, pending: s.client.Session.Pending };
-const correlation_key = p.Value.init("relational-proof-correlation") catch unreachable;
+pub const correlation_key = p.Value.init("relational-proof-correlation") catch unreachable;
 const workspace_bytes = 4 * 1024 * 1024;
-const Handler = struct {
+pub const Handler = struct {
     bundle: q.RelationalBundle,
     bytes: []const u8,
     reference: s.PublicationReference,
     workspace: []u8,
-    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
+    pub fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self: *@This() = @ptrCast(@alignCast(raw.?));
         switch (frame.kind) {
             .reply => return,
@@ -30,7 +30,8 @@ const Handler = struct {
             .cast => {},
             else => return error.InvalidProofFrame,
         }
-        if (std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload")) {
+        const exchanged = std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload-exchange");
+        if (exchanged or std.mem.eql(u8, frame.payload.slice(), "relational-proof-upload")) {
             const peer = switch (turn.delivery.input.origin) {
                 .external => |external| if (external.principal == 0) turn.delivery.pid else return error.AccessDenied,
                 .process => |process| if (process.pid == turn.delivery.pid) process.pid else return error.AccessDenied,
@@ -43,6 +44,7 @@ const Handler = struct {
             const ready = try s.PublicationUpload.step(turn, .{ .domain = .query_request, .namespace = self.reference.namespace, .identity_key = r.key('u', self.reference.namespace, 0), .identity = try self.reference.encode(), .limits = .{ .record_bytes = q.RelationalBundle.max_bytes, .staging_bytes = q.RelationalBundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = self.reference.spec, .bytes = self.bytes }} });
             if (ready) {
                 const correlation = try turn.call(turn.delivery.pid, try self.reference.encode(), null);
+                if (exchanged) try q.RelationalMaintenance.selectExchanges(turn, .{ .peer = peer, .correlation = correlation }, self.reference);
                 try turn.write(correlation_key, q.UnifiedRecords.identityValue(correlation));
             } else try turn.cast(turn.delivery.pid, frame.payload);
             return;
@@ -151,8 +153,8 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         _ = try admin.submit(.{ .grant_resource = .{ .resource = metadata.secondary.?, .subject = config.worker, .permissions = 0 } });
         return Test.print(init, .{ .state = "denied" });
     }
-    if (std.mem.eql(u8, mode, "wake") or std.mem.eql(u8, mode, "enqueue") or std.mem.eql(u8, mode, "retire") or std.mem.eql(u8, mode, "collect")) {
-        const payload = if (std.mem.eql(u8, mode, "wake")) "relational-proof-wake" else if (std.mem.eql(u8, mode, "enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "retire")) "relational-proof-retire" else "relational-proof-collect";
+    if (std.mem.eql(u8, mode, "wake") or std.mem.eql(u8, mode, "enqueue") or std.mem.eql(u8, mode, "exchange-enqueue") or std.mem.eql(u8, mode, "retire") or std.mem.eql(u8, mode, "collect")) {
+        const payload = if (std.mem.eql(u8, mode, "wake")) "relational-proof-wake" else if (std.mem.eql(u8, mode, "enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "exchange-enqueue")) "relational-proof-upload-exchange" else if (std.mem.eql(u8, mode, "retire")) "relational-proof-retire" else "relational-proof-collect";
         _ = try admin.submit(.{ .send = .{ .pid = config.writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(payload) }).encode() } });
         return Test.print(init, .{ .state = "queued" });
     }

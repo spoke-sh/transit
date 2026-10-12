@@ -1066,6 +1066,13 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const relational_exchange_native = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_exchange_native.addFileArg(b.path("tests/relational_exchange_native.py"));
+    relational_exchange_native.addArtifactArg(node_artifact);
+    relational_exchange_native.addArtifactArg(typed_table_proof);
+    relational_exchange_native.has_side_effects = true;
+    relational_exchange_native.stdio = .inherit;
+    b.step("test-relational-exchanges", "Qualify bounded exchanges into maintained results on disk with worker and authority loss").dependOn(&relational_exchange_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
     combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
     combined_table_test.addArtifactArg(node_artifact);

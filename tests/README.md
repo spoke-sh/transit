@@ -193,9 +193,36 @@ final producer/reservation quota additions; the later query package run in
 `query-exchange-quota.log` passes those additions. Diagnostic outcomes pass
 3,233 projections across 29 surfaces. An earlier new exchange-conflict fixture
 incorrectly inherited native rejection evidence; the reviewed projection
-preserves uncertain-send semantics. Native producer and
-receiver hosts, disk/node/worker faults, handoff qualification, ongoing-input
-measurements and committed-HEAD clean verification remain open.
+preserves uncertain-send semantics.
+
+`just test::relational-exchanges` passes the native disk/cold-store host schedule
+in `exchange-native-view-lifecycle.log`. One partition/one producer/one-row
+batches completes in **71.453 s / 192 turn responses**, retaining **11,436**
+logical receiver bytes. Seven partitions/three producers/four-row batches
+completes in **111.750 s / 242 turn responses**, retaining **17,252** bytes. Both
+publish the independent grouped left-join answer through the actual maintained
+owner, with **10,422** logical operator/result bytes each. Four rows per source
+include duplicate hot keys, NULL and unmatched keys. All 2/14 channels consume
+explicit terminal coverage; receiver credit is one segment and selected producer
+read fan-in is one resource. Every host invocation reconstructs its state.
+
+Both layouts lose a receipt after producer staging and at receiver acceptance
+before consumption. They restart the node and disk Ursula, replay the exact
+saved proposal, replace producer/receiver native generations and reject stale
+sessions. Reversed worker scheduling retries outstanding notices until accepted;
+acknowledgements clear only their matching pending notice. This exercises crash
+replacement with existing credentials, not the recorded credential-changing
+handoff protocol. The enclosing fixture takes **188.327 s**, observes at most
+four mutations/256-byte values, and retains **198 cold objects / 52,007,898
+bytes** across setup and both layouts. Logical charges do not measure physical
+provider amplification. Turn-response counts include accepted exact retries.
+
+The first native attempt fails `PendingOperation`: the fixture tried to change
+resource selection during a prepared delivery. The corrected host changes views
+only between turns. A preceding compile command used a nonexistent task name;
+the actual native probe compilation and run are separate passing evidence.
+Recorded handoff, native corruption/ENOSPC/current-denial schedules for exchanges,
+ongoing-input measurements and committed-HEAD clean verification remain open.
 
 ## Relational contract and oracle intake
 

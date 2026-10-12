@@ -359,8 +359,15 @@ with pinned Fuze/query package tests and the independent Python exchange fixture
 checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
 duplicate acknowledgement, denied producer rereads, credit and quota pressure.
-These checks do not yet qualify real network/storage faults, worker handoff or
-sustainable throughput. The ledger retains those open gates explicitly.
+`just test::relational-exchanges` separately runs the native producer and receiver
+hosts against disk Ursula with bounded hot/cache storage and a local cold store.
+It loses accepted staging/acceptance replies, reconstructs workers, restarts the
+node/store and publishes the maintained result for two partition/worker layouts.
+The four-row-per-source input establishes those recovery and semantic cases; it
+does not establish cardinality scaling or sustainable throughput. Native
+generation replacement with the same credential is also distinct from recorded
+handoff and credential retirement. The ledger retains the precise measurements,
+failed host attempt and remaining fault/capacity gates.
 
 ## Tradeoffs and evidence
 

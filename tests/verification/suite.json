@@ -41,6 +41,7 @@
       "test::catalog",
       "test::typed-tables",
       "test::relational-maintenance",
+      "test::relational-exchanges",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",

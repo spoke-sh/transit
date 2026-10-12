@@ -68,10 +68,13 @@ Receiver `close` requires only its own current resource and keeps accepted work
 and audit evidence. It remains available after source denial or exhausted data
 budgets. No automatic expiry or physical collection occurs.
 
-Current executable evidence covers the pure codecs/routing, finite oracle after
-rebatching, and reference-store producer/receiver transitions. The
+Current executable evidence covers codecs/routing, the finite oracle after
+rebatching, reference-store transitions and a disk-backed native host with
+one/seven partitions and one/three producer workers. That host recovers lost
+producer and receiver receipts, replaces worker generations and publishes the
+maintained result after node/store restarts. The
 [proof ledger](../../../../tests/README.md#relational-exchange-transitions) records
-the executed scope and remaining native host, disk fault and reassignment gates.
+the exact fault scope and remaining reassignment and capacity gates.
 These typed primitives do not configure automatic worker placement or a growing
 runtime controller. They do not enable a new SQL, Board, Flight or SDK route by
 themselves.

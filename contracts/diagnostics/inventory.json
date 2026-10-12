@@ -11099,22 +11099,24 @@
     },
     "packages/zig/transit-query/src/RelationalMaintenance.zig": {
       "errors": {
-        "CorrelationAlreadyUsed": 1,
+        "CorrelationAlreadyUsed": 2,
         "ExpectedCall": 1,
         "IncompleteResult": 1,
-        "InvalidMaintainedRecord": 17,
+        "InvalidMaintainedRecord": 18,
         "InvalidQueryContinuation": 2,
+        "InvalidRelationalExchange": 1,
         "InvalidRelationalHistory": 1,
         "MissingQueryProgress": 1,
         "MissingResultSegment": 1,
         "MutationBudgetExceeded": 1,
         "PublicationReferenceChanged": 1,
         "QueryAfterMutation": 1,
-        "QueryDenied": 6,
+        "QueryDenied": 9,
         "QueryNamespaceInUse": 1,
         "QueryNotFound": 1,
+        "RelationalExchangeConflict": 3,
         "RelationalResidentBudget": 1,
-        "RelationalSourceChanged": 1,
+        "RelationalSourceChanged": 2,
         "RelationalSpillBudget": 3,
         "UnexpectedQueryContinuation": 1,
         "UnexpectedQueryPublisher": 1
@@ -11141,11 +11143,14 @@
         "advance()": "<inferred>",
         "advanceInner()": "<inferred>",
         "allocated()": "<inferred>",
+        "attachExchange()": "<inferred>",
         "close()": "<inferred>",
         "compute()": "<inferred>",
         "delta()": "<inferred>",
+        "exchangeSelected()": "<inferred>",
         "failed()": "<inferred>",
         "head()": "<inferred>",
+        "inputKey()": "<inferred>",
         "manifest()": "<inferred>",
         "memory()": "<inferred>",
         "output()": "<inferred>",
@@ -11154,6 +11159,7 @@
         "readBody()": "<inferred>",
         "readWork()": "<inferred>",
         "schedule()": "<inferred>",
+        "selectExchanges()": "<inferred>",
         "stage()": "<inferred>",
         "start()": "<inferred>",
         "storedReference()": "<inferred>",
@@ -11163,7 +11169,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 153,
+        "try": 185,
         "catch": 4
       },
       "imports": [
@@ -11175,7 +11181,8 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "IncompleteResult": 1,
-        "InvalidMaintainedRecord": 30,
+        "InvalidMaintainedRecord": 32,
+        "InvalidRelationalExchange": 1,
         "MaintainedRevisionExhausted": 1
       },
       "outcomes": {
@@ -11202,6 +11209,10 @@
         "Delta.decode()": "<inferred>",
         "Delta.encode()": "<inferred>",
         "Delta.extend()": "<inferred>",
+        "ExchangeInput.decode()": "<inferred>",
+        "ExchangeInput.encode()": "<inferred>",
+        "ExchangeSelection.decode()": "<inferred>",
+        "ExchangeSelection.encode()": "<inferred>",
         "Head.decode()": "<inferred>",
         "Head.encode()": "<inferred>",
         "Head.successor()": "<inferred>",
@@ -11216,7 +11227,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 108,
+        "try": 126,
         "catch": 2
       },
       "imports": [

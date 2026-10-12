@@ -1727,6 +1727,30 @@
       ],
       "limits": "Small two-resource int64 fixtures with three aggregate groups; recomputation per transaction, bounded eight-page authority and 8 MiB cold hot/cache budgets. No automatic scheduling, sustainable arrival-rate, power-loss or distributed-authority claim. Executed status and failed attempts remain in tests/README.md.",
       "model": null
+    },
+    {
+      "id": "QUERY-EXCHANGE-01",
+      "claim": "Complete durable exchange coverage feeds the canonical maintained executor after exact receipt recovery and native worker replacement",
+      "owner": "docs/reference/queries.md",
+      "implementation": [
+        "packages/zig/transit-query/src/RelationalExchange.zig",
+        "packages/zig/transit-query/src/RelationalExchangeProducer.zig",
+        "packages/zig/transit-query/src/RelationalMaintenance.zig",
+        "tests/relational_exchange_native.py"
+      ],
+      "profile": "Manual producer placement against one native authority, disk Ursula and bounded cold storage",
+      "tasks": [
+        "test::relational-exchanges"
+      ],
+      "scenarios": [
+        "One/seven partitions, one/three workers and one/four-row batches preserve independent grouped left-join answers",
+        "One receiver segment credit separates durable acceptance from consumption and requires empty-partition terminals",
+        "Accepted producer-stage and receiver-acceptance receipts recover exactly after node/store restart",
+        "Fresh producer and receiver native generations reject stale worker activation without changing the recorded source vector"
+      ],
+      "limits": "Small two-resource int64 input and explicit serial host scheduling. This task does not prove coordinated handoff, distributed write authority, sustained throughput or power-loss durability.",
+      "model": null,
+      "qualification": "Executed passes and failed attempts are recorded separately in tests/README.md."
     }
   ]
 }

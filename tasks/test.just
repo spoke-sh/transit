@@ -316,6 +316,10 @@ catalog-growth:
 relational-maintenance:
     just test::typed-tables --maintained --cold
 
+# Bounded producer/receiver exchange recovery and maintained publication on disk.
+relational-exchanges:
+    zig build test-relational-exchanges -Doptimize=ReleaseSafe
+
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
 typed-tables *args:
