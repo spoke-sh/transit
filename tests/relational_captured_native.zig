@@ -178,7 +178,8 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             const mr = q.RelationalMaintenanceRecords;
             const successor = try stored.successor();
             const failure = try r.Failure.decode((try source.read(mr.key('f', stored.id, successor, 0))) orelse return error.MissingProofFailure);
-            const work = try mr.Work.decode((try source.read(mr.key('w', stored.id, successor, 0))) orelse return error.MissingProofFailure);
+            const work_value = (try source.read(mr.key('w', stored.id, successor, 0))) orelse return Test.print(init, .{ .cause = failure.cause.slice(), .witness = @as(?f.RelationalExecution.Failure, null), .last_revision = stored.revision, .failed_revision = successor, .phase = "unstarted" });
+            const work = try mr.Work.decode(work_value);
             var vector: q.RelationalHistory.Vector = .{ .request = try owned.bundle.fingerprint(), .count = stored.count };
             for (vector.entries[0..stored.count], 0..) |*entry, index| entry.* = .{ .position = stored.positions[index], .record = try s.TableHistory.Record.decode((try source.read(mr.key('b', stored.id, successor, index))).?) };
             var cuts: [f.Relational.max_sources]f.Relational.Cut = undefined;

@@ -208,6 +208,57 @@ test "maintained revisions restart every bounded step and preserve last result a
     try t.expectError(error.InvalidReadVersion, turn.openVersion(stored.request_version));
 }
 
+test "a retained history gap fails the successor and restoration cannot silently resume it" {
+    var store: Store = .{};
+    defer store.deinit();
+    try tables.create(&store, "CREATE TABLE items (k BIGINT, v BIGINT)");
+    try tables.mutate(&store, 2, .{ .insert = &.{&.{ integer(1), integer(10) }} });
+    var definition = try tables.definition(&store);
+    defer definition.deinit();
+    var source = try tables.source(&store);
+    defer source.deinit();
+    const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = definition.schema.schema }};
+    const sources = [_]q.TableSource{source.source};
+    const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .maintained, .budgets = budgets } };
+    const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
+    defer t.allocator.free(workspace);
+    const admitted = try admit(&store, bundle, workspace);
+    const complete = try finish(&store, bundle, admitted.identity(), workspace);
+    const original = try readResult(&store, bundle, complete);
+    try tables.mutate(&store, 3, .{ .insert = &.{&.{ integer(2), integer(20) }} });
+    // This reference-store corruption fixture removes required accepted history;
+    // normal retention never performs this deletion. Preserve it for restoration.
+    const address = s.TableHistory.key(100, original.manifest.vector.entries[0].record.head.revision);
+    const history = store.state.get(address).?;
+    try t.expect(store.state.remove(address));
+    var turn = try tables.turn(&store);
+    try t.expectEqual(.closed, try owner.wake(&turn, admitted.identity(), workspace));
+    const failed_proposal = turn.decision;
+    turn = try tables.turn(&store);
+    try t.expectEqual(.closed, try owner.wake(&turn, admitted.identity(), workspace));
+    try t.expectEqualDeep(failed_proposal, turn.decision);
+    try store.commit(turn);
+    turn = try tables.turn(&store);
+    const failed = try owner.head(&turn, admitted.identity());
+    try t.expectEqual(.failed, failed.phase);
+    try t.expectEqual(complete.revision, failed.revision);
+    try t.expectEqual(complete.manifest, failed.manifest);
+    const failure = try q.RelationalRecords.Failure.decode((try turn.read(r.key('f', failed.id, try failed.successor(), 0))).?);
+    try t.expectEqualStrings("TableHistoryGap", failure.cause.slice());
+    try store.state.put(t.allocator, address, history);
+    turn = try tables.turn(&store);
+    try t.expectEqual(.duplicate, try owner.wake(&turn, admitted.identity(), workspace));
+    for (turn.decision.mutations) |entry| try t.expect(entry == null);
+    try t.expectEqualDeep(original, try readResult(&store, bundle, failed));
+    try owner.close(&turn, admitted.identity(), .retired, null);
+    try store.commit(turn);
+    // Rebuild is a separately accepted identity with its own complete basis.
+    const rebuilt = try admit(&store, bundle, workspace);
+    try t.expect(rebuilt.id != admitted.id);
+    const result = try readResult(&store, bundle, try finish(&store, bundle, rebuilt.identity(), workspace));
+    try t.expectEqual(@as(u128, 2), result.output.row.cells[0].value.atom.unsigned);
+}
+
 test "maintained exchange attachment waits for exact complete coverage and every successor" {
     const Fixture = @import("relational_exchange_test.zig").Fixture;
     const codec = f.RelationalExchange;

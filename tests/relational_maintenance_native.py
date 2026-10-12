@@ -53,10 +53,14 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     restart()
     call('maintained-rotate')
 
+    feed = None
+
     def finish():
         for _ in range(500):
-            call('maintained-pump', 100)
+            call('maintained-pump', 10 if feed else 100)
             status = call('maintained-status')
+            if feed and status['state'] in ('admitted', 'running'):
+                feed()
             if status['state'] == 'idle':
                 return status
             assert status['state'] in ('admitted', 'running'), status
@@ -90,6 +94,8 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     position_path = root / 'maintained-position.json'
     initial_position = position_path.read_text()
     noops, changes, revisions = 0, 0, 1
+    accepted = {}
+    publications = []
 
     def next_revision():
         nonlocal previous, exact, noops, changes, revisions
@@ -133,6 +139,10 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
         assert snapshot['manifest'] == manifest
         assert position_path.read_text() == position
         exact, previous = proposed, manifest
+        source_revision = manifest['vector'][1]['record']['head']['revision']
+        if source_revision in accepted:
+            publications.append(dict(source_revision=source_revision, relation_revision=manifest['revision'],
+                lag_seconds=round(time.monotonic() - accepted.pop(source_revision), 3)))
         noops += not delta['events']
         changes += bool(delta['events'])
         revisions += 1
@@ -158,6 +168,48 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
             break
     assert previous['vector'][0]['record']['head']['revision'] == latest_left['revision']
     assert exact[(7,)] == [7, 3, 3, 9]
+    # Pace new complete source transactions between bounded maintenance quanta.
+    # Root-signed requests remain serialized; no host threads share a sequence.
+    # Every reservation/no-op basis still goes through the independent oracle.
+    ongoing_started = time.monotonic()
+    ongoing_state_before = previous['state_bytes']
+    arrivals = []
+    backlog_highwater = 0
+
+    def offer():
+        nonlocal right, latest, backlog_highwater, feed
+        value = 4 + len(arrivals)
+        begin, turns = time.monotonic(), measurements['turns']
+        applied(execute(910006 + len(arrivals), f'UPDATE rel_right SET v = {value}', directory=secondary))
+        accepted_at = time.monotonic()
+        right = [[3, 7, value]]
+        latest = remember(1, right)
+        accepted[latest['revision']] = accepted_at
+        backlog = latest['revision'] - previous['vector'][1]['record']['head']['revision']
+        backlog_highwater = max(backlog_highwater, backlog)
+        arrivals.append(dict(source_revision=latest['revision'], value=value,
+            accepted_seconds=round(accepted_at - ongoing_started, 3),
+            mutation_seconds=round(accepted_at - begin, 3), mutation_turns=measurements['turns'] - turns,
+            backlog_head_revisions=backlog))
+        if len(arrivals) == 3:
+            feed = None
+
+    offer()
+    feed = offer
+    for _ in range(30):
+        if not next_revision():
+            break
+    else:
+        raise AssertionError('Ongoing input did not drain within its transaction bound')
+    assert len(arrivals) == 3 and not accepted and len(publications) == 3
+    assert previous['vector'][1]['record']['head']['revision'] == latest['revision']
+    assert exact[(7,)] == [7, 3, 3, 18]
+    ongoing = dict(arrivals=arrivals, publications=publications,
+        backlog_highwater_head_revisions=backlog_highwater, final_backlog=0,
+        seconds=round(time.monotonic() - ongoing_started, 3),
+        catch_up_after_last_input_seconds=round(time.monotonic() - ongoing_started - arrivals[-1]['accepted_seconds'], 3),
+        retained_state_before=ongoing_state_before, retained_state_after=previous['state_bytes'])
+    print(json.dumps(dict(profile='maintained-ongoing-input', **ongoing)), flush=True)
     # Saving no definition is not a way to silently upgrade an old cursor.
     saved = position_path.read_text()
     for field in ('version', 'definition'):
@@ -180,6 +232,42 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     position_path.write_text(initial_position)
     replay = call('maintained-next')
     assert replay['manifest']['revision'] == 2
+    # A newly committed schema cannot be interpreted as the old query schema.
+    # Retained complete output remains bound to the original schema and basis.
+    last_complete = call('maintained-status')
+    applied(execute(910009, 'ALTER TABLE rel_right ADD COLUMN extra BIGINT', directory=secondary))
+    for _ in range(10):
+        call('maintained-wake')
+        call('maintained-pump')
+        failed = call('maintained-status')
+        if failed['state'] == 'failed':
+            break
+    assert failed['state'] == 'failed' and failed['manifest'] == last_complete['manifest'], failed
+    failure = call('maintained-failure')
+    assert failure['cause'] == 'TableSchemaChanged' and failure['last_revision'] == previous['revision'], failure
+    retained = call('maintained-result', previous['revision'])
+    assert retained['manifest'] == previous
+    assert {key(row): cells(row) for row in retained['events']} == exact
+    call('maintained-retire')
+    call('maintained-clean')
+    call('maintained-plan', sql, secondary)
+    call('maintained-enqueue')
+    finish()
+    rebuilt = call('maintained-result', 1)
+    assert {key(row): cells(row) for row in rebuilt['events']} == exact
+    applied(execute(910010, 'DROP TABLE rel_right', directory=secondary))
+    call('maintained-wake')
+    call('maintained-pump')
+    drop_failure = call('maintained-failure')
+    assert drop_failure['cause'] == 'TableRetired' and drop_failure['last_revision'] == 1, drop_failure
+    assert call('maintained-result', 1)['manifest'] == rebuilt['manifest']
+    # Reusing the SQL name assigns a different object. Saved work still names
+    # the retired object and cannot switch to the replacement's empty relation.
+    applied(execute(910011, 'CREATE TABLE rel_right (k BIGINT, v BIGINT)', object_id=2, directory=secondary))
+    call('maintained-wake')
+    call('maintained-pump')
+    assert call('maintained-failure') == drop_failure
+    assert call('maintained-result', 1)['manifest'] == rebuilt['manifest']
     call('maintained-worker-deny')
     call('maintained-retire')
     call('maintained-clean')
@@ -188,6 +276,8 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     result = dict(profile='maintained-relational-native', revisions=revisions, changing_revisions=changes,
                   no_op_revisions=noops, seconds=round(time.monotonic() - started, 3),
                   turns=measurements['turns'] - initial_turns, retained_state_bytes=previous['state_bytes'],
-                  exact_delta_retry=True, delayed_backfill=True, disk_restart=True, current_denial=True)
+                  exact_delta_retry=True, delayed_backfill=True, disk_restart=True, current_denial=True,
+                  ongoing_input=ongoing, schema_successor_rejected=True, schema_failure=failure,
+                  drop_successor_rejected=True, drop_name_reuse_preserves_failure=True, drop_failure=drop_failure)
     print(json.dumps(result))
     return result
