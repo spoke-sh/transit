@@ -1,0 +1,233 @@
+{
+  "implementation_commit": "b830f32627fb99d413c82f458d7f7bbceb522fe6",
+  "definition": "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024",
+  "command": "nix develop --command just test::relational-exchanges",
+  "clean_checkout": false,
+  "result": "passed",
+  "topology": {
+    "authority": "one growing native node",
+    "storage": "disk-backed Ursula and owned MinIO cold-store fixture",
+    "manager": "one trusted manager with atomic private files and exact root-signed requests",
+    "hot_bytes": 8388608,
+    "cache_bytes": 8388608,
+    "resident_pages": 8,
+    "receiver_segment_credit": 1,
+    "active_producer_read_fan_in": 1
+  },
+  "log": {
+    "local_path": ".cache/relational-intake/exchange-native-handoff-final.log",
+    "sha256": "9b3885ec8bd9bd7b2752d2b5f41afddcec57b6347e45b7af5ca2a95b60d13908"
+  },
+  "observations": [
+    {
+      "profile": "relational-exchange-layout",
+      "partitions": 1,
+      "workers": 1,
+      "batch": 1,
+      "exchange": 174,
+      "turns": 195,
+      "seconds": 74.608,
+      "retained_exchange_bytes": 11436,
+      "operator_bytes": 10422,
+      "rounds": 25,
+      "completed": 2,
+      "oracle": true,
+      "producer_loss": true,
+      "acceptance_loss": true,
+      "node_store_restart": true,
+      "stale_worker_rejected": true,
+      "handoff_phases": [
+        "planned",
+        "quiesced",
+        "checkpointed",
+        "fenced",
+        "restored",
+        "activated",
+        "retired"
+      ],
+      "checkpoint_entries": 12,
+      "corrupt_checkpoint_rejected": true,
+      "missing_checkpoint_rejected": true,
+      "denied_restore_blocked": true,
+      "old_credential_rejected": true
+    },
+    {
+      "profile": "relational-exchange-layout",
+      "partitions": 7,
+      "workers": 3,
+      "batch": 4,
+      "exchange": 1033,
+      "turns": 250,
+      "seconds": 117.366,
+      "retained_exchange_bytes": 17252,
+      "operator_bytes": 10422,
+      "rounds": 16,
+      "completed": 14,
+      "oracle": true,
+      "producer_loss": true,
+      "acceptance_loss": true,
+      "node_store_restart": true,
+      "stale_worker_rejected": true,
+      "handoff_phases": [
+        "planned",
+        "quiesced",
+        "checkpointed",
+        "fenced",
+        "restored",
+        "activated",
+        "retired"
+      ],
+      "checkpoint_entries": 12,
+      "corrupt_checkpoint_rejected": true,
+      "missing_checkpoint_rejected": true,
+      "denied_restore_blocked": true,
+      "old_credential_rejected": true
+    },
+    {
+      "profile": "relational-exchange-native",
+      "seconds": 197.044,
+      "layouts": [
+        {
+          "partitions": 1,
+          "workers": 1,
+          "batch": 1,
+          "exchange": 174,
+          "turns": 195,
+          "seconds": 74.608,
+          "retained_exchange_bytes": 11436,
+          "operator_bytes": 10422,
+          "rounds": 25,
+          "completed": 2,
+          "oracle": true,
+          "producer_loss": true,
+          "acceptance_loss": true,
+          "node_store_restart": true,
+          "stale_worker_rejected": true,
+          "handoff_phases": [
+            "planned",
+            "quiesced",
+            "checkpointed",
+            "fenced",
+            "restored",
+            "activated",
+            "retired"
+          ],
+          "checkpoint_entries": 12,
+          "corrupt_checkpoint_rejected": true,
+          "missing_checkpoint_rejected": true,
+          "denied_restore_blocked": true,
+          "old_credential_rejected": true
+        },
+        {
+          "partitions": 7,
+          "workers": 3,
+          "batch": 4,
+          "exchange": 1033,
+          "turns": 250,
+          "seconds": 117.366,
+          "retained_exchange_bytes": 17252,
+          "operator_bytes": 10422,
+          "rounds": 16,
+          "completed": 14,
+          "oracle": true,
+          "producer_loss": true,
+          "acceptance_loss": true,
+          "node_store_restart": true,
+          "stale_worker_rejected": true,
+          "handoff_phases": [
+            "planned",
+            "quiesced",
+            "checkpointed",
+            "fenced",
+            "restored",
+            "activated",
+            "retired"
+          ],
+          "checkpoint_entries": 12,
+          "corrupt_checkpoint_rejected": true,
+          "missing_checkpoint_rejected": true,
+          "denied_restore_blocked": true,
+          "old_credential_rejected": true
+        }
+      ],
+      "metrics": {
+        "turns": 479,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "accepted": 26
+      },
+      "cold_objects": 204,
+      "cold_bytes": 53583110,
+      "replays": [
+        "acceptance",
+        "handoff_activated",
+        "handoff_fenced",
+        "handoff_quiesced",
+        "producer"
+      ]
+    }
+  ],
+  "binaries": [
+    {
+      "local_path": ".zig-cache/o/828ecf89aa67a6101be750e5188d54e3/transit-node",
+      "sha256": "ff0bdebe60df2a7ec072d47d8f2e7e84b0e6e4730fe0d5fc0fbcc68c62069bef"
+    },
+    {
+      "local_path": ".zig-cache/o/5700a1fd51201831b21c4bd8e14fb8fc/transit-typed-table-proof",
+      "sha256": "d01bc35b958c03b377a8b44cb39bf2476191449204dbd3b46f528308994c02b5"
+    }
+  ],
+  "additional_checks": [
+    {
+      "command": "nix develop --command sh -c \"cd packages/zig/transit-client && zig build test\"",
+      "result": "passed",
+      "log": {
+        "local_path": ".cache/relational-intake/worker-handoff-independent.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "scope": "Includes independent canonical record and 10003-entry SHA-256 fixture"
+    },
+    {
+      "command": "nix develop --command just check",
+      "result": "passed",
+      "log": {
+        "local_path": ".cache/relational-intake/check-worker-handoff-docs-fixed.log",
+        "sha256": "05c0a677aafc20b2512c243a11c7bf1390c592062d6def07fdb4f949fb5f5b91"
+      }
+    }
+  ],
+  "earlier_runs": [
+    {
+      "log": {
+        "local_path": ".cache/relational-intake/exchange-native-handoff-first.log",
+        "sha256": "4105aee7f3405a2a060c00b18fff1c066a8fe5859c4d6d7f784368a945e63ae7"
+      },
+      "result": "passed narrower schedule",
+      "scope": "Four-entry private-staging checkpoint; no accepted handoff command reply loss"
+    },
+    {
+      "log": {
+        "local_path": ".cache/relational-intake/exchange-native-handoff-receipts.log",
+        "sha256": "9c58aba20ee80db1cda25c5a8aaa3be0e1f174ac28e8b1d9eba4348067abccb2"
+      },
+      "result": "passed narrower schedule",
+      "scope": "Twelve-entry checkpoint, exact handoff receipt retry; known worker-pending admission test added afterward"
+    },
+    {
+      "log": {
+        "local_path": ".cache/relational-intake/check-worker-handoff.log",
+        "sha256": "0da8059781d7135c1fb168446e5ae9b99b7e89ac84067ce2f30e65f40f5389a8"
+      },
+      "result": "failed",
+      "scope": "Documentation site rejects a repository task command embedded in public Internals; corrected explanations link to the proof ledger"
+    }
+  ],
+  "limits": [
+    "The native handoff transfers one producer per layout with 12 state entries; large checkpoint scans are covered by the pure 10003-entry fixture.",
+    "Manager filesystem remains available; each phase reconstructs the manager process and restarts native node/disk store.",
+    "One logical PID and writer-owned state resource; no provider-bound worker or distributed manager/authority.",
+    "Physical worker instances are finite observed process invocations; this does not qualify Kubernetes attribution.",
+    "Source-expiry injection, unavailable revocation authority, native exchange corruption/ENOSPC and power loss remain separate gates.",
+    "Transport turn-response counts include exact accepted retries; cold bytes include setup and both complete layouts."
+  ]
+}

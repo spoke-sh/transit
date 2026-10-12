@@ -239,7 +239,9 @@ The native record is a trusted manager's private fsynced file; native history
 remains execution authority. No distributed manager or provider binding is used.
 
 `just test::relational-exchanges` passes the extended schedule in
-`exchange-native-handoff-final.log`: **197.044 s** overall, **74.608 s / 195 turn
+`exchange-native-handoff-final.log`.
+[Source, binaries, raw measurements and earlier runs](verification/results/worker-handoff-2026-10-12.json)
+record **197.044 s** overall, **74.608 s / 195 turn
 responses** for one producer and **117.366 s / 250 turn responses** for three.
 Each layout transfers one producer after an acknowledged segment and an eligible
 unacknowledged segment. Its **12-entry** checkpoint includes publication bytes,
