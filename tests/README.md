@@ -196,7 +196,9 @@ incorrectly inherited native rejection evidence; the reviewed projection
 preserves uncertain-send semantics.
 
 `just test::relational-exchanges` passes the native disk/cold-store host schedule
-in `exchange-native-view-lifecycle.log`. One partition/one producer/one-row
+in `exchange-native-view-lifecycle.log`.
+[Exact source, binaries, measurements and failed attempts](verification/results/relational-exchanges-2026-10-12.json)
+are retained separately. One partition/one producer/one-row
 batches completes in **71.453 s / 192 turn responses**, retaining **11,436**
 logical receiver bytes. Seven partitions/three producers/four-row batches
 completes in **111.750 s / 242 turn responses**, retaining **17,252** bytes. Both
