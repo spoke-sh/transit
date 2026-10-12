@@ -280,9 +280,9 @@ rollback checks and is not an alternative source of authority. Liveness requires
 available storage/grants and completion before native lifetime gates; the finite
 suspension deadline is not renewed by a failed scan. The pinned client package
 tests, independent Python handoff fixtures and native exchange task reproduce
-the selected checks. Their exact commands and artifacts are recorded in the
-[proof ledger](../../tests/README.md#relational-exchange-transitions) separates
-executed cases, resource sizes, lost receipts and remaining fault boundaries.
+the selected checks. The [proof ledger](../../tests/README.md#relational-exchange-faults-and-checkpoint-growth)
+records their exact commands and artifacts, separating executed cases,
+resource sizes, lost receipts and remaining fault boundaries.
 
 ## Observation without authority
 

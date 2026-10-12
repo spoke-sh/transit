@@ -81,7 +81,8 @@ one/seven partitions and one/three producer workers. That host recovers lost
 producer and receiver receipts, replaces worker generations and publishes the
 maintained result after node/store restarts. The
 [proof ledger](../../../../tests/README.md#relational-exchange-transitions) records
-the exact fault scope and remaining reassignment and capacity gates.
+that schedule separately from [recorded handoff faults](../../../../tests/README.md#relational-exchange-faults-and-checkpoint-growth)
+and [physical disk exhaustion](../../../../tests/README.md#relational-physical-capacity).
 These typed primitives do not configure automatic worker placement or a growing
 runtime controller. They do not enable a new SQL, Board, Flight or SDK route by
 themselves.
