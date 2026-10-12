@@ -23,7 +23,7 @@ pub const Owned = struct {
 pub fn validate(self: Self) !void {
     try self.plan.validate();
     if (self.consistency != .per_resource_snapshot_vector) return error.UnsupportedRelationalConsistency;
-    if (self.plan.lifetime != .captured or self.sources.len != self.plan.sources.len) return error.InvalidRelationalSources;
+    if (self.plan.lifetime == .interactive or self.sources.len != self.plan.sources.len) return error.InvalidRelationalSources;
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     for (self.sources, self.plan.sources) |source, declared| {
         try source.validate();

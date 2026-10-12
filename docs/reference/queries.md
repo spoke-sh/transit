@@ -316,3 +316,35 @@ frames. Storage, allocation and local cancellation failures still abort private
 work; they do not manufacture a terminal result. See the
 [handler query contract](../../contracts/STATION_QUERY_V1.md) for framing,
 wait closure, retained evidence and duplicate handling.
+
+
+## Maintained Table revisions
+
+The typed Zig `RelationalMaintenance` owner publishes a complete result for each
+recorded Table-history basis, including no-op transaction coverage. It captures
+an initial basis, backfills while later history remains durable, then advances
+one eligible resource transaction at a time. Required Tables in one resource
+move together. Different resources have an explicit vector and recorded processing
+order; this is not a global or causal snapshot.
+
+The owner recomputes each basis with the same finite relational executor and
+stages an ordered paired delta against the previous complete result. One commit
+publishes the source vector, checkpoint, result and delta coverage together.
+Until then, readers retain the previous revision. A semantic failure records the
+failed successor and stops advancement; later input cannot skip that failure.
+Missing history or a changed schema requires explicit rebuild under a new query
+identity. Current source rights remain necessary even for noncontributing inputs.
+
+Activation and wakeups are explicit authenticated host operations. The owner does
+not supply a background daemon, automatic SQL activation, or an event-time finality
+claim. Its first-source owner placement, workspace/state budgets and cumulative
+retention costs are described in the
+[maintained caller guide](../../packages/zig/transit-query/docs/relational-maintenance.md).
+
+`RelationalRevision` reads full revisions or deltas against an exact previous
+manifest. A partial delivery cannot replace the consumer's relation. After
+terminal coverage validation, save its position atomically with applying the
+complete transaction. Resume requests the next recorded revision; pending keeps
+the old position, and a mismatch requires explicit reset. Cancellation or failure
+preserves previous complete results; retirement makes them unavailable. Every
+read rechecks current policy and native/catalog rights to all sources.

@@ -22,7 +22,9 @@ const Handler = struct {
         switch (frame.kind) {
             .reply => return,
             .call => {
-                _ = try q.RelationalCapture.start(turn, try s.PublicationReference.decode(frame.payload), self.workspace);
+                if (self.bundle.plan.lifetime == .maintained) {
+                    _ = try q.RelationalMaintenance.start(turn, try s.PublicationReference.decode(frame.payload), self.workspace);
+                } else _ = try q.RelationalCapture.start(turn, try s.PublicationReference.decode(frame.payload), self.workspace);
                 return;
             },
             .cast => {},
@@ -45,7 +47,7 @@ const Handler = struct {
             } else try turn.cast(turn.delivery.pid, frame.payload);
             return;
         }
-        if (std.mem.eql(u8, frame.payload.slice(), "relational-proof-retire") or std.mem.eql(u8, frame.payload.slice(), "relational-proof-collect")) {
+        if (std.mem.eql(u8, frame.payload.slice(), "relational-proof-wake") or std.mem.eql(u8, frame.payload.slice(), "relational-proof-retire") or std.mem.eql(u8, frame.payload.slice(), "relational-proof-collect")) {
             const authorized = switch (turn.delivery.input.origin) {
                 .external => |external| external.principal == 0,
                 .process => |process| process.pid == turn.delivery.pid,
@@ -53,6 +55,13 @@ const Handler = struct {
             };
             if (!authorized) return error.AccessDenied;
             const correlation = try q.UnifiedRecords.readIdentity((try turn.read(correlation_key)).?);
+            if (self.bundle.plan.lifetime == .maintained) {
+                const identity: q.RelationalMaintenanceRecords.Identity = .{ .peer = turn.delivery.pid, .correlation = correlation };
+                if (std.mem.eql(u8, frame.payload.slice(), "relational-proof-wake")) {
+                    _ = try q.RelationalMaintenance.wake(turn, identity, self.workspace);
+                } else try q.RelationalMaintenance.close(turn, identity, .retired, null);
+                return;
+            }
             const id = try q.UnifiedRecords.readIdentity((try turn.read(r.key('i', turn.delivery.pid, correlation))).?);
             if (std.mem.eql(u8, frame.payload.slice(), "relational-proof-collect")) {
                 if (!try q.RelationalCapture.collect(turn, id)) try turn.cast(turn.delivery.pid, frame.payload);
@@ -60,7 +69,9 @@ const Handler = struct {
             }
             return q.RelationalCapture.close(turn, id, .retired, null);
         }
-        _ = try q.RelationalCapture.advance(turn, try q.UnifiedRecords.Continuation.decode(frame.payload), self.workspace);
+        if (self.bundle.plan.lifetime == .maintained) {
+            _ = try q.RelationalMaintenance.advance(turn, try q.RelationalMaintenanceRecords.Continuation.decode(frame.payload), self.workspace);
+        } else _ = try q.RelationalCapture.advance(turn, try q.UnifiedRecords.Continuation.decode(frame.payload), self.workspace);
     }
 };
 fn status(comptime Test: type, init: std.process.Init, wire: *s.client.Client, config: Test.Config) !?r.Job {
@@ -72,11 +83,12 @@ fn status(comptime Test: type, init: std.process.Init, wire: *s.client.Client, c
     return try q.RelationalCapture.job(&source, try q.UnifiedRecords.readIdentity(identity));
 }
 pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, directory: []const u8, config: Test.Config, primary: *c.TableClient, args: anytype) !void {
-    const mode = args[2];
+    const maintained = std.mem.startsWith(u8, args[2], "maintained-");
+    const mode = args[2][if (maintained) @as(usize, 11) else 9..];
     var admin: Admin = .{ .wire = wire, .key = try Test.key(7) };
     const authority = try admin.query(.capabilities);
     admin.sequence = authority.principal_sequence;
-    if (std.mem.eql(u8, mode, "captured-plan")) {
+    if (std.mem.eql(u8, mode, "plan")) {
         var syntax = try f.RelationalSql.parse(init.gpa, args[4], null);
         defer syntax.deinit();
         const secondary_config: ?Test.Config = if (args.len > 5) try Test.load(Test.Config, init, args[5], "catalog.json") else null;
@@ -96,21 +108,27 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             sources[i] = typed[i].?.source;
             declarations[i] = .{ .alias = target.alias, .realm = conf.scope.realm, .resource = conf.scope.resource, .catalog = conf.scope.catalog, .owner = conf.owner, .schema = definitions[i].?.schema.schema };
         }
-        const plan = try syntax.bind(declarations[0..syntax.targets.len], .captured, .{ .resident_bytes = q.RelationalCapture.resident_base + 8 * 1024 * 1024, .spill_bytes = 64 * 1024 * 1024, .result_bytes = 8 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, null);
+        const plan = try syntax.bind(declarations[0..syntax.targets.len], if (maintained) .maintained else .captured, .{ .resident_bytes = @max(q.RelationalMaintenance.resident_base, q.RelationalCapture.resident_base) + 8 * 1024 * 1024, .spill_bytes = 64 * 1024 * 1024, .result_bytes = 8 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, null);
         const bundle: q.RelationalBundle = .{ .plan = plan, .sources = sources[0..syntax.targets.len] };
         var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
         try Test.saveBytes(init, directory, "relational-plan.bin", try bundle.encode(&bytes));
         const metadata: Metadata = .{ .definition = g.current_definition, .reference = try bundle.reference(config.writer.resource, authority.position + 1), .secondary = if (secondary_config) |other| other.writer.resource else null };
         if (metadata.secondary) |resource| {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = config.worker, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-            _ = try admin.submit(.{ .@"suspend" = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
-            _ = try admin.submit(.{ .associate = .{ .pid = config.writer.pid, .name = try p.Value.init("relational-secondary"), .resource = resource, .required = false } });
-            const observed = (try admin.query(.{ .process = config.writer.pid })).body.process.process;
-            _ = try admin.submit(.{ .@"resume" = .{ .pid = config.writer.pid, .expected_generation = observed.generation } });
-            _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = observed.generation + 1, .worker = config.worker } });
-            var fresh = config;
-            fresh.writer.generation = observed.generation + 2;
-            try Test.save(init, directory, "catalog.json", fresh);
+            const name = try p.Value.init("relational-secondary");
+            const association = (try admin.query(.{ .association = .{ .pid = config.writer.pid, .name = name } })).body.association;
+            if (association) |existing| {
+                if (existing.resource != resource or existing.required) return error.InvalidProofAssociation;
+            } else {
+                _ = try admin.submit(.{ .@"suspend" = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
+                _ = try admin.submit(.{ .associate = .{ .pid = config.writer.pid, .name = try p.Value.init("relational-secondary"), .resource = resource, .required = false } });
+                const observed = (try admin.query(.{ .process = config.writer.pid })).body.process.process;
+                _ = try admin.submit(.{ .@"resume" = .{ .pid = config.writer.pid, .expected_generation = observed.generation } });
+                _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = observed.generation + 1, .worker = config.worker } });
+                var fresh = config;
+                fresh.writer.generation = observed.generation + 2;
+                try Test.save(init, directory, "catalog.json", fresh);
+            }
         }
         try Test.save(init, directory, "relational-native.json", metadata);
         return Test.print(init, .{ .state = "prepared", .reference = metadata.reference });
@@ -120,7 +138,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
     defer init.gpa.free(bytes);
     var owned = try q.RelationalBundle.decode(init.gpa, bytes);
     defer owned.deinit();
-    if (std.mem.eql(u8, mode, "captured-rotate")) {
+    if (std.mem.eql(u8, mode, "rotate")) {
         _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = config.worker } });
         var old: s.client.Session = .{ .client = wire, .realm = 46, .principal = config.worker, .pid = config.writer.pid, .generation = config.writer.generation, .key = try Test.key(8) };
         try std.testing.expectError(error.StaleActivation, old.receive());
@@ -129,20 +147,31 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         try Test.save(init, directory, "catalog.json", fresh);
         return Test.print(init, .{ .state = "rotated", .generation = fresh.writer.generation });
     }
-    if (std.mem.eql(u8, mode, "captured-worker-deny")) {
+    if (std.mem.eql(u8, mode, "worker-deny")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = metadata.secondary.?, .subject = config.worker, .permissions = 0 } });
         return Test.print(init, .{ .state = "denied" });
     }
-    if (std.mem.eql(u8, mode, "captured-enqueue") or std.mem.eql(u8, mode, "captured-retire") or std.mem.eql(u8, mode, "captured-collect")) {
-        const payload = if (std.mem.eql(u8, mode, "captured-enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "captured-retire")) "relational-proof-retire" else "relational-proof-collect";
+    if (std.mem.eql(u8, mode, "wake") or std.mem.eql(u8, mode, "enqueue") or std.mem.eql(u8, mode, "retire") or std.mem.eql(u8, mode, "collect")) {
+        const payload = if (std.mem.eql(u8, mode, "wake")) "relational-proof-wake" else if (std.mem.eql(u8, mode, "enqueue")) "relational-proof-upload" else if (std.mem.eql(u8, mode, "retire")) "relational-proof-retire" else "relational-proof-collect";
         _ = try admin.submit(.{ .send = .{ .pid = config.writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(payload) }).encode() } });
         return Test.print(init, .{ .state = "queued" });
     }
-    if (std.mem.eql(u8, mode, "captured-status")) {
+    if (maintained and (std.mem.eql(u8, mode, "status") or std.mem.eql(u8, mode, "result") or std.mem.eql(u8, mode, "result-held") or std.mem.eql(u8, mode, "delta") or std.mem.eql(u8, mode, "next"))) {
+        var source = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }).open(config.writer.resource);
+        const value = (try source.read(correlation_key)) orelse return Test.print(init, .{ .state = "absent" });
+        const identity: q.RelationalMaintenanceRecords.Identity = .{ .peer = config.writer.pid, .correlation = try q.UnifiedRecords.readIdentity(value) };
+        const stored = q.RelationalMaintenance.head(&source, identity) catch |err| {
+            if (err == error.QueryNotFound) return Test.print(init, .{ .state = "absent" });
+            return err;
+        };
+        if (std.mem.eql(u8, mode, "status")) return Test.print(init, .{ .state = @tagName(stored.phase), .job = stored.id, .revision = stored.revision, .manifest = stored.manifest, .state_bytes = stored.state_bytes, .released = stored.released });
+        return maintainedResult(Test, init, wire, directory, config, owned.bundle, stored, mode, args);
+    }
+    if (std.mem.eql(u8, mode, "status")) {
         const current = (try status(Test, init, wire, config)) orelse return Test.print(init, .{ .state = "absent" });
         return Test.print(init, .{ .state = @tagName(current.phase), .job = current.id, .checkpoint = current.checkpoint, .outputs = current.outputs, .state_bytes = current.state_bytes, .released = current.released, .collected = current.cleanup == std.math.maxInt(u64) });
     }
-    if (std.mem.eql(u8, mode, "captured-result")) {
+    if (std.mem.eql(u8, mode, "result")) {
         const current = (try status(Test, init, wire, config)) orelse return error.QueryNotFound;
         var nonce: [16]u8 = undefined;
         init.io.random(&nonce);
@@ -171,8 +200,8 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         try out.interface.flush();
         return;
     }
-    const cleanup_only = std.mem.eql(u8, mode, "captured-clean");
-    if (!std.mem.eql(u8, mode, "captured-pump") and !cleanup_only) return error.InvalidProofCommand;
+    const cleanup_only = std.mem.eql(u8, mode, "clean");
+    if (!std.mem.eql(u8, mode, "pump") and !cleanup_only) return error.InvalidProofCommand;
     const pending = Test.load(Pending, init, directory, "relational-worker.json") catch |err| switch (err) {
         error.FileNotFound => null,
         else => return err,
@@ -208,4 +237,61 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         }
     }
     try Test.print(init, .{ .state = "pumped", .committed = committed });
+}
+
+fn maintainedResult(comptime Test: type, init: std.process.Init, wire: *s.client.Client, directory: []const u8, config: Test.Config, bundle: q.RelationalBundle, stored: q.RelationalMaintenanceRecords.Head, mode: []const u8, args: anytype) !void {
+    var nonce: [16]u8 = undefined;
+    init.io.random(&nonce);
+    const client: s.client.ResourceReader = .{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) };
+    const reading_next = std.mem.eql(u8, mode, "next");
+    const saved: ?q.RelationalRevision.Position = if (reading_next) try Test.load(q.RelationalRevision.Position, init, directory, "maintained-position.json") else null;
+    var result = if (saved) |position| try q.RelationalRevision.openNext(client, bundle, position, nonce, 10000, null) else try q.RelationalRevision.open(client, bundle, .{ .owner = config.writer.pid, .resource = config.writer.resource, .identity = stored.identity(), .revision = if (args.len > 4) try std.fmt.parseInt(u64, args[4], 10) else null, .mode = if (std.mem.eql(u8, mode, "delta")) .{ .delta = null } else .result, .requests = 10000 }, nonce);
+    defer result.close() catch {};
+    try std.testing.expectError(error.IncompleteResult, result.checkpoint());
+    if (std.mem.eql(u8, mode, "result-held")) {
+        _ = (try result.next()) orelse return error.MissingProofPrefix;
+        try std.testing.expectError(error.IncompleteResult, result.checkpoint());
+        try Test.print(init, .{ .ready = true });
+        var input_buffer: [32]u8 = undefined;
+        var input = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
+        _ = try input.interface.takeByte();
+    }
+    var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
+    const schema = try bundle.plan.outputSchema(&fields);
+    var buffer: [4096]u8 = undefined;
+    var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    try out.interface.writeAll("{\"events\":[");
+    var count: usize = 0;
+    while (try result.next()) |event| {
+        if (count != 0) try out.interface.writeByte(',');
+        switch (event) {
+            .row => |row| try writeRow(init, &out.interface, schema, row),
+            .delta => |delta| {
+                try out.interface.writeAll("{\"before\":");
+                if (delta.before) |row| try writeRow(init, &out.interface, schema, row.row) else try out.interface.writeAll("null");
+                try out.interface.writeAll(",\"after\":");
+                if (delta.after) |row| try writeRow(init, &out.interface, schema, row.row) else try out.interface.writeAll("null");
+                try out.interface.writeByte('}');
+            },
+        }
+        count += 1;
+    }
+    const position = try result.checkpoint();
+    try Test.save(init, directory, "maintained-position.json", position);
+    const summary = try std.json.Stringify.valueAlloc(init.gpa, .{ .revision = result.manifest.work.revision, .reference = result.reference, .previous = result.manifest.previous, .vector = result.manifest.vector.entries[0..result.manifest.vector.count], .outputs = result.manifest.work.outputs, .deltas = result.manifest.work.deltas, .state_bytes = result.manifest.work.state_bytes }, .{});
+    defer init.gpa.free(summary);
+    try out.interface.print("],\"complete\":true,\"requests\":{d},\"manifest\":{s}}}\n", .{ result.requests, summary });
+    try out.interface.flush();
+}
+fn writeRow(init: std.process.Init, writer: *std.Io.Writer, schema: f.Types.Type, row: f.RelationalExecution.Output) !void {
+    try writer.writeAll("{\"identity\":");
+    try std.json.Stringify.value(row.identity, .{}, writer);
+    try writer.writeAll(",\"values\":[");
+    for (row.cells[0..row.len], schema.structure, 0..) |cell, field, i| {
+        if (i != 0) try writer.writeByte(',');
+        const json = try f.LogicalJson.encode(init.gpa, cell, field);
+        defer init.gpa.free(json);
+        try writer.writeAll(json);
+    }
+    try writer.writeAll("]}");
 }

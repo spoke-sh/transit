@@ -312,6 +312,10 @@ catalog *args:
 catalog-growth:
     just test::typed-tables --grow 139 --cold
 
+# Complete maintained revisions, independent deltas and disk/cold-store recovery.
+relational-maintenance:
+    just test::typed-tables --maintained --cold
+
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
 typed-tables *args:

@@ -30,6 +30,7 @@ pub const Vector = struct {
     entries: [r.max_sources]Entry = undefined,
     pub fn validate(self: Vector, bundle: q.RelationalBundle) !void {
         try bundle.validate();
+        if (bundle.plan.lifetime != .captured) return error.InvalidRelationalCapture;
         if (self.count != bundle.sources.len or !std.mem.eql(u8, &self.request, &try bundle.fingerprint())) return error.RelationalSourceChanged;
         for (self.entries[0..self.count], bundle.sources, 0..) |entry, source, i| {
             try p.Growth.validateVersionId(entry.version);
@@ -128,6 +129,7 @@ pub fn capture(turn: *s.Turn, allocator: std.mem.Allocator, bundle: q.Relational
     const before = turn.decision;
     errdefer turn.decision = before;
     try bundle.validate();
+    if (bundle.plan.lifetime != .captured) return error.InvalidRelationalCapture;
     var result: Vector = .{ .request = try bundle.fingerprint(), .count = @intCast(bundle.sources.len) };
     for (bundle.sources, 0..) |source, i| {
         if (source.scope.realm != turn.delivery.realm) return error.CrossRealmRelationalQuery;

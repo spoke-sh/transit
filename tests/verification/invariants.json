@@ -1702,6 +1702,31 @@
       ],
       "limits": "Finite Linux fixture with pinned Process Compose; no general fairness, availability SLO or additional provider qualification. Worker activations remain explicit.",
       "model": null
+    },
+    {
+      "id": "QUERY-REVISIONS",
+      "claim": "A complete maintained Table revision binds one recorded source basis, exact finite result and atomic predecessor delta",
+      "owner": "contracts/RELATIONAL_V1.md",
+      "implementation": [
+        "packages/zig/transit-query/src/RelationalHistory.zig",
+        "packages/zig/transit-query/src/RelationalMaintenance.zig",
+        "packages/zig/transit-query/src/RelationalRevision.zig",
+        "packages/zig/transit-fuze/src/RelationalDelta.zig",
+        "tests/relational_maintenance_native.py"
+      ],
+      "profile": "typed Zig maintained Tables over one native authority with bounded disk/cold storage",
+      "tasks": [
+        "test::relational-maintenance"
+      ],
+      "scenarios": [
+        "Delayed backfill retains every consecutive complete source transaction including no-op heads",
+        "Every published basis agrees with the independent finite oracle and each exact delta updates a separate consumer relation",
+        "Lost accepted receipts survive worker fencing and node/store restart without allocating a second revision",
+        "Both-side changes and first/last outer matches preserve multiplicity and paired updates",
+        "Missing cursor definitions, mismatched predecessors and current source denial reject before complete disclosure"
+      ],
+      "limits": "Small two-resource int64 fixtures with three aggregate groups; recomputation per transaction, bounded eight-page authority and 8 MiB cold hot/cache budgets. No automatic scheduling, sustainable arrival-rate, power-loss or distributed-authority claim. Executed status and failed attempts remain in tests/README.md.",
+      "model": null
     }
   ]
 }

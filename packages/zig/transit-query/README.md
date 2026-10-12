@@ -68,6 +68,14 @@ reads and current rights to every dependency. The coordinator shares the first
 Table owner's PID and resource. See the [captured relational guide](docs/relational-capture.md)
 for policy, host recovery, memory, closure and collection requirements.
 
+`RelationalMaintenance` records every complete Table-history basis, stages its
+result and paired delta, and atomically publishes a complete revision. A failed
+successor preserves the preceding result. `RelationalRevision` verifies full
+results or exact predecessor deltas under current source rights; its saved
+position advances only after complete delivery. The host explicitly activates
+and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
+for scheduling, recomputation costs, quotas, resume and retirement.
+
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
 principal's current catalog rights before and after each page, preserving the

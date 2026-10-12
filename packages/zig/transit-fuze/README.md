@@ -22,6 +22,9 @@ ownership, canonical order, budgets and remaining integration obligations.
 updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
 rechecks the bound source vector and current rights through its adapter. Hosts
 stage and atomically publish these records with input/output progress.
+`RelationalDelta` encodes paired changes between complete maintained outputs,
+binding both source vectors and preserving stable identities independently of
+output ordinals. It acquires no publication or disclosure authority.
 Existing single-source profiles retain their separately admitted operators.
 
 `Types` owns bounded logical descriptors and the specialized scalar profile used

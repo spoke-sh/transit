@@ -180,7 +180,9 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
     const data: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try out.interface.print("{{\"found\":true,\"object\":{d},\"count\":{d},\"columns\":[", .{ definition.metadata.object, definition.head.rows });
+    try out.interface.print("{{\"found\":true,\"object\":{d},\"count\":{d},\"head\":", .{ definition.metadata.object, definition.head.rows });
+    try std.json.Stringify.value(definition.head, .{}, &out.interface);
+    try out.interface.writeAll(",\"columns\":[");
     for (definition.schema.schema.columns, 0..) |column, index| {
         if (index != 0) try out.interface.writeByte(',');
         try std.json.Stringify.value(column.name, .{}, &out.interface);
@@ -324,7 +326,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
-    if (std.mem.startsWith(u8, mode, "captured-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
+    if (std.mem.startsWith(u8, mode, "captured-") or std.mem.startsWith(u8, mode, "maintained-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "relational")) return relational(init, directory, &caller, args[4], std.mem.eql(u8, mode, "relational-held"), if (args.len > 5) args[5] else null);
     if (std.mem.startsWith(u8, mode, "select")) return select(init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });

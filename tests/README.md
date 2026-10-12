@@ -50,6 +50,60 @@ keys, indexes, storage amplification and physical disk usage. The raw result is
 `.cache/relational-intake/native-table-history-measured.log`. Sustained-input
 maintenance and committed-HEAD clean qualification remain separate gates.
 
+## Maintained relational revisions
+
+The typed owner records complete Table-history bases, recomputes each through the
+finite executor, merges complete results into paired deltas, and publishes one
+manifest/root atomically. Idle work requires an explicit host wake. This is not
+a throughput claim or automatic SQL activation. The source/resource, operator,
+workspace and cumulative-state limits are in the
+[relational contract](../contracts/RELATIONAL_V1.md#maintained-table-owner-operations).
+
+Executed local checks use the pinned development environment. The Fuze package's
+`zig build test` passes delta identity/basis checks, duplicate projected values,
+first/last outer-match identity ordering, null-first group order, paired updates,
+truncated/foreign encodings and shifted output ordinals. The query package's
+`zig build test` passes history-vector capture/roundtrip, consecutive transaction
+selection, same-resource two-Table atomicity, frozen backfill, gaps and current
+denial. Independent `python3 tests/relational_records.py` checks exact control,
+work, continuation, delta-descriptor and key bytes rather than deriving them from
+the Zig codecs.
+
+The reference-store maintained-owner test rebuilds its workspace every turn and
+repeats uncommitted proposals to compare complete decisions. It preserves the old
+visible manifest through private staging, includes each no-op source transaction,
+checks paired aggregate deltas, rejects stale continuations, and stops at ordered
+SUM overflow while preserving the last complete result. This fixture is an
+in-memory transition check, not a native authority or durability proof. Initial
+attempts fail on a shadowed Zig name and an explicitly undersized fixture resident
+budget; the fixture now budgets the exported owner base plus its workspace.
+Passing logs are `.cache/relational-intake/fuze-maintained-delta.log` and
+`.cache/relational-intake/query-maintained-owner-budget.log`. The full enclosing
+native Table/captured regression also passes in 229.689 seconds, 720 turns and
+225 sends; that earlier invocation does not execute the new maintenance schedule.
+
+The real maintained schedule is `just test::relational-maintenance` through
+`tests/relational_maintenance_native.py`. It checks every recorded basis against
+the independent finite Python interpreter and applies each complete delta to a
+separate consumer relation. Its delayed-backfill, lost-receipt, disk-restart,
+both-side-change, outer-match, cursor and current-denial gates are pending this
+slice's native execution; planned checks are not counted as passes. Raw native
+attempts are retained under `.cache/relational-intake/native-maintained-*.log`.
+The first native attempt fails during fixture provisioning because it tries to
+recreate the captured proof's existing source association (`StaleAssociation`).
+The fixture now reads and reuses that exact association, rejecting a different
+resource/required flag. Initial full-check attempts stop at the newly added
+caller-outcome projections and then the reviewed delta-validation inventory;
+neither is counted as a complete passing check. The reviewed outcome task passes
+3203 projections across 29 declared surfaces. The hot-only native rerun reaches revision 5, then fails when Ursula's
+64 MiB total hot-storage limit returns `ColdBackpressure`, surfaced as
+`AuthorityUnavailable`. This is retained as a failed run, not recovered completion.
+The dedicated ordinary growth-lane task now selects the existing disk-backed
+cold-store fixture (`--maintained --cold`), retaining its 8 MiB hot/cache limits;
+it does not raise the hot-only bound or expire history. The general Table and SDK
+schedules remain separate from this longer growing-history proof. Full root and
+committed-HEAD clean qualification remain pending.
+
 ## Relational contract and oracle intake
 
 The finite continuation implements `RelationalExecution` and `RelationalSql`.

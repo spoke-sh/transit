@@ -5705,6 +5705,55 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ]
         }
       }
     },
@@ -7819,6 +7868,62 @@
             "inspect_status"
           ],
           "transport_status": 409
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 409
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 502
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9074,6 +9179,62 @@
             "inspect_status"
           ],
           "transport_status": 9
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 9
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 15
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 8
         }
       }
     },
@@ -11970,6 +12131,127 @@
         "FailedRelationalQuery": {
           "code": "query.relational_failed",
           "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit",
           "actions": [
             "inspect_status"
           ]

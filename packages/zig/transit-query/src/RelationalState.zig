@@ -67,7 +67,7 @@ pub fn Candidate(comptime Source: type) type {
         pub fn init(pages: Self, source: Source, first: u64, previous_bytes: u64, bound: r.Bound, work_limit: u64) !C {
             try pages.check();
             try bound.validate();
-            if (bound.plan.lifetime != .captured or first == 0 or work_limit == 0 or source.view.resource != pages.publication.resource) return error.InvalidRelationalState;
+            if (bound.plan.lifetime == .interactive or first == 0 or work_limit == 0 or source.view.resource != pages.publication.resource) return error.InvalidRelationalState;
             if (previous_bytes > bound.plan.budgets.spill_bytes) return error.RelationalSpillBudget;
             if (bound.plan.budgets.resident_bytes < resident_bytes) return error.RelationalResidentBudget;
             return .{ .pages = pages, .source = source, .first = first, .previous_bytes = previous_bytes, .quota = bound.plan.budgets.spill_bytes, .work_limit = work_limit };

@@ -1,4 +1,4 @@
-# Finite relational semantics v1
+# Relational semantics v1
 
 Fuze's [Relational module](../packages/zig/transit-fuze/src/Relational.zig)
 supplies pure typed-plan validation, stable column resolution, output descriptors,
@@ -10,9 +10,9 @@ source, permission, storage, clock or I/O.
 shared lexer, identifiers, literals and predicate grammar. `RelationalExecution`
 executes over supplied ordered sources and external group storage. The query
 package's `RelationalQuery` owns interactive native Table cuts, current rights,
-bounded allocation and private disk grouping. Durable captured/maintained
-admission, checkpoint codecs, foreign-language ABI and result manifests remain
-outside this interface. The small finite interpreter under `tests/` supplies an
+bounded allocation and private disk grouping. The query owners below compose
+these operators with captured jobs and maintained revisions. Foreign-language
+ABI admission remains separately defined. The small finite interpreter under `tests/` supplies an
 independent specification oracle.
 
 ## Plans and capabilities
@@ -134,7 +134,7 @@ all cuts and seal the vector before execution; partial failure releases all
 acquired pins. Different resources may be captured at different moments. This
 is not an atomic or causal cross-resource snapshot; atomic-snapshot requests reject.
 
-Interactive and captured lifetimes have different prepared identities. Interactive
+Interactive, captured and maintained lifetimes have different prepared identities. Interactive
 execution requires live leases, cancellation and cleanup. Captured execution must
 retain exact inputs and original durable call through recovery. Missing historical
 input fails rather than becoming a newer cut. The local Bound type performs none
@@ -157,7 +157,7 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
 5. One-byte group count and columns; one-byte output count, then output names
    and expression tags (column 0, count-all 1, count-column 2, sum 3). Expressions
    other than count-all carry a column.
-6. Lifetime byte (interactive 0, captured 1), uint64 resident/spill/result bytes,
+6. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
    output rows and work steps, then one-byte pin capacity.
 
 Bound bytes are domain, NUL, `bound`, NUL, prepared hash, then each cut's uint64
@@ -238,8 +238,8 @@ Arithmetic, authority, storage, allocation and budget failures leave any returne
 prefix incomplete. Fuze owns deterministic semantics; query/Station and authorized
 hosts own capture, I/O, spill, atomic publication and recovery.
 
-Maintained revisions, exchanges and reassignment need separately qualified
-lifecycle contracts. Table invalidation watches are not complete changelogs.
+Exchanges and reassignment require their own lifecycle contracts. Table
+invalidation watches are not complete changelogs.
 Neither runtime nor distributed qualification follows from the local contract.
 
 ## Captured Table owner operations
@@ -380,4 +380,156 @@ a fresh snapshot.
 The generic single-source `UnifiedClient` protocol, existing foreign-language
 ports, console and Flight routes have their own admitted profiles; the captured
 owner operations above do not implicitly enable those transports for relational
-plans. Maintained execution and exchanges need their separate lifecycle owners.
+plans. The maintained owner below uses a separate activation and revision ledger.
+
+
+## Maintained Table owner operations
+
+`RelationalMaintenance` admits a bundle with lifetime `maintained`. The same
+explicit source routes, scalar types, ordering, budget and current policy rules
+apply. Activation is an authenticated Station call; its peer/correlation names
+one permanent admission. The coordinator is the first Table's owner/resource.
+An authorized host installs its exact `RQA1` request policy and invokes `start`.
+The same admission turn replies with its original `RMH1` record, settling the
+activation call; this reply is not a complete result. SQL compilation or an editor change does not activate it.
+
+Admission retains the original request publication, creates its private
+Publication namespace and records every initial Table head. These fit one turn
+with at most four mutations and one retained request version. Data history uses
+the [complete Table history contract](TABLE_DATA_V1.md), including immutable
+accepted row/schema pages. It does not manufacture historical native read views.
+Each later work step reads those exact immutable roots through freshly authorized
+current resource views, with current-revision guards at acceptance. History or
+page loss is a failure, never permission to substitute the latest Table.
+
+A basis records a native coordinate and an exact `STJ1` head per declared Table.
+All required Tables in one resource move together at a selected native commit.
+Self aliases carry identical records. Between resources the owner chooses an
+eligible resource using its persisted round-robin preference, advances to its
+next relevant Table transaction, and records that choice before computation.
+Other resource components remain unchanged. Each relevant transaction produces
+one revision, including reservation/no-op heads; batching does not collapse them.
+There is no implied global transaction or causal cut.
+
+The first basis remains frozen through backfill while later transactions stay
+in Table history. The implementation recomputes each complete basis through the
+same canonical finite executor and immutable paged group index. It then merges
+the previous and new ordered outputs using at most one row from each side.
+Equal identities and equal cells produce no delta; changed cells produce one
+paired update. Insertions/deletions preserve stable pair/group identity. An
+output ordinal change alone is not a logical row change. First/last outer
+matches may remove one identity and insert others in the same complete delta
+transaction. This implementation does not reuse unaffected groups or claim
+incremental computational cost.
+
+Private stages and checkpoints span bounded native turns. Mutable work records
+carry output/delta cursors, counts, chains and allocation accounting; the old
+complete root stays visible. A final conditional turn binds one immutable
+manifest, final checkpoint, source vector, complete outputs and complete delta
+coverage, advances the root, and consumes the input together. Accepted retry
+returns that original decision. A publication record's existence alone is not
+admission of a complete result or delta transaction.
+
+`advance` accepts only the exact durable self-continuation. Active work schedules
+its continuation; an idle owner does not poll or spin. The authenticated host
+calls `wake` when explicitly requested or prompted by its bounded scheduler.
+Invalidation may prompt a wake, but history supplies every transaction. A fresh
+wake with no relevant change publishes no revision. This typed owner does not
+by itself provide a background daemon or an automatic SQL subscription.
+
+A semantic failure records the failed successor's basis, original cause and
+checkpoint witness, preserves the last complete manifest, and stops advancement.
+Later input cannot make it skip an earlier overflow. A gap or incompatible schema
+also stops maintenance; an explicitly activated new query identity is needed to
+rebuild from another basis. A failure while looking for the next transaction
+retains the last complete basis without inventing an unobserved successor.
+Unclassified infrastructure errors remain failed attempts. A poisoned native
+read requires a fresh closure proposal after settling pending work.
+
+`close` authenticates through its application handler and needs only the query's
+own resource. Cancellation stops maintenance while preserving published revisions.
+Failure and cancellation retain the request dependency needed by those revisions.
+Explicit retirement makes the query's revisions unavailable and releases the
+request version. Retirement does not implicitly expire Table history or delete
+query pages. Physical query-page collection is not exposed by this owner.
+
+The workspace plus `resident_base` must fit the resident budget. Retained logical
+bytes include every immutable group/checkpoint/output/delta/manifest version;
+`spill_bytes` bounds their cumulative size. Publication reserves one active
+record of at most 8192 bytes separately. A failed semantic step can retain one
+additional bounded failure checkpoint. Four native mutations and 256-byte values
+remain unchanged. Recomputing every transaction can increase maintenance lag and
+state growth; quota pressure stops work without deleting accepted history.
+
+### Maintained record encodings
+
+These encodings are additive to captured execution. Existing captured cuts and
+records keep their meanings; captured owners reject a maintained plan. Every
+record below includes its four-byte magic and mandatory 32-byte shared native
+definition. Integer fields are little endian unless stated otherwise.
+
+- `RQH1`: 32-byte bundle fingerprint, one-byte source count, then per source
+  uint64 native coordinate and uint16-length-prefixed `STJ1`. It fits 601 bytes.
+  A resource's bound commitment hashes `transit.relational.table-history-cut.v1`,
+  NUL, the bundle fingerprint, uint64 coordinate, and the encoded required heads
+  in source order. Same-resource aliases share the entire resource commitment.
+- `RMH1`, 217 bytes: uint64 admission ID, peer, correlation, policy revision,
+  current complete revision, manifest ID, next record ID, retained bytes and
+  continuation input; 72-byte request reference; retained request version
+  (uint64 PID/input and one-byte slot); two uint64 pending source coordinates;
+  one-byte source count, scheduling preference, phase and request-released flag.
+  Phases are admitted 1, running 2, idle 3, failed 4, cancelled 5, retired 6.
+  Only retirement marks the dependency released. Complete revision zero has
+  manifest zero. Pending work leaves the last complete allocation floor intact.
+- `RMW1`, 189 bytes: uint64 target revision, checkpoint, output count, output
+  bytes, old/new merge cursors, delta count, delta bytes, next record ID, retained
+  bytes and manifest ID; 32-byte output and delta chains; one-byte phase
+  (compute 1, delta 2, manifest 3, complete 4, failed 5).
+- `RMC1`, 60 bytes: uint64 peer, correlation and exact scheduling input.
+- `FRD1`, publication format `0x31445246`: Boolean previous-basis presence,
+  32-byte previous binding (zero when absent), 32-byte next binding, uint64 delta
+  ordinal, uint16-length-prefixed before `FRO1`, and uint16-length-prefixed after
+  `FRO1`. Zero length means absent. At least one side exists. A pair has the same
+  stable identity and different cells. Both bounds have the same prepared plan.
+- `RMD1`, 116 bytes: uint64 delta ordinal and 72-byte immutable delta reference.
+  The initial delta chain hashes `transit.relational.delta-transactions.v1`, NUL;
+  the next chain hashes the previous chain followed by complete `RMD1` bytes.
+- `RMV1`, publication format `0x31564d52`, at most 1200 bytes: uint64 admission ID,
+  uint16-length-prefixed complete `RMW1`, Boolean previous-manifest presence and
+  optional 72-byte reference, uint16-length-prefixed `RQH1`, and 72-byte final
+  checkpoint reference. The first revision has no predecessor. Later revisions
+  bind its exact identity; previous output coverage must equal the old cursor.
+
+Maintained ledger keys are NUL, `rm`, one-byte tag, then three big-endian uint64
+coordinates. `h` uses peer/correlation/zero; `b` uses admission/target-revision/
+source ordinal; `w` uses admission/target-revision/zero; `o` and `d` use admission/
+revision/output or delta ordinal; `r` uses admission/revision/zero for the complete
+manifest reference; `f` uses admission/failed-successor/zero for `RQF1`. Immutable
+records use the Publication namespace with the high bit set on the admission ID.
+
+### Complete revision reads and resume
+
+`RelationalRevision.open` receives the frozen bundle, owner, resource, admission
+peer/correlation, request budget, optional local cancellation flag, and either a
+selected revision or the latest complete revision observed when opening. It
+captures a fresh result lease and verifies the manifest, final checkpoint, source
+vector and predecessor. An authorized historical revision remains readable as
+newer revisions publish or the query fails/cancels. Retirement requires a reset.
+
+The reader supports full rows or the delta against an exact caller-supplied
+previous manifest reference. Initial delta delivery uses an absent predecessor.
+Wrong predecessors reject before delivery. Every page and terminal completion
+rechecks current coordinator policy plus native/catalog rights to all sources,
+including noncontributors. The original bundle is never rebound through names.
+Output/delta order, ordinals, publication digests, counts and chains must cover the
+whole manifest; a prefix cannot replace the consumer's exact relation.
+
+`checkpoint` succeeds only after terminal null. Its persisted position requires
+version 1, the shared definition, owner, peer/correlation, admission ID, complete
+revision, exact manifest reference and bundle fingerprint. Save this position
+atomically with applying the complete result/delta. `openNext` asks for exactly
+the following revision. Pending keeps the old position; reset-required requires
+an explicit complete snapshot or newly activated definition. A partial retry
+replays the entire transaction from the previous complete position. Missing
+compatibility fields reject rather than defaulting to the current definition.
+Closing a read releases its lease and does not stop maintenance.

@@ -75,6 +75,7 @@ pub fn start(turn: *Turn, reference: Ref, workspace: []u8) !r.Job {
     var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
     var fixed: std.heap.FixedBufferAllocator = .init(workspace);
     const bundle = try q.RelationalBundle.decodeInto(fixed.allocator(), try body(reference, &request_view, &bytes));
+    if (bundle.plan.lifetime != .captured) return error.InvalidRelationalSources;
     try memory(bundle, workspace);
     const descriptor = try reference.publication().inspect(&request_view, reference.record);
     if (descriptor.publisher != peer) return error.UnexpectedQueryPublisher;

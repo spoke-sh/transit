@@ -250,6 +250,68 @@ fold above; independent page/order/failure fixtures are needed before any new
 operator or rewrite can claim equivalence. Existing
 [verification limits](../reference/verification.md) still apply.
 
+### Complete revisions from retained Table transactions
+
+The implementation question is whether a consumer can keep an exact relation
+while a query restarts between small native writes and its inputs continue to
+change. The selected model is `R_k = Q(B_k)`: each basis contains one complete
+Table-history position per resource, each result uses the same canonical finite
+semantics, and each delta is the ordered difference from `R_(k-1)` to `R_k`.
+This scope excludes event-time finality and distributed write authority.
+
+[RelationalHistory](../../packages/zig/transit-query/src/RelationalHistory.zig)
+obtains each logical Table root from complete retained history under a fresh
+current authorized resource view. Its resource commitment includes every required
+Table at the selected coordinate. Thus two required Tables changed by one native
+commit cannot enter different sides of the basis. A recorded choice between
+resources establishes processing order without assuming a global snapshot.
+The argument assumes the Table owner preserves complete predecessor records and
+accepted immutable pages; gaps fail explicitly. A stored hash is evidence to
+validate, not authority to read it.
+
+[RelationalMaintenance](../../packages/zig/transit-query/src/RelationalMaintenance.zig)
+first records a successor basis, then reconstructs bounded finite work from its
+last accepted checkpoint. Immutable candidate nodes, output rows and delta pages
+remain private until one root publication binds their complete coverage. By
+induction over that root publication, the visible result is either the prior
+complete `R_(k-1)` or the complete `Q(B_k)`. Losing a proposal does not change the
+root. Losing a receipt requires the original native retry; regenerating a new
+submission is not part of this argument. The native current-view guards keep
+source policy checks conditional on the resource state used at acceptance.
+
+The delta merge compares stable identities, then values. A changed output ordinal
+without changed values creates no logical delta. A same-identity value change is
+one before/after pair. First/last outer matches change the set of pair identities;
+all their removals/insertions belong to one complete transaction. A consumer
+applies a private candidate and advances its saved position only after complete
+coverage. [RelationalRevision](../../packages/zig/transit-query/src/RelationalRevision.zig)
+checks the exact predecessor, both bindings, ordinals, digests and chain; partial
+replay cannot silently select a newer baseline.
+
+The initial implementation recomputes each exact basis, including no-op bases.
+This preserves the existing ordered SUM witness without a second aggregate
+algorithm. It costs a full canonical nested-loop scan and immutable group build
+per transaction: for two unfiltered inputs, up to `L × R` pair visits, with
+bounded tree work per aggregate update. It retains older checkpoints and output
+versions, so state grows with accepted work until an explicit quota stops it.
+Resident buffers depend on source/schema limits and tree height, not that retained
+cardinality. This is a correctness construction, not evidence of sustainable
+catch-up or an incremental speedup.
+
+Updating only affected join-key ranges/groups could avoid unchanged work. That
+alternative needs ordered contributor indexes, exact both-side cross terms,
+canonical error preservation after deletion, and a checked way to reuse state
+across different bound fingerprints. Reusing a stored group total alone fails the
+ordered-overflow counterexample above. Those optimizations must agree with this
+complete-basis construction; they cannot coalesce logical revisions or skip an
+earlier failure whose arithmetic would fit at a later basis.
+
+The [maintained proof ledger](../../tests/README.md#maintained-relational-revisions)
+records reproducible reference-store and native schedules separately, including
+unfinished qualification. The reference store tests proposal reconstruction,
+no-op coverage and failed-successor preservation; they do not prove durability.
+Native disk evidence, lag/state measurements and faults bound stronger claims.
+
 ## Tradeoffs and evidence
 
 Materializing an entire result simplifies presentation but makes memory scale

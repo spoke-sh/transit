@@ -40,6 +40,7 @@
       "test::table-query-writer",
       "test::catalog",
       "test::typed-tables",
+      "test::relational-maintenance",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",

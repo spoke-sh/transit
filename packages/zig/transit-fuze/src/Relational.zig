@@ -53,7 +53,7 @@ pub const Predicate = struct {
     /// Empty means true; otherwise an eager postfix program with one result.
     instructions: []const Instruction = &.{},
 };
-pub const Lifetime = enum(u8) { interactive, captured };
+pub const Lifetime = enum(u8) { interactive, captured, maintained };
 pub const Budgets = struct {
     resident_bytes: u64,
     spill_bytes: u64,
@@ -278,8 +278,10 @@ pub fn resolve(sources: []const Source, qualifier: ?[]const u8, column_name: []c
     return result orelse error.UnknownColumn;
 }
 
-/// Adapter-supplied evidence, in source/alias order. The commitment must bind
-/// the exact captured resource root; it is neither permission nor a live lease.
+/// Adapter-supplied evidence, in source/alias order. Finite lifetimes commit the
+/// captured native resource root. The maintained lifetime commits the complete
+/// required Table heads at its recorded native coordinate, resolved through
+/// complete Table history. Neither evidence kind supplies authority or a lease.
 pub const Cut = struct {
     resource: u64,
     revision: u64,

@@ -20,9 +20,12 @@ def run(node, proof, host, cli, station_host, *arguments):
     parser.add_argument('--sdk', action='append', default=[], choices=('node', 'python', 'rust', 'ruby', 'java', 'dotnet', 'erlang', 'elixir', 'c', 'cpp'))
     parser.add_argument('--grow', type=int, default=0)
     parser.add_argument('--cold', action='store_true')
+    parser.add_argument('--maintained', action='store_true', help='Run the complete maintained revision schedule; requires bounded cold storage')
     options = parser.parse_args(arguments)
     if not 0 <= options.grow <= 10000:
         parser.error('growth schedule requires 0..10000 additional Tables')
+    if options.maintained and not options.cold:
+        parser.error('maintained history proof requires --cold; hot-only storage has a finite total capacity')
     languages = options.sdk
     node, proof, host, cli, station_host = (str(Path(binary).resolve()) for binary in (node, proof, host, cli, station_host))
     with ColdStore() if options.cold else nullcontext() as cold_store, Fixture(cold_store.config() if cold_store else None) as fixture:
@@ -120,6 +123,7 @@ def run(node, proof, host, cli, station_host, *arguments):
         workers = []
         worker_logs = []
         hosted = False
+        maintained = None
         started = time.monotonic()
         try:
             subprocess.run([node, str(config), '--initialize'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
@@ -391,6 +395,27 @@ def run(node, proof, host, cli, station_host, *arguments):
             call('captured-collect')
             call('captured-clean')
             assert call('captured-status')['collected']
+
+            def restart_maintenance():
+                nonlocal authority
+                authority.kill()
+                authority.wait(timeout=10)
+                authority = None
+                fixture.stop()
+                fixture.start()
+                authority = start()
+
+            def arm_maintenance():
+                nonlocal armed
+                armed = 'turn'
+
+            if options.maintained:
+                from relational_maintenance_native import run as maintained_proof
+                maintained = maintained_proof(call, execute, applied, secondary, root, grouped_sql,
+                    restart_maintenance, arm_maintenance, hold, release, measurements)
+                assert cold_store.data_objects() > 0, 'Maintenance did not exercise cold data'
+                maintained['cold_objects'] = cold_store.data_objects()
+                maintained['cold_bytes'] = cold_store.file_bytes()
             rejected_update = execute(13, 'UPDATE people SET id = 9')
             assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
                 source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
@@ -680,7 +705,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 maximum_record_bytes=max(map(len, archived_heads.values())),
                 paired_changes=len(changes), restart=True, current_denial=True)
             print(json.dumps(dict(profile='table-history-native', **history_measurements)))
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, maintained=maintained, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

@@ -279,6 +279,11 @@ pub fn build(b: *std.Build) void {
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
+    const relational_records_test = b.addSystemCommand(&.{ "python3", "-B" });
+    relational_records_test.addFileArg(b.path("tests/relational_records.py"));
+    relational_records_test.has_side_effects = true;
+    relational_records_test.stdio = .inherit;
+    test_step.dependOn(&relational_records_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
