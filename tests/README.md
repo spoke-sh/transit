@@ -86,9 +86,9 @@ The real maintained schedule is `just test::relational-maintenance` through
 `tests/relational_maintenance_native.py`. It checks every recorded basis against
 the independent finite Python interpreter and applies each complete delta to a
 separate consumer relation. Its delayed-backfill, lost-receipt, disk-restart,
-both-side-change, outer-match, cursor and current-denial gates are pending this
-slice's native execution; planned checks are not counted as passes. Raw native
-attempts are retained under `.cache/relational-intake/native-maintained-*.log`.
+both-side-change, outer-match, cursor and current-denial gates pass in the
+disk-backed run below. Raw native attempts are retained under
+`.cache/relational-intake/native-maintained-*.log`.
 The first native attempt fails during fixture provisioning because it tries to
 recreate the captured proof's existing source association (`StaleAssociation`).
 The fixture now reads and reuses that exact association, rejecting a different
@@ -101,8 +101,26 @@ neither is counted as a complete passing check. The reviewed outcome task passes
 The dedicated ordinary growth-lane task now selects the existing disk-backed
 cold-store fixture (`--maintained --cold`), retaining its 8 MiB hot/cache limits;
 it does not raise the hot-only bound or expire history. The general Table and SDK
-schedules remain separate from this longer growing-history proof. Full root and
-committed-HEAD clean qualification remain pending.
+schedules remain separate from this longer growing-history proof.
+
+The [cold-store record](verification/results/relational-maintained-2026-10-12.json)
+passes with the implementation committed as `79a8246d`:
+15 complete revisions (five changing successors, nine no-op successors and the
+initial result), 929 maintenance turns, 524.093 seconds and 104,216 retained
+logical query-state bytes. Every basis agrees with the independent interpreter;
+retrying each delta produces identical identities, pairs and manifest evidence.
+Delayed backfill, a lost accepted receipt, node/disk-store restart, fresh owner,
+current denial after a visible prefix, exact old-position resume and own-resource
+retirement all pass. The enclosing Table/captured/logical-type fixture takes
+776.149 seconds and 1,649 turns, retaining the four-mutation/256-byte limits.
+
+At fixture completion the cold store contains 531 objects and 139,446,494 bytes.
+This includes the entire Table/captured/maintenance fixture and native storage
+history; it is not solely query-state amplification. These are observed costs,
+not sustainable throughput, latency guarantees or an ongoing-input catch-up
+measurement. Full root checks pass locally; committed-HEAD clean qualification
+and additional maintained overflow, schema/gap and overload schedules remain
+open. Reference-store failure checks above are not native failure qualification.
 
 ## Relational contract and oracle intake
 

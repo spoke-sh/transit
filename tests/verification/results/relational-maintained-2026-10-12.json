@@ -1,0 +1,255 @@
+{
+  "implementation_commit": "79a8246da8183ad7506c6766ebdaaa1fc2e238ec",
+  "definition": "e8e13924650d3c8a21f2613e192a941b0c5530bcc03aa88a6b4374a9df44f024",
+  "command": "nix develop --command just test::relational-maintenance",
+  "clean_checkout": false,
+  "result": "passed",
+  "topology": {
+    "authority": "one growing native node",
+    "storage": "disk-backed Ursula and owned MinIO cold-store fixture",
+    "hot_bytes": 8388608,
+    "cache_bytes": 8388608,
+    "resident_pages": 8
+  },
+  "log": {
+    "local_path": ".cache/relational-intake/native-maintained-cold.log",
+    "sha256": "02f79d062db7b1ca720371da190bddd0de7eaa6a57cf66c11049d65cfb8fa07a"
+  },
+  "observations": [
+    {
+      "profile": "maintained-basis",
+      "revision": 2,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 12997
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 3,
+      "deltas": 1,
+      "outputs": 3,
+      "state_bytes": 20859
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 4,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 28360
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 5,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 35861
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 6,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 43362
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 7,
+      "deltas": 1,
+      "outputs": 3,
+      "state_bytes": 51224
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 8,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 58725
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 9,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 66226
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 10,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 73727
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 11,
+      "deltas": 1,
+      "outputs": 3,
+      "state_bytes": 79048
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 12,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 84008
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 13,
+      "deltas": 1,
+      "outputs": 3,
+      "state_bytes": 90548
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 14,
+      "deltas": 0,
+      "outputs": 3,
+      "state_bytes": 96727
+    },
+    {
+      "profile": "maintained-basis",
+      "revision": 15,
+      "deltas": 1,
+      "outputs": 3,
+      "state_bytes": 104216
+    },
+    {
+      "profile": "maintained-relational-native",
+      "revisions": 15,
+      "changing_revisions": 5,
+      "no_op_revisions": 9,
+      "seconds": 524.093,
+      "turns": 929,
+      "retained_state_bytes": 104216,
+      "exact_delta_retry": true,
+      "delayed_backfill": true,
+      "disk_restart": true,
+      "current_denial": true
+    },
+    {
+      "profile": "table-history-native",
+      "mutation_seconds": 3.034,
+      "mutation_turns": 16,
+      "added_history_records": 10,
+      "tail_seconds": 0.224,
+      "transactions": 10,
+      "retained_records": 167,
+      "retained_value_bytes": 36039,
+      "maximum_record_bytes": 241,
+      "paired_changes": 3,
+      "restart": true,
+      "current_denial": true
+    },
+    {
+      "profile": "typed-table-native",
+      "seconds": 776.149,
+      "lost_reply_replays": [
+        "send",
+        "turn"
+      ],
+      "supplied_host_lost_receipt": true,
+      "measurements": {
+        "turns": 1649,
+        "sends": 250,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "dispositions": [
+          1,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3
+        ],
+        "client_disconnects": 3
+      },
+      "bridge": {
+        "max_step_bytes": 1391,
+        "original_object": "9001",
+        "replacement_object": "9002"
+      },
+      "catalog_cli": {
+        "original_object": "22001",
+        "replacement_object": "22002",
+        "large_artifact_bytes": 142007,
+        "recovered_input": 5560
+      },
+      "installed": [],
+      "logical_types": {
+        "descriptors": 28,
+        "rows": 2,
+        "defaults": true,
+        "nulls": true,
+        "typed_update": true,
+        "node_store_restart": true
+      },
+      "growth": null,
+      "maintained": {
+        "profile": "maintained-relational-native",
+        "revisions": 15,
+        "changing_revisions": 5,
+        "no_op_revisions": 9,
+        "seconds": 524.093,
+        "turns": 929,
+        "retained_state_bytes": 104216,
+        "exact_delta_retry": true,
+        "delayed_backfill": true,
+        "disk_restart": true,
+        "current_denial": true,
+        "cold_objects": 531,
+        "cold_bytes": 139446494
+      },
+      "relational": {
+        "join_rows": 6,
+        "grouped_rows": 3,
+        "shared_cut": true,
+        "retained_update": true,
+        "current_denial": true,
+        "console": true,
+        "requests": 50,
+        "spill_bytes": 474,
+        "heap_peak": 3145,
+        "captured": {
+          "checkpoint_restart": true,
+          "exact_receipt_retry": true,
+          "fresh_owner": true,
+          "retained_source_change": true,
+          "current_result_denial": true,
+          "denied_source_cleanup": true
+        }
+      }
+    }
+  ],
+  "earlier_attempts": [
+    {
+      "result": "failed",
+      "cause": "Fixture attempted to recreate an existing source association; StaleAssociation.",
+      "local_path": ".cache/relational-intake/native-maintained-revisions.log",
+      "sha256": "ebb8c3d300ddde99d10d8bd0a4213a0d061df1aba0a6e47b302edda80ee83d83",
+      "source": "uncommitted predecessor of implementation_commit"
+    },
+    {
+      "result": "failed",
+      "cause": "Hot-only store reached its 64 MiB deployment limit at revision 5; ColdBackpressure surfaced as AuthorityUnavailable.",
+      "local_path": ".cache/relational-intake/native-maintained-association.log",
+      "sha256": "b8e9b22243cfddd681206527186cc9e44169d49c9c826e1a4bf42aa034ecf195",
+      "source": "uncommitted predecessor of implementation_commit"
+    }
+  ],
+  "limits": [
+    "The cold object count and byte total cover the enclosing Table/captured/maintenance fixture.",
+    "No sustainable throughput, latency SLO or ongoing-input catch-up claim.",
+    "Committed-HEAD clean verification and further maintained failure schedules remain pending."
+  ]
+}
