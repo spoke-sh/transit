@@ -219,6 +219,18 @@ execution. Typed Zig maintained ownership and
 complete Table history have their own interfaces below; coalesced invalidation
 notifications remain distinct from complete transaction capture.
 
+| Caller | Relational lifetime and operations |
+| --- | --- |
+| Typed Zig query hosts | Interactive pages; captured admission, recovery and result reads; maintained activation, complete revisions and exact deltas; explicit exchanges |
+| Typed Zig application host | Immutable named definitions, separate query authorization and explicit captured/maintained activation |
+| Station ABI/port, TypeScript and Python | Interactive explain, open, repeatable pages and close |
+| SQL console and Board worksheet | Explicit interactive submission and result pages |
+| Flight and other language SDK adapters | Relational execution is unsupported |
+
+Named definitions use the [application-owned interface](applications.md#contracts-and-commands).
+Saved typed requests and cursors require the exact current contract definition;
+none of these callers substitutes a fresh query for missing accepted work.
+
 SUM checks overflow in source order, including across pages. Reordering inputs
 or combining partition totals can change whether it fails; no parallel reduction
 or optimizer rewrite is implied. Worker replacement preserves accepted query

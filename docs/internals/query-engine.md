@@ -125,9 +125,10 @@ Its [independent oracle](../../tests/relational.py) materializes small relations
 and compares the overlapping subset with SQLite; separate prefix arithmetic
 fixes the ordered-overflow counterexample below. The
 [intake evidence](../../tests/README.md#relational-contract-and-oracle-intake)
-distinguishes local checks, private-disk group growth and native interactive
-source capture from the still-missing maintained publication and distributed
-recovery mechanisms. Agreement on small finite relations alone does not
+distinguishes local checks, private-disk group growth, native interactive
+source capture, maintained publication and manual exchange recovery. Those
+profiles share one native authority; they do not establish distributed write
+authority. Agreement on small finite relations alone does not
 establish bounded execution over growing retained data.
 
 The finite physical model uses ordered nested loops and an external AVL group
@@ -414,7 +415,42 @@ The four-row-per-source input establishes those recovery and semantic cases; it
 does not establish cardinality scaling or sustainable throughput. Native
 generation replacement with the same credential is also distinct from recorded
 handoff and credential retirement. The ledger retains the precise measurements,
-failed host attempt and remaining fault/capacity gates.
+failed host attempts and each separate fault/capacity schedule.
+
+### Boundary for historical and shared execution
+
+Which evidence can the current plan safely carry into future historical or
+shared dataflows? The implemented bound plan contains exact source identities,
+schemas, resource cuts and a definition fingerprint. Same-resource aliases
+must share one cut. The maintained vector records complete Table transactions,
+including no-output progress. These facts let the present two-input executor
+distinguish a completed result from an observed prefix. The
+[relational contract](../../contracts/RELATIONAL_V1.md#source-basis-and-lifetime)
+and [history tests](../../packages/zig/transit-query/src/relational_history_test.zig)
+are the implementation evidence for that boundary.
+
+A future join of two versions of one resource needs two explicitly qualified
+bindings and identities; removing today's equal-cut check would make an old
+accepted plan mean something different. A future fan-out/rejoin needs per-edge
+coverage of the common basis. Its fast path at basis 11 and slow path at basis
+10 cannot establish completion of basis 11. Empty filtered paths must still
+publish progress. The present executor has no general dataflow DAG, historical
+namespace selector or branch resolution operation, so it cannot infer any of
+this evidence from resource revisions, branch names or arrival order.
+
+Sharing an immutable index is a physical optimization only when source,
+interpretation, key order and change coverage match and current rights still
+hold. Each query must retain its own publication, progress, cancellation and
+recovery identity. Current maintenance deliberately recomputes each complete
+basis; it does not reuse another query's group totals. That choice preserves
+canonical checked-SUM failures but incurs full-input work on every successor.
+The alternatives are an ordered contributor index or another summary proved
+equivalent for both results and first errors; neither follows merely from equal
+SQL text. Historical selectors, shared arrangements, multi-model adapters and
+temporal operators therefore require explicit additional contracts. The
+[historical binding model](#historical-schemas-and-query-binding) and
+[state ownership model](state-model.md#schema-history-and-branches) develop those
+proposals separately from current execution.
 
 ## Tradeoffs and evidence
 
