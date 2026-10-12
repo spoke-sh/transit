@@ -6,18 +6,18 @@ const s = c.station;
 const p = c.protocol;
 const g = p.Growth;
 const Admin = @import("growing_support.zig").Admin(46);
-const Config = struct { definition: g.Definition, writer: Admin.Provision, worker: u64 };
+pub const Config = struct { definition: g.Definition, writer: Admin.Provision, worker: u64 };
 const Pending = struct { definition: g.Definition, pending: s.client.Session.Pending };
-fn key(comptime byte: u8) !p.Ed25519.KeyPair {
+pub fn key(comptime byte: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(byte));
 }
-fn configuration(config: Config) c.TableCatalogRecords.Configuration {
+pub fn configuration(config: Config) c.TableCatalogRecords.Configuration {
     return .{ .scope = .{ .realm = 46, .resource = config.writer.resource, .catalog = std.math.maxInt(u64) }, .owner = config.writer.pid, .administrator = 1234, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = 2 * c.fuze.TableRow.max_bytes, .staging_records = 2 } };
 }
-fn path(init: std.process.Init, directory: []const u8, name: []const u8) ![]const u8 {
+pub fn path(init: std.process.Init, directory: []const u8, name: []const u8) ![]const u8 {
     return std.fmt.allocPrint(init.arena.allocator(), "{s}/{s}", .{ directory, name });
 }
-fn saveBytes(init: std.process.Init, directory: []const u8, name: []const u8, bytes: []const u8) !void {
+pub fn saveBytes(init: std.process.Init, directory: []const u8, name: []const u8, bytes: []const u8) !void {
     const dir = try std.Io.Dir.cwd().openDir(init.io, directory, .{ .iterate = true });
     defer dir.close(init.io);
     var file = try dir.createFileAtomic(init.io, name, .{ .replace = true, .permissions = .fromMode(0o600) });
@@ -27,15 +27,15 @@ fn saveBytes(init: std.process.Init, directory: []const u8, name: []const u8, by
     try file.replace(init.io);
     if (std.c.fsync(dir.handle) != 0) return error.SyncFailed;
 }
-fn save(init: std.process.Init, directory: []const u8, name: []const u8, value: anytype) !void {
+pub fn save(init: std.process.Init, directory: []const u8, name: []const u8, value: anytype) !void {
     const bytes = try std.json.Stringify.valueAlloc(init.gpa, value, .{});
     defer init.gpa.free(bytes);
     try saveBytes(init, directory, name, bytes);
 }
-fn loadBytes(init: std.process.Init, directory: []const u8, name: []const u8, limit: usize) ![]u8 {
+pub fn loadBytes(init: std.process.Init, directory: []const u8, name: []const u8, limit: usize) ![]u8 {
     return std.Io.Dir.cwd().readFileAlloc(init.io, try path(init, directory, name), init.gpa, .limited(limit));
 }
-fn load(comptime T: type, init: std.process.Init, directory: []const u8, name: []const u8) !T {
+pub fn load(comptime T: type, init: std.process.Init, directory: []const u8, name: []const u8) !T {
     const bytes = try loadBytes(init, directory, name, 65536);
     defer init.gpa.free(bytes);
     const parsed = try std.json.parseFromSliceLeaky(T, init.arena.allocator(), bytes, .{});
@@ -44,7 +44,7 @@ fn load(comptime T: type, init: std.process.Init, directory: []const u8, name: [
     if (!std.mem.eql(u8, bytes, encoded)) return error.NoncanonicalFixture;
     return parsed;
 }
-fn print(init: std.process.Init, value: anytype) !void {
+pub fn print(init: std.process.Init, value: anytype) !void {
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try std.json.Stringify.value(value, .{}, &out.interface);
@@ -114,7 +114,7 @@ fn host(init: std.process.Init, wire: *s.client.Client, directory: []const u8, o
     try save(init, directory, "console.json", .{ .version = @as(u8, 1), .profile = "catalog_v1", .url = url, .transport = "loopback", .seed_file = "caller.seed", .catalog = c.TableClient.Connection{ .scope = configuration(config).scope, .owner = config.writer.pid, .principal = 1234 }, .format = "json", .execution = "interactive", .writes = .{ .recovery_file = "console-writes.json" } });
     try print(init, .{ .generation = config.writer.generation });
 }
-fn deliver(init: std.process.Init, wire: *s.client.Client, directory: []const u8) !bool {
+pub fn deliver(init: std.process.Init, wire: *s.client.Client, directory: []const u8) !bool {
     const previous = load(Pending, init, directory, "courier.json") catch |err| switch (err) {
         error.FileNotFound => null,
         else => return err,
@@ -324,6 +324,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
+    if (std.mem.startsWith(u8, mode, "captured-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "relational")) return relational(init, directory, &caller, args[4], std.mem.eql(u8, mode, "relational-held"), if (args.len > 5) args[5] else null);
     if (std.mem.startsWith(u8, mode, "select")) return select(init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.eql(u8, mode, "assist")) return print(init, try currentRead(init, &wire, q.TableAssistance.complete, .{ init.arena.allocator(), &caller, .{ .sql = args[4], .cursor = try std.fmt.parseInt(u16, args[5], 10), .generation = 7, .mode = .console } }));

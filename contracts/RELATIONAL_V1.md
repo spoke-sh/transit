@@ -223,7 +223,8 @@ Group records use format `0x314e5246`; checkpoints use `0x31435246`. Reconstruct
 candidates retain their reserved IDs and bytes; conflicting reuse rejects. The
 host owns accepted allocation counters, continuation identity, retained source
 versions, cancellation and cleanup. These storage primitives do not themselves
-admit a durable query request or publish a complete result manifest.
+admit a durable query request or publish a complete result manifest; the captured
+owner operations below compose them with source retention and current policy.
 
 ## Disclosure and completion obligations
 
@@ -240,3 +241,143 @@ hosts own capture, I/O, spill, atomic publication and recovery.
 Maintained revisions, exchanges and reassignment need separately qualified
 lifecycle contracts. Table invalidation watches are not complete changelogs.
 Neither runtime nor distributed qualification follows from the local contract.
+
+## Captured Table owner operations
+
+`transit-query.RelationalBundle` (`RQB1`, publication format `0x31425152`)
+contains the shared definition, explicit per-resource-vector tag 1, one-byte
+source count, uint32-length-prefixed `FRP1`, and one uint32-length-prefixed `TQS1`
+Table declaration per source. It carries exact catalog metadata references in
+addition to the complete schemas and stable columns. Matching logical row types
+alone cannot substitute a different Table schema identity. Its SHA-256 identity
+uses domain `transit.query.relational.request.v1`, NUL, then the complete bytes.
+
+`RelationalCapture` admits an authenticated Station call whose payload is the
+request's Publication reference. A committed coordinator policy maps the calling
+PID to the request resource, exact bundle fingerprint, catalog principal and
+policy revision. The coordinator is the first Table owner and mutates that
+Table's native resource only. Its host registers the request and other source
+resources as additional read views. This consumes at most three distinct retained
+versions: one request artifact and two data resources; aliases and the request
+reuse a pin when they share a resource. `source_pins` budgets the data resources.
+Every catalog's inspect/read policy is checked, and current-resource revision
+guards fence those checks at admission and checkpoint/result publication.
+
+Admission commits four native values: job, source vector, peer/correlation index
+and Publication budget. It retains the request and all source cuts in the same
+turn and schedules a durable continuation. Recovery reads the request through
+its original retained version, even if its live publication was retired. It
+never reparses SQL against current names. Each continuation rechecks the committed
+coordinator policy, current catalog rights and native retained-version authority.
+A changed policy revision closes the admitted job rather than silently remapping
+its caller or sources.
+
+One executor step constructs a bounded candidate map and checkpoint. Immutable
+node, output and checkpoint staging retains exact reserved IDs and bytes across
+continuations. Only a turn in which these records are already complete advances
+the accepted checkpoint/allocation counters and output index. A completed job
+also binds its source vector, final checkpoint and complete output digest chain
+in a manifest. Lost native responses belong to the host's existing saved pending
+operation/receipt protocol; reconstructing operator candidates does not authorize
+replacing an uncertain native proposal.
+
+The owner receives a caller-owned allocation workspace. Its length plus the
+published `resident_base` must fit the plan's resident budget. The workspace
+contains decoded descriptors, source adapters and the bounded node candidate.
+A continuation performs at most one source-row read and a tree-height-bounded
+index operation. `spill_bytes` bounds retained logical node/checkpoint/output/
+manifest bytes, including older roots; Publication separately reserves one active
+record of at most 8192 bytes. A terminal semantic failure has one additional
+bounded checkpoint reserve, at most 8192 bytes, to record its original witness
+when ordinary state capacity is exhausted. This reserve neither permits further
+query execution nor deletes accepted state. Physical storage failure can still
+prevent the native turn from committing.
+
+`close` records cancellation, denial, failure or explicit result retirement and
+releases each distinct data/request version once. It reads accepted job/vector
+records rather than the source data or request body, so catalog denial and a
+retired request do not prevent closure. Its application handler authenticates
+cancellation/retirement. A native read failure poisons the current turn; the host
+must settle any pending request and prepare a fresh closure proposal. A host must
+also allow closure without opening denied foreign resources. Pin release and
+physical record collection are separate operations.
+
+`collect` requires a released, closed job and an empty mutation proposal. It
+examines one immutable descriptor or removes at most two chunks per turn. The
+job's collection cursor is zero before collection, a record ID while advancing,
+and UINT64_MAX after complete coverage. Records are staged in contiguous ID
+order, so collection includes abandoned private candidates beyond `next_record`
+and ends at the first absent descriptor at or above it. A missing descriptor
+below `next_record` rejects. Publication descriptors keep their own chunk cursor
+when collection uses all four native mutations. Permanent descriptors and
+job/vector/output-index records remain. Failed/denied jobs preserve their last
+bounded checkpoint for diagnostic evidence; other closed jobs collect all their
+operator/output/manifest chunks. Request publication cleanup remains with its
+publisher. This does not authorize expiry of active or complete results.
+
+### Captured record encodings
+
+All records below use their four-byte magic and the 32-byte shared native
+definition. Fields are little endian unless noted; native values are bounded by
+256 bytes. Definitions are mandatory and are never inferred from missing fields.
+
+- `RQA1`: uint64 peer, request resource, catalog principal and policy revision;
+  32-byte complete bundle fingerprint; Boolean allow.
+- `RQV1`: 32-byte bundle fingerprint; one-byte source count; for each source,
+  retained version (uint64 PID/input and one-byte slot), uint64 native revision
+  and 32-byte Table-head commitment. Same-resource aliases have the same retained
+  version and native revision. Bound-resource commitments hash domain
+  `transit.relational.retained-resource.v1`, NUL, the shared definition's lowercase
+  hex text, uint64 realm/resource/revision/PID/input and one-byte retained slot.
+- `RQJ1`: uint64 job ID, destination, correlation, policy revision, checkpoint ID,
+  next record ID, retained bytes, continuation input, output count, encoded output
+  bytes, manifest ID and collection cursor; 72-byte request reference; retained
+  request version; phase byte; 32-byte output chain; Boolean pins-released.
+  Phases are capturing 1, complete 2, failed 3, cancelled 4, denied 5, retired 6.
+  This record occupies 255 bytes. Final manifest identity fixes the continuation
+  field to the original job ID.
+- `RQS1`: uint64 output ordinal and 72-byte immutable output reference. The initial
+  output chain is SHA-256 of `transit.query.relational.outputs.v1`, NUL; each next
+  chain is SHA-256 of previous chain followed by complete `RQS1` bytes.
+- `RQF1`: one-byte-length-prefixed original cause and public diagnostic code,
+  followed by the Diagnostic category ordinal. The failed checkpoint retains the
+  contributor/output/group witness when one was observed. Unclassified
+  infrastructure failures remain failed attempts rather than invented outcomes.
+- `RQM1`, publication format `0x314d5152`: uint16-length-prefixed complete `RQJ1`,
+  uint16-length-prefixed `RQV1`, and the final checkpoint's 72-byte publication
+  reference. It fits 1024 bytes; referenced records carry their own definitions,
+  commitments and complete-coverage checks.
+
+`FRO1` output records use format `0x314f5246`. After magic and definition they
+contain the 32-byte bound fingerprint, uint64 ordinal and identity tag: pair 0
+or group 1. A pair has a 20-byte left row identity, Boolean right presence and
+optional 20-byte right identity. A group has one-byte width and nullable int64
+keys. One-byte output width precedes cells, each a Boolean presence and eight
+integer bytes; absent values encode zero. The output schema determines int64
+versus uint64 interpretation. Nullability, identity kind, referenced type, width,
+ordinal, trailing bytes and canonical representation are validated.
+
+### Reading captured results
+
+`RelationalResult` accepts the caller's frozen bundle and explicit coordinator,
+peer, resource, job and native-request budget. It opens a fresh leased snapshot
+of the result resource and verifies the complete job, manifest, checkpoint,
+request identity and source vector. Its final combined native reads check the
+job, coordinator policy and every source catalog policy at one authority root,
+including empty and noncontributing sources. The first-source owner placement
+keeps these current dependencies within the native two-resource metadata bound.
+A result-resource grant does not satisfy these query-level source checks.
+
+Iteration returns one owned scalar row at a time. The reader verifies each
+publication, output ordinal, pair/group order, encoded bytes, canonical result
+bytes and digest-chain coverage. A prefix is incomplete until terminal validation
+succeeds. Current denial, retirement, missing/corrupt records, exhausted request
+budgets and incomplete coverage reject. Closing the iterator closes its lease;
+it does not cancel the durable job or retire the result. Replay of its terminal
+iterator state returns no further data; a new result read opens and authenticates
+a fresh snapshot.
+
+The generic single-source `UnifiedClient` protocol, existing foreign-language
+ports, console and Flight routes have their own admitted profiles; the captured
+owner operations above do not implicitly enable those transports for relational
+plans. Maintained execution and exchanges need their separate lifecycle owners.

@@ -164,6 +164,27 @@ test "bounded relational executor agrees with independent bags groups nulls and 
                         break;
                     },
                     .row => |row| {
+                        if (durable) {
+                            const Record = @import("RelationalOutput.zig");
+                            var bytes: [Record.max_bytes]u8 = undefined;
+                            const record: Record = .{ .binding = try bound.fingerprint(), .ordinal = rows, .row = row };
+                            const encoded = try record.encode(bound, &bytes);
+                            const restored = try Record.decode(bound, encoded);
+                            try t.expect(std.meta.eql(record, restored));
+                            if (rows == 0) {
+                                for (0..encoded.len) |prefix| {
+                                    if (Record.decode(bound, encoded[0..prefix])) |_| return error.AcceptedIncompleteOutput else |_| {}
+                                }
+                                bytes[4] ^= 1;
+                                try t.expectError(error.IncompatibleDefinition, Record.decode(bound, encoded));
+                                bytes[4] ^= 1;
+                                bytes[36] ^= 1;
+                                try t.expectError(error.RelationalSourceChanged, Record.decode(bound, encoded));
+                                bytes[36] ^= 1;
+                                std.mem.writeInt(u64, bytes[68..76], bound.plan.budgets.output_rows, .little);
+                                try t.expectError(error.InvalidRelationalOutput, Record.decode(bound, encoded));
+                            }
+                        }
                         try t.expect(rows < case.expected.rows.len);
                         const expected = case.expected.rows[rows];
                         switch (row.identity) {

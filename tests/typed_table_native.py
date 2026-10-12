@@ -291,6 +291,46 @@ def run(node, proof, host, cli, station_host, *arguments):
             release(foreign_denied, 'CatalogDenied')
             call('policy', 'allow', directory=secondary)
             call('pump', directory=secondary)
+            # A captured job retains each resource cut across later Table
+            # changes, private staging, exact lost-receipt replay and disk loss.
+            call('captured-plan', grouped_sql, secondary)
+            call('captured-enqueue')
+            for _ in range(1000):
+                call('captured-pump', 1)
+                captured = call('captured-status')
+                if captured['state'] == 'capturing' and captured['checkpoint']:
+                    break
+            else:
+                raise AssertionError('Captured owner did not publish a checkpoint')
+            applied(execute(900004, 'UPDATE rel_right SET v = 90', directory=secondary))
+            armed = 'turn'
+            call('captured-pump', 1, fail=True, expected_error='InvalidAuthorityResponse')
+            assert (root / 'relational-worker.json').exists()
+            authority.kill()
+            authority.wait(timeout=10)
+            authority = None
+            fixture.stop()
+            fixture.start()
+            authority = start()
+            call('captured-rotate')
+            call('captured-pump')
+            captured = call('captured-status')
+            assert captured['state'] == 'complete' and captured['outputs'] == 3 and not captured['released'], captured
+            assert relational_values(call('captured-result')) == [[None,1,0,None],[7,2,2,16],[9,1,0,None]]
+            call('policy', 'deny', directory=secondary)
+            call('pump', directory=secondary)
+            call('captured-result', fail=True, expected_error='CatalogDenied')
+            call('policy', 'allow', directory=secondary)
+            call('pump', directory=secondary)
+            call('captured-worker-deny')
+            call('captured-retire')
+            call('captured-clean')
+            captured = call('captured-status')
+            assert captured['state'] == 'retired' and captured['released'], captured
+            call('captured-result', fail=True, expected_error='IncompleteResult')
+            call('captured-collect')
+            call('captured-clean')
+            assert call('captured-status')['collected']
             rejected_update = execute(13, 'UPDATE people SET id = 9')
             assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
                 source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
@@ -563,7 +603,7 @@ def run(node, proof, host, cli, station_host, *arguments):
 
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak']))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

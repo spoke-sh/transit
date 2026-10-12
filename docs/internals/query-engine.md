@@ -158,13 +158,35 @@ The [operator checkpoint](../../packages/zig/transit-fuze/src/RelationalCheckpoi
 binds this root to the exact source vector, join and output cursors, counters and
 failure witness. Query-side Publication staging reconstructs candidate bytes from
 the previous accepted state with the same reserved IDs. This establishes a useful
-local invariant: incomplete staging cannot advance the accepted root. A host
-must still commit the checkpoint reference together with consumed input and
-output coverage. The [checkpoint evidence](../../tests/README.md#immutable-group-checkpoints-and-bounded-publication-staging)
-reproduces every-step semantic restoration and bounded staging restarts; its
-in-memory reference turns do not establish native captured-job lifecycle,
-reassignment or cleanup after source revocation. Those obligations cannot be
-inferred from byte round trips or immutable storage alone.
+local invariant: incomplete staging cannot advance the accepted root.
+The [captured owner](../../packages/zig/transit-query/src/RelationalCapture.zig)
+commits the checkpoint reference together with consumed input and output
+coverage. Admission retains the exact request as well as data cuts: retaining
+only a result's sources would leave restart dependent on a mutable or retired
+request publication. Current-revision guards prevent a policy read from racing
+the turn that accepts a checkpoint. They do not turn the separately acquired
+source cuts into a cross-resource transaction.
+
+Each candidate is reconstructed from the previous checkpoint and receives the
+same reserved record IDs. Consequently a restart during staging can validate and
+continue existing bytes before exposing any new output. A completed manifest
+binds the accepted job, source vector, checkpoint and ordered output digest
+chain. The public reader verifies that coverage and checks all source rights,
+including sources that contributed no rows. Compared with retaining a mutable
+cursor alone, this design incurs additional immutable records and native turns;
+it makes the acceptance boundary independently inspectable.
+
+Closure and collection have separate authority requirements. Releasing a pin
+uses recorded identities and needs no read of its protected bytes. Collection
+walks contiguous private publication IDs and removes a bounded number of chunks
+per turn, keeping permanent descriptors and failure evidence. A host that insists
+on opening every foreign dependency before any handler can still starve closure
+after revocation; the host must provide a fresh proposal using only its own
+resource. The [checkpoint evidence](../../tests/README.md#immutable-group-checkpoints-and-bounded-publication-staging)
+and [captured lifecycle evidence](../../tests/README.md#captured-relational-owner-and-results)
+separate deterministic/reference-store schedules from native fault execution.
+Neither immutable storage nor byte round trips alone establish worker
+reassignment or distributed authority.
 
 The relevant question is whether changing data placement could change a query's
 meaning. In a conceptual multi-source model, let Q denote a typed logical query

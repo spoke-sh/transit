@@ -6632,6 +6632,33 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/RelationalOutput.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidRelationalOutput": 22,
+        "RelationalSourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 1
+      },
+      "imports": [
+        "Relational.zig",
+        "RelationalCheckpoint.zig",
+        "RelationalExecution.zig",
+        "RelationalIndex.zig",
+        "Types.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/RelationalSql.zig": {
       "errors": {
         "InvalidRelationalGroups": 1,
@@ -8799,6 +8826,7 @@
         "RelationalCodec.zig",
         "RelationalExecution.zig",
         "RelationalIndex.zig",
+        "RelationalOutput.zig",
         "RelationalSql.zig",
         "SourceCodec.zig",
         "Sql.zig",
@@ -10647,6 +10675,144 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/RelationalBundle.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueryBundle": 4,
+        "InvalidRelationalSources": 2,
+        "QueryBundleTooLarge": 1,
+        "RelationalSourceChanged": 1,
+        "UnexpectedQueryPublisher": 1,
+        "UnsupportedRelationalConsistency": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "checkPublisher()": "<inferred>",
+        "checkReference()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
+        "encode()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "reference()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalCapture.zig": {
+      "errors": {
+        "CorrelationAlreadyUsed": 1,
+        "ExpectedCall": 1,
+        "IncompleteResult": 1,
+        "InvalidQueryBundle": 3,
+        "InvalidQueryContinuation": 2,
+        "InvalidRelationalRecord": 8,
+        "MissingQueryProgress": 2,
+        "MutationBudgetExceeded": 1,
+        "PublicationNotFound": 1,
+        "PublicationReferenceChanged": 1,
+        "QueryAfterMutation": 2,
+        "QueryDenied": 6,
+        "QueryNamespaceInUse": 1,
+        "QueryNotFound": 1,
+        "QueryUploadActive": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSourceChanged": 1,
+        "RelationalSpillBudget": 1,
+        "StaleQueryPolicy": 1,
+        "UnexpectedQueryContinuation": 1,
+        "UnexpectedQueryPublisher": 1
+      },
+      "outcomes": {
+        "Advance": [
+          "progress",
+          "complete",
+          "closed",
+          "duplicate"
+        ],
+        "close().phase": [
+          "cancelled",
+          "denied",
+          "failed",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Groups.get()": "<inferred>",
+        "Groups.next()": "<inferred>",
+        "Groups.put()": "<inferred>",
+        "advance()": "<inferred>",
+        "advanceInner()": "<inferred>",
+        "body()": "<inferred>",
+        "close()": "<inferred>",
+        "collect()": "<inferred>",
+        "failed()": "<inferred>",
+        "job()": "<inferred>",
+        "memory()": "<inferred>",
+        "policy()": "<inferred>",
+        "schedule()": "<inferred>",
+        "setPolicy()": "<inferred>",
+        "stage()": "<inferred>",
+        "start()": "<inferred>",
+        "vector()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 119,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalCaptured.zig": {
+      "errors": {
+        "CrossRealmRelationalQuery": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidQueryBudget": 1,
+        "InvalidRelationalCapture": 12,
+        "InvalidRelationalSourceRow": 2,
+        "InvalidRelationalSources": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSourceChanged": 3,
+        "RelationalWorkBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Vector.boundCuts()": "<inferred>",
+        "Vector.decode()": "<inferred>",
+        "Vector.decodeStored()": "<inferred>",
+        "Vector.encode()": "<inferred>",
+        "Vector.release()": "<inferred>",
+        "Vector.releaseStored()": "<inferred>",
+        "Vector.validate()": "<inferred>",
+        "capture()": "<inferred>",
+        "checkSchema()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 61,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/RelationalQuery.zig": {
       "errors": {
         "FailedRelationalQuery": 2,
@@ -10672,6 +10838,88 @@
       },
       "imports": [
         "QueryMemory.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalRecords.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "IncompleteResult": 1,
+        "InvalidRelationalRecord": 21
+      },
+      "outcomes": {
+        "Phase": [
+          "capturing",
+          "complete",
+          "failed",
+          "cancelled",
+          "denied",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Failure.decode()": "<inferred>",
+        "Failure.encode()": "<inferred>",
+        "Failure.fromError()": "<inferred>",
+        "Job.decode()": "<inferred>",
+        "Job.encode()": "<inferred>",
+        "Manifest.decode()": "<inferred>",
+        "Manifest.encode()": "<inferred>",
+        "Output.decode()": "<inferred>",
+        "Output.encode()": "<inferred>",
+        "Output.extend()": "<inferred>",
+        "Policy.decode()": "<inferred>",
+        "Policy.encode()": "<inferred>",
+        "boolean()": "<inferred>",
+        "open()": "<inferred>",
+        "start()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 99,
+        "catch": 1
+      },
+      "imports": [
+        "ApiCodes.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/RelationalResult.zig": {
+      "errors": {
+        "FailedRelationalQuery": 1,
+        "IncompleteResult": 5,
+        "InvalidRelationalGroupOrder": 1,
+        "InvalidRelationalRecord": 5,
+        "InvalidRelationalSourceOrder": 2,
+        "InvalidRelationalSources": 2,
+        "MissingQueryProgress": 1,
+        "QueryClosed": 1,
+        "QueryDenied": 5,
+        "QueryPageBudget": 2,
+        "RelationalSourceChanged": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Current.read()": "<inferred>",
+        "Reader.read()": "<inferred>",
+        "add()": "<inferred>",
+        "authorize()": "<inferred>",
+        "close()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "request()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 41,
+        "catch": 1
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -11820,7 +12068,12 @@
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
+        "RelationalBundle.zig",
+        "RelationalCapture.zig",
+        "RelationalCaptured.zig",
         "RelationalQuery.zig",
+        "RelationalRecords.zig",
+        "RelationalResult.zig",
         "RelationalSpill.zig",
         "RelationalState.zig",
         "RelationalTables.zig",

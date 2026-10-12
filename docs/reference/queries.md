@@ -193,8 +193,19 @@ explicitly enables this interactive profile. Its private disk group index and
 bounded operator state have separate resident, spill, work and result limits.
 Rows remain incomplete until terminal source/output checks succeed.
 
-Durable captured/maintained relational queries, foreign-language bindings and
-Flight relational execution are not exposed by this interface. Current Table
+The Zig `RelationalCapture` owner provides a separate durable lifetime. An
+authenticated call admits a frozen plan and schema vector, retains its data cuts,
+and records immutable operator checkpoints and output coverage. The coordinator
+is the first Table owner; other sources remain read-only. `RelationalResult`
+checks the complete manifest, ordered rows, byte counts and digest chain, with
+current rights to every source before disclosure. Cancellation, failure and
+retirement release pins; explicitly scheduled collection removes publication
+chunks in bounded turns while preserving control evidence. The
+[captured owner guide](../../packages/zig/transit-query/docs/relational-capture.md)
+defines the host's exact-retry and authorization responsibilities.
+
+Maintained relational queries, foreign-language bindings and Flight relational
+execution are not exposed by these interfaces. Current Table
 notifications support finite refresh, not a complete update/delete stream for
 maintaining a join.
 

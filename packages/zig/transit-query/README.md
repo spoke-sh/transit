@@ -42,11 +42,14 @@ cancellation leave an incomplete prefix, never successful truncation. Callers
 release the stable allocated owner with `deinit`; interactive spill is not
 resumable. See the [relational contract](../../../contracts/RELATIONAL_V1.md).
 
-`RelationalState` stages immutable group records and exact execution checkpoints
-through Station Publication. Candidate memory is bounded by AVL height; retained
-bytes and active staging have separate quotas. A host must publish the checkpoint
-reference and allocation counters with input/output progress. These primitives do
-not independently expose a durable relational caller interface.
+`RelationalCapture` admits a frozen `RelationalBundle` through an authenticated
+Station call, retains every source cut and advances one bounded execution step
+per checkpoint. `RelationalState` stages immutable group records, outputs and
+checkpoints through Station Publication; their acceptance is atomic with input
+progress. `RelationalResult` verifies complete results through public native
+reads and current rights to every dependency. The coordinator shares the first
+Table owner's PID and resource. See the [captured relational guide](docs/relational-capture.md)
+for policy, host recovery, memory, closure and collection requirements.
 
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated

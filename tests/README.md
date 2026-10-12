@@ -119,6 +119,44 @@ The full `just check` also passes, including generated contracts, diagnostic
 routes, CLI, Board and the documentation build. Committed-head clean qualification
 remains pending.
 
+### Captured relational owner and results
+
+The query Debug suite passes frozen `RQB1` request admission, same-resource alias
+pin sharing, full schema identity rejection, retained reads after Table changes
+and request retirement,
+checkpoint reconstruction, complete manifests and output chains. Requests are
+decoded with allocation-failure coverage and every truncated prefix rejects.
+The actual Fuze executor produces COUNT/SUM results after its host state is
+discarded between bounded turns. Work and retained-byte exhaustion close without
+a manifest; ordered overflow keeps its original contributor/output witness.
+Retirement releases the request/data pins once. Bounded collection reaches every
+record, preserves failed checkpoints and is a no-op after completion. Complete
+manifests reject vectors from a different owner. Fuze output records reject every
+truncated prefix, a foreign definition, a changed binding and an out-of-budget
+ordinal. These
+schedules use the in-memory reference turn store, with the native four-mutation
+and 256-byte value bounds; they are not disk or authority evidence.
+
+`just test::typed-tables` passes captured multi-resource execution, source mutation
+after checkpointing, exact lost-turn receipt retry across node and disk-store
+restart, a fresh ownership generation, authorized complete result iteration,
+current source policy denial, pin release and explicit collection after foreign
+native-grant denial. The final run takes 213.161 seconds and observes 631 turns,
+207 external sends, at most four mutations and 256-byte values. The captured
+three-group result remains `[NULL,1,0,NULL], [7,2,2,16], [9,1,0,NULL]` after the
+right Table changes from 8 to 90. Old-generation observation rejects before
+resumption. The enclosing proof also passes the 28-descriptor Table matrix,
+console, supplied-host lost receipts and general Table restart checks; this
+command does not install the language SDKs or run the optional cold/growth modes.
+
+Initial native runs found missing scoped-worker association setup and incorrect
+fixture reactivation; neither is recorded as a passing schedule. `test-build`
+also caught proof-helper type/exhaustiveness errors, corrected before native
+execution. The standalone query suite passes after adding bounded collection;
+the first invocation with an incorrect build root failed configuration and did
+not execute tests. Full `just check`, focused relational/diagnostic checks and
+the documentation build pass. Committed-head clean qualification remains pending.
+
 ### Initial contract checkpoint
 
 The intake starts at merged `07918d7a` on the pinned Zig

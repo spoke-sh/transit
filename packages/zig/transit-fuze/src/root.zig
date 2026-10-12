@@ -9,6 +9,7 @@ pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
 pub const RelationalCodec = @import("RelationalCodec.zig");
+pub const RelationalOutput = @import("RelationalOutput.zig");
 pub const RelationalCheckpoint = @import("RelationalCheckpoint.zig");
 pub const RelationalIndex = @import("RelationalIndex.zig");
 pub const RelationalSql = @import("RelationalSql.zig");
