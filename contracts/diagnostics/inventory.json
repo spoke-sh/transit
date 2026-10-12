@@ -4165,7 +4165,7 @@
         "BlockedProcess": 1,
         "InvalidAuthorityResponse": 3,
         "InvalidLifecycle": 1,
-        "InvalidStateView": 3,
+        "InvalidStateView": 5,
         "InvalidTurnPermit": 1,
         "MissingTurnPermit": 2,
         "ProcessExpired": 1,
@@ -6435,6 +6435,7 @@
         "AggregateState.observe()": "<inferred>",
         "Bound.fingerprint()": "<inferred>",
         "Bound.validate()": "<inferred>",
+        "Plan.encodePrepared()": "<inferred>",
         "Plan.fingerprint()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.resolveColumn()": "<inferred>",
@@ -6449,7 +6450,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
+        "try": 62,
         "catch": 0
       },
       "imports": [
@@ -6457,6 +6458,39 @@
         "TableSchema.zig",
         "Types.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RelationalCodec.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidRelationalEncoding": 9,
+        "InvalidRelationalGroups": 1,
+        "InvalidRelationalOutputs": 1,
+        "InvalidRelationalPredicate": 1,
+        "InvalidRelationalSources": 2,
+        "RelationalPlanTooLarge": 3,
+        "RelationalSourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "column()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
+        "encode()": "<inferred>",
+        "predicate()": "<inferred>",
+        "text()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 58,
+        "catch": 1
+      },
+      "imports": [
+        "Relational.zig",
+        "TableSchema.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/RelationalExecution.zig": {
@@ -8682,6 +8716,7 @@
         "LogicalStream.zig",
         "Prepared.zig",
         "Relational.zig",
+        "RelationalCodec.zig",
         "RelationalExecution.zig",
         "RelationalSql.zig",
         "SourceCodec.zig",
@@ -9234,6 +9269,7 @@
         "InvalidReadVersion": 7,
         "InvalidSequence": 1,
         "InvalidStateKey": 2,
+        "InvalidStateView": 2,
         "RecordTooLarge": 1,
         "WrongProtocolRealm": 2
       },
@@ -9303,7 +9339,7 @@
           "deadline"
         ],
         "Definition": [
-          "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+          "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
         ],
         "Effect.phase": [
           "pending",
@@ -16132,13 +16168,15 @@
       "errors": {
         "Cancelled": 1,
         "Conflict": 2,
-        "InvalidAuthorityResponse": 6,
+        "InvalidAuthorityResponse": 8,
         "InvalidStateAssociation": 1,
+        "InvalidStateView": 3,
         "MissingStateAssociation": 1,
         "NoPendingOperation": 1,
         "NoPreparedTurn": 2,
-        "PendingOperation": 1,
+        "PendingOperation": 2,
         "RequiredStateAssociation": 1,
+        "StateViewBudgetExceeded": 1,
         "UninitializedBehavior": 1,
         "UnsupportedBehavior": 1,
         "UnsupportedQuery": 1
@@ -16187,11 +16225,12 @@
         "readVersion()": "anyerror",
         "readVersionEntries()": "anyerror",
         "resolveAssociation()": "<inferred>",
+        "setReadResources()": "<inferred>",
         "step()": "<inferred>"
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 32,
+        "try": 37,
         "catch": 9
       },
       "imports": [
@@ -17317,7 +17356,7 @@
         "InvalidDeadline": 1,
         "InvalidDestination": 1,
         "InvalidReadVersion": 2,
-        "InvalidStateView": 1,
+        "InvalidStateView": 6,
         "InvalidTimerObserver": 2,
         "InvalidWait": 3,
         "InvalidWaitLifetime": 1,
@@ -17325,11 +17364,13 @@
         "OutputBudgetExceeded": 1,
         "QueryAfterMutation": 1,
         "ReservedFrameworkKey": 1,
+        "StateViewBudgetExceeded": 1,
         "TimerObserverRequired": 1,
+        "UncapturedStateResource": 1,
         "UnexpectedReplySource": 1,
         "UnknownCorrelation": 1,
         "UnsupportedReadVersion": 2,
-        "UnsupportedStateScan": 1,
+        "UnsupportedStateScan": 2,
         "VersionBudgetExceeded": 2,
         "WrongActivation": 1
       },
@@ -17347,6 +17388,11 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Captured.check()": "<inferred>",
+        "Captured.page()": "<inferred>",
+        "Captured.read()": "<inferred>",
+        "Captured.requireCurrent()": "<inferred>",
+        "Captured.retain()": "<inferred>",
         "Committed.check()": "<inferred>",
         "Committed.page()": "<inferred>",
         "Committed.prefetch()": "<inferred>",
@@ -17361,8 +17407,10 @@
         "Retained.read()": "<inferred>",
         "Wait.decode()": "<inferred>",
         "acceptReply()": "<inferred>",
+        "addView()": "<inferred>",
         "call()": "<inferred>",
         "callWithTimer()": "<inferred>",
+        "captured()": "<inferred>",
         "cast()": "<inferred>",
         "delete()": "<inferred>",
         "dependVersion()": "<inferred>",
@@ -17378,6 +17426,7 @@
         "release()": "<inferred>",
         "reply()": "<inferred>",
         "retain()": "<inferred>",
+        "retainView()": "<inferred>",
         "send()": "<inferred>",
         "userKey()": "<inferred>",
         "validate()": "<inferred>",
@@ -17387,8 +17436,8 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 39,
-        "catch": 7
+        "try": 45,
+        "catch": 9
       },
       "imports": [
         "Frame.zig",

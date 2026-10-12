@@ -161,10 +161,19 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
    output rows and work steps, then one-byte pin capacity.
 
 Bound bytes are domain, NUL, `bound`, NUL, prepared hash, then each cut's uint64
-resource/revision and 32-byte root/schema commitments. There is no decoder or
-accepted saved-request format for these preimages. These local types change no
-existing native, ABI or stored definitions. Incompatible integration must replace
-the owning current-v1 definitions and migrate consumers/fixtures together.
+resource/revision and 32-byte root/schema commitments.
+
+`RelationalCodec` owns the canonical `FRP1` plan artifact. It contains the four
+magic bytes, the 32-byte shared native definition, a one-byte source count, each
+complete Table schema prefixed by its uint32 byte length, and the prepared
+preimage prefixed by its uint16 byte length. Decoding checks both definitions,
+every schema fingerprint, all admission constraints, complete consumption and
+canonical re-encoding. Decoded schemas, aliases and names belong to the returned
+owner; no current-name resolution or default compatibility assumption occurs.
+Its maximum is 39 + 2 × (4 + 65536) + 8192 bytes. This artifact serializes a
+prepared definition, not source pins, accepted job identity or completion.
+The shared native definition changes with incompatible stored/wire semantics;
+older saved artifacts reject rather than being rebound to current data.
 
 ## Disclosure and completion obligations
 

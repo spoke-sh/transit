@@ -108,15 +108,105 @@ pub const Retained = struct {
 /// Retain this turn's committed source. Private writes are excluded.
 /// The returned identity becomes live only with the whole proposal.
 pub fn retain(self: *Turn) !p.Growth.ReadVersionId {
+    return self.retainView(self.view);
+}
+/// Register an additional host-opened view for this input. Native admission
+/// still checks its exact identity, revision and current scoped read rights.
+/// Registration never changes the one resource writable by this turn.
+pub fn addView(self: *Turn, view: View) !void {
     if (self.read_error) |err| return err;
+    if (view.pid != self.delivery.pid or view.principal != self.delivery.principal or view.generation != self.delivery.generation or view.input != self.delivery.input.position or view.process_revision != self.delivery.revision) return error.InvalidStateView;
+    var free: ?usize = null;
+    for (self.decision.views, 0..) |slot, i| {
+        if (slot) |existing| {
+            if (existing.resource == view.resource or existing.id == view.id) {
+                if (!std.meta.eql(existing, view)) return error.InvalidStateView;
+                return;
+            }
+        } else if (free == null) free = i;
+    }
+    self.decision.views[free orelse return error.StateViewBudgetExceeded] = view;
+}
+/// Retain only a registered committed cut; source aliases share its identity.
+pub fn retainView(self: *Turn, view: View) !p.Growth.ReadVersionId {
+    if (self.read_error) |err| return err;
+    var found = false;
+    for (self.decision.views) |slot| if (slot) |existing| if (std.meta.eql(existing, view)) {
+        found = true;
+    };
+    if (!found) return error.InvalidStateView;
     var free: ?usize = null;
     for (self.decision.retain, 0..) |slot, i| {
-        if (slot == self.view.id) return .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .index = @intCast(i) };
+        if (slot == view.id) return .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .index = @intCast(i) };
         if (slot == null and free == null) free = i;
     }
     const index = free orelse return error.VersionBudgetExceeded;
-    self.decision.retain[index] = self.view.id;
+    self.decision.retain[index] = view.id;
     return .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .index = @intCast(index) };
+}
+/// A registered resource cut. This read-only adapter excludes private writes,
+/// poisons the whole proposal on failed reads and survives no handler lifetime.
+pub const Captured = struct {
+    turn: *Turn,
+    view: View,
+    cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+    cache_next: usize = 0,
+    cache_view: ?View = null,
+    fn check(self: *@This()) !void {
+        if (self.turn.read_error) |err| return err;
+        for (self.turn.decision.views) |slot| if (slot) |view| if (std.meta.eql(view, self.view)) {
+            if (self.cache_view == null or !std.meta.eql(self.cache_view.?, self.view)) {
+                self.cache = @splat(null);
+                self.cache_next = 0;
+                self.cache_view = self.view;
+            }
+            return;
+        };
+        self.turn.read_error = error.InvalidStateView;
+        return error.InvalidStateView;
+    }
+    pub fn read(self: *@This(), key: p.Value) !?p.Value {
+        try self.check();
+        try p.State.key(key);
+        if (self.turn.reader.cache_reads) for (self.cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
+        const value = self.turn.reader.read(self.turn.reader.context, self.view, key) catch |err| {
+            self.turn.read_error = err;
+            return err;
+        };
+        if (self.turn.reader.cache_reads) {
+            self.cache[self.cache_next] = .{ .key = key, .value = value };
+            self.cache_next = (self.cache_next + 1) % self.cache.len;
+        }
+        return value;
+    }
+    pub fn page(self: *@This(), after: ?p.Value) !Page {
+        try self.check();
+        if (after) |key| try p.State.key(key);
+        const scan = self.turn.reader.page orelse return error.UnsupportedStateScan;
+        return scan(self.turn.reader.context, self.view, after) catch |err| {
+            self.turn.read_error = err;
+            return err;
+        };
+    }
+    pub fn retain(self: *@This()) !p.Growth.ReadVersionId {
+        try self.check();
+        return self.turn.retainView(self.view);
+    }
+    /// Condition publication on this resource still having the captured
+    /// revision. Use for current policy/metadata; retained data stays frozen.
+    pub fn requireCurrent(self: *@This()) !void {
+        try self.check();
+        for (self.turn.decision.views, 0..) |slot, i| if (slot) |view| if (view.id == self.view.id) {
+            self.turn.decision.current_views[i] = view.id;
+            return;
+        };
+        unreachable;
+    }
+};
+pub fn captured(self: *Turn, resource: u64) !Captured {
+    if (self.read_error) |err| return err;
+    for (self.decision.views) |slot| if (slot) |view| if (view.resource == resource) return .{ .turn = self, .view = view };
+    return error.UncapturedStateResource;
 }
 fn versionSlot(self: *Turn, slots: *[p.Growth.version_changes]?p.Growth.ReadVersionId, id: p.Growth.ReadVersionId) !void {
     try p.Growth.validateVersionId(id);

@@ -357,3 +357,89 @@ test "retained state sources survive new handler views and stage their dependenc
     try t.expectError(error.Unavailable, cached.read(try stateKey(0)));
     try t.expectError(error.Unavailable, cached_turn.validate());
 }
+
+test "registered resource vectors preserve one writer shared pins and sticky read failure" {
+    const Source = struct {
+        fail: bool = false,
+        reads: usize = 0,
+        fn read(raw: *anyopaque, view: p.Growth.View, _: p.Value) anyerror!?p.Value {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.reads += 1;
+            if (self.fail) return error.Unavailable;
+            return p.Value.integer(@intCast(view.resource));
+        }
+    };
+    var store: Store = .{};
+    var source: Source = .{};
+    var turn = try store.turn(.{});
+    turn.reader = .{ .context = &source, .read = Source.read, .cache_reads = true };
+    const key = try p.Value.init("value");
+    var foreign = turn.view;
+    foreign.resource = 8;
+    foreign.id = 9;
+    try t.expectError(error.UncapturedStateResource, turn.captured(8));
+    try t.expectError(error.InvalidStateView, turn.retainView(foreign));
+    try turn.addView(foreign);
+    try turn.addView(foreign);
+    var read = try turn.captured(8);
+    try t.expectEqual(8, try (try read.read(key)).?.asInteger());
+    try t.expectEqual(8, try (try read.read(key)).?.asInteger());
+    try t.expectEqual(1, source.reads);
+    try read.requireCurrent();
+    try t.expectEqual(@as(?u64, foreign.id), turn.decision.current_views[1]);
+    const retained = try read.retain();
+    try t.expect(std.meta.eql(retained, try read.retain()));
+    try t.expectEqual(9, turn.decision.retain[0].?);
+    const own = try turn.retain();
+    try t.expectEqual(1, own.index);
+    try turn.put(key, p.Value.integer(99));
+    try t.expectEqual(turn.view.id, turn.decision.write_view.?);
+    try t.expectEqual(99, try (try turn.read(key)).?.asInteger());
+    read.view = turn.view;
+    try t.expectEqual(7, try (try read.read(key)).?.asInteger());
+    try t.expectEqual(2, source.reads);
+    var wrong = foreign;
+    wrong.revision += 1;
+    try t.expectError(error.InvalidStateView, turn.addView(wrong));
+    wrong = foreign;
+    wrong.input += 1;
+    try t.expectError(error.InvalidStateView, turn.addView(wrong));
+    for ([_]u64{ 10, 11 }) |id| {
+        var next = foreign;
+        next.id = id;
+        next.resource = id;
+        try turn.addView(next);
+    }
+    wrong = foreign;
+    wrong.id = 12;
+    wrong.resource = 12;
+    try t.expectError(error.StateViewBudgetExceeded, turn.addView(wrong));
+    source.fail = true;
+    try t.expectError(error.Unavailable, read.read(try p.Value.init("uncached")));
+    try t.expectError(error.Unavailable, turn.validate());
+    try t.expectError(error.Unavailable, turn.read(key));
+    try t.expectError(error.Unavailable, read.retain());
+}
+
+test "host read selections cannot change a prepared input or bypass the native view bound" {
+    const Server = @import("GenServer.zig");
+    var wire: @import("transit_client").Client = undefined;
+    var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+    try host.setReadResources(&.{ 7, 8 });
+    try t.expectError(error.InvalidStateView, host.setReadResources(&.{ 8, 8 }));
+    try t.expectError(error.InvalidStateView, host.setReadResources(&.{0}));
+    try t.expectError(error.StateViewBudgetExceeded, host.setReadResources(&.{ 1, 2, 3, 4 }));
+    try t.expectEqual(@as(?u64, 7), host.read_resources[0]);
+    var store: Store = .{};
+    host.ready = try store.turn(.{});
+    var view = host.ready.?.view;
+    view.id = 10;
+    view.resource = 8;
+    try host.ready.?.addView(view);
+    try t.expectError(error.PendingOperation, host.setReadResources(&.{}));
+    try host.finish(error.ApplicationFailure);
+    const command = host.pending.?.signed.request.command.turn;
+    try t.expectEqual(@as(?u64, 10), command.views[1]);
+    try t.expect(command.failed and command.write_view == null);
+    try t.expectError(error.PendingOperation, host.setReadResources(&.{}));
+}

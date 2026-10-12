@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032",
+    "definition": "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -57,7 +57,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+            "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
           ]
         },
         "realm": {
@@ -429,6 +429,7 @@
                     "expected_revision",
                     "permit",
                     "views",
+                    "current_views",
                     "write_view",
                     "mutations",
                     "outputs",
@@ -479,6 +480,25 @@
                       ]
                     },
                     "views": {
+                      "type": "array",
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "current_views": {
                       "type": "array",
                       "minItems": 4,
                       "maxItems": 4,
@@ -623,6 +643,12 @@
                   "x-transit-defaults": {
                     "permit": null,
                     "views": [
+                      null,
+                      null,
+                      null,
+                      null
+                    ],
+                    "current_views": [
                       null,
                       null,
                       null,
@@ -1307,6 +1333,7 @@
                         "expected_revision",
                         "permit",
                         "views",
+                        "current_views",
                         "write_view",
                         "mutations",
                         "outputs",
@@ -1357,6 +1384,25 @@
                           ]
                         },
                         "views": {
+                          "type": "array",
+                          "minItems": 4,
+                          "maxItems": 4,
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "current_views": {
                           "type": "array",
                           "minItems": 4,
                           "maxItems": 4,
@@ -1501,6 +1547,12 @@
                       "x-transit-defaults": {
                         "permit": null,
                         "views": [
+                          null,
+                          null,
+                          null,
+                          null
+                        ],
+                        "current_views": [
                           null,
                           null,
                           null,
@@ -2639,7 +2691,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+        "definition": "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
       }
     },
     "SignedRequest": {
@@ -2672,7 +2724,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+                "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
               ]
             },
             "realm": {
@@ -3044,6 +3096,7 @@
                         "expected_revision",
                         "permit",
                         "views",
+                        "current_views",
                         "write_view",
                         "mutations",
                         "outputs",
@@ -3094,6 +3147,25 @@
                           ]
                         },
                         "views": {
+                          "type": "array",
+                          "minItems": 4,
+                          "maxItems": 4,
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "current_views": {
                           "type": "array",
                           "minItems": 4,
                           "maxItems": 4,
@@ -3238,6 +3310,12 @@
                       "x-transit-defaults": {
                         "permit": null,
                         "views": [
+                          null,
+                          null,
+                          null,
+                          null
+                        ],
+                        "current_views": [
                           null,
                           null,
                           null,
@@ -3922,6 +4000,7 @@
                             "expected_revision",
                             "permit",
                             "views",
+                            "current_views",
                             "write_view",
                             "mutations",
                             "outputs",
@@ -3972,6 +4051,25 @@
                               ]
                             },
                             "views": {
+                              "type": "array",
+                              "minItems": 4,
+                              "maxItems": 4,
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "x-transit-bits": 64,
+                                    "x-transit-signed": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "current_views": {
                               "type": "array",
                               "minItems": 4,
                               "maxItems": 4,
@@ -4116,6 +4214,12 @@
                           "x-transit-defaults": {
                             "permit": null,
                             "views": [
+                              null,
+                              null,
+                              null,
+                              null
+                            ],
+                            "current_views": [
                               null,
                               null,
                               null,
@@ -5297,7 +5401,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+            "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
           ]
         },
         "realm": {
@@ -6718,7 +6822,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+        "definition": "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
       }
     },
     "SignedQuery": {
@@ -6750,7 +6854,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+                "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
               ]
             },
             "realm": {
@@ -8215,7 +8319,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b510f56ab152d03b55150b3a300bea04ebad75665371471ef0be3a30d4559032"
+            "e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5"
           ]
         },
         "realm": {

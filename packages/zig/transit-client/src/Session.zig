@@ -34,6 +34,7 @@ pub fn WithTransport(comptime Transport: type) type {
         };
         pub const Decision = struct {
             views: [g.turn_views]?g.View = @splat(null),
+            current_views: [g.turn_views]?u64 = @splat(null),
             write_view: ?u64 = null,
             mutations: [g.turn_mutations]?g.Mutation = @splat(null),
             outputs: [g.turn_outputs]?g.Output = @splat(null),
@@ -124,11 +125,17 @@ pub fn WithTransport(comptime Transport: type) type {
         }
         pub fn prepareCommit(self: *const Self, delivery: Delivery, decision: Decision) !Pending {
             if (delivery.needs_permit) return error.MissingTurnPermit;
-            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed };
+            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .current_views = decision.current_views, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed };
             for (decision.views, 0..) |slot, i| if (slot) |view| {
                 if (view.pid != self.pid or view.principal != self.principal or view.generation != self.generation or
                     view.input != delivery.input.position or view.process_revision != delivery.revision or view.closed_at != null) return error.InvalidStateView;
                 turn.views[i] = view.id;
+            };
+            for (turn.current_views, 0..) |slot, i| if (slot) |id| {
+                for (turn.current_views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
+                for (turn.views) |view| {
+                    if (view == id) break;
+                } else return error.InvalidStateView;
             };
             const extended = for (decision.read_versions, decision.retain, decision.release) |read, retain, release| {
                 if (read != null or retain != null or release != null) break true;

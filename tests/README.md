@@ -36,6 +36,56 @@ memory-wide guarantees. An earlier console run was interrupted after fixture
 edits during its build and supplies no passing evidence. Committed-head clean
 qualification remains pending.
 
+The complete `just check` for finite implementation `bc68b688` passes: root
+unit tests, reviewed diagnostic mappings/outcomes, real CLI diagnostic cases,
+console history, Board checks and the documentation build. Earlier attempts
+failed on missing new diagnostic expectations and missing relational SQL
+presentation routes; the mappings and executable projections now agree.
+This check precedes the additional Station view work and does not qualify it.
+
+### Captured resource vectors and publication guards
+
+The native definition is replaced by
+`e18e8959687c62017860bd73be9c8f062aaaa5fa68aa37c2542bcec9e86375d5` for explicit
+`current_views` publication conditions. Public schemas, bindings, current
+fixtures and independent signing hashes/signatures are regenerated together.
+Historical records retain their original identifiers. Missing/foreign definition
+rejection is preserved; this does not migrate or reset accepted histories.
+
+Station's unit proof checks registered views, exact shared retention slots,
+bounded caches, one writable resource, invalid/duplicate selections, sticky read
+failure and frozen pending work. The core proof distinguishes ordinary frozen
+observations from guarded revisions: missing/duplicate guards reject; an advanced
+guarded resource leaves input progress and view closure unchanged; native current
+rights still gate publication. Unguarded snapshot behavior is preserved.
+
+`just test::growing-station` passes the additional two-resource schedule, lost
+additional-view and retention replies, exact receipt recovery, foreign revision
+guard rejection, native revocation, two retained roots and release after a new
+activation and disk node/store restart. The existing 40/41-row Table schedule,
+poisoned read, lost turn reply and six retained-page continuations also pass.
+The run records 143.894 s for the existing write segment and 50.02 s for its
+recovery segment, with 64 write-cache pages, one recovery-cache page and 94 cold
+objects. These timings are observations of this proof, not service objectives.
+
+An initial test incorrectly expected an ordinary read-only view to conflict when
+its resource advanced. The state contract intentionally preserves that snapshot;
+explicit guards now provide the required separate condition. The next attempt
+reaches revocation but expects generic `Rejected` instead of the client's
+specific `AccessDenied`; the corrected retry above passes. Earlier root checks
+also identify stale signing expectations during cutover; independently recomputed
+Python/OpenSSL fixtures correct those expectations. None of these failed runs is
+counted as passing evidence. The subsequent complete `just check` passes,
+including root units, diagnostic projections, generated contract drift, CLI,
+Board and the documentation build. Committed-head clean qualification is pending.
+
+`RelationalCodec` owns complete immutable schemas and the prepared identity in
+its definition-bound artifact. Root tests cover independent identity agreement,
+input-buffer ownership, allocation failures, every truncated prefix, foreign
+definitions, schema substitutions and trailing bytes. Resource vectors, guards
+and plan artifacts alone do not qualify durable relational result execution,
+maintained revisions, exchanges or reassignment.
+
 ### Initial contract checkpoint
 
 The intake starts at merged `07918d7a` on the pinned Zig

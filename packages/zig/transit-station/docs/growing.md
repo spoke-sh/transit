@@ -32,6 +32,35 @@ Provide a read deadline within the authority window; finite settlement and
 resource deadlines bound it further. A missing/hidden association, stale owner,
 revocation or expired view cannot be bypassed by reopening data in a handler.
 
+Native Zig hosts can call `setReadResources(ids)` between inputs to select up to
+three additional resource cuts. Duplicate IDs, invalid IDs and changes during a
+prepared input reject. Selecting the writable resource reuses its existing cut.
+Each extra view is opened through the same explicit pending-request gate; an
+uncertain open retains its original signed request. All views belong to the
+current PID, activation and input and join its native commit dependencies.
+The host still mutates only its associated resource. A read selection creates
+neither an association nor a grant: provision those through their public owners.
+This selection method is currently a Zig host API.
+
+`Turn.captured(resource)` borrows one of those registered committed cuts.
+Its bounded point cache and pages exclude private writes. Failed reads poison
+the whole proposal even when caught by application code. `captured.retain()`
+retains exactly that cut with the turn's publication; repeated aliases share one
+retained identity. `Turn.retain()` keeps its meaning for the writable resource.
+Reopen retained identities through `openVersion` after a handler or activation
+ends. Current scoped rights, source lifetimes and native conditional publication
+remain required for every dependency. These are explicit resource cuts; the
+interface does not negotiate a cross-resource transaction or grant additional
+write authority.
+
+Call `Captured.requireCurrent()` when a policy or configuration read must remain
+at its captured resource revision through publication. It records a native
+`current_views` condition. A changed guarded resource rejects the whole proposal;
+the original input remains unconsumed. Unguarded resource views and retained
+versions continue to read their frozen data when that resource advances. Native
+current grants remain mandatory in both cases. An uncertain proposal must still
+be reconciled by its original signed identity before preparing replacement work.
+
 `finish` freezes the bounded proposal. No handler is called again while that
 mutation has an unresolved result; retries retain its exact signature/sequence.
 An incomplete read clears the private proposal and returns the read error. The

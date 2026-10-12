@@ -184,11 +184,17 @@ pub const Plan = struct {
     /// Names, schema defaults/keys, routing, filters, budgets and lifetime all
     /// participate. Snapshot cuts belong to Bound, not this prepared identity.
     pub fn fingerprint(self: Plan) ![32]u8 {
-        try self.validate();
         var bytes: [max_plan_bytes]u8 = undefined;
-        var writer: std.Io.Writer = .fixed(&bytes);
+        return digest(try self.encodePrepared(&bytes));
+    }
+
+    /// Canonical identity preimage. Full schemas travel in RelationalCodec;
+    /// these bytes bind their fingerprints without duplicating descriptors.
+    pub fn encodePrepared(self: Plan, output: []u8) ![]const u8 {
+        try self.validate();
+        var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_plan_bytes)]);
         try self.write(&writer);
-        return digest(writer.buffered());
+        return writer.buffered();
     }
 
     pub fn outputSchema(self: Plan, fields: []types.Field) !types.Type {
