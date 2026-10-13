@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
-    const vector_benchmark = b.addExecutable(.{ .name = "transit-vector-benchmark", .root_module = b.createModule(.{
+    const vector_benchmark = b.addExecutable(.{ .name = "transit-fuze-vector-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/fuze_benchmarks/vector.zig"),
         .target = target,
         .optimize = optimize,
