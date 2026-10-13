@@ -25,6 +25,19 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_protocol", .module = protocol }, .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
+    if (target.result.cpu.arch == .x86_64) {
+        var query = target.query;
+        query.cpu_model = .baseline;
+        query.cpu_features_add = std.Target.x86.featureSet(&.{.avx2});
+        query.cpu_features_sub = .empty;
+        const vector_object = b.addObject(.{ .name = "transit-fuze-avx2", .root_module = b.createModule(.{
+            .root_source_file = b.path("src/vector_avx2.zig"),
+            .target = b.resolveTargetQuery(query),
+            .optimize = optimize,
+            .pic = true,
+        }) });
+        module.addObject(vector_object);
+    }
     const tests = b.step("test", "Qualify Fuze and the pinned Arrow compute dependency");
     const contract = b.addExecutable(.{ .name = "transit-logical-contract", .root_module = b.createModule(.{
         .root_source_file = b.path("src/logical_contract.zig"),

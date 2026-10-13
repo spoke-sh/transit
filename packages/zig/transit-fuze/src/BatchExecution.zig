@@ -14,6 +14,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         scanned: u64 = 0,
         selected: u64 = 0,
         value_count: u64 = 0,
+        sum: ?i64 = null,
         emitted: u64 = 0,
         /// Host output boundary to serve with single-row acquisition first.
         startup_rows: u16 = 1,
@@ -114,8 +115,8 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 if (self.atLimit()) continue;
                 switch (self.physical.outcomes[i]) {
                     .type_error, .conflict => |_, tag| {
-                        const column = self.physical.predicateColumn();
-                        self.capture(.predicate, column, i, 0);
+                        const site = self.physical.predicateFailure(i);
+                        self.capture(.predicate, site.column, i, site.instruction);
                         return if (tag == .type_error) error.QueryTypeError else error.QueryConflict;
                     },
                     .truth => |truth| if (!truth.selects()) continue,
@@ -124,8 +125,18 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 self.physical.selection[self.physical.selected] = i;
                 self.physical.selected += 1;
                 if (plan.aggregate == .count_values) {
-                    self.value_count = @import("Finite.zig").countValue(self.value_count, self.physical.columns[plan.projection[0]].view(self.physical.len).cell(i)) catch |err| {
+                    self.value_count = @import("Finite.zig").countState(self.value_count, self.physical.columns[plan.projection[0]].states[i]) catch |err| {
                         self.capture(.count, plan.projection[0], i, null);
+                        return err;
+                    };
+                }
+                if (plan.aggregate == .sum) {
+                    self.sum = @import("Finite.zig").sum(self.sum, self.physical.columns[plan.projection[0]].view(self.physical.len).cell(i), struct {
+                        fn integer(value: types.Values.Value) !i64 {
+                            return @intCast(value.atom.signed);
+                        }
+                    }.integer) catch |err| {
+                        self.capture(.sum, plan.projection[0], i, null);
                         return err;
                     };
                 }
@@ -134,8 +145,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     errdefer arena.deinit();
                     const cells = try arena.allocator().alloc(Cell, plan.projection.len);
                     for (plan.projection, cells) |column, *cell| {
-                        cell.* = self.physical.columns[column].view(self.physical.len).cell(i);
-                        if (cell.* == .conflict) cell.conflict = try arena.allocator().dupe(types.Values.Alternative, cell.conflict);
+                        cell.* = try types.Values.cloneValidated(arena.allocator(), self.physical.columns[column].view(self.physical.len).cell(i));
                     }
                     try self.disclose();
                     self.emitted = try std.math.add(u64, self.emitted, 1);
@@ -147,7 +157,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
                 const cells = try arena.allocator().alloc(Cell, 1);
-                cells[0] = .{ .value = .{ .atom = .{ .unsigned = if (plan.aggregate == .count) self.selected else self.value_count } } };
+                cells[0] = try (logical.Counters{ .selected = self.selected, .value_count = self.value_count, .sum = self.sum }).result(plan.aggregate);
                 try self.disclose();
                 self.complete = true;
                 self.emitted = 1;
@@ -203,6 +213,24 @@ const Fixture = struct {
     }
 };
 const fixture_schema: types.Type = .{ .structure = &.{ .{ .name = "key", .type = .int64, .nullable = true, .optional = true }, .{ .name = "value", .type = .int64, .nullable = true, .optional = true } } };
+
+test "checked SUM prefix wins over later predicate failure across every batch size" {
+    const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .sum, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };
+    const yes: Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    const rows = [_][2]Cell{
+        .{ yes, .{ .value = .{ .atom = .{ .signed = std.math.maxInt(i64) } } } },
+        .{ yes, yes },
+        .{ .{ .type_error = .utf8 }, .{ .value = .{ .atom = .{ .signed = -1 } } } },
+    };
+    for ([_]usize{ 1, 2, 3, 64, 256, 1024 }) |size| {
+        var execution = try Execution(Fixture, .selected_prefix).initBudget(.{ .allocator = std.testing.allocator, .rows = &rows }, plan, .{ .rows = size });
+        defer execution.deinit();
+        try std.testing.expectError(error.Overflow, execution.next());
+        try std.testing.expectEqual(@as(u64, 2), execution.failure.?.row);
+        try std.testing.expectEqual(.sum, execution.failure.?.operation);
+        try std.testing.expectEqualStrings("value", execution.failure.?.column[0..execution.failure.?.column_len]);
+    }
+}
 fn integer(value: i64) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }

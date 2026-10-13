@@ -31,7 +31,10 @@ pub fn sum(previous: ?i64, cell: anytype, comptime integer: anytype) !?i64 {
 /// Filtering and an input LIMIT precede this operation; their row-progress
 /// counter must remain separate from the number of contributing value cells.
 pub fn countValue(previous: u64, cell: anytype) !u64 {
-    return switch (cell) {
+    return countState(previous, std.meta.activeTag(cell));
+}
+pub fn countState(previous: u64, state: anytype) !u64 {
+    return switch (state) {
         .missing, .null => previous,
         .type_error => error.QueryTypeError,
         .conflict => error.QueryConflict,

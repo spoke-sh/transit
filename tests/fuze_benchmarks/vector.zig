@@ -64,7 +64,7 @@ pub fn main(init: std.process.Init) !void {
         if (kernel and batched) {
             // This measures already decoded columns. Packing is excluded here
             // and included in the separate complete owned-row pipeline below.
-            f.Batch.compare(.{ .flat = .{ .values = integers, .states = states, .details = details } }, 0, .ge, outcomes);
+            f.Batch.compare(.{ .flat = .{ .type = .int64, .data = .{ .words = std.mem.bytesAsSlice(u64, std.mem.sliceAsBytes(integers)) }, .states = states, .details = details } }, 0, .ge, outcomes);
             for (outcomes, decoded) |outcome, row| {
                 if (outcome.truth.selects()) {
                     count += 1;

@@ -1,5 +1,8 @@
-//! Experimental physical int64 batches. No I/O, authority or published progress.
+//! Owned physical batches for admitted logical plans. No I/O, authority or published progress.
 //! Flat values and five-state sidecars retain source order and conflict payloads.
+test {
+    _ = @import("batch_program_test.zig");
+}
 const std = @import("std");
 const types = @import("Types.zig");
 const logical = @import("LogicalQuery.zig");
@@ -11,6 +14,7 @@ const Self = @This();
 pub const Limits = struct {
     rows: usize = 256,
     bytes: usize = 256 * 1024,
+    implementation: kernels.cpu.Implementation = .automatic,
     pub fn validate(self: Limits) !void {
         if (self.rows == 0 or self.rows > 1024 or self.bytes < 4096 or self.bytes > 1024 * 1024) return error.InvalidBatchBudget;
     }
@@ -22,66 +26,22 @@ pub const Provenance = struct {
     boundary: u64,
     identity: ?@import("TableRow.zig").Identity = null,
 };
-pub const Detail = union(enum) { none, type_error: types.Kind, conflict: []const Alternative };
-pub const Column = struct {
-    values: []i64,
-    states: []types.State,
-    details: []Detail,
-    pub fn view(self: Column, len: usize) View {
-        std.debug.assert(len <= self.values.len);
-        return .{ .flat = .{ .values = self.values[0..len], .states = self.states[0..len], .details = self.details[0..len] } };
-    }
-};
-/// Borrows its owner. A constant owns neither its conflict alternatives nor rows.
-/// Callers validate cells and equal flat-slice lengths before constructing views.
-pub const View = union(enum) {
-    flat: struct { values: []const i64, states: []const types.State, details: []const Detail },
-    constant: struct { value: Cell, len: usize },
-    pub fn len(self: View) usize {
-        return switch (self) {
-            .flat => |v| v.values.len,
-            .constant => |v| v.len,
-        };
-    }
-    pub fn state(self: View, row: usize) types.State {
-        std.debug.assert(row < self.len());
-        return switch (self) {
-            .flat => |v| v.states[row],
-            .constant => |v| std.meta.activeTag(v.value),
-        };
-    }
-    pub fn integer(self: View, row: usize) i64 {
-        std.debug.assert(self.state(row) == .value);
-        return switch (self) {
-            .flat => |v| v.values[row],
-            .constant => |v| @intCast(v.value.value.atom.signed),
-        };
-    }
-    pub fn cell(self: View, row: usize) Cell {
-        if (self == .constant) return self.constant.value;
-        return switch (self.state(row)) {
-            .value => .{ .value = .{ .atom = .{ .signed = self.integer(row) } } },
-            .null => .null,
-            .missing => .missing,
-            .type_error => .{ .type_error = self.flat.details[row].type_error },
-            .conflict => .{ .conflict = self.flat.details[row].conflict },
-        };
-    }
-};
-pub const Outcome = union(enum) { truth: finite.Truth, type_error, conflict };
-const Compare = *const fn (View, i64, []Outcome) void;
-const Kernel = union(enum) {
-    all,
-    state: struct { column: u8, state: types.State },
-    compare: struct { column: u8, literal: i64, run: Compare },
-};
+pub const kernels = @import("VectorKernel.zig");
+pub const Detail = kernels.Detail;
+pub const Column = kernels.Column;
+pub const View = kernels.View;
+pub const Outcome = kernels.Outcome;
 allocator: std.mem.Allocator,
 backing: []u8,
 memory: std.heap.FixedBufferAllocator,
 /// Independently owned, validated snapshot. Treat as immutable until deinit.
 plan: logical.Plan,
 fingerprint: [32]u8,
-kernel: Kernel,
+kernel: kernels.Program,
+views: []View,
+sites: []u8,
+scratch: []finite.Truth,
+temporary: []Outcome,
 columns: []Column,
 provenance: []Provenance,
 outcomes: []Outcome,
@@ -94,9 +54,7 @@ payload_start: usize,
 pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !Self {
     try limits.validate();
     const fingerprint = try plan.fingerprint();
-    for (plan.schema.structure) |field| if (field.type != .int64) return error.UnsupportedBatchPlan;
-    if (plan.aggregate == .sum) return error.UnsupportedBatchPlan;
-    if (plan.predicate == .program and (plan.predicate.program.instructions.len != 1 or plan.predicate.program.instructions[0] != .atom)) return error.UnsupportedBatchPlan;
+    const implementation = try kernels.cpu.resolve(limits.implementation);
     if (limits.bytes <= @sizeOf(Self)) return error.BatchBudgetExceeded;
     const byte_count = limits.bytes - @sizeOf(Self);
     // This allocation is an arena reservation, not a live byte array. Avoid
@@ -109,55 +67,62 @@ pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !S
     var memory: std.heap.FixedBufferAllocator = .init(backing);
     const a = memory.allocator();
     const owned = copyPlan(a, plan) catch return error.BatchBudgetExceeded;
-    const atom: logical.Plan.Atom = switch (owned.predicate) {
-        .program => |program| program.instructions[0].atom,
-        inline else => |value, tag| @unionInit(logical.Plan.Atom, @tagName(tag), value),
-    };
-    const kernel: Kernel = switch (atom) {
-        .all => .all,
-        .state => |v| .{ .state = .{ .column = v.column, .state = v.value } },
-        .compare => |v| .{ .compare = .{ .column = v.column, .literal = @intCast(v.value.signed), .run = switch (v.op) {
-            inline else => |op| &CompareKernel(op).run,
-        } } },
+    const instruction_count = if (owned.predicate == .program) owned.predicate.program.instructions.len else 1;
+    const instructions = a.alloc(kernels.Instruction, instruction_count) catch return error.BatchBudgetExceeded;
+    const kernel = kernels.Program.bind(owned, instructions);
+    for (instructions) |*instruction| if (instruction.* == .atom) {
+        instruction.atom.implementation = implementation;
     };
     const columns = a.alloc(Column, owned.schema.structure.len) catch return error.BatchBudgetExceeded;
-    const row_bytes = columns.len * (@sizeOf(i64) + @sizeOf(types.State) + @sizeOf(Detail)) + @sizeOf(Provenance) + @sizeOf(Outcome) + @sizeOf(usize);
+    const views = a.alloc(View, columns.len) catch return error.BatchBudgetExceeded;
+    var row_bytes: usize = @sizeOf(Provenance) + 2 * @sizeOf(Outcome) + @sizeOf(usize) + 1 + kernel.depth * @sizeOf(finite.Truth);
+    var retained: [128]bool = @splat(false);
+    if (owned.aggregate == .rows or owned.aggregate == .sum) for (owned.projection) |column| {
+        retained[column] = true;
+    };
+    for (kernel.instructions) |instruction| if (instruction == .atom) {
+        const atom = instruction.atom;
+        // A comparison carries a typed literal; state/all kernels never read values.
+        if (atom.uses_values) retained[atom.column] = true;
+    };
+    for (owned.schema.structure, 0..) |field, i| row_bytes += Column.rowBytes(field.type, retained[i]);
     // Half of the remaining arena is reserved for conflict alternatives. Width
     // reduces the compute target; it never raises the caller's byte allowance.
     const capacity = @min(limits.rows, (backing.len - memory.end_index) / (2 * row_bytes));
     if (capacity == 0) return error.BatchBudgetExceeded;
-    for (columns) |*column| column.* = .{
-        .values = a.alloc(i64, capacity) catch return error.BatchBudgetExceeded,
-        .states = a.alloc(types.State, capacity) catch return error.BatchBudgetExceeded,
-        .details = a.alloc(Detail, capacity) catch return error.BatchBudgetExceeded,
-    };
+    for (columns, owned.schema.structure, 0..) |*column, field, i| column.* = Column.init(a, field.type, capacity, retained[i]) catch return error.BatchBudgetExceeded;
+    const sites = a.alloc(u8, capacity) catch return error.BatchBudgetExceeded;
+    const scratch = a.alloc(finite.Truth, capacity * kernel.depth) catch return error.BatchBudgetExceeded;
+    const temporary = a.alloc(Outcome, capacity) catch return error.BatchBudgetExceeded;
     const provenance = a.alloc(Provenance, capacity) catch return error.BatchBudgetExceeded;
     const outcomes = a.alloc(Outcome, capacity) catch return error.BatchBudgetExceeded;
     const selection = a.alloc(usize, capacity) catch return error.BatchBudgetExceeded;
-    return .{ .allocator = allocator, .backing = backing, .memory = memory, .plan = owned, .fingerprint = fingerprint, .kernel = kernel, .columns = columns, .provenance = provenance, .outcomes = outcomes, .selection = selection, .capacity = capacity, .payload_start = memory.end_index };
+    return .{ .allocator = allocator, .backing = backing, .memory = memory, .plan = owned, .fingerprint = fingerprint, .kernel = kernel, .views = views, .sites = sites, .scratch = scratch, .temporary = temporary, .columns = columns, .provenance = provenance, .outcomes = outcomes, .selection = selection, .capacity = capacity, .payload_start = memory.end_index };
 }
-pub fn predicateColumn(self: *const Self) u8 {
-    return switch (self.kernel) {
-        .all => unreachable,
-        .state => |v| v.column,
-        .compare => |v| v.column,
-    };
+pub fn predicateFailure(self: *const Self, row: usize) logical.Plan.PredicateFailure {
+    const index = self.sites[row];
+    return .{ .column = self.kernel.instructions[index].atom.column, .instruction = index };
 }
-// Admission has established an all-int64 descriptor and at most one atom.
-// Copy precisely its borrowed storage, without serializing and revalidating a
-// saved-plan envelope. There are no recursive fields or variable-width literals.
 fn copyPlan(a: std.mem.Allocator, source: logical.Plan) !logical.Plan {
     var result = source;
-    const fields = try a.dupe(types.Field, source.schema.structure);
-    for (fields) |*field| field.name = try a.dupe(u8, field.name);
-    result.schema = .{ .structure = fields };
+    result.schema = try source.schema.cloneInto(a);
     result.projection = try a.dupe(u8, source.projection);
     const names = try a.dupe(?[]const u8, source.output_names);
     for (names) |*name| if (name.*) |text| {
         name.* = try a.dupe(u8, text);
     };
     result.output_names = names;
-    if (source.predicate == .program) result.predicate.program.instructions = try a.dupe(logical.Program.Instruction, source.predicate.program.instructions);
+    switch (source.predicate) {
+        .program => |program| {
+            const instructions = try a.dupe(logical.Program.Instruction, program.instructions);
+            for (instructions) |*instruction| if (instruction.* == .atom and instruction.atom == .compare) {
+                instruction.atom.compare.value = try types.Values.cloneAtom(a, instruction.atom.compare.value);
+            };
+            result.predicate.program.instructions = instructions;
+        },
+        .compare => |atom| result.predicate.compare.value = try types.Values.cloneAtom(a, atom.value),
+        else => {},
+    }
     return result;
 }
 pub fn deinit(self: *Self) void {
@@ -190,58 +155,20 @@ pub fn appendValidated(self: *Self, cells: []const Cell, provenance: Provenance)
     if (provenance.identity) |identity| try identity.validate();
     const previous = self.memory.end_index;
     errdefer self.memory.end_index = previous;
-    for (cells, self.columns) |cell, column| {
-        column.states[self.len] = std.meta.activeTag(cell);
-        column.values[self.len] = if (cell == .value) @intCast(cell.value.atom.signed) else 0;
-        column.details[self.len] = switch (cell) {
-            .type_error => |kind| .{ .type_error = kind },
-            .conflict => |alternatives| .{ .conflict = self.memory.allocator().dupe(Alternative, alternatives) catch return error.BatchFull },
-            else => .none,
-        };
-    }
+    for (cells, self.columns) |cell, column| column.append(self.memory.allocator(), self.len, cell) catch return error.BatchFull;
     self.provenance[self.len] = provenance;
     self.len += 1;
 }
 /// Computes outcomes without committing progress or arbitrating later failures.
 /// The ordered consumer applies LIMIT and aggregate errors at each source row.
 pub fn evaluate(self: *Self) void {
-    const output = self.outcomes[0..self.len];
-    switch (self.kernel) {
-        .all => @memset(output, .{ .truth = .true_value }),
-        .state => |v| for (output, self.columns[v.column].states[0..self.len]) |*out, state| {
-            out.* = .{ .truth = finite.Truth.fromBool(state == v.state) };
-        },
-        .compare => |v| v.run(self.columns[v.column].view(self.len), v.literal, output),
-    }
+    for (self.views, self.columns) |*view, column| view.* = column.view(self.len);
+    self.kernel.evaluate(self.views, 0, self.outcomes[0..self.len], self.sites, self.scratch, self.temporary);
 }
-/// Allocation-free comparison of validated borrowed flat/constant columns.
-/// Dispatch happens once per vector; output preserves every input position.
+/// Allocation-free int64 comparison; the general program uses this same kernel.
 pub fn compare(column: View, literal: i64, op: finite.Comparison, output: []Outcome) void {
-    switch (op) {
-        inline else => |selected| CompareKernel(selected).run(column, literal, output),
-    }
-}
-fn CompareKernel(comptime op: finite.Comparison) type {
-    return struct {
-        fn run(column: View, literal: i64, output: []Outcome) void {
-            std.debug.assert(column.len() == output.len);
-            for (output, 0..) |*out, i| {
-                out.* = switch (column.state(i)) {
-                    .missing, .null => .{ .truth = .unknown },
-                    .type_error => .type_error,
-                    .conflict => .conflict,
-                    .value => .{ .truth = finite.Truth.fromBool(switch (op) {
-                        .eq => column.integer(i) == literal,
-                        .ne => column.integer(i) != literal,
-                        .lt => column.integer(i) < literal,
-                        .le => column.integer(i) <= literal,
-                        .gt => column.integer(i) > literal,
-                        .ge => column.integer(i) >= literal,
-                    }) },
-                };
-            }
-        }
-    };
+    const atom = kernels.Atom.bind(.{ .compare = .{ .column = 0, .op = op, .value = .{ .signed = literal } } }, .{ .structure = &.{.{ .name = "value", .type = .int64 }} });
+    atom.run(atom, column, 0, output);
 }
 
 // Keep adversarial fixtures independent from the dispatch implementation.
@@ -278,8 +205,8 @@ test "batch owns its plan and rejects unsupported semantics before allocation" {
     try t.expect(batch.plan.schema.structure[0].type == .int64);
     try t.expectError(error.InvalidBatchBudget, init(t.allocator, batch.plan, .{ .bytes = 0 }));
     var invalid = batch.plan;
-    invalid.aggregate = .sum;
-    try t.expectError(error.UnsupportedBatchPlan, init(t.allocator, invalid, .{}));
+    invalid.projection = &.{127};
+    try t.expectError(error.UnknownColumn, init(t.allocator, invalid, .{}));
 }
 
 test "comparison constants and extreme signed values retain all six operator answers" {
@@ -287,7 +214,7 @@ test "comparison constants and extreme signed values retain all six operator ans
     const values = [_]i64{ std.math.minInt(i64), -1, 0, 1, std.math.maxInt(i64) };
     const states = [_]types.State{ .value, .value, .value, .value, .value };
     const details: [5]Detail = @splat(.none);
-    const column: View = .{ .flat = .{ .values = &values, .states = &states, .details = &details } };
+    const column: View = .{ .flat = .{ .type = .int64, .data = .{ .words = std.mem.bytesAsSlice(u64, std.mem.sliceAsBytes(&values)) }, .states = &states, .details = &details } };
     const expected = [_][5]bool{ .{ false, false, true, false, false }, .{ true, true, false, true, true }, .{ true, true, false, false, false }, .{ true, true, true, false, false }, .{ false, false, false, true, true }, .{ false, false, true, true, true } };
     for (std.enums.values(finite.Comparison), expected) |op, answers| {
         var output: [5]Outcome = undefined;
