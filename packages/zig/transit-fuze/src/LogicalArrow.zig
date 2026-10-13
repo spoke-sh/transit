@@ -317,7 +317,7 @@ fn column(allocator: std.mem.Allocator, layout: *const Layout, cells: []const v.
     defer list.release();
     return structure(allocator, layout.cell.struct_.fields, &.{ state_array, kind_array, value_array, list }, valid[0..cells.len]);
 }
-pub const Row = struct { cells: []const v.Cell };
+pub const Row = @import("ColumnRows.zig").Logical;
 pub const Evidence = struct { binding: [32]u8, plan: [32]u8, records: u64, sampled_bytes: u64, complete: bool };
 pub const Messages = struct { schema: bool = true, batch: bool = true, end: bool = true, evidence: ?Evidence = null };
 /// All output borrows `output`, and all Arrow allocations are confined to at

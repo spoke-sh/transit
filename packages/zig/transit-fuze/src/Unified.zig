@@ -59,7 +59,7 @@ pub const Scalar = @import("Scalar.zig").Scalar;
 pub const Alternative = @import("Scalar.zig").Alternative;
 pub const State = @import("Scalar.zig").State;
 pub const Cell = @import("Scalar.zig").Cell;
-pub const Row = struct { cells: []const Cell };
+pub const Row = @import("ColumnRows.zig").Native;
 pub const Basis = struct {
     kind: SourceKind,
     resource: u64,

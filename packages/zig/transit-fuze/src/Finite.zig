@@ -44,7 +44,7 @@ pub fn countState(previous: u64, state: anytype) !u64 {
 
 test "value count preserves five-state errors and the full unsigned range" {
     const t = std.testing;
-    const m = @import("Unified.zig");
+    const m = @import("Scalar.zig");
     const scalar_cells = [_]m.Cell{
         .{ .value = .{ .int64 = -4 } },
         .{ .value = .{ .uint64 = std.math.maxInt(u64) } },

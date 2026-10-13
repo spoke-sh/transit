@@ -128,7 +128,7 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
     var cells: [max_rows][128]t.Values.Cell = undefined;
     var selected: [max_rows]arrow.Row = undefined;
     var count: usize = 0;
-    const kernels = @import("VectorKernel.zig");
+    const kernels = @import("VectorPage.zig");
     var outcomes: [max_rows]kernels.Outcome = undefined;
     var sites: [max_rows]u8 = undefined;
     kernels.logicalPage(plan, page.rows, outcomes[0..page.rows.len], sites[0..page.rows.len]);

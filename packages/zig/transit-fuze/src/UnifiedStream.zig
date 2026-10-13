@@ -119,7 +119,7 @@ pub fn stepDiagnostic(bound: m.Plan.Bound, previous: Progress, page: m.Page, wor
     var cells: [m.max_rows][m.max_columns]m.Cell = undefined;
     var selected: [m.max_rows]m.Row = undefined;
     var count: usize = 0;
-    const kernels = @import("VectorKernel.zig");
+    const kernels = @import("VectorPage.zig");
     var outcomes: [m.max_rows]kernels.Outcome = undefined;
     var sites: [m.max_rows]u8 = undefined;
     kernels.unifiedPage(&bound, page.rows, outcomes[0..page.rows.len], sites[0..page.rows.len]);

@@ -2,6 +2,13 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, action: d.ActionKind, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidBatchBudget, .code = "query.invalid_compute_budget", .category = .limit, .action = .correct_input, .message = "Compute rows must be 1 to 1024 and physical bytes 4096 to 1048576." },
+    .{ .cause = error.BatchBudgetExceeded, .code = "query.compute_budget", .category = .limit, .action = .correct_input, .message = "The physical budget cannot hold the bound plan and one compute lane. Choose a larger bounded compute reservation." },
+    .{ .cause = error.InvalidProvenance, .code = "query.compute_provenance", .category = .integrity, .action = .contact_operator, .message = "A physical lane lacks its original source position. No complete result is available." },
+    .{ .cause = error.UnsupportedVectorCpu, .code = "query.unsupported_vector_cpu", .category = .unsupported, .action = .correct_input, .message = "The requested CPU implementation is unavailable. Select automatic or portable execution." },
+    .{ .cause = error.InvalidComputeWorkers, .code = "query.invalid_compute_workers", .category = .limit, .action = .correct_input, .message = "Compute workers must be between one and four." },
+    .{ .cause = error.ComputeMemoryBudget, .code = "query.compute_memory_budget", .category = .limit, .action = .correct_input, .message = "The worker and physical-batch reservations exceed the host compute budget." },
+    .{ .cause = error.IncompleteSource, .code = "query.incomplete_source", .category = .integrity, .action = .contact_operator, .message = "The source ended without verified complete coverage. Retain the incomplete status." },
     .{ .cause = error.QueryInterfaceUnavailable, .code = "query.interface_unavailable", .category = .unsupported, .action = .inspect_scope, .message = "This caller handle does not provide the selected query interface. Inspect its explicit catalog or query-owner configuration; this attempt did not activate or submit a query." },
     .{ .cause = error.InvalidRelationalExchange, .code = "query.exchange_invalid", .category = .integrity, .action = .contact_operator, .message = "Query exchange evidence is malformed or inconsistent. Preserve the bound query and accepted segment identities; incomplete coverage cannot become a result." },
     .{ .cause = error.InvalidRelationalRouting, .code = "query.exchange_routing_invalid", .category = .integrity, .action = .contact_operator, .message = "A source row does not belong to its recorded logical partition. Inspect the bound plan and original producer segment without changing their identities." },
