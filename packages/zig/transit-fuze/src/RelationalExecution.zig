@@ -5,6 +5,7 @@ const std = @import("std");
 const r = @import("Relational.zig");
 const Checkpoint = @import("RelationalCheckpoint.zig");
 const table = @import("TableSchema.zig");
+const Kernel = @import("RelationalKernel.zig");
 const Truth = @import("PredicateTruth.zig").Truth;
 pub const Cell = @import("Types.zig").Values.Cell;
 
@@ -48,6 +49,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
     return struct {
         const Self = @This();
         bound: r.Bound,
+        kernel: Kernel,
         sources: Sources,
         groups: Groups,
         phase: Checkpoint.Phase = .input,
@@ -80,7 +82,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             const encoded = try (try bound.plan.outputSchema(&fields)).encode(&bytes);
             if (encoded.len > bound.plan.budgets.result_bytes) return error.RelationalResultBudget;
             try sources.validate(bound);
-            return .{ .bound = bound, .sources = sources, .groups = groups, .grouped = grouped, .result_bytes = encoded.len };
+            return .{ .bound = bound, .kernel = Kernel.bind(bound.plan), .sources = sources, .groups = groups, .grouped = grouped, .result_bytes = encoded.len };
         }
 
         /// The host must bind this root and cursor to the same atomic publication.
@@ -146,7 +148,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                     return self.endInput();
                 };
                 self.after_left = row.identity;
-                if (!matches(plan, plan.source_filters[0], row, null)) return .progress;
+                if (!self.kernel.filters[0].matches(row, null)) return .progress;
                 self.left = row;
                 self.after_right = null;
                 self.matched = false;
@@ -157,9 +159,8 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             const left = self.left.?;
             if (try self.read(1, self.after_right)) |right| {
                 self.after_right = right.identity;
-                if (!matches(plan, plan.source_filters[1], null, right)) return .progress;
-                const join = plan.join.?;
-                if (!r.joinMatches(cell(plan, join.left, left, right), cell(plan, join.right, left, right))) return .progress;
+                if (!self.kernel.filters[1].matches(null, right)) return .progress;
+                if (!r.joinMatches(Kernel.cell(self.kernel.join[0], left, right), Kernel.cell(self.kernel.join[1], left, right))) return .progress;
                 self.matched = true;
                 return self.contribute(left, right);
             }
@@ -190,15 +191,15 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
         }
         fn contribute(self: *Self, left: Row, right: ?Row) !Event {
             const plan = self.bound.plan;
-            if (!matches(plan, plan.filter, left, right)) return .progress;
+            if (!self.kernel.predicate.matches(left, right)) return .progress;
             const pair: Pair = .{ .left = left.identity, .right = if (right) |row| row.identity else null };
             if (!self.grouped) {
                 var result: Output = .{ .identity = .{ .pair = pair }, .len = @intCast(plan.outputs.len) };
-                for (plan.outputs, 0..) |field, i| result.cells[i] = integer(cell(plan, field.expression.column, left, right));
+                for (self.kernel.outputs[0..plan.outputs.len], 0..) |column, i| result.cells[i] = integer(Kernel.cell(column, left, right));
                 return self.emit(result);
             }
             var key: Key = .{ .len = @intCast(plan.group_by.len) };
-            for (plan.group_by, 0..) |column, i| key.values[i] = cell(plan, column, left, right);
+            for (self.kernel.groups[0..plan.group_by.len], 0..) |column, i| key.values[i] = Kernel.cell(column, left, right);
             const previous = try self.groups.get(key);
             var group = previous orelse Group{ .key = key };
             // Preserve first failure by contributor then output position. The
@@ -207,8 +208,8 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                 const observed: error{Overflow}!void = switch (field.expression) {
                     .column => {},
                     .count_all => group.states[i].observe(.count_all, null),
-                    .count => |column| group.states[i].observe(.count, cell(plan, column, left, right)),
-                    .sum => |column| group.states[i].observe(.sum, cell(plan, column, left, right)),
+                    .count => group.states[i].observe(.count, Kernel.cell(self.kernel.outputs[i], left, right)),
+                    .sum => group.states[i].observe(.sum, Kernel.cell(self.kernel.outputs[i], left, right)),
                 };
                 observed catch |err| {
                     self.failure = .{ .pair = pair, .output = @intCast(i), .group = key };
@@ -263,40 +264,6 @@ pub fn identityOrder(a: r.RowIdentity, b: r.RowIdentity) std.math.Order {
 }
 fn integer(value: ?i64) Cell {
     return if (value) |v| .{ .value = .{ .atom = .{ .signed = v } } } else .null;
-}
-fn cell(plan: r.Plan, column: r.Column, left: ?Row, right: ?Row) ?i64 {
-    const row = (if (column.source == 0) left else right) orelse return null;
-    return row.values[plan.sources[column.source].schema.index(column.id) catch unreachable];
-}
-/// Plan admission establishes bounded stack shape and column capabilities.
-fn matches(plan: r.Plan, predicate: r.Predicate, left: ?Row, right: ?Row) bool {
-    if (predicate.instructions.len == 0) return true;
-    var stack: [r.max_instructions]Truth = undefined;
-    var depth: usize = 0;
-    for (predicate.instructions) |instruction| switch (instruction) {
-        .compare => |expression| {
-            stack[depth] = if (cell(plan, expression.column, left, right)) |value| Truth.fromBool(switch (expression.op) {
-                .equal => value == expression.value,
-                .not_equal => value != expression.value,
-                .less => value < expression.value,
-                .less_equal => value <= expression.value,
-                .greater => value > expression.value,
-                .greater_equal => value >= expression.value,
-            }) else .unknown;
-            depth += 1;
-        },
-        .is_null, .is_not_null => |column| {
-            stack[depth] = Truth.fromBool((cell(plan, column, left, right) == null) == (instruction == .is_null));
-            depth += 1;
-        },
-        .negate => stack[depth - 1] = stack[depth - 1].negate(),
-        .conjunction, .disjunction => {
-            const right_value = stack[depth - 1];
-            depth -= 1;
-            stack[depth - 1] = if (instruction == .conjunction) stack[depth - 1].conjunction(right_value) else stack[depth - 1].disjunction(right_value);
-        },
-    };
-    return stack[0].selects();
 }
 
 test {
