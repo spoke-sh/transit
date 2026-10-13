@@ -125,8 +125,7 @@ pub fn executeBatched(allocator: std.mem.Allocator, binding: *const source.Bindi
 
 const Memory = struct {
     bytes: []const u8,
-    denied: bool = false,
-    cancelled: bool = false,
+    failure: ?anyerror = null,
     fn read(context: *anyopaque, offset: u64, output: []u8) !usize {
         const self: *Memory = @ptrCast(@alignCast(context));
         const start: usize = @intCast(offset);
@@ -136,8 +135,7 @@ const Memory = struct {
     }
     fn check(context: *anyopaque) !void {
         const self: *Memory = @ptrCast(@alignCast(context));
-        if (self.denied) return error.SourceDenied;
-        if (self.cancelled) return error.Cancelled;
+        if (self.failure) |err| return err;
     }
     fn handle(self: *Memory) source.Source {
         var digest: [32]u8 = undefined;
@@ -503,9 +501,8 @@ test "experimental file buffered rows recheck denial and cancellation" {
             row.deinit();
         }
         try t.expect(execution.index < execution.physical.len);
-        memory.cancelled = cancel;
-        memory.denied = !cancel;
-        try t.expectError(if (cancel) error.Cancelled else error.SourceDenied, execution.next());
+        memory.failure = if (cancel) error.Cancelled else error.AccessDenied;
+        try t.expectError(if (cancel) error.Cancelled else error.AccessDenied, execution.next());
         try t.expect(!execution.complete);
     }
 }
