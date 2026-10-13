@@ -1,37 +1,50 @@
-# Experimental physical batches
+# Physical batch execution
 
-`Batch` and `BatchExecution` provide an internal int64 compute path for tests and
-measurements. Production query callers retain their existing execution selection.
-There is no SQL option, native request mode or saved-format change. SIMD and
-parallel scheduling are not implemented by this path.
+`Batch` and `BatchExecution` execute typed file and general Table queries through
+bounded columns. Resumable logical and Unified queries borrow their validated
+pages through the same kernels.
+There is no SQL option, native request mode or saved-format change. Linux x86_64 builds include a separate AVX2 comparison object. Explicit `Limits.implementation = .avx2` selects it
+only after CPUID and OS XSAVE/XCR0 checks; forcing unavailable AVX2 rejects before
+execution. Both `.automatic` and `.portable` use the portable kernels, selected
+from the measured comparison. Build with
+`-Dcpu=baseline` for a binary whose other code also targets the portable CPU
+profile. Hosts can supply a `Runner`; Fuze itself performs no thread or I/O scheduling.
 
-`Batch.init` validates a logical plan and copies its schema, projection, names and
-literals into one owned buffer. It admits all-int64 schemas, projection,
-COUNT(*), COUNT(column), LIMIT, state tests and one comparison atom (including
-the compiler's single-instruction program). Other types, compound programs and
-SUM return `UnsupportedBatchPlan`; callers use their existing general executor.
-This experimental restriction does not narrow the production query interface.
+`Batch.init` validates a logical plan and copies its schema, projection, names,
+program and variable literals into one owned buffer. It admits the same logical
+plans as the row executor, including eager Boolean programs and ordered checked
+int64 SUM. Int64, uint64, finite float64 and Boolean comparisons bind specialized
+column kernels. Other admitted scalar comparisons and recursive projections use
+generic logical storage; unsupported comparisons still fail plan admission.
 
-Flat columns store int64 values separately from five-state tags and error/conflict
-sidecars. Conflict alternatives are copied without choosing a winner. Constant
-views borrow a validated cell and its alternatives. Borrowed views require equal
-flat-slice lengths, valid indices and valid int64 cells; they expire when their
-owner resets or deinitializes. `append` validates and copies a complete row
-atomically. `appendValidated` skips repeated semantic validation only when the
-source decoder has already validated the complete row against this exact schema.
-Source ordinals, original validation boundaries and optional stable
-Table row identities survive selection. They are evidence coordinates, not access
-grants. `evaluate` produces one truth/error outcome per original row; the ordered
-consumer applies LIMIT, counts and projections before accepting later failures.
+Flat columns separate fixed-width values from five-state tags and error/conflict
+sidecars. Required recursive values and conflict alternatives are deeply copied.
+Columns used only for state predicates or COUNT(column) retain states without
+copying unused payloads. Such views support state access, not value disclosure.
+Projection and comparison dependencies retain their complete values. Source
+validation still checks the complete original row before this specialization.
+Constant and validated-page views borrow their source owner; no view outlives it.
+`append` validates and copies a complete row atomically. `appendValidated` skips
+repeated validation only when the source has validated this exact schema. Failed
+appends retain the previous prefix. Original source ordinals, validation boundaries
+and optional stable Table identities survive selection without granting access.
+
+Programs evaluate atoms in instruction order over columns. A per-lane error site
+retains the first failing instruction even if Boolean composition determines the
+truth earlier. Outcomes remain provisional until the ordered consumer applies
+LIMIT and aggregates at each original source row. SUM checks every selected
+contribution in source order; no partition totals replace intermediate checks.
 
 A batch owns one backing allocation. `Limits.bytes` includes that allocation and
 the batch struct: descriptor/plan copies, column metadata, values, state sidecars,
-conflict storage, provenance, outcomes and selection positions. `Limits.rows`
+variable payloads, provenance, outcomes, error sites, Boolean scratch and selection positions. `Limits.rows`
 sets a compute target, reduced by column width and the byte budget. Supported
-experiment bounds are 1–1024 rows and 4 KiB–1 MiB. Defaults are experimental
+compute bounds are 1–1024 rows and 4 KiB–1 MiB. Defaults are
 256 rows/256 KiB. Half the space remaining after plan/column metadata is reserved
-for variable conflict payloads. A full payload arena flushes the prefix and retries
-one held row; a row that cannot fit an empty batch fails `BatchBudgetExceeded`.
+for variable payloads. A full payload arena flushes the prefix and retries
+one held row. A valid decoded row that cannot fit an empty batch executes
+directly under its source owner, with the same ordered operators; it does not
+allocate a larger physical buffer or narrow logical admission.
 Reserved payload pages are initialized when used; every active lane is written
 before its length is published to a kernel. ReleaseSafe checks remain enabled.
 No total source-cardinality limit is introduced.
@@ -39,9 +52,14 @@ No total source-cardinality limit is introduced.
 The surrounding executor and decoder have separate memory owners: one source
 scan, at most one held decoded row, existing bounded plan-admission scratch,
 and independently owned output rows. These are **additional** to the compute
-buffer. Hosts must account for those owners under their enclosing query budget;
-this experimental byte limit is not a whole-query RSS cap. Returned rows copy
-conflict alternatives and survive resetting or releasing the batch. Callers must
+buffer. File and Table pull executors also reserve one 4 KiB decoded-row cache
+plus its allocator metadata. The stable cache owner reuses one allocation;
+larger or simultaneous allocations use the original allocator. It changes no
+decoder limits or validation. Oversized projected outputs copy into independent
+arenas so that they, too, can outlive the executor and its cache.
+Hosts must account for those owners under their enclosing query budget;
+this byte limit is not a whole-query RSS cap. Returned rows deeply copy
+recursive values and conflict alternatives and survive resetting or releasing the batch. Callers must
 release each row with `deinit` instead of accumulating an unbounded result.
 
 Source reads are serial. A later read failure is retained until the already
@@ -55,15 +73,45 @@ acquisition by the remaining selected-row count. File LIMIT still decodes and
 verifies every field and the captured EOF. Stored checkpoints, source page limits,
 Arrow segments and publication chunks are unchanged and are not batch sizes.
 
-`FileQuery.executeBatched` checks the same frozen binding as ordinary execution;
-buffered disclosures recheck source access and cancellation. General Table
-`ExperimentalTableQuery` uses the same signed snapshot, schema, request/result
-budgets and disclosure gates as `TableQuery`. Current native/catalog rights are
-checked after computation before every row and completion, even when a row came
-from a private batch. Its source acquisition remains serial and uses the existing
-immutable cache. The selector exists only for proof/measurement callers.
+`FileQuery.execute` checks the frozen binding and preserves its borrowed immutable
+plan contract; changed names or literals reject before the next disclosure.
+`executeWith` additionally accepts physical limits and a host runner. Buffered
+outputs check source access and cancellation. General Table `TableQuery.open`
+uses the same signed snapshot, schema, request/result budgets and disclosure
+gates; `openWith` accepts compute configuration. Current native/catalog rights
+are checked after computation before every row and completion. Reference row
+executors remain available to independent proofs and measurements.
+
+`transit-query.ComputePool` is a stable, host-owned allocation. `init` takes the
+host allocator and `std.Io`, one to four workers (one by default), a resident
+reservation (4 MiB by default), and a minimum operator-lane count (8192). Pass
+`pool.runner(cancellation)` to the file/Table compute configuration. The host
+must stop new calls and join its query callers before `pool.deinit()`.
+
+The pool reserves its own metadata and 1 MiB per additional thread; the pinned
+runtime includes its thread-local signal storage in this stack reservation.
+Guard pages and thread bootstrap arguments are also charged. Atomic admission
+checks the pool reservation plus all concurrently active physical batches against
+the configured resident budget, including callers that compute locally. An
+exhausted reservation rejects computation before any worker writes. Decoder, transport, output, OS bookkeeping and concurrently
+executing queries have separate host budgets. There is one admitted borrowed
+batch and no queued batch. Contending or short work computes on its caller;
+this avoids a pool queue behind a long query, but does not itself bound host
+query concurrency. SUM stays local and always checks each ordered contribution.
+Workers receive disjoint decoded lane/scratch ranges, never source clients.
+Worker jobs check cancellation between 64-lane chunks. Local fallback checks it
+before and after its bounded batch. Return waits for all writes to
+join before the private candidate can be released. No worker waits for output
+consumption or performs publication.
+
+Relational execution prebinds stable column IDs and comparison kernels for
+finite, captured and maintained callers. It uses constant one-lane views at its
+existing one-source-read/one-group-update work quantum. Join traversal, group
+updates and checked SUM remain ordered; this path does not perform multilane
+join lookahead. Restoring a checkpoint rebinds private operators without changing
+saved work, cursors, group roots or publication bytes.
 
 The [measurement guide](../../../../tests/fuze_benchmarks/README.md) owns commands
 and metric boundaries. The [proof ledger](../../../../tests/README.md) records
-executed evidence. Neither this API nor a fast decoded-column loop establishes
-production defaults, whole-query speedup or broader type/hardware support.
+executed evidence. A fast decoded-column loop does not establish whole-query speedup or broader
+type/hardware support. The measurement records distinguish those costs.

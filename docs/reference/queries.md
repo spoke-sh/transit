@@ -25,6 +25,31 @@ truncated read reaches the caller without transport/decoder origin evidence,
 the diagnostic explicitly marks that origin unrecorded. It does not infer
 corruption or authorize submitting the SQL again.
 
+## Physical execution
+
+File and general Table queries use bounded typed columns. Int64, uint64, finite
+float64 and Boolean comparisons have specialized kernels; other admitted logical
+values retain generic comparisons and deep-owned projections. Eager predicates
+preserve the first error by original row and instruction. COUNT observes all
+five states, and SUM checks each selected int64 contribution in source order.
+
+Compute batches default to 256 rows and 256 KiB, with a maximum of 1024 rows and
+1 MiB; width and payload size can reduce the actual row count. Source decoding,
+Arrow output and durable publication keep their existing independent bounds.
+A valid large decoded row executes under its source owner when it cannot fit the
+compute buffer. File LIMIT still verifies the complete captured input.
+
+Linux x86_64 can select AVX2 comparisons after CPU and operating-system checks.
+The Zig host APIs allow portable selection and an optional bounded compute pool.
+Source acquisition, authorization, failure arbitration and publication stay with
+the ordered caller. The default is local computation with portable kernels. See the
+[physical execution guide](../../packages/zig/transit-fuze/docs/batches.md) for
+configuration, ownership and memory accounting.
+
+Resumable logical/Unified pages and relational predicates share the kernels.
+Their progress encodings and original source-validation/work boundaries remain
+unchanged. Relational joins and group updates retain their one-pair work quantum.
+
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document

@@ -1,9 +1,94 @@
 # Validation and milestone evidence
 
+## Integrated vector execution
+
+[Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated query runtime is
+**`5b3d1ba6`**, based on merged `243df508`. File/general Table execution uses
+bounded typed columns; logical, Unified and relational callers share kernels.
+Portable computation and one worker remain defaults after measured AVX2 and
+worker comparisons. Public progress formats, source/page validation boundaries,
+current-right checks and publication limits are unchanged. Relational execution
+retains its one-source-read/one-group-update quantum and canonical order.
+
+The [complete qualification record](verification/results/vector-pipelines-2026-10-13.json)
+covers **all 79 ordinary tasks**: core 22, growth 30, experience 7, launchers 2
+and bindings 18. Every task runs in a pristine committed-source clone with locked
+dependencies. Core, experience and launchers are complete clean lanes. Growth
+combines its completed fifteen-task prefix with fifteen tasks in a new clone;
+bindings combines its completed five-task prefix with thirteen tasks in separate
+clones. The unchanged inventory is checked for exact coverage, without omissions
+or duplicate credit. These are composed results, not five complete single runs.
+The record identifies each source revision, command, result and log hash, and
+archives the orchestration scripts for audit. Full reproduction uses
+`nix develop --command just ci-clean`; individual lanes use its `--lane` option.
+
+Full `just check` passes at **`83bc1e2e`**. Standalone Fuze ReleaseSafe tests cover
+copied rich values, allocation failure, oversized outputs surviving executor
+release, first-error frontiers and ordered source rejection. Seeded tests add
+32 rebatching inputs for projection, COUNT and ordered SUM and 32 worker
+partitions over all five states, portable/AVX2 and 1/2/4 workers. Shared admission,
+contention, cancellation and held-output tests preserve memory and control gates.
+Benchmark evidence tests reject incomplete/incorrect matrices, regressions and
+stale successful reports.
+
+The real Unified KV/Table/Document proof passes frozen upload retry,
+worker/node/disk-store restart after staging, complete manifests, prefix
+revocation and source-pin release. Flight passes its enabled TLS/ADBC, exact-value,
+replacement and current-denial schedules. The independent 315-case relational
+oracle, actual Board relational browser, installed TypeScript/Python relational
+callers, all ten existing language SDKs and their cross-language ring pass within
+their documented profiles. The ordinary suite includes all 190 file CLI cases.
+Cold maintenance completes 26 exact revisions, drains three arriving updates to
+zero backlog and preserves prior complete results through schema/DROP failures.
+Both native exchange layouts preserve exact retries, checkpoint validation,
+fenced handoff, source-expiry refusal and original publication bounds.
+
+Qualification exposes two fixture corrections: an idle retained snapshot must
+be renewed during long mutations, and transient catalog observations can retry
+within their original call/operation deadlines. Renewals preserve the same
+snapshot, resource and hard deadline; explicit expiry/revocation schedules receive
+no renewal. Read retries do not reconstruct or repeat uncertain submissions.
+The corrected cold proof records four renewals. Two earlier Board provisioning
+timeouts remain failed attempts; the final clean experience lane is separate.
+No timeout, lease, storage quota or publication ceiling is raised.
+
+An installed .NET requester also crashed at an unmapped instruction address.
+No original core stack is available. Inspection found per-owner library unloading,
+the same unsafe lifetime documented in the [Rust investigation](#rust-native-lifetime-investigation--2026-09-30).
+A new real-I/O mapping assertion fails deterministically against the old loader.
+Correction **`48f6adff`** retains bounded shared code images through detached worker
+exit while still closing native handles/buffers. Repeated opens, extraction cleanup,
+changed/missing overrides and the sixteen-image bound pass. The complete corrected
+.NET task runs at **`83bc1e2e`**, including the catalog-read fixture correction;
+the installed cross-language ring also passes with the corrected loader.
+Reproduce with `nix develop .#bindings --command just bindings::dotnet-sdk-test`.
+Failed and interrupted earlier attempts remain in the record.
+
+The [measurement account](fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+retains 960 wider pipeline, 120 kernel/pipeline, 324 real file and 180 file-worker
+samples, plus 20 paired native-control processes. All independent results,
+24 wider/default checks and 115 original int64/file checks pass. Failed SUM
+trials and a mismatched compiler-target comparison remain recorded. Hardware
+counters are denied on this host; no unavailable metric is counted as evidence.
+The measured source remains `5b3d1ba6`; later SDK/fixture and evidence changes do
+not silently replace it.
+
+The baseline-target Fuze package passes on the host and under emulated Nehalem:
+312 passed, one AVX2-hardware test skipped, zero failed. Independent checkpoint
+bytes and restored execution run under both. A separate forced-dispatch probe
+executes AVX2 natively and checks `UnsupportedVectorCpu` under Nehalem, with no
+result stdout or illegal instruction. The emulated skip is not an AVX2 pass.
+Native recovery and emulated CPU checks are separate experiments. These local
+Linux x86_64 results do not establish another hardware profile, a latency SLO,
+a universal SIMD/parallel speedup or new join/maintenance algorithms. Hosted
+execution status is reported separately in the PR.
+
+
 ## Experimental int64 batch qualification
 
-The first [vectorization delivery](../docs/roadmap/M48.md) is implemented as an
-internal Table/file selector. Production callers retain their existing executor.
+The first [vectorization delivery](../docs/roadmap/M48.md), before the integrated
+qualification above, used an internal Table/file selector. Production callers at
+that revision retained their existing executor.
 Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
 190 real file CLI cases and the extended signed native Table proof. The
 [qualification record](verification/results/vector-intake-2026-10-12.json) identifies
@@ -40,8 +125,8 @@ and regenerated; semantic mappings remain checked independently.
 This evidence does not qualify SIMD, parallel workers, wider batch types,
 compound Boolean/SUM kernels, Unified/resumable/relational integration, new
 installed-language/browser profiles or the full 79-task ordinary clean suite.
-Those selected issue requirements remain open. Existing production file budgets
-and broader qualification requirements still gate any default replacement.
+Those requirements were not covered by the first delivery. The integrated
+qualification above records their completion and the measured default selection.
 
 ## Integrated relational qualification
 

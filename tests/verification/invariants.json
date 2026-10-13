@@ -1848,6 +1848,29 @@
       "limits": "Selected int64 Table profile with one native coordinator; no SQL declaration syntax, foreign naming transport, automatic retention or connector dispatch.",
       "model": null,
       "qualification": "Actual executions and remaining gates are recorded in tests/README.md."
+    },
+    {
+      "id": "HOST-04",
+      "claim": ".NET native code remains mapped across owned cleanup, with bounded image reuse and explicit override content checks",
+      "owner": "packages/dotnet/transit-client/docs/USAGE.md",
+      "implementation": [
+        "packages/dotnet/transit-client/Internal/NativePackage.cs",
+        "tests/DotnetNativeLifetime.cs",
+        "tests/DotnetClientSdk.cs",
+        "tests/DotnetStationSdk.cs"
+      ],
+      "profile": ".NET 8 public SDKs on Linux x86_64 with the pinned native I/O runtime",
+      "tasks": [
+        "bindings::dotnet-sdk-test"
+      ],
+      "scenarios": [
+        "Sixteen real I/O/open/close repetitions retain one embedded client mapping and remove private extraction files",
+        "Installed Station runners retain both code images after native cleanup",
+        "Explicit overrides reuse code and reject changed or missing content without an embedded fallback",
+        "Sixteen retained images exhaust admission; a seventeenth distinct image is not mapped"
+      ],
+      "limits": "At most sixteen code images per loaded SDK assembly, retained until process exit. Native handles and buffers still close. Override identity is absolute path plus SHA-256 content; byte-identical replacement may reuse code. Linux mapping assertions detect unload independently of crash timing.",
+      "model": null
     }
   ]
 }

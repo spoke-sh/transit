@@ -213,7 +213,7 @@ fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller
     var nonce: [16]u8 = undefined;
     try init.io.randomSecure(&nonce);
     const cancelled = std.atomic.Value(bool).init(false);
-    const Query = if (batched) q.ExperimentalTableQuery else q.TableQuery;
+    const Query = if (batched) q.TableQuery else q.ReferenceTableQuery;
     var query = try Query.open(init.gpa, caller, text, nonce, limits, &cancelled, null);
     defer query.deinit();
     if (buffered) {
@@ -228,7 +228,16 @@ fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller
         try print(init, .{ .ready = true });
         var input_buffer: [32]u8 = undefined;
         var input = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
-        _ = try input.interface.takeByte();
+        while (try input.interface.takeByte() == 'k') {
+            // Holding a source through slow mutations still requires an active
+            // lease. Renew through the same authorized public read operation;
+            // never reopen the cut or extend its hard lifetime.
+            const snapshot = query.execution.scan.source.snapshot;
+            try query.execution.scan.validateCurrent(false);
+            const renewed = query.execution.scan.source.snapshot;
+            if (!std.meta.eql(snapshot.id, renewed.id) or snapshot.hard_deadline_ms != renewed.hard_deadline_ms or !std.meta.eql(snapshot.resource, renewed.resource)) return error.ChangedHeldSnapshot;
+            try print(init, .{ .renewed = true });
+        }
     }
     var fields: [128]c.fuze.Types.Field = undefined;
     const schema = try query.schema(&fields);

@@ -18,6 +18,37 @@ and proxy overhead; they are not independent CPU measurements.
 See [declarative benchmarks](benchmarks.md) for synthetic compiler/execution
 measurements and explicit TPC-C, TPC-E, TPC-H and TPC-DS coverage gaps.
 
+## Column execution measurements
+
+File and general Table queries use bounded typed columns. Resumable logical,
+Unified and relational execution share the typed comparison/state kernels while
+preserving their original work and publication boundaries. Defaults are portable
+kernels, 256 compute rows, a 256 KiB physical buffer and one host worker. Explicit
+AVX2 is guarded by CPU and OS capability checks. The [batch guide](../../packages/zig/transit-fuze/docs/batches.md)
+explains configuration, source/output ownership and the separate pool budget.
+
+On the measured Linux x86_64 host, 4096-row owned-row pipelines take **0.084–0.199
+times** the scalar reference's median time across hot types, eager predicates,
+ordered SUM, UTF8 and nested COUNT. Reusing one bounded temporary-row allocation
+and avoiding repeated operator interpretation contribute to this result. The
+measurement includes validation, packing and result consumption; it excludes
+file decoding, native storage/authorization and Arrow export. Tiny eight-row
+pipelines cost **117–163 microseconds more per query** in these samples.
+
+Real captured CSV/JSONL pipeline ratios are **0.945–1.085** at the defaults;
+eight existing native controls are **0.979–1.035**. These do not show the synthetic
+CPU gain carrying through complete source costs. Explicit AVX2 is slightly slower
+than portable in the decoded comparison, and two/four workers show no consistent
+whole-pipeline gain. Those measurements support the portable, one-worker defaults
+on this host; they are not a universal hardware recommendation.
+
+The [reproducible measurement account](../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+identifies exact source/build/fixture hashes, paired repetitions, failed trials,
+allocation boundaries and frozen numerical budgets. The host is shared; affinity
+does not isolate frequency, caches or memory bandwidth. Hardware performance
+counters are unavailable, so no cycle, instruction or bandwidth attribution is
+claimed. Medians are not tail percentiles or service latency guarantees.
+
 ## Interactive execution measurements
 
 The default local server returns the empty typed Table in **15–18 ms** across

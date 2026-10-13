@@ -23,7 +23,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path)
     parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--engines', nargs='+', choices=['scalar', 'batch'], default=['scalar'])
+    parser.add_argument('--engines', nargs='+', choices=['scalar', 'batch', 'simd'], default=['scalar'])
     args = parser.parse_args()
     cpu = min(os.sched_getaffinity(0))
     report = dict(definition='transit.vector.measurement.v1', status='running', completed=False,

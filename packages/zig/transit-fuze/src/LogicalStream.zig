@@ -128,11 +128,24 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
     var cells: [max_rows][128]t.Values.Cell = undefined;
     var selected: [max_rows]arrow.Row = undefined;
     var count: usize = 0;
+    const kernels = @import("VectorPage.zig");
+    var outcomes: [max_rows]kernels.Outcome = undefined;
+    var sites: [max_rows]u8 = undefined;
+    kernels.logicalPage(plan, page.rows, outcomes[0..page.rows.len], sites[0..page.rows.len]);
     for (page.rows, 0..) |row, row_index| {
         if (cancellation.load(.acquire)) return error.Cancelled;
         if (plan.limit) |limit| if (next.counters.selected == limit) break;
+        next.counters.scanned = try std.math.add(u64, next.counters.scanned, 1);
+        switch (outcomes[row_index]) {
+            .truth => |truth| if (!truth.selects()) continue,
+            .type_error, .conflict => |_, tag| {
+                const site = kernels.logicalSite(plan, sites[row_index]);
+                if (diagnostic) |detail| detail.* = .{ .operation = .predicate, .row = next.counters.scanned, .page_row = @intCast(row_index), .column = site.column, .instruction = site.instruction };
+                return if (tag == .type_error) error.QueryTypeError else error.QueryConflict;
+            },
+        }
         var failure: ?q.Counters.FailureSite = null;
-        const matches = next.counters.observe(plan, row.cells, &failure) catch |err| {
+        const matches = next.counters.contribute(plan, row.cells, &failure) catch |err| {
             if (diagnostic) |detail| if (failure) |site| {
                 detail.* = .{ .operation = switch (site.operation) {
                     inline else => |tag| @field(@FieldType(Failure, "operation"), @tagName(tag)),

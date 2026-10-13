@@ -35,6 +35,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
         shutil.copy2(root / 'tests/DotnetStationSdk.cs', source / 'Program.cs')
         shutil.copy2(root / 'tests/DotnetHandlerTables.cs', source)
+        shutil.copy2(root / 'tests/DotnetNativeLifetime.cs', source)
         subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], env=environment, cwd=source, check=True)
         output = target / 'app'
         subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', str(output)], env=environment, cwd=source, check=True)

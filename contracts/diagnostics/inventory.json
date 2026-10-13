@@ -818,6 +818,7 @@
         "ArrowSegmentTooLarge": 1,
         "ArrowShapeTooLarge": 1,
         "ArrowWorkspaceExceeded": 1,
+        "BatchBudgetExceeded": 1,
         "BrokenPipe": 1,
         "Cancelled": 1,
         "CaptureQuotaExceeded": 1,
@@ -846,6 +847,7 @@
         "InferenceNodeBudgetExceeded": 1,
         "InferenceWorkExceeded": 1,
         "InvalidArrayLength": 1,
+        "InvalidBatchBudget": 1,
         "InvalidBlockType": 1,
         "InvalidCharacter": 1,
         "InvalidCode": 1,
@@ -875,6 +877,7 @@
         "InvalidNumber": 1,
         "InvalidOutputNames": 1,
         "InvalidProjection": 1,
+        "InvalidProvenance": 1,
         "InvalidQuerySchema": 1,
         "InvalidRecordBudget": 1,
         "InvalidSourceBudget": 1,
@@ -935,6 +938,7 @@
         "UnsupportedCsvType": 1,
         "UnsupportedLiteralType": 1,
         "UnsupportedQueryType": 1,
+        "UnsupportedVectorCpu": 1,
         "UnterminatedCsvQuote": 1,
         "ValueBudgetExceeded": 1,
         "WriteFailed": 1,
@@ -5392,87 +5396,85 @@
     },
     "packages/zig/transit-fuze/src/Batch.zig": {
       "errors": {
-        "BatchBudgetExceeded": 10,
+        "BatchBudgetExceeded": 13,
         "BatchFull": 2,
         "InvalidBatchBudget": 1,
         "InvalidColumnCount": 2,
         "InvalidProvenance": 2,
-        "OutOfMemory": 1,
-        "UnsupportedBatchPlan": 3
+        "OutOfMemory": 1
       },
-      "outcomes": {
-        "Detail": [
-          "none",
-          "type_error",
-          "conflict"
-        ],
-        "Kernel": [
-          "all",
-          "state",
-          "compare"
-        ],
-        "Outcome": [
-          "truth",
-          "type_error",
-          "conflict"
-        ],
-        "View": [
-          "flat",
-          "constant"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Limits.validate()": "<inferred>",
+        "Runner.evaluate()": "anyerror",
         "append()": "<inferred>",
         "appendValidated()": "<inferred>",
         "copyPlan()": "<inferred>",
         "init()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 10,
-        "catch": 9
+        "try": 12,
+        "catch": 12
       },
       "imports": [
+        "BatchProvenance.zig",
         "Finite.zig",
         "LogicalQuery.zig",
-        "TableRow.zig",
         "Types.zig",
+        "VectorKernel.zig",
         "std"
       ]
     },
     "packages/zig/transit-fuze/src/BatchExecution.zig": {
       "errors": {
-        "BatchBudgetExceeded": 1,
-        "BatchFull": 2,
+        "BatchFull": 1,
         "FailedQuery": 1,
         "IncompleteSource": 1,
         "QueryConflict": 1,
         "QueryTypeError": 1,
-        "SourceFault": 1
+        "SourceChanged": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Execution().<return>.acquire()": "<inferred>",
+        "Execution().<return>.consumeOversized()": "<inferred>",
         "Execution().<return>.disclose()": "<inferred>",
+        "Execution().<return>.fill()": "<inferred>",
         "Execution().<return>.init()": "<inferred>",
         "Execution().<return>.initBudget()": "<inferred>",
         "Execution().<return>.next()": "<inferred>",
-        "Fixture.next()": "<inferred>"
+        "Execution().<return>.next().<struct>.integer()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 15,
-        "catch": 4
+        "try": 27,
+        "catch": 6
       },
       "imports": [
         "Batch.zig",
         "FileValueDiagnostic.zig",
         "Finite.zig",
         "LogicalQuery.zig",
+        "RowAllocator.zig",
         "Types.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/BatchProvenance.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "TableRow.zig"
       ]
     },
     "packages/zig/transit-fuze/src/BoundedJson.zig": {
@@ -5532,6 +5534,21 @@
         "catch": 0
       },
       "imports": []
+    },
+    "packages/zig/transit-fuze/src/ColumnRows.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Scalar.zig",
+        "Types.zig"
+      ]
     },
     "packages/zig/transit-fuze/src/Declaration.zig": {
       "errors": {
@@ -5668,7 +5685,8 @@
         "compile()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
         "execute()": "<inferred>",
-        "executeBatched()": "<inferred>",
+        "executeReference()": "<inferred>",
+        "executeWith()": "<inferred>",
         "lowerAtom()": "<inferred>"
       },
       "open_error_set_uses": 1,
@@ -5759,6 +5777,7 @@
         "Reader.next()": "<inferred>",
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "Scan.nextAllocated()": "<inferred>",
         "Scan.validateBatchDisclosure()": "<inferred>",
         "Source.check()": "anyerror",
         "Source.read()": "anyerror",
@@ -5777,6 +5796,7 @@
         "catch": 10
       },
       "imports": [
+        "BatchProvenance.zig",
         "BudgetDiagnostic.zig",
         "FileFraming.zig",
         "FileValueDiagnostic.zig",
@@ -5844,6 +5864,7 @@
       "error_returns": {
         "compare()": "<inferred>",
         "compareTruth()": "<inferred>",
+        "countState()": "<inferred>",
         "countValue()": "<inferred>",
         "sum()": "<inferred>"
       },
@@ -5955,6 +5976,7 @@
         "catch": 2
       },
       "imports": [
+        "ColumnRows.zig",
         "root.zig",
         "std"
       ]
@@ -6305,8 +6327,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Counters.contribute()": "<inferred>",
+        "Counters.contribute().<struct>.integer()": "<inferred>",
         "Counters.observe()": "<inferred>",
-        "Counters.observe().<struct>.integer()": "<inferred>",
         "Counters.result()": "<inferred>",
         "Execution().<return>.init()": "<inferred>",
         "Execution().<return>.next()": "<inferred>",
@@ -6361,6 +6384,8 @@
         "InvalidQueryOrdinal": 1,
         "InvalidQueryProgress": 16,
         "QueryComplete": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
         "SourceChanged": 2
       },
       "outcomes": {
@@ -6389,13 +6414,14 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 3
       },
       "imports": [
         "LogicalArrow.zig",
         "LogicalQuery.zig",
         "Types.zig",
+        "VectorPage.zig",
         "execute.zig",
         "std"
       ]
@@ -6778,13 +6804,14 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 23,
-        "catch": 3
+        "catch": 2
       },
       "imports": [
         "PredicateTruth.zig",
         "Relational.zig",
         "RelationalCheckpoint.zig",
         "RelationalIndex.zig",
+        "RelationalKernel.zig",
         "TableSchema.zig",
         "Types.zig",
         "std"
@@ -6829,6 +6856,24 @@
         "RelationalExecution.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RelationalKernel.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "PredicateTruth.zig",
+        "Relational.zig",
+        "RelationalExecution.zig",
+        "VectorKernel.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/RelationalOutput.zig": {
@@ -6909,6 +6954,22 @@
         "SqlLogicalPredicate.zig",
         "SqlReference.zig",
         "SqlTyped.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RowAllocator.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
         "std"
       ]
     },
@@ -8599,6 +8660,7 @@
         "catch": 1
       },
       "imports": [
+        "ColumnRows.zig",
         "Finite.zig",
         "PredicateProgram.zig",
         "Scalar.zig",
@@ -8797,6 +8859,8 @@
         "InvalidQueryOrdinal": 1,
         "InvalidQueryProgress": 16,
         "QueryComplete": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
         "SourceChanged": 2
       },
       "outcomes": {
@@ -8824,10 +8888,11 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 35,
-        "catch": 5
+        "catch": 4
       },
       "imports": [
         "Finite.zig",
+        "VectorPage.zig",
         "root.zig",
         "std"
       ]
@@ -8914,17 +8979,121 @@
         "atomOrder()": "<inferred>",
         "checkCell()": "anyerror",
         "checkValue()": "anyerror",
+        "cloneAtom()": "<inferred>",
+        "cloneValidated()": "anyerror",
+        "cloneValue()": "anyerror",
         "fromQuery()": "<inferred>",
         "queryValue()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 4,
       "propagation": {
-        "try": 25,
+        "try": 38,
         "catch": 0
       },
       "imports": [
         "BoundedJson.zig",
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/VectorCpu.zig": {
+      "errors": {
+        "UnsupportedVectorCpu": 1
+      },
+      "outcomes": {
+        "Implementation": [
+          "automatic",
+          "portable",
+          "avx2"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "resolve()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "builtin",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/VectorKernel.zig": {
+      "errors": {},
+      "outcomes": {
+        "Detail": [
+          "none",
+          "type_error",
+          "conflict"
+        ],
+        "Instruction": [
+          "atom",
+          "negate",
+          "conjunction",
+          "disjunction"
+        ],
+        "Outcome": [
+          "truth",
+          "type_error",
+          "conflict"
+        ],
+        "Storage": [
+          "words",
+          "values",
+          "states_only"
+        ],
+        "View": [
+          "flat",
+          "constant",
+          "logical",
+          "unified"
+        ],
+        "View.flat.data": [
+          "words",
+          "values",
+          "states_only"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Column.append()": "<inferred>",
+        "Column.init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
+      },
+      "imports": [
+        "ColumnRows.zig",
+        "Finite.zig",
+        "LogicalQuery.zig",
+        "Scalar.zig",
+        "Types.zig",
+        "VectorCpu.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/VectorPage.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalArrow.zig",
+        "LogicalQuery.zig",
+        "Types.zig",
+        "Unified.zig",
+        "VectorKernel.zig",
         "std"
       ]
     },
@@ -9065,6 +9234,20 @@
         "std",
         "zarrow",
         "zarrow_compute"
+      ]
+    },
+    "packages/zig/transit-fuze/src/vector_avx2.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
       ]
     },
     "packages/zig/transit-grpc/src/Descriptor.zig": {
@@ -10225,12 +10408,14 @@
     "packages/zig/transit-query/src/ApiCodes.zig": {
       "errors": {
         "AuthorityTransportDenied": 1,
+        "BatchBudgetExceeded": 1,
         "Canceled": 1,
         "Cancelled": 1,
         "CatalogConfigurationChanged": 1,
         "CatalogDenied": 1,
         "CatalogNotInitialized": 1,
         "CatalogOwnerChanged": 1,
+        "ComputeMemoryBudget": 1,
         "Conflict": 1,
         "EndOfStream": 1,
         "FailedQuery": 1,
@@ -10238,12 +10423,16 @@
         "IncompleteRelationalGroups": 1,
         "IncompleteRelationalSpill": 1,
         "IncompleteResult": 1,
+        "IncompleteSource": 1,
         "InteractiveQueriesUnavailable": 1,
         "InvalidAuthorityResponse": 1,
+        "InvalidBatchBudget": 1,
+        "InvalidComputeWorkers": 1,
         "InvalidDocumentInteger": 1,
         "InvalidFrame": 1,
         "InvalidMaintainedRecord": 1,
         "InvalidPredicateProgram": 1,
+        "InvalidProvenance": 1,
         "InvalidQueryCursor": 1,
         "InvalidQueryDraft": 1,
         "InvalidQueryDraftRecord": 1,
@@ -10310,7 +10499,8 @@
         "TableHistoryGap": 1,
         "TableNotFound": 1,
         "UnknownSource": 1,
-        "UnsupportedRelationalConsistency": 1
+        "UnsupportedRelationalConsistency": 1,
+        "UnsupportedVectorCpu": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10564,6 +10754,29 @@
       "propagation": {
         "try": 21,
         "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/ComputePool.zig": {
+      "errors": {
+        "Cancelled": 3,
+        "ComputeMemoryBudget": 2,
+        "InvalidComputeWorkers": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "evaluate()": "<inferred>",
+        "init()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -12078,12 +12291,13 @@
         "Query().<return>.close()": "<inferred>",
         "Query().<return>.next()": "<inferred>",
         "Query().<return>.open()": "<inferred>",
+        "Query().<return>.openWith()": "<inferred>",
         "Query().<return>.schema()": "<inferred>",
         "QueryLimits.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 1
       },
       "imports": [
@@ -12118,6 +12332,7 @@
         "fingerprint()": "<inferred>",
         "next()": "<inferred>",
         "nextAfter()": "<inferred>",
+        "nextAllocated()": "<inferred>",
         "open()": "<inferred>",
         "openAt()": "<inferred>",
         "openResource()": "<inferred>",
@@ -12819,6 +13034,7 @@
         "Bridge.zig",
         "Bundle.zig",
         "CatalogQueryOwner.zig",
+        "ComputePool.zig",
         "Decoder.zig",
         "Draft.zig",
         "Editor.zig",

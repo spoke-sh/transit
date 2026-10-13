@@ -127,6 +127,8 @@ independently calculated row counts and exact id/aggregate sums. The separate
 file/Arrow correctness fixtures verify every field and state; benchmark checksums
 alone do not establish complete value equivalence.
 
+## Six-scalar native regression control
+
 `six.zig` is a separate regression control using only the original public
 six-scalar API. The same driver runs against the original base and candidate,
 including every scalar predicate, exact uint64, negative zero, Unicode/binary,
@@ -185,10 +187,10 @@ the default selects the first available CPU. Pinning does not reserve a CPU.
 The ordinary matrix also accepts
 `--query compound`, including its independent DuckDB result comparator.
 
-## Experimental physical batches
+## Physical batch and dispatch measurements
 
 `just test::vector-benchmark .cache/vector.json` compares the current scalar
-operators and owned-row executor with the experimental int64 batch path. The
+operators and reference owned-row executor with the portable int64 batch path. The
 Python consumer computes exact expected counts/checksums without Fuze. It retains
 one warmup and nine alternating repetitions for tiny and 4096-row inputs. Kernel
 measurements exclude packing; the owned-row pipeline includes admission, source
@@ -202,8 +204,9 @@ and 64 KiB/256 KiB/1 MiB compute buffers over the real frozen CSV and sparse JSO
 filter, COUNT(*) and COUNT(column) pipelines. Three alternating pairs per case
 retain complete source validation, exact counts/checksums, first-result timing and
 allocation data. Run these measurements sequentially without other work on their
-selected CPU. Timing medians are not tail percentiles. Both selectors are private
-to measurement binaries; the console keeps its existing executor.
+selected CPU. Timing medians are not tail percentiles. The scalar/batch selector is private
+to measurement binaries; file and general Table callers use the column executor
+by default.
 
 Assess the precommitted experimental thresholds after committing the source:
 
@@ -222,3 +225,27 @@ records three paired native samples per selected query, including process and
 transport costs. It makes no percentile or native speedup claim. See the
 [physical batch guide](../../packages/zig/transit-fuze/docs/batches.md) for ownership,
 validation boundaries and the separate decoder/output memory owners.
+
+
+`pipelines.py` extends the independent owned-row matrix to int64, uint64, finite
+float64, Boolean, eager Boolean programs, ordered SUM, UTF8 and nested value
+COUNT. Select `--engines scalar batch simd parallel1 parallel2 parallel4` to retain
+the reference, portable, explicitly guarded AVX2 and host-worker comparisons.
+`vector.py` accepts `--engines scalar batch simd` for decoded kernels as well.
+`simd` requires AVX2; it does not silently fall back. The record distinguishes
+selected implementation and worker reservations. The host pool is created before
+the synthetic pipeline timer; use `file_workers.py` for real capture/decode/query
+measurements that include pool setup. Both worker drivers require four available
+physical cores for their intended comparison; affinity alone does not reserve them.
+
+Build with `zig build vector-benchmark file-benchmark -Doptimize=ReleaseSafe
+-Dcpu=baseline` to qualify a portable artifact with its separately guarded AVX2
+object. Match both compiler targets when comparing against a frozen native
+control. Then assess the complete wider matrix with `pipeline_gates.py`, using
+`--pipelines REPORT --controls SIX_REPORT --budgets
+ tests/fuze_benchmarks/results/2026-10-13-pipelines/budgets.json --output RESULT`.
+This checks the selected portable default against the frozen wider thresholds;
+optional dispatch/worker ratios remain visible. Dirty, missing, duplicate or
+incorrect samples cannot satisfy the gate. The [executed account](results/2026-10-13-pipelines/README.md)
+retains successful measurements, failed trials, source hashes and attribution
+limits. CPU dispatch and real recovery qualification are separate evidence.

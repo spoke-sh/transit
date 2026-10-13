@@ -7,6 +7,8 @@ const Tracker = @import("Allocator.zig");
 const Config = struct {
     paths: []const []const u8,
     experimental_batch: bool = false,
+    workers: u8 = 1,
+    implementation: f.Batch.kernels.cpu.Implementation = .automatic,
     compute_rows: usize = 256,
     compute_bytes: usize = 256 * 1024,
     options: f.FileSource.Options,
@@ -205,9 +207,11 @@ pub fn main(init: std.process.Init) !void {
     retained_count = 0;
     try meter.begin();
     var result_sum: i64 = 0;
+    const pool = try @import("transit_query").ComputePool.init(init.gpa, init.io, .{ .workers = config.workers, .minimum_work = 0 });
+    defer pool.deinit();
     inline for (.{ false, true }) |batched| selected_engine: {
         if (batched != config.experimental_batch) break :selected_engine;
-        var execution = if (batched) try f.FileQuery.executeBatched(a, &binding, sources[0..count], plan.plan, .{ .rows = config.compute_rows, .bytes = config.compute_bytes }) else try f.FileQuery.execute(a, &binding, sources[0..count], plan.plan);
+        var execution = if (batched) try f.FileQuery.executeWith(a, &binding, sources[0..count], plan.plan, .{ .limits = .{ .rows = config.compute_rows, .bytes = config.compute_bytes, .implementation = config.implementation }, .runner = pool.runner(null) }) else try f.FileQuery.executeReference(a, &binding, sources[0..count], plan.plan);
         defer execution.deinit();
         var output_fields: [128]f.Types.Field = undefined;
         const output_schema = try plan.plan.outputSchema(&output_fields);

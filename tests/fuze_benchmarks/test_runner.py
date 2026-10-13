@@ -9,9 +9,55 @@ import unittest
 import run
 import budgets
 import compare
+import pipeline_gates
+import pipelines
 
 
 class Evidence(unittest.TestCase):
+    def test_pipeline_gate_rejects_false_results_incomplete_dispatch_and_regressions(self):
+        limits = json.loads((Path(__file__).parent / 'results/2026-10-13-pipelines/budgets.json').read_text())
+        report = dict(status='passed', completed=True, tracked_dirty=False, samples=[])
+        for case in pipelines.CASES:
+            for rows, repetitions in [(8, 100), (4096, 20)]:
+                count, checksum = pipelines.expected(case, rows)
+                for engine in ('scalar', 'batch', 'simd', 'parallel1', 'parallel2', 'parallel4'):
+                    for repetition in range(10):
+                        report['samples'].append(dict(case=case, rows=rows, engine=engine, repetition=repetition,
+                            warmup=repetition == 0, exit_code=0, record=dict(count=count * repetitions,
+                            checksum=checksum * repetitions, repetitions=repetitions, end_live_bytes=0,
+                            build_mode='safe', elapsed_ns=100 if engine == 'scalar' else 50,
+                            implementation='reference' if engine == 'scalar' else 'avx2' if engine == 'simd' else 'portable',
+                            workers=int(engine[-1]) if engine.startswith('parallel') else 0)))
+        controls = dict(status='passed', completed=True, dirty=False, summary=[dict(sql=str(i),
+            control=dict(signature=i, raw_ns=[100] * 9), candidate=dict(signature=i, raw_ns=[100] * 9)) for i in range(8)])
+        self.assertEqual(pipeline_gates.assess(report, controls, limits)['status'], 'passed')
+        for change in ('incomplete', 'dirty', 'missing', 'duplicate', 'checksum', 'dispatch', 'workers', 'leak'):
+            changed = copy.deepcopy(report)
+            if change == 'incomplete': changed['completed'] = False
+            elif change == 'dirty': changed['tracked_dirty'] = True
+            elif change == 'missing': changed['samples'].pop()
+            elif change == 'duplicate': changed['samples'][1] = copy.deepcopy(changed['samples'][0])
+            else:
+                field, value = {'checksum': ('checksum', -999), 'dispatch': ('implementation', 'avx2'),
+                    'workers': ('workers', 5), 'leak': ('end_live_bytes', 1)}[change]
+                changed['samples'][0]['record'][field] = value
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                pipeline_gates.assess(changed, controls, limits)
+        changed = copy.deepcopy(report)
+        for sample in changed['samples']:
+            if sample['engine'] == 'batch' and sample['rows'] == 4096: sample['record']['elapsed_ns'] = 1000
+        self.assertEqual(pipeline_gates.assess(changed, controls, limits)['status'], 'failed')
+        changed = copy.deepcopy(controls)
+        changed['summary'][0]['candidate']['raw_ns'] = [116] * 9
+        self.assertEqual(pipeline_gates.assess(report, changed, limits)['status'], 'failed')
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'result.json'
+            output.write_text('{"status":"passed"}')
+            result = subprocess.run([sys.executable, pipeline_gates.__file__, '--pipelines', '/missing',
+                '--controls', '/missing', '--budgets', '/missing', '--output', str(output)], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(json.loads(output.read_text())['status'], 'failed')
+
     def records(self):
         return [dict(phase=p, elapsed_ns=100, cpu_ns=50) for p in
             ('capture', 'discovery', 'compile', 'scan_convert', 'export_cached_batch', 'scan_convert_execute')] + [

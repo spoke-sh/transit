@@ -627,7 +627,7 @@ table-schema:
 relational:
     python3 -B tests/relational.py
     zig test packages/zig/transit-fuze/src/Relational.zig
-    zig test --dep transit_protocol -Mroot=packages/zig/transit-fuze/src/RelationalExecution.zig -Mtransit_protocol=packages/zig/transit-protocol/src/root.zig
+    cd packages/zig/transit-fuze && zig build test-relational -Doptimize=ReleaseSafe
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
@@ -668,3 +668,8 @@ vector-benchmark output:
 vector-files output:
     zig build file-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/fuze_benchmarks/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
+
+# Typed pipeline matrix; one warmup and nine measured paired repetitions.
+vector-pipelines output:
+    zig build vector-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/fuze_benchmarks/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}

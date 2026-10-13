@@ -9,8 +9,11 @@ shell; these native artifacts require the Nix runtime closure. Registry
 publication and other runtime/platform combinations are not qualified.
 
 Native assemblies are discovered through normal assembly resolution. SDK/package
-versions and generated ABI versions are checked before use. Each owner extracts
-a private native library and removes it after cleanup. An explicit
+versions and generated ABI versions are checked before use. The shared client
+loader retains bounded native code images until process exit and removes private
+extraction files after loading. Closing still destroys each owner's native
+handles and buffers. The [client loader contract](../../transit-client/docs/USAGE.md)
+defines the sixteen-image bound and override-content checks. An explicit
 `ClientConfig.NativeDirectory` selects an override directory containing
 `libtransit_station.so` and `libtransit_client.so`. Loading an assembly performs
 no credential discovery, activation acquisition or network work.

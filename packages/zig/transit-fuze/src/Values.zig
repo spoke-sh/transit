@@ -28,6 +28,52 @@ pub const Value = union(enum) {
     tagged_union: Tagged,
     json: []const u8,
 };
+
+/// Deep-copy an already validated cell into an enclosing owned arena. The
+/// caller releases that arena on both success and failure; source validation
+/// establishes recursive depth/child bounds before this operation.
+pub fn cloneValidated(allocator: std.mem.Allocator, cell: Cell) anyerror!Cell {
+    return switch (cell) {
+        .value => |value| .{ .value = try cloneValue(allocator, value) },
+        .conflict => |alternatives| blk: {
+            const owned = try allocator.dupe(Alternative, alternatives);
+            for (owned) |*alternative| if (alternative.value == .value) {
+                alternative.value.value = try cloneValue(allocator, alternative.value.value);
+            };
+            break :blk .{ .conflict = owned };
+        },
+        else => cell,
+    };
+}
+fn cloneValue(a: std.mem.Allocator, value: Value) anyerror!Value {
+    return switch (value) {
+        .atom => |atom| .{ .atom = try cloneAtom(a, atom) },
+        .json => |bytes| .{ .json = try a.dupe(u8, bytes) },
+        .structure, .list, .array => |cells, tag| blk: {
+            const owned = try a.alloc(Cell, cells.len);
+            for (owned, cells) |*out, in| out.* = try cloneValidated(a, in);
+            break :blk switch (tag) {
+                .structure => .{ .structure = owned },
+                .list => .{ .list = owned },
+                .array => .{ .array = owned },
+                else => unreachable,
+            };
+        },
+        .map => |entries| blk: {
+            const owned = try a.alloc(Entry, entries.len);
+            for (owned, entries) |*out, in| out.* = .{ .key = try cloneAtom(a, in.key), .value = try cloneValidated(a, in.value) };
+            break :blk .{ .map = owned };
+        },
+        .tagged_union => |tagged| blk: {
+            const owned = try a.create(Cell);
+            owned.* = try cloneValidated(a, tagged.value.*);
+            break :blk .{ .tagged_union = .{ .index = tagged.index, .value = owned } };
+        },
+    };
+}
+pub fn cloneAtom(a: std.mem.Allocator, atom: Atom) !Atom {
+    return if (atom == .bytes) .{ .bytes = try a.dupe(u8, atom.bytes) } else atom;
+}
 const Budget = struct {
     limits: types.Limits,
     bytes: usize = 0,

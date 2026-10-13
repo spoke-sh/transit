@@ -120,6 +120,8 @@ def run(node, proof, host, cli, station_host, *arguments):
         log = (root / 'node.log').open('w+')
         authority = None
         readers = []
+        renewable_readers = {}
+        snapshot_renewals = 0
         workers = []
         worker_logs = []
         hosted = False
@@ -134,6 +136,15 @@ def run(node, proof, host, cli, station_host, *arguments):
                 return process
 
             def call(mode, *args, fail=False, expected_error=None, directory=None):
+                nonlocal snapshot_renewals
+                for reader, renewed_at in list(renewable_readers.items()):
+                    if time.monotonic() - renewed_at >= 10:
+                        reader.stdin.write('k')
+                        reader.stdin.flush()
+                        assert select.select([reader.stdout], [], [], 30)[0], 'Held snapshot renewal did not finish'
+                        assert reader.stdout.readline() == '{"renewed":true}\n', 'Held snapshot renewal failed'
+                        renewable_readers[reader] = time.monotonic()
+                        snapshot_renewals += 1
                 result = subprocess.run([proof, url, mode, str(directory or root), *map(str, args)], capture_output=True, text=True, timeout=300)
                 if fail:
                     assert result.returncode != 0, f'{mode} unexpectedly succeeded at lost-reply boundary'
@@ -188,6 +199,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 return process
 
             def release(process, error=None):
+                renewable_readers.pop(process, None)
                 output, detail = process.communicate('x', timeout=30)
                 if error:
                     assert process.returncode != 0 and error in detail, (output, detail)
@@ -444,6 +456,10 @@ def run(node, proof, host, cli, station_host, *arguments):
             call('pump')
             assert call('status') == rejected_update
             frozen = hold('SELECT * FROM people')
+            # This schedule proves a retained cut across mutations, rather than
+            # an idle lease. Its separate restart/expiry and denial schedules
+            # below intentionally receive no renewal.
+            renewable_readers[frozen] = time.monotonic() - 10
             result = execute(3, "UPDATE people SET name = 'Ada Lovelace' WHERE id = 1")
             assert (result['matched'], result['changed']) == (1, 1), result
             result = execute(4, "UPDATE people SET name = 'Ada Lovelace' WHERE id = 1")
@@ -729,7 +745,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 maximum_record_bytes=max(map(len, archived_heads.values())),
                 paired_changes=len(changes), restart=True, current_denial=True)
             print(json.dumps(dict(profile='table-history-native', **history_measurements)))
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

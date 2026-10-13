@@ -1,0 +1,118 @@
+{
+  "runtime_revision": "5b3d1ba65a8e918996be0790494aa01914aeacc4",
+  "native_control_revision": "73dca03a59a9eb79384957d69ee8fc94428c37c7",
+  "builds": {
+    "release": "zig build vector-benchmark file-benchmark six-benchmark -Doptimize=ReleaseSafe -Dcpu=baseline -p .cache/vectorization-completion/release",
+    "release-native": "zig build six-benchmark -Doptimize=ReleaseSafe -p .cache/vectorization-completion/release-native"
+  },
+  "files": [
+    {
+      "file": "typed-candidate.json.gz",
+      "uncompressed_sha256": "b89d9917b51cb63c706e0439a72e26d761008d27cf2dfb72e4324491eb5679f1",
+      "bytes": 297676
+    },
+    {
+      "file": "fused-candidate.json.gz",
+      "uncompressed_sha256": "264c397af85a318cd7da4ebad5cf44cdba58b77ec3e9b584a10e12102a2fae93",
+      "bytes": 297674
+    },
+    {
+      "file": "final-pipelines.json.gz",
+      "uncompressed_sha256": "a5072d941cc86eba3895609e159d22152921a7e40908f681d1707a26576e963d",
+      "bytes": 1053370
+    },
+    {
+      "file": "qualified-pipelines.json.gz",
+      "uncompressed_sha256": "b50d74cca0bf2e7bf97245d17fff41a130c27ae2d845358aeaf229ccc74843bc",
+      "bytes": 1053709
+    },
+    {
+      "file": "baseline-kernels.json.gz",
+      "uncompressed_sha256": "638c3f0c4657091325197f4591833dbb0b64ebff018c5f1f8edab1b8f3f141a2",
+      "bytes": 130465
+    },
+    {
+      "file": "release-pipelines.json.gz",
+      "uncompressed_sha256": "d226d2679bc02f9bde1469e1dc5cc1f0317d4e90e6bcb413c47f01dc78363095",
+      "bytes": 1057134
+    },
+    {
+      "file": "release-kernels.json.gz",
+      "uncompressed_sha256": "bdcd9ed817c73591747de643ea91c1b985f9a45f0c2f575af9098e4391055671",
+      "bytes": 130427
+    },
+    {
+      "file": "release-files.json.gz",
+      "uncompressed_sha256": "408ef037c6cdd6fcf9e2f1406f0a66dc1b304057cfa53a34a5b26dc33b23527a",
+      "bytes": 1703937
+    },
+    {
+      "file": "release-file-workers.json.gz",
+      "uncompressed_sha256": "88963976ebd80bf49afb8f1119174df7bfef5eacedd3566dc80a1e9749c1b70b",
+      "bytes": 857766
+    },
+    {
+      "file": "release-six.json.gz",
+      "uncompressed_sha256": "6dcefb76b7f9eddc56f0e4bf153d732a9d67c79819fb7b08c9418f8d7fc5d49c",
+      "bytes": 63192
+    },
+    {
+      "file": "release-native-six.json.gz",
+      "uncompressed_sha256": "aa800646042bb48d403bafadeedd1f9b3ccf6de0dc38f363cb9a7a882dcbc1b6",
+      "bytes": 63235
+    },
+    {
+      "file": "release-pipeline-gates.json",
+      "uncompressed_sha256": "2c8068761d10349e90474abf416d8e55153880d821fae5d46f5045c9644cad45",
+      "bytes": 8931
+    },
+    {
+      "file": "release-vector-gates.json",
+      "uncompressed_sha256": "486fb5a1cc778f7d1f2fd7a23a7f0e5f3e4943cf6c31a413a95e5f26354f6241",
+      "bytes": 14782
+    },
+    {
+      "file": "release-qualified-gates.json",
+      "uncompressed_sha256": "25edd69f5dfd0db44604ef1c3339a0f031cc221634249689b5989732d58fd80b",
+      "bytes": 7872
+    },
+    {
+      "file": "release-cpu-dispatch.json",
+      "uncompressed_sha256": "6be8fa3455f686108ddf4286d0619cd404c71d2dbbd044db2f605a40f0b61c75",
+      "bytes": 1312
+    },
+    {
+      "file": "host-controls.json",
+      "uncompressed_sha256": "e4d989b3fbb218f862a7fad96976d6fff34212f6c8c4743f75f5de321817c6a5",
+      "bytes": 466
+    },
+    {
+      "file": "perf-stat.txt",
+      "uncompressed_sha256": "3e16d8f851a488f8fd897a68f4b3bdf14c890916b53a59cf3456a56555dcb6bc",
+      "bytes": 861
+    },
+    {
+      "file": "avx2-codegen.txt",
+      "binary_sha256": "18950ed315654b5619f49a94d43ed6e6bcee620a0a3f12a29bb10cc249729f96"
+    },
+    {
+      "file": "release-portable-tests.log.gz",
+      "uncompressed_sha256": "9b098e247a845531a73f04ff5dcbac02c680223ac9bcb6347ac45cfe373b7eba",
+      "bytes": 3257
+    },
+    {
+      "file": "release-nehalem-tests.log.gz",
+      "uncompressed_sha256": "d002856e752360a5e822bf23c3bf4ee5110d9f6e7fbaf68eff51e275f4cac354",
+      "bytes": 33176
+    }
+  ],
+  "nehalem_package_test": {
+    "binary_sha256": "cac78c6ada28e7eb3e9a17d105812650df406fb3c3f32713f8bc8c419a12d62e",
+    "source_revision": "5b3d1ba65a8e918996be0790494aa01914aeacc4",
+    "passed": 312,
+    "skipped": 1,
+    "failed": 0,
+    "skip": "Hardware-specific AVX2 execution; unsupported forced dispatch is separately checked",
+    "command": "qemu-x86_64 -cpu Nehalem TEST_BINARY"
+  }
+}

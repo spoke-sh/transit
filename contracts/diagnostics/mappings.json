@@ -834,7 +834,8 @@
         "packages/zig/transit-query/src/TableQuery.zig",
         "packages/zig/transit-query/src/TableScan.zig",
         "packages/zig/transit-query/src/RelationalBridge.zig",
-        "packages/zig/transit-query/src/RelationalCaller.zig"
+        "packages/zig/transit-query/src/RelationalCaller.zig",
+        "packages/zig/transit-query/src/ComputePool.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-query/src/ApiCodes.zig",
@@ -1520,6 +1521,34 @@
         "QueryInterfaceUnavailable": {
           "code": "query.interface_unavailable",
           "category": "unsupported"
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit"
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit"
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity"
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported"
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit"
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit"
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity"
         }
       },
       "exceptions": [
@@ -3137,6 +3166,34 @@
         "QueryInterfaceUnavailable": {
           "code": "query.interface_unavailable",
           "category": "unsupported"
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit"
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit"
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity"
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported"
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit"
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit"
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity"
         }
       },
       "exceptions": [],
@@ -3801,7 +3858,10 @@
         "packages/zig/transit-fuze/src/LogicalCodec.zig",
         "packages/zig/transit-fuze/src/LogicalJson.zig",
         "packages/zig/transit-fuze/src/Types.zig",
-        "packages/zig/transit-fuze/src/ValueCodec.zig"
+        "packages/zig/transit-fuze/src/ValueCodec.zig",
+        "packages/zig/transit-fuze/src/Batch.zig",
+        "packages/zig/transit-fuze/src/BatchExecution.zig",
+        "packages/zig/transit-fuze/src/VectorCpu.zig"
       ],
       "exclude": [],
       "registry": "apps/transit-cli/FileCodes.zig",
@@ -3828,7 +3888,32 @@
           "name": "file I/O context retains OS causes and distinguishes schema reads and gzip framing"
         }
       ],
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-fuze/src/Batch.zig",
+          "cause": "BatchFull",
+          "disposition": "control_flow",
+          "reason": "The coordinator flushes the retained prefix and retries the held source row, evaluating an oversized row with its existing source owner. BatchFull is never a terminal public result.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/batch_execution_test.zig",
+              "name": "valid oversized rows preserve values without increasing the physical cap"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/BatchExecution.zig",
+          "cause": "BatchFull",
+          "disposition": "control_flow",
+          "reason": "The coordinator flushes the retained prefix and retries the held source row, evaluating an oversized row with its existing source owner. BatchFull is never a terminal public result.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/batch_execution_test.zig",
+              "name": "valid oversized rows preserve values without increasing the physical cap"
+            }
+          ]
+        }
+      ],
       "codes": {
         "RaggedCsvRow": {
           "code": "file.ragged_csv_row",
@@ -4325,6 +4410,22 @@
         "PlanTooLarge": {
           "code": "file.plan_too_large",
           "category": "limit"
+        },
+        "InvalidBatchBudget": {
+          "code": "file.invalid_compute_budget",
+          "category": "limit"
+        },
+        "BatchBudgetExceeded": {
+          "code": "file.compute_budget",
+          "category": "limit"
+        },
+        "InvalidProvenance": {
+          "code": "file.compute_provenance",
+          "category": "integrity"
+        },
+        "UnsupportedVectorCpu": {
+          "code": "file.unsupported_vector_cpu",
+          "category": "unsupported"
         }
       }
     }

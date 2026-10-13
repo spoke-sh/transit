@@ -427,6 +427,8 @@ static class Proof
             Expect(ErrorKind.Handler, () => Runner<T>.OpenAsync(config, handler, codec, failure, new Recovery.PersistBeforeDispatch(new InvalidStore())).GetAwaiter().GetResult()); return;
         }
         await using var runner = await Runner<T>.OpenAsync(config, handler, codec, failure, recovery);
+        var nativeImages = NativeLifetime.Mappings();
+        Check(nativeImages.Count == 2);
         store.Reentry = () => { Expect(ErrorKind.Busy, () => runner.NextAsync().GetAwaiter().GetResult()); Expect(ErrorKind.Busy, () => runner.CloseSnapshot()); Expect(ErrorKind.Busy, () => runner.CloseAsync()); };
         if (mode == "gates") {
             HashSet<string> phases = []; bool done = false;
@@ -457,7 +459,7 @@ static class Proof
         } else {
             for (string? line; (line = Console.ReadLine()) is not null;) {
                 if (line == "ready") { Report(new() { ["ready"] = true }); continue; }
-                if (line == "close") { await runner.CloseAsync(); if (handler is QueryProof query) query.SaveOwned(); if (handler is TableProof table) table.Expired(); Report(new() { ["closed"] = true }); break; }
+                if (line == "close") { await runner.CloseAsync(); NativeLifetime.Retained(nativeImages); if (handler is QueryProof query) query.SaveOwned(); if (handler is TableProof table) table.Expired(); Report(new() { ["closed"] = true }); break; }
                 Check(line is "one" or "reconcile"); RunnerEvent? ev = null;
                 try {
                     for (int count = 0; count < 32; count++) { ev = await (line == "reconcile" && count == 0 ? runner.ReconcileAsync() : runner.NextAsync()); if (ev is not Progress) break; }
@@ -470,6 +472,8 @@ static class Proof
                 Report(response);
             }
         }
+        await runner.CloseAsync();
+        NativeLifetime.Retained(nativeImages);
     }
     sealed class DocumentHandler(IReadOnlyList<Document.Prepared> changes) : IHandler<Bytes>
     {

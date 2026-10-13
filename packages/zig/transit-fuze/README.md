@@ -63,10 +63,11 @@ at a time and retains bounded aggregate state and original failure evidence.
 establish their own immutable schema/source binding and current disclosure rights.
 The executor itself acquires no source or permission.
 
-`Batch` and `BatchExecution` expose an experimental owned-int64 physical path for
-proofs and measurements. The [batch guide](docs/batches.md) defines admitted
-operators, ownership, byte accounting and buffered-disclosure obligations.
-Production callers retain their current executor selection.
+`Batch` and `BatchExecution` provide owned typed columns, eagerly bound programs,
+ordered aggregates and guarded AVX2 comparisons for file and Table execution.
+Logical/Unified pages and relational predicates share their kernels. The
+[batch guide](docs/batches.md) defines compute limits, lifetimes, host worker
+configuration and the unchanged source/recovery boundaries.
 
 `LogicalPlanCodec` owns canonical `FQP1` serialization of these plans under an
 exact supplied schema and source binding. Decode rejects foreign definitions and

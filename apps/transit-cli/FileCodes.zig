@@ -2,6 +2,10 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidBatchBudget, .code = "file.invalid_compute_budget", .category = .limit, .message = "Compute rows must be 1 to 1024 and physical bytes 4096 to 1048576." },
+    .{ .cause = error.BatchBudgetExceeded, .code = "file.compute_budget", .category = .limit, .message = "The physical budget cannot hold the bound plan and one compute lane. Choose a larger bounded compute reservation." },
+    .{ .cause = error.InvalidProvenance, .code = "file.compute_provenance", .category = .integrity, .message = "A physical lane lacks its original source position. No complete result is available." },
+    .{ .cause = error.UnsupportedVectorCpu, .code = "file.unsupported_vector_cpu", .category = .unsupported, .message = "The requested CPU implementation is unavailable. Select automatic or portable execution." },
     .{ .cause = error.PlanTooLarge, .code = "file.plan_too_large", .category = .limit, .message = "The bound query exceeds the 8192-byte plan identity limit. Reduce repeated predicate values or output names." },
     .{ .cause = error.RaggedCsvRow, .code = "file.ragged_csv_row", .category = .binding, .message = "The CSV record has a different field count from its header." },
     .{ .cause = error.DuplicateField, .code = "file.duplicate_field", .category = .binding, .message = "The input contains a duplicate field name." },

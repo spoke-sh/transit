@@ -26,18 +26,31 @@ def run(host, url, root, readers, query):
     process = open_bridge()
     max_step_bytes = 0
 
-    def call(action, error=None):
+    def call(action, error=None, deadline=None):
         nonlocal max_step_bytes
         wire = json.dumps({'catalog': action}, separators=(',', ':'))
-        if next(iter(action)) in ('next', 'status', 'progress', 'wait_progress'):
+        operation = next(iter(action))
+        if operation in ('next', 'status', 'progress', 'wait_progress'):
             max_step_bytes = max(max_step_bytes, len(wire.encode()))
-        process.stdin.write(wire + '\n')
-        process.stdin.flush()
-        assert select.select([process.stdout], [], [], 30)[0], 'Neutral Table call exceeded its budget'
-        line = process.stdout.readline()
-        assert line, (process.poll(), process.stderr.read() if process.poll() is not None else '')
-        envelope = json.loads(line)
-        result = envelope['value']
+        end = min(time.monotonic() + 30, deadline) if deadline is not None else time.monotonic() + 30
+        while True:
+            remaining = end - time.monotonic()
+            assert remaining > 0, 'Neutral Table call exceeded its budget'
+            process.stdin.write(wire + '\n')
+            process.stdin.flush()
+            assert select.select([process.stdout], [], [], remaining)[0], 'Neutral Table call exceeded its budget'
+            line = process.stdout.readline()
+            assert line, (process.poll(), process.stderr.read() if process.poll() is not None else '')
+            envelope = json.loads(line)
+            result = envelope['value']
+            # These operations only observe an existing intent/input. Retry a
+            # transient read under current rights within the original deadline;
+            # never turn an uncertain submit into a newly prepared mutation.
+            if error is None and operation in ('next', 'wait_progress', 'wait_observe', 'input_disposition') and envelope['status'] == 7:
+                assert result['diagnostic']['outcome'] in ('not_submitted', 'not_applicable'), envelope
+                time.sleep(min(.01, max(0, end - time.monotonic())))
+                continue
+            break
         if error:
             assert envelope['status'] != 0 and result['err'] == error, envelope
             assert result['diagnostic']['outcome'] in ('not_submitted', 'not_applicable'), result
@@ -61,7 +74,7 @@ def run(host, url, root, readers, query):
         reference = compiled['intent']['reference']
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            step = call({'next': reference})['next']
+            step = call({'next': reference}, deadline=deadline)['next']
             if 'terminal' in step:
                 return step['terminal']
             if 'running' in step:
@@ -73,7 +86,7 @@ def run(host, url, root, readers, query):
             receipt = call({'submit': prepared})['receipt']
             persist('bridge-input.json', receipt)
             while time.monotonic() < deadline:
-                progress = call({'wait_progress': dict(intent=reference, prepared=prepared, input=receipt['position'])})['progress']
+                progress = call({'wait_progress': dict(intent=reference, prepared=prepared, input=receipt['position'])}, deadline=deadline)['progress']
                 if 'pending' in progress:
                     continue
                 processed = progress['processed']
@@ -103,8 +116,8 @@ def run(host, url, root, readers, query):
         selected = dict(prepared=prepared, input=receipt['position'])
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
-            if call({'wait_observe': selected})['observation'] == 'processed':
-                disposition = call({'input_disposition': selected})['disposition']
+            if call({'wait_observe': selected}, deadline=deadline)['observation'] == 'processed':
+                disposition = call({'input_disposition': selected}, deadline=deadline)['disposition']
                 assert disposition['outcome'] == 'dependency_applied', disposition
                 return
         raise AssertionError('Dependency control did not process')

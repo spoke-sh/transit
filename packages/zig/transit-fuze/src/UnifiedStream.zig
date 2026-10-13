@@ -119,17 +119,22 @@ pub fn stepDiagnostic(bound: m.Plan.Bound, previous: Progress, page: m.Page, wor
     var cells: [m.max_rows][m.max_columns]m.Cell = undefined;
     var selected: [m.max_rows]m.Row = undefined;
     var count: usize = 0;
+    const kernels = @import("VectorPage.zig");
+    var outcomes: [m.max_rows]kernels.Outcome = undefined;
+    var sites: [m.max_rows]u8 = undefined;
+    kernels.unifiedPage(&bound, page.rows, outcomes[0..page.rows.len], sites[0..page.rows.len]);
     for (page.rows, 0..) |row, row_index| {
         if (cancellation.load(.acquire)) return error.Cancelled;
         if (bound.plan.limit) |limit| if (next.selected == limit) break;
         next.scanned = try std.math.add(u64, next.scanned, 1);
-        var predicate: ?m.Plan.PredicateFailure = null;
-        if (!(bound.plan.matchesDiagnostic(row, &predicate) catch |err| {
-            if (diagnostic) |detail| if (predicate) |atom| {
-                detail.* = .{ .operation = .predicate, .row = next.scanned, .page_row = @intCast(row_index), .column = atom.column, .instruction = atom.instruction };
-            };
-            return err;
-        })) continue;
+        switch (outcomes[row_index]) {
+            .truth => |truth| if (!truth.selects()) continue,
+            .type_error, .conflict => |_, tag| {
+                const site = kernels.nativeSite(&bound.plan, sites[row_index]);
+                if (diagnostic) |detail| detail.* = .{ .operation = .predicate, .row = next.scanned, .page_row = @intCast(row_index), .column = site.column, .instruction = site.instruction };
+                return if (tag == .type_error) error.QueryTypeError else error.QueryConflict;
+            },
+        }
         next.selected = try std.math.add(u64, next.selected, 1);
         if (bound.plan.aggregate == .count_values) next.value_count = @import("Finite.zig").countValue(next.value_count, row.cells[bound.plan.projection[0]]) catch |err| {
             if (diagnostic) |detail| detail.* = .{ .operation = .count, .row = next.scanned, .page_row = @intCast(row_index), .column = bound.plan.projection[0] };

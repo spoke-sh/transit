@@ -207,6 +207,11 @@ pub const Counters = struct {
             if (predicate_failure) |site| failure.* = .{ .operation = .predicate, .column = site.column, .instruction = site.instruction };
             return err;
         })) return false;
+        return self.contribute(plan, cells, failure);
+    }
+    /// Consume one selected, validated row after predicate failure arbitration.
+    /// The caller has advanced scanned exactly once at the original frontier.
+    pub fn contribute(self: *Counters, plan: Plan, cells: []const values.Cell, failure: *?FailureSite) !bool {
         self.selected = try std.math.add(u64, self.selected, 1);
         if (plan.aggregate == .count_values) self.value_count = finite.countValue(self.value_count, cells[plan.projection[0]]) catch |err| {
             failure.* = .{ .operation = .count, .column = plan.projection[0] };

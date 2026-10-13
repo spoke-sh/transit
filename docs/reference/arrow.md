@@ -5,6 +5,12 @@ not a storage authority, grant mechanism or query planner. Fuze evaluates plans
 and emits bounded batches; source adapters retain their own accepted revision,
 decoding and current-policy rules.
 
+Physical compute columns do not change Arrow IPC schemas, five-state sidecars,
+output page sizes or buffer ownership. Logical/Unified execution validates each
+original source page before borrowing it for column predicates. Owned pull-query
+outputs deep-copy recursive values and remain valid after the compute batch is
+reset. See [physical execution](queries.md#physical-execution).
+
 ## Interface boundaries
 
 | Interface | Role |

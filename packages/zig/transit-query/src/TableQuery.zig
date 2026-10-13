@@ -27,7 +27,11 @@ pub fn Query(comptime batched: bool) type {
         failed: bool = false,
         native_rejection: ?p.ErrorCode = null,
 
+        pub const Compute = struct { limits: f.Batch.Limits = .{}, runner: ?f.Batch.Runner = null };
         pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, nonce: [16]u8, limits: Limits, cancellation: ?*const std.atomic.Value(bool), location: ?*f.Sql.Location) !Self {
+            return openWith(allocator, client, text, nonce, limits, cancellation, location, .{});
+        }
+        pub fn openWith(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, nonce: [16]u8, limits: Limits, cancellation: ?*const std.atomic.Value(bool), location: ?*f.Sql.Location, compute: Compute) !Self {
             try client.connection.validate();
             try limits.validate();
             if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
@@ -65,7 +69,10 @@ pub fn Query(comptime batched: bool) type {
             // Parsing and schema work can outlive a policy observation. Revalidate before
             // returning the output schema, including LIMIT 0 and empty Tables.
             try scan.validateCurrent(false);
-            return .{ .compiled = compiled, .execution = try .init(scan, compiled.plan), .limits = limits, .result_bytes = encoded.len };
+            const Engine = @FieldType(Self, "execution");
+            var execution = if (batched) try Engine.initBudget(scan, compiled.plan, compute.limits) else try Engine.init(scan, compiled.plan);
+            if (batched) execution.runner = compute.runner;
+            return .{ .compiled = compiled, .execution = execution, .limits = limits, .result_bytes = encoded.len };
         }
         pub fn schema(self: *const Self, fields: *[f.TableSchema.max_columns]f.Types.Field) !f.Types.Type {
             if (self.failed) return error.FailedQuery;
