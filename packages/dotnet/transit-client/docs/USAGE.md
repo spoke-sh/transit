@@ -5,9 +5,20 @@ Build with `nix develop .#bindings -c just bindings::dotnet-build`. Add the loca
 version `0.2.0`. Its exact native dependency is `Transit.Native.Client` 0.2.0;
 there is no Station dependency. NuGet restores these packages into an ordinary
 external project. The native assembly carries the matching Zig library, which
-is extracted privately, version-checked and removed after owned work closes.
-An explicit `ClientConfig.NativeDirectory` can select a compatible library.
-Different clients own their library references independently. Artifacts require
+is extracted privately and version-checked. Its temporary file is removed after
+loading; the SDK retains the code mapping until process exit. Repeated opens
+reuse that image. Native handles, buffers and owned work still close explicitly.
+The pinned Zig I/O runtime signals completion before detached threads finish
+returning through their native image, so handle cleanup does not permit unloading.
+
+The loader admits at most sixteen images per loaded SDK assembly, including
+Station and explicit overrides. Further distinct images reject with
+`IncompatibleNative`. `ClientConfig.NativeDirectory` selects a trusted compatible
+library; its absolute path and SHA-256 content identify the retained image.
+Repeated opens check the file again: missing or changed content rejects instead
+of reusing the old image or falling back to embedded code. Replacing a file with
+identical bytes can reuse the same image. Loading an assembly starts no work.
+Artifacts require
 the Nix runtime closure; NuGet.org publication and portable Linux packages are
 not qualified.
 

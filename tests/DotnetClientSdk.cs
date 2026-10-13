@@ -35,8 +35,42 @@ internal static class Program
         if (mode == "missing-artifact") {
             await Expect(ErrorKind.IncompatibleNative, () => SdkClient.OpenAsync(config)); return;
         }
+        if (mode == "native-capacity") {
+            for (int image = 0; image < 17; image++) {
+                string directory = Path.Combine(root, "capacity-" + image);
+                Directory.CreateDirectory(directory);
+                string path = Path.Combine(directory, "libtransit_client.so");
+                File.Copy(Path.Combine(root, "bad-native", "libtransit_client.so"), path);
+                await Expect(ErrorKind.IncompatibleNative, () => SdkClient.OpenAsync(new ClientConfig(config.Endpoint, config.Profile, 3000, directory)));
+                Check(NativeLifetime.Maps(path) == (image < 16));
+            }
+            return;
+        }
         if (mode == "first") {
+            HashSet<string>? images = null;
+            for (int repeat = 0; repeat < 16; repeat++) {
+                var probe = await SdkClient.OpenAsync(config);
+                await probe.CapabilitiesAsync(credential);
+                images ??= NativeLifetime.Mappings();
+                Check(images.Count == 1);
+                await probe.CloseAsync();
+                NativeLifetime.Retained(images);
+            }
             await Expect(ErrorKind.IncompatibleNative, () => SdkClient.OpenAsync(new ClientConfig(config.Endpoint, config.Profile, 3000, Path.Combine(root, "bad-native"))));
+            string nativeDirectory = Path.Combine(root, "native-override");
+            var overridden = new ClientConfig(config.Endpoint, config.Profile, 3000, nativeDirectory);
+            for (int repeat = 0; repeat < 2; repeat++) {
+                await using var probe = await SdkClient.OpenAsync(overridden);
+                await probe.CapabilitiesAsync(credential);
+            }
+            string original = Path.Combine(nativeDirectory, "libtransit_client.so");
+            string replacement = Path.Combine(nativeDirectory, "replacement.so");
+            File.Copy(original, replacement);
+            using (var changed = new FileStream(replacement, FileMode.Append)) changed.WriteByte(0);
+            File.Move(replacement, original, true);
+            await Expect(ErrorKind.IncompatibleNative, () => SdkClient.OpenAsync(overridden));
+            File.Delete(original);
+            await Expect(ErrorKind.IncompatibleNative, () => SdkClient.OpenAsync(overridden));
             await using var client = await SdkClient.OpenAsync(config);
             var missingCredential = new Credential(72, 65536, Path.Combine(root, "private-missing-credential"));
             try { await client.CapabilitiesAsync(missingCredential); throw new InvalidOperationException("Missing credential accepted"); }

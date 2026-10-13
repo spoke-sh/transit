@@ -31,11 +31,15 @@ def run(node, cli, library, artifacts):
         ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
         shutil.copy2(root / 'tests/DotnetClientSdk.cs', source / 'Program.cs')
         shutil.copy2(root / 'tests/DotnetSchemaValues.cs', source / 'DotnetSchemaValues.cs')
+        shutil.copy2(root / 'tests/DotnetNativeLifetime.cs', source)
         subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], env=environment, cwd=source, check=True)
         output = target / 'app'
         subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', str(output)], env=environment, cwd=source, check=True)
         shutil.rmtree(source)
         shutil.rmtree(target / 'packages')
+        override = target / 'native-override'
+        override.mkdir()
+        shutil.copy2(library, override / 'libtransit_client.so')
         bad = target / 'bad-native'
         bad.mkdir()
         contract = json.loads((root / 'packages/zig/transit-client/abi-v1.json').read_text())
@@ -56,6 +60,7 @@ def run(node, cli, library, artifacts):
                 try:
                     subprocess.run([*command, 'missing-artifact', str(config)], env=environment, cwd=target, check=True, timeout=20)
                 finally: hidden.rename(native)
+                subprocess.run([*command, 'native-capacity', str(config)], env=environment, cwd=target, check=True, timeout=20)
                 first = False
             return subprocess.check_output([*command, mode, str(config)], env=environment, cwd=target, timeout=40)
         return invoke
