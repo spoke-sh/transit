@@ -668,3 +668,8 @@ vector-benchmark output:
 vector-files output:
     zig build file-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/fuze_benchmarks/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
+
+# Typed pipeline matrix; one warmup and nine measured paired repetitions.
+vector-pipelines output:
+    zig build vector-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/fuze_benchmarks/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}

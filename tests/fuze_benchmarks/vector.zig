@@ -3,19 +3,11 @@ const std = @import("std");
 const f = @import("transit_fuze");
 const Tracker = @import("Allocator.zig");
 const Cell = f.Types.Values.Cell;
-const schema: f.Types.Type = .{ .structure = &.{
-    .{ .name = "key", .type = .int64, .nullable = true, .optional = true },
-    .{ .name = "payload", .type = .int64 },
-} };
-fn cells(i: usize) [2]Cell {
-    return .{
-        if (i % 13 == 0) .null else if (i % 17 == 0) .missing else .{ .value = .{ .atom = .{ .signed = @as(i64, @intCast(i % 101)) - 50 } } },
-        .{ .value = .{ .atom = .{ .signed = @as(i64, @intCast(i)) * 3 - 7 } } },
-    };
-}
+const fixture = @import("pipeline_fixture.zig");
 const Scan = struct {
     allocator: std.mem.Allocator,
     rows: usize,
+    case: fixture.Case = .int64,
     index: usize = 0,
     complete: bool = false,
     pub fn deinit(_: *Scan) void {}
@@ -26,7 +18,7 @@ const Scan = struct {
         }
         var arena: std.heap.ArenaAllocator = .init(self.allocator);
         errdefer arena.deinit();
-        const data = cells(self.index);
+        const data = fixture.cells(self.case, self.index);
         const owned = try arena.allocator().dupe(Cell, &data);
         self.index += 1;
         return .{ .arena = arena, .cells = owned };
@@ -34,7 +26,7 @@ const Scan = struct {
 };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 5) return error.InvalidArguments;
+    if (args.len != 5 and args.len != 6) return error.InvalidArguments;
     const batched = std.mem.eql(u8, args[1], "batch");
     if (!batched and !std.mem.eql(u8, args[1], "scalar")) return error.InvalidArguments;
     const kernel = std.mem.eql(u8, args[2], "kernel");
@@ -42,12 +34,15 @@ pub fn main(init: std.process.Init) !void {
     const rows = try std.fmt.parseInt(usize, args[3], 10);
     const repetitions = try std.fmt.parseInt(usize, args[4], 10);
     if (rows == 0 or rows > 1048576 or repetitions == 0 or repetitions > 10000) return error.InvalidArguments;
-    const plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = @splat(71), .projection = &.{1}, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };
+    const case = if (args.len == 6) std.meta.stringToEnum(fixture.Case, args[5]) orelse return error.InvalidArguments else fixture.Case.int64;
+    if (kernel and case != .int64) return error.InvalidArguments;
+    var fields: [2]f.Types.Field = undefined;
+    const plan = fixture.plan(case, fixture.schema(case, &fields));
     var tracker: Tracker = .{ .backing = init.gpa };
     const a = tracker.allocator();
     const decoded = try init.gpa.alloc([2]Cell, rows);
     defer init.gpa.free(decoded);
-    for (decoded, 0..) |*row, i| row.* = cells(i);
+    for (decoded, 0..) |*row, i| row.* = fixture.cells(case, i);
     const integers = try init.gpa.alloc(i64, rows);
     defer init.gpa.free(integers);
     const states = try init.gpa.alloc(f.Types.State, rows);
@@ -59,7 +54,7 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(outcomes);
     for (decoded, integers, states) |row, *value, *state| {
         state.* = std.meta.activeTag(row[0]);
-        value.* = if (row[0] == .value) @intCast(row[0].value.atom.signed) else 0;
+        value.* = if (case == .int64 and row[0] == .value) @intCast(row[0].value.atom.signed) else 0;
     }
     var count: u64 = 0;
     var checksum: i64 = 0;
@@ -90,13 +85,13 @@ pub fn main(init: std.process.Init) !void {
         } else inline for (.{ false, true }) |use_batch| selected_engine: {
             if (use_batch != batched) break :selected_engine;
             const Engine = if (use_batch) f.BatchExecution.Execution(Scan, .full_source) else f.LogicalQuery.Execution(Scan, .full_source);
-            var execution = try Engine.init(.{ .allocator = a, .rows = rows }, plan);
+            var execution = try Engine.init(.{ .allocator = a, .rows = rows, .case = case }, plan);
             defer execution.deinit();
             while (try execution.next()) |item| {
                 var row = item;
                 defer row.deinit();
                 count += 1;
-                checksum += @intCast(row.cells[0].value.atom.signed);
+                checksum += if (row.cells[0] == .null) 0 else if (case == .nested) @intCast(row.cells[0].value.atom.unsigned) else @intCast(row.cells[0].value.atom.signed);
                 if (first_ns == null) first_ns = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
             }
             if (!execution.complete or execution.scanned != rows) return error.IncompleteSource;
@@ -105,7 +100,7 @@ pub fn main(init: std.process.Init) !void {
     const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .engine = args[1], .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
+    try std.json.Stringify.value(.{ .case = @tagName(case), .engine = args[1], .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
     try out.interface.writeByte('\n');
     try out.interface.flush();
 }
