@@ -47,7 +47,9 @@ fn cpuid(leaf: u32, subleaf: u32) [4]u32 {
 pub fn resolve(requested: Implementation) !Implementation {
     return switch (requested) {
         .portable => .portable,
-        .automatic => if (hasAvx2()) .avx2 else .portable,
+        // Paired decoded-kernel measurements favor the portable loop on the
+        // qualified host. Keep explicit guarded AVX2 for measured host policies.
+        .automatic => .portable,
         .avx2 => if (hasAvx2()) .avx2 else error.UnsupportedVectorCpu,
     };
 }

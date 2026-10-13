@@ -42,7 +42,7 @@ compute buffer. File LIMIT still verifies the complete captured input.
 Linux x86_64 can select AVX2 comparisons after CPU and operating-system checks.
 The Zig host APIs allow portable selection and an optional bounded compute pool.
 Source acquisition, authorization, failure arbitration and publication stay with
-the ordered caller. The default is local computation. See the
+the ordered caller. The default is local computation with portable kernels. See the
 [physical execution guide](../../packages/zig/transit-fuze/docs/batches.md) for
 configuration, ownership and memory accounting.
 

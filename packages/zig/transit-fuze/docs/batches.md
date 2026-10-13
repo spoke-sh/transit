@@ -3,9 +3,10 @@
 `Batch` and `BatchExecution` execute typed file and general Table queries through
 bounded columns. Resumable logical and Unified queries borrow their validated
 pages through the same kernels.
-There is no SQL option, native request mode or saved-format change. Linux x86_64 builds include a separate AVX2 comparison object. Binding selects it
-only after CPUID and OS XSAVE/XCR0 checks; `Limits.implementation = .portable`
-disables it, while forcing unavailable AVX2 rejects before execution. Build with
+There is no SQL option, native request mode or saved-format change. Linux x86_64 builds include a separate AVX2 comparison object. Explicit `Limits.implementation = .avx2` selects it
+only after CPUID and OS XSAVE/XCR0 checks; forcing unavailable AVX2 rejects before
+execution. Both `.automatic` and `.portable` use the portable kernels, selected
+from the measured comparison. Build with
 `-Dcpu=baseline` for a binary whose other code also targets the portable CPU
 profile. Hosts can supply a `Runner`; Fuze itself performs no thread or I/O scheduling.
 

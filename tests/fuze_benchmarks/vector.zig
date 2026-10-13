@@ -28,9 +28,9 @@ const Scan = struct {
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 5 and args.len != 6) return error.InvalidArguments;
-    const mode = std.meta.stringToEnum(enum { scalar, batch, simd, avx2, parallel1, parallel2, parallel4 }, args[1]) orelse return error.InvalidArguments;
+    const mode = std.meta.stringToEnum(enum { scalar, batch, automatic, simd, avx2, parallel1, parallel2, parallel4 }, args[1]) orelse return error.InvalidArguments;
     const batched = mode != .scalar;
-    const implementation: f.Batch.kernels.cpu.Implementation = if (mode == .batch) .portable else if (mode == .avx2) .avx2 else .automatic;
+    const implementation: f.Batch.kernels.cpu.Implementation = if (mode == .batch) .portable else if (mode == .simd or mode == .avx2) .avx2 else .automatic;
     const workers: u8 = switch (mode) {
         .parallel1 => 1,
         .parallel2 => 2,
