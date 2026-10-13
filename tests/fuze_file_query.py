@@ -366,7 +366,9 @@ def main():
         # schema publication cannot alter the captured scan, even across buffering.
         path = work / 'frozen.csv'
         path.write_bytes(b'n\n' + b'1\n' * 10000)
-        process = subprocess.Popen([CLI, 'file-query', '--format', 'csv', '-c', 'SELECT * FROM input', str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        process = subprocess.Popen([CLI, 'file-query', '--format', 'csv', '-c', 'SELECT * FROM input', str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, bufsize=0)
+        # communicate() reads the raw fd; an unbuffered prefix read prevents
+        # BufferedReader read-ahead from stranding rows outside that fd.
         first = json.loads(process.stdout.readline())
         path.write_bytes(b'n\n9\n')
         out, err = process.communicate(timeout=30)
