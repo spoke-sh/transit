@@ -220,3 +220,8 @@ pub fn next(self: *Scan) !?logical.Row {
     self.complete = true;
     return null;
 }
+
+/// Original stable identity for private physical-batch provenance.
+pub fn batchIdentity(self: *const Scan) ?f.TableRow.Identity {
+    return self.after;
+}

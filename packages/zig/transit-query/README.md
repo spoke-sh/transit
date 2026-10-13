@@ -37,6 +37,12 @@ authorization precede disclosure, including completion and empty output. Explici
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+`ExperimentalTableQuery` selects the shared int64 batch executor only for internal
+proofs and measurements. It retains `TableQuery`'s signed source and disclosure
+implementation; no console/native query setting selects it. The
+[batch guide](../transit-fuze/docs/batches.md) describes its operator and memory
+bounds, separate from the general production Table interface.
+
 `RelationalCompilation.prepare` resolves explicit catalog routes through current
 inspection reads, owns immutable schemas and compiles a prepared relational plan
 without opening data snapshots or spill. It rechecks each resource revision and
