@@ -28,9 +28,9 @@ const Scan = struct {
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 5 and args.len != 6) return error.InvalidArguments;
-    const mode = std.meta.stringToEnum(enum { scalar, batch, simd, parallel1, parallel2, parallel4 }, args[1]) orelse return error.InvalidArguments;
+    const mode = std.meta.stringToEnum(enum { scalar, batch, simd, avx2, parallel1, parallel2, parallel4 }, args[1]) orelse return error.InvalidArguments;
     const batched = mode != .scalar;
-    const implementation: f.Batch.kernels.cpu.Implementation = if (mode == .batch) .portable else .automatic;
+    const implementation: f.Batch.kernels.cpu.Implementation = if (mode == .batch) .portable else if (mode == .avx2) .avx2 else .automatic;
     const workers: u8 = switch (mode) {
         .parallel1 => 1,
         .parallel2 => 2,
@@ -66,6 +66,9 @@ pub fn main(init: std.process.Init) !void {
         state.* = std.meta.activeTag(row[0]);
         value.* = if (case == .int64 and row[0] == .value) @intCast(row[0].value.atom.signed) else 0;
     }
+    var kernel_atom = f.Batch.kernels.Atom.bindType(.{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } }, .int64);
+    kernel_atom.implementation = try f.Batch.kernels.cpu.resolve(implementation);
+    const kernel_column: f.Batch.View = .{ .flat = .{ .type = .int64, .data = .{ .words = std.mem.bytesAsSlice(u64, std.mem.sliceAsBytes(integers)) }, .states = states, .details = details } };
     var count: u64 = 0;
     var checksum: i64 = 0;
     var first_ns: ?i96 = null;
@@ -74,7 +77,7 @@ pub fn main(init: std.process.Init) !void {
         if (kernel and batched) {
             // This measures already decoded columns. Packing is excluded here
             // and included in the separate complete owned-row pipeline below.
-            f.Batch.compare(.{ .flat = .{ .type = .int64, .data = .{ .words = std.mem.bytesAsSlice(u64, std.mem.sliceAsBytes(integers)) }, .states = states, .details = details } }, 0, .ge, outcomes);
+            kernel_atom.run(kernel_atom, kernel_column, 0, outcomes);
             for (outcomes, decoded) |outcome, row| {
                 if (outcome.truth.selects()) {
                     count += 1;
@@ -113,7 +116,7 @@ pub fn main(init: std.process.Init) !void {
     const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .case = @tagName(case), .engine = args[1], .implementation = @tagName(try f.Batch.kernels.cpu.resolve(implementation)), .workers = workers, .pool_reserved_bytes = if (workers != 0) Pool.reservedBytes(workers) else 0, .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
+    try std.json.Stringify.value(.{ .case = @tagName(case), .engine = args[1], .implementation = if (mode == .scalar) "reference" else @tagName(kernel_atom.implementation), .workers = workers, .pool_reserved_bytes = if (workers != 0) Pool.reservedBytes(workers) else 0, .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
     try out.interface.writeByte('\n');
     try out.interface.flush();
 }
