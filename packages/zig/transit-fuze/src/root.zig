@@ -5,6 +5,8 @@ pub const compute = @import("zarrow_compute");
 pub const model = @import("model.zig");
 pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
+pub const BatchExecution = @import("BatchExecution.zig");
+pub const Batch = @import("Batch.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
@@ -46,6 +48,8 @@ pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
 test {
+    _ = Batch;
+    _ = BatchExecution;
     _ = Relational;
     _ = RelationalExecution;
     _ = RelationalSql;

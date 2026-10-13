@@ -75,6 +75,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
+    const vector_benchmark = b.addExecutable(.{ .name = "transit-fuze-vector-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/fuze_benchmarks/vector.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    b.step("vector-benchmark", "Build bounded vector operator and pipeline measurements").dependOn(&b.addInstallArtifact(vector_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     const diagnostic_cases = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostic_cases.addFileArg(b.path("tests/diagnostic_case_codes.py"));

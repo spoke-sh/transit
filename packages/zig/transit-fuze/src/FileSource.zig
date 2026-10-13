@@ -411,6 +411,10 @@ pub const Scan = struct {
             value.sampling_complete = self.binding.evidence.complete;
         }
     }
+    /// Buffered compute does not cache source permission or cancellation.
+    pub fn validateBatchDisclosure(self: *Scan) !void {
+        try self.binding.validate(self.sources);
+    }
     pub fn next(self: *Scan) !?Row {
         if (self.failed) return error.FailedSource;
         if (self.complete) return null;

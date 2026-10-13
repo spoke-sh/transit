@@ -5390,6 +5390,91 @@
         "transit_serving"
       ]
     },
+    "packages/zig/transit-fuze/src/Batch.zig": {
+      "errors": {
+        "BatchBudgetExceeded": 10,
+        "BatchFull": 2,
+        "InvalidBatchBudget": 1,
+        "InvalidColumnCount": 2,
+        "InvalidProvenance": 2,
+        "OutOfMemory": 1,
+        "UnsupportedBatchPlan": 3
+      },
+      "outcomes": {
+        "Detail": [
+          "none",
+          "type_error",
+          "conflict"
+        ],
+        "Kernel": [
+          "all",
+          "state",
+          "compare"
+        ],
+        "Outcome": [
+          "truth",
+          "type_error",
+          "conflict"
+        ],
+        "View": [
+          "flat",
+          "constant"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "appendValidated()": "<inferred>",
+        "copyPlan()": "<inferred>",
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 9
+      },
+      "imports": [
+        "Finite.zig",
+        "LogicalQuery.zig",
+        "TableRow.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/BatchExecution.zig": {
+      "errors": {
+        "BatchBudgetExceeded": 1,
+        "BatchFull": 2,
+        "FailedQuery": 1,
+        "IncompleteSource": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "SourceFault": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Execution().<return>.disclose()": "<inferred>",
+        "Execution().<return>.init()": "<inferred>",
+        "Execution().<return>.initBudget()": "<inferred>",
+        "Execution().<return>.next()": "<inferred>",
+        "Fixture.next()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 15,
+        "catch": 4
+      },
+      "imports": [
+        "Batch.zig",
+        "FileValueDiagnostic.zig",
+        "Finite.zig",
+        "LogicalQuery.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/BoundedJson.zig": {
       "errors": {
         "InvalidJson": 2,
@@ -5572,7 +5657,7 @@
     },
     "packages/zig/transit-fuze/src/FileQuery.zig": {
       "errors": {
-        "SourceChanged": 1
+        "SourceChanged": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -5583,16 +5668,20 @@
         "compile()": "<inferred>",
         "compileDiagnostic()": "<inferred>",
         "execute()": "<inferred>",
+        "executeBatched()": "<inferred>",
         "lowerAtom()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 27,
+        "try": 31,
         "catch": 1
       },
       "imports": [
+        "Batch.zig",
+        "BatchExecution.zig",
         "FileSource.zig",
         "Finite.zig",
+        "LogicalArrow.zig",
         "LogicalQuery.zig",
         "Sql.zig",
         "SqlLowering.zig",
@@ -5670,6 +5759,7 @@
         "Reader.next()": "<inferred>",
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "Scan.validateBatchDisclosure()": "<inferred>",
         "Source.check()": "anyerror",
         "Source.read()": "anyerror",
         "allocationSchedule()": "<inferred>",
@@ -5683,7 +5773,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 87,
+        "try": 88,
         "catch": 10
       },
       "imports": [
@@ -8927,6 +9017,8 @@
         "catch": 0
       },
       "imports": [
+        "Batch.zig",
+        "BatchExecution.zig",
         "Declaration.zig",
         "FileQuery.zig",
         "FileSource.zig",
@@ -11983,11 +12075,11 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Limits.validate()": "<inferred>",
-        "close()": "<inferred>",
-        "next()": "<inferred>",
-        "open()": "<inferred>",
-        "schema()": "<inferred>"
+        "Query().<return>.close()": "<inferred>",
+        "Query().<return>.next()": "<inferred>",
+        "Query().<return>.open()": "<inferred>",
+        "Query().<return>.schema()": "<inferred>",
+        "QueryLimits.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {

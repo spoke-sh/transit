@@ -1,0 +1,281 @@
+{
+  "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+  "command": "just test::typed-tables",
+  "exit_code": 0,
+  "records": [
+    {
+      "profile": "table-history-native",
+      "mutation_seconds": 2.617,
+      "mutation_turns": 16,
+      "added_history_records": 10,
+      "tail_seconds": 0.18,
+      "transactions": 10,
+      "retained_records": 123,
+      "retained_value_bytes": 26455,
+      "maximum_record_bytes": 241,
+      "paired_changes": 3,
+      "restart": true,
+      "current_denial": true
+    },
+    {
+      "profile": "typed-table-native",
+      "seconds": 200.089,
+      "lost_reply_replays": [
+        "send",
+        "turn"
+      ],
+      "supplied_host_lost_receipt": true,
+      "measurements": {
+        "turns": 722,
+        "sends": 227,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "dispositions": [
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3
+        ],
+        "client_disconnects": 1
+      },
+      "bridge": {
+        "max_step_bytes": 1392,
+        "original_object": "9001",
+        "replacement_object": "9002"
+      },
+      "catalog_cli": {
+        "original_object": "22001",
+        "replacement_object": "22002",
+        "large_artifact_bytes": 142007,
+        "recovered_input": 1872
+      },
+      "installed": [],
+      "logical_types": {
+        "descriptors": 28,
+        "rows": 2,
+        "defaults": true,
+        "nulls": true,
+        "typed_update": true,
+        "node_store_restart": true
+      },
+      "growth": null,
+      "maintained": null,
+      "vectorization": {
+        "paired_native_samples": [
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 40713954
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 39726722
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 40368809
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 39178527
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 39514584
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 42457763
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 32518600
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 33562951
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 36235318
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 35132554
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 35824688
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 36452967
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 30899151
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 33110600
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 37027193
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 34525185
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 37951734
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 32610707
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 26417229
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 23294524
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 22947997
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 26668684
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 24629175
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 23908257
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 28980857
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 27642108
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 32788009
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 28917063
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 27936775
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 29014672
+          }
+        ],
+        "buffered_denial": true
+      },
+      "relational": {
+        "join_rows": 6,
+        "grouped_rows": 3,
+        "shared_cut": true,
+        "retained_update": true,
+        "current_denial": true,
+        "console": true,
+        "requests": 50,
+        "spill_bytes": 474,
+        "heap_peak": 3153,
+        "captured": {
+          "checkpoint_restart": true,
+          "exact_receipt_retry": true,
+          "fresh_owner": true,
+          "retained_source_change": true,
+          "current_result_denial": true,
+          "denied_source_cleanup": true
+        }
+      }
+    }
+  ]
+}

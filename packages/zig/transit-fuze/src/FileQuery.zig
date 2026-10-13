@@ -113,8 +113,22 @@ pub fn execute(allocator: std.mem.Allocator, binding: *const source.Binding, sou
     return Execution.init(scan, plan);
 }
 
+/// Experimental proof/benchmark adapter. The same frozen binding and complete
+/// scan verification apply; this is not a user-facing query mode.
+pub fn executeBatched(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan, limits: @import("Batch.zig").Limits) !@import("BatchExecution.zig").Execution(source.Scan, .full_source) {
+    try plan.validate();
+    if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;
+    var scan = try source.Scan.init(allocator, binding, sources);
+    errdefer scan.deinit();
+    var execution = try @import("BatchExecution.zig").Execution(source.Scan, .full_source).initBudget(scan, plan, limits);
+    // Serve the first existing output batch without waiting for a compute target.
+    execution.startup_rows = @import("LogicalArrow.zig").max_rows;
+    return execution;
+}
+
 const Memory = struct {
     bytes: []const u8,
+    failure: ?anyerror = null,
     fn read(context: *anyopaque, offset: u64, output: []u8) !usize {
         const self: *Memory = @ptrCast(@alignCast(context));
         const start: usize = @intCast(offset);
@@ -122,7 +136,10 @@ const Memory = struct {
         @memcpy(output[0..n], self.bytes[start..][0..n]);
         return n;
     }
-    fn check(_: *anyopaque) !void {}
+    fn check(context: *anyopaque) !void {
+        const self: *Memory = @ptrCast(@alignCast(context));
+        if (self.failure) |err| return err;
+    }
     fn handle(self: *Memory) source.Source {
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(self.bytes, &digest, .{});
@@ -425,5 +442,70 @@ test "file runtime witness retains first eager atom, count and sum failure indep
         try t.expectError(error.FailedQuery, execution.next());
         try t.expectEqualDeep(evidence, execution.failure.?);
         try t.expect(!execution.complete and !execution.scan.failed);
+    }
+}
+
+test "experimental file batches preserve malformed suffix and verified EOF after LIMIT" {
+    const t = std.testing;
+    var bytes = "id,value\n1,2\n2,outlier\n".*;
+    var memory: Memory = .{ .bytes = &bytes };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .sample_records = 1 }, &.{});
+    defer binding.deinit();
+    var compiled = try compile(t.allocator, "SELECT id FROM input WHERE id = 1 LIMIT 1", "input", &binding);
+    defer compiled.deinit();
+    var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{});
+    defer execution.deinit();
+    var first = (try execution.next()).?;
+    first.deinit();
+    try t.expectError(error.InvalidLiteral, execution.next());
+    try t.expect(!execution.complete);
+    try t.expectError(error.FailedQuery, execution.next());
+}
+test "experimental file batches preserve projection and COUNT on frozen CSV and JSONL" {
+    const t = std.testing;
+    inline for (.{ .csv, .jsonl }) |format| {
+        var memory: Memory = .{ .bytes = if (format == .csv) "id,value\n1,2\n2,3\n3,4\n" else "{\"id\":1,\"value\":2}\n{\"id\":2,\"value\":3}\n{\"id\":3,\"value\":4}\n" };
+        const sources = [_]source.Source{memory.handle()};
+        var binding = try source.discover(t.allocator, &sources, .{ .format = format, .mode = .full }, &.{});
+        defer binding.deinit();
+        for ([_][]const u8{ "SELECT value FROM input WHERE id >= 2", "SELECT COUNT(value) FROM input WHERE id >= 2" }) |text| {
+            var compiled = try compile(t.allocator, text, "input", &binding);
+            defer compiled.deinit();
+            var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{ .rows = 2 });
+            defer execution.deinit();
+            var index: usize = 0;
+            while (try execution.next()) |input| {
+                var row = input;
+                defer row.deinit();
+                if (compiled.plan.aggregate == .rows) try t.expectEqual(@as(i128, @intCast(index + 3)), row.cells[0].value.atom.signed) else try t.expectEqual(@as(u128, 2), row.cells[0].value.atom.unsigned);
+                index += 1;
+            }
+            try t.expectEqual(@as(usize, if (compiled.plan.aggregate == .rows) 2 else 1), index);
+            try t.expect(execution.complete);
+            try t.expectEqual(@as(u64, 3), execution.scanned);
+        }
+    }
+}
+
+test "experimental file buffered rows recheck denial and cancellation" {
+    const t = std.testing;
+    inline for (.{ false, true }) |cancel| {
+        var memory: Memory = .{ .bytes = "id\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n" };
+        const sources = [_]source.Source{memory.handle()};
+        var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+        defer binding.deinit();
+        var compiled = try compile(t.allocator, "SELECT id FROM input", "input", &binding);
+        defer compiled.deinit();
+        var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{});
+        defer execution.deinit();
+        for (0..9) |_| {
+            var row = (try execution.next()).?;
+            row.deinit();
+        }
+        try t.expect(execution.index < execution.physical.len);
+        memory.failure = if (cancel) error.Cancelled else error.AccessDenied;
+        try t.expectError(if (cancel) error.Cancelled else error.AccessDenied, execution.next());
+        try t.expect(!execution.complete);
     }
 }

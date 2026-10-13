@@ -1,5 +1,48 @@
 # Validation and milestone evidence
 
+## Experimental int64 batch qualification
+
+The first [vectorization delivery](../docs/roadmap/M48.md) is implemented as an
+internal Table/file selector. Production callers retain their existing executor.
+Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
+190 real file CLI cases and the extended signed native Table proof. The
+[qualification record](verification/results/vector-intake-2026-10-12.json) identifies
+exact revisions and task coverage; earlier type/source/SQL/Arrow proofs retain
+their own revision. The later benchmark artifact-name change passes the complete
+scalar/batch measurement driver as a reproducibility smoke check.
+
+The [measurement record](fuze_benchmarks/results/2026-10-12-vector/README.md)
+retains independent expected answers, 80 operator/pipeline samples, 324 file
+samples, all 115 precommitted experimental checks and eight unchanged six-scalar
+control ceilings. It includes failed attempts. The 4096-row owned-row CPU
+pipeline measures a 0.253 candidate/scalar median ratio; file COUNT remains
+approximately unchanged. Tiny-query setup is slower but within the precommitted
+additive allowance. These measurements are not universal or tail-latency claims.
+
+Unit fixtures cover five states, conflict ownership, immutable plan copies,
+comparison extremes/constants, payload exhaustion, allocation failure,
+rebatching, competing first failures and file LIMIT/EOF rules. Buffered file
+rows recheck access and cancellation. The [native proof](fuze_benchmarks/results/2026-10-12-vector/native-tables.json)
+compares projection/count/empty/LIMIT output independently and revokes access
+after two disclosed rows leave a private batch remainder. Existing lost-receipt,
+node/store restart, catalog/CLI/bridge and captured relational schedules pass in
+that same native task. The selected relational test suite remains a regression
+check; relational execution does not yet use these batches.
+
+The file CLI proof initially loses pipe bytes in its Python harness: buffered
+`readline()` reads ahead while `communicate()` consumes the underlying file
+descriptor. An unbuffered prefix read preserves the original 10001-record
+assertion; all 190 cases then pass, including immutable capture, cancellation,
+quotas and 192 MiB input under a 96 MiB address-space limit. No production file
+capture rule or test deadline changes. Diagnostic inventory drift is reviewed
+and regenerated; semantic mappings remain checked independently.
+
+This evidence does not qualify SIMD, parallel workers, wider batch types,
+compound Boolean/SUM kernels, Unified/resumable/relational integration, new
+installed-language/browser profiles or the full 79-task ordinary clean suite.
+Those selected issue requirements remain open. Existing production file budgets
+and broader qualification requirements still gate any default replacement.
+
 ## Integrated relational qualification
 
 [Issue #70](https://github.com/rupurt/rey/issues/70)'s selected implementation is
