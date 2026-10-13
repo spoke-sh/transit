@@ -4,7 +4,7 @@ const builtin = @import("builtin");
 pub const Implementation = enum { automatic, portable, avx2 };
 var capability: std.atomic.Value(u8) = .init(0);
 pub fn hasAvx2() bool {
-    if (builtin.cpu.arch != .x86_64 or avx2_function == null) return false;
+    if (builtin.cpu.arch != .x86_64) return false;
     const observed = capability.load(.acquire);
     if (observed != 0) return observed == 2;
     const available = detect();
@@ -51,12 +51,10 @@ pub fn resolve(requested: Implementation) !Implementation {
         .avx2 => if (hasAvx2()) .avx2 else error.UnsupportedVectorCpu,
     };
 }
-// Raw source-only proofs need no ISA object. Package builds explicitly link
-// the strong AVX2 object; absent weak linkage selects the portable kernel.
-const avx2_function = if (builtin.cpu.arch == .x86_64) @extern(*const fn ([*]align(1) const u64, u64, u8, u8, [*]u8, usize) callconv(.c) void, .{ .name = "transit_fuze_compare_avx2", .linkage = .weak }) else null;
+extern fn transit_fuze_compare_avx2(words: [*]align(1) const u64, literal: u64, kind: u8, operation: u8, output: [*]u8, len: usize) callconv(.c) void;
 pub fn compare(words: []align(1) const u64, literal: u64, kind: u8, operation: u8, output: []u8) void {
     std.debug.assert(words.len == output.len);
-    if (builtin.cpu.arch == .x86_64) avx2_function.?(words.ptr, literal, kind, operation, output.ptr, words.len) else unreachable;
+    if (builtin.cpu.arch == .x86_64) transit_fuze_compare_avx2(words.ptr, literal, kind, operation, output.ptr, words.len) else unreachable;
 }
 
 test "AVX2 accepts unaligned words, preserves unsigned extremes and signed zero, and bounds tails" {

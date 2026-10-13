@@ -627,7 +627,7 @@ table-schema:
 relational:
     python3 -B tests/relational.py
     zig test packages/zig/transit-fuze/src/Relational.zig
-    zig test --dep transit_protocol -Mroot=packages/zig/transit-fuze/src/RelationalExecution.zig -Mtransit_protocol=packages/zig/transit-protocol/src/root.zig
+    cd packages/zig/transit-fuze && zig build test-relational -Doptimize=ReleaseSafe
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:

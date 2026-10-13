@@ -5796,6 +5796,55 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
         }
       }
     },
@@ -8014,6 +8063,62 @@
             "inspect_scope"
           ],
           "transport_status": 400
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 502
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9373,6 +9478,62 @@
             "inspect_scope"
           ],
           "transport_status": 12
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 12
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ],
+          "transport_status": 15
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
         }
       }
     },
@@ -12482,6 +12643,55 @@
           "category": "unsupported",
           "actions": [
             "inspect_scope"
+          ]
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit",
+          "actions": [
+            "correct_input"
           ]
         }
       }
@@ -17156,6 +17366,52 @@
         },
         "PlanTooLarge": {
           "code": "file.plan_too_large",
+          "category": "limit",
+          "stage": "execute",
+          "actions": [],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "InvalidProvenance": {
+          "code": "file.compute_provenance",
+          "category": "integrity",
+          "stage": "execute",
+          "actions": [],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "UnsupportedVectorCpu": {
+          "code": "file.unsupported_vector_cpu",
+          "category": "unsupported",
+          "stage": "execute",
+          "actions": [
+            "correct_input"
+          ],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "BatchBudgetExceeded": {
+          "code": "file.compute_budget",
+          "category": "limit",
+          "stage": "execute",
+          "actions": [],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "InvalidBatchBudget": {
+          "code": "file.invalid_compute_budget",
           "category": "limit",
           "stage": "execute",
           "actions": [],
