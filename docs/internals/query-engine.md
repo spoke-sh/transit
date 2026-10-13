@@ -61,6 +61,34 @@ separates decoded kernels from owned-row and real file pipelines. The
 [proof ledger](../../tests/README.md) records which commands actually ran;
 synthetic gains do not establish storage-bound or universal query speedup.
 
+### Measured alternatives and limits
+
+At `5b3d1ba6`, the [paired measurements](../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+compare the frozen scalar semantic path, portable columns, guarded AVX2 and
+one/two/four host workers. Owned-row workloads improve substantially, but
+capture/decode and native controls change much less. Before temporary row-cache
+reuse, ordered SUM misses its precommitted improvement threshold; the final
+implementation meets it without reassociating contributions. This observation
+supports reducing transient allocation as a useful mechanism, not a claim that
+SIMD caused the whole-pipeline gain.
+
+A stable 4 KiB cache owns at most one reusable decoder allocation. Larger or
+simultaneous allocations use the original allocator. Public projected rows copy
+into independent arenas, including when a valid input exceeds the physical
+batch. This trades an additional bounded source allocation for less allocator
+traffic; it does not remove decoder validation or bound caller-retained output.
+Allocation-failure and output-after-executor-release fixtures challenge that
+ownership argument directly.
+
+AVX2 is slightly slower than the portable decoded loop on the measured host;
+extra workers are inconsistent or slower on the selected complete pipelines.
+The chosen defaults therefore keep portable computation and one worker. Explicit
+host policies can select other qualified configurations. Different workloads or
+CPUs could reverse that choice. The record retains raw samples, target-mismatch
+failures and shared-host confounders; unavailable hardware counters prevent a
+cycle-level attribution. Relational constant views retain the existing work
+quantum, so this evidence establishes no multilane join acceleration.
+
 ## Model and dependencies
 
 SQL lowers to a typed finite plan. A declared source fixes identity, schema or

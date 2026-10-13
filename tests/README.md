@@ -1,9 +1,47 @@
 # Validation and milestone evidence
 
+## Integrated vector execution
+
+[Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated runtime is
+**`5b3d1ba6`**, based on merged `243df508`. File/general Table execution now uses
+bounded typed columns; logical, Unified and relational callers share kernels.
+Portable computation and one worker remain defaults after measured AVX2 and
+worker comparisons. Public progress formats, source/page validation boundaries,
+current-right checks and publication limits are unchanged.
+
+Full `just check` passes with the final row-cache runtime. The standalone Fuze
+ReleaseSafe suite passes, including copied rich values, allocation failures,
+oversized output surviving executor release, first-error frontiers and source
+rejection ordering. Test-only commit `366cda49` adds 32 seeded rebatching inputs
+for projection, COUNT and ordered SUM across portable/AVX2 choices; that suite
+also passes. Benchmark evidence tests reject incomplete or incorrect dispatch
+matrices, regressions and stale successful reports.
+
+The [measurement account](fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+retains 960 wider pipeline, 120 kernel/pipeline, 324 real file and 180 file-worker
+samples, plus 20 paired native-control processes. All independent results,
+24 wider/default checks and 115 original int64/file checks pass. Failed SUM
+trials and a mismatched compiler-target comparison remain recorded. Hardware
+counters are denied on this host; no unavailable metric is counted as evidence.
+
+The baseline-target Fuze package passes on the host and under emulated Nehalem:
+312 passed, one AVX2-hardware test skipped, zero failed. Independent checkpoint
+bytes and restored execution run under both. A separate forced-dispatch probe
+executes AVX2 natively and checks `UnsupportedVectorCpu` under Nehalem, with no
+result stdout or illegal instruction. The emulated skip is not an AVX2 pass.
+
+The real Unified KV/Table/Document proof passes frozen upload retry,
+worker/node/disk-store restart after staging, complete manifests, prefix
+revocation and source-pin release. Its exact source is `5b3d1ba6`. The complete
+ordinary clean lanes and remaining focused caller proofs are being recorded;
+this paragraph does not count unfinished lanes as passed.
+
+
 ## Experimental int64 batch qualification
 
-The first [vectorization delivery](../docs/roadmap/M48.md) is implemented as an
-internal Table/file selector. Production callers retain their existing executor.
+The first [vectorization delivery](../docs/roadmap/M48.md), before the integrated
+qualification above, used an internal Table/file selector. Production callers at
+that revision retained their existing executor.
 Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
 190 real file CLI cases and the extended signed native Table proof. The
 [qualification record](verification/results/vector-intake-2026-10-12.json) identifies

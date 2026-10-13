@@ -1,0 +1,1273 @@
+
+.cache/vectorization-completion/release/bin/transit-fuze-vector-benchmark:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+000000000102e180 <transit_fuze_compare_avx2>:
+ 102e180:	55                   	push   %rbp
+ 102e181:	48 89 e5             	mov    %rsp,%rbp
+ 102e184:	53                   	push   %rbx
+ 102e185:	50                   	push   %rax
+ 102e186:	85 d2                	test   %edx,%edx
+ 102e188:	0f 84 6d 01 00 00    	je     102e2fb <transit_fuze_compare_avx2+0x17b>
+ 102e18e:	83 fa 01             	cmp    $0x1,%edx
+ 102e191:	0f 84 b5 00 00 00    	je     102e24c <transit_fuze_compare_avx2+0xcc>
+ 102e197:	83 fa 02             	cmp    $0x2,%edx
+ 102e19a:	0f 85 f9 13 00 00    	jne    102f599 <transit_fuze_compare_avx2+0x1419>
+ 102e1a0:	80 f9 05             	cmp    $0x5,%cl
+ 102e1a3:	0f 87 f0 13 00 00    	ja     102f599 <transit_fuze_compare_avx2+0x1419>
+ 102e1a9:	0f b6 c1             	movzbl %cl,%eax
+ 102e1ac:	48 8d 0d 1d 45 fd ff 	lea    -0x2bae3(%rip),%rcx        # 10026d0 <__anon_22078+0x8>
+ 102e1b3:	48 63 04 81          	movslq (%rcx,%rax,4),%rax
+ 102e1b7:	48 01 c8             	add    %rcx,%rax
+ 102e1ba:	ff e0                	jmp    *%rax
+ 102e1bc:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e1c1:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102e1c6:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102e1cb:	31 c0                	xor    %eax,%eax
+ 102e1cd:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e1d1:	c5 f9 6f 15 97 3f fd 	vmovdqa -0x2c069(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e1d8:	ff 
+ 102e1d9:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e1dd:	4c 89 ce             	mov    %r9,%rsi
+ 102e1e0:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102e1e4:	0f 86 f2 10 00 00    	jbe    102f2dc <transit_fuze_compare_avx2+0x115c>
+ 102e1ea:	c5 f5 c2 1c c7 00    	vcmpeqpd (%rdi,%rax,8),%ymm1,%ymm3
+ 102e1f0:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102e1f6:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e1fa:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e1fe:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e202:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e206:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e20b:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102e20f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e213:	49 83 c2 04          	add    $0x4,%r10
+ 102e217:	48 39 ce             	cmp    %rcx,%rsi
+ 102e21a:	41 0f 92 c3          	setb   %r11b
+ 102e21e:	4c 39 d2             	cmp    %r10,%rdx
+ 102e221:	41 0f 92 c2          	setb   %r10b
+ 102e225:	45 84 d3             	test   %r10b,%r11b
+ 102e228:	0f 85 63 13 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e22e:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102e232:	44 89 16             	mov    %r10d,(%rsi)
+ 102e235:	48 83 c0 04          	add    $0x4,%rax
+ 102e239:	0f 82 a4 0a 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e23f:	4c 89 ce             	mov    %r9,%rsi
+ 102e242:	48 29 c6             	sub    %rax,%rsi
+ 102e245:	73 99                	jae    102e1e0 <transit_fuze_compare_avx2+0x60>
+ 102e247:	e9 97 0a 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e24c:	80 f9 05             	cmp    $0x5,%cl
+ 102e24f:	0f 87 44 13 00 00    	ja     102f599 <transit_fuze_compare_avx2+0x1419>
+ 102e255:	0f b6 c1             	movzbl %cl,%eax
+ 102e258:	48 8d 0d 89 44 fd ff 	lea    -0x2bb77(%rip),%rcx        # 10026e8 <__anon_22078+0x20>
+ 102e25f:	48 63 04 81          	movslq (%rcx,%rax,4),%rax
+ 102e263:	48 01 c8             	add    %rcx,%rax
+ 102e266:	ff e0                	jmp    *%rax
+ 102e268:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e26d:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e272:	31 c0                	xor    %eax,%eax
+ 102e274:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e278:	c5 f9 6f 0d f0 3e fd 	vmovdqa -0x2c110(%rip),%xmm1        # 1002170 <__anon_26098+0x10>
+ 102e27f:	ff 
+ 102e280:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e284:	4d 89 ca             	mov    %r9,%r10
+ 102e287:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+ 102e28e:	00 00 
+ 102e290:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e294:	0f 86 0e 0e 00 00    	jbe    102f0a8 <transit_fuze_compare_avx2+0xf28>
+ 102e29a:	c4 e2 7d 29 14 c7    	vpcmpeqq (%rdi,%rax,8),%ymm0,%ymm2
+ 102e2a0:	c4 e3 7d 39 d3 01    	vextracti128 $0x1,%ymm2,%xmm3
+ 102e2a6:	c5 e9 6b d3          	vpackssdw %xmm3,%xmm2,%xmm2
+ 102e2aa:	c5 e9 6b d2          	vpackssdw %xmm2,%xmm2,%xmm2
+ 102e2ae:	c5 e9 63 d2          	vpacksswb %xmm2,%xmm2,%xmm2
+ 102e2b2:	c5 e9 db d1          	vpand  %xmm1,%xmm2,%xmm2
+ 102e2b6:	c5 f9 7e 55 f4       	vmovd  %xmm2,-0xc(%rbp)
+ 102e2bb:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e2bf:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e2c3:	49 83 c3 04          	add    $0x4,%r11
+ 102e2c7:	49 39 ca             	cmp    %rcx,%r10
+ 102e2ca:	0f 92 c3             	setb   %bl
+ 102e2cd:	4c 39 da             	cmp    %r11,%rdx
+ 102e2d0:	41 0f 92 c3          	setb   %r11b
+ 102e2d4:	44 84 db             	test   %r11b,%bl
+ 102e2d7:	0f 85 b4 12 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e2dd:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e2e1:	45 89 1a             	mov    %r11d,(%r10)
+ 102e2e4:	48 83 c0 04          	add    $0x4,%rax
+ 102e2e8:	0f 82 f5 09 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e2ee:	4d 89 ca             	mov    %r9,%r10
+ 102e2f1:	49 29 c2             	sub    %rax,%r10
+ 102e2f4:	73 9a                	jae    102e290 <transit_fuze_compare_avx2+0x110>
+ 102e2f6:	e9 e8 09 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e2fb:	80 f9 05             	cmp    $0x5,%cl
+ 102e2fe:	0f 87 95 12 00 00    	ja     102f599 <transit_fuze_compare_avx2+0x1419>
+ 102e304:	0f b6 c1             	movzbl %cl,%eax
+ 102e307:	48 8d 0d f2 43 fd ff 	lea    -0x2bc0e(%rip),%rcx        # 1002700 <__anon_22078+0x38>
+ 102e30e:	48 63 04 81          	movslq (%rcx,%rax,4),%rax
+ 102e312:	48 01 c8             	add    %rcx,%rax
+ 102e315:	ff e0                	jmp    *%rax
+ 102e317:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e31c:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e321:	31 c0                	xor    %eax,%eax
+ 102e323:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e327:	c5 f9 6f 0d 41 3e fd 	vmovdqa -0x2c1bf(%rip),%xmm1        # 1002170 <__anon_26098+0x10>
+ 102e32e:	ff 
+ 102e32f:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e333:	4d 89 ca             	mov    %r9,%r10
+ 102e336:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e33d:	00 00 00 
+ 102e340:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e344:	0f 86 3e 0e 00 00    	jbe    102f188 <transit_fuze_compare_avx2+0x1008>
+ 102e34a:	c4 e2 7d 29 14 c7    	vpcmpeqq (%rdi,%rax,8),%ymm0,%ymm2
+ 102e350:	c4 e3 7d 39 d3 01    	vextracti128 $0x1,%ymm2,%xmm3
+ 102e356:	c5 e9 6b d3          	vpackssdw %xmm3,%xmm2,%xmm2
+ 102e35a:	c5 e9 6b d2          	vpackssdw %xmm2,%xmm2,%xmm2
+ 102e35e:	c5 e9 63 d2          	vpacksswb %xmm2,%xmm2,%xmm2
+ 102e362:	c5 e9 db d1          	vpand  %xmm1,%xmm2,%xmm2
+ 102e366:	c5 f9 7e 55 f4       	vmovd  %xmm2,-0xc(%rbp)
+ 102e36b:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e36f:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e373:	49 83 c3 04          	add    $0x4,%r11
+ 102e377:	49 39 ca             	cmp    %rcx,%r10
+ 102e37a:	0f 92 c3             	setb   %bl
+ 102e37d:	4c 39 da             	cmp    %r11,%rdx
+ 102e380:	41 0f 92 c3          	setb   %r11b
+ 102e384:	44 84 db             	test   %r11b,%bl
+ 102e387:	0f 85 04 12 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e38d:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e391:	45 89 1a             	mov    %r11d,(%r10)
+ 102e394:	48 83 c0 04          	add    $0x4,%rax
+ 102e398:	0f 82 45 09 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e39e:	4d 89 ca             	mov    %r9,%r10
+ 102e3a1:	49 29 c2             	sub    %rax,%r10
+ 102e3a4:	73 9a                	jae    102e340 <transit_fuze_compare_avx2+0x1c0>
+ 102e3a6:	e9 38 09 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e3ab:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e3b0:	c4 e2 7d 59 c8       	vpbroadcastq %xmm0,%ymm1
+ 102e3b5:	31 c0                	xor    %eax,%eax
+ 102e3b7:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e3bb:	c4 e2 7d 59 05 d4 42 	vpbroadcastq -0x2bd2c(%rip),%ymm0        # 1002698 <__anon_42823+0x8>
+ 102e3c2:	fd ff 
+ 102e3c4:	c5 f5 ef c8          	vpxor  %ymm0,%ymm1,%ymm1
+ 102e3c8:	c5 f9 6f 15 a0 3d fd 	vmovdqa -0x2c260(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e3cf:	ff 
+ 102e3d0:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e3d4:	4d 89 ca             	mov    %r9,%r10
+ 102e3d7:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+ 102e3de:	00 00 
+ 102e3e0:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e3e4:	0f 86 01 09 00 00    	jbe    102eceb <transit_fuze_compare_avx2+0xb6b>
+ 102e3ea:	c5 fd ef 1c c7       	vpxor  (%rdi,%rax,8),%ymm0,%ymm3
+ 102e3ef:	c4 e2 65 37 d9       	vpcmpgtq %ymm1,%ymm3,%ymm3
+ 102e3f4:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102e3fa:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e3fe:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e402:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e406:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e40a:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e40f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e413:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e417:	49 83 c3 04          	add    $0x4,%r11
+ 102e41b:	49 39 ca             	cmp    %rcx,%r10
+ 102e41e:	0f 92 c3             	setb   %bl
+ 102e421:	4c 39 da             	cmp    %r11,%rdx
+ 102e424:	41 0f 92 c3          	setb   %r11b
+ 102e428:	44 84 db             	test   %r11b,%bl
+ 102e42b:	0f 85 60 11 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e431:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e435:	45 89 1a             	mov    %r11d,(%r10)
+ 102e438:	48 83 c0 04          	add    $0x4,%rax
+ 102e43c:	0f 82 a1 08 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e442:	4d 89 ca             	mov    %r9,%r10
+ 102e445:	49 29 c2             	sub    %rax,%r10
+ 102e448:	73 96                	jae    102e3e0 <transit_fuze_compare_avx2+0x260>
+ 102e44a:	e9 94 08 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e44f:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e454:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e459:	31 c0                	xor    %eax,%eax
+ 102e45b:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e45f:	c5 f9 6f 0d 09 3d fd 	vmovdqa -0x2c2f7(%rip),%xmm1        # 1002170 <__anon_26098+0x10>
+ 102e466:	ff 
+ 102e467:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e46b:	4d 89 ca             	mov    %r9,%r10
+ 102e46e:	66 90                	xchg   %ax,%ax
+ 102e470:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e474:	0f 86 de 08 00 00    	jbe    102ed58 <transit_fuze_compare_avx2+0xbd8>
+ 102e47a:	c5 fe 6f 14 c7       	vmovdqu (%rdi,%rax,8),%ymm2
+ 102e47f:	c4 e2 6d 37 d0       	vpcmpgtq %ymm0,%ymm2,%ymm2
+ 102e484:	c4 e3 7d 39 d3 01    	vextracti128 $0x1,%ymm2,%xmm3
+ 102e48a:	c5 e9 6b d3          	vpackssdw %xmm3,%xmm2,%xmm2
+ 102e48e:	c5 e9 6b d2          	vpackssdw %xmm2,%xmm2,%xmm2
+ 102e492:	c5 e9 63 d2          	vpacksswb %xmm2,%xmm2,%xmm2
+ 102e496:	c5 e9 db d1          	vpand  %xmm1,%xmm2,%xmm2
+ 102e49a:	c5 f9 7e 55 f4       	vmovd  %xmm2,-0xc(%rbp)
+ 102e49f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e4a3:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e4a7:	49 83 c3 04          	add    $0x4,%r11
+ 102e4ab:	49 39 ca             	cmp    %rcx,%r10
+ 102e4ae:	0f 92 c3             	setb   %bl
+ 102e4b1:	4c 39 da             	cmp    %r11,%rdx
+ 102e4b4:	41 0f 92 c3          	setb   %r11b
+ 102e4b8:	44 84 db             	test   %r11b,%bl
+ 102e4bb:	0f 85 d0 10 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e4c1:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e4c5:	45 89 1a             	mov    %r11d,(%r10)
+ 102e4c8:	48 83 c0 04          	add    $0x4,%rax
+ 102e4cc:	0f 82 11 08 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e4d2:	4d 89 ca             	mov    %r9,%r10
+ 102e4d5:	49 29 c2             	sub    %rax,%r10
+ 102e4d8:	73 96                	jae    102e470 <transit_fuze_compare_avx2+0x2f0>
+ 102e4da:	e9 04 08 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e4df:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e4e4:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102e4e9:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102e4ee:	31 c0                	xor    %eax,%eax
+ 102e4f0:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e4f4:	c5 f9 6f 15 74 3c fd 	vmovdqa -0x2c38c(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e4fb:	ff 
+ 102e4fc:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e500:	4c 89 ce             	mov    %r9,%rsi
+ 102e503:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e50a:	00 00 00 
+ 102e50d:	0f 1f 00             	nopl   (%rax)
+ 102e510:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102e514:	0f 86 ae 08 00 00    	jbe    102edc8 <transit_fuze_compare_avx2+0xc48>
+ 102e51a:	c5 f5 c2 1c c7 01    	vcmpltpd (%rdi,%rax,8),%ymm1,%ymm3
+ 102e520:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102e526:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e52a:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e52e:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e532:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e536:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e53b:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102e53f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e543:	49 83 c2 04          	add    $0x4,%r10
+ 102e547:	48 39 ce             	cmp    %rcx,%rsi
+ 102e54a:	41 0f 92 c3          	setb   %r11b
+ 102e54e:	4c 39 d2             	cmp    %r10,%rdx
+ 102e551:	41 0f 92 c2          	setb   %r10b
+ 102e555:	45 84 d3             	test   %r10b,%r11b
+ 102e558:	0f 85 33 10 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e55e:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102e562:	44 89 16             	mov    %r10d,(%rsi)
+ 102e565:	48 83 c0 04          	add    $0x4,%rax
+ 102e569:	0f 82 74 07 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e56f:	4c 89 ce             	mov    %r9,%rsi
+ 102e572:	48 29 c6             	sub    %rax,%rsi
+ 102e575:	73 99                	jae    102e510 <transit_fuze_compare_avx2+0x390>
+ 102e577:	e9 67 07 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e57c:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e581:	c4 e2 7d 59 c8       	vpbroadcastq %xmm0,%ymm1
+ 102e586:	31 c0                	xor    %eax,%eax
+ 102e588:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e58c:	c4 e2 7d 59 05 03 41 	vpbroadcastq -0x2befd(%rip),%ymm0        # 1002698 <__anon_42823+0x8>
+ 102e593:	fd ff 
+ 102e595:	c5 f5 ef c8          	vpxor  %ymm0,%ymm1,%ymm1
+ 102e599:	c5 f9 6f 15 cf 3b fd 	vmovdqa -0x2c431(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e5a0:	ff 
+ 102e5a1:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e5a5:	4d 89 ca             	mov    %r9,%r10
+ 102e5a8:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+ 102e5af:	00 
+ 102e5b0:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e5b4:	0f 86 a2 08 00 00    	jbe    102ee5c <transit_fuze_compare_avx2+0xcdc>
+ 102e5ba:	c5 fd ef 1c c7       	vpxor  (%rdi,%rax,8),%ymm0,%ymm3
+ 102e5bf:	c4 e2 75 37 db       	vpcmpgtq %ymm3,%ymm1,%ymm3
+ 102e5c4:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102e5ca:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e5ce:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e5d2:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e5d6:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e5da:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e5df:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e5e3:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e5e7:	49 83 c3 04          	add    $0x4,%r11
+ 102e5eb:	49 39 ca             	cmp    %rcx,%r10
+ 102e5ee:	0f 92 c3             	setb   %bl
+ 102e5f1:	4c 39 da             	cmp    %r11,%rdx
+ 102e5f4:	41 0f 92 c3          	setb   %r11b
+ 102e5f8:	44 84 db             	test   %r11b,%bl
+ 102e5fb:	0f 85 90 0f 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e601:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e605:	45 89 1a             	mov    %r11d,(%r10)
+ 102e608:	48 83 c0 04          	add    $0x4,%rax
+ 102e60c:	0f 82 d1 06 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e612:	4d 89 ca             	mov    %r9,%r10
+ 102e615:	49 29 c2             	sub    %rax,%r10
+ 102e618:	73 96                	jae    102e5b0 <transit_fuze_compare_avx2+0x430>
+ 102e61a:	e9 c4 06 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e61f:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e624:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e629:	31 c0                	xor    %eax,%eax
+ 102e62b:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e62f:	c5 f9 6f 0d 39 3b fd 	vmovdqa -0x2c4c7(%rip),%xmm1        # 1002170 <__anon_26098+0x10>
+ 102e636:	ff 
+ 102e637:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e63b:	4d 89 ca             	mov    %r9,%r10
+ 102e63e:	66 90                	xchg   %ax,%ax
+ 102e640:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e644:	0f 86 8e 08 00 00    	jbe    102eed8 <transit_fuze_compare_avx2+0xd58>
+ 102e64a:	c4 e2 7d 37 14 c7    	vpcmpgtq (%rdi,%rax,8),%ymm0,%ymm2
+ 102e650:	c4 e3 7d 39 d3 01    	vextracti128 $0x1,%ymm2,%xmm3
+ 102e656:	c5 e9 6b d3          	vpackssdw %xmm3,%xmm2,%xmm2
+ 102e65a:	c5 e9 6b d2          	vpackssdw %xmm2,%xmm2,%xmm2
+ 102e65e:	c5 e9 63 d2          	vpacksswb %xmm2,%xmm2,%xmm2
+ 102e662:	c5 e9 db d1          	vpand  %xmm1,%xmm2,%xmm2
+ 102e666:	c5 f9 7e 55 f4       	vmovd  %xmm2,-0xc(%rbp)
+ 102e66b:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e66f:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e673:	49 83 c3 04          	add    $0x4,%r11
+ 102e677:	49 39 ca             	cmp    %rcx,%r10
+ 102e67a:	0f 92 c3             	setb   %bl
+ 102e67d:	4c 39 da             	cmp    %r11,%rdx
+ 102e680:	41 0f 92 c3          	setb   %r11b
+ 102e684:	44 84 db             	test   %r11b,%bl
+ 102e687:	0f 85 04 0f 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e68d:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e691:	45 89 1a             	mov    %r11d,(%r10)
+ 102e694:	48 83 c0 04          	add    $0x4,%rax
+ 102e698:	0f 82 45 06 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e69e:	4d 89 ca             	mov    %r9,%r10
+ 102e6a1:	49 29 c2             	sub    %rax,%r10
+ 102e6a4:	73 9a                	jae    102e640 <transit_fuze_compare_avx2+0x4c0>
+ 102e6a6:	e9 38 06 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e6ab:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e6b0:	c4 e2 7d 59 c8       	vpbroadcastq %xmm0,%ymm1
+ 102e6b5:	31 c0                	xor    %eax,%eax
+ 102e6b7:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e6bb:	c4 e2 7d 59 05 d4 3f 	vpbroadcastq -0x2c02c(%rip),%ymm0        # 1002698 <__anon_42823+0x8>
+ 102e6c2:	fd ff 
+ 102e6c4:	c5 f5 ef c8          	vpxor  %ymm0,%ymm1,%ymm1
+ 102e6c8:	c5 ed 76 d2          	vpcmpeqd %ymm2,%ymm2,%ymm2
+ 102e6cc:	c5 f9 6f 1d 9c 3a fd 	vmovdqa -0x2c564(%rip),%xmm3        # 1002170 <__anon_26098+0x10>
+ 102e6d3:	ff 
+ 102e6d4:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e6d8:	4d 89 ca             	mov    %r9,%r10
+ 102e6db:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+ 102e6e0:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e6e4:	0f 86 5e 08 00 00    	jbe    102ef48 <transit_fuze_compare_avx2+0xdc8>
+ 102e6ea:	c5 fd ef 24 c7       	vpxor  (%rdi,%rax,8),%ymm0,%ymm4
+ 102e6ef:	c4 e2 5d 37 e1       	vpcmpgtq %ymm1,%ymm4,%ymm4
+ 102e6f4:	c5 dd ef e2          	vpxor  %ymm2,%ymm4,%ymm4
+ 102e6f8:	c4 e3 7d 39 e5 01    	vextracti128 $0x1,%ymm4,%xmm5
+ 102e6fe:	c5 d9 6b e5          	vpackssdw %xmm5,%xmm4,%xmm4
+ 102e702:	c5 d9 6b e4          	vpackssdw %xmm4,%xmm4,%xmm4
+ 102e706:	c5 d9 63 e4          	vpacksswb %xmm4,%xmm4,%xmm4
+ 102e70a:	c5 d9 db e3          	vpand  %xmm3,%xmm4,%xmm4
+ 102e70e:	c5 f9 7e 65 f4       	vmovd  %xmm4,-0xc(%rbp)
+ 102e713:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e717:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e71b:	49 83 c3 04          	add    $0x4,%r11
+ 102e71f:	49 39 ca             	cmp    %rcx,%r10
+ 102e722:	0f 92 c3             	setb   %bl
+ 102e725:	4c 39 da             	cmp    %r11,%rdx
+ 102e728:	41 0f 92 c3          	setb   %r11b
+ 102e72c:	44 84 db             	test   %r11b,%bl
+ 102e72f:	0f 85 5c 0e 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e735:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e739:	45 89 1a             	mov    %r11d,(%r10)
+ 102e73c:	48 83 c0 04          	add    $0x4,%rax
+ 102e740:	0f 82 9d 05 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e746:	4d 89 ca             	mov    %r9,%r10
+ 102e749:	49 29 c2             	sub    %rax,%r10
+ 102e74c:	73 92                	jae    102e6e0 <transit_fuze_compare_avx2+0x560>
+ 102e74e:	e9 90 05 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e753:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e758:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102e75d:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102e762:	31 c0                	xor    %eax,%eax
+ 102e764:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e768:	c5 f9 6f 15 00 3a fd 	vmovdqa -0x2c600(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e76f:	ff 
+ 102e770:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e774:	4c 89 ce             	mov    %r9,%rsi
+ 102e777:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+ 102e77e:	00 00 
+ 102e780:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102e784:	0f 86 2e 08 00 00    	jbe    102efb8 <transit_fuze_compare_avx2+0xe38>
+ 102e78a:	c5 fd 10 1c c7       	vmovupd (%rdi,%rax,8),%ymm3
+ 102e78f:	c5 e5 c2 d9 01       	vcmpltpd %ymm1,%ymm3,%ymm3
+ 102e794:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102e79a:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e79e:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e7a2:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e7a6:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e7aa:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e7af:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102e7b3:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e7b7:	49 83 c2 04          	add    $0x4,%r10
+ 102e7bb:	48 39 ce             	cmp    %rcx,%rsi
+ 102e7be:	41 0f 92 c3          	setb   %r11b
+ 102e7c2:	4c 39 d2             	cmp    %r10,%rdx
+ 102e7c5:	41 0f 92 c2          	setb   %r10b
+ 102e7c9:	45 84 d3             	test   %r10b,%r11b
+ 102e7cc:	0f 85 bf 0d 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e7d2:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102e7d6:	44 89 16             	mov    %r10d,(%rsi)
+ 102e7d9:	48 83 c0 04          	add    $0x4,%rax
+ 102e7dd:	0f 82 00 05 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e7e3:	4c 89 ce             	mov    %r9,%rsi
+ 102e7e6:	48 29 c6             	sub    %rax,%rsi
+ 102e7e9:	73 95                	jae    102e780 <transit_fuze_compare_avx2+0x600>
+ 102e7eb:	e9 f3 04 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e7f0:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e7f5:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e7fa:	31 c0                	xor    %eax,%eax
+ 102e7fc:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e800:	c5 f5 76 c9          	vpcmpeqd %ymm1,%ymm1,%ymm1
+ 102e804:	c5 f9 6f 15 64 39 fd 	vmovdqa -0x2c69c(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e80b:	ff 
+ 102e80c:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e810:	4d 89 ca             	mov    %r9,%r10
+ 102e813:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e81a:	00 00 00 
+ 102e81d:	0f 1f 00             	nopl   (%rax)
+ 102e820:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e824:	0f 86 02 08 00 00    	jbe    102f02c <transit_fuze_compare_avx2+0xeac>
+ 102e82a:	c5 fe 6f 1c c7       	vmovdqu (%rdi,%rax,8),%ymm3
+ 102e82f:	c4 e2 65 37 d8       	vpcmpgtq %ymm0,%ymm3,%ymm3
+ 102e834:	c5 e5 ef d9          	vpxor  %ymm1,%ymm3,%ymm3
+ 102e838:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102e83e:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e842:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e846:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e84a:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e84e:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e853:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e857:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e85b:	49 83 c3 04          	add    $0x4,%r11
+ 102e85f:	49 39 ca             	cmp    %rcx,%r10
+ 102e862:	0f 92 c3             	setb   %bl
+ 102e865:	4c 39 da             	cmp    %r11,%rdx
+ 102e868:	41 0f 92 c3          	setb   %r11b
+ 102e86c:	44 84 db             	test   %r11b,%bl
+ 102e86f:	0f 85 1c 0d 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e875:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e879:	45 89 1a             	mov    %r11d,(%r10)
+ 102e87c:	48 83 c0 04          	add    $0x4,%rax
+ 102e880:	0f 82 5d 04 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e886:	4d 89 ca             	mov    %r9,%r10
+ 102e889:	49 29 c2             	sub    %rax,%r10
+ 102e88c:	73 92                	jae    102e820 <transit_fuze_compare_avx2+0x6a0>
+ 102e88e:	e9 50 04 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e893:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e898:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e89d:	31 c0                	xor    %eax,%eax
+ 102e89f:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e8a3:	c5 f5 76 c9          	vpcmpeqd %ymm1,%ymm1,%ymm1
+ 102e8a7:	c5 f9 6f 15 c1 38 fd 	vmovdqa -0x2c73f(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e8ae:	ff 
+ 102e8af:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e8b3:	4d 89 ca             	mov    %r9,%r10
+ 102e8b6:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e8bd:	00 00 00 
+ 102e8c0:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e8c4:	0f 86 4e 08 00 00    	jbe    102f118 <transit_fuze_compare_avx2+0xf98>
+ 102e8ca:	c4 e2 7d 29 1c c7    	vpcmpeqq (%rdi,%rax,8),%ymm0,%ymm3
+ 102e8d0:	c5 e5 ef d9          	vpxor  %ymm1,%ymm3,%ymm3
+ 102e8d4:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102e8da:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e8de:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e8e2:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e8e6:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e8ea:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e8ef:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e8f3:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e8f7:	49 83 c3 04          	add    $0x4,%r11
+ 102e8fb:	49 39 ca             	cmp    %rcx,%r10
+ 102e8fe:	0f 92 c3             	setb   %bl
+ 102e901:	4c 39 da             	cmp    %r11,%rdx
+ 102e904:	41 0f 92 c3          	setb   %r11b
+ 102e908:	44 84 db             	test   %r11b,%bl
+ 102e90b:	0f 85 80 0c 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e911:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e915:	45 89 1a             	mov    %r11d,(%r10)
+ 102e918:	48 83 c0 04          	add    $0x4,%rax
+ 102e91c:	0f 82 c1 03 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e922:	4d 89 ca             	mov    %r9,%r10
+ 102e925:	49 29 c2             	sub    %rax,%r10
+ 102e928:	73 96                	jae    102e8c0 <transit_fuze_compare_avx2+0x740>
+ 102e92a:	e9 b4 03 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e92f:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e934:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102e939:	31 c0                	xor    %eax,%eax
+ 102e93b:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e93f:	c5 f5 76 c9          	vpcmpeqd %ymm1,%ymm1,%ymm1
+ 102e943:	c5 f9 6f 15 25 38 fd 	vmovdqa -0x2c7db(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e94a:	ff 
+ 102e94b:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e94f:	4d 89 ca             	mov    %r9,%r10
+ 102e952:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e959:	00 00 00 
+ 102e95c:	0f 1f 40 00          	nopl   0x0(%rax)
+ 102e960:	49 83 fa 03          	cmp    $0x3,%r10
+ 102e964:	0f 86 8e 08 00 00    	jbe    102f1f8 <transit_fuze_compare_avx2+0x1078>
+ 102e96a:	c4 e2 7d 29 1c c7    	vpcmpeqq (%rdi,%rax,8),%ymm0,%ymm3
+ 102e970:	c5 e5 ef d9          	vpxor  %ymm1,%ymm3,%ymm3
+ 102e974:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102e97a:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102e97e:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102e982:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102e986:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102e98a:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102e98f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102e993:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102e997:	49 83 c3 04          	add    $0x4,%r11
+ 102e99b:	49 39 ca             	cmp    %rcx,%r10
+ 102e99e:	0f 92 c3             	setb   %bl
+ 102e9a1:	4c 39 da             	cmp    %r11,%rdx
+ 102e9a4:	41 0f 92 c3          	setb   %r11b
+ 102e9a8:	44 84 db             	test   %r11b,%bl
+ 102e9ab:	0f 85 e0 0b 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102e9b1:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102e9b5:	45 89 1a             	mov    %r11d,(%r10)
+ 102e9b8:	48 83 c0 04          	add    $0x4,%rax
+ 102e9bc:	0f 82 21 03 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e9c2:	4d 89 ca             	mov    %r9,%r10
+ 102e9c5:	49 29 c2             	sub    %rax,%r10
+ 102e9c8:	73 96                	jae    102e960 <transit_fuze_compare_avx2+0x7e0>
+ 102e9ca:	e9 14 03 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102e9cf:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102e9d4:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102e9d9:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102e9de:	31 c0                	xor    %eax,%eax
+ 102e9e0:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102e9e4:	c5 f9 6f 15 84 37 fd 	vmovdqa -0x2c87c(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102e9eb:	ff 
+ 102e9ec:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102e9f0:	4c 89 ce             	mov    %r9,%rsi
+ 102e9f3:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102e9fa:	00 00 00 
+ 102e9fd:	0f 1f 00             	nopl   (%rax)
+ 102ea00:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102ea04:	0f 86 5e 08 00 00    	jbe    102f268 <transit_fuze_compare_avx2+0x10e8>
+ 102ea0a:	c5 fd 10 1c c7       	vmovupd (%rdi,%rax,8),%ymm3
+ 102ea0f:	c5 e5 c2 d9 02       	vcmplepd %ymm1,%ymm3,%ymm3
+ 102ea14:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102ea1a:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102ea1e:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102ea22:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102ea26:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102ea2a:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102ea2f:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102ea33:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102ea37:	49 83 c2 04          	add    $0x4,%r10
+ 102ea3b:	48 39 ce             	cmp    %rcx,%rsi
+ 102ea3e:	41 0f 92 c3          	setb   %r11b
+ 102ea42:	4c 39 d2             	cmp    %r10,%rdx
+ 102ea45:	41 0f 92 c2          	setb   %r10b
+ 102ea49:	45 84 d3             	test   %r10b,%r11b
+ 102ea4c:	0f 85 3f 0b 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102ea52:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102ea56:	44 89 16             	mov    %r10d,(%rsi)
+ 102ea59:	48 83 c0 04          	add    $0x4,%rax
+ 102ea5d:	0f 82 80 02 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ea63:	4c 89 ce             	mov    %r9,%rsi
+ 102ea66:	48 29 c6             	sub    %rax,%rsi
+ 102ea69:	73 95                	jae    102ea00 <transit_fuze_compare_avx2+0x880>
+ 102ea6b:	e9 73 02 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ea70:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102ea75:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102ea7a:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102ea7f:	31 c0                	xor    %eax,%eax
+ 102ea81:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102ea85:	c5 f9 6f 15 e3 36 fd 	vmovdqa -0x2c91d(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102ea8c:	ff 
+ 102ea8d:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102ea91:	4c 89 ce             	mov    %r9,%rsi
+ 102ea94:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102ea9b:	00 00 00 
+ 102ea9e:	66 90                	xchg   %ax,%ax
+ 102eaa0:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102eaa4:	0f 86 de 08 00 00    	jbe    102f388 <transit_fuze_compare_avx2+0x1208>
+ 102eaaa:	c5 f5 c2 1c c7 04    	vcmpneqpd (%rdi,%rax,8),%ymm1,%ymm3
+ 102eab0:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102eab6:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102eaba:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102eabe:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102eac2:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102eac6:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102eacb:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102eacf:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102ead3:	49 83 c2 04          	add    $0x4,%r10
+ 102ead7:	48 39 ce             	cmp    %rcx,%rsi
+ 102eada:	41 0f 92 c3          	setb   %r11b
+ 102eade:	4c 39 d2             	cmp    %r10,%rdx
+ 102eae1:	41 0f 92 c2          	setb   %r10b
+ 102eae5:	45 84 d3             	test   %r10b,%r11b
+ 102eae8:	0f 85 a3 0a 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102eaee:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102eaf2:	44 89 16             	mov    %r10d,(%rsi)
+ 102eaf5:	48 83 c0 04          	add    $0x4,%rax
+ 102eaf9:	0f 82 e4 01 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102eaff:	4c 89 ce             	mov    %r9,%rsi
+ 102eb02:	48 29 c6             	sub    %rax,%rsi
+ 102eb05:	73 99                	jae    102eaa0 <transit_fuze_compare_avx2+0x920>
+ 102eb07:	e9 d7 01 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102eb0c:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102eb11:	c4 e2 7d 59 c8       	vpbroadcastq %xmm0,%ymm1
+ 102eb16:	31 c0                	xor    %eax,%eax
+ 102eb18:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102eb1c:	c4 e2 7d 59 05 73 3b 	vpbroadcastq -0x2c48d(%rip),%ymm0        # 1002698 <__anon_42823+0x8>
+ 102eb23:	fd ff 
+ 102eb25:	c5 f5 ef c8          	vpxor  %ymm0,%ymm1,%ymm1
+ 102eb29:	c5 ed 76 d2          	vpcmpeqd %ymm2,%ymm2,%ymm2
+ 102eb2d:	c5 f9 6f 1d 3b 36 fd 	vmovdqa -0x2c9c5(%rip),%xmm3        # 1002170 <__anon_26098+0x10>
+ 102eb34:	ff 
+ 102eb35:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102eb39:	4d 89 ca             	mov    %r9,%r10
+ 102eb3c:	0f 1f 40 00          	nopl   0x0(%rax)
+ 102eb40:	49 83 fa 03          	cmp    $0x3,%r10
+ 102eb44:	0f 86 de 08 00 00    	jbe    102f428 <transit_fuze_compare_avx2+0x12a8>
+ 102eb4a:	c5 fd ef 24 c7       	vpxor  (%rdi,%rax,8),%ymm0,%ymm4
+ 102eb4f:	c4 e2 75 37 e4       	vpcmpgtq %ymm4,%ymm1,%ymm4
+ 102eb54:	c5 dd ef e2          	vpxor  %ymm2,%ymm4,%ymm4
+ 102eb58:	c4 e3 7d 39 e5 01    	vextracti128 $0x1,%ymm4,%xmm5
+ 102eb5e:	c5 d9 6b e5          	vpackssdw %xmm5,%xmm4,%xmm4
+ 102eb62:	c5 d9 6b e4          	vpackssdw %xmm4,%xmm4,%xmm4
+ 102eb66:	c5 d9 63 e4          	vpacksswb %xmm4,%xmm4,%xmm4
+ 102eb6a:	c5 d9 db e3          	vpand  %xmm3,%xmm4,%xmm4
+ 102eb6e:	c5 f9 7e 65 f4       	vmovd  %xmm4,-0xc(%rbp)
+ 102eb73:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102eb77:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102eb7b:	49 83 c3 04          	add    $0x4,%r11
+ 102eb7f:	49 39 ca             	cmp    %rcx,%r10
+ 102eb82:	0f 92 c3             	setb   %bl
+ 102eb85:	4c 39 da             	cmp    %r11,%rdx
+ 102eb88:	41 0f 92 c3          	setb   %r11b
+ 102eb8c:	44 84 db             	test   %r11b,%bl
+ 102eb8f:	0f 85 fc 09 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102eb95:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102eb99:	45 89 1a             	mov    %r11d,(%r10)
+ 102eb9c:	48 83 c0 04          	add    $0x4,%rax
+ 102eba0:	0f 82 3d 01 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102eba6:	4d 89 ca             	mov    %r9,%r10
+ 102eba9:	49 29 c2             	sub    %rax,%r10
+ 102ebac:	73 92                	jae    102eb40 <transit_fuze_compare_avx2+0x9c0>
+ 102ebae:	e9 30 01 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ebb3:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102ebb8:	c4 e2 7d 59 c0       	vpbroadcastq %xmm0,%ymm0
+ 102ebbd:	31 c0                	xor    %eax,%eax
+ 102ebbf:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102ebc3:	c5 f5 76 c9          	vpcmpeqd %ymm1,%ymm1,%ymm1
+ 102ebc7:	c5 f9 6f 15 a1 35 fd 	vmovdqa -0x2ca5f(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102ebce:	ff 
+ 102ebcf:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102ebd3:	4d 89 ca             	mov    %r9,%r10
+ 102ebd6:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102ebdd:	00 00 00 
+ 102ebe0:	49 83 fa 03          	cmp    $0x3,%r10
+ 102ebe4:	0f 86 ae 08 00 00    	jbe    102f498 <transit_fuze_compare_avx2+0x1318>
+ 102ebea:	c4 e2 7d 37 1c c7    	vpcmpgtq (%rdi,%rax,8),%ymm0,%ymm3
+ 102ebf0:	c5 e5 ef d9          	vpxor  %ymm1,%ymm3,%ymm3
+ 102ebf4:	c4 e3 7d 39 dc 01    	vextracti128 $0x1,%ymm3,%xmm4
+ 102ebfa:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102ebfe:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102ec02:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102ec06:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102ec0a:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102ec0f:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102ec13:	4d 8d 1c 00          	lea    (%r8,%rax,1),%r11
+ 102ec17:	49 83 c3 04          	add    $0x4,%r11
+ 102ec1b:	49 39 ca             	cmp    %rcx,%r10
+ 102ec1e:	0f 92 c3             	setb   %bl
+ 102ec21:	4c 39 da             	cmp    %r11,%rdx
+ 102ec24:	41 0f 92 c3          	setb   %r11b
+ 102ec28:	44 84 db             	test   %r11b,%bl
+ 102ec2b:	0f 85 60 09 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102ec31:	44 8b 5d f4          	mov    -0xc(%rbp),%r11d
+ 102ec35:	45 89 1a             	mov    %r11d,(%r10)
+ 102ec38:	48 83 c0 04          	add    $0x4,%rax
+ 102ec3c:	0f 82 a1 00 00 00    	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ec42:	4d 89 ca             	mov    %r9,%r10
+ 102ec45:	49 29 c2             	sub    %rax,%r10
+ 102ec48:	73 96                	jae    102ebe0 <transit_fuze_compare_avx2+0xa60>
+ 102ec4a:	e9 94 00 00 00       	jmp    102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ec4f:	c4 e1 f9 6e c6       	vmovq  %rsi,%xmm0
+ 102ec54:	c4 e1 f9 6e ce       	vmovq  %rsi,%xmm1
+ 102ec59:	c4 e2 7d 59 c9       	vpbroadcastq %xmm1,%ymm1
+ 102ec5e:	31 c0                	xor    %eax,%eax
+ 102ec60:	48 8d 4d f8          	lea    -0x8(%rbp),%rcx
+ 102ec64:	c5 f9 6f 15 04 35 fd 	vmovdqa -0x2cafc(%rip),%xmm2        # 1002170 <__anon_26098+0x10>
+ 102ec6b:	ff 
+ 102ec6c:	48 8d 55 f4          	lea    -0xc(%rbp),%rdx
+ 102ec70:	4c 89 ce             	mov    %r9,%rsi
+ 102ec73:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102ec7a:	00 00 00 
+ 102ec7d:	0f 1f 00             	nopl   (%rax)
+ 102ec80:	48 83 fe 03          	cmp    $0x3,%rsi
+ 102ec84:	0f 86 7e 08 00 00    	jbe    102f508 <transit_fuze_compare_avx2+0x1388>
+ 102ec8a:	c5 f5 c2 1c c7 02    	vcmplepd (%rdi,%rax,8),%ymm1,%ymm3
+ 102ec90:	c4 e3 7d 19 dc 01    	vextractf128 $0x1,%ymm3,%xmm4
+ 102ec96:	c5 e1 6b dc          	vpackssdw %xmm4,%xmm3,%xmm3
+ 102ec9a:	c5 e1 6b db          	vpackssdw %xmm3,%xmm3,%xmm3
+ 102ec9e:	c5 e1 63 db          	vpacksswb %xmm3,%xmm3,%xmm3
+ 102eca2:	c5 e1 db da          	vpand  %xmm2,%xmm3,%xmm3
+ 102eca6:	c5 f9 7e 5d f4       	vmovd  %xmm3,-0xc(%rbp)
+ 102ecab:	49 8d 34 00          	lea    (%r8,%rax,1),%rsi
+ 102ecaf:	4d 8d 14 00          	lea    (%r8,%rax,1),%r10
+ 102ecb3:	49 83 c2 04          	add    $0x4,%r10
+ 102ecb7:	48 39 ce             	cmp    %rcx,%rsi
+ 102ecba:	41 0f 92 c3          	setb   %r11b
+ 102ecbe:	4c 39 d2             	cmp    %r10,%rdx
+ 102ecc1:	41 0f 92 c2          	setb   %r10b
+ 102ecc5:	45 84 d3             	test   %r10b,%r11b
+ 102ecc8:	0f 85 c3 08 00 00    	jne    102f591 <transit_fuze_compare_avx2+0x1411>
+ 102ecce:	44 8b 55 f4          	mov    -0xc(%rbp),%r10d
+ 102ecd2:	44 89 16             	mov    %r10d,(%rsi)
+ 102ecd5:	48 83 c0 04          	add    $0x4,%rax
+ 102ecd9:	72 08                	jb     102ece3 <transit_fuze_compare_avx2+0xb63>
+ 102ecdb:	4c 89 ce             	mov    %r9,%rsi
+ 102ecde:	48 29 c6             	sub    %rax,%rsi
+ 102ece1:	73 9d                	jae    102ec80 <transit_fuze_compare_avx2+0xb00>
+ 102ece3:	c5 f8 77             	vzeroupper
+ 102ece6:	e8 b5 43 05 00       	call   10830a0 <debug.FullPanic((function 'defaultPanic')).integerOverflow>
+ 102eceb:	48 89 c1             	mov    %rax,%rcx
+ 102ecee:	4c 29 c9             	sub    %r9,%rcx
+ 102ecf1:	0f 83 90 08 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ecf7:	4c 89 ca             	mov    %r9,%rdx
+ 102ecfa:	48 83 e2 03          	and    $0x3,%rdx
+ 102ecfe:	74 13                	je     102ed13 <transit_fuze_compare_avx2+0xb93>
+ 102ed00:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ed04:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102ed09:	48 83 c0 01          	add    $0x1,%rax
+ 102ed0d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102ed11:	75 ed                	jne    102ed00 <transit_fuze_compare_avx2+0xb80>
+ 102ed13:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102ed17:	0f 87 6a 08 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ed1d:	0f 1f 00             	nopl   (%rax)
+ 102ed20:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ed24:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102ed29:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102ed2e:	41 0f 97 44 00 01    	seta   0x1(%r8,%rax,1)
+ 102ed34:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102ed39:	41 0f 97 44 00 02    	seta   0x2(%r8,%rax,1)
+ 102ed3f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102ed44:	41 0f 97 44 00 03    	seta   0x3(%r8,%rax,1)
+ 102ed4a:	48 83 c0 04          	add    $0x4,%rax
+ 102ed4e:	49 39 c1             	cmp    %rax,%r9
+ 102ed51:	75 cd                	jne    102ed20 <transit_fuze_compare_avx2+0xba0>
+ 102ed53:	e9 2f 08 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ed58:	48 89 c1             	mov    %rax,%rcx
+ 102ed5b:	4c 29 c9             	sub    %r9,%rcx
+ 102ed5e:	0f 83 23 08 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ed64:	4c 89 ca             	mov    %r9,%rdx
+ 102ed67:	48 83 e2 03          	and    $0x3,%rdx
+ 102ed6b:	74 16                	je     102ed83 <transit_fuze_compare_avx2+0xc03>
+ 102ed6d:	0f 1f 00             	nopl   (%rax)
+ 102ed70:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ed74:	41 0f 9f 04 00       	setg   (%r8,%rax,1)
+ 102ed79:	48 83 c0 01          	add    $0x1,%rax
+ 102ed7d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102ed81:	75 ed                	jne    102ed70 <transit_fuze_compare_avx2+0xbf0>
+ 102ed83:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102ed87:	0f 87 fa 07 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ed8d:	0f 1f 00             	nopl   (%rax)
+ 102ed90:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ed94:	41 0f 9f 04 00       	setg   (%r8,%rax,1)
+ 102ed99:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102ed9e:	41 0f 9f 44 00 01    	setg   0x1(%r8,%rax,1)
+ 102eda4:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102eda9:	41 0f 9f 44 00 02    	setg   0x2(%r8,%rax,1)
+ 102edaf:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102edb4:	41 0f 9f 44 00 03    	setg   0x3(%r8,%rax,1)
+ 102edba:	48 83 c0 04          	add    $0x4,%rax
+ 102edbe:	49 39 c1             	cmp    %rax,%r9
+ 102edc1:	75 cd                	jne    102ed90 <transit_fuze_compare_avx2+0xc10>
+ 102edc3:	e9 bf 07 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102edc8:	48 89 c1             	mov    %rax,%rcx
+ 102edcb:	4c 29 c9             	sub    %r9,%rcx
+ 102edce:	0f 83 b3 07 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102edd4:	4c 89 ca             	mov    %r9,%rdx
+ 102edd7:	48 83 e2 03          	and    $0x3,%rdx
+ 102eddb:	74 1b                	je     102edf8 <transit_fuze_compare_avx2+0xc78>
+ 102eddd:	0f 1f 00             	nopl   (%rax)
+ 102ede0:	c5 fb 10 0c c7       	vmovsd (%rdi,%rax,8),%xmm1
+ 102ede5:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102ede9:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102edee:	48 83 c0 01          	add    $0x1,%rax
+ 102edf2:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102edf6:	75 e8                	jne    102ede0 <transit_fuze_compare_avx2+0xc60>
+ 102edf8:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102edfc:	0f 87 85 07 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ee02:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102ee09:	00 00 00 
+ 102ee0c:	0f 1f 40 00          	nopl   0x0(%rax)
+ 102ee10:	c5 fb 10 0c c7       	vmovsd (%rdi,%rax,8),%xmm1
+ 102ee15:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102ee19:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102ee1e:	c5 fb 10 4c c7 08    	vmovsd 0x8(%rdi,%rax,8),%xmm1
+ 102ee24:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102ee28:	41 0f 97 44 00 01    	seta   0x1(%r8,%rax,1)
+ 102ee2e:	c5 fb 10 4c c7 10    	vmovsd 0x10(%rdi,%rax,8),%xmm1
+ 102ee34:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102ee38:	41 0f 97 44 00 02    	seta   0x2(%r8,%rax,1)
+ 102ee3e:	c5 fb 10 4c c7 18    	vmovsd 0x18(%rdi,%rax,8),%xmm1
+ 102ee44:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102ee48:	41 0f 97 44 00 03    	seta   0x3(%r8,%rax,1)
+ 102ee4e:	48 83 c0 04          	add    $0x4,%rax
+ 102ee52:	49 39 c1             	cmp    %rax,%r9
+ 102ee55:	75 b9                	jne    102ee10 <transit_fuze_compare_avx2+0xc90>
+ 102ee57:	e9 2b 07 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ee5c:	48 89 c1             	mov    %rax,%rcx
+ 102ee5f:	4c 29 c9             	sub    %r9,%rcx
+ 102ee62:	0f 83 1f 07 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ee68:	4c 89 ca             	mov    %r9,%rdx
+ 102ee6b:	48 83 e2 03          	and    $0x3,%rdx
+ 102ee6f:	74 22                	je     102ee93 <transit_fuze_compare_avx2+0xd13>
+ 102ee71:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102ee78:	00 00 00 
+ 102ee7b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+ 102ee80:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ee84:	41 0f 92 04 00       	setb   (%r8,%rax,1)
+ 102ee89:	48 83 c0 01          	add    $0x1,%rax
+ 102ee8d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102ee91:	75 ed                	jne    102ee80 <transit_fuze_compare_avx2+0xd00>
+ 102ee93:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102ee97:	0f 87 ea 06 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ee9d:	0f 1f 00             	nopl   (%rax)
+ 102eea0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102eea4:	41 0f 92 04 00       	setb   (%r8,%rax,1)
+ 102eea9:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102eeae:	41 0f 92 44 00 01    	setb   0x1(%r8,%rax,1)
+ 102eeb4:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102eeb9:	41 0f 92 44 00 02    	setb   0x2(%r8,%rax,1)
+ 102eebf:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102eec4:	41 0f 92 44 00 03    	setb   0x3(%r8,%rax,1)
+ 102eeca:	48 83 c0 04          	add    $0x4,%rax
+ 102eece:	49 39 c1             	cmp    %rax,%r9
+ 102eed1:	75 cd                	jne    102eea0 <transit_fuze_compare_avx2+0xd20>
+ 102eed3:	e9 af 06 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102eed8:	48 89 c1             	mov    %rax,%rcx
+ 102eedb:	4c 29 c9             	sub    %r9,%rcx
+ 102eede:	0f 83 a3 06 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102eee4:	4c 89 ca             	mov    %r9,%rdx
+ 102eee7:	48 83 e2 03          	and    $0x3,%rdx
+ 102eeeb:	74 16                	je     102ef03 <transit_fuze_compare_avx2+0xd83>
+ 102eeed:	0f 1f 00             	nopl   (%rax)
+ 102eef0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102eef4:	41 0f 9c 04 00       	setl   (%r8,%rax,1)
+ 102eef9:	48 83 c0 01          	add    $0x1,%rax
+ 102eefd:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102ef01:	75 ed                	jne    102eef0 <transit_fuze_compare_avx2+0xd70>
+ 102ef03:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102ef07:	0f 87 7a 06 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ef0d:	0f 1f 00             	nopl   (%rax)
+ 102ef10:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ef14:	41 0f 9c 04 00       	setl   (%r8,%rax,1)
+ 102ef19:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102ef1e:	41 0f 9c 44 00 01    	setl   0x1(%r8,%rax,1)
+ 102ef24:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102ef29:	41 0f 9c 44 00 02    	setl   0x2(%r8,%rax,1)
+ 102ef2f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102ef34:	41 0f 9c 44 00 03    	setl   0x3(%r8,%rax,1)
+ 102ef3a:	48 83 c0 04          	add    $0x4,%rax
+ 102ef3e:	49 39 c1             	cmp    %rax,%r9
+ 102ef41:	75 cd                	jne    102ef10 <transit_fuze_compare_avx2+0xd90>
+ 102ef43:	e9 3f 06 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ef48:	48 89 c1             	mov    %rax,%rcx
+ 102ef4b:	4c 29 c9             	sub    %r9,%rcx
+ 102ef4e:	0f 83 33 06 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ef54:	4c 89 ca             	mov    %r9,%rdx
+ 102ef57:	48 83 e2 03          	and    $0x3,%rdx
+ 102ef5b:	74 16                	je     102ef73 <transit_fuze_compare_avx2+0xdf3>
+ 102ef5d:	0f 1f 00             	nopl   (%rax)
+ 102ef60:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ef64:	41 0f 96 04 00       	setbe  (%r8,%rax,1)
+ 102ef69:	48 83 c0 01          	add    $0x1,%rax
+ 102ef6d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102ef71:	75 ed                	jne    102ef60 <transit_fuze_compare_avx2+0xde0>
+ 102ef73:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102ef77:	0f 87 0a 06 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102ef7d:	0f 1f 00             	nopl   (%rax)
+ 102ef80:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102ef84:	41 0f 96 04 00       	setbe  (%r8,%rax,1)
+ 102ef89:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102ef8e:	41 0f 96 44 00 01    	setbe  0x1(%r8,%rax,1)
+ 102ef94:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102ef99:	41 0f 96 44 00 02    	setbe  0x2(%r8,%rax,1)
+ 102ef9f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102efa4:	41 0f 96 44 00 03    	setbe  0x3(%r8,%rax,1)
+ 102efaa:	48 83 c0 04          	add    $0x4,%rax
+ 102efae:	49 39 c1             	cmp    %rax,%r9
+ 102efb1:	75 cd                	jne    102ef80 <transit_fuze_compare_avx2+0xe00>
+ 102efb3:	e9 cf 05 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102efb8:	48 89 c1             	mov    %rax,%rcx
+ 102efbb:	4c 29 c9             	sub    %r9,%rcx
+ 102efbe:	0f 83 c3 05 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102efc4:	4c 89 ca             	mov    %r9,%rdx
+ 102efc7:	48 83 e2 03          	and    $0x3,%rdx
+ 102efcb:	74 17                	je     102efe4 <transit_fuze_compare_avx2+0xe64>
+ 102efcd:	0f 1f 00             	nopl   (%rax)
+ 102efd0:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102efd5:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102efda:	48 83 c0 01          	add    $0x1,%rax
+ 102efde:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102efe2:	75 ec                	jne    102efd0 <transit_fuze_compare_avx2+0xe50>
+ 102efe4:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102efe8:	0f 87 99 05 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102efee:	66 90                	xchg   %ax,%ax
+ 102eff0:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102eff5:	41 0f 97 04 00       	seta   (%r8,%rax,1)
+ 102effa:	c5 f9 2e 44 c7 08    	vucomisd 0x8(%rdi,%rax,8),%xmm0
+ 102f000:	41 0f 97 44 00 01    	seta   0x1(%r8,%rax,1)
+ 102f006:	c5 f9 2e 44 c7 10    	vucomisd 0x10(%rdi,%rax,8),%xmm0
+ 102f00c:	41 0f 97 44 00 02    	seta   0x2(%r8,%rax,1)
+ 102f012:	c5 f9 2e 44 c7 18    	vucomisd 0x18(%rdi,%rax,8),%xmm0
+ 102f018:	41 0f 97 44 00 03    	seta   0x3(%r8,%rax,1)
+ 102f01e:	48 83 c0 04          	add    $0x4,%rax
+ 102f022:	49 39 c1             	cmp    %rax,%r9
+ 102f025:	75 c9                	jne    102eff0 <transit_fuze_compare_avx2+0xe70>
+ 102f027:	e9 5b 05 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f02c:	48 89 c1             	mov    %rax,%rcx
+ 102f02f:	4c 29 c9             	sub    %r9,%rcx
+ 102f032:	0f 83 4f 05 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f038:	4c 89 ca             	mov    %r9,%rdx
+ 102f03b:	48 83 e2 03          	and    $0x3,%rdx
+ 102f03f:	74 22                	je     102f063 <transit_fuze_compare_avx2+0xee3>
+ 102f041:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102f048:	00 00 00 
+ 102f04b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+ 102f050:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f054:	41 0f 9e 04 00       	setle  (%r8,%rax,1)
+ 102f059:	48 83 c0 01          	add    $0x1,%rax
+ 102f05d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f061:	75 ed                	jne    102f050 <transit_fuze_compare_avx2+0xed0>
+ 102f063:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f067:	0f 87 1a 05 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f06d:	0f 1f 00             	nopl   (%rax)
+ 102f070:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f074:	41 0f 9e 04 00       	setle  (%r8,%rax,1)
+ 102f079:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f07e:	41 0f 9e 44 00 01    	setle  0x1(%r8,%rax,1)
+ 102f084:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f089:	41 0f 9e 44 00 02    	setle  0x2(%r8,%rax,1)
+ 102f08f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f094:	41 0f 9e 44 00 03    	setle  0x3(%r8,%rax,1)
+ 102f09a:	48 83 c0 04          	add    $0x4,%rax
+ 102f09e:	49 39 c1             	cmp    %rax,%r9
+ 102f0a1:	75 cd                	jne    102f070 <transit_fuze_compare_avx2+0xef0>
+ 102f0a3:	e9 df 04 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f0a8:	48 89 c1             	mov    %rax,%rcx
+ 102f0ab:	4c 29 c9             	sub    %r9,%rcx
+ 102f0ae:	0f 83 d3 04 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f0b4:	4c 89 ca             	mov    %r9,%rdx
+ 102f0b7:	48 83 e2 03          	and    $0x3,%rdx
+ 102f0bb:	74 16                	je     102f0d3 <transit_fuze_compare_avx2+0xf53>
+ 102f0bd:	0f 1f 00             	nopl   (%rax)
+ 102f0c0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f0c4:	41 0f 94 04 00       	sete   (%r8,%rax,1)
+ 102f0c9:	48 83 c0 01          	add    $0x1,%rax
+ 102f0cd:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f0d1:	75 ed                	jne    102f0c0 <transit_fuze_compare_avx2+0xf40>
+ 102f0d3:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f0d7:	0f 87 aa 04 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f0dd:	0f 1f 00             	nopl   (%rax)
+ 102f0e0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f0e4:	41 0f 94 04 00       	sete   (%r8,%rax,1)
+ 102f0e9:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f0ee:	41 0f 94 44 00 01    	sete   0x1(%r8,%rax,1)
+ 102f0f4:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f0f9:	41 0f 94 44 00 02    	sete   0x2(%r8,%rax,1)
+ 102f0ff:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f104:	41 0f 94 44 00 03    	sete   0x3(%r8,%rax,1)
+ 102f10a:	48 83 c0 04          	add    $0x4,%rax
+ 102f10e:	49 39 c1             	cmp    %rax,%r9
+ 102f111:	75 cd                	jne    102f0e0 <transit_fuze_compare_avx2+0xf60>
+ 102f113:	e9 6f 04 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f118:	48 89 c1             	mov    %rax,%rcx
+ 102f11b:	4c 29 c9             	sub    %r9,%rcx
+ 102f11e:	0f 83 63 04 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f124:	4c 89 ca             	mov    %r9,%rdx
+ 102f127:	48 83 e2 03          	and    $0x3,%rdx
+ 102f12b:	74 16                	je     102f143 <transit_fuze_compare_avx2+0xfc3>
+ 102f12d:	0f 1f 00             	nopl   (%rax)
+ 102f130:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f134:	41 0f 95 04 00       	setne  (%r8,%rax,1)
+ 102f139:	48 83 c0 01          	add    $0x1,%rax
+ 102f13d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f141:	75 ed                	jne    102f130 <transit_fuze_compare_avx2+0xfb0>
+ 102f143:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f147:	0f 87 3a 04 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f14d:	0f 1f 00             	nopl   (%rax)
+ 102f150:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f154:	41 0f 95 04 00       	setne  (%r8,%rax,1)
+ 102f159:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f15e:	41 0f 95 44 00 01    	setne  0x1(%r8,%rax,1)
+ 102f164:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f169:	41 0f 95 44 00 02    	setne  0x2(%r8,%rax,1)
+ 102f16f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f174:	41 0f 95 44 00 03    	setne  0x3(%r8,%rax,1)
+ 102f17a:	48 83 c0 04          	add    $0x4,%rax
+ 102f17e:	49 39 c1             	cmp    %rax,%r9
+ 102f181:	75 cd                	jne    102f150 <transit_fuze_compare_avx2+0xfd0>
+ 102f183:	e9 ff 03 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f188:	48 89 c1             	mov    %rax,%rcx
+ 102f18b:	4c 29 c9             	sub    %r9,%rcx
+ 102f18e:	0f 83 f3 03 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f194:	4c 89 ca             	mov    %r9,%rdx
+ 102f197:	48 83 e2 03          	and    $0x3,%rdx
+ 102f19b:	74 16                	je     102f1b3 <transit_fuze_compare_avx2+0x1033>
+ 102f19d:	0f 1f 00             	nopl   (%rax)
+ 102f1a0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f1a4:	41 0f 94 04 00       	sete   (%r8,%rax,1)
+ 102f1a9:	48 83 c0 01          	add    $0x1,%rax
+ 102f1ad:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f1b1:	75 ed                	jne    102f1a0 <transit_fuze_compare_avx2+0x1020>
+ 102f1b3:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f1b7:	0f 87 ca 03 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f1bd:	0f 1f 00             	nopl   (%rax)
+ 102f1c0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f1c4:	41 0f 94 04 00       	sete   (%r8,%rax,1)
+ 102f1c9:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f1ce:	41 0f 94 44 00 01    	sete   0x1(%r8,%rax,1)
+ 102f1d4:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f1d9:	41 0f 94 44 00 02    	sete   0x2(%r8,%rax,1)
+ 102f1df:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f1e4:	41 0f 94 44 00 03    	sete   0x3(%r8,%rax,1)
+ 102f1ea:	48 83 c0 04          	add    $0x4,%rax
+ 102f1ee:	49 39 c1             	cmp    %rax,%r9
+ 102f1f1:	75 cd                	jne    102f1c0 <transit_fuze_compare_avx2+0x1040>
+ 102f1f3:	e9 8f 03 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f1f8:	48 89 c1             	mov    %rax,%rcx
+ 102f1fb:	4c 29 c9             	sub    %r9,%rcx
+ 102f1fe:	0f 83 83 03 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f204:	4c 89 ca             	mov    %r9,%rdx
+ 102f207:	48 83 e2 03          	and    $0x3,%rdx
+ 102f20b:	74 16                	je     102f223 <transit_fuze_compare_avx2+0x10a3>
+ 102f20d:	0f 1f 00             	nopl   (%rax)
+ 102f210:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f214:	41 0f 95 04 00       	setne  (%r8,%rax,1)
+ 102f219:	48 83 c0 01          	add    $0x1,%rax
+ 102f21d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f221:	75 ed                	jne    102f210 <transit_fuze_compare_avx2+0x1090>
+ 102f223:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f227:	0f 87 5a 03 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f22d:	0f 1f 00             	nopl   (%rax)
+ 102f230:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f234:	41 0f 95 04 00       	setne  (%r8,%rax,1)
+ 102f239:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f23e:	41 0f 95 44 00 01    	setne  0x1(%r8,%rax,1)
+ 102f244:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f249:	41 0f 95 44 00 02    	setne  0x2(%r8,%rax,1)
+ 102f24f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f254:	41 0f 95 44 00 03    	setne  0x3(%r8,%rax,1)
+ 102f25a:	48 83 c0 04          	add    $0x4,%rax
+ 102f25e:	49 39 c1             	cmp    %rax,%r9
+ 102f261:	75 cd                	jne    102f230 <transit_fuze_compare_avx2+0x10b0>
+ 102f263:	e9 1f 03 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f268:	48 89 c1             	mov    %rax,%rcx
+ 102f26b:	4c 29 c9             	sub    %r9,%rcx
+ 102f26e:	0f 83 13 03 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f274:	4c 89 ca             	mov    %r9,%rdx
+ 102f277:	48 83 e2 03          	and    $0x3,%rdx
+ 102f27b:	74 17                	je     102f294 <transit_fuze_compare_avx2+0x1114>
+ 102f27d:	0f 1f 00             	nopl   (%rax)
+ 102f280:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f285:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f28a:	48 83 c0 01          	add    $0x1,%rax
+ 102f28e:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f292:	75 ec                	jne    102f280 <transit_fuze_compare_avx2+0x1100>
+ 102f294:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f298:	0f 87 e9 02 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f29e:	66 90                	xchg   %ax,%ax
+ 102f2a0:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f2a5:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f2aa:	c5 f9 2e 44 c7 08    	vucomisd 0x8(%rdi,%rax,8),%xmm0
+ 102f2b0:	41 0f 93 44 00 01    	setae  0x1(%r8,%rax,1)
+ 102f2b6:	c5 f9 2e 44 c7 10    	vucomisd 0x10(%rdi,%rax,8),%xmm0
+ 102f2bc:	41 0f 93 44 00 02    	setae  0x2(%r8,%rax,1)
+ 102f2c2:	c5 f9 2e 44 c7 18    	vucomisd 0x18(%rdi,%rax,8),%xmm0
+ 102f2c8:	41 0f 93 44 00 03    	setae  0x3(%r8,%rax,1)
+ 102f2ce:	48 83 c0 04          	add    $0x4,%rax
+ 102f2d2:	49 39 c1             	cmp    %rax,%r9
+ 102f2d5:	75 c9                	jne    102f2a0 <transit_fuze_compare_avx2+0x1120>
+ 102f2d7:	e9 ab 02 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f2dc:	48 89 c1             	mov    %rax,%rcx
+ 102f2df:	4c 29 c9             	sub    %r9,%rcx
+ 102f2e2:	0f 83 9f 02 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f2e8:	4c 89 ca             	mov    %r9,%rdx
+ 102f2eb:	48 83 e2 03          	and    $0x3,%rdx
+ 102f2ef:	74 2d                	je     102f31e <transit_fuze_compare_avx2+0x119e>
+ 102f2f1:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+ 102f2f8:	00 00 00 
+ 102f2fb:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+ 102f300:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f305:	40 0f 9b c6          	setnp  %sil
+ 102f309:	41 0f 94 c2          	sete   %r10b
+ 102f30d:	41 20 f2             	and    %sil,%r10b
+ 102f310:	45 88 14 00          	mov    %r10b,(%r8,%rax,1)
+ 102f314:	48 83 c0 01          	add    $0x1,%rax
+ 102f318:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f31c:	75 e2                	jne    102f300 <transit_fuze_compare_avx2+0x1180>
+ 102f31e:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f322:	0f 87 5f 02 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f328:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+ 102f32f:	00 
+ 102f330:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f335:	0f 9b c1             	setnp  %cl
+ 102f338:	0f 94 c2             	sete   %dl
+ 102f33b:	20 ca                	and    %cl,%dl
+ 102f33d:	41 88 14 00          	mov    %dl,(%r8,%rax,1)
+ 102f341:	c5 f9 2e 44 c7 08    	vucomisd 0x8(%rdi,%rax,8),%xmm0
+ 102f347:	0f 9b c1             	setnp  %cl
+ 102f34a:	0f 94 c2             	sete   %dl
+ 102f34d:	20 ca                	and    %cl,%dl
+ 102f34f:	41 88 54 00 01       	mov    %dl,0x1(%r8,%rax,1)
+ 102f354:	c5 f9 2e 44 c7 10    	vucomisd 0x10(%rdi,%rax,8),%xmm0
+ 102f35a:	0f 9b c1             	setnp  %cl
+ 102f35d:	0f 94 c2             	sete   %dl
+ 102f360:	20 ca                	and    %cl,%dl
+ 102f362:	41 88 54 00 02       	mov    %dl,0x2(%r8,%rax,1)
+ 102f367:	c5 f9 2e 44 c7 18    	vucomisd 0x18(%rdi,%rax,8),%xmm0
+ 102f36d:	0f 9b c1             	setnp  %cl
+ 102f370:	0f 94 c2             	sete   %dl
+ 102f373:	20 ca                	and    %cl,%dl
+ 102f375:	41 88 54 00 03       	mov    %dl,0x3(%r8,%rax,1)
+ 102f37a:	48 83 c0 04          	add    $0x4,%rax
+ 102f37e:	49 39 c1             	cmp    %rax,%r9
+ 102f381:	75 ad                	jne    102f330 <transit_fuze_compare_avx2+0x11b0>
+ 102f383:	e9 ff 01 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f388:	48 89 c1             	mov    %rax,%rcx
+ 102f38b:	4c 29 c9             	sub    %r9,%rcx
+ 102f38e:	0f 83 f3 01 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f394:	4c 89 ca             	mov    %r9,%rdx
+ 102f397:	48 83 e2 03          	and    $0x3,%rdx
+ 102f39b:	74 21                	je     102f3be <transit_fuze_compare_avx2+0x123e>
+ 102f39d:	0f 1f 00             	nopl   (%rax)
+ 102f3a0:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f3a5:	40 0f 9a c6          	setp   %sil
+ 102f3a9:	41 0f 95 c2          	setne  %r10b
+ 102f3ad:	41 08 f2             	or     %sil,%r10b
+ 102f3b0:	45 88 14 00          	mov    %r10b,(%r8,%rax,1)
+ 102f3b4:	48 83 c0 01          	add    $0x1,%rax
+ 102f3b8:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f3bc:	75 e2                	jne    102f3a0 <transit_fuze_compare_avx2+0x1220>
+ 102f3be:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f3c2:	0f 87 bf 01 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f3c8:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+ 102f3cf:	00 
+ 102f3d0:	c5 f9 2e 04 c7       	vucomisd (%rdi,%rax,8),%xmm0
+ 102f3d5:	0f 9a c1             	setp   %cl
+ 102f3d8:	0f 95 c2             	setne  %dl
+ 102f3db:	08 ca                	or     %cl,%dl
+ 102f3dd:	41 88 14 00          	mov    %dl,(%r8,%rax,1)
+ 102f3e1:	c5 f9 2e 44 c7 08    	vucomisd 0x8(%rdi,%rax,8),%xmm0
+ 102f3e7:	0f 9a c1             	setp   %cl
+ 102f3ea:	0f 95 c2             	setne  %dl
+ 102f3ed:	08 ca                	or     %cl,%dl
+ 102f3ef:	41 88 54 00 01       	mov    %dl,0x1(%r8,%rax,1)
+ 102f3f4:	c5 f9 2e 44 c7 10    	vucomisd 0x10(%rdi,%rax,8),%xmm0
+ 102f3fa:	0f 9a c1             	setp   %cl
+ 102f3fd:	0f 95 c2             	setne  %dl
+ 102f400:	08 ca                	or     %cl,%dl
+ 102f402:	41 88 54 00 02       	mov    %dl,0x2(%r8,%rax,1)
+ 102f407:	c5 f9 2e 44 c7 18    	vucomisd 0x18(%rdi,%rax,8),%xmm0
+ 102f40d:	0f 9a c1             	setp   %cl
+ 102f410:	0f 95 c2             	setne  %dl
+ 102f413:	08 ca                	or     %cl,%dl
+ 102f415:	41 88 54 00 03       	mov    %dl,0x3(%r8,%rax,1)
+ 102f41a:	48 83 c0 04          	add    $0x4,%rax
+ 102f41e:	49 39 c1             	cmp    %rax,%r9
+ 102f421:	75 ad                	jne    102f3d0 <transit_fuze_compare_avx2+0x1250>
+ 102f423:	e9 5f 01 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f428:	48 89 c1             	mov    %rax,%rcx
+ 102f42b:	4c 29 c9             	sub    %r9,%rcx
+ 102f42e:	0f 83 53 01 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f434:	4c 89 ca             	mov    %r9,%rdx
+ 102f437:	48 83 e2 03          	and    $0x3,%rdx
+ 102f43b:	74 16                	je     102f453 <transit_fuze_compare_avx2+0x12d3>
+ 102f43d:	0f 1f 00             	nopl   (%rax)
+ 102f440:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f444:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f449:	48 83 c0 01          	add    $0x1,%rax
+ 102f44d:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f451:	75 ed                	jne    102f440 <transit_fuze_compare_avx2+0x12c0>
+ 102f453:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f457:	0f 87 2a 01 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f45d:	0f 1f 00             	nopl   (%rax)
+ 102f460:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f464:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f469:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f46e:	41 0f 93 44 00 01    	setae  0x1(%r8,%rax,1)
+ 102f474:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f479:	41 0f 93 44 00 02    	setae  0x2(%r8,%rax,1)
+ 102f47f:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f484:	41 0f 93 44 00 03    	setae  0x3(%r8,%rax,1)
+ 102f48a:	48 83 c0 04          	add    $0x4,%rax
+ 102f48e:	49 39 c1             	cmp    %rax,%r9
+ 102f491:	75 cd                	jne    102f460 <transit_fuze_compare_avx2+0x12e0>
+ 102f493:	e9 ef 00 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f498:	48 89 c1             	mov    %rax,%rcx
+ 102f49b:	4c 29 c9             	sub    %r9,%rcx
+ 102f49e:	0f 83 e3 00 00 00    	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f4a4:	4c 89 ca             	mov    %r9,%rdx
+ 102f4a7:	48 83 e2 03          	and    $0x3,%rdx
+ 102f4ab:	74 16                	je     102f4c3 <transit_fuze_compare_avx2+0x1343>
+ 102f4ad:	0f 1f 00             	nopl   (%rax)
+ 102f4b0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f4b4:	41 0f 9d 04 00       	setge  (%r8,%rax,1)
+ 102f4b9:	48 83 c0 01          	add    $0x1,%rax
+ 102f4bd:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f4c1:	75 ed                	jne    102f4b0 <transit_fuze_compare_avx2+0x1330>
+ 102f4c3:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f4c7:	0f 87 ba 00 00 00    	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f4cd:	0f 1f 00             	nopl   (%rax)
+ 102f4d0:	48 39 34 c7          	cmp    %rsi,(%rdi,%rax,8)
+ 102f4d4:	41 0f 9d 04 00       	setge  (%r8,%rax,1)
+ 102f4d9:	48 39 74 c7 08       	cmp    %rsi,0x8(%rdi,%rax,8)
+ 102f4de:	41 0f 9d 44 00 01    	setge  0x1(%r8,%rax,1)
+ 102f4e4:	48 39 74 c7 10       	cmp    %rsi,0x10(%rdi,%rax,8)
+ 102f4e9:	41 0f 9d 44 00 02    	setge  0x2(%r8,%rax,1)
+ 102f4ef:	48 39 74 c7 18       	cmp    %rsi,0x18(%rdi,%rax,8)
+ 102f4f4:	41 0f 9d 44 00 03    	setge  0x3(%r8,%rax,1)
+ 102f4fa:	48 83 c0 04          	add    $0x4,%rax
+ 102f4fe:	49 39 c1             	cmp    %rax,%r9
+ 102f501:	75 cd                	jne    102f4d0 <transit_fuze_compare_avx2+0x1350>
+ 102f503:	e9 7f 00 00 00       	jmp    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f508:	48 89 c1             	mov    %rax,%rcx
+ 102f50b:	4c 29 c9             	sub    %r9,%rcx
+ 102f50e:	73 77                	jae    102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f510:	4c 89 ca             	mov    %r9,%rdx
+ 102f513:	48 83 e2 03          	and    $0x3,%rdx
+ 102f517:	74 1f                	je     102f538 <transit_fuze_compare_avx2+0x13b8>
+ 102f519:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+ 102f520:	c5 fb 10 0c c7       	vmovsd (%rdi,%rax,8),%xmm1
+ 102f525:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102f529:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f52e:	48 83 c0 01          	add    $0x1,%rax
+ 102f532:	48 83 c2 ff          	add    $0xffffffffffffffff,%rdx
+ 102f536:	75 e8                	jne    102f520 <transit_fuze_compare_avx2+0x13a0>
+ 102f538:	48 83 f9 fc          	cmp    $0xfffffffffffffffc,%rcx
+ 102f53c:	77 49                	ja     102f587 <transit_fuze_compare_avx2+0x1407>
+ 102f53e:	66 90                	xchg   %ax,%ax
+ 102f540:	c5 fb 10 0c c7       	vmovsd (%rdi,%rax,8),%xmm1
+ 102f545:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102f549:	41 0f 93 04 00       	setae  (%r8,%rax,1)
+ 102f54e:	c5 fb 10 4c c7 08    	vmovsd 0x8(%rdi,%rax,8),%xmm1
+ 102f554:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102f558:	41 0f 93 44 00 01    	setae  0x1(%r8,%rax,1)
+ 102f55e:	c5 fb 10 4c c7 10    	vmovsd 0x10(%rdi,%rax,8),%xmm1
+ 102f564:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102f568:	41 0f 93 44 00 02    	setae  0x2(%r8,%rax,1)
+ 102f56e:	c5 fb 10 4c c7 18    	vmovsd 0x18(%rdi,%rax,8),%xmm1
+ 102f574:	c5 f9 2e c8          	vucomisd %xmm0,%xmm1
+ 102f578:	41 0f 93 44 00 03    	setae  0x3(%r8,%rax,1)
+ 102f57e:	48 83 c0 04          	add    $0x4,%rax
+ 102f582:	49 39 c1             	cmp    %rax,%r9
+ 102f585:	75 b9                	jne    102f540 <transit_fuze_compare_avx2+0x13c0>
+ 102f587:	48 83 c4 08          	add    $0x8,%rsp
+ 102f58b:	5b                   	pop    %rbx
+ 102f58c:	5d                   	pop    %rbp
+ 102f58d:	c5 f8 77             	vzeroupper
+ 102f590:	c3                   	ret
+ 102f591:	c5 f8 77             	vzeroupper
+ 102f594:	e8 a7 04 05 00       	call   107fa40 <debug.FullPanic((function 'defaultPanic')).memcpyAlias>
+ 102f599:	e8 12 fb 04 00       	call   107f0b0 <debug.FullPanic((function 'defaultPanic')).reachedUnreachable>
+
+Disassembly of section .init:
+
+Disassembly of section .fini:
+
+Disassembly of section .plt:

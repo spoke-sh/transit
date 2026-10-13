@@ -1,0 +1,362 @@
+{
+  "status": "failed",
+  "violations": [
+    {
+      "gate": "SELECT * FROM items",
+      "actual": 1.4103424997320826,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE i >= 4",
+      "actual": 1.4524508621409637,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE u = '18446744073709551615'::uint64",
+      "actual": 1.4018457362887609,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE f = '-0.0'::float64",
+      "actual": 1.380527811850491,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE b = TRUE",
+      "actual": 1.4004420168700256,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE s = '\u03bb exact'",
+      "actual": 1.4115695481439123,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE x = '\\x00ff'::bytea",
+      "actual": 1.429219535674419,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT sum(i) FROM items",
+      "actual": 1.4532319496944264,
+      "maximum": 1.15
+    }
+  ],
+  "evidence": [
+    {
+      "gate": "int64/8/portable-pipeline",
+      "actual": 17359865,
+      "maximum": 27684603
+    },
+    {
+      "gate": "int64/4096/portable-pipeline",
+      "actual": 31671194,
+      "maximum": 290952428.40000004
+    },
+    {
+      "gate": "uint64/8/portable-pipeline",
+      "actual": 15621414,
+      "maximum": 27618596
+    },
+    {
+      "gate": "uint64/4096/portable-pipeline",
+      "actual": 26534836,
+      "maximum": 274487542.2
+    },
+    {
+      "gate": "float64/8/portable-pipeline",
+      "actual": 15391201,
+      "maximum": 27609589
+    },
+    {
+      "gate": "float64/4096/portable-pipeline",
+      "actual": 23985583,
+      "maximum": 258396849.9
+    },
+    {
+      "gate": "boolean/8/portable-pipeline",
+      "actual": 16359457,
+      "maximum": 29676793
+    },
+    {
+      "gate": "boolean/4096/portable-pipeline",
+      "actual": 25730475,
+      "maximum": 262489419.9
+    },
+    {
+      "gate": "eager/8/portable-pipeline",
+      "actual": 17232910,
+      "maximum": 28610187
+    },
+    {
+      "gate": "eager/4096/portable-pipeline",
+      "actual": 22756844,
+      "maximum": 234143074.8
+    },
+    {
+      "gate": "sum/8/portable-pipeline",
+      "actual": 16605511,
+      "maximum": 27949895
+    },
+    {
+      "gate": "sum/4096/portable-pipeline",
+      "actual": 10259982,
+      "maximum": 46365037.2
+    },
+    {
+      "gate": "utf8/8/portable-pipeline",
+      "actual": 16426025,
+      "maximum": 29736557
+    },
+    {
+      "gate": "utf8/4096/portable-pipeline",
+      "actual": 28663197,
+      "maximum": 338622341.5
+    },
+    {
+      "gate": "nested/8/portable-pipeline",
+      "actual": 17828978,
+      "maximum": 26565617
+    },
+    {
+      "gate": "nested/4096/portable-pipeline",
+      "actual": 8296889,
+      "maximum": 51975718.55
+    },
+    {
+      "gate": "SELECT * FROM items",
+      "actual": 1.4103424997320826,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE i >= 4",
+      "actual": 1.4524508621409637,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE u = '18446744073709551615'::uint64",
+      "actual": 1.4018457362887609,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE f = '-0.0'::float64",
+      "actual": 1.380527811850491,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE b = TRUE",
+      "actual": 1.4004420168700256,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE s = '\u03bb exact'",
+      "actual": 1.4115695481439123,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT count(*) FROM items WHERE x = '\\x00ff'::bytea",
+      "actual": 1.429219535674419,
+      "maximum": 1.15
+    },
+    {
+      "gate": "SELECT sum(i) FROM items",
+      "actual": 1.4532319496944264,
+      "maximum": 1.15
+    }
+  ],
+  "comparisons": [
+    {
+      "case": "int64",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 6.466455189091273,
+        "simd": 6.2702194700668965,
+        "parallel1": 5.8989839466021605,
+        "parallel2": 10.875573036311142,
+        "parallel4": 13.26363749127897
+      }
+    },
+    {
+      "case": "int64",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.09796816186326081,
+        "simd": 0.09891505170884492,
+        "parallel1": 0.07664580090509394,
+        "parallel2": 0.1304228282564147,
+        "parallel4": 0.17840163660239106
+      }
+    },
+    {
+      "case": "uint64",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 5.965568571860646,
+        "simd": 6.059548322841706,
+        "parallel1": 6.099467042644227,
+        "parallel2": 9.901258155133513,
+        "parallel4": 12.287074829412402
+      }
+    },
+    {
+      "case": "uint64",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.08700341082364793,
+        "simd": 0.08336354399401956,
+        "parallel1": 0.08010156644551718,
+        "parallel2": 0.1398002692305793,
+        "parallel4": 0.1759923445443711
+      }
+    },
+    {
+      "case": "float64",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 5.89794063356337,
+        "simd": 5.9427771959492475,
+        "parallel1": 5.889129284343244,
+        "parallel2": 9.994010551086781,
+        "parallel4": 12.434894920234566
+      }
+    },
+    {
+      "case": "float64",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.08354213570465048,
+        "simd": 0.08304956081432477,
+        "parallel1": 0.08421754099719773,
+        "parallel2": 0.13855059035686798,
+        "parallel4": 0.1622498297337022
+      }
+    },
+    {
+      "case": "boolean",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 3.4980075021494432,
+        "simd": 3.4699342049134954,
+        "parallel1": 3.496317027501538,
+        "parallel2": 4.969310593819312,
+        "parallel4": 5.478164845012383
+      }
+    },
+    {
+      "case": "boolean",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.08822232724207411,
+        "simd": 0.08601818811821756,
+        "parallel1": 0.08461804711390579,
+        "parallel2": 0.10702512737733397,
+        "parallel4": 0.11743949684426881
+      }
+    },
+    {
+      "case": "eager",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 4.773412014391498,
+        "simd": 5.57495387358051,
+        "parallel1": 5.296564693186253,
+        "parallel2": 9.384522186800849,
+        "parallel4": 11.331880592334967
+      }
+    },
+    {
+      "case": "eager",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.08747283949138605,
+        "simd": 0.09294085002765155,
+        "parallel1": 0.08810987306638035,
+        "parallel2": 0.19130742490787517,
+        "parallel4": 0.3335499265426064
+      }
+    },
+    {
+      "case": "sum",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 5.629187140559241,
+        "simd": 5.5982721418897965,
+        "parallel1": 5.683703996243934,
+        "parallel2": 5.442267606135133,
+        "parallel4": 5.704779322653857
+      }
+    },
+    {
+      "case": "sum",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.19915833907710095,
+        "simd": 0.1989891512477855,
+        "parallel1": 0.20355372862722518,
+        "parallel2": 0.2008058434168581,
+        "parallel4": 0.19909026407510355
+      }
+    },
+    {
+      "case": "utf8",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 3.4679251194485783,
+        "simd": 3.4008865511383055,
+        "parallel1": 3.461600272096377,
+        "parallel2": 4.8534771142836455,
+        "parallel4": 5.535941191038131
+      }
+    },
+    {
+      "case": "utf8",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.09734347829497836,
+        "simd": 0.09554601715492538,
+        "parallel1": 0.09633846294810999,
+        "parallel2": 0.12379311880105229,
+        "parallel4": 0.1279381503833822
+      }
+    },
+    {
+      "case": "nested",
+      "rows": 8,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 11.387828568545181,
+        "simd": 11.35840949606449,
+        "parallel1": 9.32929126344438,
+        "parallel2": 11.516408546917924,
+        "parallel4": 12.603148790540725
+      }
+    },
+    {
+      "case": "nested",
+      "rows": 4096,
+      "ratios": {
+        "scalar": 1.0,
+        "batch": 0.18357461168759542,
+        "simd": 0.17977538282633324,
+        "parallel1": 0.18132274479156768,
+        "parallel2": 0.255180863680431,
+        "parallel4": 0.2919483168934468
+      }
+    }
+  ],
+  "scope": "Selected portable single-worker defaults; optional dispatch comparisons retained. Physical/queue bounds require the separate executable proofs."
+}
