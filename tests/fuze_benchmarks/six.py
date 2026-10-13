@@ -20,7 +20,7 @@ def main():
     cpu = min(os.sched_getaffinity(0))
     report = dict(definition=run.DEFINITION, completed=False, status='running', samples=[], summary=[],
         control_revision=args.control_revision, candidate_revision=run.git('rev-parse', 'HEAD'),
-        dirty=bool(run.git('status', '--porcelain')), cpu=cpu, host_load=os.getloadavg(),
+        dirty=bool(run.git('status', '--porcelain', '--untracked-files=no')), cpu=cpu, host_load=os.getloadavg(),
         lock_sha256=run.digest(run.ROOT/'flake.lock'), driver_sha256=run.digest(Path(__file__).with_name('six.zig')),
         binaries={name: dict(path=str(path.resolve()), sha256=run.digest(path)) for name, path in [('control', args.control), ('candidate', args.candidate)]})
     def save():
