@@ -217,3 +217,54 @@ test "contending short work completes locally while admitted cancellation joins 
     try pool.evaluate(&long, null);
     try t.expect(long.outcomes[0].truth.selects());
 }
+
+test "held file output releases workers while buffered disclosure rechecks current access" {
+    const t = std.testing;
+    const f = @import("root.zig").fuze;
+    const Memory = struct {
+        denied: bool = false,
+        const bytes = "n,label\n1,one\n2,two\n3,three\n4,four\n5,five\n6,six\n7,seven\n8,eight\n9,nine\n10,ten\n";
+        fn read(_: *anyopaque, offset: u64, output: []u8) !usize {
+            const start: usize = @intCast(offset);
+            const count = @min(output.len, bytes.len - start);
+            @memcpy(output[0..count], bytes[start..][0..count]);
+            return count;
+        }
+        fn check(context: *anyopaque) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (self.denied) return error.AccessDenied;
+        }
+    };
+    var memory: Memory = .{};
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(Memory.bytes, &digest, .{});
+    const sources = [_]f.FileSource.Source{.{ .context = &memory, .read = Memory.read, .check = Memory.check, .length = Memory.bytes.len, .digest = digest }};
+    var binding = try f.FileSource.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    var projected = try f.FileQuery.compile(t.allocator, "SELECT label FROM input WHERE n > 0", "input", &binding);
+    defer projected.deinit();
+    var counted = try f.FileQuery.compile(t.allocator, "SELECT COUNT(*) FROM input WHERE n > 0", "input", &binding);
+    defer counted.deinit();
+    const pool = try init(t.allocator, t.io, .{ .workers = 4, .minimum_work = 0 });
+    defer pool.deinit();
+    var first = try f.FileQuery.executeWith(t.allocator, &binding, &sources, projected.plan, .{ .runner = pool.runner(null) });
+    defer first.deinit();
+    first.startup_rows = 0;
+    var held = (try first.next()).?;
+    defer held.deinit();
+    try t.expectEqual(@as(usize, 10), first.physical.len);
+    try t.expect(pool.work == null and pool.active_bytes.load(.acquire) == 0);
+    // The first consumer keeps its row and stops pulling. A second complete
+    // query uses the same workers without waiting for that consumer.
+    var second = try f.FileQuery.executeWith(t.allocator, &binding, &sources, counted.plan, .{ .runner = pool.runner(null) });
+    defer second.deinit();
+    var total = (try second.next()).?;
+    defer total.deinit();
+    try t.expectEqual(@as(u128, 10), total.cells[0].value.atom.unsigned);
+    try t.expect(second.complete);
+    try t.expectEqualStrings("one", held.cells[0].value.atom.bytes);
+    memory.denied = true;
+    try t.expectError(error.AccessDenied, first.next());
+    try t.expect(!first.complete);
+    try t.expect(pool.work == null and pool.active_bytes.load(.acquire) == 0);
+}
