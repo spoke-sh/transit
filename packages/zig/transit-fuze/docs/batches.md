@@ -84,8 +84,10 @@ must stop new calls and join its query callers before `pool.deinit()`.
 
 The pool reserves its own metadata and 1 MiB per additional thread; the pinned
 runtime includes its thread-local signal storage in this stack reservation.
-Admission checks this reservation plus the physical batch against the configured
-resident budget. Decoder, transport, output, OS bookkeeping and concurrently
+Guard pages and thread bootstrap arguments are also charged. Atomic admission
+checks the pool reservation plus all concurrently active physical batches against
+the configured resident budget, including callers that compute locally. An
+exhausted reservation rejects computation before any worker writes. Decoder, transport, output, OS bookkeeping and concurrently
 executing queries have separate host budgets. There is one admitted borrowed
 batch and no queued batch. Contending or short work computes on its caller;
 this avoids a pool queue behind a long query, but does not itself bound host

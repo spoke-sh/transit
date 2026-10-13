@@ -28,10 +28,11 @@ generation: u64 = 0,
 remaining: u8 = 0,
 work: ?*Batch = null,
 cancellation: ?*const std.atomic.Value(bool) = null,
+active_bytes: std.atomic.Value(usize) = .init(0),
 
 pub fn reservedBytes(workers: u8) usize {
     std.debug.assert(workers >= 1 and workers <= max_workers);
-    return @sizeOf(Self) + @as(usize, workers - 1) * stack_bytes;
+    return @sizeOf(Self) + @as(usize, workers - 1) * (stack_bytes + std.heap.pageSize() + @sizeOf(*Self) + @sizeOf(usize));
 }
 /// The returned pointer has a stable address until deinit. The host bounds its
 /// query concurrency and decoder/output buffers separately from this CPU pool.
@@ -76,7 +77,14 @@ fn run(context: *anyopaque, batch: *Batch, cancellation: ?*const std.atomic.Valu
 }
 pub fn evaluate(self: *Self, batch: *Batch, cancellation: ?*const std.atomic.Value(bool)) !void {
     if (cancelled(cancellation)) return error.Cancelled;
-    if (batch.residentBytes() > self.options.resident_bytes - reservedBytes(self.options.workers)) return error.ComputeMemoryBudget;
+    const available = self.options.resident_bytes - reservedBytes(self.options.workers);
+    const bytes = batch.residentBytes();
+    var previous = self.active_bytes.load(.acquire);
+    while (true) {
+        if (bytes > available - previous) return error.ComputeMemoryBudget;
+        previous = self.active_bytes.cmpxchgWeak(previous, previous + bytes, .acq_rel, .acquire) orelse break;
+    }
+    defer _ = self.active_bytes.fetchSub(bytes, .release);
     // One admitted borrowed batch, no backlog or nested pool. Contending short
     // work executes locally instead of waiting behind another query's CPU work.
     if (self.options.workers == 1 or batch.plan.aggregate == .sum or batch.len * batch.kernel.instructions.len < self.options.minimum_work or !self.admission.tryLock()) {
@@ -166,7 +174,7 @@ test "contending short work completes locally while admitted cancellation joins 
     const t = std.testing;
     const f = @import("root.zig").fuze;
     const plan: f.LogicalQuery.Plan = .{ .schema = .{ .structure = &.{.{ .name = "n", .type = .int64 }} }, .source_basis = @splat(71), .projection = &.{0} };
-    const pool = try init(t.allocator, t.io, .{ .workers = 4, .minimum_work = 0 });
+    const pool = try init(t.allocator, t.io, .{ .workers = 4, .minimum_work = 0, .resident_bytes = reservedBytes(4) + 512 * 1024 });
     defer pool.deinit();
     var long = try Batch.init(t.allocator, plan, .{});
     defer long.deinit();
@@ -193,6 +201,10 @@ test "contending short work completes locally while admitted cancellation joins 
         pool.admission.unlock(t.io);
         try std.Thread.yield();
     }
+    // Concurrent callers share the reservation even when they compute locally.
+    var larger = try Batch.init(t.allocator, plan, .{ .bytes = 512 * 1024 });
+    defer larger.deinit();
+    try t.expectError(error.ComputeMemoryBudget, pool.evaluate(&larger, null));
     // No queue is formed; this query does not wait for the admitted job.
     try pool.evaluate(&short, null);
     try t.expect(short.outcomes[0].truth.selects());
@@ -201,6 +213,7 @@ test "contending short work completes locally while admitted cancellation joins 
     thread.join();
     try t.expectEqual(error.Cancelled, call.failure.?);
     try t.expect(pool.work == null and pool.remaining == 0);
+    try t.expectEqual(@as(usize, 0), pool.active_bytes.load(.acquire));
     try pool.evaluate(&long, null);
     try t.expect(long.outcomes[0].truth.selects());
 }
