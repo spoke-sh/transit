@@ -1,6 +1,7 @@
 //! Decoded operators and owned-row pipeline, independently checked by vector.py.
 const std = @import("std");
 const f = @import("transit_fuze");
+const Pool = @import("transit_query").ComputePool;
 const Tracker = @import("Allocator.zig");
 const Cell = f.Types.Values.Cell;
 const fixture = @import("pipeline_fixture.zig");
@@ -27,8 +28,17 @@ const Scan = struct {
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 5 and args.len != 6) return error.InvalidArguments;
-    const batched = std.mem.eql(u8, args[1], "batch");
-    if (!batched and !std.mem.eql(u8, args[1], "scalar")) return error.InvalidArguments;
+    const mode = std.meta.stringToEnum(enum { scalar, batch, simd, parallel1, parallel2, parallel4 }, args[1]) orelse return error.InvalidArguments;
+    const batched = mode != .scalar;
+    const implementation: f.Batch.kernels.cpu.Implementation = if (mode == .batch) .portable else .automatic;
+    const workers: u8 = switch (mode) {
+        .parallel1 => 1,
+        .parallel2 => 2,
+        .parallel4 => 4,
+        else => 0,
+    };
+    const pool = if (workers != 0) try Pool.init(init.gpa, init.io, .{ .workers = workers, .minimum_work = 0 }) else null;
+    defer if (pool) |owner| owner.deinit();
     const kernel = std.mem.eql(u8, args[2], "kernel");
     if (!kernel and !std.mem.eql(u8, args[2], "pipeline")) return error.InvalidArguments;
     const rows = try std.fmt.parseInt(usize, args[3], 10);
@@ -85,7 +95,10 @@ pub fn main(init: std.process.Init) !void {
         } else inline for (.{ false, true }) |use_batch| selected_engine: {
             if (use_batch != batched) break :selected_engine;
             const Engine = if (use_batch) f.BatchExecution.Execution(Scan, .full_source) else f.LogicalQuery.Execution(Scan, .full_source);
-            var execution = try Engine.init(.{ .allocator = a, .rows = rows, .case = case }, plan);
+            var execution = if (use_batch) try Engine.initBudget(.{ .allocator = a, .rows = rows, .case = case }, plan, .{ .implementation = implementation }) else try Engine.init(.{ .allocator = a, .rows = rows, .case = case }, plan);
+            if (use_batch) if (pool) |owner| {
+                execution.runner = owner.runner(null);
+            };
             defer execution.deinit();
             while (try execution.next()) |item| {
                 var row = item;
@@ -100,7 +113,7 @@ pub fn main(init: std.process.Init) !void {
     const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .case = @tagName(case), .engine = args[1], .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
+    try std.json.Stringify.value(.{ .case = @tagName(case), .engine = args[1], .implementation = @tagName(try f.Batch.kernels.cpu.resolve(implementation)), .workers = workers, .pool_reserved_bytes = if (workers != 0) Pool.reservedBytes(workers) else 0, .phase = args[2], .rows = rows, .repetitions = repetitions, .count = count, .checksum = checksum, .elapsed_ns = elapsed, .first_ns = first_ns, .allocations = tracker.allocations, .allocated_bytes = tracker.allocated_bytes, .peak_live_bytes = tracker.peak_bytes, .end_live_bytes = tracker.live_bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &out.interface);
     try out.interface.writeByte('\n');
     try out.interface.flush();
 }

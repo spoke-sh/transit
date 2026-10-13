@@ -24,15 +24,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--engines', nargs='+', choices=['scalar', 'batch'], default=['scalar'])
+    parser.add_argument('--engines', nargs='+', choices=['scalar', 'batch', 'simd', 'parallel1', 'parallel2', 'parallel4'], default=['scalar'])
     args = parser.parse_args()
-    cpu = min(os.sched_getaffinity(0))
+    affinity = sorted(os.sched_getaffinity(0))
+    cpu = affinity[0]
     report = dict(definition='transit.vector.pipelines.v1', status='running', completed=False,
                   revision=command('git', 'rev-parse', 'HEAD'),
                   tracked_dirty=bool(command('git', 'status', '--porcelain', '--untracked-files=no')),
                   binary_sha256=digest(args.binary), driver_sha256=digest(__file__),
                   fixture_sha256=digest(ROOT / 'tests/fuze_benchmarks/pipeline_fixture.zig'),
-                  cpu=cpu, cpuinfo=Path('/proc/cpuinfo').read_text().split('\n\n')[0],
+                  cpu=cpu, parallel_affinity=affinity[:4], cpuinfo=Path('/proc/cpuinfo').read_text().split('\n\n')[0],
                   platform=platform.platform(), compiler=command('zig', 'version'),
                   lock_sha256=digest(ROOT / 'flake.lock'), samples=[], summary=[])
 
@@ -49,7 +50,7 @@ def main():
                     for engine in args.engines[::1 if repetition % 2 else -1]:
                         result = subprocess.run([str(args.binary.resolve()), engine, 'pipeline', str(rows), str(repeats), case],
                             capture_output=True, text=True, timeout=120,
-                            preexec_fn=lambda: os.sched_setaffinity(0, {cpu}))
+                            preexec_fn=lambda: os.sched_setaffinity(0, affinity[:4] if engine.startswith('parallel') else {cpu}))
                         sample = dict(case=case, engine=engine, rows=rows, repetition=repetition,
                                       warmup=repetition == 0, exit_code=result.returncode,
                                       stdout=result.stdout, stderr=result.stderr)

@@ -1,12 +1,13 @@
 # Physical batch execution
 
-`Batch` and `BatchExecution` provide an internal logical compute path for tests and
-measurements. Production query callers retain their existing execution selection.
+`Batch` and `BatchExecution` execute typed file and general Table queries through
+bounded columns. Resumable logical and Unified queries borrow their validated
+pages through the same kernels.
 There is no SQL option, native request mode or saved-format change. Linux x86_64 builds include a separate AVX2 comparison object. Binding selects it
 only after CPUID and OS XSAVE/XCR0 checks; `Limits.implementation = .portable`
 disables it, while forcing unavailable AVX2 rejects before execution. Build with
 `-Dcpu=baseline` for a binary whose other code also targets the portable CPU
-profile. Parallel scheduling is not implemented by this path.
+profile. Hosts can supply a `Runner`; Fuze itself performs no thread or I/O scheduling.
 
 `Batch.init` validates a logical plan and copies its schema, projection, names,
 program and variable literals into one owned buffer. It admits the same logical
@@ -37,10 +38,12 @@ A batch owns one backing allocation. `Limits.bytes` includes that allocation and
 the batch struct: descriptor/plan copies, column metadata, values, state sidecars,
 variable payloads, provenance, outcomes, error sites, Boolean scratch and selection positions. `Limits.rows`
 sets a compute target, reduced by column width and the byte budget. Supported
-experiment bounds are 1–1024 rows and 4 KiB–1 MiB. Defaults are experimental
+compute bounds are 1–1024 rows and 4 KiB–1 MiB. Defaults are
 256 rows/256 KiB. Half the space remaining after plan/column metadata is reserved
 for variable payloads. A full payload arena flushes the prefix and retries
-one held row; a row that cannot fit an empty batch fails `BatchBudgetExceeded`.
+one held row. A valid decoded row that cannot fit an empty batch executes
+directly under its source owner, with the same ordered operators; it does not
+allocate a larger physical buffer or narrow logical admission.
 Reserved payload pages are initialized when used; every active lane is written
 before its length is published to a kernel. ReleaseSafe checks remain enabled.
 No total source-cardinality limit is introduced.
@@ -49,7 +52,7 @@ The surrounding executor and decoder have separate memory owners: one source
 scan, at most one held decoded row, existing bounded plan-admission scratch,
 and independently owned output rows. These are **additional** to the compute
 buffer. Hosts must account for those owners under their enclosing query budget;
-this experimental byte limit is not a whole-query RSS cap. Returned rows deeply copy
+this byte limit is not a whole-query RSS cap. Returned rows deeply copy
 recursive values and conflict alternatives and survive resetting or releasing the batch. Callers must
 release each row with `deinit` instead of accumulating an unbounded result.
 
@@ -64,15 +67,42 @@ acquisition by the remaining selected-row count. File LIMIT still decodes and
 verifies every field and the captured EOF. Stored checkpoints, source page limits,
 Arrow segments and publication chunks are unchanged and are not batch sizes.
 
-`FileQuery.executeBatched` checks the same frozen binding as ordinary execution;
-buffered disclosures recheck source access and cancellation. General Table
-`ExperimentalTableQuery` uses the same signed snapshot, schema, request/result
-budgets and disclosure gates as `TableQuery`. Current native/catalog rights are
-checked after computation before every row and completion, even when a row came
-from a private batch. Its source acquisition remains serial and uses the existing
-immutable cache. The selector exists only for proof/measurement callers.
+`FileQuery.execute` checks the frozen binding and preserves its borrowed immutable
+plan contract; changed names or literals reject before the next disclosure.
+`executeWith` additionally accepts physical limits and a host runner. Buffered
+outputs check source access and cancellation. General Table `TableQuery.open`
+uses the same signed snapshot, schema, request/result budgets and disclosure
+gates; `openWith` accepts compute configuration. Current native/catalog rights
+are checked after computation before every row and completion. Reference row
+executors remain available to independent proofs and measurements.
+
+`transit-query.ComputePool` is a stable, host-owned allocation. `init` takes the
+host allocator and `std.Io`, one to four workers (one by default), a resident
+reservation (4 MiB by default), and a minimum operator-lane count (8192). Pass
+`pool.runner(cancellation)` to the file/Table compute configuration. The host
+must stop new calls and join its query callers before `pool.deinit()`.
+
+The pool reserves its own metadata and 512 KiB per additional thread; the pinned
+runtime includes its thread-local signal storage in this stack reservation.
+Admission checks this reservation plus the physical batch against the configured
+resident budget. Decoder, transport, output, OS bookkeeping and concurrently
+executing queries have separate host budgets. There is one admitted borrowed
+batch and no queued batch. Contending or short work computes on its caller;
+this avoids a pool queue behind a long query, but does not itself bound host
+query concurrency. SUM stays local and always checks each ordered contribution.
+Workers receive disjoint decoded lane/scratch ranges, never source clients.
+Cancellation is checked between 64-lane chunks; return waits for all writes to
+join before the private candidate can be released. No worker waits for output
+consumption or performs publication.
+
+Relational execution prebinds stable column IDs and comparison kernels for
+finite, captured and maintained callers. It uses constant one-lane views at its
+existing one-source-read/one-group-update work quantum. Join traversal, group
+updates and checked SUM remain ordered; this path does not perform multilane
+join lookahead. Restoring a checkpoint rebinds private operators without changing
+saved work, cursors, group roots or publication bytes.
 
 The [measurement guide](../../../../tests/fuze_benchmarks/README.md) owns commands
 and metric boundaries. The [proof ledger](../../../../tests/README.md) records
-executed evidence. Neither this API nor a fast decoded-column loop establishes
-production defaults, whole-query speedup or broader type/hardware support.
+executed evidence. A fast decoded-column loop does not establish whole-query speedup or broader
+type/hardware support. The measurement records distinguish those costs.
