@@ -55,6 +55,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M45](M45.md) | Mutation completion and authority efficiency | Complete: bounded completion waits, leaf staging batches, attribution and finite load controls |
 | [M46](M46.md) | General typed Tables and schema lifecycle | Implemented and locally qualified: general Tables, CREATE/ALTER/DROP and typed DML; same-revision CI and integration pending |
 | [M47](M47.md) | General Table storage and query efficiency | Planned: reduce accepted schema, immutable-record and publication costs without blocking the qualified relational intake |
+| [M48](M48.md) | Vectorized query execution | In progress: bounded physical batches and an experimental int64 Table/file path; SIMD, relational integration and parallel computation follow qualification |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
