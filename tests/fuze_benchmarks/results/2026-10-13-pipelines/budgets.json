@@ -1,0 +1,146 @@
+{
+  "definition": "transit.vector.pipeline-budgets.v1",
+  "baseline_revision": "c3dca7f1ffe2a0cd1d387dff70a68d0f146a06e1",
+  "baseline_binary": "b226ed0767ff63388c1958b1747a7b64ad86316d932b26b7a62e02212f4785a6",
+  "matrix": [
+    {
+      "case": "int64",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 2255695,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "int64",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 234681763,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "uint64",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 2240676,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "uint64",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 222135806,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "float64",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 2249293,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "float64",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 228367289,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "boolean",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 3688275,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "boolean",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 216693392,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "eager",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 3083460,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "eager",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 200456504,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "sum",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 2251206,
+      "peak_live_bytes": 276,
+      "allocations": 900
+    },
+    {
+      "case": "sum",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 46802497,
+      "peak_live_bytes": 276,
+      "allocations": 81940
+    },
+    {
+      "case": "utf8",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 3604464,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "case": "utf8",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 230044560,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    },
+    {
+      "case": "nested",
+      "engine": "scalar",
+      "rows": 8,
+      "median_ns": 922537,
+      "peak_live_bytes": 276,
+      "allocations": 900
+    },
+    {
+      "case": "nested",
+      "engine": "scalar",
+      "rows": 4096,
+      "median_ns": 43266255,
+      "peak_live_bytes": 276,
+      "allocations": 81940
+    }
+  ],
+  "limits": {
+    "large_hot_pipeline_ratio": 0.9,
+    "large_generic_pipeline_ratio": 1.15,
+    "tiny_pipeline_ratio": 1.15,
+    "tiny_additive_ns_per_query": 250000,
+    "existing_control_ratio": 1.15,
+    "physical_batch_bytes": 1048576,
+    "parallel_workers_max": 4,
+    "parallel_queued_batches_max": 1
+  },
+  "scope": "Owned-row hot/generic/eager/ordered-SUM pipelines. Existing file, native and six-scalar controls remain unchanged. Defaults require separate real-path and recovery qualification."
+}
