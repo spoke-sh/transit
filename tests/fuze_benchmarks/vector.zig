@@ -34,7 +34,9 @@ const Scan = struct {
 };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 5 or !std.mem.eql(u8, args[1], "scalar")) return error.InvalidArguments;
+    if (args.len != 5) return error.InvalidArguments;
+    const batched = std.mem.eql(u8, args[1], "batch");
+    if (!batched and !std.mem.eql(u8, args[1], "scalar")) return error.InvalidArguments;
     const kernel = std.mem.eql(u8, args[2], "kernel");
     if (!kernel and !std.mem.eql(u8, args[2], "pipeline")) return error.InvalidArguments;
     const rows = try std.fmt.parseInt(usize, args[3], 10);
@@ -46,12 +48,36 @@ pub fn main(init: std.process.Init) !void {
     const decoded = try init.gpa.alloc([2]Cell, rows);
     defer init.gpa.free(decoded);
     for (decoded, 0..) |*row, i| row.* = cells(i);
+    const integers = try init.gpa.alloc(i64, rows);
+    defer init.gpa.free(integers);
+    const states = try init.gpa.alloc(f.Types.State, rows);
+    defer init.gpa.free(states);
+    const details = try init.gpa.alloc(f.Batch.Detail, rows);
+    defer init.gpa.free(details);
+    @memset(details, .none);
+    const outcomes = try init.gpa.alloc(f.Batch.Outcome, rows);
+    defer init.gpa.free(outcomes);
+    for (decoded, integers, states) |row, *value, *state| {
+        state.* = std.meta.activeTag(row[0]);
+        value.* = if (row[0] == .value) @intCast(row[0].value.atom.signed) else 0;
+    }
     var count: u64 = 0;
     var checksum: i64 = 0;
     var first_ns: ?i96 = null;
     const start = std.Io.Clock.awake.now(init.io);
     for (0..repetitions) |_| {
-        if (kernel) {
+        if (kernel and batched) {
+            // This measures already decoded columns. Packing is excluded here
+            // and included in the separate complete owned-row pipeline below.
+            f.Batch.compare(.{ .flat = .{ .values = integers, .states = states, .details = details } }, 0, .ge, outcomes);
+            for (outcomes, decoded) |outcome, row| {
+                if (outcome.truth.selects()) {
+                    count += 1;
+                    checksum += @intCast(row[1].value.atom.signed);
+                    if (first_ns == null) first_ns = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+                }
+            }
+        } else if (kernel) {
             var progress: f.LogicalQuery.Counters = .{};
             for (decoded) |row| {
                 var failure: ?f.LogicalQuery.Counters.FailureSite = null;
@@ -61,8 +87,10 @@ pub fn main(init: std.process.Init) !void {
                     if (first_ns == null) first_ns = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
                 }
             }
-        } else {
-            var execution = try f.LogicalQuery.Execution(Scan, .full_source).init(.{ .allocator = a, .rows = rows }, plan);
+        } else inline for (.{ false, true }) |use_batch| selected_engine: {
+            if (use_batch != batched) break :selected_engine;
+            const Engine = if (use_batch) f.BatchExecution.Execution(Scan, .full_source) else f.LogicalQuery.Execution(Scan, .full_source);
+            var execution = try Engine.init(.{ .allocator = a, .rows = rows }, plan);
             defer execution.deinit();
             while (try execution.next()) |item| {
                 var row = item;

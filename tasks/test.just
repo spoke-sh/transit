@@ -658,3 +658,13 @@ file-benchmark *args:
 # Isolated immutable-tree prototypes; never opens native installation state.
 page-layout *args:
     python3 -B tests/page_layout.py {{args}}
+
+# Experimental fixed-width kernel/owned-row comparison with independent answers.
+vector-benchmark output:
+    zig build vector-benchmark file-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/fuze_benchmarks/vector.py zig-out/bin/transit-vector-benchmark --engines scalar batch --output {{quote(output)}}
+
+# Real frozen-file pipeline sweep; preserves complete decoding and verification.
+vector-files output:
+    zig build file-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/fuze_benchmarks/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}

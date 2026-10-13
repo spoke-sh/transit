@@ -209,13 +209,22 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
     try out.interface.writeAll("]}\n");
     try out.interface.flush();
 }
-fn select(init: std.process.Init, caller: *c.TableClient, text: []const u8, held: bool, limits: q.TableQuery.Limits) !void {
+fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller: *c.TableClient, text: []const u8, held: bool, limits: q.TableQuery.Limits) !void {
     var nonce: [16]u8 = undefined;
     try init.io.randomSecure(&nonce);
     const cancelled = std.atomic.Value(bool).init(false);
-    var query = try q.TableQuery.open(init.gpa, caller, text, nonce, limits, &cancelled, null);
+    const Query = if (batched) q.ExperimentalTableQuery else q.TableQuery;
+    var query = try Query.open(init.gpa, caller, text, nonce, limits, &cancelled, null);
     defer query.deinit();
-    if (held) {
+    if (buffered) {
+        // Two disclosures force the experimental engine to retain a private
+        // remainder, then pause before its next current-policy check.
+        for (0..2) |_| {
+            var row = (try query.next()) orelse return error.ExpectedBufferedRows;
+            row.deinit();
+        }
+    }
+    if (held or buffered) {
         try print(init, .{ .ready = true });
         var input_buffer: [32]u8 = undefined;
         var input = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
@@ -338,7 +347,8 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.startsWith(u8, mode, "captured-") or std.mem.startsWith(u8, mode, "maintained-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "relational")) return relational(init, directory, &caller, args[4], std.mem.eql(u8, mode, "relational-held"), if (args.len > 5) args[5] else null);
-    if (std.mem.startsWith(u8, mode, "select")) return select(init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
+    if (std.mem.startsWith(u8, mode, "select-batch")) return select(true, std.mem.eql(u8, mode, "select-batch-buffered"), init, &caller, args[4], std.mem.eql(u8, mode, "select-batch-held"), .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
+    if (std.mem.startsWith(u8, mode, "select")) return select(false, false, init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.eql(u8, mode, "assist")) return print(init, try currentRead(init, &wire, q.TableAssistance.complete, .{ init.arena.allocator(), &caller, .{ .sql = args[4], .cursor = try std.fmt.parseInt(u16, args[5], 10), .generation = 7, .mode = .console } }));
     if (std.mem.eql(u8, mode, "policy")) {
         const description = try caller.describe();

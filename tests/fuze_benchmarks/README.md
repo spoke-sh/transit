@@ -184,3 +184,41 @@ rows and checksums agree. `--cpu N` selects an available CPU for both probes;
 the default selects the first available CPU. Pinning does not reserve a CPU.
 The ordinary matrix also accepts
 `--query compound`, including its independent DuckDB result comparator.
+
+## Experimental physical batches
+
+`just test::vector-benchmark .cache/vector.json` compares the current scalar
+operators and owned-row executor with the experimental int64 batch path. The
+Python consumer computes exact expected counts/checksums without Fuze. It retains
+one warmup and nine alternating repetitions for tiny and 4096-row inputs. Kernel
+measurements exclude packing; the owned-row pipeline includes admission, source
+allocations, packing, filtering, projection and output consumption. Decoded input
+arrays and kernel scratch are allocated outside the measured allocator. Pipeline
+allocation counters include compute buffers, source rows and projected rows.
+These scopes are deliberately separate; a kernel timing is not file/native I/O.
+
+`just test::vector-files .cache/vector-files.json` sweeps 64/256/1024 compute rows
+and 64 KiB/256 KiB/1 MiB compute buffers over the real frozen CSV and sparse JSONL
+filter, COUNT(*) and COUNT(column) pipelines. Three alternating pairs per case
+retain complete source validation, exact counts/checksums, first-result timing and
+allocation data. Run these measurements sequentially without other work on their
+selected CPU. Timing medians are not tail percentiles. Both selectors are private
+to measurement binaries; the console keeps its existing executor.
+
+Assess the precommitted experimental thresholds after committing the source:
+
+```sh
+python3 -B tests/fuze_benchmarks/vector_gates.py \
+  --vector .cache/vector.json --files .cache/vector-files.json \
+  --budgets tests/fuze_benchmarks/results/2026-10-12-vector/budgets.json \
+  --output .cache/vector-gates.json
+```
+
+A semantically successful report can fail its performance gates. These gates
+cover the first int64 experiment and do not replace the existing file budgets,
+eight native controls or integrated qualification. General Table measurements
+and buffered current-denial checks run in `just test::typed-tables`; that proof
+records three paired native samples per selected query, including process and
+transport costs. It makes no percentile or native speedup claim. See the
+[physical batch guide](../../packages/zig/transit-fuze/docs/batches.md) for ownership,
+validation boundaries and the separate decoder/output memory owners.

@@ -6,6 +6,9 @@ const Capture = @import("file_capture");
 const Tracker = @import("Allocator.zig");
 const Config = struct {
     paths: []const []const u8,
+    experimental_batch: bool = false,
+    compute_rows: usize = 256,
+    compute_bytes: usize = 256 * 1024,
     options: f.FileSource.Options,
     schema_json: ?[]const u8 = null,
     gzip: bool = false,
@@ -201,37 +204,41 @@ pub fn main(init: std.process.Init) !void {
     for (retained[0..retained_count]) |*row| row.deinit();
     retained_count = 0;
     try meter.begin();
-    var execution = try f.FileQuery.execute(a, &binding, sources[0..count], plan.plan);
-    defer execution.deinit();
-    var output_fields: [128]f.Types.Field = undefined;
-    const output_schema = try plan.plan.outputSchema(&output_fields);
-    var result_index: usize = 0;
-    if (config.expected_result_sum != null and plan.plan.aggregate == .rows) {
-        result_index = for (output_schema.structure, 0..) |field, i| {
-            if (std.mem.eql(u8, field.name, "id")) break i;
-        } else return error.MissingResultId;
-    }
     var result_sum: i64 = 0;
-    var first_batch: ?i96 = null;
-    while (try execution.next()) |input| {
-        var row = input;
-        defer row.deinit();
-        if (config.expected_result_sum != null) {
-            const cell = row.cells[result_index];
-            if (cell != .value or cell.value != .atom) return error.InvalidResultType;
-            const value: i64 = switch (cell.value.atom) {
-                .signed => |v| std.math.cast(i64, v) orelse return error.Overflow,
-                .unsigned => |v| std.math.cast(i64, v) orelse return error.Overflow,
-                else => return error.InvalidResultType,
-            };
-            result_sum = try std.math.add(i64, result_sum, value);
+    inline for (.{ false, true }) |batched| selected_engine: {
+        if (batched != config.experimental_batch) break :selected_engine;
+        var execution = if (batched) try f.FileQuery.executeBatched(a, &binding, sources[0..count], plan.plan, .{ .rows = config.compute_rows, .bytes = config.compute_bytes }) else try f.FileQuery.execute(a, &binding, sources[0..count], plan.plan);
+        defer execution.deinit();
+        var output_fields: [128]f.Types.Field = undefined;
+        const output_schema = try plan.plan.outputSchema(&output_fields);
+        var result_index: usize = 0;
+        if (config.expected_result_sum != null and plan.plan.aggregate == .rows) {
+            result_index = for (output_schema.structure, 0..) |field, i| {
+                if (std.mem.eql(u8, field.name, "id")) break i;
+            } else return error.MissingResultId;
         }
-        std.mem.doNotOptimizeAway(row.cells);
-        if (first_batch == null and execution.emitted == config.batch_rows) first_batch = meter.elapsed();
+        result_sum = 0;
+        var first_batch: ?i96 = null;
+        while (try execution.next()) |input| {
+            var row = input;
+            defer row.deinit();
+            if (config.expected_result_sum != null) {
+                const cell = row.cells[result_index];
+                if (cell != .value or cell.value != .atom) return error.InvalidResultType;
+                const value: i64 = switch (cell.value.atom) {
+                    .signed => |v| std.math.cast(i64, v) orelse return error.Overflow,
+                    .unsigned => |v| std.math.cast(i64, v) orelse return error.Overflow,
+                    else => return error.InvalidResultType,
+                };
+                result_sum = try std.math.add(i64, result_sum, value);
+            }
+            std.mem.doNotOptimizeAway(row.cells);
+            if (first_batch == null and execution.emitted == config.batch_rows) first_batch = meter.elapsed();
+        }
+        if (first_batch == null) first_batch = meter.elapsed();
+        if (!execution.complete or execution.scanned != rows or execution.emitted != config.expected_output_rows) return error.IncorrectQueryResult;
+        if (config.expected_result_sum != null and result_sum != config.expected_result_sum.?) return error.IncorrectQueryChecksum;
+        try meter.end("scan_convert_execute", execution.emitted, 0, first_batch);
     }
-    if (first_batch == null) first_batch = meter.elapsed();
-    if (!execution.complete or execution.scanned != rows or execution.emitted != config.expected_output_rows) return error.IncorrectQueryResult;
-    if (config.expected_result_sum != null and result_sum != config.expected_result_sum.?) return error.IncorrectQueryChecksum;
-    try meter.end("scan_convert_execute", execution.emitted, 0, first_batch);
     try emit(meter.out, .{ .complete = true, .scanned = rows, .id_sum = if (id_column != null) @as(?i64, sum) else null, .result_sum = if (config.expected_result_sum != null) @as(?i64, result_sum) else null, .encoded_bytes = config.options.max_scan_bytes - encoded_remaining, .expanded_bytes = config.options.max_scan_bytes - expanded_remaining, .build_mode = @tagName(@import("builtin").mode), .image_peak_rss_kib = try imageRss(init), .cgroup = try cgroup(init) });
 }
