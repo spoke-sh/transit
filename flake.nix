@@ -115,6 +115,15 @@
             inputsFrom = [ default ];
             packages = [ pkgs.nginx ];
           };
+          sql-wire =
+            let
+              tools = import ./nix/sql-wire-tools.nix { inherit pkgs; };
+            in
+            pkgs.mkShell {
+              inputsFrom = [ default ];
+              packages = tools.packages;
+              PKG_CONFIG_PATH = "${tools.openssl.dev}/lib/pkgconfig";
+            };
           ci-bindings = import ./nix/ci-bindings.nix {
             inherit pkgs;
             inherit (toolchains.${system}) sql-tools minio;

@@ -1,5 +1,34 @@
 # Validation and milestone evidence
 
+## Database wire foundation
+
+Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,
+`just test::sql-wire-reference` passes against owned PostgreSQL 18.6 and Oracle
+MySQL 8.4.11 servers with verified TLS. Psycopg 3.3.4 and Connector/Python 9.4.0
+execute prepared reads, INSERT, UPDATE and DELETE where exercised by the
+[probe](sql_wire/reference.py); psql/mysql execute literal reads. The
+[sanitized transcript](sql_wire/reference-transcript.json) retains message kinds
+and selected driver settings, never authentication, parameter or result bytes.
+The PostgreSQL intermediary actively withholds Execute through Sync; the
+prepared executions complete without a Flush dependency. The MySQL intermediary
+removes unsupported capability flags from both sides of negotiation. Connector
+configuration explicitly selects autocommit and `utf8mb4_bin`; the initial
+handshake still proposes collation ID 255, before its SET NAMES command.
+
+`just test::sql-wire-tls` passes the standalone Zig/OpenSSL server transport:
+both database upgrade request formats, TLS 1.2/1.3, fragmented application input,
+certificate trust and hostname rejection, plaintext refusal and absolute
+handshake timeout. Its MySQL upgrade probe begins at SSLRequest; the reference
+server probe separately exercises a real greeting and password authentication.
+The TLS package unit test also checks the exact OpenSSL version and rejects
+missing credentials. `just doctor` passes in the new shell. The locked Nix input
+revisions and Zig compiler are unchanged.
+
+These are client and transport foundation checks. Neither Transit database
+listener, gateway authentication, prepared Table binding nor durable gateway
+write recovery is qualified by them. Full gateway, fault, load and placement
+proofs remain implementation work; no clean-suite result is claimed here.
+
 ## Integrated vector execution
 
 [Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated query runtime is

@@ -125,6 +125,17 @@ With plain `nix develop`, exit and reenter the shell to refresh packaged command
 
 ## SDK qualification tools
 
+`nix develop .#sql-wire` supplies PostgreSQL 18.6, Oracle MySQL 8.4.11,
+Psycopg 3.3.4, Connector/Python 9.4.0 and the OpenSSL 3.6.4 server development
+library for Linux x86_64 database-wire qualification. The existing `flake.lock`
+pins the server/client and OpenSSL sources; [sql-wire-tools.nix](sql-wire-tools.nix)
+asserts their versions and pins the pure Python connector wheel by URL and hash.
+All lockfile input revisions deliberately remain unchanged. Reference database
+servers are test dependencies, not Transit runtime engines. The TLS server
+library links the selected OpenSSL; its C header and runtime version checks
+require deliberate review on upgrade. Run `just test::sql-wire-reference` and
+`just test::sql-wire-tls` for the independent peers.
+
 The default development shell supplies the DuckDB CLI from the existing locked
 nixpkgs revision. Run `nix develop --command duckdb --version` to verify it.
 

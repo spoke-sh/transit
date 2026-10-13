@@ -1,0 +1,7 @@
+.{
+    .name = .transit_tls_server,
+    .version = "0.0.0",
+    .fingerprint = 0xa74d6a5cb633dee0,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

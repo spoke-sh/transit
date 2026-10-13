@@ -10,6 +10,14 @@ _default:
 unit:
     zig build test
 
+# Independent pinned database clients, TLS/authentication and prepared cycles.
+sql-wire-reference:
+    nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py
+
+sql-wire-tls:
+    nix develop .#sql-wire --command bash -euc 'cd packages/zig/transit-tls-server; zig build test probe --prefix ../../../zig-out/sql-wire-tls'
+    nix develop .#sql-wire --command python3 -B tests/sql_wire/tls.py zig-out/sql-wire-tls/bin/transit-tls-server-probe
+
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
 tls-alpn:
     zig build test-tls-alpn
