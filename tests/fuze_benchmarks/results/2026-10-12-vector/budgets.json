@@ -1,0 +1,65 @@
+{
+  "definition": "transit.vector.budgets.v1",
+  "baseline_revision": "34ca32c09e26ef14a447db127af12d3c76dc5d1e",
+  "baseline_binary": "82fefa1884fd2f9acafa90dda2d52f6fd85a5b2f08c750185485604e08126176",
+  "scope": "first experimental int64 slice; no production-default admission",
+  "matrix": [
+    {
+      "engine": "scalar",
+      "phase": "kernel",
+      "rows": 8,
+      "median_ns": 43754,
+      "peak_live_bytes": 0,
+      "allocations": 0
+    },
+    {
+      "engine": "scalar",
+      "phase": "pipeline",
+      "rows": 8,
+      "median_ns": 2282847,
+      "peak_live_bytes": 276,
+      "allocations": 800
+    },
+    {
+      "engine": "scalar",
+      "phase": "kernel",
+      "rows": 4096,
+      "median_ns": 4566225,
+      "peak_live_bytes": 0,
+      "allocations": 0
+    },
+    {
+      "engine": "scalar",
+      "phase": "pipeline",
+      "rows": 4096,
+      "median_ns": 234768754,
+      "peak_live_bytes": 276,
+      "allocations": 81920
+    }
+  ],
+  "limits": {
+    "large_kernel_median_ratio": 0.8,
+    "large_pipeline_median_ratio": 0.9,
+    "tiny_pipeline_median_ratio": 1.15,
+    "tiny_pipeline_additive_ns_per_query": 250000,
+    "file_pipeline_median_ratio": 1.15,
+    "file_first_result_median_ratio": 1.15,
+    "file_additive_ns": 250000,
+    "allocations_per_source_row_max": 2,
+    "batch_resident_bytes_max": 1048576,
+    "native_control_ratios_max": 1.15
+  },
+  "sweep": {
+    "rows": [
+      64,
+      256,
+      1024
+    ],
+    "bytes": [
+      65536,
+      262144,
+      1048576
+    ]
+  },
+  "interpretation": "Elapsed medians from nine repetitions, not tail percentiles; kernel excludes packing, pipeline includes owned rows and projection. Existing file and six-scalar budgets remain independently applicable."
+}
