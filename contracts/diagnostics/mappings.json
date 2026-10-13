@@ -2435,10 +2435,6 @@
       "recovery": "Read retry or explicit fresh observation; never resume, cancel, dispatch effects or fabricate rollback",
       "propagation": "Known shared query causes retain their classifier after Board-specific and native evidence. Unknown failures remain explicit internal errors.",
       "codes": {
-        "AuthorityTransportDenied": {
-          "code": "inspection.transport_denied",
-          "category": "unavailable"
-        },
         "AccessDenied": {
           "code": "inspection.denied",
           "category": "access"
@@ -2631,182 +2627,6 @@
           "code": "inspection.incompatible_definition",
           "category": "integrity"
         },
-        "InvalidBatchBudget": {
-          "code": "query.invalid_compute_budget",
-          "category": "limit"
-        },
-        "BatchBudgetExceeded": {
-          "code": "query.compute_budget",
-          "category": "limit"
-        },
-        "InvalidProvenance": {
-          "code": "query.compute_provenance",
-          "category": "integrity"
-        },
-        "UnsupportedVectorCpu": {
-          "code": "query.unsupported_vector_cpu",
-          "category": "unsupported"
-        },
-        "InvalidComputeWorkers": {
-          "code": "query.invalid_compute_workers",
-          "category": "limit"
-        },
-        "ComputeMemoryBudget": {
-          "code": "query.compute_memory_budget",
-          "category": "limit"
-        },
-        "IncompleteSource": {
-          "code": "query.incomplete_source",
-          "category": "integrity"
-        },
-        "QueryInterfaceUnavailable": {
-          "code": "query.interface_unavailable",
-          "category": "unsupported"
-        },
-        "InvalidRelationalExchange": {
-          "code": "query.exchange_invalid",
-          "category": "integrity"
-        },
-        "InvalidRelationalRouting": {
-          "code": "query.exchange_routing_invalid",
-          "category": "integrity"
-        },
-        "RelationalExchangeClosed": {
-          "code": "query.exchange_closed",
-          "category": "lifecycle"
-        },
-        "RelationalExchangePending": {
-          "code": "query.exchange_pending",
-          "category": "lifecycle"
-        },
-        "RelationalExchangeConflict": {
-          "code": "query.exchange_conflict",
-          "category": "conflict"
-        },
-        "MaintainedRevisionPending": {
-          "code": "query.maintained_revision_pending",
-          "category": "lifecycle"
-        },
-        "MaintainedResetRequired": {
-          "code": "query.maintained_reset_required",
-          "category": "lifecycle"
-        },
-        "TableHistoryGap": {
-          "code": "query.table_history_gap",
-          "category": "integrity"
-        },
-        "TableHistoryConflict": {
-          "code": "query.table_history_conflict",
-          "category": "integrity"
-        },
-        "InvalidRelationalHistory": {
-          "code": "query.relational_history_invalid",
-          "category": "integrity"
-        },
-        "InvalidMaintainedRecord": {
-          "code": "query.maintained_record_invalid",
-          "category": "integrity"
-        },
-        "MaintainedRevisionExhausted": {
-          "code": "query.maintained_revision_exhausted",
-          "category": "limit"
-        },
-        "RelationalResidentBudget": {
-          "code": "query.relational_resident_budget",
-          "category": "limit"
-        },
-        "RelationalSpillBudget": {
-          "code": "query.relational_spill_budget",
-          "category": "limit"
-        },
-        "RelationalSpillWorkBudget": {
-          "code": "query.relational_spill_work_budget",
-          "category": "limit"
-        },
-        "RelationalWorkBudget": {
-          "code": "query.relational_work_budget",
-          "category": "limit"
-        },
-        "RelationalResultBudget": {
-          "code": "query.relational_result_budget",
-          "category": "limit"
-        },
-        "UnsupportedRelationalConsistency": {
-          "code": "query.relational_consistency",
-          "category": "unsupported"
-        },
-        "RelationalCallerChanged": {
-          "code": "query.relational_caller_changed",
-          "category": "binding"
-        },
-        "RelationalSourceChanged": {
-          "code": "query.relational_source_changed",
-          "category": "conflict"
-        },
-        "InvalidRelationalSpill": {
-          "code": "query.relational_spill_integrity",
-          "category": "integrity"
-        },
-        "IncompleteRelationalSpill": {
-          "code": "query.relational_spill_incomplete",
-          "category": "integrity"
-        },
-        "InvalidRelationalSourceOrder": {
-          "code": "query.relational_source_order",
-          "category": "integrity"
-        },
-        "IncompleteRelationalGroups": {
-          "code": "query.relational_groups_incomplete",
-          "category": "integrity"
-        },
-        "FailedRelationalQuery": {
-          "code": "query.relational_failed",
-          "category": "lifecycle"
-        },
-        "UnknownSource": {
-          "code": "query.unknown_source",
-          "category": "binding"
-        },
-        "InvalidQuerySchema": {
-          "code": "query.invalid_schema",
-          "category": "binding"
-        },
-        "QueryResultBudget": {
-          "code": "query.result_budget",
-          "category": "limit"
-        },
-        "QueryPageBudget": {
-          "code": "query.snapshot_read_budget",
-          "category": "limit"
-        },
-        "FailedQuery": {
-          "code": "query.failed_execution",
-          "category": "lifecycle"
-        },
-        "CatalogDenied": {
-          "code": "query.catalog_read_denied",
-          "category": "access"
-        },
-        "CatalogOwnerChanged": {
-          "code": "query.catalog_owner_changed",
-          "category": "conflict"
-        },
-        "CatalogConfigurationChanged": {
-          "code": "query.catalog_configuration_changed",
-          "category": "conflict"
-        },
-        "CatalogNotInitialized": {
-          "code": "query.catalog_uninitialized",
-          "category": "lifecycle"
-        },
-        "TableNotFound": {
-          "code": "query.table_absent",
-          "category": "lifecycle"
-        },
-        "InvalidTableIndex": {
-          "code": "query.invalid_table_index",
-          "category": "integrity"
-        },
         "InvalidQueryRequest": {
           "code": "query.invalid_command",
           "category": "binding"
@@ -2961,34 +2781,6 @@
         },
         "QuerySourceChanged": {
           "code": "query.source_changed",
-          "category": "conflict"
-        },
-        "TableRetired": {
-          "code": "query.table_retired",
-          "category": "lifecycle"
-        },
-        "CatalogDefinitionChanged": {
-          "code": "query.table_definition_changed",
-          "category": "conflict"
-        },
-        "ValueBudgetExceeded": {
-          "code": "query.value_budget",
-          "category": "limit"
-        },
-        "QueryAdapterBudgetExceeded": {
-          "code": "query.adapter_memory_budget",
-          "category": "limit"
-        },
-        "ArrowWorkspaceExceeded": {
-          "code": "query.arrow_workspace_budget",
-          "category": "limit"
-        },
-        "UnsupportedComparison": {
-          "code": "query.unsupported_comparison",
-          "category": "unsupported"
-        },
-        "CatalogScopeChanged": {
-          "code": "query.catalog_scope_changed",
           "category": "conflict"
         },
         "PublicationNotPublished": {
@@ -3194,6 +2986,214 @@
         "RequestResourceMissing": {
           "code": "query.request_resource_missing",
           "category": "lifecycle"
+        },
+        "AuthorityTransportDenied": {
+          "code": "inspection.transport_denied",
+          "category": "unavailable"
+        },
+        "QueryResultBudget": {
+          "code": "query.result_budget",
+          "category": "limit"
+        },
+        "QueryPageBudget": {
+          "code": "query.snapshot_read_budget",
+          "category": "limit"
+        },
+        "FailedQuery": {
+          "code": "query.failed_execution",
+          "category": "lifecycle"
+        },
+        "CatalogDenied": {
+          "code": "query.catalog_read_denied",
+          "category": "access"
+        },
+        "CatalogOwnerChanged": {
+          "code": "query.catalog_owner_changed",
+          "category": "conflict"
+        },
+        "CatalogConfigurationChanged": {
+          "code": "query.catalog_configuration_changed",
+          "category": "conflict"
+        },
+        "CatalogNotInitialized": {
+          "code": "query.catalog_uninitialized",
+          "category": "lifecycle"
+        },
+        "TableNotFound": {
+          "code": "query.table_absent",
+          "category": "lifecycle"
+        },
+        "InvalidTableIndex": {
+          "code": "query.invalid_table_index",
+          "category": "integrity"
+        },
+        "TableRetired": {
+          "code": "query.table_retired",
+          "category": "lifecycle"
+        },
+        "CatalogDefinitionChanged": {
+          "code": "query.table_definition_changed",
+          "category": "conflict"
+        },
+        "ValueBudgetExceeded": {
+          "code": "query.value_budget",
+          "category": "limit"
+        },
+        "UnsupportedComparison": {
+          "code": "query.unsupported_comparison",
+          "category": "unsupported"
+        },
+        "CatalogScopeChanged": {
+          "code": "query.catalog_scope_changed",
+          "category": "conflict"
+        },
+        "InvalidQuerySchema": {
+          "code": "query.invalid_schema",
+          "category": "binding"
+        },
+        "UnknownSource": {
+          "code": "query.unknown_source",
+          "category": "binding"
+        },
+        "QueryAdapterBudgetExceeded": {
+          "code": "query.adapter_memory_budget",
+          "category": "limit"
+        },
+        "ArrowWorkspaceExceeded": {
+          "code": "query.arrow_workspace_budget",
+          "category": "limit"
+        },
+        "RelationalResidentBudget": {
+          "code": "query.relational_resident_budget",
+          "category": "limit"
+        },
+        "RelationalSpillBudget": {
+          "code": "query.relational_spill_budget",
+          "category": "limit"
+        },
+        "RelationalSpillWorkBudget": {
+          "code": "query.relational_spill_work_budget",
+          "category": "limit"
+        },
+        "RelationalWorkBudget": {
+          "code": "query.relational_work_budget",
+          "category": "limit"
+        },
+        "RelationalResultBudget": {
+          "code": "query.relational_result_budget",
+          "category": "limit"
+        },
+        "UnsupportedRelationalConsistency": {
+          "code": "query.relational_consistency",
+          "category": "unsupported"
+        },
+        "RelationalCallerChanged": {
+          "code": "query.relational_caller_changed",
+          "category": "binding"
+        },
+        "RelationalSourceChanged": {
+          "code": "query.relational_source_changed",
+          "category": "conflict"
+        },
+        "InvalidRelationalSpill": {
+          "code": "query.relational_spill_integrity",
+          "category": "integrity"
+        },
+        "IncompleteRelationalSpill": {
+          "code": "query.relational_spill_incomplete",
+          "category": "integrity"
+        },
+        "InvalidRelationalSourceOrder": {
+          "code": "query.relational_source_order",
+          "category": "integrity"
+        },
+        "IncompleteRelationalGroups": {
+          "code": "query.relational_groups_incomplete",
+          "category": "integrity"
+        },
+        "FailedRelationalQuery": {
+          "code": "query.relational_failed",
+          "category": "lifecycle"
+        },
+        "MaintainedRevisionPending": {
+          "code": "query.maintained_revision_pending",
+          "category": "lifecycle"
+        },
+        "MaintainedResetRequired": {
+          "code": "query.maintained_reset_required",
+          "category": "lifecycle"
+        },
+        "TableHistoryGap": {
+          "code": "query.table_history_gap",
+          "category": "integrity"
+        },
+        "TableHistoryConflict": {
+          "code": "query.table_history_conflict",
+          "category": "integrity"
+        },
+        "InvalidRelationalHistory": {
+          "code": "query.relational_history_invalid",
+          "category": "integrity"
+        },
+        "InvalidMaintainedRecord": {
+          "code": "query.maintained_record_invalid",
+          "category": "integrity"
+        },
+        "MaintainedRevisionExhausted": {
+          "code": "query.maintained_revision_exhausted",
+          "category": "limit"
+        },
+        "InvalidRelationalExchange": {
+          "code": "query.exchange_invalid",
+          "category": "integrity"
+        },
+        "InvalidRelationalRouting": {
+          "code": "query.exchange_routing_invalid",
+          "category": "integrity"
+        },
+        "RelationalExchangeClosed": {
+          "code": "query.exchange_closed",
+          "category": "lifecycle"
+        },
+        "RelationalExchangePending": {
+          "code": "query.exchange_pending",
+          "category": "lifecycle"
+        },
+        "RelationalExchangeConflict": {
+          "code": "query.exchange_conflict",
+          "category": "conflict"
+        },
+        "QueryInterfaceUnavailable": {
+          "code": "query.interface_unavailable",
+          "category": "unsupported"
+        },
+        "InvalidBatchBudget": {
+          "code": "query.invalid_compute_budget",
+          "category": "limit"
+        },
+        "BatchBudgetExceeded": {
+          "code": "query.compute_budget",
+          "category": "limit"
+        },
+        "InvalidProvenance": {
+          "code": "query.compute_provenance",
+          "category": "integrity"
+        },
+        "UnsupportedVectorCpu": {
+          "code": "query.unsupported_vector_cpu",
+          "category": "unsupported"
+        },
+        "InvalidComputeWorkers": {
+          "code": "query.invalid_compute_workers",
+          "category": "limit"
+        },
+        "ComputeMemoryBudget": {
+          "code": "query.compute_memory_budget",
+          "category": "limit"
+        },
+        "IncompleteSource": {
+          "code": "query.incomplete_source",
+          "category": "integrity"
         }
       },
       "exceptions": [],
