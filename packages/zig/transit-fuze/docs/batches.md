@@ -82,7 +82,7 @@ reservation (4 MiB by default), and a minimum operator-lane count (8192). Pass
 `pool.runner(cancellation)` to the file/Table compute configuration. The host
 must stop new calls and join its query callers before `pool.deinit()`.
 
-The pool reserves its own metadata and 512 KiB per additional thread; the pinned
+The pool reserves its own metadata and 1 MiB per additional thread; the pinned
 runtime includes its thread-local signal storage in this stack reservation.
 Admission checks this reservation plus the physical batch against the configured
 resident budget. Decoder, transport, output, OS bookkeeping and concurrently

@@ -4,9 +4,10 @@ const std = @import("std");
 const Batch = @import("root.zig").fuze.Batch;
 const Self = @This();
 pub const max_workers = 4;
-// The pinned Zig runtime reserves 256 KiB of thread-local signal-stack storage.
-// pthread includes TLS in this reservation; 512 KiB leaves bounded compute stack.
-pub const stack_bytes = 512 * 1024;
+// The pinned runtime uses up to 512 KiB of TLS in Debug (256 KiB in
+// ReleaseSafe). pthread includes that in its reservation; leave another
+// 512 KiB for the bounded kernel stack. This is charged before thread creation.
+pub const stack_bytes = 1024 * 1024;
 pub const Options = struct {
     workers: u8 = 1,
     resident_bytes: usize = 4 * 1024 * 1024,

@@ -19,15 +19,7 @@ pub const Limits = struct {
         if (self.rows == 0 or self.rows > 1024 or self.bytes < 4096 or self.bytes > 1024 * 1024) return error.InvalidBatchBudget;
     }
 };
-pub const Provenance = struct {
-    pub const Location = struct { source: usize, record: u64, byte: u64, prefix_bytes: u8 };
-    /// One-based original source row, independent of selection/output positions.
-    row: u64,
-    /// Original validation boundary; this prototype's pull adapters validate rows.
-    boundary: u64,
-    identity: ?@import("TableRow.zig").Identity = null,
-    location: ?Location = null,
-};
+pub const Provenance = @import("BatchProvenance.zig");
 pub const kernels = @import("VectorKernel.zig");
 pub const Detail = kernels.Detail;
 pub const Column = kernels.Column;

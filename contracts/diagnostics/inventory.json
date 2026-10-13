@@ -5419,9 +5419,9 @@
         "catch": 12
       },
       "imports": [
+        "BatchProvenance.zig",
         "Finite.zig",
         "LogicalQuery.zig",
-        "TableRow.zig",
         "Types.zig",
         "VectorKernel.zig",
         "std"
@@ -5459,6 +5459,20 @@
         "LogicalQuery.zig",
         "Types.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/BatchProvenance.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "TableRow.zig"
       ]
     },
     "packages/zig/transit-fuze/src/BoundedJson.zig": {
@@ -5779,7 +5793,7 @@
         "catch": 10
       },
       "imports": [
-        "Batch.zig",
+        "BatchProvenance.zig",
         "BudgetDiagnostic.zig",
         "FileFraming.zig",
         "FileValueDiagnostic.zig",

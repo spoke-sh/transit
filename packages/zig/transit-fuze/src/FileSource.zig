@@ -369,7 +369,7 @@ pub const Location = struct {
 };
 pub const Scan = struct {
     location: Location = .{},
-    reported: ?@import("Batch.zig").Provenance.Location = null,
+    reported: ?@import("BatchProvenance.zig").Location = null,
     allocator: std.mem.Allocator,
     binding: *const Binding,
     sources: []const Source,
@@ -401,11 +401,11 @@ pub const Scan = struct {
         }
         return result;
     }
-    pub fn batchPosition(self: *const Scan) ?@import("Batch.zig").Provenance.Location {
+    pub fn batchPosition(self: *const Scan) ?@import("BatchProvenance.zig").Location {
         const value = self.position();
         return .{ .source = value.source orelse return null, .record = value.record orelse return null, .byte = value.byte orelse return null, .prefix_bytes = value.prefix_bytes };
     }
-    pub fn restoreBatchPosition(self: *Scan, value: @import("Batch.zig").Provenance.Location) void {
+    pub fn restoreBatchPosition(self: *Scan, value: @import("BatchProvenance.zig").Location) void {
         self.reported = value;
     }
     fn conversionOrigin(self: *Scan, column: usize) void {
