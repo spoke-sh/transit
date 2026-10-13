@@ -94,6 +94,25 @@
     {
       "file": "avx2-codegen.txt",
       "binary_sha256": "18950ed315654b5619f49a94d43ed6e6bcee620a0a3f12a29bb10cc249729f96"
+    },
+    {
+      "file": "release-portable-tests.log.gz",
+      "uncompressed_sha256": "9b098e247a845531a73f04ff5dcbac02c680223ac9bcb6347ac45cfe373b7eba",
+      "bytes": 3257
+    },
+    {
+      "file": "release-nehalem-tests.log.gz",
+      "uncompressed_sha256": "d002856e752360a5e822bf23c3bf4ee5110d9f6e7fbaf68eff51e275f4cac354",
+      "bytes": 33176
     }
-  ]
+  ],
+  "nehalem_package_test": {
+    "binary_sha256": "cac78c6ada28e7eb3e9a17d105812650df406fb3c3f32713f8bc8c419a12d62e",
+    "source_revision": "5b3d1ba65a8e918996be0790494aa01914aeacc4",
+    "passed": 312,
+    "skipped": 1,
+    "failed": 0,
+    "skip": "Hardware-specific AVX2 execution; unsupported forced dispatch is separately checked",
+    "command": "qemu-x86_64 -cpu Nehalem TEST_BINARY"
+  }
 }

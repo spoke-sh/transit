@@ -49,8 +49,8 @@ pub fn init(a: std.mem.Allocator, io: std.Io, options: Options) !*Self {
     }
     return self;
 }
-/// The host stops new calls before destruction. Wait for the admitted job and
-/// join every worker, including partially started pools, before freeing memory.
+/// The host stops new calls and joins all query callers before destruction,
+/// including callers computing locally. Join every worker before freeing memory.
 pub fn deinit(self: *Self) void {
     self.admission.lockUncancelable(self.io);
     self.stopAndJoin();

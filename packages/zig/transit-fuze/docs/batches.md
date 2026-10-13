@@ -99,7 +99,8 @@ batch and no queued batch. Contending or short work computes on its caller;
 this avoids a pool queue behind a long query, but does not itself bound host
 query concurrency. SUM stays local and always checks each ordered contribution.
 Workers receive disjoint decoded lane/scratch ranges, never source clients.
-Cancellation is checked between 64-lane chunks; return waits for all writes to
+Worker jobs check cancellation between 64-lane chunks. Local fallback checks it
+before and after its bounded batch. Return waits for all writes to
 join before the private candidate can be released. No worker waits for output
 consumption or performs publication.
 
