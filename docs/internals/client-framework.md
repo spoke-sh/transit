@@ -69,9 +69,9 @@ The [Rust investigation](../../tests/README.md#rust-native-lifetime-investigatio
 contains a native stack returning through an unmapped image. The integrated
 [query qualification](../../tests/README.md#integrated-vector-execution) records
 the .NET crash observation and deterministic mapping regression separately.
-`nix develop .#bindings --command just bindings::dotnet-sdk-test` and the
-corresponding `bindings::rust-sdk-test` run installed consumers against the real
-authority. Their Linux mapping assertions require retained, nonduplicated images
+The installed Rust and .NET SDK tasks named in those proof records run consumers
+against the real authority; the records own reproduction commands and source
+revisions. Their Linux mapping assertions require retained, nonduplicated images
 after I/O/close and removed extraction files. Such assertions detect unsafe
 unloading even when a particular run avoids a crash; they do not prove every
 host scheduler, loader context or platform safe.
