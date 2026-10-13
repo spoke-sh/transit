@@ -5,9 +5,10 @@ pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
-pub const TableQuery = @import("TableQuery.zig").Query(false);
-/// Internal proof/measurement selector; no public request or SQL mode.
-pub const ExperimentalTableQuery = @import("TableQuery.zig").Query(true);
+pub const TableQuery = @import("TableQuery.zig").Query(true);
+/// Independent row evaluator for proofs and measurements, never a query mode.
+pub const ReferenceTableQuery = @import("TableQuery.zig").Query(false);
+pub const ComputePool = @import("ComputePool.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const TableSource = @import("TableSource.zig");
 pub const RelationalRevision = @import("RelationalRevision.zig");

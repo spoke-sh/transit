@@ -104,23 +104,30 @@ fn namesView(names: lowering.OutputNames, output: *[@import("Unified.zig").max_c
     return output[0..width];
 }
 pub const Failure = logical.Failure;
-pub const Execution = logical.Execution(source.Scan, .full_source);
-pub fn execute(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan) !Execution {
+pub const ReferenceExecution = logical.Execution(source.Scan, .full_source);
+/// Independent row evaluator retained for proof and measurement callers.
+pub fn executeReference(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan) !ReferenceExecution {
     try plan.validate();
     if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;
     var scan = try source.Scan.init(allocator, binding, sources);
     errdefer scan.deinit();
-    return Execution.init(scan, plan);
+    return ReferenceExecution.init(scan, plan);
 }
 
-/// Experimental proof/benchmark adapter. The same frozen binding and complete
-/// scan verification apply; this is not a user-facing query mode.
-pub fn executeBatched(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan, limits: @import("Batch.zig").Limits) !@import("BatchExecution.zig").Execution(source.Scan, .full_source) {
+pub const Execution = @import("BatchExecution.zig").Execution(source.Scan, .full_source);
+pub const Compute = struct { limits: @import("Batch.zig").Limits = .{}, runner: ?@import("Batch.zig").Runner = null };
+pub fn execute(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan) !Execution {
+    return executeWith(allocator, binding, sources, plan, .{});
+}
+/// Hosts own compute admission, workers and cancellation. Source reads stay serial.
+pub fn executeWith(allocator: std.mem.Allocator, binding: *const source.Binding, sources: []const source.Source, plan: Plan, compute: Compute) !Execution {
     try plan.validate();
     if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;
     var scan = try source.Scan.init(allocator, binding, sources);
     errdefer scan.deinit();
-    var execution = try @import("BatchExecution.zig").Execution(source.Scan, .full_source).initBudget(scan, plan, limits);
+    var execution = try Execution.initBudget(scan, plan, compute.limits);
+    execution.runner = compute.runner;
+    execution.borrowed_plan = plan;
     // Serve the first existing output batch without waiting for a compute target.
     execution.startup_rows = @import("LogicalArrow.zig").max_rows;
     return execution;
@@ -454,7 +461,7 @@ test "experimental file batches preserve malformed suffix and verified EOF after
     defer binding.deinit();
     var compiled = try compile(t.allocator, "SELECT id FROM input WHERE id = 1 LIMIT 1", "input", &binding);
     defer compiled.deinit();
-    var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{});
+    var execution = try executeWith(t.allocator, &binding, &sources, compiled.plan, .{});
     defer execution.deinit();
     var first = (try execution.next()).?;
     first.deinit();
@@ -472,7 +479,7 @@ test "experimental file batches preserve projection and COUNT on frozen CSV and 
         for ([_][]const u8{ "SELECT value FROM input WHERE id >= 2", "SELECT COUNT(value) FROM input WHERE id >= 2" }) |text| {
             var compiled = try compile(t.allocator, text, "input", &binding);
             defer compiled.deinit();
-            var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{ .rows = 2 });
+            var execution = try executeWith(t.allocator, &binding, &sources, compiled.plan, .{ .limits = .{ .rows = 2 } });
             defer execution.deinit();
             var index: usize = 0;
             while (try execution.next()) |input| {
@@ -497,7 +504,7 @@ test "experimental file buffered rows recheck denial and cancellation" {
         defer binding.deinit();
         var compiled = try compile(t.allocator, "SELECT id FROM input", "input", &binding);
         defer compiled.deinit();
-        var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{});
+        var execution = try executeWith(t.allocator, &binding, &sources, compiled.plan, .{});
         defer execution.deinit();
         for (0..9) |_| {
             var row = (try execution.next()).?;
@@ -508,4 +515,27 @@ test "experimental file buffered rows recheck denial and cancellation" {
         try t.expectError(if (cancel) error.Cancelled else error.AccessDenied, execution.next());
         try t.expect(!execution.complete);
     }
+}
+
+test "buffered operator failures retain the original file record and byte position" {
+    const t = std.testing;
+    var memory: Memory = .{ .bytes = "x\n1\n2\n3\n4\n5\n6\n7\n8\nbad\n10\n11\n" };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .sample_records = 1, .mismatch = .type_error }, &.{});
+    defer binding.deinit();
+    var compiled = try compile(t.allocator, "SELECT x FROM input WHERE x >= 0", "input", &binding);
+    defer compiled.deinit();
+    var execution = try execute(t.allocator, &binding, &sources, compiled.plan);
+    defer execution.deinit();
+    for (0..8) |_| {
+        var row = (try execution.next()).?;
+        row.deinit();
+    }
+    try t.expectError(error.QueryTypeError, execution.next());
+    try t.expectEqual(@as(u64, 9), execution.failure.?.row);
+    const position = execution.scan.position();
+    try t.expectEqual(@as(?usize, 0), position.source);
+    try t.expectEqual(@as(?u64, 10), position.record);
+    try t.expectEqual(@as(?u64, 18), position.byte);
+    try t.expect(!execution.complete);
 }

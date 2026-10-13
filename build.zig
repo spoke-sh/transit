@@ -61,7 +61,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/fuze_benchmarks/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "file_capture", .module = file_capture } },
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "file_capture", .module = file_capture }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     const file_benchmark_step = b.step("file-benchmark", "Build bounded source/discovery/execution phase measurements");
     file_benchmark_step.dependOn(&b.addInstallArtifact(file_benchmark, .{}).step);
@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/fuze_benchmarks/vector.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     b.step("vector-benchmark", "Build bounded vector operator and pipeline measurements").dependOn(&b.addInstallArtifact(vector_benchmark, .{}).step);
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });

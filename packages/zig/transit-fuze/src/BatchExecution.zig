@@ -1,4 +1,4 @@
-//! Experimental int64 pull execution. Source acquisition stays serial; read
+//! Bounded typed pull execution. Source acquisition stays serial; read
 //! failures are held behind the already acquired prefix's operator frontier.
 const std = @import("std");
 const batch = @import("Batch.zig");
@@ -11,6 +11,10 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         const Self = @This();
         scan: Scan,
         physical: batch,
+        fingerprint: [32]u8,
+        /// Optional public borrowed-plan contract; the physical program owns its copy.
+        borrowed_plan: ?logical.Plan = null,
+        runner: ?batch.Runner = null,
         scanned: u64 = 0,
         selected: u64 = 0,
         value_count: u64 = 0,
@@ -23,6 +27,8 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         failure: ?logical.Failure = null,
         index: usize = 0,
         pending: ?logical.Row = null,
+        pending_provenance: batch.Provenance = .{ .row = 1, .boundary = 1 },
+        oversized: bool = false,
         read_error: ?anyerror = null,
         read_rejection: if (@hasField(Scan, "rejection")) @FieldType(Scan, "rejection") else void = if (@hasField(Scan, "rejection")) null else {},
 
@@ -32,7 +38,8 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             return initBudget(scan, plan, .{});
         }
         pub fn initBudget(scan: Scan, plan: logical.Plan, limits: batch.Limits) !Self {
-            return .{ .scan = scan, .physical = try batch.init(scan.allocator, plan, limits) };
+            const physical = try batch.init(scan.allocator, plan, limits);
+            return .{ .scan = scan, .physical = physical, .fingerprint = physical.fingerprint };
         }
         pub fn deinit(self: *Self) void {
             if (self.pending) |*row| row.deinit();
@@ -43,7 +50,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         fn atLimit(self: *const Self) bool {
             return if (self.physical.plan.limit) |limit| self.selected == limit else false;
         }
-        fn fill(self: *Self) void {
+        fn fill(self: *Self) !void {
             self.physical.reset();
             self.index = 0;
             if (self.read_error != null) return;
@@ -53,6 +60,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 target = @min(target, limit - self.selected);
             };
             while (self.physical.len < target) {
+                const had_pending = self.pending != null;
                 const acquired = if (self.pending) |row| held: {
                     self.pending = null;
                     break :held row;
@@ -67,24 +75,27 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     self.read_error = err;
                     break;
                 };
-                const provenance: batch.Provenance = .{ .row = ordinal, .boundary = ordinal, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null };
+                const provenance: batch.Provenance = if (had_pending) self.pending_provenance else .{ .row = ordinal, .boundary = ordinal, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
                 self.physical.appendValidated(row.cells, provenance) catch |err| {
-                    if (err == error.BatchFull and self.physical.len != 0) {
+                    if (err == error.BatchFull) {
                         self.pending = row;
+                        self.pending_provenance = provenance;
+                        self.oversized = self.physical.len == 0;
                     } else {
                         row.deinit();
-                        self.read_error = if (err == error.BatchFull) error.BatchBudgetExceeded else err;
+                        self.read_error = err;
                     }
                     break;
                 };
                 row.deinit();
             }
-            self.physical.evaluate();
+            if (self.runner) |runner| try runner.evaluate(runner.context, &self.physical, runner.cancellation) else self.physical.evaluate();
         }
         pub fn next(self: *Self) !?logical.Row {
             if (self.failed) return error.FailedQuery;
             if (self.complete) return null;
             errdefer self.failed = true;
+            if (self.borrowed_plan) |borrowed| if (!std.mem.eql(u8, &try borrowed.fingerprint(), &self.fingerprint)) return error.SourceChanged;
             try self.disclose();
             const plan = self.physical.plan;
             while (true) {
@@ -100,7 +111,11 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                         }
                         break;
                     }
-                    self.fill();
+                    try self.fill();
+                    if (self.oversized) {
+                        if (try self.consumeOversized()) |row| return row;
+                        continue;
+                    }
                     if (self.physical.len == 0) {
                         if (self.read_error) |err| {
                             if (@hasField(Scan, "rejection")) self.scan.rejection = self.read_rejection;
@@ -170,7 +185,46 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         fn disclose(self: *Self) !void {
             if (@hasDecl(Scan, "validateBatchDisclosure")) try self.scan.validateBatchDisclosure();
         }
+        /// A valid decoded row may exceed the physical payload reservation.
+        /// Evaluate that one existing owner directly; never narrow admission or
+        /// allocate a larger compute buffer to accommodate a pathological row.
+        fn consumeOversized(self: *Self) !?logical.Row {
+            var row = self.pending.?;
+            self.pending = null;
+            self.oversized = false;
+            var returned = false;
+            defer if (!returned) row.deinit();
+            const plan = self.physical.plan;
+            var counters: logical.Counters = .{ .scanned = self.scanned, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
+            defer {
+                self.scanned = counters.scanned;
+                self.selected = counters.selected;
+                self.value_count = counters.value_count;
+                self.sum = counters.sum;
+            }
+            var site: ?logical.Counters.FailureSite = null;
+            const selected = counters.observe(plan, row.cells, &site) catch |err| {
+                self.scanned = counters.scanned;
+                if (site) |failure| {
+                    self.captureState(failure.operation, failure.column, std.meta.activeTag(row.cells[failure.column]), failure.instruction);
+                    if (@hasDecl(Scan, "restoreBatchPosition")) if (self.pending_provenance.location) |position| self.scan.restoreBatchPosition(position);
+                }
+                return err;
+            };
+            if (!selected or plan.aggregate != .rows) return null;
+            const projected = try row.arena.allocator().alloc(Cell, plan.projection.len);
+            for (plan.projection, projected) |column, *cell| cell.* = row.cells[column];
+            row.cells = projected;
+            try self.disclose();
+            self.emitted = try std.math.add(u64, self.emitted, 1);
+            returned = true;
+            return row;
+        }
         fn capture(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, row: usize, instruction: ?u8) void {
+            self.captureState(operation, column, self.physical.columns[column].states[row], instruction);
+            if (@hasDecl(Scan, "restoreBatchPosition")) if (self.physical.provenance[row].location) |position| self.scan.restoreBatchPosition(position);
+        }
+        fn captureState(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, state: types.State, instruction: ?u8) void {
             const plan = self.physical.plan;
             const field = plan.schema.structure[column];
             const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
@@ -181,7 +235,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 .column_truncated = field.name.len > 128,
                 .expected = typed.expected,
                 .expected_len = typed.expected_len,
-                .state = self.physical.columns[column].states[row],
+                .state = state,
                 .instruction = instruction,
                 .binding = plan.source_basis,
                 .plan = self.physical.fingerprint,
@@ -208,11 +262,33 @@ const Fixture = struct {
         var arena: std.heap.ArenaAllocator = .init(self.allocator);
         errdefer arena.deinit();
         const cells = try arena.allocator().dupe(Cell, &self.rows[self.index]);
+        for (cells) |*cell| cell.* = try types.Values.cloneValidated(arena.allocator(), cell.*);
         self.index += 1;
         return .{ .arena = arena, .cells = cells };
     }
 };
 const fixture_schema: types.Type = .{ .structure = &.{ .{ .name = "key", .type = .int64, .nullable = true, .optional = true }, .{ .name = "value", .type = .int64, .nullable = true, .optional = true } } };
+
+test "valid oversized rows retain the source owner without increasing the physical cap" {
+    const text: [8192]u8 = @splat('x');
+    const rows = [_][2]Cell{
+        .{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = &text } } } },
+        .{ .{ .value = .{ .atom = .{ .signed = 2 } } }, .{ .value = .{ .atom = .{ .bytes = "small" } } } },
+        .{ .{ .value = .{ .atom = .{ .signed = 3 } } }, .{ .value = .{ .atom = .{ .bytes = &text } } } },
+    };
+    const plan: logical.Plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .int64 }, .{ .name = "value", .type = .utf8 } } }, .source_basis = @splat(71), .projection = &.{1} };
+    var execution = try Execution(Fixture, .full_source).initBudget(.{ .allocator = std.testing.allocator, .rows = &rows }, plan, .{ .rows = 64, .bytes = 4096 });
+    defer execution.deinit();
+    for ([_][]const u8{ &text, "small", &text }) |expected| {
+        var row = (try execution.next()).?;
+        defer row.deinit();
+        try std.testing.expectEqualStrings(expected, row.cells[0].value.atom.bytes);
+        try std.testing.expectEqual(@as(usize, 4096), execution.physical.residentBytes());
+    }
+    try std.testing.expect(try execution.next() == null);
+    try std.testing.expect(execution.complete);
+    try std.testing.expectEqual(@as(u64, 3), execution.scanned);
+}
 
 test "checked SUM prefix wins over later predicate failure across every batch size" {
     const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .sum, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };

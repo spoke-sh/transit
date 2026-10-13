@@ -369,6 +369,7 @@ pub const Location = struct {
 };
 pub const Scan = struct {
     location: Location = .{},
+    reported: ?@import("Batch.zig").Provenance.Location = null,
     allocator: std.mem.Allocator,
     binding: *const Binding,
     sources: []const Source,
@@ -388,6 +389,7 @@ pub const Scan = struct {
         self.* = undefined;
     }
     pub fn position(self: *const Scan) Location {
+        if (self.reported) |value| return .{ .source = value.source, .record = value.record, .byte = value.byte, .prefix_bytes = value.prefix_bytes };
         var result = self.location;
         result.source = if (self.file < self.sources.len) self.file else null;
         if (self.reader) |reader| {
@@ -398,6 +400,13 @@ pub const Scan = struct {
             if (reader.budget) |budget| result.budget = budget;
         }
         return result;
+    }
+    pub fn batchPosition(self: *const Scan) ?@import("Batch.zig").Provenance.Location {
+        const value = self.position();
+        return .{ .source = value.source orelse return null, .record = value.record orelse return null, .byte = value.byte orelse return null, .prefix_bytes = value.prefix_bytes };
+    }
+    pub fn restoreBatchPosition(self: *Scan, value: @import("Batch.zig").Provenance.Location) void {
+        self.reported = value;
     }
     fn conversionOrigin(self: *Scan, column: usize) void {
         if (self.location.conversion) |*value| {

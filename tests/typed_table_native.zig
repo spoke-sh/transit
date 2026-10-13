@@ -213,7 +213,7 @@ fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller
     var nonce: [16]u8 = undefined;
     try init.io.randomSecure(&nonce);
     const cancelled = std.atomic.Value(bool).init(false);
-    const Query = if (batched) q.ExperimentalTableQuery else q.TableQuery;
+    const Query = if (batched) q.TableQuery else q.ReferenceTableQuery;
     var query = try Query.open(init.gpa, caller, text, nonce, limits, &cancelled, null);
     defer query.deinit();
     if (buffered) {

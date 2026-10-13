@@ -20,17 +20,26 @@ pub const Limits = struct {
     }
 };
 pub const Provenance = struct {
+    pub const Location = struct { source: usize, record: u64, byte: u64, prefix_bytes: u8 };
     /// One-based original source row, independent of selection/output positions.
     row: u64,
     /// Original validation boundary; this prototype's pull adapters validate rows.
     boundary: u64,
     identity: ?@import("TableRow.zig").Identity = null,
+    location: ?Location = null,
 };
 pub const kernels = @import("VectorKernel.zig");
 pub const Detail = kernels.Detail;
 pub const Column = kernels.Column;
 pub const View = kernels.View;
 pub const Outcome = kernels.Outcome;
+/// Host-owned execution resource. The callback must join all work before return;
+/// it may not retain the batch or publish results. Null keeps local execution.
+pub const Runner = struct {
+    context: *anyopaque,
+    evaluate: *const fn (*anyopaque, *Self, ?*const std.atomic.Value(bool)) anyerror!void,
+    cancellation: ?*const std.atomic.Value(bool) = null,
+};
 allocator: std.mem.Allocator,
 backing: []u8,
 memory: std.heap.FixedBufferAllocator,
@@ -162,8 +171,17 @@ pub fn appendValidated(self: *Self, cells: []const Cell, provenance: Provenance)
 /// Computes outcomes without committing progress or arbitrating later failures.
 /// The ordered consumer applies LIMIT and aggregate errors at each source row.
 pub fn evaluate(self: *Self) void {
+    self.prepareViews();
+    self.evaluateRange(0, self.len);
+}
+pub fn prepareViews(self: *Self) void {
     for (self.views, self.columns) |*view, column| view.* = column.view(self.len);
-    self.kernel.evaluate(self.views, 0, self.outcomes[0..self.len], self.sites, self.scratch, self.temporary);
+}
+/// Disjoint ranges may run concurrently after prepareViews. Every writable slice
+/// is partitioned by original lane, including the Boolean stack workspace.
+pub fn evaluateRange(self: *Self, start: usize, end: usize) void {
+    std.debug.assert(start <= end and end <= self.len);
+    self.kernel.evaluate(self.views, start, self.outcomes[start..end], self.sites[start..end], self.scratch[start * self.kernel.depth .. end * self.kernel.depth], self.temporary[start..end]);
 }
 /// Allocation-free int64 comparison; the general program uses this same kernel.
 pub fn compare(column: View, literal: i64, op: finite.Comparison, output: []Outcome) void {
