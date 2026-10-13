@@ -5,6 +5,62 @@ makes a query result attributable and complete? The [SQL](../reference/sql.md),
 [query](../reference/queries.md), [Arrow](../reference/arrow.md) and
 [Flight](../reference/flight.md) references own supported syntax, types and interfaces.
 
+## Column execution and ordered failure frontiers
+
+The question is whether private column computation can remove repeated dynamic
+operator dispatch without changing accepted progress or disclosure. The model
+has a serial source owner, a validated immutable plan, provisional lane outcomes
+and one ordered consumer. Compute vectors are private and are not storage pages,
+Arrow segments or committed work.
+
+[`Batch`](../../packages/zig/transit-fuze/src/Batch.zig) owns the bound plan,
+fixed-width words, five-state tags, retained recursive payloads, selections and
+original source locations in a byte-capped arena. Payload liveness is derived
+from projection, comparison and aggregate dependencies. State-only predicates
+and COUNT need tags; projection and comparison retain values. Source validation
+precedes this specialization, so an unused field does not escape validation.
+
+[`VectorKernel`](../../packages/zig/transit-fuze/src/VectorKernel.zig) binds typed
+comparison functions once and evaluates eager programs by instruction across
+lanes. Each lane retains its first failing instruction. The ordered consumer
+then visits original source positions, applies LIMIT, and checks every SUM
+prefix. Consequently a later predicate error or decoding error cannot replace
+an earlier aggregate error. A read-ahead failure is held behind its acquired
+prefix. Original file position and native identity remain attached to the lane.
+A valid row too large for the physical arena is evaluated under the existing
+decoder owner rather than changing admission or increasing the compute cap.
+
+SIMD comparison writes private masks; state tags determine truth, unknown or
+failure afterward. The separate AVX2 object is reachable only after CPUID and
+XSAVE/XCR0 checks. This guards that object, not unrelated native-target code;
+a portable executable must itself be built with `-Dcpu=baseline`. Generic rich
+values retain their logical comparison and ownership rules.
+
+[`ComputePool`](../../packages/zig/transit-query/src/ComputePool.zig) belongs to
+the host. One admitted batch is partitioned into disjoint lane and scratch ranges
+across at most four workers. There is no queued backlog. Other queries compute
+locally; the host must still bound query concurrency and decoder/output owners.
+Cancellation joins all writes before releasing the private candidate. Sources,
+current-right checks, ordered aggregation and publication never run on workers.
+This construction bounds compute storage independently of durable cardinality;
+it does not claim a whole-process RSS bound or parallel speedup for short work.
+
+Relational [`RelationalKernel`](../../packages/zig/transit-fuze/src/RelationalKernel.zig)
+resolves stable IDs and binds comparisons at initialization or restore. Its
+constant views have one lane because one step retains at most one source read
+and group update. Bulk lookahead would need additional failure, budget and
+checkpoint reasoning; preserving the existing quantum is the chosen tradeoff.
+FZS1/FQS1 and relational checkpoints contain none of this private metadata.
+
+The mechanism is falsified by any difference in ordered outputs, first failure,
+checkpoint bytes, current-denial behavior or resident accounting under rebatching
+and worker schedules. The [batch tests](../../packages/zig/transit-fuze/src/batch_execution_test.zig),
+worker tests and existing independent relational/source/Arrow proofs exercise
+those observations. The [measurement guide](../../tests/fuze_benchmarks/README.md)
+separates decoded kernels from owned-row and real file pipelines. The
+[proof ledger](../../tests/README.md) records which commands actually ran;
+synthetic gains do not establish storage-bound or universal query speedup.
+
 ## Model and dependencies
 
 SQL lowers to a typed finite plan. A declared source fixes identity, schema or
