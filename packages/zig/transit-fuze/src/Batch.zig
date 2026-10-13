@@ -98,7 +98,13 @@ pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !S
     if (plan.aggregate == .sum) return error.UnsupportedBatchPlan;
     if (plan.predicate == .program and (plan.predicate.program.instructions.len != 1 or plan.predicate.program.instructions[0] != .atom)) return error.UnsupportedBatchPlan;
     if (limits.bytes <= @sizeOf(Self)) return error.BatchBudgetExceeded;
-    const backing = try allocator.alloc(u8, limits.bytes - @sizeOf(Self));
+    const byte_count = limits.bytes - @sizeOf(Self);
+    // This allocation is an arena reservation, not a live byte array. Avoid
+    // touching every reserved conflict-payload page before the first output.
+    // FBA allocations initialize metadata; append initializes every active lane
+    // before len advances. No kernel/export may read the unused arena tail.
+    const pointer = allocator.rawAlloc(byte_count, .of(u8), @returnAddress()) orelse return error.OutOfMemory;
+    const backing = pointer[0..byte_count];
     errdefer allocator.free(backing);
     var memory: std.heap.FixedBufferAllocator = .init(backing);
     const a = memory.allocator();

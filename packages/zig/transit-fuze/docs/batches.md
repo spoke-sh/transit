@@ -32,6 +32,8 @@ experiment bounds are 1–1024 rows and 4 KiB–1 MiB. Defaults are experimental
 256 rows/256 KiB. Half the space remaining after plan/column metadata is reserved
 for variable conflict payloads. A full payload arena flushes the prefix and retries
 one held row; a row that cannot fit an empty batch fails `BatchBudgetExceeded`.
+Reserved payload pages are initialized when used; every active lane is written
+before its length is published to a kernel. ReleaseSafe checks remain enabled.
 No total source-cardinality limit is introduced.
 
 The surrounding executor and decoder have separate memory owners: one source

@@ -5397,6 +5397,7 @@
         "InvalidBatchBudget": 1,
         "InvalidColumnCount": 2,
         "InvalidProvenance": 2,
+        "OutOfMemory": 1,
         "UnsupportedBatchPlan": 3
       },
       "outcomes": {
@@ -5430,7 +5431,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 10,
         "catch": 9
       },
       "imports": [
