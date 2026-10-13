@@ -23,7 +23,7 @@ Reproduce the scalar operator/pipeline run with:
 ```sh
 nix develop
 zig build vector-benchmark -Doptimize=ReleaseSafe
-python3 -B tests/fuze_benchmarks/vector.py zig-out/bin/transit-vector-benchmark --output .cache/vector.json
+python3 -B tests/fuze_benchmarks/vector.py zig-out/bin/transit-fuze-vector-benchmark --output .cache/vector.json
 ```
 
 The pipeline includes plan admission, owned source-row allocation, filtering,
@@ -48,3 +48,64 @@ That source inspection is not a qualified runtime dispatch implementation.
 Portable and AVX2 objects, a supported-feature disable control and generated
 instruction checks remain V3 work. This first slice makes no SIMD claim and
 changes neither compiler nor dependency pins.
+
+## Executed int64 experiment
+
+Candidate runtime **`244c83f674d2a77f7ad3e098a549685286a8d9ea`** retains production
+executor selection. The [operator/pipeline samples](candidate.json.gz),
+[324 file samples](files.json.gz), [experimental gates](gates.json),
+[eight six-scalar controls](six-controls.json.gz) and [control gates](six-gates.json)
+retain raw results and failures. Candidate/scalar comparisons use the same
+ReleaseSafe binary and CPU affinity; the separate six-scalar control binary was
+frozen before runtime changes. Measurements run sequentially on CPU 12, on a
+shared host with other qualification work assigned different physical cores.
+This is not a dedicated-machine or device-cache isolation claim.
+
+| Measurement | Candidate / scalar median | Meaning |
+| --- | --- | --- |
+| 4096-row decoded comparison and consumption | 0.119 | About 8.4 times faster; packing and source I/O excluded |
+| 4096-row owned-row pipeline | 0.253 | About 4 times faster; includes plan binding, source-row allocation, packing, projection and consumption |
+| Eight-row empty-selection pipeline | 6.06 | About 115 microseconds extra per query; passes the precommitted 250-microsecond additive allowance |
+| CSV filter pipeline across nine configurations | 0.951–0.972 | Complete file decoding/verification retained |
+| Sparse JSONL filter pipeline | 0.730–0.973 | Three paired samples per configuration; no tail or universal speedup claim |
+| File COUNT pipelines | 0.951–1.024 | Approximately unchanged; decoding remains substantial |
+| Existing six-scalar controls | 0.963–1.026 | All eight remain below the unchanged 1.15 ceiling |
+
+All **115 experimental checks** pass. The owned-row pipeline's allocator-tracked
+peak is 262004 bytes, including its backing allocation and source/output rows;
+this counter excludes stack structs and decoded kernel fixtures. The physical
+batch separately accounts for its struct and backing bytes. Neither counter is
+whole-process RSS. Source decoders and caller-retained output have their separate
+bounds, as explained in the [batch guide](../../../../packages/zig/transit-fuze/docs/batches.md).
+
+The complete file sweep covers CSV and sparse JSONL filter, COUNT(*) and
+COUNT(column), three compute targets and three byte budgets, with three
+alternating pairs per case. Independent expected counts/checksums, complete
+source verification and first-batch timing pass in every sample. The kernel and
+owned-row driver retains nine measured pairs plus one warmup. No percentile is
+estimated from these sample counts.
+
+## Retained failed experiments
+
+- [Repeated validation](experiment-repeated-validation.json.gz) produces correct
+  answers but a slower owned-row pipeline. Revalidating each copied cell repeats
+  work already established by the exact source decoder. The final adapter calls
+  `appendValidated` only after that original complete-row validation; public
+  `append` still validates its inputs. This exploratory run has a dirty source
+  marker and is not clean qualification.
+- [Read-ahead samples](experiment-read-ahead.json.gz) fail
+  [18 first-batch gates](experiment-read-ahead-gates.json): returning one prompt
+  row does not make the first eight-row file output batch prompt. Single-row
+  acquisition now serves that existing initial output boundary before filling
+  compute targets. It does not change validation or wire batch sizes.
+- [Eager reservation samples](experiment-reservation-touch.json.gz) fail
+  [six first-batch gates](experiment-reservation-touch-gates.json) at the 1-MiB
+  budget. Initializing unused conflict-payload pages dominates startup. The
+  final arena reserves its complete bounded allocation but initializes payload
+  storage when used, with every active lane written before evaluation. No
+  optimization mode or safety check is disabled.
+
+These results qualify the selected experiment, not production replacement or
+completion of the tracking issue. Wider types, compound programs, ordered SUM,
+Unified/resumable/relational integration, SIMD, bounded parallel scheduling and
+integrated default qualification remain outside this implementation.

@@ -1,0 +1,297 @@
+{
+  "version": 1,
+  "profile": "experimental-int64-batches",
+  "runtime_revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+  "baseline_revision": "73dca03a59a9eb79384957d69ee8fc94428c37c7",
+  "core_clean": {
+    "metadata": {
+      "version": 1,
+      "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+      "tier": "core",
+      "expected_tasks": [
+        "check-core",
+        "test::properties",
+        "test::simulation",
+        "test::resource-simulation-smoke",
+        "test::scheduler-simulation",
+        "test::domain-simulation",
+        "test::vortex",
+        "test::codecs",
+        "test::dev-environment",
+        "test::kubectl-transit",
+        "test::deployments",
+        "test::telemetry",
+        "test::packages-build",
+        "test::compute",
+        "test::client-abi",
+        "test::station",
+        "test::storage",
+        "test::service",
+        "test::runtime-upgrade",
+        "test::callers",
+        "test::inspection",
+        "test::state"
+      ],
+      "run_id": null,
+      "run_attempt": null,
+      "machine": {
+        "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+        "logical_cpus": 48,
+        "affinity": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "runner": null,
+        "runner_arch": null
+      },
+      "completed": true,
+      "active_task": null,
+      "seconds": 739.34,
+      "checkpoint_unix": 1791859203.4450755,
+      "result_count": 22
+    },
+    "tasks": [
+      {
+        "lane": "core",
+        "task": "check-core",
+        "seconds": 187.86,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::properties",
+        "seconds": 12.19,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::simulation",
+        "seconds": 13.12,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::resource-simulation-smoke",
+        "seconds": 3.32,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::scheduler-simulation",
+        "seconds": 11.5,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::domain-simulation",
+        "seconds": 12.19,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::vortex",
+        "seconds": 9.49,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::codecs",
+        "seconds": 4.96,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::dev-environment",
+        "seconds": 0.08,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::kubectl-transit",
+        "seconds": 3.36,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::deployments",
+        "seconds": 1.57,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::telemetry",
+        "seconds": 1.62,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::packages-build",
+        "seconds": 180.35,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::compute",
+        "seconds": 0.36,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::client-abi",
+        "seconds": 5.87,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::station",
+        "seconds": 147.3,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::storage",
+        "seconds": 73.5,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::service",
+        "seconds": 40.39,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::runtime-upgrade",
+        "seconds": 4.82,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::callers",
+        "seconds": 13.8,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::inspection",
+        "seconds": 3.52,
+        "exit_code": 0
+      },
+      {
+        "lane": "core",
+        "task": "test::state",
+        "seconds": 8.14,
+        "exit_code": 0
+      }
+    ]
+  },
+  "checks": [
+    {
+      "command": "just check",
+      "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+      "exit_code": 0
+    },
+    {
+      "command": "just test::fuze-types",
+      "revision": "a954c362afe33fcb00c6a8ed46af4f9e26dc3988",
+      "exit_code": 0,
+      "seconds": 0.6430266529787332
+    },
+    {
+      "command": "just test::fuze-sources",
+      "revision": "a954c362afe33fcb00c6a8ed46af4f9e26dc3988",
+      "exit_code": 0,
+      "seconds": 0.750464960001409
+    },
+    {
+      "command": "just test::sql",
+      "revision": "a954c362afe33fcb00c6a8ed46af4f9e26dc3988",
+      "exit_code": 0,
+      "seconds": 22.491980978054926
+    },
+    {
+      "command": "just test::arrow",
+      "revision": "a954c362afe33fcb00c6a8ed46af4f9e26dc3988",
+      "exit_code": 0,
+      "seconds": 11.574244020972401
+    },
+    {
+      "command": "just test::logical-arrow",
+      "revision": "a954c362afe33fcb00c6a8ed46af4f9e26dc3988",
+      "exit_code": 0,
+      "seconds": 3.9122922050300986
+    },
+    {
+      "command": "just test::file-query",
+      "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+      "exit_code": 0,
+      "cases": 190
+    },
+    {
+      "command": "just test::relational",
+      "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+      "exit_code": 0
+    },
+    {
+      "command": "just test::typed-tables",
+      "revision": "244c83f674d2a77f7ad3e098a549685286a8d9ea",
+      "exit_code": 0,
+      "scenario_seconds": 200.089
+    },
+    {
+      "command": "zig build vector-benchmark -Doptimize=ReleaseSafe; vector.py scalar/batch",
+      "revision": "6935426ac2cd91bb334cee52065e540088b9234f",
+      "exit_code": 0,
+      "scope": "artifact rename smoke, unchanged runtime; no new performance qualification"
+    },
+    {
+      "command": "(packages/zig/transit-fuze) zig build test -Doptimize=ReleaseSafe -j8",
+      "revision": "6935426ac2cd91bb334cee52065e540088b9234f",
+      "exit_code": 0
+    }
+  ],
+  "measurements": {
+    "operator_and_pipeline": "../../fuze_benchmarks/results/2026-10-12-vector/candidate.json.gz",
+    "files": "../../fuze_benchmarks/results/2026-10-12-vector/files.json.gz",
+    "experimental_gate_count": 115,
+    "experimental_gates": "passed",
+    "six_scalar_controls": "passed",
+    "native_table_samples": 30
+  },
+  "limits": [
+    "Production executor selection unchanged; this is the first planned PR, not completion of issue #71.",
+    "No SIMD, parallelism, compound-program/SUM, broad-type, Unified/resumable or relational batch integration qualification.",
+    "Clean core lane is 22 tasks, not the full 79-task ordinary suite. Other clean lanes and installed-language/browser matrices are not newly qualified here.",
+    "Timing scopes and non-isolated shared host are recorded with the raw samples; no tail percentile or universal speedup claim."
+  ],
+  "retained_failures": [
+    {
+      "kind": "diagnostic-inventory",
+      "source": "fcdaf05d",
+      "outcome": "reviewed and regenerated inventory; passing replacement at runtime revision"
+    },
+    {
+      "kind": "file-proof-buffering",
+      "source": "a954c362",
+      "outcome": "unbuffered prefix read fixes BufferedReader/communicate data loss; original 10001-record assertion preserved; 190 cases pass"
+    },
+    {
+      "kind": "performance",
+      "outcome": "repeated validation, read-ahead and eager reservation samples retained beside passing measurements"
+    }
+  ]
+}
