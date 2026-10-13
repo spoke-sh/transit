@@ -170,6 +170,50 @@ test "one two and four workers preserve ordered lane coverage and cancellation" 
     try t.expectError(error.ComputeMemoryBudget, init(t.allocator, t.io, .{ .workers = 4, .resident_bytes = 1 }));
 }
 
+test "seeded worker partitions preserve all five states with portable and AVX2 kernels" {
+    const t = std.testing;
+    const f = @import("root.zig").fuze;
+    const Cell = f.Types.Values.Cell;
+    const alternatives = [_]f.Types.Values.Alternative{ .{ .counter = 1, .replica = 1, .value = .null }, .{ .counter = 2, .replica = 1, .value = .null } };
+    const plan: f.LogicalQuery.Plan = .{ .schema = .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true, .optional = true }} }, .source_basis = @splat(71), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };
+    for ([_]u8{ 1, 2, 4 }) |workers| {
+        const pool = try init(t.allocator, t.io, .{ .workers = workers, .minimum_work = 0 });
+        defer pool.deinit();
+        for ([_]Batch.kernels.cpu.Implementation{ .portable, .avx2 }) |implementation| {
+            if (implementation == .avx2 and !Batch.kernels.cpu.hasAvx2()) continue;
+            var batch = try Batch.init(t.allocator, plan, .{ .rows = 1024, .implementation = implementation });
+            defer batch.deinit();
+            var prng = std.Random.DefaultPrng.init(7105);
+            const random = prng.random();
+            for (0..32) |_| {
+                batch.reset();
+                const len = random.uintLessThan(usize, batch.capacity + 1);
+                var input: [1024]Cell = undefined;
+                for (input[0..len], 0..) |*cell, i| {
+                    cell.* = switch (random.uintLessThan(u8, 8)) {
+                        0 => .null,
+                        1 => .missing,
+                        2 => .{ .type_error = .utf8 },
+                        3 => .{ .conflict = &alternatives },
+                        else => .{ .value = .{ .atom = .{ .signed = @as(i64, @intCast(random.uintLessThan(u32, 1001))) - 500 } } },
+                    };
+                    try batch.append(&.{cell.*}, .{ .row = i + 1, .boundary = i / 8 + 1 });
+                }
+                try pool.evaluate(&batch, null);
+                for (input[0..len], batch.outcomes[0..len], 0..) |cell, outcome, i| switch (cell) {
+                    .null, .missing => try t.expectEqual(@import("root.zig").fuze.Batch.Outcome{ .truth = .unknown }, outcome),
+                    .type_error, .conflict => {
+                        try t.expectEqual(std.meta.activeTag(cell) == .type_error, outcome == .type_error);
+                        try t.expect(outcome == .type_error or outcome == .conflict);
+                        try t.expectEqual(@as(u8, 0), batch.sites[i]);
+                    },
+                    .value => |value| try t.expectEqual(value.atom.signed >= 0, outcome.truth.selects()),
+                };
+            }
+        }
+    }
+}
+
 test "contending short work completes locally while admitted cancellation joins workers" {
     const t = std.testing;
     const f = @import("root.zig").fuze;
