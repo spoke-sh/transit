@@ -52,7 +52,12 @@ No total source-cardinality limit is introduced.
 The surrounding executor and decoder have separate memory owners: one source
 scan, at most one held decoded row, existing bounded plan-admission scratch,
 and independently owned output rows. These are **additional** to the compute
-buffer. Hosts must account for those owners under their enclosing query budget;
+buffer. File and Table pull executors also reserve one 4 KiB decoded-row cache
+plus its allocator metadata. The stable cache owner reuses one allocation;
+larger or simultaneous allocations use the original allocator. It changes no
+decoder limits or validation. Oversized projected outputs copy into independent
+arenas so that they, too, can outlive the executor and its cache.
+Hosts must account for those owners under their enclosing query budget;
 this byte limit is not a whole-query RSS cap. Returned rows deeply copy
 recursive values and conflict alternatives and survive resetting or releasing the batch. Callers must
 release each row with `deinit` instead of accumulating an unbounded result.

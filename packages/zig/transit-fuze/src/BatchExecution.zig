@@ -5,11 +5,13 @@ const batch = @import("Batch.zig");
 const logical = @import("LogicalQuery.zig");
 const types = @import("Types.zig");
 const Cell = types.Values.Cell;
+const RowAllocator = @import("RowAllocator.zig");
 
 pub fn Execution(comptime Scan: type, comptime verification: logical.Verification) type {
     return struct {
         const Self = @This();
         scan: Scan,
+        row_allocator: ?*RowAllocator = null,
         physical: batch,
         fingerprint: [32]u8,
         /// Optional public borrowed-plan contract; the physical program owns its copy.
@@ -38,17 +40,24 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             return initBudget(scan, plan, .{});
         }
         pub fn initBudget(scan: Scan, plan: logical.Plan, limits: batch.Limits) !Self {
-            const physical = try batch.init(scan.allocator, plan, limits);
-            return .{ .scan = scan, .physical = physical, .fingerprint = physical.fingerprint };
+            var physical = try batch.init(scan.allocator, plan, limits);
+            errdefer physical.deinit();
+            const row_allocator = if (@hasDecl(Scan, "nextAllocated")) try RowAllocator.init(scan.allocator) else null;
+            return .{ .scan = scan, .row_allocator = row_allocator, .physical = physical, .fingerprint = physical.fingerprint };
         }
         pub fn deinit(self: *Self) void {
             if (self.pending) |*row| row.deinit();
             self.physical.deinit();
             self.scan.deinit();
+            if (self.row_allocator) |allocator| allocator.deinit();
             self.* = undefined;
         }
         fn atLimit(self: *const Self) bool {
             return if (self.physical.plan.limit) |limit| self.selected == limit else false;
+        }
+        fn acquire(self: *Self) !?logical.Row {
+            if (@hasDecl(Scan, "nextAllocated")) return self.scan.nextAllocated(self.row_allocator.?.allocator());
+            return self.scan.next();
         }
         fn fill(self: *Self) !void {
             self.physical.reset();
@@ -64,7 +73,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 const acquired = if (self.pending) |row| held: {
                     self.pending = null;
                     break :held row;
-                } else self.scan.next() catch |err| {
+                } else self.acquire() catch |err| {
                     self.read_error = err;
                     if (@hasField(Scan, "rejection")) {
                         self.read_rejection = self.scan.rejection;
@@ -107,7 +116,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     // Full-file verification still runs all conversions and EOF
                     // checks beyond LIMIT, without evaluating discarded operators.
                     if (verification == .full_source and self.atLimit() and self.pending == null and self.read_error == null) {
-                        while (try self.scan.next()) |input| {
+                        while (try self.acquire()) |input| {
                             var row = input;
                             defer row.deinit();
                             self.scanned = try std.math.add(u64, self.scanned, 1);
@@ -215,6 +224,15 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 return err;
             };
             if (!selected or plan.aggregate != .rows) return null;
+            if (self.row_allocator != null) {
+                var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
+                errdefer arena.deinit();
+                const projected = try arena.allocator().alloc(Cell, plan.projection.len);
+                for (plan.projection, projected) |column, *cell| cell.* = try types.Values.cloneValidated(arena.allocator(), row.cells[column]);
+                try self.disclose();
+                self.emitted = try std.math.add(u64, self.emitted, 1);
+                return .{ .arena = arena, .cells = projected };
+            }
             const projected = try row.arena.allocator().alloc(Cell, plan.projection.len);
             for (plan.projection, projected) |column, *cell| cell.* = row.cells[column];
             row.cells = projected;
@@ -223,6 +241,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             returned = true;
             return row;
         }
+
         fn capture(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, row: usize, instruction: ?u8) void {
             self.captureState(operation, column, self.physical.columns[column].states[row], instruction);
             if (@hasDecl(Scan, "restoreBatchPosition")) if (self.physical.provenance[row].location) |position| self.scan.restoreBatchPosition(position);

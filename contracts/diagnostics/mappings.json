@@ -3897,7 +3897,7 @@
           "tests": [
             {
               "source": "packages/zig/transit-fuze/src/batch_execution_test.zig",
-              "name": "valid oversized rows retain the source owner without increasing the physical cap"
+              "name": "valid oversized rows preserve values without increasing the physical cap"
             }
           ]
         },
@@ -3909,7 +3909,7 @@
           "tests": [
             {
               "source": "packages/zig/transit-fuze/src/batch_execution_test.zig",
-              "name": "valid oversized rows retain the source owner without increasing the physical cap"
+              "name": "valid oversized rows preserve values without increasing the physical cap"
             }
           ]
         }

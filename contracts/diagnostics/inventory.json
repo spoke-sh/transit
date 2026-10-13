@@ -5439,6 +5439,7 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Execution().<return>.acquire()": "<inferred>",
         "Execution().<return>.consumeOversized()": "<inferred>",
         "Execution().<return>.disclose()": "<inferred>",
         "Execution().<return>.fill()": "<inferred>",
@@ -5449,7 +5450,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 22,
+        "try": 27,
         "catch": 6
       },
       "imports": [
@@ -5457,6 +5458,7 @@
         "FileValueDiagnostic.zig",
         "Finite.zig",
         "LogicalQuery.zig",
+        "RowAllocator.zig",
         "Types.zig",
         "std"
       ]
@@ -5775,6 +5777,7 @@
         "Reader.next()": "<inferred>",
         "Scan.init()": "<inferred>",
         "Scan.next()": "<inferred>",
+        "Scan.nextAllocated()": "<inferred>",
         "Scan.validateBatchDisclosure()": "<inferred>",
         "Source.check()": "anyerror",
         "Source.read()": "anyerror",
@@ -6951,6 +6954,22 @@
         "SqlLogicalPredicate.zig",
         "SqlReference.zig",
         "SqlTyped.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RowAllocator.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
         "std"
       ]
     },
@@ -12313,6 +12332,7 @@
         "fingerprint()": "<inferred>",
         "next()": "<inferred>",
         "nextAfter()": "<inferred>",
+        "nextAllocated()": "<inferred>",
         "open()": "<inferred>",
         "openAt()": "<inferred>",
         "openResource()": "<inferred>",

@@ -13,6 +13,9 @@ const Fixture = struct {
     rejection: ?enum { fixture_denied } = null,
     pub fn deinit(_: *Fixture) void {}
     pub fn next(self: *Fixture) !?logical.Row {
+        return self.nextAllocated(self.allocator);
+    }
+    pub fn nextAllocated(self: *Fixture, row_allocator: std.mem.Allocator) !?logical.Row {
         if (self.fail_at == self.index) {
             self.rejection = .fixture_denied;
             return error.SourceFault;
@@ -21,7 +24,7 @@ const Fixture = struct {
             self.complete = true;
             return null;
         }
-        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        var arena: std.heap.ArenaAllocator = .init(row_allocator);
         errdefer arena.deinit();
         const cells = try arena.allocator().dupe(Cell, &self.rows[self.index]);
         for (cells) |*cell| cell.* = try types.Values.cloneValidated(arena.allocator(), cell.*);
@@ -31,7 +34,7 @@ const Fixture = struct {
 };
 const fixture_schema: types.Type = .{ .structure = &.{ .{ .name = "key", .type = .int64, .nullable = true, .optional = true }, .{ .name = "value", .type = .int64, .nullable = true, .optional = true } } };
 
-test "valid oversized rows retain the source owner without increasing the physical cap" {
+test "valid oversized rows preserve values without increasing the physical cap" {
     const text: [8192]u8 = @splat('x');
     const rows = [_][2]Cell{
         .{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = &text } } } },
@@ -50,6 +53,44 @@ test "valid oversized rows retain the source owner without increasing the physic
     try std.testing.expect(try execution.next() == null);
     try std.testing.expect(execution.complete);
     try std.testing.expectEqual(@as(u64, 3), execution.scanned);
+}
+
+test "cached and oversized projected rows outlive the execution and later acquisitions" {
+    const text: [8192]u8 = @splat('x');
+    const rows = [_][2]Cell{
+        .{ integer(1), .{ .value = .{ .atom = .{ .bytes = "first" } } } },
+        .{ integer(2), .{ .value = .{ .atom = .{ .bytes = &text } } } },
+        .{ integer(3), .{ .value = .{ .atom = .{ .bytes = "last" } } } },
+    };
+    const plan: logical.Plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .int64 }, .{ .name = "value", .type = .utf8 } } }, .source_basis = @splat(71), .projection = &.{1} };
+    var output: [3]logical.Row = undefined;
+    var count: usize = 0;
+    defer for (output[0..count]) |*row| row.deinit();
+    {
+        var execution = try Execution(Fixture, .full_source).initBudget(.{ .allocator = std.testing.allocator, .rows = &rows }, plan, .{ .rows = 64, .bytes = 4096 });
+        defer execution.deinit();
+        for (&output) |*row| {
+            row.* = (try execution.next()).?;
+            count += 1;
+        }
+        try std.testing.expect(try execution.next() == null);
+    }
+    for (output, [_][]const u8{ "first", &text, "last" }) |row, expected| try std.testing.expectEqualStrings(expected, row.cells[0].value.atom.bytes);
+}
+
+test "allocation failures release oversized cached-source projections" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
+        fn run(a: std.mem.Allocator) !void {
+            const text: [8192]u8 = @splat('x');
+            const rows = [_][2]Cell{.{ integer(1), .{ .value = .{ .atom = .{ .bytes = &text } } } }};
+            const plan: logical.Plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .int64 }, .{ .name = "value", .type = .utf8 } } }, .source_basis = @splat(71), .projection = &.{1} };
+            var execution = try Execution(Fixture, .full_source).initBudget(.{ .allocator = a, .rows = &rows }, plan, .{ .bytes = 4096 });
+            defer execution.deinit();
+            var row = (try execution.next()).?;
+            defer row.deinit();
+            try std.testing.expectEqualStrings(&text, row.cells[0].value.atom.bytes);
+        }
+    }.run, .{});
 }
 
 test "checked SUM prefix wins over later predicate failure across every batch size" {

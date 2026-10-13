@@ -184,6 +184,10 @@ pub fn page(self: *Scan, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
     return batch;
 }
 pub fn next(self: *Scan) !?logical.Row {
+    return self.nextAllocated(self.allocator);
+}
+/// Row decoding may borrow a host cache; source metadata and native I/O do not.
+pub fn nextAllocated(self: *Scan, row_allocator: std.mem.Allocator) !?logical.Row {
     if (self.complete) return null;
     try self.checkCancellation();
     const definition = &self.definition.?;
@@ -194,7 +198,7 @@ pub fn next(self: *Scan) !?logical.Row {
         if (self.point_read) break :point null;
         self.point_read = true;
         const id = (try data.findKey(self.allocator, &pages, key)) orelse break :point null;
-        break :point (try data.get(self.allocator, &pages, id)) orelse return error.InvalidTableIndex;
+        break :point (try data.get(row_allocator, &pages, id)) orelse return error.InvalidTableIndex;
     } else batch: {
         if (self.reference_index == self.reference_count) {
             if (self.reference_end) break :batch null;
@@ -203,7 +207,7 @@ pub fn next(self: *Scan) !?logical.Row {
             self.reference_end = self.reference_count < self.row_references.len;
             if (self.reference_count == 0) break :batch null;
         }
-        const row = try data.loadReference(self.allocator, &pages, self.row_references[self.reference_index]);
+        const row = try data.loadReference(row_allocator, &pages, self.row_references[self.reference_index]);
         self.reference_index += 1;
         break :batch row;
     };

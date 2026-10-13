@@ -13,11 +13,14 @@ const Scan = struct {
     complete: bool = false,
     pub fn deinit(_: *Scan) void {}
     pub fn next(self: *Scan) !?f.LogicalQuery.Row {
+        return self.nextAllocated(self.allocator);
+    }
+    pub fn nextAllocated(self: *Scan, row_allocator: std.mem.Allocator) !?f.LogicalQuery.Row {
         if (self.index == self.rows) {
             self.complete = true;
             return null;
         }
-        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        var arena: std.heap.ArenaAllocator = .init(row_allocator);
         errdefer arena.deinit();
         const data = fixture.cells(self.case, self.index);
         const owned = try arena.allocator().dupe(Cell, &data);

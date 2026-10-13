@@ -425,6 +425,11 @@ pub const Scan = struct {
         try self.binding.validate(self.sources);
     }
     pub fn next(self: *Scan) !?Row {
+        return self.nextAllocated(self.allocator);
+    }
+    /// The supplied allocator owns only the returned row's arena. Decoder,
+    /// source and binding allocations retain their original allocator/lifetime.
+    pub fn nextAllocated(self: *Scan, row_allocator: std.mem.Allocator) !?Row {
         if (self.failed) return error.FailedSource;
         if (self.complete) return null;
         errdefer {
@@ -448,7 +453,7 @@ pub const Scan = struct {
                 self.file += 1;
                 continue;
             };
-            var arena: std.heap.ArenaAllocator = .init(self.allocator);
+            var arena: std.heap.ArenaAllocator = .init(row_allocator);
             errdefer arena.deinit();
             const alloc = arena.allocator();
             const schema = self.binding.schema.type.structure;
