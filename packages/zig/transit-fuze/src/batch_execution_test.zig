@@ -34,6 +34,59 @@ const Fixture = struct {
 };
 const fixture_schema: types.Type = .{ .structure = &.{ .{ .name = "key", .type = .int64, .nullable = true, .optional = true }, .{ .name = "value", .type = .int64, .nullable = true, .optional = true } } };
 
+test "seeded rebatching preserves independent projection COUNT and ordered SUM across dispatch choices" {
+    const Batch = @import("Batch.zig");
+    var prng = std.Random.DefaultPrng.init(71);
+    const random = prng.random();
+    for (0..32) |_| {
+        var rows: [129][2]Cell = undefined;
+        var selected: [129]Cell = undefined;
+        var count: usize = 0;
+        var sum: ?i64 = null;
+        const limit = random.uintLessThan(usize, 130);
+        for (&rows) |*row| {
+            const key = @as(i64, @intCast(random.uintLessThan(u32, 201))) - 100;
+            row[0] = switch (random.uintLessThan(u8, 8)) {
+                0 => .null,
+                1 => .missing,
+                else => integer(key),
+            };
+            const value = @as(i64, @intCast(random.uintLessThan(u32, 2049))) - 1024;
+            row[1] = if (random.boolean()) .null else integer(value);
+            if (row[0] == .value and key >= 0 and count < limit) {
+                selected[count] = row[1];
+                count += 1;
+                if (row[1] == .value) sum = (sum orelse 0) + value;
+            }
+        }
+        const size = 1 + random.uintLessThan(usize, 1024);
+        for ([_]Batch.kernels.cpu.Implementation{ .portable, .avx2 }) |implementation| {
+            if (implementation == .avx2 and !Batch.kernels.cpu.hasAvx2()) continue;
+            inline for (.{ .rows, .count, .sum }) |aggregate| {
+                const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = aggregate, .limit = limit, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };
+                var execution = try Execution(Fixture, .full_source).initBudget(.{ .allocator = std.testing.allocator, .rows = &rows }, plan, .{ .rows = size, .implementation = implementation });
+                defer execution.deinit();
+                var emitted: usize = 0;
+                while (try execution.next()) |input| {
+                    var row = input;
+                    defer row.deinit();
+                    const expected: Cell = switch (aggregate) {
+                        .rows => selected[emitted],
+                        .count => .{ .value = .{ .atom = .{ .unsigned = count } } },
+                        .sum => if (sum) |value| integer(value) else .null,
+                        else => unreachable,
+                    };
+                    try std.testing.expectEqualDeep(expected, row.cells[0]);
+                    emitted += 1;
+                }
+                try std.testing.expectEqual(if (aggregate == .rows) count else 1, emitted);
+                try std.testing.expectEqual(rows.len, execution.scanned);
+                try std.testing.expect(execution.complete);
+            }
+        }
+    }
+}
+
 test "valid oversized rows preserve values without increasing the physical cap" {
     const text: [8192]u8 = @splat('x');
     const rows = [_][2]Cell{

@@ -58,7 +58,12 @@ def assess(report, controls, budgets):
     for control in controls['summary']:
         if control['control']['signature'] != control['candidate']['signature']:
             raise ValueError('Changed native result/export signature')
-        gate(control['sql'], control['candidate_control_ratio'], limits['existing_control_ratio'])
+        for engine in ('control', 'candidate'):
+            values = control[engine]['raw_ns']
+            if len(values) != 9 or any(v <= 0 for v in values):
+                raise ValueError('Expected nine positive native control measurements')
+        ratio = statistics.median(control['candidate']['raw_ns']) / statistics.median(control['control']['raw_ns'])
+        gate(control['sql'], ratio, limits['existing_control_ratio'])
     return dict(status='failed' if violations else 'passed', violations=violations, evidence=evidence,
                 comparisons=comparisons, scope='Selected portable single-worker defaults; optional dispatch comparisons retained. Physical/queue bounds require the separate executable proofs.')
 
@@ -68,7 +73,16 @@ def main():
     for name in ('pipelines', 'controls', 'budgets', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
-    result = assess(*(json.loads(getattr(args, name).read_text()) for name in ('pipelines', 'controls', 'budgets')))
+    # A rejected input must replace any old successful assessment at this path.
+    result = dict(status='failed', error='Assessment did not complete')
+    args.output.write_text(json.dumps(result) + '\n')
+    try:
+        result = assess(*(json.loads(getattr(args, name).read_text()) for name in ('pipelines', 'controls', 'budgets')))
+    except (ValueError, KeyError, OSError) as error:
+        result['error'] = str(error)
+        raise
+    finally:
+        args.output.write_text(json.dumps(result, indent=2) + '\n')
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(result['status'], len(result['evidence']), 'checks,', len(result['violations']), 'violations')
     if result['violations']:
