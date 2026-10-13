@@ -15,6 +15,8 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         selected: u64 = 0,
         value_count: u64 = 0,
         emitted: u64 = 0,
+        /// Host output boundary to serve with single-row acquisition first.
+        startup_rows: u16 = 1,
         complete: bool = false,
         failed: bool = false,
         failure: ?logical.Failure = null,
@@ -45,7 +47,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             self.index = 0;
             if (self.read_error != null) return;
             // Do not delay the first row behind a target-sized source read.
-            var target = if (self.emitted == 0 and self.physical.plan.aggregate == .rows) 1 else self.physical.capacity;
+            var target = if (self.emitted < self.startup_rows and self.physical.plan.aggregate == .rows) 1 else self.physical.capacity;
             if (verification == .selected_prefix) if (self.physical.plan.limit) |limit| {
                 target = @min(target, limit - self.selected);
             };

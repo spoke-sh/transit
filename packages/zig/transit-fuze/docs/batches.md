@@ -44,8 +44,10 @@ release each row with `deinit` instead of accumulating an unbounded result.
 
 Source reads are serial. A later read failure is retained until the already
 acquired prefix has reached its operator frontier. A failure yields no complete
-query and subsequent calls fail. The first output attempts only one source row,
-then subsequent reads can fill the compute target. This does not promise prompt
+query and subsequent calls fail. The Table adapter initially acquires one row at a time until its first output.
+The file adapter keeps single-row acquisition through the first eight output
+rows, matching the existing Arrow batch boundary; later reads can fill the
+compute target. This does not promise prompt
 output from a stalled source inside a later fill. Native LIMIT caps private
 acquisition by the remaining selected-row count. File LIMIT still decodes and
 verifies every field and the captured EOF. Stored checkpoints, source page limits,

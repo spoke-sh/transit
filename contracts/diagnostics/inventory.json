@@ -5672,7 +5672,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 30,
+        "try": 31,
         "catch": 1
       },
       "imports": [
@@ -5680,6 +5680,7 @@
         "BatchExecution.zig",
         "FileSource.zig",
         "Finite.zig",
+        "LogicalArrow.zig",
         "LogicalQuery.zig",
         "Sql.zig",
         "SqlLowering.zig",

@@ -120,7 +120,10 @@ pub fn executeBatched(allocator: std.mem.Allocator, binding: *const source.Bindi
     if (!std.mem.eql(u8, &plan.source_basis, &binding.digest) or !try plan.schema.eql(binding.schema.type)) return error.SourceChanged;
     var scan = try source.Scan.init(allocator, binding, sources);
     errdefer scan.deinit();
-    return @import("BatchExecution.zig").Execution(source.Scan, .full_source).initBudget(scan, plan, limits);
+    var execution = try @import("BatchExecution.zig").Execution(source.Scan, .full_source).initBudget(scan, plan, limits);
+    // Serve the first existing output batch without waiting for a compute target.
+    execution.startup_rows = @import("LogicalArrow.zig").max_rows;
+    return execution;
 }
 
 const Memory = struct {
@@ -488,7 +491,7 @@ test "experimental file batches preserve projection and COUNT on frozen CSV and 
 test "experimental file buffered rows recheck denial and cancellation" {
     const t = std.testing;
     inline for (.{ false, true }) |cancel| {
-        var memory: Memory = .{ .bytes = "id\n1\n2\n3\n4\n" };
+        var memory: Memory = .{ .bytes = "id\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n" };
         const sources = [_]source.Source{memory.handle()};
         var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
         defer binding.deinit();
@@ -496,7 +499,7 @@ test "experimental file buffered rows recheck denial and cancellation" {
         defer compiled.deinit();
         var execution = try executeBatched(t.allocator, &binding, &sources, compiled.plan, .{});
         defer execution.deinit();
-        for (0..2) |_| {
+        for (0..9) |_| {
             var row = (try execution.next()).?;
             row.deinit();
         }
