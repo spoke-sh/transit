@@ -10,9 +10,13 @@ const Fixture = struct {
     index: usize = 0,
     complete: bool = false,
     fail_at: ?usize = null,
+    rejection: ?enum { fixture_denied } = null,
     pub fn deinit(_: *Fixture) void {}
     pub fn next(self: *Fixture) !?logical.Row {
-        if (self.fail_at == self.index) return error.SourceFault;
+        if (self.fail_at == self.index) {
+            self.rejection = .fixture_denied;
+            return error.SourceFault;
+        }
         if (self.index == self.rows.len) {
             self.complete = true;
             return null;
@@ -79,6 +83,7 @@ test "batch coordinator preserves earlier COUNT failure over later predicate and
         try t.expectError(error.QueryTypeError, execution.next());
         try t.expectEqual(@as(u64, 1), execution.failure.?.row);
         try t.expectEqual(.count, execution.failure.?.operation);
+        try t.expect(execution.scan.rejection == null);
         try t.expectEqualStrings("value", execution.failure.?.columnName());
         try t.expectError(error.FailedQuery, execution.next());
         try t.expect(!execution.complete);
@@ -139,4 +144,20 @@ test "allocation failures release batch and source-owned rows" {
             }
         }
     }.run, .{});
+}
+
+test "deferred source rejection is restored only at its own failure frontier" {
+    const rows = [_][2]Cell{ .{ integer(1), integer(7) }, .{ integer(2), integer(8) } };
+    const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1} };
+    var execution = try Execution(Fixture, .full_source).init(.{ .allocator = std.testing.allocator, .rows = &rows, .fail_at = 2 }, plan);
+    defer execution.deinit();
+    execution.startup_rows = 0;
+    for ([_]i64{ 7, 8 }) |expected| {
+        var row = (try execution.next()).?;
+        defer row.deinit();
+        try std.testing.expectEqual(@as(i128, expected), row.cells[0].value.atom.signed);
+        try std.testing.expect(execution.scan.rejection == null);
+    }
+    try std.testing.expectError(error.SourceFault, execution.next());
+    try std.testing.expectEqual(.fixture_denied, execution.scan.rejection.?);
 }

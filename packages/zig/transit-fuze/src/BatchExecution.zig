@@ -66,7 +66,10 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     break :held row;
                 } else self.scan.next() catch |err| {
                     self.read_error = err;
-                    if (@hasField(Scan, "rejection")) self.read_rejection = self.scan.rejection;
+                    if (@hasField(Scan, "rejection")) {
+                        self.read_rejection = self.scan.rejection;
+                        self.scan.rejection = null;
+                    }
                     break;
                 };
                 var row = acquired orelse break;
