@@ -38,6 +38,7 @@ def main():
     args = parser.parse_args()
     fixtures = {'transit-sql-gateway/src/fixtures/auth.json': authentication()}
     fixtures['transit-sql-gateway/src/fixtures/records.json'] = records()
+    fixtures['transit-sql-gateway/src/fixtures/controls.json'] = controls()
     for protocol in ('postgres', 'mysql'):
         fixtures[f'transit-{protocol}/src/fixtures/scalars.json'] = scalars(protocol)
     for name, fixture in fixtures.items():
@@ -90,6 +91,21 @@ def records():
         operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked') else 'Q') for k in operation]),
         terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k in ('reason','route') else 'Q') for k in terminal]),
     )
+
+
+def controls():
+    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.sql-wire-parameters.2026-10-13').digest()
+    terminal = records()['terminal']
+    cases = [
+        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11))),
+         b'\x02' + bytes(range(16)) + struct.pack('<QQQ', 9, 2**64-1, 11)),
+        (dict(step_part=dict(target=dict(operation=99, generation=2, record=3),
+                             part=dict(offset=128, length=3, bytes=[1, 2, 3]+[0]*125))),
+         b'\x09' + struct.pack('<QQQIB', 99, 2, 3, 128, 3) + bytes([1, 2, 3])+bytes(125)),
+        (dict(complete=dict(target=dict(operation=7, generation=2), outcome=terminal['value'])),
+         b'\x14' + struct.pack('<QQ', 7, 2) + bytes.fromhex(terminal['bytes'])[36:]),
+    ]
+    return [dict(value=value, bytes=(prefix+encoded).hex()) for value, encoded in cases]
 
 
 def scalars(protocol):

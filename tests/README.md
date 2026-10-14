@@ -78,6 +78,25 @@ check full-width quota and outcome counters. These tests use an atomic in-memory
 turn fixture; real disk, signed control transport and host replacement remain
 separate required proofs.
 
+The subsequent `just test::sql-gateway` run passes the
+[native coordinator schedule](sql_gateway_native.py) in 31.102 seconds: 31 retained
+operations, 191 owner turns and 185 native sends, on disk-backed Ursula with eight
+resident pages. Lost ingress and Table receipts replay the identical signed bytes
+and recover the original receipt. The schedule kills both authority and storage,
+replaces the ledger owner three times, records old-generation rejection through
+the new owner, abandons/collects an interrupted unpublished step and resumes a
+published step after dispatch without a recorded receipt. CREATE and three-row
+INSERT complete once; an unchanged UPDATE retains matched=1, changed=0. Four
+inventory pages preserve nonce discovery and terminal history while the separate
+scheduling indexes are empty. Inspection issues no sends; all observed turns
+remain within four mutations and 256-byte values.
+
+This proof exercises the library coordinator and native GenServer adapter through
+a dedicated harness. It does not qualify a deployed database listener, concurrent
+wire sessions, account credential rotation, slow sockets or placement lifecycle.
+Those matrices remain open. Initial runs found a CREATE-only identity incorrectly
+supplied to INSERT by the harness; the corrected, complete schedule passes.
+
 ## Catalog Table parameters
 
 On 2026-10-13, the shared SQL-wire implementation adds caller-owned

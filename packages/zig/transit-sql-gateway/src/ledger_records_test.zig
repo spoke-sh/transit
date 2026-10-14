@@ -3,6 +3,18 @@ const g = @import("root.zig");
 fn Case(comptime T: type) type {
     return struct { value: T, bytes: []const u8 };
 }
+test "independent native gateway controls encode complete unsigned counts and padded parts" {
+    const t = std.testing;
+    const fixtures = try std.json.parseFromSlice([]const Case(g.Control.Command), t.allocator, @embedFile("fixtures/controls.json"), .{});
+    defer fixtures.deinit();
+    for (fixtures.value) |case| {
+        const bytes = try t.allocator.alloc(u8, case.bytes.len / 2);
+        defer t.allocator.free(bytes);
+        _ = try std.fmt.hexToBytes(bytes, case.bytes);
+        try t.expectEqualSlices(u8, bytes, (try case.value.encode()).slice());
+        try t.expectEqualDeep(case.value, try g.Control.Command.decode(try g.catalog.protocol.Value.init(bytes)));
+    }
+}
 test "independent ledger metadata bytes preserve full-width quota and outcome counts" {
     const t = std.testing;
     var arena = std.heap.ArenaAllocator.init(t.allocator);

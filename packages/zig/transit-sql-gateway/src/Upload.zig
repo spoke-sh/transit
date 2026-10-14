@@ -12,6 +12,13 @@ fn halfKey(publication: Pub, id: u64) p.Value {
 fn check(publication: Pub) !void {
     if (publication.domain != .sql_gateway) return error.InvalidGatewayPublication;
 }
+pub fn receivedBytes(publication: Pub, source: anytype, id: u64) !u32 {
+    try check(publication);
+    const record = try publication.inspect(source, id);
+    const half = try source.read(halfKey(publication, id));
+    if (half) |value| if (record.state != .staging or value.len != part_bytes or record.written >= record.spec.chunks() or record.spec.length - record.written * Pub.chunk_bytes <= part_bytes) return error.InvalidGatewayUpload;
+    return @min(record.written * Pub.chunk_bytes, record.spec.length) + @as(u32, if (half != null) part_bytes else 0);
+}
 pub fn append(publication: Pub, turn: *s.Turn, id: u64, offset: u32, bytes: []const u8) !u32 {
     const before = turn.decision;
     errdefer turn.decision = before;

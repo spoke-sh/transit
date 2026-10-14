@@ -215,10 +215,14 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSB1 | Original 141-byte Table command header, body offset/length, command/domain digests and DML route; exactly 250 bytes including prefix |
 | GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
 | GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
+| GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
 
 Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
-Tags are `h` head (both IDs zero), `o` operation, `q` ready index, `b` intent
-binding, `e` step observation, `d` exact native disposition and `t` terminal facts.
+Tags are `h` head (both IDs zero), `o` operation, `u` unfinished-upload index,
+`q` ready index, `b` intent binding, `e` step observation, `d` exact native
+disposition, `i` ledger input rejection and `t` terminal facts. Index values are
+the exact ASCII bytes `upload` and `ready`. `i` uses the native input as its first
+ID, zero as its second, and a GSD1 value.
 Nonce keys use tag `n` followed by the 16 nonce bytes instead of the two integers.
 `d` values use the catalog's original TCA1/E encoding. `t` holds GST1 or the exact
 marker `gateway.cancelled.before-dispatch.v1` under a current-definition operation.
@@ -243,6 +247,56 @@ capacity and reserving extra recovery space are explicit operator transitions.
 New admission cannot consume an existing operation reservation. No transition
 expires accepted work, drops history under pressure, dispatches during inspection
 or treats a disconnected session as cancellation.
+
+## Signed native ledger controls
+
+A Station cast payload contains `GSQ1`, current definition:32, command tag:u8,
+then the fields of [`Control.Command`](../packages/zig/transit-sql-gateway/src/Control.zig)
+in declaration order. Integers are little-endian, arrays have exact declared
+length, enums use their declared integer tag, and optional values start with
+zero (absent) or one (present). There are no omitted/defaulted wire fields.
+Qualified targets contain operation:u64 and native generation:u64; record
+targets add record:u64. Parts contain offset:u32, length:u8 and bytes:128; offsets
+are multiples of 128 and unused bytes are zero. Embedded terminal facts omit
+the GST1/definition prefix because the command already supplies its definition.
+
+| Tag | Command | Required actor |
+| ---: | --- | --- |
+| 1 | initialize(sequence) | Operator |
+| 2 | begin(nonce, binding) | Ingress |
+| 3 | begin_intent(operation, spec) | Ingress |
+| 4 | intent_part(operation, part) | Ingress |
+| 5 | seal_intent(operation) | Ingress |
+| 6 | admit_intent(qualified target) | Coordinator |
+| 7 | activate(generation) | Coordinator |
+| 8 | begin_step(qualified target, spec) | Coordinator |
+| 9 | step_part(record target, part) | Coordinator |
+| 10 | publish_step(record target) | Coordinator |
+| 11 | receipt(record target, input) | Coordinator |
+| 12 | processed(record target, optional Table disposition) | Coordinator |
+| 13 | reconcile(operation) | Operator |
+| 14 | cancel(operation) | Operator |
+| 15 | abandon_step(record target) | Coordinator |
+| 16 | collect_step(record target) | Coordinator |
+| 17 | cancel_unsent(qualified target) | Coordinator |
+| 18 | capacity(operations:u64, bytes:u64, pending:u32) | Operator |
+| 19 | reserve(operation:u64, bytes:u64) | Operator |
+| 20 | complete(qualified target, terminal facts) | Coordinator |
+
+Successful native input processing is observed through the owner and its current
+resource; it does not create a SQL success reply. A rejected ledger input stores
+GSD1 with input:u64, principal:u64, frame fingerprint:32, cause length:u8 and
+cause:64, zero padded. Causes contain ASCII alphanumeric error names, never SQL,
+credentials or values. Source read, allocation and host cancellation failures
+are not application rejections and do not advance through this path.
+
+`Client.Prepared` canonical JSON contains mandatory version/current definition,
+realm/resource/owner, configuration fingerprint and exact native signed request.
+Its saved size is at most 4096 bytes. Restoration rejects trailing/noncanonical
+JSON and foreign definitions. Submission verifies the configured role, identity
+and signature, then attempts the original request once. Unknown outcomes retain
+that request; no helper silently allocates a successor or substitutes a new
+signature. Read-only list/discover/status acquisition does not call the scheduler.
 
 ## Primary definitions
 

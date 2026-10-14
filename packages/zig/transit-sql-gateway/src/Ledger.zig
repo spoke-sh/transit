@@ -135,6 +135,7 @@ pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding) !r.Oper
     try turn.write(r.key('h', 0, 0), try r.encode(header));
     try turn.write(r.key('o', result.id, 0), try r.encode(result));
     try turn.write(r.nonceKey(nonce), try r.encode(r.Nonce{ .id = result.id, .nonce = nonce }));
+    try turn.write(r.key('u', result.id, 0), try p.Value.init("upload"));
     return result;
 }
 pub fn beginIntent(self: Self, turn: *s.Turn, id: u64, spec: Pub.Spec) !void {
@@ -198,6 +199,26 @@ pub fn admitIntent(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, id: 
     try turn.write(r.key('o', id, 0), try r.encode(item));
     try turn.write(r.key('q', id, 0), try p.Value.init("ready"));
     try turn.write(r.key('b', id, 0), try r.encode(try r.IntentBinding.from(&intent)));
+    try turn.write(r.key('u', id, 0), null);
+}
+
+/// Scheduling cursor over unsettled uploads or ready work. It is advisory:
+/// every call uses a fresh authorized source and validates the referenced row.
+/// Retained terminal history is outside either index's key range.
+pub fn indexed(self: Self, source: anytype, kind: enum { admission, ready }, after_id: u64) !?r.Operation {
+    _ = try self.head(source);
+    const tag: u8 = if (kind == .admission) 'u' else 'q';
+    const after = r.key(tag, after_id, 0);
+    const page = try source.page(after);
+    try c.Inspection.validatePage(page, after, source.view.revision);
+    const first = page.entries[0] orelse return null;
+    if (!std.mem.startsWith(u8, first.key.slice(), after.data[0..4])) return null;
+    if (first.key.len != 20 or std.mem.readInt(u64, first.key.data[12..20], .big) != 0 or !std.mem.eql(u8, first.value.slice(), if (kind == .admission) "upload" else "ready")) return error.InvalidGatewayInventory;
+    const item = try self.operation(source, std.mem.readInt(u64, first.key.data[4..12], .big));
+    if (kind == .admission) {
+        if (item.phase != .reserved and item.phase != .uploading) return error.InvalidGatewayInventory;
+    } else if (item.phase != .ready) return error.InvalidGatewayInventory;
+    return item;
 }
 
 pub const Cursor = struct { realm: u64, resource: u64, configuration: [32]u8, revision: u64, after: u64 };
@@ -464,6 +485,7 @@ pub fn cancelUnsent(self: Self, turn: *s.Turn, id: u64, generation: u64) !void {
     try self.settle(turn, &item);
     try turn.write(r.key('o', id, 0), try r.encode(item));
     if (ready) try turn.write(r.key('q', id, 0), null);
+    if (!admitted) try turn.write(r.key('u', id, 0), null);
     // Private marker distinguishes a gateway-local cancellation from a native
     // Table receipt. Discovery exposes the retained summary and original phase.
     try turn.write(r.key('t', id, 0), try p.Value.init("gateway.cancelled.before-dispatch.v1"));

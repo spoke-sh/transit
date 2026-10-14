@@ -14917,6 +14917,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/Behavior.zig": {
+      "errors": {
+        "Cancelled": 1,
+        "GatewayDispositionConflict": 1,
+        "GatewayOwnerChanged": 1,
+        "OutOfMemory": 1,
+        "UninitializedGateway": 7,
+        "UnsupportedGatewayFrame": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "failure()": "<inferred>",
+        "handle()": "<inferred>",
+        "initialize()": "<inferred>",
+        "initialized()": "<inferred>",
+        "reject()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 34,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Bytes.zig": {
       "errors": {
         "InvalidWireMessage": 3,
@@ -14938,6 +14967,137 @@
         "catch": 0
       },
       "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/Client.zig": {
+      "errors": {
+        "GatewayDenied": 1,
+        "GatewayIdentityConflict": 3,
+        "GatewayOwnerUnavailable": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidGatewayPrepared": 4,
+        "InvalidGatewayReceipt": 1
+      },
+      "outcomes": {
+        "Progress": [
+          "pending",
+          "processed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Prepared.command()": "<inferred>",
+        "Prepared.restore()": "<inferred>",
+        "Prepared.save()": "<inferred>",
+        "prepare()": "<inferred>",
+        "progress()": "<inferred>",
+        "role()": "<inferred>",
+        "source()": "<inferred>",
+        "submit()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/Control.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidGatewayCommand": 6,
+        "InvalidGatewayDisposition": 3,
+        "InvalidGatewayPart": 3,
+        "UnrepresentableGatewayFailure": 1
+      },
+      "outcomes": {
+        "Command": [
+          "initialize",
+          "begin",
+          "begin_intent",
+          "intent_part",
+          "seal_intent",
+          "admit_intent",
+          "activate",
+          "begin_step",
+          "step_part",
+          "publish_step",
+          "receipt",
+          "processed",
+          "reconcile",
+          "cancel",
+          "abandon_step",
+          "collect_step",
+          "cancel_unsent",
+          "capacity",
+          "reserve",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Command.decode()": "<inferred>",
+        "Command.encode()": "<inferred>",
+        "Command.validate()": "<inferred>",
+        "Disposition.init()": "<inferred>",
+        "Disposition.validate()": "<inferred>",
+        "Part.init()": "<inferred>",
+        "Part.validate()": "<inferred>",
+        "read()": "anyerror",
+        "write()": "anyerror"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 33,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/Coordinator.zig": {
+      "errors": {
+        "GatewayIdentityConflict": 3,
+        "GatewayOwnerUnavailable": 1,
+        "GatewayStepIdentityConflict": 3,
+        "GatewayUnresolvedStep": 2,
+        "InvalidAuthorityResponse": 1,
+        "InvalidGatewayIntent": 1,
+        "InvalidGatewayInventory": 1,
+        "InvalidGatewayUpload": 1,
+        "StaleGatewayCoordinator": 1
+      },
+      "outcomes": {
+        "Action": [
+          "idle",
+          "blocked",
+          "control",
+          "dispatch"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "dispatch()": "<inferred>",
+        "fence()": "<inferred>",
+        "loadIntent()": "<inferred>",
+        "next()": "<inferred>",
+        "propose()": "<inferred>",
+        "staging()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
         "std"
       ]
     },
@@ -14966,7 +15126,7 @@
         "InvalidGatewayCleanup": 1,
         "InvalidGatewayConfiguration": 5,
         "InvalidGatewayIntent": 3,
-        "InvalidGatewayInventory": 4,
+        "InvalidGatewayInventory": 7,
         "InvalidGatewayObservation": 4,
         "InvalidGatewayReservation": 2,
         "InvalidSavedGatewayStep": 1,
@@ -14979,6 +15139,10 @@
           "ingress",
           "control",
           "coordinator"
+        ],
+        "indexed().kind": [
+          "admission",
+          "ready"
         ],
         "request().action": [
           "reconcile",
@@ -15004,6 +15168,7 @@
         "discover()": "<inferred>",
         "head()": "<inferred>",
         "increaseCapacity()": "<inferred>",
+        "indexed()": "<inferred>",
         "initialize()": "<inferred>",
         "intentPart()": "<inferred>",
         "list()": "<inferred>",
@@ -15021,7 +15186,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 174,
+        "try": 182,
         "catch": 0
       },
       "imports": [
@@ -15209,7 +15374,7 @@
         "InvalidGatewayIntent": 1,
         "InvalidGatewayPart": 2,
         "InvalidGatewayPublication": 1,
-        "InvalidGatewayUpload": 8,
+        "InvalidGatewayUpload": 9,
         "InvalidPublicationChunk": 2,
         "InvalidPublicationDigest": 1,
         "MissingPublicationChunk": 2
@@ -15223,11 +15388,12 @@
         "collectAbandonedStep()": "<inferred>",
         "read()": "<inferred>",
         "readStaged()": "<inferred>",
+        "receivedBytes()": "<inferred>",
         "seal()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 36,
         "catch": 0
       },
       "imports": [
@@ -15248,7 +15414,11 @@
       },
       "imports": [
         "Authentication.zig",
+        "Behavior.zig",
         "Bytes.zig",
+        "Client.zig",
+        "Control.zig",
+        "Coordinator.zig",
         "Ledger.zig",
         "LedgerRecords.zig",
         "Limits.zig",

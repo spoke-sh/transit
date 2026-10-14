@@ -41,6 +41,7 @@
       "test::table-query-writer",
       "test::catalog",
       "test::typed-tables",
+      "test::sql-gateway",
       "test::relational-callers",
       "test::relational-maintenance",
       "test::relational-exchanges",

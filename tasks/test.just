@@ -25,6 +25,10 @@ sql-wire-contracts:
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
 
+# Signed ledger, exact Table steps and fenced replacement on disk-backed Ursula.
+sql-gateway:
+    zig build test-sql-gateway -Doptimize=ReleaseSafe
+
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
 tls-alpn:
     zig build test-tls-alpn

@@ -23,8 +23,8 @@ The full-password verifier supports MySQL's full authentication path only when
 the caller has already established TLS. Callers own account selection, current
 credential revision, TLS, authentication concurrency and input-buffer erasure.
 
-These are library interfaces. Network listeners and the native coordinator
-transport are separate integration work. See the
+These are library interfaces. Network listeners and deployment lifecycle are
+separate integration work. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) and
 [executed evidence](../../../tests/README.md#database-wire-foundation).
 
@@ -39,3 +39,10 @@ unpublished/committed distinctions. `Ledger` supplies the
 reservations, fenced preparation, exact signed steps and separate native/SQL
 observations. It performs no dispatch; the host supplies actual observations and
 current native/catalog authorization.
+
+`Control` defines bounded current-definition native inputs. `Behavior` adapts the
+ledger to GenServer, with attributed rejection records and retryable source
+failures. `Client` prepares and retains exact signed controls and observes input
+progress. `Coordinator` proposes fenced transitions, reads published saved steps
+before dispatch, and observes original Table outcomes. Its caller serializes
+control requests and retains each exact request until its disposition is known.

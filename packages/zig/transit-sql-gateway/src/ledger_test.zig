@@ -166,6 +166,8 @@ test "ledger reserves identity and capacity before staged intent; only committed
     committed = turn.committed();
     try t.expectEqual(g.LedgerRecords.Phase.abandoned, (try ledger.operation(&committed, remaining.id)).phase);
     try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).unsettled);
+    try t.expect(try ledger.indexed(&committed, .admission, 0) == null);
+    try t.expect(try ledger.indexed(&committed, .ready, 0) == null);
     try t.expectEqual(@as(u64, 0), (try ledger.head(&committed)).reserved_bytes);
     try t.expectEqual(@as(u64, 2), (try ledger.head(&committed)).operations);
     try t.expect((try ledger.head(&committed)).used_bytes > saved.bytes.len);
@@ -211,6 +213,15 @@ test "gateway discovery pages a growing history and binds cursors to account and
         cursor = page.next orelse break;
     }
     try t.expectEqual(@as(usize, 27), count);
+    var indexed_count: usize = 0;
+    previous = 0;
+    while (try ledger.indexed(&committed, .admission, previous)) |item| {
+        try t.expect(item.id > previous);
+        previous = item.id;
+        indexed_count += 1;
+    }
+    try t.expectEqual(count, indexed_count);
+    try t.expect(try ledger.indexed(&committed, .ready, 0) == null);
     const first = try ledger.list(&committed, null);
     try t.expect(first.next != null);
     turn = try store.capture();

@@ -5,8 +5,9 @@ account. It supplies preparation, discovery, signed-step publication, receipt an
 processed-input recording, cancellation requests and terminal summaries. It
 performs no network sends. A host/coordinator must supply authenticated native
 inputs, current committed reads, actual Table observations and dispatch only
-committed `pendingStep` results. The native transport/service integration is a
-separate interface; these Zig methods do not create a running service.
+committed `pendingStep` results. `Behavior`, `Control`, `Client` and `Coordinator`
+supply the native adapter and scheduler described below; the deployment still
+owns worker lifecycle, exact pending controls, key custody and socket admission.
 
 ## Identity and roles
 
@@ -51,7 +52,10 @@ four mutations and 256-byte values per committed turn.
 account configuration, realm/resource, captured resource revision and last ID.
 Changed cuts reject; the caller must acquire another qualified page sequence.
 `discover` reads the nonce index. These reads never reconcile or dispatch.
-Retained history and the ready index are durable keys, not resident arrays.
+Retained history, unfinished uploads and ready work have separate durable indexes.
+`indexed` visits at most one native page and returns the next unsettled upload or
+ready operation. Its cursor is advisory and every acquisition checks current
+state. Retained history adds no scan work to these scheduling lookups.
 `activate` chooses the oldest ready ID, with at most one active operation for the
 account's dedicated Table principal.
 
@@ -111,3 +115,40 @@ unused reservation while charging retained content; history is not removed.
 Additional recovery attempts can request explicit capacity/reservation. Quota
 pressure returns a capacity error and preserves pending bytes. There is no
 history expiry, automatic accepted-work collection or quota-driven cancellation.
+
+## Native adapter and coordinator
+
+`Control.Command` encodes `GSQ1`, the mandatory current definition and one bounded
+tagged command. Fields use declaration order and little-endian integers; optional
+values have an exact zero/one presence byte. Parts contain an aligned u32 offset,
+u8 length and 128 bytes with zero padding. All commands fit one Station cast.
+Unknown tags, foreign definitions, invalid padding and trailing bytes reject.
+
+`Behavior` supplies a GenServer handler and input guard. Initialize the private
+owner with an operator input before accepting ingress. After initialization,
+rejected commands commit an attributed `GSD1` disposition containing native input,
+principal, payload fingerprint and bounded error name. Application mutations from
+a rejected transition are discarded. Source read failure, allocation failure and
+host cancellation propagate without committing an application rejection.
+
+`Client.Prepared` freezes the full native request and signature, configuration
+fingerprint and identity. Canonical saved JSON requires the current definition.
+`submit` attempts those exact bytes; `progress` distinguishes pending inputs from
+processed inputs with or without a rejection. It does not infer SQL completion.
+One serialized caller owns each command principal and retains an uncertain
+request before allocating another sequence.
+
+`Coordinator.next` verifies the native generation/worker, observes one unfinished
+upload and one active operation, and returns an idle, blocked, control or dispatch
+action. It retains at most one complete typed intent and one step candidate.
+The caller durably processes a control before asking for a successor. A replacement
+can publish a completely staged step; an incomplete unpublished step is abandoned
+and its partial bytes collected before another attempt. Published steps always
+come from committed `pendingStep` reads and are never re-signed. `dispatch`
+rechecks the fence and pending identity before attempting the saved Table send;
+its returned receipt control still requires a separate ledger commit.
+
+Native processing, Table completion and current disclosure authority are checked
+separately. Cancellation selects the original DDL, DML or upload identity. A
+rejected Table disposition blocks automatic progression until operator action;
+reconcile can resume the original qualified work, without granting new rights.

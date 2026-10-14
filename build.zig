@@ -1086,6 +1086,21 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const sql_gateway_proof = b.addExecutable(.{ .name = "transit-sql-gateway-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_gateway_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_sql_gateway", .module = b.dependency("transit_sql_gateway", .{ .target = target, .optimize = optimize }).module("transit_sql_gateway") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+    }) });
+    build_test_step.dependOn(&sql_gateway_proof.step);
+    const sql_gateway_native = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_gateway_native.addFileArg(b.path("tests/sql_gateway_native.py"));
+    sql_gateway_native.addArtifactArg(node_artifact);
+    sql_gateway_native.addArtifactArg(typed_table_proof);
+    sql_gateway_native.addArtifactArg(sql_gateway_proof);
+    sql_gateway_native.has_side_effects = true;
+    sql_gateway_native.stdio = .inherit;
+    b.step("test-sql-gateway", "Prove signed gateway ledger recovery through real native owners").dependOn(&sql_gateway_native.step);
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
     relational_callers_native.addArtifactArg(node_artifact);
