@@ -42,6 +42,7 @@ pub const TableEvolution = @import("TableEvolution.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
+pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableDml = @import("TableDml.zig");
 pub const TableDmlPrepared = @import("TableDmlPrepared.zig");
 pub const TableSchemaJson = @import("TableSchemaJson.zig");
@@ -63,6 +64,7 @@ test {
     _ = TableEvolution;
     _ = SqlTypes;
     _ = TableDdl;
+    _ = AuthorizationSql;
     _ = TableDml;
     _ = TableDmlPrepared;
     _ = TableSchemaJson;
