@@ -7,11 +7,11 @@ const t = std.testing;
 test "gateway publication preserves exact parts across discarded turns and lost replies" {
     var store: Store = .{};
     defer store.deinit();
-    var body: [1301]u8 = undefined;
+    var body: [18001]u8 = undefined;
     for (&body, 0..) |*byte, i| byte.* = @truncate(i * 37 + 11);
     const spec = try Pub.Digest.of(0x47534901, &body);
     var turn = try store.capture();
-    const publication = try Pub.create(&turn, .sql_gateway, 19, .{ .record_bytes = 4096, .staging_bytes = 4096, .staging_records = 1 });
+    const publication = try Pub.create(&turn, .sql_gateway, 19, .{ .record_bytes = 32768, .staging_bytes = 32768, .staging_records = 1 });
     _ = try publication.begin(&turn, 1, spec);
     try store.commit(turn);
     for (0..(body.len + Upload.part_bytes - 1) / Upload.part_bytes) |i| {
@@ -42,12 +42,23 @@ test "gateway publication preserves exact parts across discarded turns and lost 
     var committed = turn.committed();
     try t.expectError(error.PublicationNotPublished, publication.open(&committed, 1));
     try store.commit(turn);
+    store.batch_reads = true;
+    store.reads = 0;
+    store.batch_calls = 0;
     turn = try store.capture();
     committed = turn.committed();
     const result = try Upload.read(t.allocator, publication, &committed, 1, body.len);
     defer t.allocator.free(result);
     try t.expectEqualSlices(u8, &body, result);
+    try t.expectEqual((spec.chunks() + 7) / 8, store.batch_calls);
+    try t.expect(store.reads <= 3);
     try t.expectError(error.GatewayRecordTooLarge, Upload.read(t.allocator, publication, &committed, 1, body.len - 1));
+    store.batch_calls = 0;
+    store.deny_batch = 2;
+    turn = try store.capture();
+    committed = turn.committed();
+    try t.expectError(error.AccessDenied, Upload.read(t.allocator, publication, &committed, 1, body.len));
+    try t.expectError(error.AccessDenied, committed.read(try g.catalog.protocol.Value.init("uncached")));
     store.denied = true;
     turn = try store.capture();
     committed = turn.committed();

@@ -71,6 +71,7 @@ pub fn read(allocator: std.mem.Allocator, publication: Pub, source: anytype, id:
     errdefer allocator.free(bytes);
     var offset: usize = 0;
     while (true) {
+        try prefetch(publication, source, id, cursor.index, cursor.spec.chunks());
         const part = try publication.read(source, cursor);
         if (part.bytes.len > bytes.len - offset) return error.InvalidGatewayUpload;
         @memcpy(bytes[offset..][0..part.bytes.len], part.bytes.slice());
@@ -79,6 +80,16 @@ pub fn read(allocator: std.mem.Allocator, publication: Pub, source: anytype, id:
     }
     if (offset != bytes.len or !std.meta.eql(try Pub.Digest.of(cursor.spec.format, bytes), cursor.spec)) return error.InvalidGatewayUpload;
     return bytes;
+}
+
+fn prefetch(publication: Pub, source: anytype, id: u64, index: u32, chunks: u32) !void {
+    if (comptime @hasDecl(@typeInfo(@TypeOf(source)).pointer.child, "prefetch")) {
+        if (index % p.Growth.page_size != 0 or index == chunks) return;
+        var keys: [p.Growth.page_size]p.Value = undefined;
+        const count = @min(keys.len, chunks - index);
+        for (keys[0..count], 0..) |*key, i| key.* = Pub.key(publication.domain, publication.namespace, 'c', id, index + @as(u32, @intCast(i)));
+        try source.prefetch(keys[0..count]);
+    }
 }
 
 /// Equality against an already validated immutable publication at one committed
@@ -123,6 +134,7 @@ pub fn readStaged(allocator: std.mem.Allocator, publication: Pub, source: anytyp
     errdefer allocator.free(bytes);
     var offset: usize = 0;
     for (0..record.spec.chunks()) |index| {
+        try prefetch(publication, source, id, @intCast(index), record.spec.chunks());
         const chunk = (try source.read(Pub.key(publication.domain, publication.namespace, 'c', id, @intCast(index)))) orelse return error.MissingPublicationChunk;
         if (chunk.len != try record.spec.size(@intCast(index))) return error.InvalidPublicationChunk;
         @memcpy(bytes[offset..][0..chunk.len], chunk.slice());

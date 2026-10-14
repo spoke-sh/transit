@@ -148,6 +148,12 @@ come from committed `pendingStep` reads and are never re-signed. `dispatch`
 rechecks the fence and pending identity before attempting the saved Table send;
 its returned receipt control still requires a separate ledger commit.
 
+Finite intent reads prefetch at most eight publication chunks per native read
+and reuse the existing bounded source cache. The account finishes a captured
+native turn before acquiring an intent for the coordinator, so that separate
+read work cannot consume the turn's read-view lifetime. Digest, publication and
+identity checks still cover the complete intent; a failed page poisons the read.
+
 Native processing, Table completion and current disclosure authority are checked
 separately. The account runtime retries unavailable discovery and terminal reads
 within the caller's original deadline, retaining the same nonce, intent and

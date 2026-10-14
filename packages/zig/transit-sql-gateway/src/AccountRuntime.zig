@@ -109,6 +109,9 @@ pub fn tick(self: *Self) !bool {
         defer self.ingress_mutex.unlock(self.io);
         _ = self.ingress_lane.poll(&self.ingress) catch |err| if (staleRead(&self.ingress_wire, err)) g.ControlLane.Result.pending else return err;
     }
+    // Finish the captured turn before potentially long coordinator reads. A
+    // separate intent acquisition must not consume this turn's view lifetime.
+    if (result == .progress) return true;
     var progressed = result != .idle;
     if (self.private_lane.pending != null) {
         progressed = try self.advancePrivate() or progressed;

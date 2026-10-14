@@ -50,7 +50,9 @@ fn loadIntent(self: *Self, source: anytype, item: r.Operation) !*const c.TableIn
         self.intent = null;
     };
     if (self.intent == null) {
-        const bytes = try g.Upload.read(self.allocator, ledger.publication(item.id), source, 1, ledger.configuration.intent_bytes);
+        const batches = try self.client.reader().batches();
+        var cached = batches.cached(try batches.read(source.view.resource, source.view.revision, &.{g.station.Publication.key(.sql_gateway, item.id, 'r', 1, 0)}));
+        const bytes = try g.Upload.read(self.allocator, ledger.publication(item.id), &cached, 1, ledger.configuration.intent_bytes);
         defer self.allocator.free(bytes);
         self.intent = try c.TableIntent.restore(self.allocator, bytes);
     }

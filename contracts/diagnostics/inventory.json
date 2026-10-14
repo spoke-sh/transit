@@ -15662,7 +15662,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 41,
         "catch": 0
       },
       "imports": [
@@ -16041,6 +16041,7 @@
         "append()": "<inferred>",
         "check()": "<inferred>",
         "collectAbandonedStep()": "<inferred>",
+        "prefetch()": "<inferred>",
         "read()": "<inferred>",
         "readStaged()": "<inferred>",
         "receivedBytes()": "<inferred>",
@@ -16048,7 +16049,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 39,
         "catch": 0
       },
       "imports": [

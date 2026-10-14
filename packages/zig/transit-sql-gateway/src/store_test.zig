@@ -10,13 +10,28 @@ input: u64 = 1,
 generation: u64 = 1,
 origin: u64 = 5,
 denied: bool = false,
+batch_reads: bool = false,
+reads: usize = 0,
+batch_calls: usize = 0,
+deny_batch: ?usize = null,
 pub fn deinit(self: *Self) void {
     self.state.deinit(std.testing.allocator);
 }
 fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
     const self: *Self = @ptrCast(@alignCast(raw));
+    self.reads += 1;
     if (self.denied) return error.AccessDenied;
     return self.state.get(key);
+}
+fn many(raw: *anyopaque, _: p.Growth.View, keys: [p.Growth.page_size]?p.Value) ![p.Growth.page_size]?p.Growth.Entry {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    self.batch_calls += 1;
+    if (self.denied or self.deny_batch == self.batch_calls) return error.AccessDenied;
+    var result: [p.Growth.page_size]?p.Growth.Entry = @splat(null);
+    for (keys, 0..) |key, i| if (key) |selected| {
+        if (self.state.get(selected)) |value| result[i] = .{ .key = selected, .value = value, .revision = self.revision };
+    };
+    return result;
 }
 fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !p.Growth.Batch(p.Growth.Entry, p.Value) {
     const self: *Self = @ptrCast(@alignCast(raw));
@@ -41,7 +56,7 @@ fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !p.Growth.Batch(p.Gr
     return result;
 }
 pub fn capture(self: *Self) !Turn {
-    return Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = self.generation, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = self.origin, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = self.generation, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page });
+    return Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = self.generation, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = self.origin, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = self.generation, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .many = many, .cache_reads = self.batch_reads });
 }
 pub fn commit(self: *Self, turn: Turn) !void {
     try turn.validate();

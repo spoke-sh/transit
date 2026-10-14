@@ -368,7 +368,7 @@ fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void 
         _ = runtime.tick() catch |err| {
             if (!g.station.client.Client.unavailable(err)) {
                 runtime.ready.store(false, .release);
-                diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+                diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = if (runtime.background.last_rejection) |cause| @tagName(cause) else @errorName(err) });
                 return;
             }
         };
