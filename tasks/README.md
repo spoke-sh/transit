@@ -180,6 +180,12 @@ total about 184 minutes across clean checkouts, separately from hosted setup.
 This cap includes toolchain setup and leaves room for the complete matrix. Individual
 proof deadlines and the separately recorded feedback budgets remain unchanged.
 
+Installed SDK Table schedules select `--cold`: the native history plus SDK and
+prepared-parameter cases exceed the hot-only fixture's 64 MiB total capacity.
+They use owned pinned MinIO with 8 MiB hot storage, an 8 MiB cold cache and eight
+resident authority pages. Both `bindings::*-test` and `bindings::catalog-*`
+retain the full schedule and its existing operation deadlines.
+
 The growing query fixture allows 600 seconds for complete result delivery over
 physical disk and 180 seconds for each other phase. Delivery includes hundreds
 of durable paged turns; the proof records actual phase times and verifies the

@@ -101,9 +101,19 @@ manifest covers its declared boundaries, not this entire new wire surface.
 Application/session tests and actual negative cases own the SQLSTATE mappings.
 Final clean qualification uses `just ci-clean` (all five ordinary lanes at one
 committed revision) or `just ci-clean --complete` with the installed browser.
+Individual `--lane` runs provide scoped clean evidence. When composing them,
+record each source revision and intervening changes; a failed complete run is
+not a complete pass, even when all tasks in an earlier lane finished successfully.
 Those runs create revision-qualified timing/completion reports under `.cache/ci/clean`;
 focused and deployment results do not stand in for them. Hosted CI status is
 reported separately in the implementation PR.
+
+The clean SDK run at `c5d46e8f` passed the Python Table consumer checks but failed
+the enclosing prepared-parameter schedule: its hot-only Ursula store reached
+the 64 MiB total limit and returned `ColdBackpressure`. The supplied host then
+stopped; this is a failed task, not a Python qualification pass. Installed SDK
+Table recipes now select the existing cold-store fixture, with 8 MiB hot/cache
+bounds and eight resident authority pages. They retain all cases and deadlines.
 
 ## Database wire foundation
 
