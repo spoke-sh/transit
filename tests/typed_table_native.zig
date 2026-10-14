@@ -362,6 +362,44 @@ pub fn main(init: std.process.Init) !void {
     }
     const owner = configuration(config);
     var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = owner.scope, .owner = owner.owner, .principal = 1234 }, .key = try key(10) };
+    if (std.mem.eql(u8, mode, "external-provision")) {
+        // Run before gateway initialization captures principal 1234's sequence.
+        // Later external DDL uses its own independently sequenced principal.
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        _ = try admin.submit(.{ .grant = .{ .subject = 1235, .public_key = (try key(11)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1235, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        return submit(init, directory, &caller, try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = try c.TableCatalogRecords.Policy.administrator(owner.scope, 1235) } }));
+    }
+    if (std.mem.eql(u8, mode, "external-ddl")) {
+        caller.connection.principal = 1235;
+        caller.key = try key(11);
+        const operation = try std.fmt.parseInt(u64, args[4], 10);
+        var work = try currentRead(init, &wire, c.TableClient.compile, .{ &caller, init.gpa, args[5], .{ .operation = operation, .namespace = 1000 + operation, .create_object = if (std.mem.startsWith(u8, args[5], "CREATE")) operation else null }, null });
+        defer work.deinit();
+        try saveBytes(init, directory, "external-intent.bin", work.bytes);
+        const started = std.Io.Clock.awake.now(init.io);
+        while (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() < 120) {
+            switch (try currentRead(init, &wire, c.TableClient.next, .{ &caller, &work })) {
+                .send => |request| {
+                    const saved = try request.save(init.gpa);
+                    defer init.gpa.free(saved);
+                    try saveBytes(init, directory, "external-prepared.json", saved);
+                    const receipt = try caller.submit(request);
+                    while (true) {
+                        const progress = try currentRead(init, &wire, c.TableClient.waitProgress, .{ &caller, &work, request, receipt.position });
+                        if (progress != .pending) break;
+                        if (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 120) return error.ProofTimeout;
+                        try init.io.sleep(.fromMilliseconds(5), .awake);
+                    }
+                },
+                .terminal => |value| return outcome(init, value),
+                .upload_cancelled => return error.UnexpectedUploadCancellation,
+                .running => try init.io.sleep(.fromMilliseconds(5), .awake),
+            }
+        }
+        return error.ProofTimeout;
+    }
     if (std.mem.eql(u8, mode, "host")) return host(init, &wire, directory, config, args[1]);
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);

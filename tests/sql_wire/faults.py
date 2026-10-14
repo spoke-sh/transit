@@ -94,7 +94,7 @@ def run(root, postgres, mysql_options, controls, native_access):
         while True:
             try:
                 return connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone()[0]
-            except psycopg.errors.InsufficientResources:
+            except (psycopg.errors.InsufficientResources, psycopg.errors.ObjectNotInPrerequisiteState):
                 # This explicit observation is a new read. No write is retried,
                 # and no incomplete result is appended to an earlier result.
                 assert time.monotonic() < deadline
@@ -204,7 +204,10 @@ def run(root, postgres, mysql_options, controls, native_access):
         cursor=my.cursor(prepared=True)
         cursor.execute('SELECT id FROM wire_rows WHERE id=%s',(101,))
         cursor.fetchall()
-        replace(original | {'revision':original['revision']+1})
+        password_file = root/'rotation-password'
+        password_file.write_bytes(b'proof-password')
+        password_file.chmod(0o600)
+        assert controls('credential',password_file,credential_file,original['revision']+1)['revision'] == original['revision']+1
         try:
             for execute, error in ((lambda:pg.execute('SELECT 1'),psycopg.Error),(lambda:cursor.execute('SELECT 1'),mysql.connector.Error)):
                 try:
@@ -225,4 +228,4 @@ def run(root, postgres, mysql_options, controls, native_access):
                     raise AssertionError('Disabled credential authenticated')
         finally:
             replace(original | {'revision':original['revision']+3})
-    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True, credential_rotation=True)), flush=True)
+    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True, credential_rotation=True, credential_cli=True)), flush=True)
