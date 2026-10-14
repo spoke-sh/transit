@@ -13494,6 +13494,202 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "AuthorizationBudgetExceeded": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "AuthorizationChangeQuota": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "AuthorizationIdentityExhausted": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "AuthorizationNameExists": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "AuthorizationCredentialExists": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "AuthorizationDependencies": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationBudget": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationName": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationRole": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationObject": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationDomain": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationGrant": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationPrivilege": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationRevision": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationCredential": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationChange": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationCursor": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidRoleMembership": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "RetiredAuthorizationRole": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "RetiredAuthorizationObject": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "RoleMembershipCycle": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "StaleAuthorizationRevision": {
+          "code": "inspection.observation_changed",
+          "category": "conflict",
+          "actions": [
+            "refresh"
+          ]
+        },
+        "StaleAuthorizationCredential": {
+          "code": "inspection.observation_changed",
+          "category": "conflict",
+          "actions": [
+            "refresh"
+          ]
+        },
+        "UnknownAuthorizationRole": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnknownAuthorizationObject": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnknownAuthorizationGrant": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnknownAuthorizationChange": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnknownRoleMembership": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },

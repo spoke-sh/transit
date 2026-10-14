@@ -16,7 +16,6 @@ pub const Namespace = enum(u8) {
     output,
     effect,
     payload,
-    grant,
     pending_output,
     pending_effect,
     entry,
@@ -57,6 +56,7 @@ pub const Namespace = enum(u8) {
     authorization_credential,
     authorization_change,
     authorization_outcome,
+    authorization_native_resource_grant,
 };
 pub const Snapshot = struct {
     version: u32 = version,
@@ -167,7 +167,8 @@ pub const RecordCache = struct {
     fn eligible(key_value: pages.Key) bool {
         const namespace: Namespace = @fromBackingInt(@intCast(key_value.data[0]));
         return switch (namespace) {
-            .principal, .process, .resource, .grant, .association, .associated_resource, .required_association, .required_resource_users, .owner_required_users => true,
+            .principal, .process, .resource, .association, .associated_resource, .required_association, .required_resource_users, .owner_required_users => true,
+            .authorization_role, .authorization_credential, .authorization_object, .authorization_grant => true,
             else => false,
         };
     }

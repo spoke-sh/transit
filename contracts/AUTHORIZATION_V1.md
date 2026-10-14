@@ -1,9 +1,11 @@
 # Authorization v1
 
-This specification defines the proposed declarative authorization cutover.
-Native capabilities do not advertise these operations until their implementation
-and public consumer contracts are present. Existing native/state authorization
-continues to describe the executable profile during implementation.
+The native `declarative_authorization` capability provides roles, credential
+bindings, generic objects, grants, staged administration and current policy
+inspection. [Authorization.zig](../packages/zig/transit-protocol/src/Authorization.zig)
+owns the types; the native schema reflects them. The SQL mapping and trusted Table
+mediation described below are integration profiles under implementation; the
+native capability alone does not advertise restricted Table access.
 
 ## Authority and identity
 
@@ -48,6 +50,12 @@ targets have opaque stable identities registered by an authorized domain owner.
 Their actions are validated against the owner's declared object class; the
 kernel does not infer Table semantics or authorize an arbitrary registration.
 
+The realm authorization object is `{ kind: realm, id: 0 }` within the envelope's
+realm. Process/resource objects use their native identities. Framework domains
+and objects receive separately allocated stable IDs. Root explicitly registers
+each domain's registrar principal and action mask; only that registrar creates
+its objects. Ownership alone never allows an arbitrary registrar substitution.
+
 The SQL profile maps CONNECT to databases, USAGE/CREATE to schemas and
 SELECT/INSERT/UPDATE/DELETE to Tables. Lifecycle control follows logical ownership.
 Catalogs map explicitly to databases; schemas are catalog metadata namespaces.
@@ -67,8 +75,8 @@ usable. These bounds are authority configuration, not a caller-selected way to
 bypass work or authorize data.
 
 Names are at most 63 UTF-8 bytes. An inspection response contains at most eight
-records and a scope/revision-bound cursor. At most eight grant paths appear in
-one explanation page. Individual administrative commands contain bounded actions;
+records and a scope/revision-bound cursor. Grants and memberships retain their
+grantor for bounded provenance inspection. Individual administrative commands contain bounded actions;
 large cascades and change sets stage paged candidates with explicit byte/work
 quotas. Only a complete candidate can publish one new authorization revision.
 Abandoned candidates supply no authority. No retained-state expiry is implicit.
@@ -81,6 +89,8 @@ at most eight records; each dependency decision has the evaluation bounds above.
 Deployment quotas default to 65536 steps and 1000000 changed primary records per
 candidate. These are work limits, not limits on retained roles, grants or objects.
 Index entries are storage details of the corresponding primary record.
+Revoked edges remain in primary history but leave the active membership/grant
+indexes. Repeated revocation does not add work to unrelated access decisions.
 
 Credential changes and role-name changes preserve stable role identities.
 Role retirement checks owned objects and administrative role ownership before
@@ -98,6 +108,30 @@ Administration is authenticated, revision-checked and bound to an original nativ
 operation identity. Lost receipts retry exact signed bytes. Replay restores
 accepted authorization state without reprovisioning credentials or dispatching
 effects. Ordinary startup never applies grants from configuration.
+
+`command.authorization` carries the workflow. A begin receipt is its change ID;
+`query.authorization.kind.change` reports the retained outcome. Begin and
+advance stage private roots; only publish selects a complete policy root. A
+separate durable identity high-water mark reserves IDs during staging, including
+competing or subsequently abandoned candidates. A changed basis rejects advance
+or publish. A failed staging operation never replaces the previously recorded
+candidate. Recovery requires no graph materialization or policy reapplication.
+
+The identity query exposes the caller's bound login role and credential epoch
+without requiring native resource-inspection rights. Role/grant inspection is
+scoped to the caller, ownership or an explicit unscoped native inspection grant.
+Pagination binds the realm, caller, selected role, selector and policy revision;
+changing any scope rejects the continuation. Decision reads require the complete
+requested action set. Missing objects and denied decisions both withhold data.
+
+Direct native `grant`/`create_principal` provisioning creates a private role and
+an explicit graph grant. `grant_resource` edits a graph grant through an index,
+not a separate permission store. Replacing a direct native grant retires its old
+private role, so old resource rights cannot revive. These `native/` roles cannot
+own framework objects, be rebound as logical login roles or be altered through
+logical role administration. Named logical roles use credential binding and
+rotation instead. Worker rotation preserves the private role and sequence while
+advancing the credential epoch and fencing the process generation.
 
 Policy revision is independent of data snapshot revision. Cached bytes, prepared
 statements, sessions and cursors supply no permission. Every protected read
@@ -144,3 +178,5 @@ documented role/privilege semantics. It is not a claim of complete SQL-standard,
 PostgreSQL or MySQL server conformance. Unsupported row/column policies, ABAC,
 identity federation and security-definer behavior reject. Adapter dialects lower
 to shared typed operations; they do not maintain independent permission stores.
+Transit role records also have an administrative owner. This is a Transit
+extension; PostgreSQL roles themselves do not have object owners.

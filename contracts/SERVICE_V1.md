@@ -39,12 +39,18 @@ Never infer nonacceptance from a timeout, disconnect, malformed response or 503.
 
 ## Authorization and reads
 
-Current keys, permission bits and optional PID scopes apply to commands, reads
-and duplicate receipts. Resource inspection/read/write grants are independent
+Current credential bindings, role grants and optional PID scopes apply to commands,
+reads and duplicate receipts. Native action masks are derived from the same
+authorization graph. Resource inspection/read/write grants are independent
 of process ownership and associations. Query results identify the authority
 position and caller sequence; a continuation confers no authority. Each response
 rechecks the authority tail before disclosure. A concurrent authority change
 rejects the read; a subsequent revocation prevents the next authorized read.
+
+`command.authorization` stages and publishes revision-checked policy changes.
+`kind.authorization` supplies current identity, decisions, scoped policy pages
+and retained administrative outcomes. These use the ordinary signed envelopes;
+they add no route or separate policy authority. See [authorization v1](AUTHORIZATION_V1.md).
 
 `kind: { process: PID }` returns process metadata and its next executable input.
 The input owns opaque bytes and its authenticated external, process or effect

@@ -3455,6 +3455,7 @@
                         "kind": {
                           "type": "string",
                           "enum": [
+                            "authorization",
                             "grant",
                             "revoke",
                             "spawn",
@@ -4489,7 +4490,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+                        "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
                       ]
                     },
                     "code": {
@@ -6557,7 +6558,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+                      "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
                     ]
                   },
                   "code": {
@@ -17765,7 +17766,7 @@
           "T142": {
             "type": "string",
             "enum": [
-              "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
             ]
           },
           "T143": {
@@ -19612,7 +19613,7 @@
           "T10": {
             "type": "string",
             "enum": [
-              "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
             ]
           }
         }
@@ -19674,7 +19675,7 @@
             ],
             "x-transit-defaults": {
               "capabilities": {
-                "definition": "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+                "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
                 "sources": 2,
                 "active_queries": 1,
                 "page_rows": 1,
@@ -19735,7 +19736,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+              "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -19748,7 +19749,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
             ]
           },
           "T4": {
@@ -20013,7 +20014,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+              "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
               "executed": false
             }
           },

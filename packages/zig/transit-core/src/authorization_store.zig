@@ -119,7 +119,8 @@ pub fn Store(comptime PageStore: type) type {
             try self.current(value);
             if (try self.membership(value.id)) |previous| if (previous.member != value.member or previous.role != value.role or previous.grantor != value.grantor) return error.InvalidRoleMembership;
             try self.catalog.put(idKey(.authorization_membership, value.id), value);
-            try self.catalog.put(try c.key(.authorization_member, value.member, value.id, ""), value);
+            const index = try c.key(.authorization_member, value.member, value.id, "");
+            if (value.enabled) try self.catalog.put(index, value) else try self.catalog.remove(index);
         }
         pub fn memberships(self: *Self, member: u64, after: ?u64) !a.Page(a.Membership) {
             const batch = try self.catalog.scan(a.Membership, .{ .namespace = .authorization_member, .major = member }, if (after) |id| try c.key(.authorization_member, member, id, "") else null);
@@ -138,7 +139,7 @@ pub fn Store(comptime PageStore: type) type {
             try self.current(value);
             if (try self.grant(value.id)) |previous| if (!previous.object.eql(value.object) or previous.grantee != value.grantee or previous.grantor != value.grantor) return error.InvalidAuthorizationGrant;
             try self.catalog.put(idKey(.authorization_grant, value.id), value);
-            try self.catalog.put(try grantKey(value), value);
+            if (value.enabled and value.privileges != 0) try self.catalog.put(try grantKey(value), value) else try self.catalog.remove(try grantKey(value));
         }
         pub fn transferGrant(self: *Self, previous: a.Grant, old_owner: u64, new_owner: u64) !void {
             var value = previous;
@@ -150,7 +151,7 @@ pub fn Store(comptime PageStore: type) type {
             if (!std.meta.eql(stored, previous)) return error.InvalidAuthorizationState;
             try self.catalog.remove(try grantKey(previous));
             try self.catalog.put(idKey(.authorization_grant, value.id), value);
-            try self.catalog.put(try grantKey(value), value);
+            if (value.enabled and value.privileges != 0) try self.catalog.put(try grantKey(value), value);
         }
         pub fn grants(self: *Self, reference: a.ObjectRef, grantee: u64, after: ?u64) !a.Page(a.Grant) {
             const cursor = if (after) |id| try grantKey(.{ .id = id, .object = reference, .grantee = grantee, .grantor = 0, .privileges = 0, .revision = self.revision }) else null;

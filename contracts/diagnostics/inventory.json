@@ -10382,6 +10382,122 @@
         "transit_sql_gateway"
       ]
     },
+    "packages/zig/transit-protocol/src/Authorization.zig": {
+      "errors": {
+        "InvalidAuthorizationBudget": 1,
+        "InvalidAuthorizationChange": 1,
+        "InvalidAuthorizationCredential": 1,
+        "InvalidAuthorizationCursor": 1,
+        "InvalidAuthorizationDomain": 1,
+        "InvalidAuthorizationGrant": 4,
+        "InvalidAuthorizationName": 1,
+        "InvalidAuthorizationObject": 5,
+        "InvalidAuthorizationPrivilege": 1,
+        "InvalidAuthorizationRevision": 1,
+        "InvalidAuthorizationRole": 2,
+        "InvalidRead": 15,
+        "InvalidRoleMembership": 1
+      },
+      "outcomes": {
+        "Action": [
+          "create_role",
+          "alter_role",
+          "retire_role",
+          "membership",
+          "revoke_membership",
+          "register_domain",
+          "register_object",
+          "transfer_object",
+          "retire_object",
+          "grant",
+          "revoke",
+          "default_grant",
+          "revoke_default",
+          "bind_credential",
+          "rotate_credential",
+          "disable_credential"
+        ],
+        "Command": [
+          "begin",
+          "advance",
+          "publish",
+          "abandon"
+        ],
+        "MembershipOption": [
+          "admin",
+          "inherit",
+          "set"
+        ],
+        "ObjectRef.kind": [
+          "realm",
+          "process",
+          "resource",
+          "domain"
+        ],
+        "Query.kind": [
+          "identity",
+          "decision",
+          "role",
+          "resolve",
+          "roles",
+          "memberships",
+          "object",
+          "grants",
+          "defaults",
+          "change"
+        ],
+        "Result.body": [
+          "identity",
+          "decision",
+          "role",
+          "resolve",
+          "roles",
+          "memberships",
+          "object",
+          "grants",
+          "defaults",
+          "change"
+        ],
+        "RevokeBehavior": [
+          "restrict",
+          "cascade"
+        ],
+        "Status": [
+          "preparing",
+          "ready",
+          "published",
+          "abandoned"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Credential.validate()": "<inferred>",
+        "DefaultGrant.validate()": "<inferred>",
+        "Domain.validate()": "<inferred>",
+        "Grant.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Membership.validate()": "<inferred>",
+        "Object.validate()": "<inferred>",
+        "ObjectRef.validate()": "<inferred>",
+        "Role.validate()": "<inferred>",
+        "cursorScope()": "<inferred>",
+        "mask()": "<inferred>",
+        "name()": "<inferred>",
+        "revision()": "<inferred>",
+        "roleId()": "<inferred>",
+        "validateQuery()": "<inferred>",
+        "validateResult()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 51,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
         "DiagnosticCapacity": 4,
@@ -10673,6 +10789,7 @@
           "process"
         ],
         "Command": [
+          "authorization",
           "grant",
           "revoke",
           "spawn",
@@ -10720,7 +10837,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365\""
+          "@\"9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246\""
         ],
         "Effect.phase": [
           "pending",
@@ -10762,6 +10879,7 @@
           "expired"
         ],
         "Query.kind": [
+          "authorization",
           "capabilities",
           "inspection",
           "delivery",
@@ -10792,6 +10910,7 @@
           "reclaimed"
         ],
         "Response.body": [
+          "authorization",
           "capabilities",
           "inspection",
           "delivery",
@@ -10851,7 +10970,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 57,
         "catch": 1
       },
       "imports": [
@@ -11138,6 +11257,34 @@
       "errors": {},
       "outcomes": {
         "ErrorCode": [
+          "AuthorizationBudgetExceeded",
+          "AuthorizationChangeQuota",
+          "AuthorizationIdentityExhausted",
+          "AuthorizationNameExists",
+          "AuthorizationCredentialExists",
+          "AuthorizationDependencies",
+          "InvalidAuthorizationBudget",
+          "InvalidAuthorizationName",
+          "InvalidAuthorizationRole",
+          "InvalidAuthorizationObject",
+          "InvalidAuthorizationDomain",
+          "InvalidAuthorizationGrant",
+          "InvalidAuthorizationPrivilege",
+          "InvalidAuthorizationRevision",
+          "InvalidAuthorizationCredential",
+          "InvalidAuthorizationChange",
+          "InvalidAuthorizationCursor",
+          "InvalidRoleMembership",
+          "RetiredAuthorizationRole",
+          "RetiredAuthorizationObject",
+          "RoleMembershipCycle",
+          "StaleAuthorizationRevision",
+          "StaleAuthorizationCredential",
+          "UnknownAuthorizationRole",
+          "UnknownAuthorizationObject",
+          "UnknownAuthorizationGrant",
+          "UnknownAuthorizationChange",
+          "UnknownRoleMembership",
           "HttpCapacity",
           "InvalidLifecycle",
           "MissingRequiredAssociation",
@@ -11267,6 +11414,7 @@
         "catch": 0
       },
       "imports": [
+        "Authorization.zig",
         "Diagnostic.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",

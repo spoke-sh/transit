@@ -30,6 +30,14 @@ fn liveRole(store: anytype, id: u64) !a.Role {
 fn grantee(store: anytype, id: u64) !void {
     if (id != a.public_role) _ = try liveRole(store, id);
 }
+fn logicalOwner(store: anytype, id: u64) !void {
+    const value = try liveRole(store, id);
+    if (value.native and id != a.root_role) return error.InvalidAuthorizationRole;
+}
+fn roleName(value: core.Value) !void {
+    try a.name(value);
+    if (std.ascii.eqlIgnoreCase(value.slice(), "public") or std.mem.startsWith(u8, value.slice(), "native/")) return error.InvalidAuthorizationName;
+}
 fn object(store: anytype, reference: a.ObjectRef) !a.Object {
     const value = (try store.object(reference)) orelse return error.UnknownAuthorizationObject;
     if (value.retired) return error.RetiredAuthorizationObject;
@@ -45,10 +53,10 @@ fn domain(store: anytype, id: u64) !a.Domain {
     return value;
 }
 fn credentialOwner(store: anytype, actor: Actor, principal: u64) !a.Credential {
-    const value = (try store.credential(principal)) orelse return error.UnknownPrincipal;
     // A role owner cannot impersonate an existing credential's principal.
     if (actor.role != a.root_role and actor.principal != principal) return error.Forbidden;
     if (principal == 0) return error.Forbidden;
+    const value = (try store.credential(principal)) orelse return error.UnknownPrincipal;
     return value;
 }
 fn changed(change: *Change) !void {
@@ -72,6 +80,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
     var change: Change = .{ .outcome = .{ .id = id, .principal = actor.principal, .role = actor.role, .basis = basis, .revision = id, .status = .preparing, .created_id = null, .changed_records = 0, .steps = 1 }, .candidate = store.snapshot(), .action = action, .phase = .ready, .quota = quota };
     switch (action) {
         .create_role => |value| {
+            try roleName(value.name);
             if (!caller.create_role and actor.role != a.root_role) return error.Forbidden;
             if (value.create_role and actor.role != a.root_role) return error.Forbidden;
             const created = try store.allocate();
@@ -80,12 +89,15 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         },
         .alter_role => |value| {
             var target = try liveRole(store, value.id);
-            if (value.id == a.root_role) return error.Forbidden;
+            if (value.id == a.root_role or target.native) return error.Forbidden;
             try owner(store, actor, target.owner, limits);
             if (value.create_role != null and actor.role != a.root_role) return error.Forbidden;
-            if (value.name) |name| target.name = name;
+            if (value.name) |name| {
+                try roleName(name);
+                target.name = name;
+            }
             if (value.owner) |new_owner| {
-                _ = try liveRole(store, new_owner);
+                try logicalOwner(store, new_owner);
                 try owner(store, actor, new_owner, limits);
                 target.owner = new_owner;
             }
@@ -97,7 +109,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         },
         .retire_role => |value| {
             var target = try liveRole(store, value.id);
-            if (value.id == a.root_role or value.id == actor.role) return error.Forbidden;
+            if (value.id == a.root_role or value.id == actor.role or target.native) return error.Forbidden;
             try owner(store, actor, target.owner, limits);
             target.retired = true;
             target.enabled = false;
@@ -137,7 +149,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         .register_object => |value| {
             const class = try domain(store, value.domain);
             if (class.registrar != actor.principal) return error.Forbidden;
-            _ = try liveRole(store, value.owner);
+            try logicalOwner(store, value.owner);
             if (value.schema) |schema| _ = try object(store, schema);
             const created = try store.allocate();
             const reference: a.ObjectRef = .{ .kind = .domain, .id = created };
@@ -150,7 +162,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         .transfer_object => |value| {
             var target = try object(store, value.object);
             try owner(store, actor, target.owner, limits);
-            _ = try liveRole(store, value.owner);
+            try logicalOwner(store, value.owner);
             // Transfer may only assign a role that the actor can exercise;
             // registrars can perform an explicitly attributed domain transfer.
             if (actor.principal != target.registrar) try owner(store, actor, value.owner, limits);
@@ -173,6 +185,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             try grantee(store, value.grantee);
             var check = try evaluator(store, limits);
             const grantor = if (actor.role == a.root_role or try check.inherits(actor.role, target.owner)) target.owner else actor.role;
+            if (actor.role == a.root_role) check.include_disabled = true;
             const decision = try check.evaluate(grantor, value.object, value.privileges);
             if (decision.grantable & value.privileges != value.privileges) return error.Forbidden;
             const created = try store.allocate();
@@ -196,7 +209,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         },
         .default_grant => |value| {
             try owner(store, actor, value.creator, limits);
-            _ = try liveRole(store, value.creator);
+            try logicalOwner(store, value.creator);
             _ = try object(store, value.schema);
             const class = try domain(store, value.domain);
             try grantee(store, value.grantee);
@@ -216,7 +229,7 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             if (actor.role != a.root_role or value.principal == 0) return error.Forbidden;
             if (try store.credential(value.principal) != null) return error.AuthorizationCredentialExists;
             const target = try liveRole(store, value.role);
-            if (!target.login or !target.enabled) return error.Forbidden;
+            if (!target.login or !target.enabled or target.native) return error.Forbidden;
             try store.putCredential(.{ .principal = value.principal, .public_key = value.public_key, .role = value.role, .pid = value.pid, .epoch = id, .revision = id, .enabled = true });
         },
         .rotate_credential => |value| {

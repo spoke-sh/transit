@@ -42,6 +42,8 @@ pub const Role = struct {
     login: bool = false,
     enabled: bool = true,
     create_role: bool = false,
+    /// Direct native provisioning owns this private role's replacement lifecycle.
+    native: bool = false,
     retired: bool = false,
     pub fn validate(self: Role) !void {
         try roleId(self.id);
@@ -95,6 +97,7 @@ pub const Credential = struct {
     epoch: u64,
     revision: u64,
     enabled: bool,
+    native: bool = false,
     pub fn validate(self: Credential) !void {
         if (self.principal > p.max_counter or self.pid == 0 or (self.pid orelse 0) > p.max_counter) return error.InvalidAuthorizationCredential;
         try roleId(self.role);
@@ -219,6 +222,145 @@ pub const Outcome = struct {
     steps: u64,
 };
 
+pub const Cursor = struct { revision: u64, after: Id, scope: [32]u8 };
+pub fn ReadPage(comptime T: type) type {
+    return struct { records: [page_size]?T, next: ?Cursor };
+}
+pub const Query = struct {
+    role: ?Id = null,
+    kind: union(enum) {
+        identity: void,
+        decision: struct { object: ObjectRef, privileges: Privileges },
+        role: Id,
+        resolve: p.Value,
+        roles: ?Cursor,
+        memberships: struct { member: Id, cursor: ?Cursor = null },
+        object: ObjectRef,
+        grants: struct { object: ObjectRef, grantee: Id, cursor: ?Cursor = null },
+        defaults: struct { creator: Id, cursor: ?Cursor = null },
+        change: Id,
+    },
+};
+pub const Result = struct {
+    revision: u64,
+    role: Id,
+    body: union(enum) {
+        identity: struct { principal: Id, login_role: Id, credential_epoch: u64 },
+        decision: Decision,
+        role: Role,
+        resolve: Role,
+        roles: ReadPage(Role),
+        memberships: ReadPage(Membership),
+        object: Object,
+        grants: ReadPage(Grant),
+        defaults: ReadPage(DefaultGrant),
+        change: Outcome,
+    },
+};
+
+pub fn validateQuery(query: Query) !void {
+    if (query.role) |id| try roleId(id);
+    switch (query.kind) {
+        .decision => |value| {
+            try value.object.validate();
+            try mask(value.privileges);
+        },
+        .role => |id| try roleId(id),
+        .resolve => |value| try name(value),
+        .roles => |cursor| if (cursor) |value| try revision(value.revision),
+        .memberships => |value| {
+            try roleId(value.member);
+            if (value.cursor) |cursor| try revision(cursor.revision);
+        },
+        .object => |value| try value.validate(),
+        .grants => |value| {
+            try value.object.validate();
+            if (value.grantee > public_role) return error.InvalidAuthorizationRole;
+            if (value.cursor) |cursor| try revision(cursor.revision);
+        },
+        .defaults => |value| {
+            try roleId(value.creator);
+            if (value.cursor) |cursor| try revision(cursor.revision);
+        },
+        .change => |id| if (id == 0 or id > p.max_counter) return error.InvalidAuthorizationChange,
+        .identity => {},
+    }
+}
+pub fn cursorScope(query: Query, realm: Id, principal: Id, role: Id) ![32]u8 {
+    var normalized = query;
+    normalized.role = role;
+    switch (normalized.kind) {
+        .roles => normalized.kind.roles = null,
+        inline .memberships, .grants, .defaults => |_, tag| @field(normalized.kind, @tagName(tag)).cursor = null,
+        else => return error.InvalidAuthorizationCursor,
+    }
+    var bytes: [1024]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    try std.json.Stringify.value(.{ .definition = p.Growth.current_definition, .realm = realm, .principal = principal, .query = normalized }, .{}, &writer);
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.authorization.cursor.v1\x00");
+    hash.update(writer.buffered());
+    return hash.finalResult();
+}
+pub fn validateResult(result: Result, query: Query, realm: Id, principal: Id) !void {
+    try revision(result.revision);
+    try roleId(result.role);
+    if (query.role) |id| if (id != result.role) return error.InvalidRead;
+    if (!std.mem.eql(u8, @tagName(result.body), @tagName(query.kind))) return error.InvalidRead;
+    switch (result.body) {
+        .identity => |value| {
+            if (value.principal != principal) return error.InvalidRead;
+            try roleId(value.login_role);
+            try revision(value.credential_epoch);
+        },
+        .decision => |value| {
+            const requested = query.kind.decision;
+            if (value.policy_revision != result.revision or value.role != result.role or !value.object.eql(requested.object) or value.requested != requested.privileges or (value.allowed | value.grantable) & ~value.requested != 0 or value.records > max_records) return error.InvalidRead;
+        },
+        inline .role, .resolve => |value, tag| {
+            try value.validate();
+            if (value.revision > result.revision) return error.InvalidRead;
+            if (comptime tag == .role) {
+                if (value.id != query.kind.role) return error.InvalidRead;
+            } else if (!value.name.eql(query.kind.resolve)) return error.InvalidRead;
+        },
+        .object => |value| {
+            try value.validate();
+            if (!value.reference.eql(query.kind.object) or value.revision > result.revision) return error.InvalidRead;
+        },
+        inline .roles, .memberships, .grants, .defaults => |page, tag| {
+            const cursor = if (comptime tag == .roles) query.kind.roles else @field(query.kind, @tagName(tag)).cursor;
+            const scope = try cursorScope(query, realm, principal, result.role);
+            if (cursor) |value| if (value.revision != result.revision or !std.mem.eql(u8, &value.scope, &scope)) return error.InvalidRead;
+            var last: u64 = if (cursor) |value| value.after else 0;
+            var count: usize = 0;
+            var ended = false;
+            for (page.records) |slot| {
+                const value = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                try value.validate();
+                const initial_root = if (comptime tag == .roles) cursor == null and count == 0 and value.id == 0 else false;
+                if (ended or value.revision > result.revision or (value.id <= last and !initial_root)) return error.InvalidRead;
+                if (comptime tag == .memberships) {
+                    if (value.member != query.kind.memberships.member) return error.InvalidRead;
+                }
+                if (comptime tag == .grants) {
+                    if (value.grantee != query.kind.grants.grantee or !value.object.eql(query.kind.grants.object)) return error.InvalidRead;
+                }
+                if (comptime tag == .defaults) {
+                    if (value.creator != query.kind.defaults.creator) return error.InvalidRead;
+                }
+                last = value.id;
+                count += 1;
+            }
+            if (page.next) |next| if (count == 0 or next.after != last or next.revision != result.revision or !std.mem.eql(u8, &next.scope, &scope)) return error.InvalidRead;
+        },
+        .change => |value| if (value.id != query.kind.change or value.basis > value.revision or value.revision > result.revision and value.status == .published) return error.InvalidRead,
+    }
+}
+
 pub fn Page(comptime T: type) type {
     return struct {
         records: [page_size]?T = @splat(null),
@@ -234,7 +376,7 @@ pub fn roleId(id: Id) !void {
     if (id >= public_role) return error.InvalidAuthorizationRole;
 }
 pub fn revision(value: u64) !void {
-    if (value == 0 or value > p.max_counter) return error.InvalidAuthorizationRevision;
+    if (value > p.max_counter) return error.InvalidAuthorizationRevision;
 }
 pub fn mask(value: Privileges) !void {
     if (value & ~all_privileges != 0) return error.InvalidAuthorizationPrivilege;
@@ -254,4 +396,44 @@ test "authorization values reject public delegation, malformed names and masks" 
     try name(try p.Value.init("分析员"));
     try t.expectError(error.InvalidAuthorizationPrivilege, mask(@as(u64, 1) << 63));
     try t.expectError(error.InvalidAuthorizationBudget, (Limits{ .vertices = 0 }).validate());
+}
+
+test "authorization signing and cursor scope match independent Python OpenSSL vectors" {
+    const t = std.testing;
+    const Vector = struct { canonical: []const u8, sha256: []const u8, signature: [64]u8 };
+    const Fixture = struct {
+        version: u8,
+        public_key: [32]u8,
+        request: Vector,
+        query: Vector,
+        turn: Vector,
+        entries: Vector,
+        cursor: struct { realm: Id, principal: Id, role: Id, query: Query, scope: []const u8 },
+    };
+    const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/authorization-v1.json"), .{});
+    defer fixture.deinit();
+    try t.expectEqual(@as(u8, 1), fixture.value.version);
+    const public = try p.Ed25519.PublicKey.fromBytes(fixture.value.public_key);
+    const request = try std.json.parseFromSlice(p.Growth.Request, t.allocator, fixture.value.request.canonical, .{});
+    defer request.deinit();
+    try p.Growth.validate(request.value);
+    const request_digest = try p.Growth.digest(request.value);
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, fixture.value.request.sha256);
+    try t.expectEqualSlices(u8, &expected, &request_digest);
+    try p.Ed25519.Signature.fromBytes(fixture.value.request.signature).verify(&request_digest, public);
+    const query = try std.json.parseFromSlice(p.Growth.Query, t.allocator, fixture.value.query.canonical, .{});
+    defer query.deinit();
+    try p.Growth.validateQuery(query.value);
+    const query_digest = try p.Growth.queryDigest(query.value);
+    _ = try std.fmt.hexToBytes(&expected, fixture.value.query.sha256);
+    try t.expectEqualSlices(u8, &expected, &query_digest);
+    try p.Ed25519.Signature.fromBytes(fixture.value.query.signature).verify(&query_digest, public);
+    const cursor = fixture.value.cursor;
+    const actual = try cursorScope(cursor.query, cursor.realm, cursor.principal, cursor.role);
+    _ = try std.fmt.hexToBytes(&expected, cursor.scope);
+    try t.expectEqualSlices(u8, &expected, &actual);
+    try t.expect(!std.mem.eql(u8, &actual, &try cursorScope(cursor.query, cursor.realm + 1, cursor.principal, cursor.role)));
+    try t.expect(!std.mem.eql(u8, &actual, &try cursorScope(cursor.query, cursor.realm, cursor.principal + 1, cursor.role)));
+    try t.expect(!std.mem.eql(u8, &actual, &try cursorScope(cursor.query, cursor.realm, cursor.principal, cursor.role + 1)));
 }

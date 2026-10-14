@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.sql-wire-parameters.2026-10-13.
+/// SHA-256 of transit.native.v1.declarative-authorization.2026-10-14.
 pub const Definition = enum {
-    @"138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+    @"9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -95,6 +95,7 @@ pub const Turn = struct {
     failed: bool = false,
 };
 pub const Command = union(enum) {
+    authorization: p.Authorization.Command,
     grant: Grant,
     revoke: Id,
     spawn: Create,
@@ -264,6 +265,7 @@ pub const Query = struct {
     realm: Id,
     principal: Id,
     kind: union(enum) {
+        authorization: p.Authorization.Query,
         capabilities: void,
         inspection: Inspection.Query,
         delivery: void,
@@ -326,6 +328,7 @@ pub const Capabilities = struct {
     leased_snapshots: bool = false,
     snapshot_read: bool = false,
     worker_rotation: bool = false,
+    declarative_authorization: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
@@ -345,6 +348,7 @@ pub const Response = struct {
     position: Id,
     principal_sequence: u64,
     body: union(enum) {
+        authorization: p.Authorization.Result,
         capabilities: Capabilities,
         inspection: Inspection.Page,
         delivery: struct { next: ?Id },
@@ -446,6 +450,7 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .authorization => |q| try p.Authorization.validateQuery(q),
         .inspection => |q| try Inspection.validate(q),
         .snapshot_read => |q| try SnapshotRead.validate(q),
         .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
@@ -500,6 +505,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .authorization => |q| try p.Authorization.validateResult(response.body.authorization, q, query.realm, query.principal),
         .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
         .inspection => try Inspection.validatePage(response.body.inspection, query, response.position),
         .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
@@ -796,6 +802,8 @@ test "native responses require the current contract definition even with a v1 la
         "00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214",
         // Integrated plans before the neutral caller layout cutover.
         "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
+        // Coupled native credential/permission records before declarative roles.
+        "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
     }) |definition| {
         const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, previous, .{}));
@@ -963,8 +971,11 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("da7d5c214623f765485956ead362d69fe832f123ede4f9fae8f1dbc1d7224f7e", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("04f7cc62dcba85d269baffc9dfbd665fc40b2081e6280a330626763856245ea1", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    const Fixture = struct { turn: struct { sha256: []const u8 }, entries: struct { sha256: []const u8 } };
+    const fixture = try std.json.parseFromSlice(Fixture, std.testing.allocator, @embedFile("fixtures/authorization-v1.json"), .{ .ignore_unknown_fields = true });
+    defer fixture.deinit();
+    try std.testing.expectEqualStrings(fixture.value.turn.sha256, &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings(fixture.value.entries.sha256, &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

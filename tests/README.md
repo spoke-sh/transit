@@ -25,6 +25,26 @@ credential-epoch checks. Each staged step reopens its immutable root in the
 fixtures. These use the in-memory injected page store; they are not disk restart,
 native signed administration or service-isolation evidence.
 
+The native integration run passes **99/99 core tests** and **39/39 protocol
+tests**. It covers signed revision-checked policy publication, unique identities
+reserved across competing candidates, exact retries after lost acknowledgement,
+current scoped process rights, credential disablement through control reserve,
+revision/scope-bound cursors and a revoke racing the final read check. Retained
+revoked records do not consume the active decision budget.
+
+`just test::authorization` runs the actual node and signing CLI against
+disk-backed Ursula with 16 resident pages. On 2026-10-14 it passes in **6.809 s**
+on the dirty implementation branch based on `be68ba06`, with four node/store
+SIGKILL/restart cycles. It verifies a lost begin reply, unpublished candidates,
+revocation publication, continued denial after restart, paginated inspection,
+stale/wrong-scope cursor refusal, competing identity reservations, abandonment
+and incompatible-definition rejection. The local report is
+`.cache/verification/authorization-native.json`; node SHA-256 is
+`2d7220e08a7c52935936120d7def1ecb741f5ad51b07f0004b25c48ce9c347b9`.
+This proves generic native policy recovery and denial of raw resource reads;
+it does **not** prove Table mediation, SQL adapters or the two-Tables isolation
+gate. The suite runs this proof in the core lane.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

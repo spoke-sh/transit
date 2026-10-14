@@ -33,8 +33,9 @@ does not grant execution rights or authorize physical page deletion.
 | --- | --- |
 | [root.zig](src/root.zig), [growing.zig](src/growing.zig) | Public exports, engine, conditional publication and recovery |
 | [pages.zig](src/pages.zig), [catalog.zig](src/catalog.zig) | Immutable pages and ordered indexes |
-| [authorization.zig](src/authorization.zig) | Pure bounded role/grant evaluator over an injected immutable policy store; not yet connected to native admission |
+| [authorization.zig](src/authorization.zig) | Pure bounded role/grant evaluator over an injected immutable policy store |
 | [authorization_store.zig](src/authorization_store.zig), [authorization_admin.zig](src/authorization_admin.zig) | Paged private policy candidates, dependency cleanup and default templates; publication belongs to the native journal |
+| [growing_authorization.zig](src/growing_authorization.zig) | Native credential binding, current decisions, scoped policy reads and conditional publication |
 | [growing_lifecycle.zig](src/growing_lifecycle.zig) | Required-resource readiness, initialization and bounded suspension |
 | [growing_state.zig](src/growing_state.zig) | Resource grants, associations, views, mutations and receipt rights |
 | [growing_runtime.zig](src/growing_runtime.zig) | Recorded provider lifecycle, activation and fencing |

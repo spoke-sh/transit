@@ -17,6 +17,13 @@ fn resourceScope(engine: anytype, principal: growth.Principal, id: u64) !void {
 fn at(position: ?u64, current: u64) !void {
     if (position) |expected| if (expected != current) return error.QueryExpired;
 }
+fn viewPid(engine: anytype, id: u64) !u64 {
+    const stored = state.view(engine, id) catch |err| switch (err) {
+        error.StateViewExpired => return error.Forbidden,
+        else => return err,
+    };
+    return stored.meta.pid;
+}
 fn sample(engine: anytype) !?core.Time.Sample {
     const clock = engine.clock orelse return null;
     const value = try clock.sample();
@@ -67,14 +74,34 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     if (signed.query.realm != engine.genesis.realm) return error.WrongProtocolRealm;
     try engine.refresh();
     const query = signed.query;
-    const principal = try engine.principal(query.principal);
+    var principal = try engine.principal(query.principal);
     const public = p.Ed25519.PublicKey.fromBytes(principal.grant.public_key) catch return error.Unauthorized;
     p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(query), public) catch return error.Unauthorized;
-    if (principal.grant.permissions & p.permission(if (query.kind == .delivery) .delivery else .inspect) == 0) return error.Forbidden;
+    if (!principal.enabled) return error.Forbidden;
+    const needed: p.Permission = if (query.kind == .delivery) .delivery else .inspect;
+    if (query.kind != .authorization and principal.grant.permissions & p.permission(needed) == 0) {
+        const pid: ?u64 = switch (query.kind) {
+            .process => |id| id,
+            .inspection => |value| value.pid,
+            inline .association, .associations, .effects, .read_versions => |value| value.pid,
+            .read_version => |value| value.pid,
+            .version_entries => |value| value.id.pid,
+            .view => |id| try viewPid(engine, id),
+            .entries => |value| if (value.view) |id| try viewPid(engine, id) else null,
+            .read_entries => |value| if (value.view) |id| try viewPid(engine, id) else null,
+            else => null,
+        };
+        if (!try @import("growing_authorization.zig").nativeHas(engine, principal, pid, needed)) return error.Forbidden;
+        // This decision authorizes only the queried process, including every
+        // subordinate read. It cannot become a realm-wide inspection identity.
+        principal.grant.pid = pid;
+        principal.grant.permissions |= p.permission(needed);
+    }
     if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
+        .authorization => |q| .{ .authorization = try @import("growing_authorization.zig").read(engine, principal, q) },
         .snapshot_read => unreachable,
         .delivery => blk: {
             const scoped = principal.grant.pid;
@@ -84,7 +111,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
         },
         .inspection => |q| .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, q) },
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .declarative_authorization = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .open_snapshot => |q| blk: {
             const now = try snapshotTime(engine);
             try snapshotAccess(engine, principal, q.resource, now);

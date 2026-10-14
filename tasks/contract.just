@@ -23,6 +23,7 @@ generate:
 # Detect public schema/default/signing changes that were not reviewed together.
 check:
     zig build contract | python3 -B tests/contract.py
+    python3 -B tests/native_fixtures.py
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py

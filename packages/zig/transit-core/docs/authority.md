@@ -69,6 +69,14 @@ journal and physical storage headroom for their workload; the node does not
 reserve disk space automatically. Transport retries and temporary storage files
 can consume physical capacity independently of accepted journal positions.
 
+Authorization revocation, credential disablement/rotation, role/object retirement
+and candidate abandonment use this control reserve. Creation, new grants and
+privilege expansion require ordinary admission capacity. Staged changes retain
+their classification through advance and publication. Genesis separately fixes
+`authorization_limits` for each graph decision and `authorization_change_quota`
+for each staged change; the [authorization contract](../../../../contracts/AUTHORIZATION_V1.md#bounded-evaluation-and-storage)
+states their bounds. These limits do not cap durable graph cardinality.
+
 Capabilities report the ceiling, reserve and current position. Checkpoint, trim
 and restart preserve their accounting and cannot reopen admission. Online
 expansion or rearming is unsupported. The

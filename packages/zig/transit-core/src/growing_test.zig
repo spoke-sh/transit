@@ -335,6 +335,18 @@ const Fixture = struct {
     fn worker(self: *Fixture, sequence: u64, command: g.Command) !g.SignedRequest {
         return g.sign(.{ .realm = 42, .principal = 65536, .sequence = sequence, .command = command }, self.worker_key);
     }
+    fn authorization(self: *Fixture, action: core.protocol.Authorization.Action) !?u64 {
+        const id = try self.root(.{ .authorization = .{ .begin = .{ .expected_revision = self.engine.head.authorization.revision, .action = action } } });
+        while (true) {
+            const outcome = (try self.query(0, .{ .authorization = .{ .kind = .{ .change = id } } })).body.authorization.body.change;
+            if (outcome.status == .ready) {
+                _ = try self.root(.{ .authorization = .{ .publish = id } });
+                return outcome.created_id;
+            }
+            try t.expectEqual(core.protocol.Authorization.Status.preparing, outcome.status);
+            _ = try self.root(.{ .authorization = .{ .advance = id } });
+        }
+    }
     fn query(self: *Fixture, principal: u64, kind: @FieldType(g.Query, "kind")) !g.Response {
         const request: g.Query = .{ .realm = 42, .principal = principal, .kind = kind };
         const response = try self.engine.query(try g.signQuery(request, if (principal == 0) self.root_key else self.worker_key));
@@ -399,6 +411,137 @@ test "simulation: provider schedules fence old activations and retain accepted b
     try t.expectEqual(.terminated, (try f.engine.process(pid)).lifecycle);
     try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).cancelled);
     try t.expectError(error.RetiredProcess, f.root(.{ .runtime_intent = .{ .pid = pid, .expected_revision = 8, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } }));
+}
+
+test "signed authorization publishes atomically and bound logical roles have no raw resource rights" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const reader = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("reader"), .login = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = reader, .public_key = f.worker_key.public_key.toBytes() } });
+    const identity = (try f.query(65536, .{ .authorization = .{ .kind = .identity } })).body.authorization;
+    try t.expectEqual(reader, identity.body.identity.login_role);
+    try t.expectError(error.Forbidden, f.query(65536, .{ .processes = .{} }));
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .roles = null } } }));
+    const domain = (try f.authorization(.{ .register_domain = .{ .registrar = 0, .actions = 3 } })).?;
+    const object = (try f.authorization(.{ .register_object = .{ .domain = domain, .owner = 0 } })).?;
+    const reference: core.protocol.Authorization.ObjectRef = .{ .kind = .domain, .id = object };
+    const grant = (try f.authorization(.{ .grant = .{ .object = reference, .grantee = reader, .privileges = 1 } })).?;
+    const query: @FieldType(g.Query, "kind") = .{ .authorization = .{ .kind = .{ .decision = .{ .object = reference, .privileges = 1 } } } };
+    try t.expect((try f.query(65536, query)).body.authorization.body.decision.permits());
+    const process = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = process } });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .entries = .{ .resource = resource, .revision = resource } }));
+    try t.expectError(error.Forbidden, f.query(65536, .{ .read_access = resource }));
+    const change = try f.root(.{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = .{ .revoke = .{ .id = grant, .privileges = 1, .behavior = .cascade } } } } });
+    // A prepared revocation and a restart cannot disclose a partially applied policy.
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expect((try f.query(65536, query)).body.authorization.body.decision.permits());
+    _ = try f.root(.{ .authorization = .{ .advance = change } });
+    _ = try f.root(.{ .authorization = .{ .publish = change } });
+    try t.expectError(error.Forbidden, f.query(65536, query));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectError(error.Forbidden, f.query(65536, query));
+}
+
+test "authorization candidates reserve unique IDs and conflict without resetting accepted policy" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const initial = f.engine.head.authorization;
+    const first = try f.root(.{ .authorization = .{ .begin = .{ .expected_revision = initial.revision, .action = .{ .create_role = .{ .name = try core.Value.init("first") } } } } });
+    const first_id = (try f.query(0, .{ .authorization = .{ .kind = .{ .change = first } } })).body.authorization.body.change.created_id.?;
+    try t.expectEqual(initial.revision, f.engine.head.authorization.revision);
+    const second = try f.root(.{ .authorization = .{ .begin = .{ .expected_revision = initial.revision, .action = .{ .create_role = .{ .name = try core.Value.init("second") } } } } });
+    const second_id = (try f.query(0, .{ .authorization = .{ .kind = .{ .change = second } } })).body.authorization.body.change.created_id.?;
+    try t.expect(first_id != second_id);
+    _ = try f.root(.{ .authorization = .{ .publish = second } });
+    try t.expectError(error.StaleAuthorizationRevision, f.root(.{ .authorization = .{ .publish = first } }));
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .role = first_id } } }));
+    try t.expectEqual(second_id, (try f.query(0, .{ .authorization = .{ .kind = .{ .resolve = try core.Value.init("second") } } })).body.authorization.body.resolve.id);
+    _ = try f.root(.{ .authorization = .{ .abandon = first } });
+    const third = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("first") } })).?;
+    try t.expect(third != first_id and third != second_id);
+}
+
+test "authorization lost acknowledgements retry original signed operations and fence stale prepared publication" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .authorization = .{ .begin = .{ .expected_revision = 0, .action = .{ .create_role = .{ .name = try core.Value.init("reader") } } } } } }, f.root_key);
+    f.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, f.engine.submit(signed));
+    f.journal.fail = .none;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    const id = try f.engine.submit(signed);
+    const tail = try f.journal.tail();
+    try t.expectEqual(id, try f.engine.submit(signed));
+    try t.expectEqual(tail, try f.journal.tail());
+    f.root_sequence += 1;
+    const prepared = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .authorization = .{ .publish = id } } }, f.root_key));
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    try t.expectError(error.StaleAuthorizationRevision, f.root(.{ .authorization = .{ .publish = id } }));
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .resolve = try core.Value.init("reader") } } }));
+}
+
+test "named role native grants remain process scoped and current reads fence policy races" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const first = try f.root(.{ .spawn = .{} });
+    const second = try f.root(.{ .spawn = .{} });
+    const reader = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("reader"), .login = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = reader, .public_key = f.worker_key.public_key.toBytes() } });
+    const granted = (try f.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = first }, .grantee = reader, .privileges = core.permission(.inspect) | core.permission(.send) } })).?;
+    _ = try f.query(65536, .{ .process = first });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .process = second }));
+    try t.expectError(error.Forbidden, f.query(65536, .{ .processes = .{} }));
+    _ = try f.engine.submit(try f.worker(1, .{ .send = .{ .pid = first, .value = .{} } }));
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(2, .{ .send = .{ .pid = second, .value = .{} } })));
+    const change = try f.root(.{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = .{ .revoke = .{ .id = granted, .privileges = core.permission(.inspect), .behavior = .cascade } } } } });
+    _ = try f.root(.{ .authorization = .{ .advance = change } });
+    const publication = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .authorization = .{ .publish = change } } }, f.root_key));
+    f.journal.publish = .{ .operation = publication.record };
+    f.journal.publish_at = f.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, f.query(65536, .{ .process = first }));
+    f.root_sequence += 1;
+    try t.expectError(error.Forbidden, f.query(65536, .{ .process = first }));
+    // Independent send permission remains after inspect is revoked.
+    _ = try f.engine.submit(try f.worker(2, .{ .send = .{ .pid = first, .value = .{} } }));
+}
+
+test "authorization inspection cursors bind caller scope and current policy revision" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    for (0..10) |index| {
+        var name: [24]u8 = undefined;
+        _ = try f.authorization(.{ .create_role = .{ .name = try core.Value.init(try std.fmt.bufPrint(&name, "reader-{d}", .{index})) } });
+    }
+    const first_query: g.Query = .{ .realm = 42, .principal = 0, .kind = .{ .authorization = .{ .kind = .{ .roles = null } } } };
+    var first = try f.query(0, first_query.kind);
+    const cursor = first.body.authorization.body.roles.next.?;
+    const continued = try f.query(0, .{ .authorization = .{ .kind = .{ .roles = cursor } } });
+    try t.expect(continued.body.authorization.body.roles.records[0].?.id > cursor.after);
+    try t.expectError(error.InvalidAuthorizationCursor, f.query(0, .{ .authorization = .{ .kind = .{ .memberships = .{ .member = 0, .cursor = cursor } } } }));
+    first.body.authorization.body.roles.next.?.scope[0] ^= 1;
+    try t.expectError(error.InvalidRead, g.validateResponse(first, first_query));
+    _ = try f.authorization(.{ .create_role = .{ .name = try core.Value.init("new-reader") } });
+    try t.expectError(error.StaleAuthorizationRevision, f.query(0, .{ .authorization = .{ .kind = .{ .roles = cursor } } }));
+}
+
+test "closed admission preserves declarative credential revocation through the control reserve" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.initCapacity(2, 8);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    const epoch = (try f.engine.principal(65536)).credential_epoch;
+    try t.expectError(error.AdmissionClosed, f.authorization(.{ .create_role = .{ .name = try core.Value.init("reader") } }));
+    _ = try f.authorization(.{ .disable_credential = .{ .principal = 65536, .expected_epoch = epoch } });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .identity } }));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectError(error.Forbidden, f.query(65536, .{ .capabilities = {} }));
 }
 
 test "growing authority retains wide principals and processes beyond legacy catalogs" {
@@ -1127,7 +1270,7 @@ test "growing effects retain bounded settlement across retirement and reject lat
     const original_observation = try work.effect(&fixture.engine, observed);
     try t.expectEqual(.observed, original_observation.closure.?.reason);
     try t.expectEqual(original_observation.closed_at.?, original_observation.last_observation.?.input);
-    try t.expectEqual(@as(u64, 0), original_observation.authorization_policy.?);
+    try t.expectEqual(fixture.engine.head.authorization.revision, original_observation.authorization_policy.?);
     fixture.engine = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
     fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
     try t.expectEqual(@as(u16, 1), (try work.effect(&fixture.engine, unknown)).observations);
@@ -1940,7 +2083,7 @@ test "resource collection is paged and cannot erase a live consumer association"
     _ = try f.root(.{ .terminate = reader });
     _ = try f.root(.{ .collect = request }); // Detach retired associations.
     try t.expectEqual(@as(?g.Association, null), (try f.query(0, .{ .association = .{ .pid = reader, .name = try core.Value.init("optional") } })).body.association);
-    _ = try f.root(.{ .collect = request }); // Current grants.
+    _ = try f.root(.{ .collect = request }); // Permanently retire the authorization object.
     _ = try f.root(.{ .collect = request }); // Resource metadata and indexes.
     try t.expectError(error.Forbidden, f.query(0, .{ .resource = resource }));
     // Restarted maintenance rotates six families and resumes one bounded page

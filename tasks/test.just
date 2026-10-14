@@ -206,6 +206,11 @@ storage:
 service:
     zig build test-service
 
+# Signed policy staging, current checks and restart against disk-backed Ursula.
+authorization:
+    zig build transit-node rey-cli
+    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/rey-cli --report .cache/verification/authorization-native.json
+
 # Exercise independent Zig callers against the same generic authority.
 callers:
     zig build test-callers

@@ -1,0 +1,114 @@
+"""Refresh independent native canonical/signing vectors for the current definition.
+
+Cases retain their explicitly authored field order and defaults. Python supplies
+canonical JSON and SHA-256; OpenSSL supplies Ed25519 using public test seeds.
+This generator never decodes or converts a user's saved operations or state.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+
+from serving import Key
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT / 'packages/zig/transit-protocol/src/fixtures'
+
+
+def compact(value):
+    return json.dumps(value, separators=(',', ':'), ensure_ascii=False).encode()
+
+
+def generated():
+    definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    results = {}
+    with tempfile.TemporaryDirectory(prefix='transit-native-fixtures-') as directory:
+        key = Key(Path(directory), 'public-test-seed', 7)
+
+        def vector(body, domain):
+            digest = hashlib.sha256(domain + compact(body)).digest()
+            return dict(canonical=compact(body).decode(), sha256=digest.hex(), signature=key.sign(digest))
+
+        requests = json.loads((FIXTURES / 'requests-v1.json').read_text())
+        assert requests['public_key'] == key.public
+        assert requests['seed_hex'] == '07' * 32
+        for case in requests['cases']:
+            body = json.loads(case['canonical'])
+            body['definition'] = definition
+            case.update(vector(body, b'transit.request.v1\0'))
+        results[FIXTURES / 'requests-v1.json'] = requests
+
+        sdk_path = ROOT / 'tests/verification/sdk-operations-v1.json'
+        sdk = json.loads(sdk_path.read_text())
+        assert sdk['seed_hex'] == '07' * 32
+        for case in sdk['cases']:
+            body = json.loads(case['canonical'])
+            body['definition'] = definition
+            generated_case = vector(body, case['domain'].encode())
+            case.update(generated_case)
+        results[sdk_path] = sdk
+
+        inspection = json.loads((FIXTURES / 'inspection-v1.json').read_text())
+        assert inspection['public_key'] == key.public
+        body = json.loads(inspection['canonical'])
+        body['definition'] = definition
+        inspection.update(vector(body, b'transit.query.v1\0'))
+        results[FIXTURES / 'inspection-v1.json'] = inspection
+
+        for filename in ('leased-snapshots.json', 'snapshot-read.json'):
+            cases = json.loads((FIXTURES / filename).read_text())
+            for case in cases:
+                case['query']['definition'] = definition
+                case['digest'] = hashlib.sha256(b'transit.query.v1\0' + compact(case['query'])).hexdigest()
+            results[FIXTURES / filename] = cases
+
+        request = dict(version=1, definition=definition, realm=42, principal=0, sequence=7,
+                       command=dict(authorization=dict(begin=dict(expected_revision=5, role=None,
+                                    action=dict(create_role=dict(name=b'analyst'.hex(), login=True, create_role=False))))))
+        query = dict(version=1, definition=definition, realm=42, principal=11,
+                     kind=dict(authorization=dict(role=None, kind=dict(decision=dict(object=dict(kind='domain', id=17), privileges=1)))))
+        selector = dict(role=3, kind=dict(grants=dict(object=dict(kind='domain', id=17), grantee=3, cursor=None)))
+        scope_body = dict(definition=definition, realm=42, principal=11, query=selector)
+        scope = hashlib.sha256(b'transit.authorization.cursor.v1\0' + compact(scope_body)).hexdigest()
+        turn = dict(version=1, definition=definition, realm=42, principal=0, sequence=1,
+                    command=dict(turn=dict(pid=2, generation=3, input=4, expected_revision=0,
+                        permit=None, views=[None]*4, current_views=[None]*4, write_view=None,
+                        mutations=[None]*4, outputs=[None]*4, effect=None, failed=False)))
+        entries = dict(version=1, definition=definition, realm=42, principal=0,
+                       kind=dict(entries=dict(view=5, resource=None, revision=None, key=None, after=None)))
+        results[FIXTURES / 'authorization-v1.json'] = dict(version=1, public_key=key.public,
+            request=vector(request, b'transit.request.v1\0'), query=vector(query, b'transit.query.v1\0'),
+            turn=vector(turn, b'transit.request.v1\0'), entries=vector(entries, b'transit.query.v1\0'),
+            cursor=dict(realm=42, principal=11, role=3, query=selector, scope=scope))
+
+        diagnostic = json.loads((FIXTURES / 'diagnostic-v1.json').read_text())
+        diagnostic['definition'] = definition
+        results[FIXTURES / 'diagnostic-v1.json'] = diagnostic
+
+        serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'
+        serving = json.loads(serving_path.read_text())
+        serving_key = key
+        assert serving['public_key'] == serving_key.public
+        identity = serving['read']['identity']
+        identity['query']['definition'] = definition
+        identity['signature'] = serving_key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(identity['query'])).digest())
+        results[serving_path] = serving
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--write', action='store_true')
+    args = parser.parse_args()
+    for path, value in generated().items():
+        text = json.dumps(value, indent=2, ensure_ascii=False) + '\n'
+        if args.write:
+            path.write_text(text)
+        else:
+            assert path.read_text() == text, f'{path.name}: native fixture drift; review before --write'
+    print('Native fixtures: independent canonical bytes, signatures and authorization cursor scope agree.')
+
+
+if __name__ == '__main__':
+    main()

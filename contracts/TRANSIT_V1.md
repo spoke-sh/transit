@@ -37,6 +37,12 @@ and preservation of original recovery material across a hard cutover.
 
 ## Current identity observation
 
+The `declarative_authorization` capability exposes the shared
+[role, credential and grant model](AUTHORIZATION_V1.md). Its signed
+`authorization` command/query variants provide revision-checked administration,
+current decisions and scoped inspection. Credential and privilege records are
+separate; native permission masks are derived from current graph grants.
+
 The `identity` read returns the authenticated principal, current coarse
 permission bits, optional PID scope and policy revision, at the enclosing
 response's authority position. It requires current `inspect` permission and
@@ -231,7 +237,8 @@ installation's identity.
 PID-scoped worker with the expected current public key and permission mask.
 The worker must retain inspect/execute rights. One native decision replaces its
 key, advances ownership and records its policy revision. Its signed sequence
-and resource-grant epoch remain unchanged: rotation cannot renew a removed
+and private role remain unchanged, while its credential epoch advances:
+rotation cannot renew a removed
 resource permission. It rejects an unchanged key, revoked worker, foreign scope,
 stale generation, blocked process or permanent retirement. A revocation racing
 prepared activation fences its conditional journal append.
@@ -240,8 +247,9 @@ This operation preserves PID, resources, mailbox, state, permit and outputs;
 it is eligible for the existing finite control reserve. It neither launches a
 worker nor declares application compatibility. The local manager attributes
 bootstrap evidence and checks artifact/configuration compatibility separately.
-Ordinary grant replacement advances the grant epoch and invalidates old
-resource grants.
+Ordinary direct-native grant replacement retires the previous private role and
+binds a new one, invalidating its old resource rights. Named logical roles use
+the explicit credential-binding and rotation operations instead.
 
 Capabilities report runtime bindings, resource and retained-read support,
 configured dependency budgets and history-reclamation policy. Only genesis

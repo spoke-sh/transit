@@ -28,8 +28,7 @@ fn event(engine: anytype, record: growth.Record, grant: g.Grant, process: g.Proc
         else => g.commandPid(command) orelse return null,
     };
     if (pid != process.pid) return null;
-    const caller = (try basis.get(growth.Principal, address(.principal, record.request.principal))) orelse return error.InvalidHistory;
-    var result: i.Event = .{ .pid = pid, .position = record.position, .kind = command, .policy_revision = caller.revision };
+    var result: i.Event = .{ .pid = pid, .position = record.position, .kind = command, .policy_revision = record.next.authorization.revision };
     if (record.time) |time| {
         result.unix_ms = time.unix_ms;
         result.clock_error_ms = time.error_ms;
@@ -39,7 +38,7 @@ fn event(engine: anytype, record: growth.Record, grant: g.Grant, process: g.Proc
             const after = (try basis.get(g.Process, address(.process, pid))) orelse return error.InvalidHistory;
             if (after.admitted != 0) if (try basis.get(g.Input, try c.key(.mailbox, pid, after.admitted, ""))) |input| {
                 if (input.position == record.position) {
-                    const value = admission(process, input, caller.revision);
+                    const value = admission(process, input, record.next.authorization.revision);
                     result.admitted = true;
                     result.value = value.value;
                     result.mailbox_status = value.mailbox_status;

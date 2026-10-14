@@ -21,7 +21,7 @@ test "policy pages reopen without resident role arrays and preserve object kind 
     try store.putDomain(.{ .id = 1, .registrar = 7, .actions = 3, .revision = 1 });
     try store.putObject(.{ .reference = resource, .owner = 0, .registrar = 0, .actions = 3, .revision = 1 });
     try store.putObject(.{ .reference = table, .owner = 0, .registrar = 7, .domain = 1, .actions = 3, .revision = 1 });
-    for (1..20) |id| try store.putGrant(.{ .id = id, .object = table, .grantee = 1, .grantor = 0, .privileges = if (id == 19) 1 else 0, .revision = 1 });
+    for (1..20) |id| try store.putGrant(.{ .id = id, .object = table, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });
     try store.putGrant(.{ .id = 20, .object = resource, .grantee = 1, .grantor = 0, .privileges = 2, .revision = 1 });
     const snapshot = store.snapshot();
     store = try Store.open(&pages, snapshot);
@@ -84,4 +84,25 @@ test "failed policy staging leaves the previously selected revision readable" {
     pages.fail_at = null;
     published = try Store.open(&pages, before);
     try t.expectEqual(@as(?a.Role, null), try published.named(try core.Value.init("reader")));
+}
+
+test "retained revoked grants do not consume the active decision budget" {
+    var pages: PageStore = .{};
+    defer pages.deinit();
+    var store = try Store.open(&pages, .{ .catalog = .{}, .revision = 1, .next_id = 2 });
+    try store.putRole(.{ .id = 0, .name = try core.Value.init("root"), .owner = 0, .revision = 1 });
+    try store.putRole(.{ .id = 1, .name = try core.Value.init("reader"), .owner = 0, .revision = 1 });
+    const reference: a.ObjectRef = .{ .kind = .resource, .id = 3 };
+    try store.putObject(.{ .reference = reference, .owner = 0, .registrar = 0, .actions = 1, .revision = 1 });
+    for (1..101) |id| {
+        try store.putGrant(.{ .id = id, .object = reference, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });
+        try store.putGrant(.{ .id = id, .object = reference, .grantee = 1, .grantor = 0, .privileges = 0, .revision = 1 });
+    }
+    try store.putGrant(.{ .id = 101, .object = reference, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });
+    var check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = 32 });
+    try t.expect((try check.evaluate(1, reference, 1)).permits());
+    try t.expectEqual(@as(u64, 0), (try store.grant(1)).?.privileges);
+    const active = try store.grants(reference, 1, null);
+    try t.expectEqual(@as(u64, 101), active.records[0].?.id);
+    try t.expect(active.records[1] == null and active.next == null);
 }

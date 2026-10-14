@@ -1,0 +1,151 @@
+"""Signed declarative policy publication and recovery against disk-backed Ursula."""
+import argparse
+import hashlib
+from http.client import HTTPConnection
+import json
+from pathlib import Path
+import subprocess
+import time
+
+from inspection import System
+from storage import wait_ready
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run(node, cli, report=None):
+    started = time.monotonic()
+    with System(node, cli, request_timeout_ms=30000) as system:
+        def query(kind, principal=0, seed=None, status=200):
+            response = system.native_query({'authorization': {'role': None, 'kind': kind}}, principal, seed, status)
+            return response['body']['authorization'] if status == 200 else response
+
+        def begin(action):
+            revision = query({'identity': {}})['revision']
+            return system.command({'authorization': {'begin': {'expected_revision': revision, 'role': None, 'action': action}}})
+
+        def finish(change):
+            while True:
+                outcome = query({'change': change})['body']['change']
+                if outcome['status'] == 'ready':
+                    system.command({'authorization': {'publish': change}})
+                    published = query({'change': change})['body']['change']
+                    assert published['status'] == 'published'
+                    return published['created_id']
+                assert outcome['status'] == 'preparing', outcome
+                system.command({'authorization': {'advance': change}})
+
+        def apply(action):
+            return finish(begin(action))
+
+        def restart():
+            system.authority.kill()
+            system.authority.wait(timeout=10)
+            system.store.stop()
+            system.store.start()
+            system.authority = system.start(node, system.config)
+            wait_ready(system.store.http, system.authority, system.url + '/health')
+
+        assert system.native_query({'capabilities': {}})['body']['capabilities']['declarative_authorization']
+        # Observe durable acceptance independently while leaving the initiating
+        # connection's reply unread, then kill both native authority and store.
+        system.sequence += 1
+        signed = system.signed({'authorization': {'begin': {'expected_revision': 0, 'role': None,
+            'action': {'create_role': {'name': b'analyst'.hex(), 'login': True, 'create_role': False}}}}}, system.sequence)
+        connection = HTTPConnection('127.0.0.1', system.port, timeout=30)
+        connection.request('POST', '/v1/command', json.dumps(signed), {'Content-Type': 'application/json'})
+        try:
+            deadline = time.monotonic() + 30
+            while True:
+                observation = system.native_query({'identity': {}})
+                if observation['principal_sequence'] == system.sequence:
+                    change = observation['position'] - 1
+                    break
+                assert time.monotonic() < deadline, 'begin was not observed before the proof deadline'
+                time.sleep(.05)
+        finally:
+            connection.close()
+        restart()
+        receipt = system.available_post('/v1/command', signed)
+        assert receipt['position'] == change
+        assert system.available_post('/v1/command', signed) == receipt
+        assert query({'resolve': b'analyst'.hex()}, status=403)['err'] == 'AccessDenied'
+        analyst = finish(change)
+        print('Authorization: lost begin reply and private candidate survive node/store SIGKILL.', flush=True)
+
+        analyst_seed, analyst_key = system.key('analyst')
+        apply({'bind_credential': {'principal': 101, 'role': analyst, 'public_key': analyst_key, 'pid': None}})
+        assert query({'identity': {}}, 101, analyst_seed)['body']['identity']['login_role'] == analyst
+        domain = apply({'register_domain': {'registrar': 0, 'actions': 3}})
+        object_id = apply({'register_object': {'domain': domain, 'owner': 0, 'schema': None}})
+        protected = {'kind': 'domain', 'id': object_id}
+        grant = apply({'grant': {'object': protected, 'grantee': analyst, 'privileges': 1, 'grant_options': 0}})
+        decision = {'decision': {'object': protected, 'privileges': 1}}
+        assert query(decision, 101, analyst_seed)['body']['decision']['allowed'] == 1
+        pid = system.command({'spawn': {}})
+        resource = system.command({'create_resource': {'writer': pid}})
+        for raw in ({'resource': resource}, {'read_access': resource},
+                    {'entries': {'resource': resource, 'revision': resource}}):
+            assert system.native_query(raw, 101, analyst_seed, 403)['err'] == 'AccessDenied'
+        assert query({'roles': None}, 101, analyst_seed, 403)['err'] == 'AccessDenied'
+
+        revoked = begin({'revoke': {'id': grant, 'privileges': 1, 'grant_option_only': False, 'behavior': 'cascade'}})
+        restart()
+        assert query(decision, 101, analyst_seed)['body']['decision']['allowed'] == 1
+        finish(revoked)
+        assert query(decision, 101, analyst_seed, 403)['err'] == 'AccessDenied'
+        restart()
+        assert query(decision, 101, analyst_seed, 403)['err'] == 'AccessDenied'
+        print('Authorization: staged revoke is invisible until publication and remains revoked after disk restart.', flush=True)
+
+        for index in range(10):
+            apply({'create_role': {'name': f'role-{index}'.encode().hex(), 'login': False, 'create_role': False}})
+        first = query({'roles': None})['body']['roles']
+        assert len([item for item in first['records'] if item]) == 8
+        cursor = first['next']
+        assert cursor is not None
+        second = query({'roles': cursor})['body']['roles']
+        assert second['records'][0]['id'] > cursor['after']
+        assert query({'memberships': {'member': 0, 'cursor': cursor}}, status=422)['err'] == 'InvalidAuthorizationCursor'
+        old = begin({'create_role': {'name': b'reserved-old'.hex(), 'login': False, 'create_role': False}})
+        old_id = query({'change': old})['body']['change']['created_id']
+        current = apply({'create_role': {'name': b'reserved-current'.hex(), 'login': False, 'create_role': False}})
+        assert current != old_id
+        stale = system.signed({'authorization': {'publish': old}}, system.sequence + 1)
+        assert system.post('/v1/command', stale, 409)['err'] == 'StaleAuthorizationRevision'
+        assert query({'roles': cursor}, status=409)['err'] == 'StaleAuthorizationRevision'
+        system.command({'authorization': {'abandon': old}})
+        assert query({'role': old_id}, status=403)['err'] == 'AccessDenied'
+        restart()
+        assert query({'resolve': b'reserved-current'.hex()})['body']['resolve']['id'] == current
+        assert query({'change': old})['body']['change']['status'] == 'abandoned'
+        print('Authorization: paged inspection, scoped/stale cursors and reserved identity conflicts survive restart.', flush=True)
+
+        # Definitions are mandatory on the independently signed request. Merely
+        # changing its label cannot make old bytes authenticate as a new request.
+        foreign = json.loads(json.dumps(signed))
+        foreign['request']['definition'] = '138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365'
+        assert system.post('/v1/command', foreign, status=None)[0] == 400
+        del foreign['request']['definition']
+        assert system.post('/v1/command', foreign, status=None)[0] == 400
+        final = query({'identity': {}})
+        observations = dict(policy_revision=final['revision'], root_sequence=system.sequence,
+                            analyst=analyst, domain_object=object_id, abandoned_identity=old_id,
+                            restarts=4, resident_pages=16)
+    result = dict(revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+                  dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
+                  node_sha256=hashlib.sha256(node.read_bytes()).hexdigest(), elapsed_seconds=time.monotonic()-started,
+                  observations=observations, assertions='passed')
+    if report:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(result, indent=2) + '\n')
+    print(json.dumps(result, indent=2), flush=True)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('node', type=Path)
+    parser.add_argument('cli', type=Path)
+    parser.add_argument('--report', type=Path)
+    args = parser.parse_args()
+    run(args.node.resolve(strict=True), args.cli.resolve(strict=True), args.report)

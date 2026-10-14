@@ -7,16 +7,28 @@ answers none of them by itself.
 
 ## Principals, realms and grants
 
-The implemented native profiles use Ed25519 identities, explicit realm binding,
-ordered policy revisions, permission bits and separately scoped resource grants.
+Native authentication uses Ed25519 credentials bound to stable login roles.
+Roles, membership options, generic object ownership and grants share one paged
+authorization catalog. Effective privileges follow current inherited grant
+paths; credential rotation preserves role grants. Native permission masks name
+actions in that same model, with independent process/resource scopes.
 Realm, registry namespace, Kubernetes namespace and storage bucket are different
-scopes. Cross-realm federation and general delegation are not implemented.
+scopes. Role memberships support ADMIN, INHERIT and SET independently; object
+grants support delegation options and RESTRICT/CASCADE. PUBLIC has no bootstrap
+access. Cross-realm federation is not implemented.
 
 Supply credentials explicitly. Native callers sign canonical operations through
 the [shared client](native.md); reserializing a signed request with an arbitrary
 JSON client may change its meaning or signature. Imported credentials, native
 support and a valid signature do not establish a running authority capability.
 Perform the authorized capability read for the selected profile.
+
+The native `declarative_authorization` capability exposes signed administration
+and bounded inspection. Changes stage privately and publish against an expected
+policy revision. A competing change rejects publication; abandoned staged work
+confers no authority. Names resolve to stable IDs and retired IDs are not reused.
+The [authorization contract](../../contracts/AUTHORIZATION_V1.md) defines the
+workflow, credential lifecycle, evaluator budgets and current integration scope.
 
 | Operation | Additional authority or condition |
 | --- | --- |
@@ -40,6 +52,11 @@ message. That message's subsequent processing uses the receiver's current
 execution rights. Revoking delivery may prevent a pending output's first
 admission without rolling back the source turn. Long-lived readers and adapters
 must recheck current policy before each bounded protected disclosure.
+
+Policy revision is distinct from a captured data revision. Authorization cursors
+bind their caller, selected role, selector and policy revision. A revoked grant
+does not override another independently valid grant path. Cascaded dependents
+cannot revive when a former grantor later receives a new independent grant.
 
 Growing `read_access` probes check the caller's current resource/association and
 lifetime scope without returning entries. A retained signature or previous allow

@@ -21,6 +21,7 @@
       "test::station",
       "test::storage",
       "test::service",
+      "test::authorization",
       "test::runtime-upgrade",
       "test::callers",
       "test::inspection",
