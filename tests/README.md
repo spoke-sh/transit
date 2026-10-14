@@ -115,6 +115,15 @@ stopped; this is a failed task, not a Python qualification pass. Installed SDK
 Table recipes now select the existing cold-store fixture, with 8 MiB hot/cache
 bounds and eight resident authority pages. They retain all cases and deadlines.
 
+Board query setup also exceeded its former 60-second fixture budget in two clean
+attempts, at `c5d46e8f` and `2fa8da42`. The latter log still shows successful
+commits through position 257 at the cutoff, before any browser/query assertion.
+Board now uses the same 300-second provisioning budget as `public_query.py`,
+which invokes the identical setup helper, and reports setup time separately.
+Other administrative waits, native requests and query deadlines are unchanged.
+The clean experience lane at `fec5dd68` passed separately; it does not turn
+either timed-out attempt into a pass.
+
 ## Database wire foundation
 
 Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,

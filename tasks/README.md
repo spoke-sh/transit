@@ -192,6 +192,11 @@ of durable paged turns; the proof records actual phase times and verifies the
 complete original result. These fixture limits do not define runtime latency
 guarantees or change the separate performance regression budgets.
 
+Board's query fixture shares the public-query proof's 300-second catalog
+provisioning budget. Setup performs hundreds of signed durable transitions
+before browser or query checks begin; its elapsed time is printed separately.
+Other administrative waits remain 60 seconds and native requests 10 seconds.
+
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer
 builds and storage fixtures share that run's disk-backed scratch directory.

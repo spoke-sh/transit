@@ -203,8 +203,13 @@ def run(node, host, proof, board, browser=False):
         node_config = fixture.root / "node.json"
         node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 45, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "board-query", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         def admin(mode):
-            result = subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], capture_output=True, timeout=60)
+            # This is the same multi-turn catalog setup as public_query.py.
+            # Its setup budget is separate from individual control/query waits.
+            started = time.monotonic()
+            result = subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], capture_output=True, timeout=300 if mode == "provision" else 60)
             assert result.returncode == 0, result.stderr.decode()
+            if mode == "provision":
+                print(f"Board query provisioning: {time.monotonic() - started:.3f}s (300s setup budget)", flush=True)
             return result
         try:
             subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30)
