@@ -145,19 +145,7 @@
                 pkgs.just
                 pkgs.git
                 pkgs.duckdb
-                (pkgs.python3.withPackages (ps: [
-                  ps.pyyaml
-                  ps.jsonschema
-                  ps.pyarrow
-                  ps.grpcio
-                  ps.protobuf
-                  ps.h2
-                  ps.build
-                  ps.setuptools
-                  ps.wheel
-                  ps.pip
-                  ps.mypy
-                ]))
+                (pkgs.python3.withPackages (import ./nix/python-tools.nix))
                 pkgs.process-compose
                 pkgs.openssl
                 pkgs.openssl.dev

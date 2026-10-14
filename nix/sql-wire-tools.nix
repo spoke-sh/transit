@@ -25,12 +25,14 @@ in
     pkgs.mysql84
     pkgs.pkg-config
     pkgs.openssl.dev
-    (pkgs.python3.withPackages (ps: [
-      ps.psycopg
-      connector
-      ps.pyyaml
-      ps.jsonschema
-    ]))
+    (pkgs.python3.withPackages (
+      ps:
+      (import ./python-tools.nix ps)
+      ++ [
+        ps.psycopg
+        connector
+      ]
+    ))
   ];
   openssl = pkgs.openssl;
 }
