@@ -51,6 +51,7 @@
           inherit ursula;
           inherit zig kubectl-transit;
           inherit transit minio;
+          transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
           transit-local = pkgs.callPackage ./nix/transit-local.nix {
             inherit transit minio ursula;
           };
@@ -68,6 +69,7 @@
             kubectl-transit
             sql-tools
             transit
+            transit-sql-gateway
             ursula
             ;
         }
