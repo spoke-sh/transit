@@ -53,6 +53,13 @@ Message tests distinguish NULL/empty, reject malformed bodies/flags/overflow,
 and retain MySQL parameter types only after complete valid input. PostgreSQL
 text rejects NUL while length-encoded MySQL values retain it.
 
+PostgreSQL backend/startup package tests also pass independent framed SCRAM,
+parameter metadata, numeric RowDescription, text/binary DataRow with NULL,
+full-width UPDATE count, SQLSTATE error and minor-version negotiation fixtures.
+Startup tests reject duplicate accounts, ambiguous termination and unsupported
+major versions. Aggregate frame overflow and invalid logical cells clear the
+backend buffer. These checks supply protocol bytes, not a live session proof.
+
 These are library-level checks, registered in ordinary core CI. They do not
 qualify an authenticated listener, session resource enforcement or durable write
 recovery. The complete native `just test::unit` also passes after replacing two

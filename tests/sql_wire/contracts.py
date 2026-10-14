@@ -39,6 +39,7 @@ def main():
     fixtures = {'transit-sql-gateway/src/fixtures/auth.json': authentication()}
     fixtures['transit-sql-gateway/src/fixtures/records.json'] = records()
     fixtures['transit-sql-gateway/src/fixtures/controls.json'] = controls()
+    fixtures['transit-postgres/src/fixtures/backend.json'] = postgres_backend()
     for protocol in ('postgres', 'mysql'):
         fixtures[f'transit-{protocol}/src/fixtures/scalars.json'] = scalars(protocol)
     for name, fixture in fixtures.items():
@@ -90,6 +91,26 @@ def records():
         head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
         operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked') else 'Q') for k in operation]),
         terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k in ('reason','route') else 'Q') for k in terminal]),
+    )
+
+
+def postgres_backend():
+    def frame(tag, body):
+        return (tag.encode() + struct.pack('>I', len(body)+4) + body).hex()
+    metadata = struct.pack('>H', 2)
+    for name, oid, size, modifier in [('value', 1700, -1, (20 << 16)+4), ('label', 25, -1, -1)]:
+        metadata += name.encode()+b'\0'+struct.pack('>IHIhiH', 0, 0, oid, size, modifier, 1)
+    numeric = struct.pack('>hhHHHHHHH', 5, 4, 0, 0, 1844, 6744, 737, 955, 1615)
+    return dict(
+        ready=frame('Z', b'I'),
+        mechanisms=frame('R', struct.pack('>I', 10)+b'SCRAM-SHA-256\0\0'),
+        parameters=frame('t', struct.pack('>HII', 2, 1700, 25)),
+        metadata=frame('T', metadata),
+        binary_row=frame('D', struct.pack('>HI', 2, len(numeric))+numeric+struct.pack('>i', -1)),
+        text_row=frame('D', struct.pack('>HI', 2, 20)+b'18446744073709551615'+struct.pack('>i', -1)),
+        max_update=frame('C', b'UPDATE 18446744073709551615\0'),
+        failure=frame('E', b'SERROR\0VERROR\0C57014\0MRequest cancelled\0\0'),
+        negotiate=frame('v', struct.pack('>II', 0, 1)+b'_pq_.unsupported\0'),
     )
 
 

@@ -9738,6 +9738,71 @@
         "transit_sql_gateway"
       ]
     },
+    "packages/zig/transit-postgres/src/Backend.zig": {
+      "errors": {
+        "FrameTooLarge": 1,
+        "InvalidAuthentication": 1,
+        "InvalidSqlState": 1,
+        "InvalidWireText": 1,
+        "TooManyStartupOptions": 1,
+        "TooManyWireColumns": 1,
+        "TooManyWireParameters": 1,
+        "WireColumnCountMismatch": 1
+      },
+      "outcomes": {
+        "Completion": [
+          "select",
+          "insert",
+          "update",
+          "delete",
+          "create_table",
+          "set",
+          "show",
+          "discard_all"
+        ],
+        "authenticate().kind": [
+          "mechanisms",
+          "challenge",
+          "final",
+          "ok"
+        ],
+        "empty().tag": [
+          "parse_complete",
+          "bind_complete",
+          "close_complete",
+          "no_data",
+          "empty_query",
+          "suspended"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "authenticate()": "<inferred>",
+        "begin()": "<inferred>",
+        "complete()": "<inferred>",
+        "describe()": "<inferred>",
+        "empty()": "<inferred>",
+        "failure()": "<inferred>",
+        "int()": "<inferred>",
+        "key()": "<inferred>",
+        "negotiate()": "<inferred>",
+        "parameter()": "<inferred>",
+        "parameters()": "<inferred>",
+        "ready()": "<inferred>",
+        "row()": "<inferred>",
+        "string()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 59,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/Cycle.zig": {
       "errors": {
         "ExecutionCycleTooLarge": 1,
@@ -9888,6 +9953,36 @@
         "std"
       ]
     },
+    "packages/zig/transit-postgres/src/Startup.zig": {
+      "errors": {
+        "DuplicateStartupOption": 1,
+        "FrameTooLarge": 1,
+        "InvalidCancelRequest": 1,
+        "InvalidStartupAccount": 1,
+        "InvalidStartupDatabase": 1,
+        "InvalidStartupLength": 1,
+        "InvalidUpgradeRequest": 1,
+        "InvalidWireText": 1,
+        "MissingStartupAccount": 1,
+        "TooManyStartupOptions": 1,
+        "UnsupportedProtocolVersion": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9899,10 +9994,12 @@
         "catch": 0
       },
       "imports": [
+        "Backend.zig",
         "Cycle.zig",
         "Frame.zig",
         "Frontend.zig",
         "Scalar.zig",
+        "Startup.zig",
         "transit_sql_gateway"
       ]
     },

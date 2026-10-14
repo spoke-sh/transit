@@ -22,6 +22,19 @@ framing errors close the connection. Cycle decisions alone grant no authority.
 reject NUL. The caller retains statement/portal bytes, owns bytea hex decoding
 allocations, validates statement counts and supplies bounded row framing.
 
+`Startup` reads at most 8192 bytes and validates up to 16 name/value pairs,
+mandatory account selection, duplicate keys and exact termination. It retains
+the requested minor version so the session can explicitly negotiate protocol
+3.0; it does not silently apply startup settings. Decoded fields borrow the
+owned startup payload.
+
+`Backend` builds bounded authentication, parameter, metadata, row, completion and
+error frames. It preserves full uint64 counts, binary numeric metadata, NULL
+length markers and negotiated field formats. Returned bytes borrow its reusable
+buffer. Failed encodings expose no partial result; the caller supplies current
+authorization and observed completion before writing any frame. Error messages
+must already be classified and safe for disclosure.
+
 No database listener is supplied by these primitives. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) for limits and selected
 protocol semantics. Build with `zig build test` or `zig build check` inside

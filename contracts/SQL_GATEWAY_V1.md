@@ -76,6 +76,14 @@ A complete decoded frame borrows its exact payload and reports consumed bytes;
 a partial frame returns no message. The transport wrapper reads only its exact
 header/payload and returns an independently owned bounded buffer.
 
+Startup acquisition is separately limited to 8192 bytes and 16 name/value pairs.
+Keys are at most 63 bytes and values at most 256 bytes, with valid UTF-8, no
+duplicate keys and one exact terminating zero byte. `user` is mandatory and
+nonempty; `database` defaults to that user only when absent. Account/database
+names remain at most 63 bytes. Major versions other than 3 reject; the requested
+minor is retained for deliberate session negotiation. Parsing supplies no
+account permission and does not accept or apply arbitrary settings.
+
 The deterministic cycle gate accepts metadata-only Parse/Bind/Describe/Close
 work and one execution. Execute of a write only records deferred admission;
 only a subsequently validated Sync returns `sync_write`. Any intervening message
@@ -121,6 +129,19 @@ parameters obey their declared width. SQL constraints remain the compiler's
 responsibility. Bytea text decoding allocates in the supplied allocator; other
 variable-sized inputs borrow their frame. Encoders append a non-NULL payload;
 the row owner supplies length or NULL framing and bounds the aggregate message.
+
+`Backend` emits complete bounded frames with the same scalar codecs. Row
+descriptions use zero table/attribute OIDs because native Table identities are
+not PostgreSQL OIDs. uint64 metadata retains `numeric(20,0)` even for empty
+results. Data rows use -1 for NULL and validate every cell's logical descriptor;
+missing, type-error and conflict remain errors. Completion counts stay u64, and
+INSERT uses the protocol's zero OID. The caller selects matched counts for UPDATE
+only after observing original terminal evidence under current rights.
+ReadyForQuery emits idle status for the selected autocommit profile. The protocol
+negotiation response selects minor 0 and four-byte backend cancellation secrets.
+Error fields carry validated five-character SQLSTATE, severity, a bounded safe
+message and optional safe detail. This encoder does not decide authority,
+transaction outcomes or which errors may be disclosed.
 
 ## MySQL frame ownership
 
