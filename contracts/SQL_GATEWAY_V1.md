@@ -377,6 +377,14 @@ and signature, then attempts the original request once. Unknown outcomes retain
 that request; no helper silently allocates a successor or substitutes a new
 signature. Read-only list/discover/status acquisition does not call the scheduler.
 
+Operation inventory uses ordered keyset pagination over retained, increasing
+operation IDs. A cursor binds realm/resource, account configuration, last ID and
+minimum resource revision. Each page checks current read authority at its own
+cut and returns at most eight operations. Forward revisions are permitted;
+foreign bindings and backward revisions reject. Page phases are observations,
+not one atomic inventory snapshot. Appends after the last page require another
+listing; terminal status separately checks current Table disclosure rights.
+
 ## Runtime handoff and configuration
 
 `ControlLane` owns at most one exact signed request and its optional native

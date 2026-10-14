@@ -49,8 +49,12 @@ and adds the operation to the ready index. All helpers preserve native limits of
 four mutations and 256-byte values per committed turn.
 
 `list` returns at most one native page of eight operations. A cursor binds the
-account configuration, realm/resource, captured resource revision and last ID.
-Changed cuts reject; the caller must acquire another qualified page sequence.
+account configuration, realm/resource, minimum resource revision and last ID.
+Operation identities are retained and strictly increasing. Each page acquires
+current authority and a fresh cut at or after the previous page's revision;
+concurrent progress and new operations do not invalidate traversal. A changed
+account or backward revision rejects. The sequence is not an atomic snapshot:
+phases describe each page's cut, and later appends may require another listing.
 `discover` reads the nonce index. These reads never reconcile or dispatch.
 Retained history, unfinished uploads and ready work have separate durable indexes.
 `indexed` visits at most one native page and returns the next unsettled upload or

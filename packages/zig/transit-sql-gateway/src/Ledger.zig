@@ -223,11 +223,12 @@ pub fn indexed(self: Self, source: anytype, kind: enum { admission, ready }, aft
 
 pub const Cursor = struct { realm: u64, resource: u64, configuration: [32]u8, revision: u64, after: u64 };
 pub const Page = struct { entries: [p.Growth.page_size]?r.Operation = @splat(null), next: ?Cursor = null, revision: u64 };
-/// Bounded immutable-cut discovery. The public read source supplies current
-/// native resource authority; this method performs no sends or reconciliation.
+/// Ordered discovery over append-only operation identities. Each page has its
+/// own authorized cut; progress may advance, but cannot rewind, a saved cursor.
+/// This method performs no sends or reconciliation.
 pub fn list(self: Self, source: anytype, cursor: ?Cursor) !Page {
     const header = try self.head(source);
-    if (cursor) |saved| if (saved.realm != self.configuration.realm or saved.resource != self.configuration.resource or !std.mem.eql(u8, &saved.configuration, &header.configuration) or saved.revision != source.view.revision) return error.GatewayCursorChanged;
+    if (cursor) |saved| if (saved.realm != self.configuration.realm or saved.resource != self.configuration.resource or !std.mem.eql(u8, &saved.configuration, &header.configuration) or saved.revision > source.view.revision) return error.GatewayCursorChanged;
     const after = r.key('o', if (cursor) |saved| saved.after else 0, 0);
     const found = try source.page(after);
     try c.Inspection.validatePage(found, after, source.view.revision);

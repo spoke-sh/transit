@@ -118,12 +118,14 @@ before returning. An unresolved saved request blocks preparation of a successor.
 `submit` retains unknown outcomes and retries the identical bytes after a lost
 receipt. Processed controls remain recorded; their disposition is distinct from
 the SQL operation's terminal state. The pending file is locked during mutations.
-Inspection never sends or reconciles. A cursor pins one ledger revision; changes
-invalidate it explicitly, requiring a new first page. Retained history has no
-automatic expiry.
+Inspection never sends or reconciles. A cursor resumes after an operation ID,
+binding the account and a minimum ledger revision. Each page checks current
+authority and reports its own revision; concurrent progress does not invalidate
+traversal. A changed account or backward revision rejects. A listing is not an
+atomic snapshot; phases can change between pages and later appends may require a
+new listing. Retained history has no automatic expiry.
 List/status observations retry a concurrent current-revision read conflict within
-the configured timeout, before printing a result. They do not advance a supplied
-cursor to another revision. Terminal inspection batches finite intent reads and
+the configured timeout, before printing a result. Terminal inspection batches finite intent reads and
 checks the original Table result under current rights. A SQL command can exhaust
 its wait while an admitted operation continues; discover and inspect that
 operation instead of sending the SQL again.

@@ -181,7 +181,7 @@ test "ledger reserves identity and capacity before staged intent; only committed
     try t.expectError(error.GatewayDenied, ledger.begin(&turn, @splat(14), binding));
 }
 
-test "gateway discovery pages a growing history and binds cursors to account and cut" {
+test "gateway discovery advances across appends with current authority and rejects foreign or backward cursors" {
     var store: Store = .{};
     defer store.deinit();
     var config = configuration;
@@ -229,14 +229,39 @@ test "gateway discovery pages a growing history and binds cursors to account and
     try store.commit(turn);
     turn = try store.capture();
     committed = turn.committed();
-    try t.expectError(error.GatewayCursorChanged, ledger.list(&committed, first.next));
+    cursor = first.next;
+    previous = first.entries[7].?.id;
+    count = 8;
+    while (true) {
+        const page = try ledger.list(&committed, cursor);
+        try t.expectEqual(store.revision, page.revision);
+        for (page.entries) |slot| if (slot) |item| {
+            try t.expect(item.id > previous);
+            previous = item.id;
+            count += 1;
+        };
+        cursor = page.next orelse break;
+    }
+    try t.expectEqual(@as(usize, 28), count);
+    var foreign = first.next.?;
+    foreign.realm += 1;
+    try t.expectError(error.GatewayCursorChanged, ledger.list(&committed, foreign));
+    foreign = first.next.?;
+    foreign.resource += 1;
+    try t.expectError(error.GatewayCursorChanged, ledger.list(&committed, foreign));
+    foreign = first.next.?;
+    foreign.configuration[0] ^= 1;
+    try t.expectError(error.GatewayCursorChanged, ledger.list(&committed, foreign));
+    foreign = first.next.?;
+    foreign.revision = store.revision + 1;
+    try t.expectError(error.GatewayCursorChanged, ledger.list(&committed, foreign));
     var other = ledger;
     other.configuration.account = @splat(99);
     try t.expectError(error.GatewayConfigurationChanged, other.list(&committed, null));
     store.denied = true;
     turn = try store.capture();
     committed = turn.committed();
-    try t.expectError(error.AccessDenied, ledger.list(&committed, null));
+    try t.expectError(error.AccessDenied, ledger.list(&committed, first.next));
 }
 
 fn stage(store: *Store, ledger: g.Ledger, id: u64, generation: u64, step: c.TableClient.Prepared) !u64 {
