@@ -6,6 +6,12 @@ Station owns bounded immutable row/index publication; Catalog owns names,
 metadata, current policy and attributed operation outcomes. The deterministic
 catalog helper performs no I/O. The signed caller uses the public native client.
 
+`TableIntent.Binding.matches` checks saved steps through a bounded equality
+adapter over the original command bytes. An immutable-publication owner can
+validate one inline command or one upload part without reloading a whole intent.
+The owner must establish the complete canonical intent before retaining that
+binding; this interface performs no authorization or signing.
+
 ## Schema, lifecycle and policies
 
 `TableCatalog` resolves live names and immutable historical definitions in an

@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--write', action='store_true')
     args = parser.parse_args()
     fixtures = {'transit-sql-gateway/src/fixtures/auth.json': authentication()}
+    fixtures['transit-sql-gateway/src/fixtures/records.json'] = records()
     for protocol in ('postgres', 'mysql'):
         fixtures[f'transit-{protocol}/src/fixtures/scalars.json'] = scalars(protocol)
     for name, fixture in fixtures.items():
@@ -58,6 +59,37 @@ def length(n):
     if n < 16777216:
         return b'\xfd' + n.to_bytes(3, 'little')
     return b'\xfe' + struct.pack('<Q', n)
+
+
+def records():
+    definition = hashlib.sha256(b'transit.native.v1.sql-wire-parameters.2026-10-13').digest()
+    def record(magic, value, fields):
+        encoded = magic.encode() + definition
+        for name, layout in fields:
+            item = value[name]
+            if isinstance(layout, dict):
+                encoded += bytes([layout[item]])
+            elif layout == 'bytes':
+                encoded += bytes(item)
+            else:
+                encoded += struct.pack('<' + layout, item)
+        return dict(value=value, bytes=encoded.hex())
+    head = dict(configuration=[7]*32, operations=42, unsettled=0, used_bytes=2**64-2,
+                reserved_bytes=0, operation_quota=2**64-1, byte_quota=2**64-1,
+                pending_quota=16, active=0, sequence=1)
+    operation = dict(id=7, nonce=list(range(16)), resource=9, catalog=2**64-1, owner=11,
+                     phase='reserved', intent_length=0, intent_digest=[0]*32, records=0,
+                     staging=0, pending=0, published=0, pending_sequence=0, input=0,
+                     stored_bytes=0, reservation=1024, cancel=0, reconcile=0, blocked=0,
+                     summary='none', matched=0, changed=0)
+    terminal = dict(kind='dml', identity=[13]*32, resource=9, principal=11, operation=7,
+                    object=99, admitted_input=32, completed_input=33, state='applied',
+                    reason=0, matched=2**64-1, changed=2**64-2, actual_object=0, route=2)
+    return dict(
+        head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
+        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked') else 'Q') for k in operation]),
+        terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k in ('reason','route') else 'Q') for k in terminal]),
+    )
 
 
 def scalars(protocol):

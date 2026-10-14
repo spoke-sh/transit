@@ -23,10 +23,19 @@ The full-password verifier supports MySQL's full authentication path only when
 the caller has already established TLS. Callers own account selection, current
 credential revision, TLS, authentication concurrency and input-buffer erasure.
 
-These are library interfaces. Network listeners and durable operation ownership
-are separate integration work tracked in the roadmap. See the
+These are library interfaces. Network listeners and the native coordinator
+transport are separate integration work. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) and
 [executed evidence](../../../tests/README.md#database-wire-foundation).
 
 Run `zig build test` or `zig build check` inside `nix develop`; independent Python
-credential fixtures are checked by `just test::sql-wire-contracts`.
+credential, scalar and stored-record fixtures are checked by `just test::sql-wire-contracts`.
+
+`SavedStep` retains exact signed Table sends in a bounded binary record and
+verifies them against the original intent and public key. `Upload` stages finite
+records through Station publication in 128-byte ingress parts, preserving
+unpublished/committed distinctions. `Ledger` supplies the
+[account operation state machine](docs/ledger.md): paged discovery, explicit
+reservations, fenced preparation, exact signed steps and separate native/SQL
+observations. It performs no dispatch; the host supplies actual observations and
+current native/catalog authorization.

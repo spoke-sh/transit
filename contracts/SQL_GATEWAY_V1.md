@@ -167,6 +167,83 @@ markers. `Codec.string` checks its byte bound before slicing input. These helper
 do not allocate based on untrusted lengths. Decoded parameter strings borrow the
 input until the session clones/binds them.
 
+## Saved native steps and record upload
+
+`SavedStep` stores one exact `TableClient.Prepared` in at most 406 bytes. The
+layout is `GSS1`, mandatory current native definition:32, realm/resource/catalog/
+owner/principal/sequence as six little-endian u64 values, Station frame length:u16,
+exact frame bytes (at most 256) and signature:64. The redundant native envelope
+identities are reconstructed only after validating this explicit definition and
+the Table command's connection. No signature is generated or replaced. Encoding
+requires a current Table send; decoding rejects missing/foreign definitions,
+invalid framing, unsupported command identities and trailing bytes. `verify`
+checks the saved signature and its match to the original complete Table intent.
+The coordinator remains responsible for current grants and principal sequence
+ownership. A decoded record is not evidence that its send was accepted.
+
+`Upload` composes SQL gateway publication domain 11 with 128-byte ingress parts.
+It temporarily retains a first half under publication key tag `h`, id=record ID,
+index=0. The second half atomically writes the complete 256-byte chunk and clears
+that half. Duplicate exact parts succeed without new mutations; changed parts,
+gaps, oversize and writes after sealing reject. Every failed multi-write helper
+restores the previous private decision; native read failures remain sticky.
+Sealing requires the whole committed byte chain and no retained half. Reads use
+only published records from a supplied committed view, check the explicit finite
+allocation bound and verify the complete publication digest.
+
+Publication acknowledgement alone does not establish SQL admission or a terminal
+outcome. The [account ledger API](../packages/zig/transit-sql-gateway/docs/ledger.md)
+composes these records under native owner/generation checks. The running host and
+coordinator transport are separate from these deterministic library methods.
+
+## Account ledger records and transitions
+
+Every metadata value starts with its four-byte record magic and the mandatory
+32-byte current native definition. Fields follow the declaration order in
+[`LedgerRecords`](../packages/zig/transit-sql-gateway/src/LedgerRecords.zig) and
+[`Terminal`](../packages/zig/transit-sql-gateway/src/Terminal.zig), using exact
+little-endian integer widths, one-byte enum tags and fixed byte arrays. Unknown
+tags, missing/foreign definitions, trailing bytes and inconsistent counters reject.
+The [independent fixture](../packages/zig/transit-sql-gateway/src/fixtures/records.json)
+fixes head, operation and terminal layouts including full-width u64 counts.
+
+| Magic | Contents |
+| --- | --- |
+| GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, current quotas, active operation and known accepted principal sequence |
+| GSN1 | Immutable nonce-to-operation identity |
+| GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
+| GSB1 | Original 141-byte Table command header, body offset/length, command/domain digests and DML route; exactly 250 bytes including prefix |
+| GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
+| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
+
+Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
+Tags are `h` head (both IDs zero), `o` operation, `q` ready index, `b` intent
+binding, `e` step observation, `d` exact native disposition and `t` terminal facts.
+Nonce keys use tag `n` followed by the 16 nonce bytes instead of the two integers.
+`d` values use the catalog's original TCA1/E encoding. `t` holds GST1 or the exact
+marker `gateway.cancelled.before-dispatch.v1` under a current-definition operation.
+The marker claims local cancellation only. Publication namespace is the operation
+ID: record 1 is the complete typed intent; later IDs are monotonic step attempts.
+Only never-published abandoned step parts may be collected by the bounded helper.
+
+Operation phases are reserved=1, uploading=2, ready=3, active=4, terminal=5 and
+abandoned=6. A begin input allocates the ID and reservation before any intent is
+uploaded. Complete canonical validation precedes ready admission. One active
+operation owns the account's dedicated Table sequence. A committed published step
+precedes dispatch; a native receipt precedes sequence advancement; processed
+input and SQL terminal facts remain distinct records. Current rights are required
+again before disclosing cached outcome facts. Operator controls and private
+coordinator observations have distinct native principals.
+
+Configuration supports 1–8 frozen catalogs per account, a dedicated private
+ledger resource and five distinct nonzero worker/ingress/operator/coordinator/
+Table principals. Native grants remain explicit. Initial retained-count/content
+quotas are mandatory; pending quota defaults to 16, at most 1024. Increasing
+capacity and reserving extra recovery space are explicit operator transitions.
+New admission cannot consume an existing operation reservation. No transition
+expires accepted work, drops history under pressure, dispatches during inspection
+or treats a disconnected session as cancellation.
+
 ## Primary definitions
 
 The adapters follow the selected portions of PostgreSQL's

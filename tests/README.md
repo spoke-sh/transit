@@ -59,6 +59,25 @@ recovery. The complete native `just test::unit` also passes after replacing two
 stale inline signed-request digests and preserving shared Python dependencies in
 the SQL-wire development shell. Full gateway and clean qualification remain open.
 
+The full `just check` passes after the nullable-predicate browser validator is
+updated; its focused TypeScript package has 35 passing tests. Saved-step codec
+checks preserve the existing Table client's canonical signed JSON byte for byte,
+verify signatures and reject truncation/foreign definitions/tampering. A private
+Station-turn fixture checks 1301-byte publication across discarded turns, exact
+retries after lost replies, conflicting parts, committed-only visibility and
+current read denial. This fixture models atomic turns; it is not disk durability,
+native fencing or gateway recovery evidence.
+
+The ledger model tests also pass nonce recovery after a lost begin reply, staged
+intent admission, one active sequence owner, stale-generation rejection, a
+sequence-conflicting unpublished step, explicit abandoned-step collection,
+committed-only pending dispatch evidence, retained receipt/processed/terminal
+facts, operator/coordinator role separation, local pre-dispatch cancellation,
+quota reservation/release and 27-item paged discovery. Independent Python bytes
+check full-width quota and outcome counters. These tests use an atomic in-memory
+turn fixture; real disk, signed control transport and host replacement remain
+separate required proofs.
+
 ## Catalog Table parameters
 
 On 2026-10-13, the shared SQL-wire implementation adds caller-owned
