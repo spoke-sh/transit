@@ -62,6 +62,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
 | `just test::sql-gateway` | Exercise signed gateway controls and coordinator recovery through native owners on disk-backed Ursula; included in growth CI |
 | `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in growth CI |
+| `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |

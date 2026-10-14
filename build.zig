@@ -1105,7 +1105,18 @@ pub fn build(b: *std.Build) void {
     sql_gateway_native.has_side_effects = true;
     sql_gateway_native.stdio = .inherit;
     b.step("test-sql-gateway", "Prove signed gateway ledger recovery through real native owners").dependOn(&sql_gateway_native.step);
+    const sql_wire_encoding = b.addExecutable(.{ .name = "transit-sql-wire-encoding", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_wire_encoding.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_postgres", .module = b.dependency("transit_postgres", .{ .target = target, .optimize = optimize }).module("transit_postgres") }, .{ .name = "transit_mysql", .module = b.dependency("transit_mysql", .{ .target = target, .optimize = optimize }).module("transit_mysql") } },
+    }) });
+    build_test_step.dependOn(&sql_wire_encoding.step);
+    const encoding_cost = b.addRunArtifact(sql_wire_encoding);
+    encoding_cost.has_side_effects = true;
+    b.step("test-sql-wire-encoding", "Measure framed row encoding separately from authority and transport").dependOn(&encoding_cost.step);
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
     sql_wire_gateway.addPassthruArgs();

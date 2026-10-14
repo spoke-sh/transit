@@ -32,6 +32,10 @@ sql-gateway:
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
 
+# Framed row costs without TLS/native/storage work; also runs before the gateway proof.
+sql-wire-encoding:
+    zig build test-sql-wire-encoding -Doptimize=ReleaseSafe
+
 sql-wire-placement profile:
     nix develop .#sql-wire --command zig build test-sql-wire-placement -Doptimize=ReleaseSafe -Dsql-wire-placement={{quote(profile)}}
 

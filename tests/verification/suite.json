@@ -234,6 +234,9 @@
     ]
   },
   "nested_tasks": {
+    "test::sql-wire-gateway": [
+      "test::sql-wire-encoding"
+    ],
     "check-core": [
       "test::diagnostic-inventory",
       "test::diagnostic-mappings",
