@@ -189,6 +189,10 @@ pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: 
 pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Target {
     return targetContext(allocator, text, location, null);
 }
+pub fn targetDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, dialect: sql.Dialect) !Target {
+    var parser = try Parser.initDialect(allocator, text, location, true, dialect);
+    return header(&parser);
+}
 fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Target {
     var parser = try Parser.init(allocator, text, location);
     parser.editor = editor;
@@ -212,15 +216,17 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: [
 const Value = struct {
     span: Parser.Literal.Span,
     literal: ?Parser.Literal,
+    parameter: ?sql.Parameter = null,
     fn parse(parser: *Parser, expected: ?t.Type) !Value {
         const start = parser.lexer.start;
         if (try parser.takeWord("DEFAULT")) return .{ .span = .{ .start = start, .end = parser.previous_end }, .literal = null };
+        if (try parser.parameter()) |site| return .{ .span = .{ .start = start, .end = parser.previous_end }, .literal = null, .parameter = site };
         const value = try parser.literal(expected);
         return .{ .span = value.span, .literal = value };
     }
-    fn bind(self: Value, allocator: std.mem.Allocator, column: s.Column, location: ?*sql.Location) !s.Assignment {
+    fn bind(self: Value, allocator: std.mem.Allocator, column: s.Column, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom) !s.Assignment {
         var failure: ?Parser.Literal.Span = null;
-        const cell: @FieldType(s.Assignment, "value") = if (self.literal) |literal| .{ .cell = literal.bind(allocator, column.type, &failure) catch |err| {
+        const cell: @FieldType(s.Assignment, "value") = if (self.parameter) |site| .{ .cell = if (try SqlPredicate.parameterValue(site, parameters, column.type, location)) |atom| .{ .value = .{ .atom = try t.Values.cloneAtom(allocator, atom) } } else .null } else if (self.literal) |literal| .{ .cell = literal.bind(allocator, column.type, &failure) catch |err| {
             if (location) |at| at.* = .{ .offset = (failure orelse self.span).start };
             return err;
         } } else .default;
@@ -242,6 +248,9 @@ pub const Syntax = struct {
     action: union(enum) { insert: struct { columns: ?[]const Reference, rows: []const Row }, update: []const Assignment, delete },
     predicate: ?SqlPredicate.Syntax = null,
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: s.Schema, location: ?*sql.Location) !Plan {
+        return self.bindParameters(allocator, name, schema, location, null);
+    }
+    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: s.Schema, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom) !Plan {
         try schema.validate();
         if (!std.mem.eql(u8, self.subject.name, name)) {
             if (location) |at| at.* = .{ .offset = self.subject_span.start };
@@ -266,7 +275,7 @@ pub const Syntax = struct {
                     if (location) |at| at.* = .{ .offset = row.span.start };
                     if (row.values.len != count) return error.InvalidRowWidth;
                     var assignments: [s.max_columns]s.Assignment = undefined;
-                    for (row.values, columns[0..count], 0..) |value, index, i| assignments[i] = try value.bind(allocator, schema.columns[index], location);
+                    for (row.values, columns[0..count], 0..) |value, index, i| assignments[i] = try value.bind(allocator, schema.columns[index], location, parameters);
                     const cells = try allocator.alloc(Cell, schema.columns.len);
                     _ = try schema.insert(assignments[0..count], cells);
                     output.* = cells;
@@ -284,7 +293,7 @@ pub const Syntax = struct {
                         return error.DuplicateAssignment;
                     }
                     seen[index] = true;
-                    output.* = try assignment.value.bind(allocator, schema.columns[index], location);
+                    output.* = try assignment.value.bind(allocator, schema.columns[index], location, parameters);
                 }
                 break :blk .{ .update = assignments };
             },
@@ -292,7 +301,7 @@ pub const Syntax = struct {
         };
         if (self.predicate) |predicate| {
             var fields: [s.max_columns]t.Field = undefined;
-            plan.predicate = try predicate.bind(allocator, try schema.rowType(&fields), name, location);
+            plan.predicate = try predicate.bindParameters(allocator, try schema.rowType(&fields), name, location, parameters);
         }
         try plan.validate();
         return plan;

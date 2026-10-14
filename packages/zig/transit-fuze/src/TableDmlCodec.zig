@@ -76,6 +76,7 @@ fn writePayload(plan: d.Plan, writer: *std.Io.Writer) !void {
                 switch (atom) {
                     .all => try writer.writeByte(0),
                     .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
+                    .null_compare => |comparison| try writer.writeAll(&.{ 4, comparison.column, @backingInt(comparison.op) }),
                     .compare => |compare| {
                         try writer.writeAll(&.{ 2, compare.column, @backingInt(compare.op) });
                         try cellWrite(writer, .{ .value = .{ .atom = compare.value } }, .{ .name = "literal", .type = plan.schema.columns[compare.column].type });
@@ -94,6 +95,7 @@ fn atomRead(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, schema: s.S
     return switch (try reader.takeByte()) {
         0 => .all,
         1 => .{ .state = .{ .column = try reader.takeByte(), .value = std.enums.fromInt(t.State, try reader.takeByte()) orelse return error.InvalidMutationPlan } },
+        4 => .{ .null_compare = .{ .column = try reader.takeByte(), .op = std.enums.fromInt(@import("Finite.zig").Comparison, try reader.takeByte()) orelse return error.InvalidMutationPlan } },
         2 => blk: {
             const column = try reader.takeByte();
             if (column >= schema.columns.len) return error.UnknownColumn;

@@ -28,11 +28,15 @@ pub const Atom = union(enum) {
     all,
     state: struct { column: u8, value: types.State },
     compare: struct { column: u8, op: finite.Comparison, value: types.Semantics.Atom },
+    /// A bound SQL NULL operand. Preserve the selected column and operation in
+    /// intent bytes; source errors remain eager even though truth is unknown.
+    null_compare: struct { column: u8, op: finite.Comparison },
 
     pub fn validateShape(self: Atom) !void {
         switch (self) {
             .all => {},
             .state => |state| if (state.column >= 128) return error.UnknownColumn,
+            .null_compare => |comparison| if (comparison.column >= 128) return error.UnknownColumn,
             .compare => |comparison| {
                 if (comparison.column >= 128) return error.UnknownColumn;
                 if (comparison.value == .bytes and comparison.value.bytes.len > types.Query.max_cell_bytes) return error.CellTooLarge;
@@ -45,6 +49,13 @@ pub const Atom = union(enum) {
         switch (self) {
             .all => {},
             .state => |state| if (state.column >= schema.structure.len) return error.UnknownColumn,
+            .null_compare => |comparison| {
+                if (comparison.column >= schema.structure.len) return error.UnknownColumn;
+                switch (schema.structure[comparison.column].type) {
+                    .interval, .json, .structure, .list, .array, .map, .tagged_union => return error.UnsupportedComparison,
+                    else => {},
+                }
+            },
             .compare => |comparison| {
                 if (comparison.column >= schema.structure.len) return error.UnknownColumn;
                 const expected = schema.structure[comparison.column].type;
@@ -57,6 +68,15 @@ pub const Atom = union(enum) {
         return switch (self) {
             .all => .true_value,
             .state => |state| if (state.column < row.cells.len) finite.Truth.fromBool(std.meta.activeTag(row.cells[state.column]) == state.value) else error.UnknownColumn,
+            .null_compare => |comparison| blk: {
+                if (row.schema != .structure) return error.InvalidQuerySchema;
+                if (comparison.column >= row.cells.len or comparison.column >= row.schema.structure.len) return error.UnknownColumn;
+                break :blk switch (row.cells[comparison.column]) {
+                    .type_error => error.QueryTypeError,
+                    .conflict => error.QueryConflict,
+                    else => finite.Truth.unknown,
+                };
+            },
             .compare => |comparison| blk: {
                 if (row.schema != .structure) return error.InvalidQuerySchema;
                 if (comparison.column >= row.cells.len or comparison.column >= row.schema.structure.len) return error.UnknownColumn;
@@ -73,6 +93,7 @@ pub const Atom = union(enum) {
         switch (self) {
             .all => try writer.writeByte(0),
             .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
+            .null_compare => |comparison| try writer.writeAll(&.{ 4, comparison.column, @backingInt(comparison.op) }),
             .compare => |comparison| {
                 try writer.writeAll(&.{ 2, comparison.column, @backingInt(comparison.op) });
                 var value: [6144]u8 = undefined;

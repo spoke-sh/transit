@@ -19,12 +19,15 @@ sites: [max_parameters]?sql.Parameter = @splat(null),
 count: u8 = 0,
 
 pub fn init(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !Self {
-    return initInner(allocator, text, name, schema, basis, diagnostic) catch |err| {
+    return initDialect(allocator, text, name, schema, basis, diagnostic, .transit);
+}
+pub fn initDialect(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect) !Self {
+    return initInner(allocator, text, name, schema, basis, diagnostic, dialect) catch |err| {
         if (diagnostic) |detail| if (detail.location) |position| sql.Binding.nameFailure(detail, text, name, err, position);
         return err;
     };
 }
-fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !Self {
+fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect) !Self {
     if (diagnostic) |detail| detail.* = .{};
     try sql.validateText(text);
     if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
@@ -39,7 +42,7 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
     errdefer if (diagnostic) |detail| {
         if (detail.location == null) detail.location = location;
     };
-    var parser = try Parser.initTemplate(alloc, owned_text, &location);
+    var parser = try Parser.initDialect(alloc, owned_text, &location, true, dialect);
     const syntax = try Select.syntax(&parser, descriptor.type);
     try parser.finish();
     var result: Self = .{ .arena = arena, .descriptor = descriptor, .syntax = syntax, .name = try alloc.dupe(u8, name), .basis = basis };
@@ -58,7 +61,7 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
         if (diagnostic) |detail| detail.missing_parameter = @intCast(i + 1);
         return error.ParameterGap;
     };
-    var witnesses: [max_parameters]t.Values.Atom = undefined;
+    var witnesses: [max_parameters]?t.Values.Atom = undefined;
     if (diagnostic) |detail| detail.* = .{};
     for (result.parameterTypes(), witnesses[0..result.count], 0..) |kind, *value, i| value.* = witness(kind) catch |err| {
         result.at(@intCast(i + 1), diagnostic);
@@ -129,7 +132,14 @@ fn register(self: *Self, site: sql.Parameter, kind: t.Type, diagnostic: ?*sql.Bi
 /// Supplied schema/name/basis must match the template's exact immutable source.
 /// Current rights and a new admission are still the source owner's responsibility.
 /// All successful descriptors, names and values belong to the returned owner.
-pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, values: []const t.Values.Atom, diagnostic: ?*sql.Binding) !Bound {
+pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, values: []const ?t.Values.Atom, diagnostic: ?*sql.Binding) !Bound {
+    return self.instantiate(allocator, name, schema, basis, basis, values, diagnostic);
+}
+/// Instantiate a new execution after the source owner checks the immutable
+/// preparation identity and authorizes a fresh captured cut. Both identities
+/// are explicit: the template's basis equality remains mandatory. No saved plan
+/// is mutated, rebound or reused as recovery material by this operation.
+pub fn instantiate(self: *const Self, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, captured_basis: [32]u8, values: []const ?t.Values.Atom, diagnostic: ?*sql.Binding) !Bound {
     if (diagnostic) |detail| detail.* = .{};
     const expected = try self.descriptor.type.fingerprint();
     const observed = try schema.fingerprint();
@@ -147,7 +157,8 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, s
         }
         return error.ParameterCountMismatch;
     }
-    for (values, self.parameterTypes(), 0..) |value, kind, i| {
+    for (values, self.parameterTypes(), 0..) |optional, kind, i| {
+        const value = optional orelse continue;
         validate(value, kind) catch |err| {
             self.at(@intCast(i + 1), diagnostic);
             if (diagnostic) |detail| {
@@ -164,15 +175,15 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, s
     errdefer if (diagnostic) |detail| {
         if (detail.location == null) detail.location = location;
     };
-    const plan = try self.syntax.bindParametersDiagnostic(arena.allocator(), name, schema, basis, &location, values, diagnostic);
+    const plan = try self.syntax.bindParametersDiagnostic(arena.allocator(), name, schema, captured_basis, &location, values, diagnostic);
     var bytes: [codec.max_bytes]u8 = undefined;
-    return codec.decode(allocator, schema, basis, try codec.encode(plan, &bytes));
+    return codec.decode(allocator, schema, captured_basis, try codec.encode(plan, &bytes));
 }
 pub fn validate(value: t.Values.Atom, kind: t.Type) !void {
     try @import("SqlLogicalPredicate.zig").validateParameter(value, kind);
 }
 
-fn witness(kind: t.Type) !t.Values.Atom {
+pub fn witness(kind: t.Type) !t.Values.Atom {
     return switch (kind) {
         .int8, .int16, .int32, .int64, .int128 => .{ .signed = 0 },
         .uint8, .uint16, .uint32, .uint64, .uint128 => .{ .unsigned = 0 },

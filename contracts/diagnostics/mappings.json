@@ -671,6 +671,10 @@
         "CrossRealmRelationalQuery": {
           "code": "sql.cross_realm_relational_query",
           "category": "unsupported"
+        },
+        "NullLimitParameter": {
+          "code": "sql.null_limit_parameter",
+          "category": "binding"
         }
       }
     },

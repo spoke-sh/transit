@@ -352,6 +352,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
+    if (std.mem.startsWith(u8, mode, "prepared-")) return @import("table_parameters_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "exchange-")) return @import("relational_exchange_native.zig").run(@This(), init, &wire, directory, config, args);
     if (std.mem.startsWith(u8, mode, "captured-") or std.mem.startsWith(u8, mode, "maintained-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);

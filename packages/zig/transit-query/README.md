@@ -170,6 +170,12 @@ The local server initializes the catalog and requester, installs query delegatio
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
+`TablePrepared.prepare` resolves an authorized catalog Table and owns SELECT
+parameter/result metadata. `TableQuery.openPrepared` opens a new cut and checks
+that immutable identity for every execution. `LogicalPrepared.instantiate`
+binds that new cut without rebinding a saved plan. See the
+[Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation).
+
 `SqlTemplate` owns a typed parameter template and commits to the full source
 definition, including resource, decoders, paths and accepted Document revision.
 `UnifiedClient.prepareSql` and `bindSql` check current access before and after

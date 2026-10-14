@@ -51,7 +51,10 @@ pub fn bindDiagnostic(self: *const Self, allocator: std.mem.Allocator, definitio
     try limits.validate();
     if (!std.mem.eql(u8, &self.definition, &try definition.fingerprint())) return error.QuerySourceChanged;
     var columns: [q.SourceDefinition.max_columns]t.Field = undefined;
-    var storage = try self.template.bind(allocator, self.template.name, try definition.schema(&columns), self.definition, values, detail);
+    if (values.len > q.fuze.LogicalPrepared.max_parameters) return error.ParameterCountMismatch;
+    var parameters: [q.fuze.LogicalPrepared.max_parameters]?t.Values.Atom = undefined;
+    for (values, parameters[0..values.len]) |value, *parameter| parameter.* = value;
+    var storage = try self.template.bind(allocator, self.template.name, try definition.schema(&columns), self.definition, parameters[0..values.len], detail);
     errdefer storage.deinit();
     var bytes: [q.SourceDefinition.max_bytes]u8 = undefined;
     const source = try q.SourceDefinition.decode(storage.descriptor.arena.allocator(), try definition.encode(&bytes));

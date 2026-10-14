@@ -104,7 +104,7 @@ def sources():
 def bundles():
     limits = struct.pack('<QQQ', 1000, 500, 1048576)
     result = []
-    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names').digest()
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest()
     for declaration in json.loads(sources()):
         kind = declaration['kind']
         source = bytes.fromhex(declaration['wire_hex'])

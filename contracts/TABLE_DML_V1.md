@@ -59,7 +59,9 @@ Every action ends with predicate presence:u8. A present predicate has instructio
 count:u8 and tags atom=0, NOT=1, AND=2, OR=3. Atoms encode all=0; state=1 followed
 by column position:u8 and logical state:u8; or comparison=2 followed by column
 position:u8, comparison:u8 and length-prefixed bound scalar cell. Comparison
-codes are eq=0, ne=1, lt=2, le=3, gt=4, ge=5. State codes match FVL1. Predicate
+codes are eq=0, ne=1, lt=2, le=3, gt=4, ge=5. A bound NULL comparison
+uses atom=4 followed by column position:u8 and comparison:u8, with no value
+payload; it retains unknown truth and source error checks. State codes match FVL1. Predicate
 shape, selected types, row/default constraints and the complete 4 MiB intent
 budget are validated after decoding. The payload envelope allows at most that
 budget plus 512 bytes; no total Table/cardinality bound is introduced.
@@ -132,3 +134,13 @@ and atomically publishes data/index/head, matched/changed counts and outcomes.
 Prepared or saved work must never rebind to a replacement Table by name or
 recompile against a newer schema. The compiler alone establishes none of those
 runtime or recovery guarantees.
+
+
+## Typed templates
+
+`TableDmlPrepared` owns schema-bound INSERT/UPDATE/DELETE templates and accepts
+ordered typed operands, including SQL NULL, through the shared binder. Parameters
+occupy complete values or right comparison operands. Preparation and binding are
+pure; catalog identity and current permissions belong to the caller. See
+[catalog Table preparation](SQL_PARAMETERS_V1.md#catalog-table-preparation) for
+placeholder profiles, bounds, ownership and recovery.

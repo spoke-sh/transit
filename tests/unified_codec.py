@@ -104,7 +104,7 @@ def boolean_bundle_fixtures():
         else:
             program = [{'atom': {'all': {}}}] + [{'negate': {}}]*63
             code = bytes([0, 0]) + bytes([1])*63
-        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names').digest() +
+        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest() +
                       hashlib.sha256(b'transit.query.source.v1\0' + source_bytes).digest() + hashlib.sha256(descriptor(schema)).digest() +
                       bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code)
         wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + source_bytes + plan_bytes

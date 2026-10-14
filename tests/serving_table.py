@@ -76,7 +76,7 @@ def query_bytes(definition, owner, limits):
              + bytes(spec['digest']) + struct.pack('<H', len(descriptor)) + descriptor)
     source = b'UQS1' + contract + struct.pack('<QBH', scope['resource'], 2, len(table)) + table
     declaration = hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()
-    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names').digest()
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest()
     plan = b'FQP1' + plan_definition + declaration + hashlib.sha256(descriptor).digest() + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0'
     bundle = b'UQB1' + contract + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
     return source, declaration, bundle

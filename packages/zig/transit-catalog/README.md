@@ -47,6 +47,13 @@ steps, submits exact saved commands and inspects original outcomes. Current
 metadata lookup binds the source before preparation. Loading saved work never
 resolves its name again or recompiles against a replacement schema.
 
+`TablePreparedDml.prepare` owns a typed INSERT/UPDATE/DELETE template after
+current operation-right and metadata checks. `bind` rechecks both and returns an
+independent `TableIntent`; it performs no send. `TableBinding` includes the
+caller and complete immutable metadata while allowing later data revisions.
+See [Table preparation](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
+for NULL, dialect, identity and bounded-operation rules.
+
 Each metadata acquisition seeds a bounded 64-key cache from one authorized
 resource revision. Schema chunks share native read batches at that same cut;
 missing keys are cached too. Read failures poison the acquisition, and a later

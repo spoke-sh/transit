@@ -29,6 +29,33 @@ listener, gateway authentication, prepared Table binding nor durable gateway
 write recovery is qualified by them. Full gateway, fault, load and placement
 proofs remain implementation work; no clean-suite result is claimed here.
 
+## Catalog Table parameters
+
+On 2026-10-13, the shared SQL-wire implementation adds caller-owned
+`TablePrepared`, `TablePreparedDml` and nullable logical bindings. Fuze and query
+package unit suites pass, including allocation-failure ownership, quoted/comment
+placeholder handling, defaults versus NULL, NULL LIMIT/non-null constraints,
+exact uint64, predicate unknown truth and all five vector lane states.
+
+`zig build test-typed-tables -Doptimize=ReleaseSafe` passes in 251.621 seconds
+through disk Ursula, signed native clients and real catalog/Station hosts. The
+[prepared lifetime schedule](table_parameters_native.py) keeps the same Zig
+objects alive across data changes, read denial/restoration, ALTER and
+DROP/recreate. Preparation and binding issue no native sends; execution observes
+new data cuts. DML returns an owned intent for the existing exact-send recovery
+path. The complete existing lifecycle schedule also passes; its largest observed
+turn has four mutations and values remain at most 256 bytes. This run is not a
+wire-driver or gateway-ledger qualification.
+
+The native definition is
+`138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365`,
+SHA-256 of `transit.native.v1.sql-wire-parameters.2026-10-13`. FQP1 replaces its
+codec definition for nullable comparison atoms. Shared schemas, language binding
+resources, independent plan fixtures and native/SDK signing vectors migrate
+together. Historical execution records retain their original definitions.
+Earlier compilation failures from missing exhaustive cases and new test setup
+were corrected before these passes; full clean qualification remains pending.
+
 ## Integrated vector execution
 
 [Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated query runtime is

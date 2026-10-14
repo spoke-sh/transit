@@ -55,7 +55,7 @@ def fixtures():
     for _, label, tag, nullable, _ in columns:
         query_type += bytes([len(label)]) + label.encode() + bytes([nullable]) + tag
     query_schema = hashlib.sha256(query_type).digest()
-    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names').digest()
+    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest()
     query_prefix = b'\0\2\1\0'
     query_limit = b'\1' + struct.pack('<Q', 3)
     literal = b'\3' + struct.pack('<i', 12)
