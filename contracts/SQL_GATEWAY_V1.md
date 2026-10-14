@@ -161,10 +161,12 @@ shared lexer for SELECT, DML, CREATE and literal relational SQL.
 response must retain flags, packet limit and encoding across TLS. The selected
 flags include found-rows, optional database, plugin authentication, bounded
 attributes and optional deprecated-EOF framing. Protocol 4.1, SSL, secure response
-layout and plugin authentication are mandatory. Client-only ODBC/interactive,
-status/multi-result capability hints and expired-password handling bits do not
-enable SQL syntax or additional result sets. Compression, LOCAL INFILE,
-multi-statements and query-attribute layouts reject. UTF8MB4 negotiation accepts
+layout and plugin authentication are mandatory. The intersection of the server
+advertisement and known client offers selects behavior; reserved extension bits
+reject. Offers for unadvertised features do not enable SQL syntax, compression,
+LOCAL INFILE, multiple results or query-attribute layouts. Multi-statement SQL
+and unsupported command layouts reject before execution. This includes the
+pinned Connector/Python's default multi-statement offer. UTF8MB4 negotiation accepts
 charset bytes 45, 46 and 255; logical comparisons and UTF-8 column metadata retain
 collation 309. Attributes are ignored only after validating at most 4096 bytes,
 32 pairs and 1024 bytes per name/value. Authentication proof length is zero or

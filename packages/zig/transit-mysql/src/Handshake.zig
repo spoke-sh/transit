@@ -14,9 +14,11 @@ pub const length_auth: u32 = 1 << 21;
 pub const deprecate_eof: u32 = 1 << 24;
 pub const capabilities: u32 = 1 | (1 << 2) | found_rows | connect_database | protocol_41 | ssl | secure_connection | plugin_auth | connect_attributes | length_auth | deprecate_eof;
 pub const required: u32 = protocol_41 | ssl | secure_connection | plugin_auth;
-// These client-only hints do not select a different wire layout, SQL grammar,
-// transaction mode or multi-result response. Everything else must be negotiated.
-const harmless_hints: u32 = (1 << 6) | (1 << 10) | (1 << 13) | (1 << 17) | (1 << 18) | (1 << 22);
+// Clients offer capabilities, including features the server does not advertise.
+// Only the intersection selects protocol behavior. In particular the pinned
+// Connector/Python offers MULTI_STATEMENTS by default; that does not admit a
+// multi-statement query. Reserved extension bits still fail closed.
+const known_offers: u32 = 0xdfffbfff;
 pub const Prefix = struct {
     flags: u32,
     maximum_packet: u32,
@@ -26,7 +28,7 @@ pub const Prefix = struct {
     }
     fn read(reader: *g.Bytes) !Prefix {
         const result: Prefix = .{ .flags = try reader.int(u32, .little), .maximum_packet = try reader.int(u32, .little), .charset = try reader.byte() };
-        if (result.flags & required != required or result.flags & ~(capabilities | harmless_hints) != 0) return error.UnsupportedWireCapabilities;
+        if (result.flags & required != required or result.flags & ~known_offers != 0) return error.UnsupportedWireCapabilities;
         // UTF8MB4 encoding only. The session selects and reports NO PAD binary
         // comparison collation 309; the one-byte negotiation cannot carry it.
         if (result.charset != 45 and result.charset != 46 and result.charset != 255) return error.UnsupportedWireCharset;
@@ -97,6 +99,8 @@ test "TLS negotiation is exact, bounded and cannot change capabilities after upg
     try t.expectError(error.InvalidWireMessage, response(body, prefix));
     try t.expectError(error.InvalidWireMessage, upgrade(header[0..31]));
     std.mem.writeInt(u32, header[0..4], required | (1 << 16), .little);
+    try t.expectEqual(required, (try upgrade(&header)).negotiated());
+    std.mem.writeInt(u32, header[0..4], required | (1 << 29), .little);
     try t.expectError(error.UnsupportedWireCapabilities, upgrade(&header));
     try t.expectEqualStrings("secret", try password("secret\x00"));
     try t.expectError(error.InvalidWireMessage, password("secret\x00extra"));

@@ -35,7 +35,15 @@ buffer. Failed encodings expose no partial result; the caller supplies current
 authorization and observed completion before writing any frame. Error messages
 must already be classified and safe for disclosure.
 
-No database listener is supplied by these primitives. See the
+`Session.Engine` owns named and unnamed prepared statements, copied bindings and
+portals. The host supplies shared SQL execution, current authorization and safe
+diagnostics. Writes dispatch only after a valid Sync; read suspension retains one
+cut until completion, Close, error or Sync. Closing a statement closes dependent
+portals. Failed extended cycles drain through a valid Sync; transport failures
+close the connection without retrying a partial reply.
+
+The [gateway application](../../../apps/transit-sql-gateway/README.md) supplies
+the listener and authenticated host. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) for limits and selected
 protocol semantics. Build with `zig build test` or `zig build check` inside
 `nix develop`.

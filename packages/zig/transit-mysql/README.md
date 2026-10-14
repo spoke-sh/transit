@@ -20,17 +20,27 @@ supplies NULL/result framing, a truthful selected collation and aggregate bounds
 The selected logical-message budget is below MySQL's 0xffffff-byte continuation
 packet. Such a header rejects immediately as oversized; network fragmentation
 within the budget is supported. This does not advertise unbounded messages or
-server-side cursor/long-data support. No database listener is supplied by these
-primitives. See the [wire contract](../../../contracts/SQL_GATEWAY_V1.md).
+server-side cursor/long-data support. See the
+[wire contract](../../../contracts/SQL_GATEWAY_V1.md).
 
 `Handshake` validates exact SSLRequest/HandshakeResponse41 negotiation, UTF8MB4
 encoding, bounded attributes and the caching-SHA2 plugin. It rejects capability
-changes across the TLS upgrade and layouts requiring compression, local files,
-multiple statements or query attributes. `Backend` encodes HandshakeV10,
+changes across the TLS upgrade. Only the intersection of server flags and known
+client offers selects features; unadvertised compression, local files, multiple
+statements and query attributes remain disabled. `Backend` encodes HandshakeV10,
 full-auth requests, result/parameter metadata, text/binary rows, prepare replies,
 classified errors and EOF/OK terminators. Binary result NULL bits start at offset
 two; affected rows retain full uint64 values. Status reports autocommit without an
 open transaction, generated ID or additional results. Returned packets borrow a
 bounded reusable buffer; the session owns sequencing and negotiated EOF choice.
+
+`Session.Engine` owns bounded prepared handles, validated parameter type vectors,
+result sequencing and command errors. Statement reset retains parameter types;
+connection reset and database selection clear ephemeral handles. IDs do not
+repeat within a connection. The host supplies execution and current rights;
+accepted writes belong to its account runtime. UPDATE returns changed rows by
+default and matched rows with negotiated `CLIENT_FOUND_ROWS`. The
+[gateway application](../../../apps/transit-sql-gateway/README.md) supplies the
+TLS listener and host.
 
 Build with `zig build test` or `zig build check` inside `nix develop`.
