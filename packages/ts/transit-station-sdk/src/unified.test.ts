@@ -3,7 +3,13 @@ import test from "node:test";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Credential, ProcessRef, ResourceRef, ReadFailed } from "@transit/client";
+import {
+  Credential,
+  ProcessRef,
+  ResourceRef,
+  ReadFailed,
+  IncompatibleNative,
+} from "@transit/client";
 import * as q from "./unified.ts";
 import { Metadata, MetadataCommitment, Schema, Scope } from "./catalog.ts";
 import contract from "./contract.json" with { type: "json" };
@@ -107,6 +113,43 @@ test("inspection preserves recursive types and flags beyond the former eight-col
       });
     },
   );
+});
+test("unparameterized inspection rejects a bound NULL comparison directly and in a program", async () => {
+  const atom = { null_compare: { column: "id", op: "eq", type: { uint128: {} } } };
+  for (const predicate of [atom, { program: [{ atom }] }]) {
+    await withHost(
+      {
+        inspection: {
+          version: 1,
+          scope: "configured_source",
+          name: "people",
+          resource: 7,
+          source_kind: "table",
+          contract: Array(32).fill(1),
+          schema: Array(32).fill(2),
+          resource_revision: 3,
+          policy_revision: "1",
+          details: {
+            explanation: {
+              operators: ["scan", "filter", "project"],
+              predicate,
+              projection: ["id"],
+              limit: null,
+              aggregate: "rows",
+              columns: [{ name: "id", type: { uint128: {} }, nullable: false, optional: false }],
+              budgets: { pages: "100", segments: "100", result_bytes: "1048576" },
+            },
+          },
+        },
+      },
+      async (client) => {
+        await assert.rejects(
+          client.inspectSql(source, "people", "EXPLAIN SELECT id FROM people", budgets),
+          IncompatibleNative,
+        );
+      },
+    );
+  }
 });
 async function withHost(
   response: object,

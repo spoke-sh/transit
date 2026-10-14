@@ -496,6 +496,7 @@ function inspectedAtom(
       column: predicate.state.column,
       state: predicate.state.value,
     });
+  if (!("compare" in predicate)) throw new IncompatibleNative("Unsupported inspected predicate");
   return Object.freeze({
     kind: "compare",
     column: predicate.compare.column,
