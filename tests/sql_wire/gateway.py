@@ -15,7 +15,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, slice="all"):
-    assert slice in ("all","faults","controls")
+    assert slice in ("all","faults","controls","cli")
     node, catalog, ledger, host, gateway = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
@@ -100,7 +100,11 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                 except ConnectionRefusedError:
                     assert time.monotonic() < deadline
                     time.sleep(.02)
-            from clients import run as clients, connection_options as client_options
+            from clients import run as clients, run_cli, connection_options as client_options
+            if slice == 'cli':
+                run_cli(root,sql_port,mysql_port)
+                print(json.dumps(dict(profile='database_wire_cli',seconds=round(time.monotonic()-started,3),fresh_fixture=True,both_protocols=True)),flush=True)
+                return
             if slice == 'all':
                 options,mysql_options = clients(root,sql_port,mysql_port)
             else:
@@ -210,6 +214,11 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                     sys.stderr.write(log.read()[-10000:])
             for log in logs:
                 log.close()
+    if slice == 'all':
+        # The CLI lifecycle has its own history so expanding it does not change
+        # the existing wide-row measurement's retained state or observation bound.
+        # Both schedules must pass for the complete gateway task to succeed.
+        run(node,catalog,ledger,host,gateway,'cli')
 
 
 if __name__ == '__main__':

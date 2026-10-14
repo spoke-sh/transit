@@ -141,6 +141,16 @@ between full verification and the visible reread. `just check` also passes with
 the correction. These are workspace results; the committed-source browser lane
 is recorded separately.
 
+The expanded gateway run at `12236039` passed its CLI/C/Python matrix and raw
+write cycle but failed the 1800-second wide-write observation. The original
+operation remained active and unblocked; the native log still records successful
+turns and delivery through position 12662. Completion was not established. The
+added CLI mutations had changed the accumulated history before that measurement.
+The full gateway task now runs those CLI lifecycles in a separate owned fresh
+fixture, preserving the earlier wide workload and its deadlines. Both schedules
+must pass; neither the failed observation nor the passing client prefix qualifies
+the complete task.
+
 ## Database wire foundation
 
 Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,
