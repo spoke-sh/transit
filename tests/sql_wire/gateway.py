@@ -41,6 +41,17 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
             assert result.returncode == 0, result.stderr
             return json.loads(result.stdout)
+        def inventory():
+            page = controls('list')
+            entries = page['entries']
+            while page['next']:
+                assert len(entries) < 128, 'Fixture inventory exceeded its expected size'
+                cursor = root/'inventory-cursor.json'
+                cursor.write_text(json.dumps(page['next']))
+                page = controls('list',cursor)
+                entries.extend(page['entries'])
+            assert len({entry['operation'] for entry in entries}) == len(entries)
+            return entries
         def configure():
             call(ledger, 'app-config', sql_port)
             configuration = json.loads((root/'sql-gateway.json').read_text())
@@ -121,7 +132,7 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             from measure import run as measure
             measure(options,mysql_options,lambda sql:call(catalog,"select",sql))
             from values import run as values
-            values(options,mysql_options)
+            values(options,mysql_options,controls,inventory)
             from schema import run as schema
             schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl',operation,sql))
             if slice == 'all':

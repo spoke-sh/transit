@@ -8,7 +8,7 @@ import mysql.connector
 from faults import PostgreSQL, cancel, frame
 
 
-def run(postgres,mysql_options):
+def run(postgres,mysql_options,controls,inventory):
     with psycopg.connect(**postgres) as pg:
         pg.execute("CREATE TABLE wire_defaults (id BIGINT PRIMARY KEY, label UTF8 DEFAULT 'fallback', required UTF8 NOT NULL)")
         pg.execute('INSERT INTO wire_defaults (id,required) VALUES (%s,%s)',(1,'present'),prepare=True)
@@ -29,9 +29,35 @@ def run(postgres,mysql_options):
         names = 'id,label,payload,'+','.join(f'b{i}' for i in range(8))
         statement = 'INSERT INTO wire_large ('+names+') VALUES ('+','.join(['%s']*11)+')'
         started = time.monotonic()
+        existing = {entry['operation'] for entry in inventory()}
         print(json.dumps(dict(profile='database_wire_large_row',phase='begin',variable_bytes=10*4096)),flush=True)
-        assert pg.execute(statement,(1,label,payload,*([payload]*8)),prepare=True).rowcount == 1
-        print(json.dumps(dict(profile='database_wire_large_row',phase='complete',seconds=round(time.monotonic()-started,3))),flush=True)
+        wire_completion = True
+        try:
+            assert pg.execute(statement,(1,label,payload,*([payload]*8)),prepare=True).rowcount == 1
+        except psycopg.OperationalError:
+            wire_completion = False
+            print(json.dumps(dict(profile='database_wire_large_row',phase='wait_ended',seconds=round(time.monotonic()-started,3))),flush=True)
+    # A socket deadline does not roll back accepted work. Discover the one
+    # original operation even when no handle/reply reached the SQL client.
+    added = [entry for entry in inventory() if entry['operation'] not in existing]
+    assert len(added) == 1, added
+    operation = added[0]['operation']
+    deadline = started+900
+    next_report = 0
+    while True:
+        status = controls('status',operation)
+        assert not status['operation']['blocked'], status
+        if status['terminal'] is not None:
+            terminal = status['terminal']
+            assert terminal['state'] == 'applied' and terminal['matched'] == terminal['changed'] == 1, status
+            break
+        if time.monotonic() >= next_report:
+            print(json.dumps(dict(profile='database_wire_large_row',phase='observing',seconds=round(time.monotonic()-started,3),operation=status['operation'])),flush=True)
+            next_report = time.monotonic()+30
+        assert time.monotonic()<deadline, status
+        time.sleep(.5)
+    print(json.dumps(dict(profile='database_wire_large_row',phase='complete',seconds=round(time.monotonic()-started,3),wire_completion=wire_completion,operator_count_verified=True,sql_attempts=1)),flush=True)
+    with psycopg.connect(**postgres) as pg:
         try:
             pg.execute('INSERT INTO wire_large (id,label) VALUES (%s,%s)',(2,'x'*4097),prepare=True)
         except psycopg.errors.ProgramLimitExceeded:
