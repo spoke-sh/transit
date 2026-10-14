@@ -1,5 +1,22 @@
 # Validation and milestone evidence
 
+## Declarative authorization evaluator
+
+On 2026-10-14, `nix develop --command bash -euc 'cd
+packages/zig/transit-core; zig build test --summary all'` passes **80/80 tests**
+on the authorization implementation branch. The new
+[evaluator fixtures](../packages/zig/transit-core/src/authorization_test.zig)
+compare all 64 directed grant graphs over three roles with an independent least
+fixed-point oracle, and all eight ordered three-role membership graphs with an
+independent transitive closure. Separate cases cover owner self-revocation,
+independent grant paths, unsupported delegation cycles, PUBLIC, disabled roles,
+retired objects, pagination, malformed records and explicit work/vertex/depth
+budget failures. Disabled intermediate roles cannot conceal membership cycles.
+
+This evidence covers the pure injected-store evaluator. It does not establish
+durable administration, adapter enforcement or restricted Table isolation. Those
+integration gates remain open in [the delivery plan](../docs/roadmap/M49.md).
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

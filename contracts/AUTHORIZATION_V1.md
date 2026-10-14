@@ -59,8 +59,9 @@ a default never silently edits grants on existing objects.
 Role, membership, object and grant collections are paged durable catalogs.
 Allocation bounds apply to a decision or command, not total collection size.
 The initial decision profile permits at most 256 distinct role vertices and
-4096 membership/grant records per evaluation, with a maximum membership depth of
-32. Each page contains at most eight records. Exceeding any bound rejects with
+4096 work charges per evaluation, with a maximum path depth of
+32. A role/object lookup, membership/grant page fetch and each returned edge
+consume one charge. Each page contains at most eight records. Exceeding any bound rejects with
 an explicit authorization-budget diagnostic; no partial positive decision is
 usable. These bounds are authority configuration, not a caller-selected way to
 bypass work or authorize data.
