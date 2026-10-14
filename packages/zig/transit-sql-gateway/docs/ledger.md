@@ -149,6 +149,9 @@ rechecks the fence and pending identity before attempting the saved Table send;
 its returned receipt control still requires a separate ledger commit.
 
 Native processing, Table completion and current disclosure authority are checked
-separately. Cancellation selects the original DDL, DML or upload identity. A
+separately. The account runtime retries unavailable discovery and terminal reads
+within the caller's original deadline, retaining the same nonce, intent and
+operation. These reads never resubmit SQL or replace an accepted intent.
+Cancellation selects the original DDL, DML or upload identity. A
 rejected Table disposition blocks automatic progression until operator action;
 reconcile can resume the original qualified work, without granting new rights.

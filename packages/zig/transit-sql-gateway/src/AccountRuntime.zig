@@ -25,6 +25,9 @@ pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair,
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return (err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource;
 }
+fn retryObservation(client: *s.client.Client, err: anyerror) bool {
+    return staleRead(client, err) or s.client.Client.unavailable(err);
+}
 /// Construction owns transports, but neither initializes an unprovisioned ledger
 /// nor assumes ownership. The operator provisions and initializes before start.
 pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.Ledger, generation: u64, association: []const u8, keys: Keys, timeout_ms: u32) !*Self {
@@ -183,7 +186,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     const item = while (true) {
         try deadline.check(self.io);
         break self.discover(observer, nonce) catch |err| {
-            if (!staleRead(observer.transport, err)) return err;
+            if (!retryObservation(observer.transport, err)) return err;
             try self.io.sleep(.fromMilliseconds(5), .awake);
             continue;
         };
@@ -211,7 +214,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     while (true) {
         try deadline.check(self.io);
         const terminal = self.observe(observer, table, &intent, item.id) catch |err| {
-            if (!staleRead(observer.transport, err)) return err;
+            if (!retryObservation(observer.transport, err)) return err;
             try self.io.sleep(.fromMilliseconds(5), .awake);
             continue;
         };
@@ -237,4 +240,16 @@ fn observe(self: *Self, observer: *g.Client, table: *c.TableClient, intent: *con
     }
     if (current.phase == .abandoned or current.blocked != 0) return error.GatewayOperationBlocked;
     return null;
+}
+
+test "observation retries unavailable transport without treating denial as transient" {
+    var wire: s.client.Client = undefined;
+    wire.last_rejection = .AccessDenied;
+    try std.testing.expect(retryObservation(&wire, error.AuthorityTimeout));
+    try std.testing.expect(!retryObservation(&wire, error.Rejected));
+    try std.testing.expect(!retryObservation(&wire, error.CatalogDenied));
+    try std.testing.expect(!retryObservation(&wire, error.Canceled));
+    wire.last_rejection = .StaleStateResource;
+    try std.testing.expect(retryObservation(&wire, error.Conflict));
+    try std.testing.expect(!retryObservation(&wire, error.InvalidGatewayRecord));
 }

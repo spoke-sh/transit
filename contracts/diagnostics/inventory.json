@@ -15392,7 +15392,7 @@
         "observe()": "<inferred>",
         "tick()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
         "try": 49,
         "catch": 10
