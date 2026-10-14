@@ -10,6 +10,13 @@ one bounded payload only after checking its header; its `Owned` result requires
 `deinit`. The caller owns command/authentication sequence transitions and supplies
 a transport with bounded `readExact`.
 
+`Command` validates command bodies and typed prepared execution. Its `Parameters`
+object retains the last fully validated parameter type vector; failed executions
+do not alter it. Values borrow the input message. `Scalar` defines full-width
+signed/unsigned metadata and finite numbers, integer Booleans, UTF-8 and binary
+values. `Codec` checks length-encoded inputs before slicing. The session owner
+supplies NULL/result framing, a truthful selected collation and aggregate bounds.
+
 The selected logical-message budget is below MySQL's 0xffffff-byte continuation
 packet. Such a header rejects immediately as oversized; network fragmentation
 within the budget is supported. This does not advertise unbounded messages or

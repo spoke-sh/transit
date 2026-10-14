@@ -16,6 +16,12 @@ until Sync. Reads may resume the same suspended portal before Sync. The caller
 validates payloads, owns portal/statement lifetimes and clears portals at Sync;
 framing errors close the connection. Cycle decisions alone grant no authority.
 
+`Frontend.decode` checks exact simple/extended bodies and borrows their bytes.
+`Scalar` supplies OIDs and lossless text/binary codecs, including uint64 as
+`numeric(20,0)`, nullable parameters and narrower driver integer OIDs. Text values
+reject NUL. The caller retains statement/portal bytes, owns bytea hex decoding
+allocations, validates statement counts and supplies bounded row framing.
+
 No database listener is supplied by these primitives. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) for limits and selected
 protocol semantics. Build with `zig build test` or `zig build check` inside

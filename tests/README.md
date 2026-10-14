@@ -12,8 +12,12 @@ and selected driver settings, never authentication, parameter or result bytes.
 The PostgreSQL intermediary actively withholds Execute through Sync; the
 prepared executions complete without a Flush dependency. The MySQL intermediary
 removes unsupported capability flags from both sides of negotiation. Connector
-configuration explicitly selects autocommit and `utf8mb4_bin`; the initial
-handshake still proposes collation ID 255, before its SET NAMES command.
+configuration explicitly selects autocommit, `utf8mb4_0900_bin` and
+`ANSI_QUOTES,NO_BACKSLASH_ESCAPES`; the initial handshake still proposes
+collation ID 255, before its SET NAMES command. The repeated reference run
+checks the observed settings, trailing-space/case inequality and literal
+backslashes. It replaces the initial PAD SPACE `utf8mb4_bin` probe setting;
+NO PAD matches the intended gateway comparison profile.
 
 `just test::sql-wire-tls` passes the standalone Zig/OpenSSL server transport:
 both database upgrade request formats, TLS 1.2/1.3, fragmented application input,
@@ -39,6 +43,15 @@ non-SQL cell states. Authentication tests verify an independently generated
 PBKDF2/SCRAM fixture, wrong credentials/proofs, unsupported password characters,
 channel binding and consumed authentication state. The Python fixture checker
 recomputes all credential and proof bytes using hashlib and hmac.
+
+The extended codec corpus also passes: 25 independently generated PostgreSQL
+scalar cases and 26 MySQL cases cover full signed/unsigned ranges, signed zero,
+subnormal/max finite floats, Boolean, UTF-8, empty values and all 256 binary byte
+values. Python struct/base-10000 encoders produce the expected wire bytes. Zig
+checks both decoding and emitted binary bytes; text round trips preserve values.
+Message tests distinguish NULL/empty, reject malformed bodies/flags/overflow,
+and retain MySQL parameter types only after complete valid input. PostgreSQL
+text rejects NUL while length-encoded MySQL values retain it.
 
 These are library-level checks, registered in ordinary core CI. They do not
 qualify an authenticated listener, session resource enforcement or durable write

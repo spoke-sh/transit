@@ -1,7 +1,7 @@
 # Database wire adaptation primitives v1
 
-This contract defines the shared gateway library, PostgreSQL frame/cycle gate
-and MySQL frame decoder. These primitives do not themselves open a listener or
+This contract defines the shared gateway library, PostgreSQL frame/cycle gate,
+MySQL frame decoder and typed message/scalar codecs. These primitives do not themselves open a listener or
 admit a durable write. Executed evidence belongs to the
 [proof ledger](../tests/README.md).
 
@@ -92,6 +92,36 @@ connection, because a body boundary cannot be trusted. A gate action is neither
 authorization nor a native receipt. The backend protocol's full transaction and
 pipeline semantics are outside this explicitly selected autocommit cycle.
 
+`Frontend.decode` validates complete Query, Parse, Bind, Describe, Close,
+Execute, Sync, Flush and Terminate bodies, including trailing bytes, names,
+UTF-8, parameter counts and format codes. Input slices borrow the bounded frame;
+the session must own any bytes retained beyond it. Bind distinguishes NULL from
+empty bytes. Formats have zero, one or exactly the affected number of entries;
+the caller validates result formats against the prepared output schema. Parse
+OID count/inference and Bind parameter count are checked against that statement
+by the session owner. `saslInitial` admits only bounded SCRAM-SHA-256 payloads.
+
+| Logical type | Result OID | Text | Binary |
+| --- | ---: | --- | --- |
+| int64 | 20 | Signed decimal | Signed eight-byte big-endian |
+| uint64 / counts | 1700 | Unsigned decimal | Positive numeric, scale zero, base-10000 digits; `numeric(20,0)` modifier |
+| finite float64 | 701 | Decimal floating point | Eight-byte IEEE big-endian |
+| Boolean | 16 | `t` / `f` | Exactly zero or one |
+| UTF-8 | 25 | UTF-8 without NUL | Same |
+| Binary | 17 | `\\x` followed by hex | Exact bytes |
+
+Parameter OID zero infers the canonical type. Signed integer OIDs 21/23/20
+admit lossless int16/int32/int64 representations for int64 or nonnegative uint64;
+numeric OID 1700 is also available for uint64. Numeric parameters have integer
+scale and a maximum of five base-10000 digits; negative, fractional, special and
+overflow values reject. Float OIDs 700/701 preserve their declared width before
+widening to float64. UTF-8 accepts OIDs 25/1043. Other cross-kind conversions
+reject, including an incompatible declared OID on a NULL parameter. Text integer
+parameters obey their declared width. SQL constraints remain the compiler's
+responsibility. Bytea text decoding allocates in the supplied allocator; other
+variable-sized inputs borrow their frame. Encoders append a non-NULL payload;
+the row owner supplies length or NULL framing and bounds the aggregate message.
+
 ## MySQL frame ownership
 
 Classic packets carry payload length:u24 little-endian and sequence:u8. The
@@ -104,6 +134,38 @@ The selected logical-message bound is below 0xffffff bytes. A full-size MySQL
 continuation header therefore rejects as oversized before reading its body.
 Sequence 255 is valid when expected; the exchange owner controls wrap/reset.
 Framing alone neither advertises command capabilities nor executes SQL.
+
+`Command.decode` admits Query, Prepare, Execute, Close, Reset, InitDB, Ping, Quit
+and ResetConnection bodies. Query/Prepare SQL is bounded UTF-8 without NUL;
+unknown commands reject. `Parameters.execute` checks the statement ID, zero
+cursor flags, iteration count one, NULL bitmap, new-type flag and exact payload
+end. It remembers types only after a complete valid execution body. A caller
+must retain that state with the prepared statement and validate the expected
+logical parameter types. No query-attribute layout is accepted.
+
+| Logical type | Result field type | Flags / representation |
+| --- | --- | --- |
+| int64 | LONGLONG (8) | Signed eight-byte little-endian |
+| uint64 / counts | LONGLONG (8) | UNSIGNED, eight-byte little-endian |
+| finite float64 | DOUBLE (5) | Eight-byte IEEE little-endian |
+| Boolean | TINY (1) | UNSIGNED; integer zero or one |
+| UTF-8 | VAR_STRING (253) | Session's explicitly selected UTF-8 collation |
+| Binary | BLOB (252) | BINARY flag, charset 63 |
+
+Non-nullable fields add NOT_NULL. Numeric fields use charset 63. Parameters
+admit signed/unsigned TINY, SHORT, LONG, INT24 and LONGLONG when they fit the
+logical integer or zero/one Boolean destination; FLOAT widens to finite DOUBLE.
+String/blob wire types carry length-encoded UTF-8/binary bytes. Embedded NUL is
+valid in MySQL length-framed values. NULL remains separate from an empty value;
+type code NULL carries no value bytes. Unsupported codes/flags, negative unsigned
+values and narrowing overflow reject. Result encoders append one non-NULL field;
+the owner supplies text NULL markers or the binary-row NULL bitmap (offset two),
+row framing and aggregate byte limits. Execute parameter bitmaps have offset zero.
+
+`Codec.length` handles every defined non-NULL length width and rejects reserved
+markers. `Codec.string` checks its byte bound before slicing input. These helpers
+do not allocate based on untrusted lengths. Decoded parameter strings borrow the
+input until the session clones/binds them.
 
 ## Primary definitions
 

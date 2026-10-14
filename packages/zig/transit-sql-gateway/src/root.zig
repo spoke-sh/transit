@@ -5,6 +5,7 @@ pub const fuze = query.fuze;
 pub const Authentication = @import("Authentication.zig");
 pub const Limits = @import("Limits.zig");
 pub const Type = @import("Type.zig");
+pub const Bytes = @import("Bytes.zig");
 test {
     @import("std").testing.refAllDecls(@This());
 }

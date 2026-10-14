@@ -9600,6 +9600,73 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Codec.zig": {
+      "errors": {
+        "InvalidWireLength": 1,
+        "WireValueTooLarge": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendLength()": "<inferred>",
+        "appendString()": "<inferred>",
+        "length()": "<inferred>",
+        "string()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-mysql/src/Command.zig": {
+      "errors": {
+        "FrameTooLarge": 2,
+        "InvalidWireMessage": 1,
+        "InvalidWireParameterType": 1,
+        "InvalidWireText": 2,
+        "MissingWireParameterTypes": 1,
+        "TooManyWireParameters": 1,
+        "UnknownPreparedStatement": 1,
+        "UnsupportedWireCommand": 1,
+        "UnsupportedWireExecute": 1,
+        "WireValueTooLarge": 2
+      },
+      "outcomes": {
+        "Message": [
+          "query",
+          "prepare",
+          "execute",
+          "close",
+          "reset",
+          "database",
+          "ping",
+          "quit",
+          "reset_connection"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Parameters.execute()": "<inferred>",
+        "decode()": "<inferred>",
+        "statementId()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "Codec.zig",
+        "Scalar.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/Frame.zig": {
       "errors": {
         "FrameTooLarge": 2,
@@ -9624,6 +9691,33 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Scalar.zig": {
+      "errors": {
+        "InvalidWireParameterType": 1,
+        "InvalidWireText": 1,
+        "InvalidWireValue": 1,
+        "WireParameterTypeMismatch": 1,
+        "WireValueOutOfRange": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "compatible()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "text()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "Codec.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9635,7 +9729,10 @@
         "catch": 0
       },
       "imports": [
+        "Codec.zig",
+        "Command.zig",
         "Frame.zig",
+        "Scalar.zig",
         "transit_sql_gateway"
       ]
     },
@@ -9704,6 +9801,91 @@
         "std"
       ]
     },
+    "packages/zig/transit-postgres/src/Frontend.zig": {
+      "errors": {
+        "FrameTooLarge": 1,
+        "InvalidAuthentication": 1,
+        "InvalidWireMessage": 2,
+        "InvalidWireTarget": 1,
+        "InvalidWireText": 2,
+        "TooManyWireFormats": 1,
+        "TooManyWireParameters": 2,
+        "UnsupportedAuthentication": 1,
+        "UnsupportedWireFormat": 1,
+        "UnsupportedWireMessage": 1,
+        "WireFormatCountMismatch": 1
+      },
+      "outcomes": {
+        "Format": [
+          "text",
+          "binary"
+        ],
+        "Message": [
+          "query",
+          "parse",
+          "bind",
+          "describe",
+          "close",
+          "execute",
+          "sync",
+          "flush",
+          "terminate"
+        ],
+        "Target.kind": [
+          "statement",
+          "portal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Formats.read()": "<inferred>",
+        "Formats.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "name()": "<inferred>",
+        "saslInitial()": "<inferred>",
+        "target()": "<inferred>",
+        "text()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-postgres/src/Scalar.zig": {
+      "errors": {
+        "InvalidWireText": 1,
+        "InvalidWireValue": 13,
+        "WireParameterTypeMismatch": 1,
+        "WireValueOutOfRange": 6,
+        "WireValueTooLarge": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "integerText()": "<inferred>",
+        "numeric()": "<inferred>",
+        "numericEncode()": "<inferred>",
+        "resolve()": "<inferred>",
+        "textValue()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 5
+      },
+      "imports": [
+        "Frontend.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9717,6 +9899,8 @@
       "imports": [
         "Cycle.zig",
         "Frame.zig",
+        "Frontend.zig",
+        "Scalar.zig",
         "transit_sql_gateway"
       ]
     },
@@ -14731,6 +14915,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/Bytes.zig": {
+      "errors": {
+        "InvalidWireMessage": 3,
+        "WireValueTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendInt()": "<inferred>",
+        "byte()": "<inferred>",
+        "cstring()": "<inferred>",
+        "finish()": "<inferred>",
+        "int()": "<inferred>",
+        "take()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Limits.zig": {
       "errors": {
         "InvalidGatewayLimits": 5
@@ -14792,6 +15000,7 @@
       },
       "imports": [
         "Authentication.zig",
+        "Bytes.zig",
         "Limits.zig",
         "Type.zig",
         "transit_catalog",

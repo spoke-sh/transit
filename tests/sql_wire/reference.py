@@ -302,8 +302,15 @@ def main():
             with mysql.connector.connect(host='localhost', port=my.port, user='probe', password=refs.password,
                                          database='probe', ssl_ca=str(refs.ca), ssl_verify_cert=True,
                                          ssl_verify_identity=True, autocommit=True, use_pure=True,
-                                         charset='utf8mb4', collation='utf8mb4_bin') as connection:
+                                         charset='utf8mb4', collation='utf8mb4_0900_bin',
+                                         sql_mode='ANSI_QUOTES,NO_BACKSLASH_ESCAPES') as connection:
                 cursor = connection.cursor()
+                cursor.execute('SELECT @@character_set_connection, @@collation_connection, @@sql_mode')
+                charset, collation, mode = cursor.fetchone()
+                assert charset == 'utf8mb4' and collation == 'utf8mb4_0900_bin'
+                assert set(mode.split(',')) == {'ANSI_QUOTES', 'NO_BACKSLASH_ESCAPES'}
+                cursor.execute("SELECT 'a' = 'a ', 'a' = 'A', 'a\\b'")
+                assert cursor.fetchone() == (0, 0, 'a\\b')
                 cursor.execute('CREATE TABLE probe (id BIGINT PRIMARY KEY, value BIGINT)')
                 cursor.close()
                 cursor = connection.cursor(prepared=True)
@@ -320,7 +327,8 @@ def main():
             try:
                 run(['mysql', '--defaults-file=' + str(defaults), '--protocol=TCP', '-h', 'localhost',
                      '-P', str(my.port), '-uprobe', '--ssl-mode=VERIFY_IDENTITY', '--ssl-ca=' + str(refs.ca),
-                     '--batch', '--skip-column-names', '-e', 'SELECT value FROM probe.probe'])
+                     '--batch', '--skip-column-names', '--default-character-set=utf8mb4', '-e',
+                     "SET NAMES utf8mb4 COLLATE utf8mb4_0900_bin; SET sql_mode='ANSI_QUOTES,NO_BACKSLASH_ESCAPES'; SELECT value FROM probe.probe"])
             except subprocess.CalledProcessError as error:
                 raise RuntimeError(error.stderr.decode().replace(refs.password, '<redacted>')) from None
         # Every prepared write must have its Sync sent before the reference

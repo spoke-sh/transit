@@ -499,7 +499,7 @@
       [
         "client",
         "command:03",
-        "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_bin'"
+        "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_bin'"
       ],
       [
         "server",
@@ -516,7 +516,81 @@
       ],
       [
         "client",
+        "command:03",
+        "SET @@session.sql_mode = 'ANSI_QUOTES,NO_BACKSLASH_ESCAPES'"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
         "command:0e"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
+        "command:03",
+        "SELECT @@character_set_connection, @@collation_connection, @@sql_mode"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
+        "command:03"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "server",
+        "packet"
       ],
       [
         "server",
@@ -697,7 +771,7 @@
       [
         "client",
         "command:03",
-        "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_bin'"
+        "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_bin'"
       ],
       [
         "server",
@@ -707,6 +781,15 @@
         "client",
         "command:03",
         "SET @@session.autocommit = ON"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
+        "command:03",
+        "SET @@session.sql_mode = 'ANSI_QUOTES,NO_BACKSLASH_ESCAPES'"
       ],
       [
         "server",
@@ -767,6 +850,24 @@
       [
         "client",
         "command:03"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
+        "command:03",
+        "SET NAMES utf8mb4 COLLATE utf8mb4_0900_bin"
+      ],
+      [
+        "server",
+        "packet"
+      ],
+      [
+        "client",
+        "command:03",
+        "SET sql_mode='ANSI_QUOTES,NO_BACKSLASH_ESCAPES'"
       ],
       [
         "server",
