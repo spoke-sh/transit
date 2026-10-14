@@ -157,6 +157,27 @@ shared lexer for SELECT, DML, CREATE and literal relational SQL.
 
 ## MySQL frame ownership
 
+`Handshake.upgrade` accepts exactly 32 Protocol 4.1 SSLRequest bytes. The full
+response must retain flags, packet limit and encoding across TLS. The selected
+flags include found-rows, optional database, plugin authentication, bounded
+attributes and optional deprecated-EOF framing. Protocol 4.1, SSL, secure response
+layout and plugin authentication are mandatory. Client-only ODBC/interactive,
+status/multi-result capability hints and expired-password handling bits do not
+enable SQL syntax or additional result sets. Compression, LOCAL INFILE,
+multi-statements and query-attribute layouts reject. UTF8MB4 negotiation accepts
+charset bytes 45, 46 and 255; logical comparisons and UTF-8 column metadata retain
+collation 309. Attributes are ignored only after validating at most 4096 bytes,
+32 pairs and 1024 bytes per name/value. Authentication proof length is zero or
+32 bytes; the full password follows only after TLS and an explicit auth request.
+
+`Backend` emits bounded HandshakeV10, prepare, metadata, text/binary rows,
+classified errors and negotiated EOF/OK frames. A binary result bitmap reserves
+the first two bits. Non-SQL NULL states fail encoding. Sequence numbers wrap
+modulo 256 only after a complete packet is built; failure clears the packet.
+Replies report autocommit status without a transaction or subsequent results.
+Affected rows use lossless length-encoded uint64; last-insert ID and warnings are
+zero because no such observations are supplied by the native Table result.
+
 Classic packets carry payload length:u24 little-endian and sequence:u8. The
 caller supplies the expected sequence for the current authentication/command
 exchange. A mismatch rejects before allocation. Complete messages borrow payloads

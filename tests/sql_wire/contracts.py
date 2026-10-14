@@ -40,6 +40,7 @@ def main():
     fixtures['transit-sql-gateway/src/fixtures/records.json'] = records()
     fixtures['transit-sql-gateway/src/fixtures/controls.json'] = controls()
     fixtures['transit-postgres/src/fixtures/backend.json'] = postgres_backend()
+    fixtures['transit-mysql/src/fixtures/backend.json'] = mysql_backend()
     for protocol in ('postgres', 'mysql'):
         fixtures[f'transit-{protocol}/src/fixtures/scalars.json'] = scalars(protocol)
     for name, fixture in fixtures.items():
@@ -112,6 +113,39 @@ def postgres_backend():
         failure=frame('E', b'SERROR\0VERROR\0C57014\0MRequest cancelled\0\0'),
         negotiate=frame('v', struct.pack('>II', 0, 1)+b'_pq_.unsupported\0'),
     )
+
+
+def mysql_backend():
+    def frame(body, sequence=1):
+        return (len(body).to_bytes(3, 'little') + bytes([sequence]) + body).hex()
+    def string(value):
+        return length(len(value)) + value
+    specs = [('n', 63, 20, 8, 33, 0), ('label', 309, 4202496, 253, 0, 0),
+             ('bytes', 63, 4202496, 252, 129, 0), ('f', 63, 22, 5, 1, 31),
+             ('b', 63, 1, 1, 33, 0), ('i', 63, 20, 8, 1, 0)]
+    metadata = [frame(b'\x03def\0\0\0'+string(name.encode())+b'\0\x0c'+
+                      struct.pack('<HIBHB', charset, size, code, flags, decimals)+b'\0\0')
+                for name, charset, size, code, flags, decimals in specs]
+    flags = sum(1 << bit for bit in [0, 1, 2, 3, 9, 11, 15, 19, 20, 21, 24])
+    nonce = bytes(range(1, 21))
+    greeting = (b'\x0a8.4.0-Transit\0'+struct.pack('<I', 42)+nonce[:8]+b'\0'+
+                struct.pack('<HBHHB', flags & 65535, 255, 2, flags >> 16, 21)+bytes(10)+
+                nonce[8:]+b'\0caching_sha2_password\0')
+    header = struct.pack('<IIB', flags, 16777216, 255) + bytes(23)
+    attributes = string(b'_client_name') + string(b'fixture')
+    return dict(metadata=metadata,
+                binary_row=frame(b'\0\x08'+struct.pack('<Q', 2**64-1)+string(b'a\0\xff')+
+                                 struct.pack('<dBq', -1.25, 1, -2**63)),
+                text_row=frame(string(b'18446744073709551615')+b'\xfb'+string(b'a\0\xff')+
+                               string(b'-1.25')+string(b'1')+string(b'-9223372036854775808')),
+                maximum_ok=frame(b'\0'+length(2**64-1)+b'\0\x02\0\0\0'),
+                eof=frame(b'\xfe\0\0\x02\0'),
+                terminator=frame(b'\xfe\0\0\x02\0\0\0'),
+                prepared=frame(b'\0'+struct.pack('<IHHBH', 42, 6, 2, 0, 0)),
+                failure=frame(b'\xff'+struct.pack('<H', 1317)+b'#70100Request cancelled'),
+                greeting=frame(greeting, 0), full_auth=frame(b'\x01\x04'),
+                upgrade=header.hex(),
+                response=(header+b'user\0'+string(bytes([3])*32)+b'database\0caching_sha2_password\0'+string(attributes)).hex())
 
 
 def controls():
