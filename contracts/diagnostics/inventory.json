@@ -2266,6 +2266,7 @@
     },
     "apps/transit-sql-gateway/src/Control.zig": {
       "errors": {
+        "Conflict": 1,
         "ExpectedControlArguments": 4,
         "FileNotFound": 1,
         "GatewayControlInUse": 1,
@@ -2279,23 +2280,27 @@
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayLimits": 1,
         "InvalidGatewayPrepared": 1,
-        "InvalidGatewayTerminal": 1
+        "InvalidGatewayTerminal": 1,
+        "Rejected": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "command()": "<inferred>",
+        "fresh()": "<inferred>",
+        "list()": "<inferred>",
         "loadPending()": "<inferred>",
         "number()": "<inferred>",
         "print()": "<inferred>",
         "run()": "<inferred>",
         "save()": "<inferred>",
+        "status()": "<inferred>",
         "terminal()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
-        "catch": 1
+        "try": 61,
+        "catch": 2
       },
       "imports": [
         "std",
@@ -15504,6 +15509,7 @@
         "Prepared.command()": "<inferred>",
         "Prepared.restore()": "<inferred>",
         "Prepared.save()": "<inferred>",
+        "cachedSource()": "<inferred>",
         "prepare()": "<inferred>",
         "progress()": "<inferred>",
         "role()": "<inferred>",
@@ -15513,7 +15519,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -15662,7 +15668,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 40,
         "catch": 0
       },
       "imports": [

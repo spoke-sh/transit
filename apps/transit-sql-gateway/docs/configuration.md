@@ -121,6 +121,12 @@ the SQL operation's terminal state. The pending file is locked during mutations.
 Inspection never sends or reconciles. A cursor pins one ledger revision; changes
 invalidate it explicitly, requiring a new first page. Retained history has no
 automatic expiry.
+List/status observations retry a concurrent current-revision read conflict within
+the configured timeout, before printing a result. They do not advance a supplied
+cursor to another revision. Terminal inspection batches finite intent reads and
+checks the original Table result under current rights. A SQL command can exhaust
+its wait while an admitted operation continues; discover and inspect that
+operation instead of sending the SQL again.
 
 The credential command reads 1–128 printable ASCII bytes exactly, without
 stripping a newline, uses secure random salt and 65536 PBKDF2 iterations, and

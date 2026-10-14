@@ -81,7 +81,8 @@ const Entry = struct {
 fn terminal(init: std.process.Init, client: *g.Client, source: anytype, item: g.LedgerRecords.Operation, key: p.Ed25519.KeyPair) !?g.Terminal {
     if (item.phase != .terminal) return null;
     const ledger = client.ledger;
-    const bytes = try g.Upload.read(init.gpa, ledger.publication(item.id), source, 1, ledger.configuration.intent_bytes);
+    var cached = try client.cachedSource(source.view.revision);
+    const bytes = try g.Upload.read(init.gpa, ledger.publication(item.id), &cached, 1, ledger.configuration.intent_bytes);
     defer init.gpa.free(bytes);
     defer std.crypto.secureZero(u8, bytes);
     var intent = try g.catalog.TableIntent.restore(init.gpa, bytes);
@@ -93,6 +94,31 @@ fn terminal(init: std.process.Init, client: *g.Client, source: anytype, item: g.
     const saved = try g.LedgerRecords.decode(g.Terminal, (try source.read(g.LedgerRecords.key('t', item.id, 0))) orelse return error.InvalidGatewayTerminal);
     if (!std.meta.eql(saved, actual)) return error.GatewayIdentityConflict;
     return actual;
+}
+fn list(client: *g.Client, cursor: ?g.Ledger.Cursor) !g.Ledger.Page {
+    var source = try client.source();
+    return client.ledger.list(&source, cursor);
+}
+const Status = struct { operation: Entry, terminal: ?g.Terminal };
+fn status(init: std.process.Init, client: *g.Client, id: u64, key: p.Ed25519.KeyPair) !Status {
+    var source = try client.source();
+    const item = try client.ledger.operation(&source, id);
+    return .{ .operation = Entry.from(item), .terminal = try terminal(init, client, &source, item, key) };
+}
+// A concurrent ledger turn can invalidate a current-revision metadata read.
+// Retry only the observation before printing any output. Caller-supplied page
+// cursors still reject on revision change; controls and signatures never retry
+// through this path.
+fn fresh(init: std.process.Init, client: *g.Client, timeout_ms: u32, comptime function: anytype, arguments: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+    const deadline: g.AccountRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = timeout_ms };
+    while (true) {
+        try deadline.check(init.io);
+        return @call(.auto, function, arguments) catch |err| {
+            if ((err != error.Rejected and err != error.Conflict) or client.transport.last_rejection != .StaleStateResource) return err;
+            try init.io.sleep(.fromMilliseconds(5), .awake);
+            continue;
+        };
+    }
 }
 pub fn run(init: std.process.Init, args: []const []const u8) !void {
     if (args.len < 2) return error.ExpectedControlArguments;
@@ -111,6 +137,7 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
     if (!std.mem.eql(u8, &table_key.public_key.toBytes(), &config.ledger.table_public_key)) return error.GatewayIdentityConflict;
     var wire = g.station.client.Client.init(init.gpa, init.io, config.native_url);
     defer wire.deinit();
+    errdefer if (wire.last_rejection) |cause| std.debug.print("Native rejection: {s}\n", .{@tagName(cause)});
     var client: g.Client = .{ .transport = &wire, .ledger = .{ .configuration = config.ledger }, .principal = config.ledger.control, .key = control_key };
     const action = args[1];
     if (std.mem.eql(u8, action, "list") and (args.len == 2 or args.len == 3)) {
@@ -122,8 +149,7 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
             defer value.deinit();
             cursor = value.value;
         }
-        var source = try client.source();
-        const page = try client.ledger.list(&source, cursor);
+        const page = try fresh(init, &client, config.timeout_ms, list, .{ &client, cursor });
         var entries: [native.page_size]Entry = undefined;
         var count: usize = 0;
         for (page.entries) |slot| if (slot) |item| {
@@ -133,9 +159,7 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
         return print(init, .{ .entries = entries[0..count], .next = page.next, .revision = page.revision });
     }
     if (std.mem.eql(u8, action, "status") and args.len == 3) {
-        var source = try client.source();
-        const item = try client.ledger.operation(&source, try number(args, 2));
-        return print(init, .{ .operation = Entry.from(item), .terminal = try terminal(init, &client, &source, item, table_key) });
+        return print(init, try fresh(init, &client, config.timeout_ms, status, .{ init, &client, try number(args, 2), table_key }));
     }
     if (std.mem.eql(u8, action, "credential") and args.len == 5) {
         const password = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(g.Authentication.max_password_bytes));

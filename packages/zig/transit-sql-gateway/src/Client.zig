@@ -49,6 +49,13 @@ pub fn reader(self: *Self) wire.ResourceReader {
 pub fn source(self: *Self) !wire.ResourceReader.Reader {
     return self.reader().open(self.ledger.configuration.resource);
 }
+/// Bounded scratch at an already observed revision; no retained permission or
+/// snapshot. Used for finite publication reads, with fresh native disclosure
+/// checks still owned by their caller.
+pub fn cachedSource(self: *Self, revision: u64) !wire.ResourceReader.Cached(wire.ResourceReader.Batches) {
+    const batches = try self.reader().batches();
+    return batches.cached(try batches.read(self.ledger.configuration.resource, revision, &.{g.LedgerRecords.key('h', 0, 0)}));
+}
 fn role(self: *Self, command: g.Control.Command) !void {
     const config = self.ledger.configuration;
     const expected = switch (command) {
