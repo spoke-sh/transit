@@ -158,7 +158,7 @@ pub fn resources(self: *Self) wire.ResourceReader {
 }
 pub fn authorizationContext(self: *Self) !c.TableAuthority.Context {
     if (self.authority) |value| {
-        _ = try value.authorizationSubject(self.connection.principal, self.connection.owner);
+        _ = try value.authorizationSubject(self.connection.principal);
         return value;
     }
     const native: wire.AuthorizationClient = .{ .transport = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
@@ -194,8 +194,8 @@ const Source = struct {
     cache: wire.ResourceReader.Cached(wire.ResourceReader.Batches),
     reader: wire.ResourceReader.Reader,
     view: @FieldType(wire.ResourceReader.Reader, "view"),
-    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-        return self.authority.authorizationSubject(who, audience);
+    pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+        return self.authority.authorizationSubject(who);
     }
     pub fn requireAuthorization(self: *@This(), requested: p.Authorization.Guard) !p.Authorization.Verified {
         const response = try self.authority.observe(requested);

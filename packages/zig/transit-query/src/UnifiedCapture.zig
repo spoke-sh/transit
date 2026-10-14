@@ -135,6 +135,7 @@ fn startWitness(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem
     const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(reference, source, peer);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try bundle.bindSubject(turn, peer, reference.resource, principal);
     try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
     const captured = q.UnifiedSource.captureDiagnostic(bundle.source, turn, turn, principal, allocator, witness) catch |err| return allocationFailure(err, bounded, turn);
     const bound = try bundle.bind(try captured.fingerprint());
@@ -207,6 +208,7 @@ fn advanceWitness(turn: *Turn, continuation: r.Continuation, source: anytype, al
     const bundle = q.Bundle.decode(allocator, request_bytes) catch |err| return allocationFailure(err, bounded, turn);
     try q.Bundle.checkPublisher(stored.request, source, stored.destination);
     const principal = try matches(bundle, grant, turn.view.resource, witness);
+    try bundle.bindSubject(turn, stored.destination, stored.request.resource, principal);
     try q.UnifiedSource.checkCurrentDiagnostic(bundle.source, turn, principal, witness);
     const previous = try checkpoint(turn, stored.id);
     const bound = try previous.bound(bundle);

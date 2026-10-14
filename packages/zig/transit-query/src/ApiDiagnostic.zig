@@ -25,7 +25,7 @@ pub fn project(action: q.Bridge.Action, cause: anyerror, binding: q.fuze.Sql.Bin
     }
     const stage: d.Stage = switch (action) {
         .compile => .compile,
-        .prepare, .next => .prepare,
+        .authorize, .prepare, .next => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };

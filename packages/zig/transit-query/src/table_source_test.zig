@@ -220,12 +220,16 @@ test "complete composite key predicates seek one row and still bind the captured
             pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
                 return self.source.read(key);
             }
-            pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !q.protocol.Authorization.Subject {
-                return self.source.authorizationSubject(who, audience);
+            pub fn authorizationSubject(self: *@This(), who: u64) !q.protocol.Authorization.Subject {
+                return self.source.authorizationSubject(who);
             }
             pub fn requireAuthorization(self: *@This(), guard: q.protocol.Authorization.Guard) !q.protocol.Authorization.Verified {
-                self.checks += 1;
-                if (self.checks > 4) return error.AccessDenied;
+                for (guard.requirements) |slot| if (slot) |requirement| {
+                    if (requirement.object.id != c.testing.Authority.profile.database and requirement.object.id != c.testing.Authority.profile.initial_schema_authority and requirement.privileges == c.TableAuthority.select) {
+                        self.checks += 1;
+                        if (self.checks == 2) return error.AccessDenied;
+                    }
+                };
                 return self.source.requireAuthorization(guard);
             }
         };
@@ -233,7 +237,7 @@ test "complete composite key predicates seek one row and still bind the captured
         // Permission disappears after the initial gate. Both a populated page
         // and empty point completion must fail before exposing owned output.
         try e.expectError(error.CatalogDenied, source.source.page(e.allocator, basis, try Source.Cursor.start(basis), compiled.plan, &current, &live, 17));
-        try e.expectEqual(@as(usize, 5), live.checks);
+        try e.expectEqual(@as(usize, 2), live.checks);
     }
 }
 
@@ -340,7 +344,7 @@ test "embedded source plan and literal decoding share one request arena with exa
     try e.expectError(error.IncompatibleDefinition, Source.decodeInto(empty.allocator(), declaration));
 }
 
-test "interactive authorization uses its original key mapping without a second policy read" {
+test "interactive metadata cannot authenticate a configured principal as its caller" {
     var store: Store = .{};
     defer store.deinit();
     try create(&store, "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT)");
@@ -355,7 +359,6 @@ test "interactive authorization uses its original key mapping without a second p
     var requests: [g.SnapshotRead.current_resources]?g.SnapshotRead.Current = .{ .{ .resource = 7, .keys = @splat(null) }, .{ .resource = 10, .keys = @splat(null) } };
     requests[0].?.keys[0] = q.UnifiedRecords.key('p', 8, 0);
     requests[0].?.keys[1] = c.Records.key(config.scope.catalog, 'c', 0, 0);
-    requests[0].?.keys[2] = c.Records.key(config.scope.catalog, 'p', 17, 0);
     requests[1].?.keys[0] = q.UnifiedRecords.key('w', 0, 0);
     var current = try turn(&store);
     var grant: q.UnifiedRecords.Policy = .{ .peer = 8, .requests = 10, .revision = 1, .allow = true, .limits = .{ .pages = 8, .segments = 8, .result_bytes = 65536 }, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } };
@@ -368,19 +371,14 @@ test "interactive authorization uses its original key mapping without a second p
     std.mem.writeInt(u64, requester[4..12], 23, .little);
     std.mem.writeInt(u64, requester[12..20], config.owner, .little);
     result.current[1].?.entries[0] = .{ .key = requests[1].?.keys[0].?, .value = try p.Value.init(&requester), .revision = 1 };
-    const allowed = try client.interactiveDescription(source, requests, result);
-    try e.expectEqual(current.view.revision, allowed.resource_revision);
-    // A new mapping at acquisition cannot borrow the formerly requested
-    // principal's policy. In particular, no later network read repairs it.
+    // Even an allowed native requester policy is not the caller's Table
+    // identity. Rejection precedes any credential or network access.
+    try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
     grant.target.catalog.principal = 42;
     result.current[0].?.entries[0].?.value = try grant.encode();
-    try e.expectError(error.UnrequestedResourceKey, client.interactiveDescription(source, requests, result));
+    try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
     grant.target.catalog.principal = 17;
     grant.allow = false;
     result.current[0].?.entries[0].?.value = try grant.encode();
     try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
-    grant.allow = true;
-    result.current[0].?.entries[0].?.value = try grant.encode();
-    result.current[0].?.entries[2] = null;
-    try e.expectError(error.CatalogDenied, client.interactiveDescription(source, requests, result));
 }

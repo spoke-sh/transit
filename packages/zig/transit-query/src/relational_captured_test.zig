@@ -105,7 +105,8 @@ test "captured self join retains one exact guarded cut and rejects schema identi
     try t.expectError(error.InvalidReadVersion, turn.openVersion(vector.entries[0].version));
 }
 
-fn admission(store: *Store, bundle: Bundle, expected_failure: ?anyerror) !void {
+fn admission(store: *Store, description: Bundle, expected_failure: ?anyerror) !void {
+    const bundle = try Store.signQuery(description, 17, store.pid, 3, store.resource);
     const records = q.RelationalRecords;
     const capture = q.RelationalCapture;
     var turn = try tables.turn(store);

@@ -34,6 +34,9 @@ pub const Action = union(enum) {
     describe: c.Source,
     inspect: q.SqlInspection.Request,
     compile: q.SqlCompilation.Request,
+    /// Seal a newly constructed canonical bundle once. Saved/accepted bundles
+    /// already carry their proof and must never be resigned during recovery.
+    authorize: []const u8,
     prepare: Command,
     next: struct { namespace: []const u8, bundle: []const u8 },
     submit: []const u8,
@@ -120,6 +123,7 @@ pub const Result = union(enum) {
     description: Description,
     inspection: q.SqlInspection.Result,
     compiled: q.SqlCompilation.Result,
+    authorized: []const u8,
     prepared: ?[]const u8,
     receipt: p.Receipt,
     observation: q.UnifiedClient.Observation,
@@ -149,6 +153,15 @@ pub fn applyDiagnostic(alloc: Allocator, client: *q.UnifiedClient, action: Actio
         .sql_capabilities => return .{ .sql_capabilities = .{} },
         .inspect => |request| return .{ .inspection = try q.SqlInspection.applyDiagnostic(alloc, client, request, detail) },
         .compile => |request| return .{ .compiled = try q.SqlCompilation.applyDiagnostic(alloc, client, request, detail) },
+        .authorize => |encoded| {
+            const description = try q.Bundle.decode(alloc, try c.unhex(alloc, encoded, q.Bundle.max_bytes));
+            if (description.authorization != null) return error.QueryAlreadyAuthorized;
+            const current = try client.describe(description.source);
+            if (!current.limits.permits(description.limits)) return error.QueryBudgetExceeded;
+            const bundle = try client.authorizeBundle(description);
+            var bytes: [q.Bundle.max_bytes]u8 = undefined;
+            return .{ .authorized = try a.hex(alloc, try bundle.encode(&bytes)) };
+        },
         .describe => |v| {
             const result = try client.describe(try v.native(alloc));
             return .{ .description = .{ .capabilities = result.capabilities, .source = try c.Source.fromNative(alloc, result.definition), .resource_revision = result.resource_revision, .policy_revision = try a.decimal(alloc, result.policy_revision), .limits = try c.Limits.fromNative(alloc, result.limits), .active = if (result.active) |id| try a.decimal(alloc, id) else null } };

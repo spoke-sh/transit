@@ -42,8 +42,8 @@ cache_next: usize = 0,
 pub const Committed = struct {
     turn: *Turn,
     view: View,
-    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-        return self.turn.authorizationSubject(who, audience);
+    pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who);
     }
     pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
         return self.turn.requireAuthorization(guard);
@@ -85,13 +85,13 @@ pub fn bindAuthorizationSubject(self: *Turn, subject: p.Authorization.Subject) !
     if (self.authorization_subject) |previous| if (!std.meta.eql(previous, subject)) return error.InvalidAuthorizationCredential;
     self.authorization_subject = subject;
 }
-pub fn authorizationSubject(self: *Turn, who: u64, audience: u64) !p.Authorization.Subject {
+pub fn authorizationSubject(self: *Turn, who: u64) !p.Authorization.Subject {
     if (self.authorization_subject == null) {
         if (self.delivery.input.origin != .external) return error.AccessDenied;
         try self.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .principal = self.delivery.input.origin.external.principal } });
     }
     const subject = self.authorization_subject.?;
-    if (subject.principal() != who or subject.audience() != audience) return error.AccessDenied;
+    if (subject.principal() != who) return error.AccessDenied;
     return subject;
 }
 /// An uploaded operation keeps its authenticated first admission across the
@@ -138,8 +138,8 @@ pub const Retained = struct {
     cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
     cache_view: ?p.Growth.ReadVersion = null,
     cache_next: usize = 0,
-    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-        return self.turn.authorizationSubject(who, audience);
+    pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who);
     }
     pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
         return self.turn.requireAuthorization(guard);
@@ -239,8 +239,8 @@ pub const Captured = struct {
         self.turn.read_error = error.InvalidStateView;
         return error.InvalidStateView;
     }
-    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-        return self.turn.authorizationSubject(who, audience);
+    pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who);
     }
     pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
         return self.turn.requireAuthorization(guard);

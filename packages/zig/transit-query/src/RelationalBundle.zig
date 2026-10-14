@@ -8,10 +8,11 @@ const Pub = q.station.Publication;
 const Ref = q.station.PublicationReference;
 const Self = @This();
 pub const format: u32 = 0x31425152;
-pub const max_bytes = 42 + f.RelationalCodec.max_bytes + r.max_sources * (4 + q.TableSource.max_bytes);
+pub const max_bytes = 43 + q.QueryAuthorization.encoded_bytes + f.RelationalCodec.max_bytes + r.max_sources * (4 + q.TableSource.max_bytes);
 consistency: q.RelationalTables.Consistency = .per_resource_snapshot_vector,
 plan: r.Plan,
 sources: []const q.TableSource,
+authorization: ?q.QueryAuthorization = null,
 pub const Owned = struct {
     arena: std.heap.ArenaAllocator,
     bundle: Self,
@@ -21,6 +22,7 @@ pub const Owned = struct {
     }
 };
 pub fn validate(self: Self) !void {
+    if (self.authorization) |value| try value.validate();
     try self.plan.validate();
     if (self.consistency != .per_resource_snapshot_vector) return error.UnsupportedRelationalConsistency;
     if (self.plan.lifetime == .interactive or self.sources.len != self.plan.sources.len) return error.InvalidRelationalSources;
@@ -41,6 +43,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     const encoded = try f.RelationalCodec.encode(self.plan, &plan_bytes);
     try writer.writeInt(u32, @intCast(encoded.len), .little);
     try writer.writeAll(encoded);
+    try q.QueryAuthorization.write(self.authorization, &writer);
     var source_bytes: [q.TableSource.max_bytes]u8 = undefined;
     for (self.sources) |source| {
         const bytes = try source.encode(&source_bytes);
@@ -64,14 +67,37 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     const count = try reader.takeByte();
     if (count == 0 or count > r.max_sources) return error.InvalidRelationalSources;
     const plan = try f.RelationalCodec.decodeInto(arena, try reader.take(try reader.takeInt(u32, .little)));
+    const authorization = try q.QueryAuthorization.read(&reader);
     const sources = try arena.alloc(q.TableSource, count);
     for (sources) |*source| source.* = try q.TableSource.decodeInto(arena, try reader.take(try reader.takeInt(u32, .little)));
     if (reader.bufferedLen() != 0) return error.InvalidQueryBundle;
-    const result: Self = .{ .plan = plan, .sources = sources };
+    const result: Self = .{ .plan = plan, .sources = sources, .authorization = authorization };
     try result.validate();
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try result.encode(&canonical))) return error.InvalidQueryBundle;
     return result;
+}
+fn unsigned(self: Self, output: []u8) ![]const u8 {
+    var description = self;
+    description.authorization = null;
+    return description.encode(output);
+}
+pub fn authorize(self: Self, client: q.wire.AuthorizationClient, audience: u64, requester: u64, requests: u64) !Self {
+    if (self.authorization != null) return error.QueryAlreadyAuthorized;
+    var bytes: [max_bytes]u8 = undefined;
+    var result = self;
+    result.authorization = try q.QueryAuthorization.prepare(client, audience, requester, requests, try self.unsigned(&bytes));
+    return result;
+}
+pub fn subject(self: Self, audience: u64, requester: u64, requests: u64) !q.protocol.Authorization.Subject {
+    const authorization = self.authorization orelse return error.QueryDenied;
+    var bytes: [max_bytes]u8 = undefined;
+    return authorization.subject(audience, requester, requests, try self.unsigned(&bytes));
+}
+pub fn bindSubject(self: Self, turn: *q.station.Turn, requester: u64, requests: u64, expected: u64) !void {
+    const original = try self.subject(turn.delivery.pid, requester, requests);
+    if (original.principal() != expected) return error.QueryDenied;
+    try turn.bindAuthorizationSubject(original);
 }
 pub fn fingerprint(self: Self) ![32]u8 {
     var bytes: [max_bytes]u8 = undefined;
@@ -88,7 +114,7 @@ pub fn reference(self: Self, resource: u64, namespace: u64) !Ref {
 }
 pub fn checkReference(ref: Ref) !void {
     try ref.validate();
-    if (ref.domain != .query_request or ref.record != 1 or ref.spec.format != format or ref.spec.length < 42 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
+    if (ref.domain != .query_request or ref.record != 1 or ref.spec.format != format or ref.spec.length < 43 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
 }
 pub fn checkPublisher(ref: Ref, source: anytype, peer: u64) !void {
     try checkReference(ref);

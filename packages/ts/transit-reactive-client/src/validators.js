@@ -6,7 +6,7 @@ export const Diagnostic = validate52;
 const schema19 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"$ref":"https://transit.invalid/generated-validator/0"},"code":{"type":"string","maxLength":96},"category":{"$ref":"https://transit.invalid/generated-validator/1"},"stage":{"$ref":"https://transit.invalid/generated-validator/2"},"outcome":{"$ref":"https://transit.invalid/generated-validator/3"},"evidence":{"$ref":"https://transit.invalid/generated-validator/4"},"message":{"type":"string","maxLength":384},"cause":{"$ref":"https://transit.invalid/generated-validator/5"},"identity":{"$ref":"https://transit.invalid/generated-validator/10"},"location":{"anyOf":[{"$ref":"https://transit.invalid/generated-validator/13"},{"type":"null"}]},"facts":{"type":"array","minItems":16,"maxItems":16,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"field":{"$ref":"https://transit.invalid/generated-validator/14"},"origin":{"$ref":"https://transit.invalid/generated-validator/15"},"availability":{"$ref":"https://transit.invalid/generated-validator/16"},"value":{"anyOf":[{"oneOf":[{"$ref":"https://transit.invalid/generated-validator/17"},{"$ref":"https://transit.invalid/generated-validator/19"},{"$ref":"https://transit.invalid/generated-validator/20"},{"$ref":"https://transit.invalid/generated-validator/21"},{"$ref":"https://transit.invalid/generated-validator/24"},{"type":"object","additionalProperties":false,"required":["location"],"properties":{"location":{"$ref":"https://transit.invalid/generated-validator/13"}}}]},{"type":"null"}]}},"required":["field","origin","availability","value"]},{"type":"null"}]}},"actions":{"type":"array","minItems":4,"maxItems":4,"items":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"kind":{"$ref":"https://transit.invalid/generated-validator/25"},"target":{"$ref":"https://transit.invalid/generated-validator/10"}},"required":["kind","target"]},{"type":"null"}]}}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
 const func1 = Object.prototype.hasOwnProperty;
 const func2 = ucs2length;
-const schema20 = {"type":"string","enum":["3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51"]};
+const schema20 = {"type":"string","enum":["38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727"]};
 
 function validate53(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22,7 +22,7 @@ if(typeof data !== "string"){
 validate53.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-if(!(data === "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51")){
+if(!(data === "38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727")){
 validate53.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema20.enum},message:"must be equal to one of the allowed values"}];
 return false;
 }

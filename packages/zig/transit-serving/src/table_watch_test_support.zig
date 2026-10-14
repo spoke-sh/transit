@@ -80,8 +80,8 @@ pub const Reader = struct {
         const next = try store.capture();
         return .{ .store = store, .turn = next, .view = next.view };
     }
-    pub fn authorizationSubject(self: *Reader, who: u64, audience: u64) !p.Authorization.Subject {
-        return self.store.authorizationSubject(who, audience);
+    pub fn authorizationSubject(self: *Reader, who: u64) !p.Authorization.Subject {
+        return self.store.authorizationSubject(who);
     }
     pub fn requireAuthorization(self: *Reader, guard: p.Authorization.Guard) !p.Authorization.Verified {
         try self.check();

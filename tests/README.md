@@ -86,6 +86,38 @@ is in progress; the broader repository unit run still has query-subject failures
 The full check and committed-HEAD clean suite have not passed this slice. Durations
 include provisioning and are not query latency or throughput measurements.
 
+## Original caller proofs in durable Table queries
+
+On 2026-10-14, `nix develop -c zsh -c 'cd packages/zig/transit-query &&
+zig build test --summary all'` passes **129/129 tests** on dirty `e3abdf88`,
+under shared definition
+`38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727`.
+The proof binds canonical query bytes, coordinator, requester PID and request
+resource. Tests reject absent proofs, modified queries and routes, invalid
+signatures, changed credential epochs and changed roles before source retention.
+Captured and maintained transitions retain the original signed request across
+recomputation and release; current Table revocation still blocks result pages
+and empty completion. The shared in-memory authority now verifies fixture
+signatures instead of accepting a signed principal field alone.
+
+These are package tests with injected authorization/storage, not a new native
+disk or installed-service proof. The first repository unit run after the format
+change passes 1101/1116 tests and fails 15 old consumer fixtures in Board,
+Station applications and Serving. After migration, focused runs pass **13/13 Board API**, **45/45 Station
+application** and **48/48 Serving** tests. The Serving run also exposed an
+earlier Table-not-found failure boundary; its diagnostic now preserves the
+actual missing Table witness. The CLI, query host and Table service build. Protocol adapters, original-subject watch/refresh transport,
+installed workflows and the full check/clean-source run remain separate gates.
+
+After the fixture and witness corrections, `nix develop -c just test::unit`
+passes on the same dirty source. `just test::authorization-tables` also passes
+again in **120.834 s** with the new definition. Its
+[separate retained report](verification/results/authorization-tables-query-subject-2026-10-14.json)
+records the executable hashes and the same two-service/one-authority-store
+restart schedule. This rechecks the actual restricted Table boundary after the
+subject-reader refactor; it does not turn the injected durable-query cases into
+native durable-query or installed-adapter evidence.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

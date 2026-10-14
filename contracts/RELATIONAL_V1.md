@@ -246,22 +246,31 @@ Neither runtime nor distributed qualification follows from the local contract.
 
 `transit-query.RelationalBundle` (`RQB1`, publication format `0x31425152`)
 contains the shared definition, explicit per-resource-vector tag 1, one-byte
-source count, uint32-length-prefixed `FRP1`, and one uint32-length-prefixed `TQS1`
-Table declaration per source. It carries exact catalog metadata references in
+source count, uint32-length-prefixed `FRP1`, an authorization-presence byte,
+the 185-byte [original caller proof](UNIFIED_QUERY_V1.md#larger-requests-and-durable-publication)
+when present, and one uint32-length-prefixed `TQS1` Table declaration per source.
+Unsigned descriptions can be encoded, but admission requires the signed proof.
+The context binds the canonical unsigned `RQB1` bytes, intended requester and
+request resource; the audience is the coordinator, not each source owner. It carries exact catalog metadata references in
 addition to the complete schemas and stable columns. Matching logical row types
 alone cannot substitute a different Table schema identity. Its SHA-256 identity
 uses domain `transit.query.relational.request.v1`, NUL, then the complete bytes.
 
 `RelationalCapture` admits an authenticated Station call whose payload is the
 request's Publication reference. A committed coordinator policy maps the calling
-PID to the request resource, exact bundle fingerprint, catalog principal and
-policy revision. The coordinator is the first Table owner and mutates that
+PID to the request resource, exact bundle fingerprint, expected original
+principal and policy revision. The proof authenticates that principal; the policy
+is only a constraint on an authenticated subject. The coordinator is the first Table owner and mutates that
 Table's native resource only. Its host registers the request and other source
 resources as additional read views. This consumes at most three distinct retained
 versions: one request artifact and two data resources; aliases and the request
 reuse a pin when they share a resource. `source_pins` budgets the data resources.
-Every catalog's inspect/read policy is checked, and current-resource revision
-guards fence those checks at admission and checkpoint/result publication.
+CONNECT, schema USAGE and Table SELECT are checked for every source, including
+aliases and sources that contribute no output. Current-resource revision guards
+and a native authorization guard fence admission and checkpoint/result
+publication. Result readers recheck the union of source requirements before
+disclosure and completion. Their request allowance includes authorization and
+current Table metadata reads, alongside snapshot reads.
 
 Admission commits four native values: job, source vector, peer/correlation index
 and Publication budget. It retains the request and all source cuts in the same

@@ -214,8 +214,8 @@ test "listing validates live identity without acquiring schema or row bytes" {
         turn: *s.Turn,
         view: p.Growth.View,
         blocked: p.Value,
-        pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-            return self.turn.authorizationSubject(who, audience);
+        pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+            return self.turn.authorizationSubject(who);
         }
         pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
             return self.turn.requireAuthorization(guard);
@@ -1110,8 +1110,8 @@ test "command basis resolves accepted historical schema after DROP with current 
         count: usize = 0,
         batches: usize = 0,
         fail_batch: ?usize = null,
-        pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
-            return self.store.authorizationSubject(who, audience);
+        pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+            return self.store.authorizationSubject(who);
         }
         pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
             return self.store.requireAuthorization(guard);

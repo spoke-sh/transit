@@ -124,6 +124,7 @@ pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, workspac
     const bundle = try q.RelationalBundle.decodeInto(fixed.allocator(), try readBody(stored.request, &retained, &bytes));
     try memory(bundle, workspace, true);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    try bundle.bindSubject(turn, stored.peer, stored.request.resource, grant.principal);
     var history = try History.open(turn, fixed.allocator(), bundle, grant.principal, try readBasis(turn, bundle, stored), 1);
     var inputs: Exchanged = .{ .reader = turn, .authority = &history, .id = exchange, .bound = history.bound() };
     try inputs.validate(history.bound());
@@ -155,6 +156,7 @@ pub fn start(turn: *Turn, request: Ref, workspace: []u8) !r.Head {
     if (bundle.plan.lifetime != .maintained) return error.InvalidRelationalHistory;
     try memory(bundle, workspace, try exchangeSelected(turn, identity, request));
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    try bundle.bindSubject(turn, peer, request.resource, grant.principal);
     if (bundle.sources[0].scope.resource != turn.view.resource or bundle.sources[0].owner != turn.delivery.pid) return error.RelationalSourceChanged;
     if ((try request.publication().inspect(&current, request.record)).publisher != peer) return error.UnexpectedQueryPublisher;
     try current.requireCurrent();
@@ -252,6 +254,7 @@ fn advanceInner(turn: *Turn, stored: r.Head, workspace: []u8, waking: bool) !Adv
     const exchanged = try exchangeSelected(turn, stored.identity(), stored.request);
     try memory(bundle, workspace, exchanged);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    try bundle.bindSubject(turn, stored.peer, stored.request.resource, grant.principal);
     const previous = try manifest(turn, bundle, stored);
     if (waking) {
         const next = (try History.successor(turn, bundle, grant.principal, previous.?.vector, stored.preference)) orelse return .idle;

@@ -263,16 +263,17 @@ pub const Bundle = struct {
     source: Source,
     plan: Plan,
     limits: Limits,
+    authorization: ?q.QueryAuthorization = null,
     pub fn native(self: Bundle, alloc: Allocator) !q.Bundle {
         const source = try self.source.native(alloc);
         var fields: [q.SourceDefinition.max_columns]types.Field = undefined;
         const schema = try (try source.schema(&fields)).cloneInto(alloc);
-        const result: q.Bundle = .{ .source = source, .plan = try self.plan.native(alloc, schema, try source.fingerprint()), .limits = try self.limits.native() };
+        const result: q.Bundle = .{ .source = source, .plan = try self.plan.native(alloc, schema, try source.fingerprint()), .limits = try self.limits.native(), .authorization = self.authorization };
         try result.validate();
         return result;
     }
     pub fn fromNative(alloc: Allocator, value: q.Bundle) !Bundle {
-        return .{ .source = try Source.fromNative(alloc, value.source), .plan = try Plan.fromNative(alloc, value.plan), .limits = try Limits.fromNative(alloc, value.limits) };
+        return .{ .source = try Source.fromNative(alloc, value.source), .plan = try Plan.fromNative(alloc, value.plan), .limits = try Limits.fromNative(alloc, value.limits), .authorization = value.authorization };
     }
 };
 pub const Alternative = j.Alternative;

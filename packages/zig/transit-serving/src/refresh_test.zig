@@ -85,7 +85,7 @@ const Rig = struct {
         const limits: q.Bundle.Limits = .{ .pages = 100, .segments = 100, .result_bytes = 1048576 };
         var arena: std.heap.ArenaAllocator = .init(t.allocator);
         defer arena.deinit();
-        const bundle = try q.Bundle.fromSql(arena.allocator(), source, "items", "SELECT * FROM items", limits);
+        const bundle = try q.testing.Store.signQuery(try q.Bundle.fromSql(arena.allocator(), source, "items", "SELECT * FROM items", limits), principal, self.source.pid, self.requests.pid, self.requests.resource);
         try support.delegate(&self.source, 9, 8, limits);
         var turn: s.Turn = undefined;
         turn = try self.requests.capture();

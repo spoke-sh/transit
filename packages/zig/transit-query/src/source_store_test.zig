@@ -20,15 +20,35 @@ authority: Authority = .{},
 const Authority = q.catalog.testing.Authority;
 pub const profile = Authority.profile;
 pub const Rights = Authority.Rights;
+/// Explicit test credential and routing. Call before publishing or fingerprinting
+/// a request; the immutable query is never resigned by upload/recovery helpers.
+pub fn signQuery(description: anytype, principal: u64, audience: u64, requester: u64, requests: u64) !@TypeOf(description) {
+    const Bundle = @TypeOf(description);
+    if (Bundle == q.Bundle) if (description.source.source != .table) return description;
+    if (description.authorization != null) return error.QueryAlreadyAuthorized;
+    var bytes: [Bundle.max_bytes]u8 = undefined;
+    var bundle = description;
+    bundle.authorization = .{ .requester = requester, .requests = requests, .proof = try p.Authorization.Proof.sign(.{
+        .definition = p.Growth.current_definition,
+        .realm = 1,
+        .principal = principal,
+        .credential_epoch = 1,
+        .role = principal,
+        .audience = audience,
+        .context = try q.QueryAuthorization.context(requester, requests, try description.encode(&bytes)),
+    }, try Authority.key(principal)) };
+    return bundle;
+}
 pub fn setRights(self: *Self, rights: Rights) !void {
     try self.authority.setRights(rights);
 }
 pub fn grantObject(self: *Self, principal: u64, object: u64, privileges: u64) !void {
     try self.authority.grantObject(principal, object, privileges);
 }
-pub fn authorizationSubject(self: *Self, who: u64, audience: u64) !p.Authorization.Subject {
+pub fn authorizationSubject(self: *Self, who: u64) !p.Authorization.Subject {
     self.authority.input = self.input;
-    return self.authority.authorizationSubject(who, audience);
+    self.authority.audience = self.pid;
+    return self.authority.authorizationSubject(who);
 }
 pub fn requireAuthorization(self: *Self, guard: p.Authorization.Guard) !p.Authorization.Verified {
     return self.authority.requireAuthorization(guard);

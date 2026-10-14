@@ -293,7 +293,8 @@ test "Table and accepted Document use the same retained capture manifest and cle
                 try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
             }
         }
-        const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits });
+        const bundle = try Store.signQuery(q.Bundle{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
+        const job = try start(&store, &requests, bundle);
         try drive(&store, &requests, job, workspace);
         try verifyComplete(&store, &requests, job, 12, workspace);
         var turn = try store.capture();
@@ -671,7 +672,7 @@ test "admitted Table jobs retain their schema through metadata rename and retire
     var source = try tables.source(&store);
     defer source.deinit();
     const declaration: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = source.source } };
-    const bundle: q.Bundle = .{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits };
+    const bundle = try Store.signQuery(q.Bundle{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
     const job = try start(&store, &requests, bundle);
     var found = try tables.definition(&store);
     defer found.deinit();

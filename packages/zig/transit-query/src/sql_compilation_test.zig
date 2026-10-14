@@ -31,6 +31,9 @@ const ReadOnlyClient = struct {
     deny_at: ?usize = null,
     shrink_at: ?usize = null,
     changed_at: ?usize = null,
+    pub fn authorizeBundle(_: *@This(), bundle: q.Bundle) !q.Bundle {
+        return q.testing.Store.signQuery(bundle, 17, 2, 3, 7);
+    }
     pub fn describe(self: *@This(), source: q.SourceDefinition) !q.UnifiedClient.Description {
         self.reads += 1;
         if (self.deny_at == self.reads) return error.QueryDenied;
@@ -57,10 +60,10 @@ test "neutral compilation fixtures retain exact scalar bytes and ordinary bundle
         const literal = try q.Bundle.fromSql(alloc, definition, case.request.scope.name, case.literal_sql, limits);
         var bytes: [q.Bundle.max_bytes]u8 = undefined;
         const actual = try v.unhex(alloc, result.bundle, q.Bundle.max_bytes);
-        try t.expectEqualSlices(u8, try explicit.encode(&bytes), actual);
-        try t.expectEqualSlices(u8, try literal.encode(&bytes), actual);
+        try t.expectEqualSlices(u8, try (try client.authorizeBundle(explicit)).encode(&bytes), actual);
+        try t.expectEqualSlices(u8, try (try client.authorizeBundle(literal)).encode(&bytes), actual);
         const returned: q.Bundle = .{ .source = try result.source.native(alloc), .plan = try result.plan.native(alloc, schema, try definition.fingerprint()), .limits = try result.limits.native() };
-        try t.expectEqualSlices(u8, try returned.encode(&bytes), actual);
+        try t.expectEqualSlices(u8, try (try client.authorizeBundle(returned)).encode(&bytes), actual);
         try t.expectEqualSlices(u8, &try definition.fingerprint(), &result.contract);
         try t.expectEqualSlices(u8, &try (try definition.schema(&columns)).fingerprint(), &result.schema);
 

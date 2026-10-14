@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.table-scoped-authorization.2026-10-14.
+/// SHA-256 of transit.native.v1.original-query-subject.2026-10-14.
 pub const Definition = enum {
-    @"3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
+    @"38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -809,6 +809,7 @@ test "native responses require the current contract definition even with a v1 la
         "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
         // Role graph before authenticated service claims and publication guards.
         "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
+        "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
         "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9",
     }) |definition| {
         const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";

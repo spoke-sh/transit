@@ -131,9 +131,9 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     defer arena.deinit();
     const alloc = arena.allocator();
     const first_source: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = first.source } };
-    const original = try q.Bundle.fromSql(alloc, first_source, "people", "SELECT * FROM people", limits);
+    const original = try Store.signQuery(try q.Bundle.fromSql(alloc, first_source, "people", "SELECT * FROM people", limits), 17, store.pid, requests.pid, requests.resource);
     const first_job = try admit(&store, &requests, original, 1);
-    const other_job = try admit(&store, &requests, try q.Bundle.fromSql(alloc, .{ .resource = 7, .source = .{ .table = other.source } }, "departments", "SELECT COUNT(*) FROM departments", limits), 2);
+    const other_job = try admit(&store, &requests, try Store.signQuery(try q.Bundle.fromSql(alloc, .{ .resource = 7, .source = .{ .table = other.source } }, "departments", "SELECT COUNT(*) FROM departments", limits), 17, store.pid, requests.pid, requests.resource), 2);
     var reader = try turn(&store);
     var found = try catalog.readDefinition(e.allocator, &reader, 17, first.source.object, first.source.metadata);
     defer found.deinit();
@@ -190,7 +190,7 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     }
     // An empty result still needs current rights. Revocation becomes a durable
     // denial with exact pin release, never successful empty completion.
-    const empty = try q.Bundle.fromSql(alloc, .{ .resource = 7, .source = .{ .table = replacement.source } }, "people", "SELECT * FROM people LIMIT 0", limits);
+    const empty = try Store.signQuery(try q.Bundle.fromSql(alloc, .{ .resource = 7, .source = .{ .table = replacement.source } }, "people", "SELECT * FROM people LIMIT 0", limits), 17, store.pid, requests.pid, requests.resource);
     const empty_job = try admit(&store, &requests, empty, 4);
     var revoked = try c.testing.Authority.Rights.administrator(config.scope, 17);
     revoked.revision = 2;
@@ -218,6 +218,52 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     try e.expectEqual(.catalog_read_denied, closed.failure.?.code);
     try e.expect(store.versions.get(empty_job.source).?.view.released_at != null);
     try e.expectEqual(@as(u64, 0), (try q.UnifiedCapture.checkpoint(&reader, empty_job.id)).progress.segments);
+}
+
+test "Table admission rejects unsigned, altered, stale and misrouted caller proofs before retention" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    var next = try turn(&store);
+    try catalog.initialize(&next);
+    try store.commit(next);
+    var table = try create(&store, 100, 1, "CREATE TABLE items (id INT64)");
+    defer table.deinit();
+    next = try turn(&store);
+    try q.UnifiedCapture.setPolicy(&next, .{ .peer = requests.pid, .requests = requests.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } });
+    try store.commit(next);
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const description = try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items LIMIT 0", limits);
+    const original = try Store.signQuery(description, 17, store.pid, requests.pid, requests.resource);
+    try e.expectError(error.QueryAlreadyAuthorized, Store.signQuery(original, 17, store.pid, requests.pid, requests.resource));
+    for (0..7) |kind| {
+        var invalid = original;
+        switch (kind) {
+            0 => invalid.authorization = null,
+            1 => invalid.limits.pages -= 1,
+            2 => invalid.authorization.?.proof.claim.audience += 1,
+            3 => invalid.authorization.?.requester += 1,
+            4 => invalid.authorization.?.proof.signature[0] ^= 1,
+            5 => {
+                invalid.authorization.?.proof.claim.credential_epoch += 1;
+                invalid.authorization.?.proof = try q.protocol.Authorization.Proof.sign(invalid.authorization.?.proof.claim, try c.testing.Authority.key(17));
+            },
+            6 => {
+                invalid.authorization.?.proof.claim.role = 18;
+                invalid.authorization.?.proof = try q.protocol.Authorization.Proof.sign(invalid.authorization.?.proof.claim, try c.testing.Authority.key(17));
+            },
+            else => unreachable,
+        }
+        const reference = try upload(&requests, invalid, kind + 1);
+        next = try message(&store, requests.pid, .{ .kind = .call, .correlation = kind + 1, .payload = try reference.encode() });
+        const before = next.decision;
+        try e.expectError(if (kind < 4) error.QueryDenied else error.CatalogDenied, q.UnifiedCapture.start(&next, reference, Access{ .data = &store, .requests = &requests }, arena.allocator()));
+        try e.expectEqualDeep(before, next.decision);
+        try e.expectEqual(@as(?anyerror, null), next.read_error);
+    }
+    _ = try admit(&store, &requests, original, 8);
 }
 
 test "logical checkpoints retain the maximum native key within one value and require their original bundle" {
@@ -313,7 +359,7 @@ test "bounded query memory exhaustion closes exact work without masking external
     try store.commit(policy_turn);
     var arena: std.heap.ArenaAllocator = .init(e.allocator);
     defer arena.deinit();
-    const bundle = try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits);
+    const bundle = try Store.signQuery(try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits), 17, store.pid, requests.pid, requests.resource);
     const reference = try upload(&requests, bundle, 1);
     const call: s.Frame = .{ .kind = .call, .correlation = 1, .payload = try reference.encode() };
     const access: Access = .{ .data = &store, .requests = &requests };
@@ -354,6 +400,10 @@ test "bounded query memory exhaustion closes exact work without masking external
 
     const Poison = struct {
         original: s.Turn.Reader,
+        pub fn authorize(raw: *anyopaque, guard: q.protocol.Authorization.Guard) anyerror!?q.protocol.Authorization.Verified {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return self.original.authorization.?(self.original.context, guard);
+        }
         pub fn read(raw: *anyopaque, view: q.protocol.Growth.View, key: q.protocol.Value) anyerror!?q.protocol.Value {
             const self: *@This() = @ptrCast(@alignCast(raw));
             if (key.eql(s.TableHead.key(100))) return error.OutOfMemory;
@@ -362,7 +412,7 @@ test "bounded query memory exhaustion closes exact work without masking external
     };
     var poisoned = try message(&store, requests.pid, call);
     var poison: Poison = .{ .original = poisoned.reader };
-    poisoned.reader = .{ .context = &poison, .read = Poison.read };
+    poisoned.reader = .{ .context = &poison, .read = Poison.read, .authorization = Poison.authorize };
     try e.expectError(error.OutOfMemory, q.UnifiedCapture.startBoundedDiagnostic(&poisoned, reference, access, adapter, null));
     try e.expectEqual(error.OutOfMemory, poisoned.read_error.?);
     try e.expectEqualDeep(untouched, poisoned.decision);
@@ -424,7 +474,7 @@ test "a persisted large Table row exceeds the normal query adapter without stopp
     try store.commit(next);
     var arena: std.heap.ArenaAllocator = .init(e.allocator);
     defer arena.deinit();
-    const bundle = try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits);
+    const bundle = try Store.signQuery(try q.Bundle.fromSql(arena.allocator(), .{ .resource = 7, .source = .{ .table = table.source } }, "items", "SELECT * FROM items", limits), 17, store.pid, requests.pid, requests.resource);
     const job = try admit(&store, &requests, bundle, 1);
     const continuation: r.Continuation = .{ .job = job.id, .input = job.continuation };
     const frame: s.Frame = .{ .kind = .cast, .payload = try continuation.encode() };

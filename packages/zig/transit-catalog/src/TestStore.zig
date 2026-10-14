@@ -24,9 +24,9 @@ pub fn setRights(self: *Self, rights: Rights) !void {
 pub fn grantObject(self: *Self, principal: u64, object: u64, privileges: u64) !void {
     try self.authority.grantObject(principal, object, privileges);
 }
-pub fn authorizationSubject(self: *Self, who: u64, audience: u64) !p.Authorization.Subject {
+pub fn authorizationSubject(self: *Self, who: u64) !p.Authorization.Subject {
     self.authority.input = self.input;
-    return self.authority.authorizationSubject(who, audience);
+    return self.authority.authorizationSubject(who);
 }
 pub fn requireAuthorization(self: *Self, guard: p.Authorization.Guard) !p.Authorization.Verified {
     return self.authority.requireAuthorization(guard);

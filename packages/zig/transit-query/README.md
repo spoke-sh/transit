@@ -108,7 +108,7 @@ own current grants; native retained pins remain scoped to their capturing PID.
 
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
-principal's current catalog rights before and after each page, preserving the
+principal's current database, schema and Table rights before and after each page, preserving the
 original schema/root through ALTER, DROP and name reuse. Complete composite-key
 equality uses the existing collision-safe index. Its
 [source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
@@ -116,15 +116,20 @@ keeps retention, requester-policy mapping and durable result publication with th
 host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
 current rights before returning owned logical Arrow rows.
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
-target maps a requester process to a catalog principal within one scope and
-owner. It permits resolving new Table objects without installing a per-Table
-policy; every page still requires current catalog inspect/read rights. Policy
-installation belongs to the authorized owner, and a changed mapping advances its
-revision. Native durable admission and result verification use this adapter and the
-canonical logical plan/Arrow codecs. `CatalogQueryOwner` composes the Table
-lifecycle owner with query dispatch; its administrator installs explicit
-requester delegation without creating a worker or policy per Table. See
-[catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
+target constrains the authenticated requester's original principal, scope and
+owner. The immutable bundle carries a separately signed proof bound to the
+canonical query, coordinator, requester PID and request resource. The configured
+principal cannot authenticate the caller. Current CONNECT, USAGE and each
+Table's SELECT gate admission, continuation, result pages and completion.
+Recovery retains the original proof; credential rotation never silently resigns
+accepted work. `UnifiedClient.authorizeBundle` seals a newly constructed Table
+bundle once; SQL compilation does this before returning saved bytes. The neutral
+`authorize` operation accepts unsigned bundle hex and returns `authorized` hex.
+
+`CatalogQueryOwner` composes Table lifecycle and query dispatch. Its administrator
+installs requester admission constraints and computational limits without
+creating a worker or policy per Table. Native grants remain the authorization
+source. See [catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `TableAssistance` reads current catalog metadata, derives continuations from the
 same general Table parsers and checks the metadata/policy revision again before
@@ -141,8 +146,8 @@ may retry the read, but must never regenerate uncertain mutations automatically.
 
 `CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
 operations. Administrator initialization and conditional requester delegation
-are separate bounded commits. Query access uses each requester's explicit mapped
-catalog principal and current read rights; mutation permissions remain independent.
+are separate bounded commits. Query access requires the signed original subject
+and current Table rights; mutation permissions remain independent.
 See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof

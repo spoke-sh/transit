@@ -5,6 +5,7 @@ const p = c.protocol;
 const t = std.testing;
 const Self = @This();
 input: u64 = 1,
+audience: u64 = 3,
 rights: std.AutoHashMapUnmanaged(u64, Rights) = .empty,
 object_rights: std.AutoHashMapUnmanaged(struct { principal: u64, object: u64 }, u64) = .empty,
 bindings: std.AutoHashMapUnmanaged([32]u8, p.Authorization.Object) = .empty,
@@ -33,15 +34,25 @@ pub fn setRights(self: *Self, value: Rights) !void {
 pub fn grantObject(self: *Self, principal: u64, object: u64, privileges: u64) !void {
     try self.object_rights.put(t.allocator, .{ .principal = principal, .object = object }, privileges);
 }
-pub fn authorizationSubject(self: *Self, who: u64, audience: u64) !p.Authorization.Subject {
-    return .{ .accepted = .{ .pid = audience, .input = self.input, .principal = who } };
+pub fn authorizationSubject(self: *Self, who: u64) !p.Authorization.Subject {
+    return .{ .accepted = .{ .pid = self.audience, .input = self.input, .principal = who } };
 }
 pub fn requireAuthorization(self: *Self, guard: p.Authorization.Guard) !p.Authorization.Verified {
     return (try authorize(self, guard)) orelse error.AccessDenied;
 }
+pub fn key(who: u64) !p.Ed25519.KeyPair {
+    var seed: [32]u8 = @splat(0);
+    std.mem.writeInt(u64, seed[0..8], who, .little);
+    return p.Ed25519.KeyPair.generateDeterministic(seed);
+}
 pub fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorization.Verified {
     const self: *Self = @ptrCast(@alignCast(raw));
     const who = guard.subject.principal();
+    if (guard.subject == .signed) {
+        const proof = guard.subject.signed;
+        proof.verify((try key(who)).public_key.toBytes()) catch return null;
+        if (proof.claim.realm != 1 or proof.claim.credential_epoch != 1 or proof.claim.role != who) return null;
+    }
     const rights = self.rights.get(who) orelse if (who == 17 or who == 0) Rights{ .principal = who } else return null;
     if (!self.rights.contains(who)) {
         var registered = self.bindings.valueIterator();
@@ -85,5 +96,5 @@ pub fn clone(self: *Self) !Self {
     errdefer rights.deinit(t.allocator);
     var object_rights = try self.object_rights.clone(t.allocator);
     errdefer object_rights.deinit(t.allocator);
-    return .{ .rights = rights, .object_rights = object_rights, .bindings = try self.bindings.clone(t.allocator), .input = self.input, .last_subject = self.last_subject };
+    return .{ .rights = rights, .object_rights = object_rights, .bindings = try self.bindings.clone(t.allocator), .input = self.input, .audience = self.audience, .last_subject = self.last_subject };
 }

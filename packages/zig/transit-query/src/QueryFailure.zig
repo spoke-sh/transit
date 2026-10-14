@@ -190,7 +190,7 @@ pub fn fromError(cause: anyerror, stage: Stage) ?Self {
         error.UnknownColumn => .unknown_column,
         error.InvalidProjection => .invalid_projection,
         error.DuplicateProjection => .duplicate_projection,
-        error.InvalidQueryBundle => .invalid_bundle,
+        error.InvalidQueryBundle, error.InvalidQueryAuthorization, error.UnsupportedQueryAuthorization, error.QueryAlreadyAuthorized => .invalid_bundle,
         error.InvalidQuerySource => .invalid_source,
         error.InvalidQueryPrefix => .invalid_prefix,
         error.InvalidQueryPath => .invalid_path,

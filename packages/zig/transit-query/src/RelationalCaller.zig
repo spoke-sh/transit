@@ -59,7 +59,7 @@ pub fn describe(self: *Self, allocator: std.mem.Allocator) !Profile {
     for (routes, self.catalogs[0..self.count]) |*route, *catalog| {
         const value = try catalog.describe();
         const connection = catalog.connection;
-        route.* = .{ .connection = .{ .scope = .{ .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = try std.fmt.allocPrint(allocator, "{d}", .{connection.scope.catalog}) }, .owner = connection.owner, .principal = connection.principal }, .resource_revision = value.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{value.policy.revision}) };
+        route.* = .{ .connection = .{ .scope = .{ .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = try std.fmt.allocPrint(allocator, "{d}", .{connection.scope.catalog}) }, .owner = connection.owner, .principal = connection.principal }, .resource_revision = value.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{value.authorization_revision}) };
     }
     return .{ .routes = routes, .active = try self.session.current(allocator) };
 }

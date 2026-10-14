@@ -145,14 +145,42 @@ an existing upload. One active upload/query bounds admission independently of
 retained history. Abandon/cancel is explicit; a timeout or frontend disconnect is
 not remote cancellation.
 
-The canonical `UQB1` bundle has a 64-byte header: magic, the 32-byte shared
-current definition, u16 source length,
-u16 plan length, then u64 maximum input pages, segments and result bytes. Integers
-are little-endian. Canonical `UQS1` source and `FQP1` plan bytes follow. Its total
-budget is 25069 bytes; source and plan bounds are 16557 and 8448 bytes. All three work
-budgets are positive and must fit the current durable source policy. The bundle
-uses the query-request publication domain, record 1, format `0x31425155`, referenced by Station's 72-byte `SPF1` encoding.
-Neither truncation nor trailing bytes is canonical.
+The canonical `UQB1` bundle has a 65-byte minimum header: magic, the 32-byte
+shared current definition, u16 source length, u16 plan length, then u64 maximum
+input pages, segments and result bytes, followed by an authorization-presence
+byte. Integers are little-endian. A present authorization adds the 185 bytes
+defined below before the canonical `UQS1` source and `FQP1` plan. Its total
+budget is 25255 bytes; source and plan bounds are 16557 and 8448 bytes. All three
+work budgets are positive and must fit the current durable source policy. The
+bundle uses the query-request publication domain, record 1, format `0x31425155`,
+referenced by Station's 72-byte `SPF1` encoding. Truncation and trailing bytes
+reject.
+
+A Table request carries an original caller proof. The presence byte is exactly
+0 or 1; zero represents an unsigned description and cannot execute against a
+Table. KV and Document declarations use their explicit native-peer profile and
+reject a present Table authorization. Present fields, in order, are requester
+PID u64, request-resource u64, mandatory shared definition (32 bytes), claim
+realm/principal/credential-epoch u64s, role-presence u8, role u64 (zero when
+absent), audience PID u64, context digest (32 bytes) and Ed25519 signature
+(64 bytes). The claim uses the [native subject signature](AUTHORIZATION_V1.md).
+
+The context is SHA-256 of `transit.query.original-subject.v1`, NUL, requester
+PID and request-resource as little-endian u64s, then the complete canonical
+bundle with its authorization absent. The audience is the query coordinator.
+Both identities must match the actual authenticated request route. Every source
+uses this same original subject, including noncontributing join sources.
+Source owners need not equal the coordinator for an authorized foreign read.
+
+SQL compilation seals the Table bundle once before saving or upload. Typed
+callers use `UnifiedClient.authorizeBundle` or the neutral `authorize` operation
+before `next`; the latter also checks current source scope and budgets. The
+neutral result is `authorized`, containing canonical bundle hex. Authorizing
+an already sealed request rejects. Continuation, result reading and recovery
+reuse its exact proof and never replace its epoch, selected role or signature.
+Current native authority checks the proof and all object requirements on each
+use. A configured policy principal is only an equality constraint on the
+verified subject. It cannot authenticate that subject.
 
 `UQS1` source declarations start with magic, the 32-byte shared definition,
 resource u64 and source kind u8. KV and Document retain their declared decoder/
@@ -175,16 +203,14 @@ may vary within that declaration; Document epoch, type, identity and change form
 remain fenced. Every accepted job also records the complete exact source digest.
 
 Target tag `2` carries five u64s: catalog realm/resource/namespace, owning process
-and delegated catalog principal; the policy is 126 bytes. Installation checks the
-catalog realm/resource/owner against the owning turn. The requester PID selects
-the committed policy; it is not interpreted as a principal. Neither query SQL nor
-a submitted Table declaration supplies the delegation. Current catalog inspect
-and read rights still apply independently. Mapping changes require a new policy
-revision and invalidate jobs admitted under the old policy revision. One catalog
-target can cover new Table objects without a new per-Table policy. It cannot
-permit KV/Document declarations or another catalog/owner. Declaration targets
-cannot supply catalog delegation. The general Table source adapter consumes this
-mapping; enabling it in durable job admission remains an integration requirement.
+and expected original principal; the policy is 126 bytes. Installation checks
+the catalog realm/resource/owner against the owning turn. The requester PID
+selects this computational admission policy; it never becomes a user principal.
+The signed original proof must match the expected principal. CONNECT, schema
+USAGE and each Table's SELECT remain independently required. A changed admission
+policy revision invalidates work admitted under the earlier revision. One catalog
+target permits multiple Table objects in that scope without replacing their
+individual grants. It does not admit KV/Document or another catalog/owner.
 
 The command envelope uses these distinct magic bytes: `UQI1` initialize,
 `UQB1` begin plus `SPF1`, `UQP1` part (u64 namespace, u32 chunk ordinal, one

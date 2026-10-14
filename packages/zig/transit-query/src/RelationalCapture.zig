@@ -80,6 +80,7 @@ pub fn start(turn: *Turn, reference: Ref, workspace: []u8) !r.Job {
     const descriptor = try reference.publication().inspect(&request_view, reference.record);
     if (descriptor.publisher != peer) return error.UnexpectedQueryPublisher;
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    try bundle.bindSubject(turn, peer, reference.resource, grant.principal);
     if (bundle.sources[0].scope.resource != turn.view.resource or bundle.sources[0].owner != turn.delivery.pid) return error.RelationalSourceChanged;
     try request_view.requireCurrent();
     const request_version = try request_view.retain();
@@ -219,6 +220,7 @@ fn advanceInner(turn: *Turn, stored: r.Job, workspace: []u8) !Advance {
     const bundle = try q.RelationalBundle.decodeInto(allocator, try body(stored.request, &retained_request, &request_bytes));
     try memory(bundle, workspace);
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
+    try bundle.bindSubject(turn, stored.destination, stored.request.resource, grant.principal);
     const vector_value = try vector(turn, stored.id);
     const sources = try q.RelationalCaptured.Vector.decode(bundle, vector_value);
     const data = try allocator.create(q.RelationalCaptured);

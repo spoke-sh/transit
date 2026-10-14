@@ -107,14 +107,18 @@ fn authorize(self: *Self, finish: bool) !void {
     const job_key = r.key('j', self.stored.id, 0);
     try add(&selections, resource, policy_key);
     try add(&selections, resource, job_key);
-    // The committed coordinator policy supplies catalog identity; decode it
-    // once from the leased cut, then compare its exact bytes at the final cut.
+    // The coordinator policy constrains the original subject and work budget.
+    // It never authenticates the principal stored in its payload.
     var reader: Reader = .{ .owner = self, .view = self.source.view };
     const grant = (try q.RelationalCapture.policy(&reader, self.stored.destination)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != self.stored.policy_revision or grant.requests != self.stored.request.resource or !std.mem.eql(u8, &grant.request, &try self.bundle.fingerprint())) return error.QueryDenied;
+    const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.destination, self.stored.request.resource);
+    if (original.principal() != grant.principal) return error.QueryDenied;
+    var observed: ?p.Authorization.Guard = null;
+    var authority = q.QueryAuthorization.readerContext(self.source.client, original, &observed);
+    authority.budget = .{ .used = &self.requests, .limit = self.request_limit };
     for (self.bundle.sources) |source| {
         try add(&selections, source.scope.resource, c.Records.key(source.scope.catalog, 'c', 0, 0));
-        try add(&selections, source.scope.resource, c.Records.key(source.scope.catalog, 'p', grant.principal, 0));
     }
     const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = selections, .finish = finish });
     for (result.current) |slot| if (slot) |value| {
@@ -123,10 +127,13 @@ fn authorize(self: *Self, finish: bool) !void {
             const live = (try q.RelationalCapture.policy(&current, self.stored.destination)) orelse return error.QueryDenied;
             if (!std.meta.eql(live, grant) or !std.meta.eql(try q.RelationalCapture.job(&current, self.stored.id), self.stored)) return error.QueryDenied;
         }
+        var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = value.resource.id, .revision = value.resource.revision } };
+        var authorized = authority.wrap(&data);
         for (self.bundle.sources) |source| if (source.scope.resource == value.resource.id) {
-            _ = try source.checkCurrent(&current, grant.principal);
+            _ = try source.checkCurrent(&authorized, grant.principal);
         };
     };
+    _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);
 }
 pub fn schema(self: *Self, fields: []f.Types.Field) !f.Types.Type {
     if (self.failed or self.complete) return error.QueryClosed;

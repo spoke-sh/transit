@@ -72,7 +72,7 @@ pub fn namespaceRecord(self: Self, source: anytype, id: u64) !c.TableAuthority.S
     return value;
 }
 fn require(self: Self, source: anytype, who: u64, namespace: ?c.TableAuthority.Schema, table: ?c.TableAuthority.Table, access: c.TableAuthority.Access) !p.Authorization.Verified {
-    return c.TableAuthority.require(source, try c.TableAuthority.guard(try c.TableAuthority.subjectFor(source, who, self.configuration.owner), self.configuration.authority, namespace, table, access));
+    return c.TableAuthority.require(source, try c.TableAuthority.guard(try c.TableAuthority.subjectFor(source, who), self.configuration.authority, namespace, table, access));
 }
 /// Namespace access never implies rights on every Table stored below it.
 pub fn authorize(self: Self, source: anytype, who: u64, right: m.Right) !p.Authorization.Verified {

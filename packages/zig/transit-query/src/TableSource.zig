@@ -96,8 +96,8 @@ pub fn fingerprint(self: Self) ![32]u8 {
     digest.update(try self.encode(&buffer));
     return digest.finalResult();
 }
-/// `who` comes from the authenticated caller or an explicit committed query
-/// policy mapping. A submitted declaration must never choose this principal.
+/// `who` must match the reader's independently authenticated original subject.
+/// A stored query policy or supplied principal number cannot authenticate it.
 /// `current` must be a live authorized reader, never the retained data reader.
 pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
     try self.validate();

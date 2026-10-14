@@ -3187,11 +3187,12 @@
     "packages/zig/transit-catalog/src/TableAuthority.zig": {
       "errors": {
         "AccessDenied": 3,
-        "CatalogDenied": 7,
+        "CatalogDenied": 8,
         "Conflict": 1,
         "InvalidCatalogConfiguration": 4,
         "InvalidCatalogIdentity": 3,
         "InvalidCatalogName": 3,
+        "QueryPageBudget": 1,
         "UnsupportedAuthorization": 3
       },
       "outcomes": {
@@ -3217,12 +3218,18 @@
       "error_sets": {},
       "error_returns": {
         "Context.authorizationSubject()": "<inferred>",
+        "Context.consume()": "<inferred>",
         "Context.observe()": "<inferred>",
         "Context.requireAuthorization()": "<inferred>",
         "Name.init()": "<inferred>",
         "Name.validate()": "<inferred>",
         "Profile.validate()": "<inferred>",
         "Schema.validate()": "<inferred>",
+        "Source().<return>.authorizationSubject()": "<inferred>",
+        "Source().<return>.finish()": "<inferred>",
+        "Source().<return>.page()": "<inferred>",
+        "Source().<return>.read()": "<inferred>",
+        "Source().<return>.requireAuthorization()": "<inferred>",
         "binding()": "<inferred>",
         "guard()": "<inferred>",
         "require()": "<inferred>",
@@ -3232,7 +3239,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 26,
         "catch": 3
       },
       "imports": [
@@ -10977,7 +10984,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51\""
+          "@\"38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727\""
         ],
         "Effect.phase": [
           "pending",
@@ -11790,6 +11797,8 @@
         "InvalidQueryCursor": 3,
         "InvalidQueryRequest": 3,
         "OutOfMemory": 2,
+        "QueryAlreadyAuthorized": 1,
+        "QueryBudgetExceeded": 1,
         "QueryInterfaceUnavailable": 1
       },
       "outcomes": {
@@ -11800,6 +11809,7 @@
           "describe",
           "inspect",
           "compile",
+          "authorize",
           "prepare",
           "next",
           "submit",
@@ -11824,6 +11834,7 @@
           "description",
           "inspection",
           "compiled",
+          "authorized",
           "prepared",
           "receipt",
           "observation",
@@ -11845,7 +11856,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 68,
         "catch": 2
       },
       "imports": [
@@ -11858,15 +11869,20 @@
         "IncompatibleDefinition": 1,
         "InvalidQueryBudget": 1,
         "InvalidQueryBundle": 3,
+        "QueryAlreadyAuthorized": 1,
         "QueryBundleTooLarge": 2,
+        "QueryDenied": 3,
         "SourceChanged": 1,
-        "UnexpectedQueryPublisher": 1
+        "UnexpectedQueryPublisher": 1,
+        "UnsupportedQueryAuthorization": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Limits.validate()": "<inferred>",
+        "authorize()": "<inferred>",
         "bind()": "<inferred>",
+        "bindSubject()": "<inferred>",
         "checkPublisher()": "<inferred>",
         "checkReference()": "<inferred>",
         "declaration()": "<inferred>",
@@ -11876,11 +11892,13 @@
         "fromSqlDiagnostic()": "<inferred>",
         "fromSqlInner()": "<inferred>",
         "reference()": "<inferred>",
+        "subject()": "<inferred>",
+        "unsigned()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 51,
         "catch": 1
       },
       "imports": [
@@ -12088,6 +12106,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/QueryAuthorization.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidQueryAuthorization": 5,
+        "QueryDenied": 2,
+        "UnsupportedAuthorization": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "checkTable()": "<inferred>",
+        "context()": "<inferred>",
+        "prepare()": "<inferred>",
+        "read()": "<inferred>",
+        "subject()": "<inferred>",
+        "validate()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/QueryFailure.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -12114,6 +12160,7 @@
         "InvalidProjection": 1,
         "InvalidProjectionBudget": 1,
         "InvalidPublicationReference": 1,
+        "InvalidQueryAuthorization": 1,
         "InvalidQueryBudget": 1,
         "InvalidQueryBundle": 1,
         "InvalidQueryDiagnostic": 1,
@@ -12130,6 +12177,7 @@
         "PublicationNotPublished": 1,
         "QueryAdapterBudgetExceeded": 1,
         "QueryAfterMutation": 1,
+        "QueryAlreadyAuthorized": 1,
         "QueryBudgetExceeded": 1,
         "QueryBundleTooLarge": 1,
         "QueryConflict": 1,
@@ -12161,6 +12209,7 @@
         "UnsupportedDocumentSource": 1,
         "UnsupportedPlan": 1,
         "UnsupportedPlanDefinition": 1,
+        "UnsupportedQueryAuthorization": 1,
         "UnsupportedSchema": 1,
         "UnsupportedSource": 1,
         "ValueBudgetExceeded": 1
@@ -12342,7 +12391,9 @@
         "IncompatibleDefinition": 1,
         "InvalidQueryBundle": 4,
         "InvalidRelationalSources": 2,
+        "QueryAlreadyAuthorized": 1,
         "QueryBundleTooLarge": 1,
+        "QueryDenied": 2,
         "RelationalSourceChanged": 1,
         "UnexpectedQueryPublisher": 1,
         "UnsupportedRelationalConsistency": 2
@@ -12350,6 +12401,8 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "authorize()": "<inferred>",
+        "bindSubject()": "<inferred>",
         "checkPublisher()": "<inferred>",
         "checkReference()": "<inferred>",
         "decode()": "<inferred>",
@@ -12357,11 +12410,13 @@
         "encode()": "<inferred>",
         "fingerprint()": "<inferred>",
         "reference()": "<inferred>",
+        "subject()": "<inferred>",
+        "unsigned()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 45,
         "catch": 0
       },
       "imports": [
@@ -12462,7 +12517,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 119,
+        "try": 121,
         "catch": 4
       },
       "imports": [
@@ -12779,7 +12834,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 185,
+        "try": 188,
         "catch": 4
       },
       "imports": [
@@ -12929,7 +12984,7 @@
         "InvalidRelationalSources": 2,
         "MissingQueryProgress": 1,
         "QueryClosed": 1,
-        "QueryDenied": 5,
+        "QueryDenied": 7,
         "QueryPageBudget": 2,
         "RelationalSourceChanged": 2
       },
@@ -12948,7 +13003,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 42,
         "catch": 1
       },
       "imports": [
@@ -12970,7 +13025,7 @@
         "MaintainedRevisionPending": 1,
         "MissingResultSegment": 1,
         "QueryClosed": 2,
-        "QueryDenied": 6,
+        "QueryDenied": 8,
         "QueryPageBudget": 2,
         "RelationalSourceChanged": 3
       },
@@ -13002,7 +13057,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 58,
         "catch": 3
       },
       "imports": [
@@ -13273,7 +13328,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 3
       },
       "imports": [
@@ -13547,8 +13602,10 @@
     },
     "packages/zig/transit-query/src/TableService.zig": {
       "errors": {
+        "AccessDenied": 1,
         "AuthorizationChanged": 1,
-        "CatalogDenied": 3,
+        "CatalogDenied": 4,
+        "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidQueryBudget": 1,
         "InvalidTableServiceLimits": 1
@@ -13594,8 +13651,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
-        "catch": 0
+        "try": 42,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -13781,7 +13838,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 102,
+        "try": 104,
         "catch": 14
       },
       "imports": [
@@ -13798,7 +13855,7 @@
         "InvalidQueryUpload": 1,
         "InvalidResourceRead": 2,
         "QueryBudgetExceeded": 3,
-        "QueryDenied": 5,
+        "QueryDenied": 8,
         "QueryDraftClosed": 1,
         "QueryDraftConflict": 2,
         "QueryDraftExhausted": 1,
@@ -13822,10 +13879,12 @@
       "error_sets": {},
       "error_returns": {
         "authorize()": "<inferred>",
+        "authorizeBundle()": "<inferred>",
         "batchSupport()": "<inferred>",
         "bindSql()": "<inferred>",
         "checked()": "<inferred>",
         "compileSql()": "<inferred>",
+        "currentSource()": "<inferred>",
         "describe()": "<inferred>",
         "describeOnce()": "<inferred>",
         "draft()": "<inferred>",
@@ -13851,7 +13910,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 60,
+        "try": 70,
         "catch": 4
       },
       "imports": [
@@ -13980,7 +14039,7 @@
         "InvalidResultDigest": 1,
         "InvalidResultSegment": 1,
         "MissingResultSegment": 1,
-        "QueryDenied": 2,
+        "QueryDenied": 3,
         "QueryIdentityMismatch": 2,
         "ResultUnavailable": 3
       },
@@ -13996,7 +14055,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -14292,6 +14351,7 @@
         "Editor.zig",
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
+        "QueryAuthorization.zig",
         "QueryFailure.zig",
         "QueryMemory.zig",
         "RelationalBridge.zig",
@@ -15600,7 +15660,7 @@
         "InvalidReactiveCursor": 2,
         "InvalidReactiveProgress": 1,
         "ReactiveResetRequired": 9,
-        "TableNotFound": 1,
+        "TableNotFound": 2,
         "TableRetired": 1,
         "UnsupportedReactiveSource": 2
       },
@@ -15621,8 +15681,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
-        "catch": 1
+        "try": 21,
+        "catch": 2
       },
       "imports": [
         "root.zig",

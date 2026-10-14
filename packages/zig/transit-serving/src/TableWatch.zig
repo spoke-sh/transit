@@ -45,7 +45,10 @@ fn resolve(allocator: std.mem.Allocator, reader: anytype, principal: u64, source
         f.remember(context, .{ .target = .{ .expected = source.resource, .actual = reader.view.resource, .kind = .resource } });
         return error.ReactiveResetRequired;
     }
-    const catalog = try authorize(reader, principal, source);
+    const catalog = authorize(reader, principal, source) catch |err| {
+        if (err == error.TableNotFound) f.remember(context, .{ .table = .{ .value = source.object.value } });
+        return err;
+    };
     var mismatch: ?c.TableCatalog.DefinitionMismatch = null;
     var definition = catalog.readDefinitionDiagnostic(allocator, reader, principal, source.object.value, source.metadata(), &mismatch) catch |err| {
         if (mismatch) |value| f.remember(context, .{ .basis = .{ .kind = .metadata, .expected = value.expected.spec.digest, .actual = value.actual.spec.digest } });

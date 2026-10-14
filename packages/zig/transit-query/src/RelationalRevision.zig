@@ -167,9 +167,13 @@ fn authorize(self: *Self, finish: bool) !void {
     var reader: Reader = .{ .owner = self, .view = self.source.view };
     const grant = (try q.RelationalCapture.policy(&reader, self.stored.peer)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != self.stored.policy_revision or grant.requests != self.stored.request.resource or !std.mem.eql(u8, &grant.request, &try self.bundle.fingerprint())) return error.QueryDenied;
+    const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.peer, self.stored.request.resource);
+    if (original.principal() != grant.principal) return error.QueryDenied;
+    var observed: ?p.Authorization.Guard = null;
+    var authority = q.QueryAuthorization.readerContext(self.source.client, original, &observed);
+    authority.budget = .{ .used = &self.requests, .limit = self.options.requests };
     for (self.bundle.sources) |source| {
         try add(&selections, source.scope.resource, q.catalog.Records.key(source.scope.catalog, 'c', 0, 0));
-        try add(&selections, source.scope.resource, q.catalog.Records.key(source.scope.catalog, 'p', grant.principal, 0));
     }
     const value = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = selections, .finish = finish });
     for (value.current) |slot| if (slot) |current_result| {
@@ -183,10 +187,13 @@ fn authorize(self: *Self, finish: bool) !void {
             if (live.phase == .retired) return error.MaintainedResetRequired;
             if (live.id != self.stored.id or live.policy_revision != self.stored.policy_revision or !std.meta.eql(live.request, self.stored.request) or !std.meta.eql(live.request_version, self.stored.request_version) or live.revision < self.stored.revision) return error.QueryDenied;
         }
+        var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = current_result.resource.id, .revision = current_result.resource.revision } };
+        var authorized = authority.wrap(&data);
         for (self.bundle.sources) |source| if (source.scope.resource == current_result.resource.id) {
-            _ = try source.checkCurrent(&current, grant.principal);
+            _ = try source.checkCurrent(&authorized, grant.principal);
         };
     };
+    _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);
 }
 fn order(self: *Self, identity: @FieldType(f.RelationalExecution.Output, "identity")) !void {
     if (self.last) |previous| if (try f.RelationalDelta.identityOrder(previous, identity) != .lt) return error.InvalidRelationalSourceOrder;

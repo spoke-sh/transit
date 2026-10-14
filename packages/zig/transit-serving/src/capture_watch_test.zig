@@ -45,7 +45,7 @@ test "a data commit during actual finite capture escapes its basis while capture
     const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
-    const bundle = try q.Bundle.fromSql(arena.allocator(), definition, "items", "SELECT * FROM items", limits);
+    const bundle = try q.testing.Store.signQuery(try q.Bundle.fromSql(arena.allocator(), definition, "items", "SELECT * FROM items", limits), support.principal, store.pid, requests.pid, requests.resource);
     const reference = try upload(&requests, bundle);
     try support.delegate(&store, requests.pid, requests.resource, limits);
     var turn: s.Turn = undefined;

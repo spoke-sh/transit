@@ -80,8 +80,8 @@ pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce:
     _ = try catalog.authorize(&self, client.connection.principal, .inspect);
     return self;
 }
-pub fn authorizationSubject(self: *Scan, who: u64, audience: u64) !p.Authorization.Subject {
-    return self.authority.authorizationSubject(who, audience);
+pub fn authorizationSubject(self: *Scan, who: u64) !p.Authorization.Subject {
+    return self.authority.authorizationSubject(who);
 }
 pub fn requireAuthorization(self: *Scan, requested: p.Authorization.Guard) !p.Authorization.Verified {
     return self.authority.requireAuthorization(requested);
