@@ -19,6 +19,10 @@ cover generation drift and accepted/rejected values before and after sharing.
 References into nested definitions retain every ancestor along their original
 JSON Pointer path; their closed targets and siblings can still share validators.
 Nested schema resources with their own identifiers remain unchanged.
+Relational request/response validators are generated in a separate module and
+re-exported from the main validator entry. This lets Board include them in its
+query asset while keeping the inspection asset within its existing size bound.
+Generation and drift checks cover both modules and their declarations.
 
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage

@@ -13,6 +13,8 @@ size; these shared chunks still load on initial entry. All assets remain embedde
 in the executable. The browser proof checks the module graph on initial entry,
 navigation and direct nested-route reload, with at most five JavaScript assets
 and each below 900 kB. Vite's separate 500 kB advisory remains enabled.
+Relational validators share the query asset; the other Board validators stay
+with inspection. This keeps the same asset count and startup request pattern.
 
 Standalone validators share repeated, scope-independent schema fragments during
 generation through [the build helper](../../tasks/validator_schema.mjs). Public
@@ -20,7 +22,7 @@ schemas and runtime validation rules remain unchanged, and browsers still need
 no runtime schema compilation or `eval`. The contract check compares shared and
 original validation on positive and negative fixtures and checks generated drift.
 
-M18 adds a v1 workspace for explicitly configured KV/Table/Document sources.
+Board provides a v1 workspace for explicitly configured KV/Table/Document sources.
 It reuses the shared Zig SQL/finite-upload/page boundary, with runtime-validated
 full-width scalar and nested cell states. Source capabilities, budgets, exact
 result provenance and earlier-draft results stay visible. The
@@ -175,9 +177,7 @@ exercises the real worker and embedded UI, including live read revocation.
 The shell, renderer routes, initial query SQL and navigation actions use
 one shared compiled interface. See the [application guide](../transit-board/docs/application.md)
 for reserved recovery routes, exact source-contract fencing and operator scope.
-Renderer artifacts build together: route splitting caused a burst of static
-requests to exceed the host's bounded handler pool. The consolidated build uses
-one JavaScript and one CSS asset (about 3.70 MB / 14.6 kB before transport
-compression in the initial measurement, including generated runtime validators).
-This reduces startup request concurrency without increasing host capacity. Source
+Renderer routes build in one entry because separate route requests can exceed
+the host's bounded handler pool. Validator groups use the bounded asset layout
+described above. Source
 contract mismatch hides incompatible results while exact pending work survives.
