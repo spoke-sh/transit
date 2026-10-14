@@ -2,7 +2,8 @@
 
 [flake.nix](../flake.nix) supplies `just`, Zig 0.17 master through `zig-overlay`,
 Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python with PyYAML and PyArrow, Process Compose,
-OpenSSL for independent signed/TLS peers, the DuckDB CLI, and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
+OpenSSL for independent signed/TLS peers, the DuckDB, PostgreSQL (`psql`) and MySQL
+(`mysql`) CLIs, and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
 
@@ -138,8 +139,12 @@ OpenSSL development files and `pkg-config` for ordinary package compilation.
 Run `just test::sql-wire-reference` and
 `just test::sql-wire-tls` for the independent peers.
 
-The default development shell supplies the DuckDB CLI from the existing locked
-nixpkgs revision. Run `nix develop --command duckdb --version` to verify it.
+The default development shell supplies the DuckDB CLI, PostgreSQL 18.6 (`psql`)
+and Oracle MySQL 8.4.11 (`mysql`) from the existing locked nixpkgs revision.
+Run `nix develop --command duckdb --version`, `nix develop --command psql --version`
+or `nix develop --command mysql --version` to verify them. `just doctor` and the
+offline toolchain check include both database clients. All lockfile input
+revisions remain unchanged.
 
 `nix develop .#benchmarks` supplies `TRANSIT_FUZE_BENCH_PYTHON`, an absolute
 Python interpreter with DuckDB 1.5.2 and PyArrow 23.0.0. The assertions in

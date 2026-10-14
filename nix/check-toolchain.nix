@@ -4,6 +4,8 @@
   python3,
   process-compose,
   openssl,
+  postgresql_18,
+  mysql84,
   zig,
   vite-plus,
   ursula,
@@ -24,6 +26,8 @@ runCommand "rey-toolchain-check"
       (python3.withPackages (ps: [ ps.pyyaml ]))
       process-compose
       openssl
+      postgresql_18
+      mysql84
       zig
       vite-plus
       ursula
@@ -48,6 +52,8 @@ runCommand "rey-toolchain-check"
     python3 -c 'import yaml; assert yaml.safe_load("enabled: true")["enabled"]'
     process-compose version > "$out/process-compose-version"
     openssl version > "$out/openssl-version"
+    psql --version > "$out/psql-version"
+    mysql --version > "$out/mysql-version"
     zig version > "$out/zig-version"
     node --version > "$out/node-version"
     pnpm --version > "$out/pnpm-version"

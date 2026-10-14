@@ -39,6 +39,8 @@ doctor:
     python3 --version
     process-compose version
     openssl version
+    psql --version
+    mysql --version
     zig version
     node --version
     pnpm --version

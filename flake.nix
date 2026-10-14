@@ -147,6 +147,8 @@
                 pkgs.just
                 pkgs.git
                 pkgs.duckdb
+                pkgs.postgresql_18
+                pkgs.mysql84
                 (pkgs.python3.withPackages (import ./nix/python-tools.nix))
                 pkgs.process-compose
                 pkgs.openssl
