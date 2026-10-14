@@ -16,6 +16,26 @@ def connection_options(root,sql_port,mysql_port):
     return options,mysql_options
 
 
+def cli_roundtrip(command, env, table, separator, postgres=False):
+    # Each invocation opens a new verified TLS connection. A successful write
+    # must therefore be visible through a later connection, not a held result.
+    cases = [
+        ('SELECT 1', '1', 20),
+        (f'CREATE TABLE {table} (id BIGINT PRIMARY KEY, label UTF8)', 'CREATE TABLE' if postgres else '', 150),
+        (f"INSERT INTO {table} (id,label) VALUES (1,'cli snow ☃')", 'INSERT 0 1' if postgres else '', 150),
+        (f'SELECT id,label FROM {table}', f'1{separator}cli snow ☃', 20),
+        (f'UPDATE {table} SET label=NULL WHERE id=1', 'UPDATE 1' if postgres else '', 150),
+        (f'SELECT COUNT(*) FROM {table} WHERE label IS NULL', '1', 20),
+        (f'DELETE FROM {table} WHERE id=1', 'DELETE 1' if postgres else '', 150),
+        (f'SELECT COUNT(*) FROM {table}', '0', 20),
+    ]
+    for sql, expected, timeout in cases:
+        result = subprocess.run([*command, sql], env=env, capture_output=True, text=True, timeout=timeout)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == expected, (sql, result.stdout, result.stderr)
+    print(f'{command[0]}: verified TLS, literal CREATE/INSERT/UPDATE/DELETE, Unicode/NULL and new-connection row readback passed.', flush=True)
+
+
 def run(root,sql_port,mysql_port):
     options,mysql_options = connection_options(root,sql_port,mysql_port)
     clients = []
@@ -49,8 +69,7 @@ def run(root,sql_port,mysql_port):
         assert connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone() == (0,)
     env = os.environ.copy()
     env.update(PGPASSWORD='proof-password', PGSSLMODE='verify-full', PGSSLROOTCERT=str(root/'certificate.pem'), PGHOSTADDR='127.0.0.1')
-    result = subprocess.run(['psql', '-XAt', '-h', 'localhost', '-p', str(sql_port), '-U', 'proof', '-d', 'data', '-c', 'SELECT 1'], env=env, capture_output=True, text=True, timeout=20)
-    assert result.returncode == 0 and result.stdout.strip() == '1', result.stderr
+    cli_roundtrip(['psql', '-XAt', '-v', 'ON_ERROR_STOP=1', '-h', 'localhost', '-p', str(sql_port), '-U', 'proof', '-d', 'data', '-c'], env, 'psql_cli_rows', '|', postgres=True)
     with mysql.connector.connect(**mysql_options) as connection:
         cursor = connection.cursor()
         cursor.execute('SELECT @@character_set_connection, @@collation_connection, @@sql_mode')
@@ -81,8 +100,7 @@ def run(root,sql_port,mysql_port):
     defaults = root/'mysql.cnf'
     defaults.write_text('[client]\npassword=proof-password\n')
     defaults.chmod(0o600)
-    result = subprocess.run(['mysql', '--defaults-file='+str(defaults), '--protocol=TCP', '-h', 'localhost', '-P', str(mysql_port), '-uproof', '-Ddata', '--ssl-mode=VERIFY_IDENTITY', '--ssl-ca='+str(root/'certificate.pem'), '--batch', '--skip-column-names', '--default-character-set=utf8mb4', '-e', 'SELECT 1'], capture_output=True, text=True, timeout=20)
-    assert result.returncode == 0 and result.stdout.strip() == '1', result.stderr
+    cli_roundtrip(['mysql', '--defaults-file='+str(defaults), '--protocol=TCP', '-h', 'localhost', '-P', str(mysql_port), '-uproof', '-Ddata', '--ssl-mode=VERIFY_IDENTITY', '--ssl-ca='+str(root/'certificate.pem'), '--batch', '--skip-column-names', '--default-character-set=utf8mb4', '-e'], None, 'mysql_cli_rows', '\t')
     env.update(PGHOST='localhost', PGPORT=str(sql_port), PGUSER='proof', PGDATABASE='data', MYSQL_TCP_PORT=str(mysql_port))
     for binary in clients:
         result = subprocess.run([str(binary)], env=env, capture_output=True, text=True, timeout=150)
