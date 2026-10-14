@@ -13,9 +13,14 @@ import psycopg
 import mysql.connector
 
 
-def exact(sock, size):
+def exact(sock, size, deadline=None):
     result = bytearray()
     while len(result) < size:
+        if deadline is not None:
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('PostgreSQL response deadline expired')
+            sock.settimeout(remaining)
         chunk = sock.recv(size-len(result))
         if not chunk:
             raise EOFError('Peer closed frame')
@@ -57,26 +62,31 @@ class PostgreSQL:
         assert (b'R', struct.pack('!I',12)+b'v='+base64.b64encode(server)) in replies
         self.key = next(payload for tag,payload in replies if tag == b'K')
 
-    def read(self):
-        tag = exact(self.sock, 1)
-        size = struct.unpack('!I', exact(self.sock, 4))[0]
+    def read(self, deadline=None):
+        tag = exact(self.sock, 1, deadline)
+        size = struct.unpack('!I', exact(self.sock, 4, deadline))[0]
         assert 4 <= size <= 4*1024*1024+8192
-        return tag, exact(self.sock, size-4)
+        return tag, exact(self.sock, size-4, deadline)
 
-    def until(self, *tags):
+    def until(self, *tags, timeout=None):
         result = []
-        while True:
-            item = self.read()
-            result.append(item)
-            if item[0] in tags:
-                return result
+        previous = self.sock.gettimeout()
+        deadline = None if timeout is None else time.monotonic()+timeout
+        try:
+            while True:
+                item = self.read(deadline)
+                result.append(item)
+                if item[0] in tags:
+                    return result
+        finally:
+            self.sock.settimeout(previous)
 
     def close(self):
         self.sock.close()
 
-    def cycle(self, sql, tail):
+    def cycle(self, sql, tail, *, timeout=None):
         self.sock.sendall(frame(b'P', b'\0'+sql.encode()+b'\0\0\0')+frame(b'B', b'\0\0\0\0\0\0\0\0')+frame(b'E', b'\0\0\0\0\0')+tail)
-        return self.until(b'Z')
+        return self.until(b'Z', timeout=timeout)
 
 
 def cancel(options, key):
@@ -109,8 +119,14 @@ def run(root, postgres, mysql_options, controls, native_access):
                 assert any(tag == b'E' for tag,_ in replies)
                 assert not any(tag == b'C' for tag,_ in replies)
                 assert count(witness) == baseline
-            replies = wire.cycle(sql, frame(b'S'))
+            # Authentication and malformed-cycle replies keep the ten-second
+            # socket bound. This valid durable write may use the configured
+            # 270-second SQL wait; allow its terminal reply under one absolute
+            # 300-second client deadline, without resending the statement.
+            started = time.monotonic()
+            replies = wire.cycle(sql, frame(b'S'), timeout=300)
             assert (b'C', b'INSERT 0 1\0') in replies
+            print(json.dumps(dict(profile='database_wire_valid_write_cycle',seconds=round(time.monotonic()-started,3),client_wait_seconds=300,sql_wait_seconds=270)),flush=True)
             assert count(witness) == baseline+1
             # Sync closes the portal. It cannot execute this write a second time.
             wire.sock.sendall(frame(b'E', b'\0\0\0\0\0')+frame(b'S'))
