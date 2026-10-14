@@ -77,7 +77,8 @@ jobs:
             shell: default
             cache: core
             cache_writer: false
-            timeout: 90
+            # Includes the full database client/recovery proof and retained-state regressions.
+            timeout: 120
           - lane: experience
             shell: ci-experience
             cache: experience
