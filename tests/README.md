@@ -124,6 +124,23 @@ Other administrative waits, native requests and query deadlines are unchanged.
 The clean experience lane at `fec5dd68` passed separately; it does not turn
 either timed-out attempt into a pass.
 
+The clean browser run at `534c334d` passed its first five tasks, then failed
+`test::reactive-views`: a newer completed query retained the source resource,
+contract and schema, but Board reported reset-required when its bound execution
+fingerprint changed. A focused diagnostic run reproduced the same failure.
+That fingerprint includes the captured source basis. Board now compares the
+source/contract/schema across refreshes; the native owner still copies and
+verifies the original template, and complete-result verification still requires
+one identical manifest across every page and the current-authority reread.
+The browser proof explicitly checks the new namespace, advanced cut, unchanged
+source contract/schema and changed execution fingerprint before testing denial.
+These failed attempts remain separate from the subsequent qualification results.
+The corrected focused run passes in **190.09 seconds**; its measured mutation to
+verified visible query result is **27012 ms**, followed by successful denial
+between full verification and the visible reread. `just check` also passes with
+the correction. These are workspace results; the committed-source browser lane
+is recorded separately.
+
 ## Database wire foundation
 
 Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,

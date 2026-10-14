@@ -40,6 +40,13 @@ Each explicit generation budgets eight selected refresh intents. Exhaustion
 stops following; another budget requires an explicit action. Accepted histories
 remain retained according to their existing lifetime policy.
 
+The durable refresh generation copies the original submitted bundle and verifies
+its commitment before executing each new query. Source resource, contract and
+schema remain fixed. The result's execution-plan fingerprint includes its captured
+source basis, so a new source cut changes that fingerprint without changing the
+submitted template. Board checks the full manifest within each finite result;
+it does not compare execution fingerprints across distinct refresh results.
+
 The browser verifies a candidate by traversing its ordered segments while
 retaining one segment, then rereads its visible page under current authority.
 Rows and manifest/profile evidence switch together only after that pass. Pages
