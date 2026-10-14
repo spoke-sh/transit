@@ -76,7 +76,7 @@ pub fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorizatio
         };
         if (!matches) return null;
     }
-    return .{ .principal = who, .role = who, .credential_epoch = 1, .audience = guard.subject.audience(), .context = if (guard.subject == .signed) guard.subject.signed.claim.context else @splat(0) };
+    return .{ .principal = who, .login_role = who, .role = who, .credential_epoch = 1, .audience = guard.subject.audience(), .context = if (guard.subject == .signed) guard.subject.signed.claim.context else @splat(0) };
 }
 pub fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Object {
     const self: *Self = @ptrCast(@alignCast(raw));

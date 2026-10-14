@@ -47,6 +47,12 @@ def run(node, cli, report=None):
             wait_ready(system.store.http, system.authority, system.url + '/health')
 
         assert system.native_query({'capabilities': {}})['body']['capabilities']['declarative_authorization']
+        before_preview = system.native_query({'identity': {}})
+        preview_action = {'create_role': {'name': b'analyst'.hex(), 'login': True, 'create_role': False}}
+        preview = query({'preview': {'expected_revision': 0, 'action': preview_action}})['body']['preview']
+        assert preview['complete'] and preview['changed_records'] == 1
+        assert system.native_query({'identity': {}}) == before_preview
+        assert query({'resolve': b'analyst'.hex()}, status=403)['err'] == 'AccessDenied'
         # Observe durable acceptance independently while leaving the initiating
         # connection's reply unread, then kill both native authority and store.
         system.sequence += 1
@@ -68,6 +74,8 @@ def run(node, cli, report=None):
         restart()
         receipt = system.available_post('/v1/command', signed)
         assert receipt['position'] == change
+        assert query({'receipt': signed['request']})['body']['receipt'] == receipt
+        assert query({'operation': change})['body']['operation']['action'] == signed['request']['command']['authorization']['begin']['action']
         assert system.available_post('/v1/command', signed) == receipt
         assert query({'resolve': b'analyst'.hex()}, status=403)['err'] == 'AccessDenied'
         analyst = finish(change)
@@ -80,6 +88,7 @@ def run(node, cli, report=None):
         object_id = apply({'register_object': {'domain': domain, 'owner': 0, 'schema': None}})
         protected = {'kind': 'domain', 'id': object_id}
         grant = apply({'grant': {'object': protected, 'grantee': analyst, 'privileges': 1, 'grant_options': 0}})
+        assert apply({'grant': {'object': protected, 'grantee': analyst, 'privileges': 1, 'grant_options': 0}}) == grant
         decision = {'decision': {'object': protected, 'privileges': 1}}
         assert query(decision, 101, analyst_seed)['body']['decision']['allowed'] == 1
         pid = system.command({'spawn': {}})
@@ -147,6 +156,37 @@ def run(node, cli, report=None):
         assert query({'change': old})['body']['change']['status'] == 'abandoned'
         print('Authorization: paged inspection, scoped/stale cursors and reserved identity conflicts survive restart.', flush=True)
 
+        # Lose the publication reply while the caller rotates its own key. The
+        # old signature cannot be retried; a current authenticated receipt read
+        # recovers acceptance without executing or re-signing the old request.
+        replacement_seed, replacement_key = system.key('analyst-replacement')
+        identity = query({'identity': {}}, 101, analyst_seed)
+        rotation_action = {'rotate_credential': {'principal': 101,
+            'expected_epoch': identity['body']['identity']['credential_epoch'], 'public_key': replacement_key}}
+        rotation_begin = system.signed({'authorization': {'begin': {
+            'expected_revision': identity['revision'], 'role': None, 'action': rotation_action}}}, 2, 101, analyst_seed)
+        rotation = system.available_post('/v1/command', rotation_begin)['position']
+        publication = system.signed({'authorization': {'publish': rotation}}, 3, 101, analyst_seed)
+        connection = HTTPConnection('127.0.0.1', system.port, timeout=30)
+        connection.request('POST', '/v1/command', json.dumps(publication), {'Content-Type': 'application/json'})
+        try:
+            deadline = time.monotonic() + 30
+            while query({'change': rotation})['body']['change']['status'] != 'published':
+                assert time.monotonic() < deadline, 'rotation was not published before the proof deadline'
+                time.sleep(.05)
+        finally:
+            connection.close()
+        assert system.post('/v1/command', publication, 403)['err'] == 'AccessDenied'
+        recovered = query({'receipt': publication['request']}, 101, replacement_seed)['body']['receipt']
+        assert recovered['position'] > rotation
+        assert query({'operation': rotation}, 101, replacement_seed)['body']['operation']['action'] == rotation_action
+        changed = json.loads(json.dumps(publication['request']))
+        changed['command']['authorization'] = {'abandon': rotation}
+        assert query({'receipt': changed}, 101, replacement_seed, 422)['err'] == 'ConflictingRetry'
+        restart()
+        assert query({'receipt': publication['request']}, 101, replacement_seed)['body']['receipt'] == recovered
+        print('Authorization: current credentials recover the exact lost rotation receipt after disk restart.', flush=True)
+
         # Definitions are mandatory on the independently signed request. Merely
         # changing its label cannot make old bytes authenticate as a new request.
         foreign = json.loads(json.dumps(signed))
@@ -157,10 +197,12 @@ def run(node, cli, report=None):
         final = query({'identity': {}})
         observations = dict(policy_revision=final['revision'], root_sequence=system.sequence,
                             analyst=analyst, domain_object=object_id, abandoned_identity=old_id,
-                            restarts=4, resident_pages=16)
+                            restarts=5, resident_pages=16, preview_without_publication=True,
+                            reconciled_grant=grant, recovered_rotation_receipt=recovered['position'])
     result = dict(revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
                   node_sha256=hashlib.sha256(node.read_bytes()).hexdigest(), elapsed_seconds=time.monotonic()-started,
+                  definition=json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'],
                   observations=observations, assertions='passed')
     if report:
         report.parent.mkdir(parents=True, exist_ok=True)

@@ -30,7 +30,7 @@ fn nameKey(name: core.Value) !pages.Key {
     std.crypto.hash.sha2.Sha256.hash(name.slice(), &hash, .{});
     return c.key(.authorization_name, std.mem.readInt(u64, hash[0..8], .big), std.mem.readInt(u64, hash[8..16], .big), hash[16..]);
 }
-fn grantNamespace(reference: a.ObjectRef) c.Namespace {
+pub fn grantNamespace(reference: a.ObjectRef) c.Namespace {
     return switch (reference.kind) {
         .realm => .authorization_realm_grant,
         .process => .authorization_process_grant,

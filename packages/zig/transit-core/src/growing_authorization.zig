@@ -21,7 +21,7 @@ pub fn controlCommand(engine: anytype, command: a.Command) !bool {
         },
     };
     return switch (action) {
-        .revoke, .revoke_membership, .revoke_default, .retire_role, .retire_object, .disable_credential, .rotate_credential => true,
+        .revoke, .revoke_privileges, .revoke_membership, .revoke_role, .revoke_default, .revoke_defaults, .retire_role, .retire_object, .disable_credential, .rotate_credential => true,
         .alter_role => |value| value.name == null and value.owner == null and value.create_role == null and value.login != true and value.enabled != true,
         else => false,
     };
@@ -185,7 +185,7 @@ pub fn actor(engine: anytype, principal_id: u64, selected: ?u64) !admin.Actor {
     var store = try engine.authorization();
     var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
     if (!try check.canSet(identity.role, role)) return error.Forbidden;
-    return .{ .principal = principal_id, .role = role };
+    return .{ .principal = principal_id, .role = role, .login_role = identity.role };
 }
 
 /// The authority authenticates the original subject independently of the
@@ -207,7 +207,7 @@ pub fn authenticate(engine: anytype, subject: a.Subject, audience: u64) !a.Verif
     if (identity.credential_epoch != claim.credential_epoch) return error.StaleAuthorizationCredential;
     if (subject == .signed) subject.signed.verify(identity.grant.public_key) catch return error.Forbidden;
     const selected = try actor(engine, claim.principal, claim.role);
-    return .{ .principal = selected.principal, .role = selected.role, .credential_epoch = identity.credential_epoch, .audience = audience, .context = claim.context };
+    return .{ .principal = selected.principal, .login_role = identity.role, .role = selected.role, .credential_epoch = identity.credential_epoch, .audience = audience, .context = claim.context };
 }
 pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {
     try value.validate();
@@ -314,6 +314,20 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
     var store = try engine.authorization();
     const observer = caller.role == a.root_role or (identity.grant.pid == null and identity.grant.permissions & p.permission(.inspect) != 0);
     const body: @FieldType(a.Result, "body") = switch (query.kind) {
+        .receipt => |request| result: {
+            if (request.realm != engine.genesis.realm or (request.principal != identity.grant.subject and caller.role != a.root_role)) return error.Forbidden;
+            var state = try engine.state();
+            const receipt = (try state.get(growth.Receipt, try c.key(.receipt, request.principal, request.sequence, ""))) orelse {
+                if (request.sequence <= (try engine.principal(request.principal)).sequence) return error.MissingReceipt;
+                break :result .{ .receipt = null };
+            };
+            if (!std.mem.eql(u8, &receipt.digest, &try g.digest(request))) return error.ConflictingRetry;
+            break :result .{ .receipt = .{ .position = receipt.position } };
+        },
+        .preview => |value| result: {
+            if (value.expected_revision != store.revision) return error.StaleAuthorizationRevision;
+            break :result .{ .preview = try @import("authorization_preview.zig").run(engine.page_store, store.snapshot(), caller, engine.head.position, value.action, engine.genesis.authorization_limits, engine.genesis.authorization_change_quota) };
+        },
         inline .authenticate, .check => |value, tag| result: {
             const subject = if (comptime tag == .authenticate) value else value.subject;
             if (!try nativeHas(engine, identity, subject.audience(), .inspect)) return error.Forbidden;
@@ -332,7 +346,9 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
         },
         inline .role, .resolve => |value, tag| result: {
             const selected = (if (comptime tag == .role) try store.role(value) else try store.named(value)) orelse return error.Forbidden;
-            if (!observer and selected.id != caller.role and selected.owner != caller.role) return error.Forbidden;
+            // Named logical roles are the public realm-local role directory.
+            // Private native adapters remain undiscoverable to ordinary users.
+            if (!observer and selected.id != caller.role and selected.owner != caller.role and (tag == .role or selected.native)) return error.Forbidden;
             break :result @unionInit(@FieldType(a.Result, "body"), @tagName(tag), selected);
         },
         .roles => |value| result: {
@@ -377,11 +393,11 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
             const scope = try a.cursorScope(query, engine.genesis.realm, identity.grant.subject, caller.role);
             break :result .{ .defaults = readPage(a.DefaultGrant, try records(&store, a.DefaultGrant, .authorization_creator_default, value.creator, try cursor(value.cursor, store.revision, scope)), store.revision, scope) };
         },
-        .change => |id| result: {
+        inline .change, .operation => |id, tag| result: {
             var state = try engine.state();
             const change = (try state.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.Forbidden;
             if (change.outcome.principal != identity.grant.subject and caller.role != a.root_role) return error.Forbidden;
-            break :result .{ .change = change.outcome };
+            break :result if (comptime tag == .change) .{ .change = change.outcome } else .{ .operation = .{ .outcome = change.outcome, .action = change.action } };
         },
     };
     return .{ .revision = store.revision, .role = caller.role, .body = body };

@@ -140,7 +140,7 @@ pub const Guard = struct {
         }
     }
 };
-pub const Verified = struct { principal: Id, role: Id, credential_epoch: u64, audience: Id, context: [32]u8 };
+pub const Verified = struct { principal: Id, login_role: Id, role: Id, credential_epoch: u64, audience: Id, context: [32]u8 };
 
 pub const Limits = struct {
     vertices: u16 = max_vertices,
@@ -320,16 +320,19 @@ pub const Action = union(enum) {
     create_role: struct { name: p.Value, login: bool = false, create_role: bool = false },
     alter_role: struct { id: Id, name: ?p.Value = null, owner: ?Id = null, login: ?bool = null, enabled: ?bool = null, create_role: ?bool = null },
     retire_role: struct { id: Id, behavior: RevokeBehavior = .restrict },
-    membership: struct { member: Id, role: Id, admin: bool = false, inherit: bool = true, set: bool = true },
+    membership: struct { member: Id, role: Id, admin: ?bool = null, inherit: ?bool = null, set: ?bool = null },
     revoke_membership: struct { id: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
+    revoke_role: struct { member: Id, role: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
     register_domain: struct { registrar: Id, actions: Privileges },
     register_object: struct { domain: Id, owner: Id, schema: ?ObjectRef = null, binding: ?[32]u8 = null },
     transfer_object: struct { object: ObjectRef, owner: Id },
     retire_object: ObjectRef,
     grant: struct { object: ObjectRef, grantee: Id, privileges: Privileges, grant_options: Privileges = 0 },
     revoke: struct { id: Id, privileges: Privileges, grant_option_only: bool = false, behavior: RevokeBehavior = .restrict },
+    revoke_privileges: struct { object: ObjectRef, grantee: Id, privileges: Privileges, grant_option_only: bool = false, behavior: RevokeBehavior = .restrict },
     default_grant: struct { creator: Id, schema: ObjectRef, domain: Id, grantee: Id, privileges: Privileges, grant_options: Privileges = 0 },
     revoke_default: Id,
+    revoke_defaults: struct { creator: Id, schema: ObjectRef, domain: Id, grantee: Id, privileges: Privileges, grant_option_only: bool = false },
     bind_credential: struct { principal: Id, role: Id, public_key: [32]u8, pid: ?Id = null },
     rotate_credential: struct { principal: Id, expected_epoch: u64, public_key: [32]u8 },
     disable_credential: struct { principal: Id, expected_epoch: u64 },
@@ -356,6 +359,19 @@ pub const Outcome = struct {
     steps: u64,
 };
 
+/// A read-only execution of the same candidate transitions as apply. An
+/// incomplete preview is explicitly not validation of the remaining cascade.
+pub const Preview = struct {
+    complete: bool,
+    changed_records: u64,
+    steps: u64,
+    pages: u32,
+    reads: u32,
+};
+pub const preview_pages = 32;
+pub const preview_steps = 64;
+pub const preview_reads = 4096;
+
 pub const Cursor = struct { revision: u64, after: Id, scope: [32]u8 };
 pub fn ReadPage(comptime T: type) type {
     return struct { records: [page_size]?T, next: ?Cursor };
@@ -364,6 +380,7 @@ pub const Query = struct {
     role: ?Id = null,
     kind: union(enum) {
         identity: void,
+        preview: struct { expected_revision: u64, action: Action },
         authenticate: Subject,
         check: Guard,
         decision: struct { object: ObjectRef, privileges: Privileges },
@@ -377,6 +394,8 @@ pub const Query = struct {
         grants: struct { object: ObjectRef, grantee: Id, cursor: ?Cursor = null },
         defaults: struct { creator: Id, cursor: ?Cursor = null },
         change: Id,
+        operation: Id,
+        receipt: p.Growth.Request,
     },
 };
 pub const Result = struct {
@@ -384,6 +403,7 @@ pub const Result = struct {
     role: Id,
     body: union(enum) {
         identity: struct { principal: Id, login_role: Id, credential_epoch: u64 },
+        preview: Preview,
         authenticate: Verified,
         check: Verified,
         decision: Decision,
@@ -397,12 +417,19 @@ pub const Result = struct {
         grants: ReadPage(Grant),
         defaults: ReadPage(DefaultGrant),
         change: Outcome,
+        operation: struct { outcome: Outcome, action: Action },
+        receipt: ?p.Receipt,
     },
 };
 
 pub fn validateQuery(query: Query) !void {
     if (query.role) |id| try roleId(id);
     switch (query.kind) {
+        .preview => |value| try revision(value.expected_revision),
+        .receipt => |value| {
+            try p.Growth.validate(value);
+            if (value.command != .authorization) return error.InvalidAuthorizationChange;
+        },
         .authenticate => |value| try value.validate(),
         .check => |value| try value.validate(),
         .decision => |value| {
@@ -427,7 +454,7 @@ pub fn validateQuery(query: Query) !void {
             try roleId(value.creator);
             if (value.cursor) |cursor| try revision(cursor.revision);
         },
-        .change => |id| if (id == 0 or id > p.max_counter) return error.InvalidAuthorizationChange,
+        .change, .operation => |id| if (id == 0 or id > p.max_counter) return error.InvalidAuthorizationChange,
         .identity => {},
     }
 }
@@ -453,10 +480,15 @@ pub fn validateResult(result: Result, query: Query, realm: Id, principal: Id) !v
     if (query.role) |id| if (id != result.role) return error.InvalidRead;
     if (!std.mem.eql(u8, @tagName(result.body), @tagName(query.kind))) return error.InvalidRead;
     switch (result.body) {
+        .preview => |value| {
+            if (result.revision != query.kind.preview.expected_revision or value.pages > preview_pages or value.reads > preview_reads or value.steps > preview_steps) return error.InvalidRead;
+        },
+        .receipt => |value| if (value) |receipt| if (receipt.position == 0 or receipt.position > p.max_counter) return error.InvalidRead,
         inline .authenticate, .check => |value, tag| {
             const subject = if (comptime tag == .authenticate) query.kind.authenticate else query.kind.check.subject;
             if (!subject.matches(value)) return error.InvalidRead;
             try roleId(value.role);
+            try roleId(value.login_role);
         },
         .identity => |value| {
             if (value.principal != principal) return error.InvalidRead;
@@ -517,6 +549,7 @@ pub fn validateResult(result: Result, query: Query, realm: Id, principal: Id) !v
             if (page.next) |next| if (count == 0 or next.after != last or next.revision != result.revision or !std.mem.eql(u8, &next.scope, &scope)) return error.InvalidRead;
         },
         .change => |value| if (value.id != query.kind.change or value.basis > value.revision or value.revision > result.revision and value.status == .published) return error.InvalidRead,
+        .operation => |value| if (value.outcome.id != query.kind.operation or value.outcome.basis > value.outcome.revision or value.outcome.revision > result.revision and value.outcome.status == .published) return error.InvalidRead,
     }
 }
 

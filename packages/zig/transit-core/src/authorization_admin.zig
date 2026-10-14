@@ -7,14 +7,15 @@ const a = core.protocol.Authorization;
 const c = core.catalog;
 const policy = core.authorization_store;
 
-pub const Actor = struct { principal: u64, role: u64 };
+pub const Actor = struct { principal: u64, role: u64, login_role: ?u64 = null };
 pub const Quota = struct { steps: u64 = 65_536, changed_records: u64 = 1_000_000 };
 pub const Change = struct {
     outcome: a.Outcome,
     candidate: policy.Snapshot,
     action: a.Action,
-    phase: enum { defaults, memberships, grants, role_dependencies, role_owners, role_credentials, role_defaults, transfer_grants, ready },
+    phase: enum { defaults, memberships, grants, role_dependencies, role_owners, role_credentials, role_defaults, transfer_grants, revoke_privileges, revoke_role, revoke_defaults, ready },
     previous_owner: ?u64 = null,
+    grantor: ?u64 = null,
     after: ?core.pages.Key = null,
     quota: Quota,
 };
@@ -65,9 +66,55 @@ fn changed(change: *Change) !void {
 }
 fn behavior(action: a.Action) a.RevokeBehavior {
     return switch (action) {
-        inline .revoke, .revoke_membership, .retire_role => |value| value.behavior,
+        inline .revoke, .revoke_membership, .revoke_privileges, .revoke_role, .retire_role => |value| value.behavior,
+        .membership => .restrict,
         else => .cascade,
     };
+}
+
+fn charge(scanned: *u32, limits: a.Limits) !void {
+    if (scanned.* >= limits.records) return error.AuthorizationBudgetExceeded;
+    scanned.* += 1;
+}
+fn findMembership(store: anytype, member: u64, role: u64, grantor: u64, limits: a.Limits) !?a.Membership {
+    var after: ?u64 = null;
+    var scanned: u32 = 0;
+    while (true) {
+        const page = try store.memberships(member, after);
+        for (page.records) |slot| if (slot) |edge| {
+            try charge(&scanned, limits);
+            if (edge.enabled and edge.role == role and edge.grantor == grantor) return edge;
+        };
+        after = page.next;
+        if (after == null) return null;
+    }
+}
+fn findGrant(store: anytype, reference: a.ObjectRef, grantee_id: u64, grantor: u64, limits: a.Limits) !?a.Grant {
+    var after: ?u64 = null;
+    var scanned: u32 = 0;
+    while (true) {
+        const page = try store.grants(reference, grantee_id, after);
+        for (page.records) |slot| if (slot) |edge| {
+            try charge(&scanned, limits);
+            if (edge.enabled and edge.grantor == grantor) return edge;
+        };
+        after = page.next;
+        if (after == null) return null;
+    }
+}
+fn findDefault(store: anytype, value: @FieldType(a.Action, "default_grant"), limits: a.Limits) !?a.DefaultGrant {
+    var after: ?core.pages.Key = null;
+    var scanned: u32 = 0;
+    while (true) {
+        const page = try store.catalog.scan(a.DefaultGrant, .{ .namespace = .authorization_creator_default, .major = value.creator }, after);
+        for (page.records) |slot| if (slot) |record| {
+            try charge(&scanned, limits);
+            const edge = record.value;
+            if (edge.enabled and edge.domain == value.domain and edge.schema.eql(value.schema) and edge.grantee == value.grantee) return edge;
+        };
+        after = page.next;
+        if (after == null) return null;
+    }
 }
 
 pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.Limits, quota: Quota) !Change {
@@ -123,9 +170,16 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             var check = try evaluator(store, limits);
             if (!try check.admin(actor.role, value.role)) return error.Forbidden;
             if (try check.wouldCycle(value.member, value.role)) return error.RoleMembershipCycle;
-            const created = try store.allocate();
-            try store.putMembership(.{ .id = created, .member = value.member, .role = value.role, .grantor = actor.role, .revision = id, .admin = value.admin, .inherit = value.inherit, .set = value.set });
-            change.outcome.created_id = created;
+            var edge = (try findMembership(store, value.member, value.role, actor.role, limits)) orelse a.Membership{ .id = try store.allocate(), .member = value.member, .role = value.role, .grantor = actor.role, .revision = id };
+            if (value.admin) |option| edge.admin = option;
+            if (value.inherit) |option| edge.inherit = option;
+            if (value.set) |option| edge.set = option;
+            edge.revision = id;
+            try store.putMembership(edge);
+            change.outcome.created_id = edge.id;
+            // Removing an option via repeated GRANT has the same dependency
+            // requirements as REVOKE ... RESTRICT.
+            if (value.admin == false or value.inherit == false or value.set == false) change.phase = .memberships;
         },
         .revoke_membership => |value| {
             var edge = (try store.membership(value.id)) orelse return error.UnknownRoleMembership;
@@ -139,6 +193,14 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             edge.revision = id;
             try store.putMembership(edge);
             change.phase = .memberships;
+        },
+        .revoke_role => |value| {
+            _ = try liveRole(store, value.member);
+            _ = try liveRole(store, value.role);
+            var check = try evaluator(store, limits);
+            if (!try check.admin(actor.role, value.role)) return error.Forbidden;
+            change.grantor = actor.role;
+            change.phase = .revoke_role;
         },
         .register_domain => |value| {
             if (actor.role != a.root_role) return error.Forbidden;
@@ -166,7 +228,10 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             try logicalOwner(store, value.owner);
             // Transfer may only assign a role that the actor can exercise;
             // registrars can perform an explicitly attributed domain transfer.
-            if (actor.principal != target.registrar) try owner(store, actor, value.owner, limits);
+            if (actor.principal != target.registrar and actor.role != a.root_role) {
+                var check = try evaluator(store, limits);
+                if (!try check.canSet(actor.login_role orelse actor.role, value.owner)) return error.Forbidden;
+            }
             change.previous_owner = target.owner;
             target.owner = value.owner;
             target.revision = id;
@@ -189,9 +254,14 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             if (actor.role == a.root_role) check.include_disabled = true;
             const decision = try check.evaluate(grantor, value.object, value.privileges);
             if (decision.grantable & value.privileges != value.privileges) return error.Forbidden;
-            const created = try store.allocate();
-            try store.putGrant(.{ .id = created, .object = value.object, .grantee = value.grantee, .grantor = grantor, .privileges = value.privileges, .grant_options = value.grant_options, .revision = id });
-            change.outcome.created_id = created;
+            try a.mask(value.privileges);
+            if (value.grant_options & ~value.privileges != 0 or (value.grantee == a.public_role and value.grant_options != 0)) return error.InvalidAuthorizationGrant;
+            var edge = (try findGrant(store, value.object, value.grantee, grantor, limits)) orelse a.Grant{ .id = try store.allocate(), .object = value.object, .grantee = value.grantee, .grantor = grantor, .privileges = 0, .revision = id };
+            edge.privileges |= value.privileges;
+            edge.grant_options |= value.grant_options;
+            edge.revision = id;
+            try store.putGrant(edge);
+            change.outcome.created_id = edge.id;
         },
         .revoke => |value| {
             var edge = (try store.grant(value.id)) orelse return error.UnknownAuthorizationGrant;
@@ -208,6 +278,17 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             try store.putGrant(edge);
             change.phase = .grants;
         },
+        .revoke_privileges => |value| {
+            const target = try object(store, value.object);
+            try grantee(store, value.grantee);
+            try a.mask(value.privileges);
+            if (value.privileges & ~target.actions != 0) return error.InvalidAuthorizationPrivilege;
+            var check = try evaluator(store, limits);
+            change.grantor = if (actor.role == a.root_role or try check.inherits(actor.role, target.owner)) target.owner else actor.role;
+            // The grantor can revoke its own edge after losing delegation;
+            // independent grants authored by other roles remain untouched.
+            change.phase = .revoke_privileges;
+        },
         .default_grant => |value| {
             try owner(store, actor, value.creator, limits);
             try logicalOwner(store, value.creator);
@@ -215,9 +296,14 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             const class = try domain(store, value.domain);
             try grantee(store, value.grantee);
             if (value.privileges & ~class.actions != 0) return error.InvalidAuthorizationPrivilege;
-            const created = try store.allocate();
-            try store.putDefault(.{ .id = created, .creator = value.creator, .schema = value.schema, .domain = value.domain, .grantee = value.grantee, .privileges = value.privileges, .grant_options = value.grant_options, .revision = id });
-            change.outcome.created_id = created;
+            try a.mask(value.privileges);
+            if (value.grant_options & ~value.privileges != 0 or (value.grantee == a.public_role and value.grant_options != 0)) return error.InvalidAuthorizationGrant;
+            var edge = (try findDefault(store, value, limits)) orelse a.DefaultGrant{ .id = try store.allocate(), .creator = value.creator, .schema = value.schema, .domain = value.domain, .grantee = value.grantee, .privileges = 0, .grant_options = 0, .revision = id };
+            edge.privileges |= value.privileges;
+            edge.grant_options |= value.grant_options;
+            edge.revision = id;
+            try store.putDefault(edge);
+            change.outcome.created_id = edge.id;
         },
         .revoke_default => |target| {
             var value = (try store.defaultGrant(target)) orelse return error.UnknownAuthorizationGrant;
@@ -225,6 +311,16 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
             value.enabled = false;
             value.revision = id;
             try store.putDefault(value);
+        },
+        .revoke_defaults => |value| {
+            try owner(store, actor, value.creator, limits);
+            try logicalOwner(store, value.creator);
+            _ = try object(store, value.schema);
+            const class = try domain(store, value.domain);
+            try grantee(store, value.grantee);
+            try a.mask(value.privileges);
+            if (value.privileges & ~class.actions != 0) return error.InvalidAuthorizationPrivilege;
+            change.phase = .revoke_defaults;
         },
         .bind_credential => |value| {
             if (actor.role != a.root_role or value.principal == 0) return error.Forbidden;
@@ -265,6 +361,55 @@ pub fn advance(store: anytype, change: *Change, limits: a.Limits) !void {
     if (change.outcome.steps == change.quota.steps) return error.AuthorizationChangeQuota;
     switch (change.phase) {
         .ready => return error.InvalidAuthorizationChange,
+        .revoke_privileges => {
+            const value = change.action.revoke_privileges;
+            const batch = try store.catalog.scan(a.Grant, .{ .namespace = policy.grantNamespace(value.object), .major = value.object.id, .minor = value.grantee }, change.after);
+            for (batch.records) |slot| if (slot) |record| {
+                var edge = record.value;
+                if (!edge.enabled or edge.grantor != change.grantor.?) continue;
+                try changed(change);
+                edge.grant_options &= ~value.privileges;
+                if (!value.grant_option_only) edge.privileges &= ~value.privileges;
+                edge.revision = store.revision;
+                try store.putGrant(edge);
+            };
+            change.after = batch.next;
+            if (change.after == null) change.phase = .grants;
+        },
+        .revoke_role => {
+            const value = change.action.revoke_role;
+            const batch = try store.catalog.scan(a.Membership, .{ .namespace = .authorization_member, .major = value.member }, change.after);
+            for (batch.records) |slot| if (slot) |record| {
+                var edge = record.value;
+                if (!edge.enabled or edge.role != value.role or edge.grantor != change.grantor.?) continue;
+                try changed(change);
+                if (value.option) |option| switch (option) {
+                    .admin => edge.admin = false,
+                    .inherit => edge.inherit = false,
+                    .set => edge.set = false,
+                } else edge.enabled = false;
+                edge.revision = store.revision;
+                try store.putMembership(edge);
+            };
+            change.after = batch.next;
+            if (change.after == null) change.phase = .memberships;
+        },
+        .revoke_defaults => {
+            const value = change.action.revoke_defaults;
+            const batch = try store.catalog.scan(a.DefaultGrant, .{ .namespace = .authorization_creator_default, .major = value.creator }, change.after);
+            for (batch.records) |slot| if (slot) |record| {
+                var edge = record.value;
+                if (!edge.enabled or edge.domain != value.domain or !edge.schema.eql(value.schema) or edge.grantee != value.grantee) continue;
+                try changed(change);
+                edge.grant_options &= ~value.privileges;
+                if (!value.grant_option_only) edge.privileges &= ~value.privileges;
+                if (edge.privileges == 0) edge.enabled = false;
+                edge.revision = store.revision;
+                try store.putDefault(edge);
+            };
+            change.after = batch.next;
+            if (change.after == null) change.phase = .ready;
+        },
         .defaults => {
             const create = change.action.register_object;
             const batch = try store.catalog.scan(a.DefaultGrant, .{ .namespace = .authorization_creator_default, .major = create.owner }, change.after);

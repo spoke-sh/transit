@@ -4458,6 +4458,48 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-client/src/AuthorizationChange.zig": {
+      "errors": {
+        "AuthorizationChangeNotAdmitted": 1,
+        "AuthorizationChangeNotPending": 2,
+        "AuthorizationChangePending": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorizationChange": 15,
+        "StaleAuthorizationRevision": 1
+      },
+      "outcomes": {
+        "WithTransport().<return>.Next": [
+          "pending",
+          "terminal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Envelope.validate()": "<inferred>",
+        "Record.received()": "<inferred>",
+        "Record.restore()": "<inferred>",
+        "Record.save()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "WithTransport().<return>.abandon()": "<inferred>",
+        "WithTransport().<return>.next()": "<inferred>",
+        "WithTransport().<return>.observe()": "<inferred>",
+        "WithTransport().<return>.prepare()": "<inferred>",
+        "WithTransport().<return>.recoverPending()": "<inferred>",
+        "WithTransport().<return>.sign()": "<inferred>",
+        "WithTransport().<return>.submit()": "<inferred>",
+        "WithTransport().<return>.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 0
+      },
+      "imports": [
+        "AuthorizationClient.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/AuthorizationClient.zig": {
       "errors": {
         "InvalidAuthorizationObject": 4
@@ -4859,6 +4901,7 @@
       },
       "imports": [
         "Application.zig",
+        "AuthorizationChange.zig",
         "AuthorizationClient.zig",
         "ResourceReader.zig",
         "Session.zig",
@@ -5791,6 +5834,94 @@
         "transit_grpc",
         "transit_query",
         "transit_serving"
+      ]
+    },
+    "packages/zig/transit-fuze/src/AuthorizationSql.zig": {
+      "errors": {
+        "DuplicateRoleOption": 3,
+        "DuplicateSqlPrivilege": 1,
+        "InvalidSqlAuthorizationName": 1,
+        "InvalidSqlPrivilege": 6,
+        "InvalidSqlRole": 1,
+        "UnsupportedAuthorizationSql": 4
+      },
+      "outcomes": {
+        "Behavior": [
+          "restrict",
+          "cascade"
+        ],
+        "Kind": [
+          "database",
+          "schema",
+          "table"
+        ],
+        "Option": [
+          "admin",
+          "inherit",
+          "set"
+        ],
+        "Privilege": [
+          "connect",
+          "usage",
+          "create",
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Role": [
+          "named",
+          "public",
+          "current_role",
+          "session_user"
+        ],
+        "Statement": [
+          "create_role",
+          "alter_role",
+          "rename_role",
+          "drop_role",
+          "membership",
+          "revoke_membership",
+          "grant",
+          "revoke",
+          "default_grant",
+          "default_revoke",
+          "create_schema",
+          "rename_schema",
+          "drop_schema",
+          "transfer",
+          "set_role"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Privileges.forKind()": "<inferred>",
+        "behavior()": "<inferred>",
+        "boolean()": "<inferred>",
+        "compile()": "<inferred>",
+        "defaults()": "<inferred>",
+        "grant()": "<inferred>",
+        "grantOption()": "<inferred>",
+        "membership()": "<inferred>",
+        "name()": "<inferred>",
+        "objectKind()": "<inferred>",
+        "options()": "<inferred>",
+        "parse()": "<inferred>",
+        "parseOwned()": "<inferred>",
+        "privileges()": "<inferred>",
+        "qualified()": "<inferred>",
+        "revoke()": "<inferred>",
+        "role()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 126,
+        "catch": 0
+      },
+      "imports": [
+        "Sql.zig",
+        "SqlTyped.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/Batch.zig": {
@@ -9634,6 +9765,7 @@
         "catch": 0
       },
       "imports": [
+        "AuthorizationSql.zig",
         "Batch.zig",
         "BatchExecution.zig",
         "Declaration.zig",
@@ -10505,7 +10637,7 @@
       "errors": {
         "AuthorizationBudgetExceeded": 1,
         "InvalidAuthorizationBudget": 1,
-        "InvalidAuthorizationChange": 1,
+        "InvalidAuthorizationChange": 2,
         "InvalidAuthorizationCredential": 4,
         "InvalidAuthorizationCursor": 1,
         "InvalidAuthorizationDomain": 2,
@@ -10515,7 +10647,7 @@
         "InvalidAuthorizationPrivilege": 4,
         "InvalidAuthorizationRevision": 1,
         "InvalidAuthorizationRole": 2,
-        "InvalidRead": 19,
+        "InvalidRead": 22,
         "InvalidRoleMembership": 1
       },
       "outcomes": {
@@ -10525,14 +10657,17 @@
           "retire_role",
           "membership",
           "revoke_membership",
+          "revoke_role",
           "register_domain",
           "register_object",
           "transfer_object",
           "retire_object",
           "grant",
           "revoke",
+          "revoke_privileges",
           "default_grant",
           "revoke_default",
+          "revoke_defaults",
           "bind_credential",
           "rotate_credential",
           "disable_credential"
@@ -10556,6 +10691,7 @@
         ],
         "Query.kind": [
           "identity",
+          "preview",
           "authenticate",
           "check",
           "decision",
@@ -10568,7 +10704,9 @@
           "registration",
           "grants",
           "defaults",
-          "change"
+          "change",
+          "operation",
+          "receipt"
         ],
         "Requirement.access": [
           "all",
@@ -10578,6 +10716,7 @@
         ],
         "Result.body": [
           "identity",
+          "preview",
           "authenticate",
           "check",
           "decision",
@@ -10590,7 +10729,9 @@
           "registration",
           "grants",
           "defaults",
-          "change"
+          "change",
+          "operation",
+          "receipt"
         ],
         "RevokeBehavior": [
           "restrict",
@@ -10637,7 +10778,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 76,
         "catch": 0
       },
       "imports": [
@@ -10984,7 +11125,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727\""
+          "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
         ],
         "Effect.phase": [
           "pending",

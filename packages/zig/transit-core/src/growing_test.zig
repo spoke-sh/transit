@@ -360,6 +360,51 @@ const Fixture = struct {
     }
 };
 
+test "authorization preview runs candidate validation without provider writes or reserved identities" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const a = core.protocol.Authorization;
+    const before = f.engine.head;
+    const writes = f.pages.writes;
+    const action: a.Action = .{ .create_role = .{ .name = try core.Value.init("previewed") } };
+    const result = try f.query(0, .{ .authorization = .{ .kind = .{ .preview = .{ .expected_revision = before.authorization.revision, .action = action } } } });
+    try t.expect(result.body.authorization.body.preview.complete);
+    try t.expectEqual(@as(u64, 1), result.body.authorization.body.preview.changed_records);
+    try t.expectEqual(writes, f.pages.writes);
+    try t.expect(std.meta.eql(before, f.engine.head));
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .resolve = try core.Value.init("previewed") } } }));
+    _ = try f.authorization(action);
+    try t.expectError(error.StaleAuthorizationRevision, f.query(0, .{ .authorization = .{ .kind = .{ .preview = .{ .expected_revision = before.authorization.revision, .action = action } } } }));
+    try t.expectError(error.AuthorizationNameExists, f.query(0, .{ .authorization = .{ .kind = .{ .preview = .{ .expected_revision = f.engine.head.authorization.revision, .action = action } } } }));
+}
+
+test "current credentials recover an exact authorization receipt after key rotation" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const a = core.protocol.Authorization;
+    const role = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("administrator"), .login = true, .create_role = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = role, .public_key = f.worker_key.public_key.toBytes() } });
+    const epoch = (try f.query(65536, .{ .authorization = .{ .kind = .identity } })).body.authorization.body.identity.credential_epoch;
+    const pending = try f.worker(1, .{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = .{ .create_role = .{ .name = try core.Value.init("created") } } } } });
+    try t.expect((try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = pending.request } } })).body.authorization.body.receipt == null);
+    const accepted = try f.engine.submit(pending);
+    const replacement = try core.Ed25519.KeyPair.generateDeterministic(@splat(42));
+    _ = try f.authorization(.{ .rotate_credential = .{ .principal = 65536, .expected_epoch = epoch, .public_key = replacement.public_key.toBytes() } });
+    f.worker_key = replacement;
+    try t.expectError(error.SignatureVerificationFailed, f.engine.submit(pending));
+    const receipt = (try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = pending.request } } })).body.authorization.body.receipt.?;
+    try t.expectEqual(accepted, receipt.position);
+    const operation = (try f.query(65536, .{ .authorization = .{ .kind = .{ .operation = receipt.position } } })).body.authorization.body.operation;
+    try t.expect(std.meta.eql(pending.request.command.authorization.begin.action, operation.action));
+    var altered = pending.request;
+    altered.command.authorization.begin.action.create_role.login = true;
+    try t.expectError(error.ConflictingRetry, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = altered } } }));
+    _ = try f.engine.submit(try f.worker(2, .{ .authorization = .{ .abandon = accepted } }));
+    try t.expectEqual(a.Status.abandoned, (try f.query(65536, .{ .authorization = .{ .kind = .{ .change = accepted } } })).body.authorization.body.change.status);
+}
+
 test "simulation: provider schedules fence old activations and retain accepted backlog" {
     var random = std.Random.DefaultPrng.init(t.random_seed);
     var f: Fixture = .{};

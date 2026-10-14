@@ -46,6 +46,8 @@ loop, durable waiting, and supervision.
 | `Client.query(.delivery)` | Read scoped courier status without payload or general inspection access |
 | `Client.query(.inspection)` | Follow bounded process/history pages with explicit cut/expiry handling |
 | `Client.query` | Discover state capabilities and read metadata, associations, entries or captured views |
+| `AuthorizationClient.read` | Read current identity, roles, grants, effective access, previews and retained operations |
+| `AuthorizationChange.Client` | Prepare, save, explicitly submit and observe [recoverable policy changes](docs/authorization.md) |
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
 | `bootstrap.awaitActivation` | Publish a fresh public key and pin the first controller-granted generation for a provider-bound worker |
 

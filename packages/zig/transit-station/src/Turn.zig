@@ -568,7 +568,7 @@ test "subject guards union all privileges without weakening ownership or hiding 
             self.calls += 1;
             if (self.failed) return error.AuthorityUnavailable;
             if (self.denied) return null;
-            return .{ .principal = guard.subject.principal(), .role = 2, .credential_epoch = 1, .audience = guard.subject.audience(), .context = @splat(0) };
+            return .{ .principal = guard.subject.principal(), .login_role = 2, .role = 2, .credential_epoch = 1, .audience = guard.subject.audience(), .context = @splat(0) };
         }
     };
     var store: @import("TestStore.zig") = .{};

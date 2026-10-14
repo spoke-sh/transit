@@ -20,6 +20,8 @@ not that role's identity or grants; it invalidates old sessions and never revive
 retired native identities. Non-login roles cannot authenticate. A selected active
 role requires a current eligible membership path from the authenticated login
 role. Services cannot authenticate a caller by supplying an arbitrary subject ID.
+Verified observations identify the login role separately from the selected role;
+`SESSION_USER` and an active role do not become interchangeable identities.
 
 Native sends can select an eligible `role`. Admission retains an immutable
 subject claim, indexed by destination PID and admitted input position, including
@@ -119,6 +121,41 @@ Index entries are storage details of the corresponding primary record.
 Revoked edges remain in primary history but leave the active membership/grant
 indexes. Repeated revocation does not add work to unrelated access decisions.
 
+`query.authorization.preview` takes an expected revision and the same `Action`
+as begin. It executes candidate transitions in private scratch memory, with no
+provider writes, identity reservations or policy publication. It reports
+`complete`, visited changed records, steps, scratch pages and reads. Its bounds
+are 32 scratch pages, 4096 page loads and 64 transition steps. Scratch exhaustion
+returns `complete: false`: it does not establish that remaining dependencies
+permit publication. The retained begin/advance workflow validates larger changes
+under deployment quotas. A stale revision rejects; a preview never reserves its
+principal sequence or permits bypassing validation during apply.
+
+Repeated grants by the same effective grantor union the requested privilege and
+grant-option bits into an existing active edge. Repeated membership grants
+preserve omitted ADMIN/INHERIT/SET options; new edges default to false/true/true.
+Turning an option off checks dependent authority with RESTRICT semantics.
+Repeated matching default grants union their bits. These bounded lookups inspect
+at most the configured evaluation record allowance and fail closed on exhaustion.
+`revoke_privileges`, `revoke_role` and `revoke_defaults` identify typed targets
+instead of an edge ID and scan their indexed records in eight-record steps.
+Privilege and membership revocation removes the issuing grantor's matching
+authority and then checks dependency closure; independent grantors survive.
+Partial default revocation applies only to future registrations.
+
+`operation` inspection returns the retained action and outcome to its original
+principal or root, allowing recovery to verify the saved intent. Exact logical
+role-name resolution is public within the authenticated realm; private native
+roles and general role enumeration retain their inspection restrictions. Names
+and role attributes contain no credentials.
+
+`receipt` inspection accepts the exact original native authorization request
+body. The current credential of the same principal, or root, can recover its
+receipt after key rotation without re-signing the old request. The retained
+request digest must match; a different body at that sequence conflicts. Missing
+receipt evidence for an already-consumed sequence is an error, not absence.
+This observation neither executes the request nor confers data access.
+
 Credential changes and role-name changes preserve stable role identities.
 Role retirement checks owned objects and administrative role ownership before
 processing memberships, credentials, grants and defaults. Ownership must be
@@ -128,6 +165,9 @@ restores the former grantor's authority. Temporarily disabling a role preserves
 its grant provenance while denying its use; an unrelated cascade does not erase
 those suspended paths. Ownership transfer rewrites owner grant provenance within
 the same private candidate before publication.
+Assigning a new owner requires SET eligibility from the actual login role,
+independently of active-role INHERIT, unless the caller is root or the object's
+authorized registrar. Current-owner authority remains required.
 
 ## Publication, replay and concurrent changes
 

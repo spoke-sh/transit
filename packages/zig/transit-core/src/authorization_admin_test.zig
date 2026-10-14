@@ -105,7 +105,11 @@ test "default privileges page into new objects and do not modify existing object
     const schema: a.ObjectRef = .{ .kind = .domain, .id = schema_id };
     const old_id = (try f.apply(root, .{ .register_object = .{ .domain = class, .owner = 0, .schema = schema } })).?;
     var defaults: [10]u64 = undefined;
-    for (&defaults, 0..) |*id, index| id.* = (try f.apply(root, .{ .default_grant = .{ .creator = 0, .schema = schema, .domain = class, .grantee = reader, .privileges = if (index == 9) 1 else 0 } })).?;
+    for (&defaults, 0..) |*id, index| {
+        var name: [32]u8 = undefined;
+        const grantee = if (index == 9) reader else try f.role(try std.fmt.bufPrint(&name, "other-{d}", .{index}));
+        id.* = (try f.apply(root, .{ .default_grant = .{ .creator = 0, .schema = schema, .domain = class, .grantee = grantee, .privileges = 1 } })).?;
+    }
     var creation = try f.begin(root, .{ .register_object = .{ .domain = class, .owner = 0, .schema = schema } });
     var published = try Store.open(&f.pages, f.published);
     try t.expectEqual(@as(?a.Object, null), try published.object(.{ .kind = .domain, .id = creation.outcome.created_id.? }));
@@ -223,4 +227,77 @@ test "revoking INHERIT retains SET until separately revoked" {
     store = try Store.open(&f.pages, f.published);
     check = try core.authorization.Evaluator(Store).init(&store, store.revision, .{});
     try t.expect(!try check.canSet(member, group));
+}
+
+test "repeated grants reconcile one author's edge and target revocation preserves independent grantors" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const first = try f.role("first");
+    const second = try f.role("second");
+    const reader = try f.role("reader");
+    _ = try f.apply(root, .{ .grant = .{ .object = resource, .grantee = first, .privileges = 3, .grant_options = 3 } });
+    _ = try f.apply(root, .{ .grant = .{ .object = resource, .grantee = second, .privileges = 3, .grant_options = 3 } });
+    const actor: admin.Actor = .{ .principal = 10, .role = first };
+    const edge = try f.apply(actor, .{ .grant = .{ .object = resource, .grantee = reader, .privileges = 1, .grant_options = 1 } });
+    try t.expectEqual(edge, try f.apply(actor, .{ .grant = .{ .object = resource, .grantee = reader, .privileges = 2 } }));
+    _ = try f.apply(.{ .principal = 11, .role = second }, .{ .grant = .{ .object = resource, .grantee = reader, .privileges = 2 } });
+    _ = try f.apply(actor, .{ .revoke_privileges = .{ .object = resource, .grantee = reader, .privileges = 3 } });
+    try t.expectEqual(@as(u64, 2), (try f.decision(reader, resource)).allowed);
+    var store = try Store.open(&f.pages, f.published);
+    try t.expectEqual(@as(u64, 0), (try store.grant(edge.?)).?.privileges);
+    _ = try f.apply(actor, .{ .revoke_privileges = .{ .object = resource, .grantee = reader, .privileges = 3 } });
+    try t.expectEqual(@as(u64, 2), (try f.decision(reader, resource)).allowed);
+}
+
+test "membership reconciliation preserves omitted options and target revocation checks dependencies" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const group = try f.role("group");
+    const member = try f.role("member");
+    const delegate = try f.role("delegate");
+    const edge = try f.apply(root, .{ .membership = .{ .member = member, .role = group, .admin = true, .inherit = false } });
+    try t.expectEqual(edge, try f.apply(root, .{ .membership = .{ .member = member, .role = group, .set = false } }));
+    var store = try Store.open(&f.pages, f.published);
+    const membership = (try store.membership(edge.?)).?;
+    try t.expect(membership.admin and !membership.inherit and !membership.set);
+    _ = try f.apply(.{ .principal = 10, .role = member }, .{ .membership = .{ .member = delegate, .role = group } });
+    var restricted = try f.begin(root, .{ .revoke_role = .{ .member = member, .role = group, .option = .admin } });
+    try t.expectError(error.AuthorizationDependencies, f.finish(&restricted));
+    _ = try f.apply(root, .{ .revoke_role = .{ .member = member, .role = group, .option = .admin, .behavior = .cascade } });
+    store = try Store.open(&f.pages, f.published);
+    try t.expect((try store.memberships(delegate, null)).records[0] == null);
+}
+
+test "default privilege reconciliation and partial revoke affect only future objects" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const reader = try f.role("reader");
+    const class = (try f.apply(root, .{ .register_domain = .{ .registrar = 0, .actions = 3 } })).?;
+    const first = try f.apply(root, .{ .default_grant = .{ .creator = 0, .schema = resource, .domain = class, .grantee = reader, .privileges = 1, .grant_options = 1 } });
+    try t.expectEqual(first, try f.apply(root, .{ .default_grant = .{ .creator = 0, .schema = resource, .domain = class, .grantee = reader, .privileges = 2 } }));
+    const old = (try f.apply(root, .{ .register_object = .{ .domain = class, .owner = 0, .schema = resource } })).?;
+    _ = try f.apply(root, .{ .revoke_defaults = .{ .creator = 0, .schema = resource, .domain = class, .grantee = reader, .privileges = 1 } });
+    const fresh = (try f.apply(root, .{ .register_object = .{ .domain = class, .owner = 0, .schema = resource } })).?;
+    try t.expectEqual(@as(u64, 3), (try f.decision(reader, .{ .kind = .domain, .id = old })).allowed);
+    try t.expectEqual(@as(u64, 2), (try f.decision(reader, .{ .kind = .domain, .id = fresh })).allowed);
+}
+
+test "ownership transfer uses login SET eligibility independently of active role INHERIT" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const owner_role = try f.role("owner");
+    const login = try f.role("login");
+    const next_owner = try f.role("next-owner");
+    _ = try f.apply(root, .{ .transfer_object = .{ .object = resource, .owner = owner_role } });
+    _ = try f.apply(root, .{ .membership = .{ .member = owner_role, .role = next_owner, .inherit = true, .set = false } });
+    const actor: admin.Actor = .{ .principal = 42, .role = owner_role, .login_role = login };
+    try t.expectError(error.Forbidden, f.begin(actor, .{ .transfer_object = .{ .object = resource, .owner = next_owner } }));
+    _ = try f.apply(root, .{ .membership = .{ .member = login, .role = next_owner, .inherit = false, .set = true } });
+    _ = try f.apply(actor, .{ .transfer_object = .{ .object = resource, .owner = next_owner } });
+    var store = try Store.open(&f.pages, f.published);
+    try t.expectEqual(next_owner, (try store.object(resource)).?.owner);
 }

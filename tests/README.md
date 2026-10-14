@@ -56,6 +56,28 @@ permits that original operation. The node SHA-256 is
 `583dd1abd327e29759622765894f7068a1978891373856217f5fa178b8a4e878`.
 These are generic opaque-object checks, not Table-service isolation evidence.
 
+The administration run passes the repository unit task and **21/21 client
+tests** under definition
+`ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d`.
+Its native unit cases add read-only scratch previews, stable grant reconciliation,
+partial default revocation, independent grantors, SET-based ownership eligibility
+and receipt recovery after key rotation. The focused core run before adding the
+receipt case passes **108/108 tests**; the subsequent repository task includes
+that additional case. The SQL parser's **324-test** Fuze run covers admitted
+forms, explicit unsupported syntax and allocator failures; it does not establish
+SQL execution or gateway support.
+
+The [administration disk report](verification/results/authorization-administration-2026-10-14.json)
+records a passing **9.340 s** run on dirty `b57a5a69`, with five node/store restart
+cycles and 16 resident Ursula pages. In addition to the earlier native checks,
+it verifies preview without publication, repeated grants retaining their edge ID,
+exact action inspection, and a deliberately unread self-rotation publication
+reply. The old key cannot resubmit; the new key recovers that exact receipt before
+and after disk restart. A changed body reports `ConflictingRetry`. The initial
+run failed an assertion expecting HTTP 409 for that existing HTTP 422 diagnostic;
+the corrected rerun passes. This evidence does not close schema administration,
+remaining query transports, SQL adapters or installed workflow qualification.
+
 ## Table authorization service isolation
 
 `just test::authorization-tables` runs the actual node, signing CLI, catalog

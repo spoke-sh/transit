@@ -17,6 +17,12 @@ scopes. Role memberships support ADMIN, INHERIT and SET independently; object
 grants support delegation options and RESTRICT/CASCADE. PUBLIC has no bootstrap
 access. Cross-realm federation is not implemented.
 
+Repeated grants preserve existing options and independent grantors. Ownership
+transfer checks SET eligibility from the login role separately from inherited
+owner authority. Exact logical role-name lookup is visible to authenticated
+callers in the realm; private native roles and full role enumeration remain
+restricted. Role metadata contains no credential material.
+
 Supply credentials explicitly. Native callers sign canonical operations through
 the [shared client](native.md); reserializing a signed request with an arbitrary
 JSON client may change its meaning or signature. Imported credentials, native
