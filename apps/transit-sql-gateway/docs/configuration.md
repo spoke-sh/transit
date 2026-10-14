@@ -69,6 +69,9 @@ inside the same result. Applications can issue a fresh SELECT after discarding
 an incomplete result. For mutations, inspect the retained operation first:
 capacity exhaustion can interrupt observation after admission. SQLSTATE alone
 does not establish that a write was rejected before admission.
+An unready or fenced gateway owner reports PostgreSQL `55000` (MySQL's generic
+1105/HY000 error with the explicit readiness message). This can follow transient
+native unavailability. It neither transfers ownership nor cancels retained work.
 
 The optional private health listener serves GET `/health` with 200 only while all
 account workers report ready and the service is admitting requests; otherwise it

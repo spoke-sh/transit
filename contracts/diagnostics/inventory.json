@@ -2250,6 +2250,232 @@
         "transit_flight"
       ]
     },
+    "apps/transit-sql-gateway/build.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "apps/transit-sql-gateway/src/Control.zig": {
+      "errors": {
+        "ExpectedControlArguments": 4,
+        "FileNotFound": 1,
+        "GatewayControlInUse": 1,
+        "GatewayControlNotFound": 1,
+        "GatewayControlPending": 1,
+        "GatewayControlSyncFailed": 1,
+        "GatewayDeadline": 1,
+        "GatewayIdentityConflict": 2,
+        "GatewayOperationNotTerminal": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidGatewayConfiguration": 1,
+        "InvalidGatewayLimits": 1,
+        "InvalidGatewayPrepared": 1,
+        "InvalidGatewayTerminal": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "command()": "<inferred>",
+        "loadPending()": "<inferred>",
+        "number()": "<inferred>",
+        "print()": "<inferred>",
+        "run()": "<inferred>",
+        "save()": "<inferred>",
+        "terminal()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 57,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_sql_gateway"
+      ]
+    },
+    "apps/transit-sql-gateway/src/Host.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "AuthorityUnavailable": 2,
+        "Canceled": 1,
+        "Cancelled": 1,
+        "CatalogDefinitionChanged": 2,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 1,
+        "CellTooLarge": 1,
+        "Conflict": 1,
+        "DuplicateWirePortal": 1,
+        "DuplicateWireStatement": 1,
+        "EmptyWireQuery": 1,
+        "ExpectedGatewayWrite": 2,
+        "ExpectedIdentifier": 1,
+        "GatewayCredentialChanged": 2,
+        "GatewayDatabaseDenied": 1,
+        "GatewayDeadline": 1,
+        "GatewayMutationCancelled": 2,
+        "GatewayMutationRejected": 2,
+        "GatewayOwnerUnavailable": 3,
+        "GatewayWaitCancelled": 1,
+        "InvalidAuthentication": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidSqlSyntax": 1,
+        "InvalidWireValue": 1,
+        "NullNotAllowed": 1,
+        "OutOfMemory": 1,
+        "Rejected": 1,
+        "StaleGatewayCoordinator": 2,
+        "TableNotFound": 1,
+        "TooManyWirePortals": 1,
+        "TooManyWireStatements": 1,
+        "UnexpectedToken": 1,
+        "UnknownWirePortal": 1,
+        "UnknownWireStatement": 1,
+        "UnsupportedExecutionCycle": 1,
+        "UnsupportedGatewayStatement": 1,
+        "UnsupportedWireType": 1,
+        "WireParameterCountMismatch": 2,
+        "WireParameterTypeMismatch": 1,
+        "WireValueOutOfRange": 1
+      },
+      "outcomes": {
+        "Prepared": [
+          "native",
+          "probe"
+        ],
+        "Read.value": [
+          "single",
+          "relational",
+          "probe"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Read.next()": "<inferred>",
+        "begin()": "<inferred>",
+        "bind()": "<inferred>",
+        "current()": "<inferred>",
+        "fresh()": "<inferred>",
+        "init()": "<inferred>",
+        "loadCredential()": "<inferred>",
+        "openRead()": "<inferred>",
+        "prepare()": "<inferred>",
+        "reset()": "<inferred>",
+        "selectDatabase()": "<inferred>",
+        "validate()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 38,
+        "catch": 4
+      },
+      "imports": [
+        "std",
+        "transit_postgres",
+        "transit_sql_gateway"
+      ]
+    },
+    "apps/transit-sql-gateway/src/Stop.zig": {
+      "errors": {
+        "SignalSetupFailed": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "wait()": "anyerror"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "apps/transit-sql-gateway/src/main.zig": {
+      "errors": {
+        "ExpectedPrivateConfiguration": 1,
+        "FreshOwnershipRequired": 1,
+        "GatewayActivationSyncFailed": 1,
+        "GatewayConnectionCapacity": 3,
+        "GatewayCredentialChanged": 2,
+        "GatewayDatabaseDenied": 1,
+        "GatewayDeadline": 4,
+        "GatewayDraining": 3,
+        "GatewayOwnerUnavailable": 1,
+        "InvalidAuthentication": 6,
+        "InvalidCancelRequest": 1,
+        "PathAlreadyExists": 1,
+        "TlsRequired": 1,
+        "UnsupportedStartupSetting": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {
+        "Protocol": [
+          "postgres",
+          "mysql"
+        ],
+        "Server.connectionDeadline().Result": [
+          "connection",
+          "authentication"
+        ],
+        "boundedHandle().Result": [
+          "command",
+          "timeout"
+        ],
+        "run().Result": [
+          "postgres",
+          "mysql",
+          "stop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Output.writeAll()": "<inferred>",
+        "Server.acquire()": "<inferred>",
+        "Server.authenticationDeadline()": "anyerror",
+        "Server.cancel()": "<inferred>",
+        "Server.connectionDeadline()": "<inferred>",
+        "Server.handle()": "<inferred>",
+        "Server.mysqlConnection()": "<inferred>",
+        "Server.postgres()": "<inferred>",
+        "Server.protocolTask()": "anyerror",
+        "Server.serve()": "<inferred>",
+        "Server.serveHealth()": "anyerror",
+        "boundedHandle()": "<inferred>",
+        "boundedHandle().Task.command()": "anyerror",
+        "boundedHandle().Task.timeout()": "anyerror",
+        "main()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 14,
+      "propagation": {
+        "try": 129,
+        "catch": 11
+      },
+      "imports": [
+        "Control.zig",
+        "Host.zig",
+        "Stop.zig",
+        "std",
+        "transit_http_server",
+        "transit_mysql",
+        "transit_postgres",
+        "transit_sql_gateway",
+        "transit_tls_server"
+      ]
+    },
     "apps/transit-station-grpc-worker/main.zig": {
       "errors": {
         "ExchangeNotFound": 2,

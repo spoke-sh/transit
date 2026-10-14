@@ -15,6 +15,12 @@ Values retain exact integer sign/range and finite floating-point checks. Missing
 type-error and conflict cells never encode as SQL NULL. Other stored descriptors
 return `UnsupportedWireType` at this boundary.
 
+The shared prepared-scalar binder limits each UTF-8 or binary parameter to 4096
+bytes. This is a per-value bound, independent of the frame/session ceilings and
+the account's admitted intent size. Over-limit bindings reject before dispatch.
+Stored results remain subject to their logical codec, query and output-frame
+bounds; a larger frame budget does not enlarge the prepared-scalar profile.
+
 `Limits.validate` checks the following default configuration and ceilings.
 These are operation/resident bounds, independent of retained Table cardinality.
 The application owner must enforce admission and use these limits at each I/O

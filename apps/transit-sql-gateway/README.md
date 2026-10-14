@@ -19,6 +19,8 @@ uses the admitted shared int64 join/group profile. Core wire values are int64,
 uint64, finite float64, Boolean, UTF-8, binary and SQL NULL. PostgreSQL represents
 uint64 as numeric(20,0); MySQL uses unsigned LONGLONG. PostgreSQL text rejects NUL.
 Other projected types reject without opening a result stream.
+Each UTF-8 or binary bound parameter is limited to 4096 bytes. SQL text, complete
+intent size and session budgets have separate limits in the wire contract.
 
 Transactions, multi-statement requests, savepoints, autocommit-off, ALTER/DROP,
 RETURNING, COPY, bulk/long-data uploads, cursors, replication and arbitrary system

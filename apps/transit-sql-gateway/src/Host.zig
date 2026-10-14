@@ -266,10 +266,13 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled => .{ "57014".*, "Request wait ended; admitted writes require outcome inspection" },
-        error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue, error.NullNotAllowed => .{ "22023".*, "Parameter type or value rejected" },
+        error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
+        error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
+        error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
         error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory => .{ "54000".*, "Session capacity exceeded" },
+        error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
         error.UnknownWireStatement, error.UnknownWirePortal => .{ "26000".*, "Unknown prepared statement or portal" },
         error.DuplicateWireStatement, error.DuplicateWirePortal => .{ "42P05".*, "Prepared name already exists" },
         error.GatewayMutationRejected => blk: {
@@ -310,6 +313,9 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("53000", &capacity.state);
     try std.testing.expect(std.mem.indexOf(u8, capacity.detail.?, "17") != null);
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
+    try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
+    try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
+    try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     host.wire.last_rejection = null;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
 }
