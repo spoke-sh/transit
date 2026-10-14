@@ -5,6 +5,7 @@ const Host = struct {
     allocator: std.mem.Allocator,
     writes: usize = 0,
     value: u64 = 0,
+    allocation_failed: bool = false,
     pub const Prepared = struct {
         pub fn parameters(_: *const Prepared) []const f.Types.Type {
             return &.{.uint64};
@@ -50,7 +51,8 @@ const Host = struct {
     pub fn selectDatabase(_: *Host, _: []const u8) !void {
         return error.GatewayDatabaseDenied;
     }
-    pub fn diagnostic(_: *Host, _: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
+    pub fn diagnostic(self: *Host, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
+        if (err == error.OutOfMemory) self.allocation_failed = true;
         return .{ .state = "0A000".*, .message = "Request rejected", .detail = null };
     }
 };
@@ -101,4 +103,19 @@ test "MySQL commands preserve unsigned values and remembered types, with exact a
         try t.expectEqual(@as(usize, 0), transport.bytes.items.len);
         try t.expect(!try engine.handle("\x01"));
     }
+}
+fn allocationCycle(allocator: std.mem.Allocator) !void {
+    var host: Host = .{ .allocator = allocator };
+    var transport: Transport = .{ .allocator = allocator };
+    defer transport.bytes.deinit(allocator);
+    var engine = try Engine.init(allocator, &host, &transport, .{}, m.Handshake.required);
+    defer engine.deinit();
+    _ = try engine.handle("\x16UPDATE");
+    _ = try engine.handle(execute_new);
+    _ = try engine.handle("\x1f");
+    try std.testing.expect(host.writes <= 1);
+    if (host.allocation_failed) return error.OutOfMemory;
+}
+test "allocation failures release prepared metadata and never replay a write" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationCycle, .{});
 }

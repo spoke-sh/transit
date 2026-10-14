@@ -9,10 +9,12 @@ const Host = struct {
     closed: usize = 0,
     data: [2]i64 = .{ 1, 2 },
     denied: bool = false,
+    allocation_failed: bool = false,
     pub const Prepared = struct {
         write: bool,
-        pub fn parameters(_: *const Prepared) []const f.Types.Type {
-            return &.{};
+        parameter: bool = false,
+        pub fn parameters(self: *const Prepared) []const f.Types.Type {
+            return if (self.parameter) &.{.utf8} else &.{};
         }
         pub fn fields(self: *const Prepared) []const f.Types.Field {
             return if (self.write) &.{} else &.{.{ .name = "n", .type = .int64, .nullable = false }};
@@ -38,9 +40,9 @@ const Host = struct {
         }
     };
     pub fn prepare(self: *Host, sql: []const u8) !*Prepared {
-        if (!std.mem.eql(u8, sql, "READ") and !std.mem.eql(u8, sql, "WRITE")) return error.UnsupportedGatewayStatement;
+        if (!std.mem.eql(u8, sql, "READ") and !std.mem.eql(u8, sql, "WRITE") and !std.mem.eql(u8, sql, "PARAM")) return error.UnsupportedGatewayStatement;
         const value = try self.allocator.create(Prepared);
-        value.* = .{ .write = std.mem.eql(u8, sql, "WRITE") };
+        value.* = .{ .write = std.mem.eql(u8, sql, "WRITE"), .parameter = std.mem.eql(u8, sql, "PARAM") };
         return value;
     }
     pub fn destroy(self: *Host, value: *Prepared) void {
@@ -49,8 +51,8 @@ const Host = struct {
     pub fn validate(self: *Host, _: *Prepared) !void {
         if (self.denied) return error.CatalogDenied;
     }
-    pub fn bind(_: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !void {
-        if (values.len != 0) return error.WireParameterCountMismatch;
+    pub fn bind(_: *Host, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
+        if (values.len != @intFromBool(prepared.parameter)) return error.WireParameterCountMismatch;
     }
     pub fn openRead(self: *Host, _: *Prepared, _: []const ?f.Types.Values.Atom) !*Read {
         self.snapshots += 1;
@@ -68,7 +70,8 @@ const Host = struct {
     }
     pub fn begin(_: *Host) !void {}
     pub fn end(_: *Host) void {}
-    pub fn diagnostic(_: *Host, _: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
+    pub fn diagnostic(self: *Host, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
+        if (err == error.OutOfMemory) self.allocation_failed = true;
         return .{ .state = "0A000".*, .message = "Request rejected", .detail = null };
     }
 };
@@ -94,6 +97,23 @@ fn tags(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
         offset += frame.consumed;
     }
     return out.toOwnedSlice(allocator);
+}
+fn allocationCycle(allocator: std.mem.Allocator) !void {
+    var host: Host = .{ .allocator = allocator };
+    var transport: Transport = .{ .allocator = allocator };
+    defer transport.bytes.deinit(allocator);
+    var engine = try Engine.init(allocator, &host, &transport, .{});
+    defer engine.deinit();
+    _ = try engine.handle('P', "s\x00PARAM\x00\x00\x00");
+    _ = try engine.handle('B', "\x00s\x00\x00\x00\x00\x01\x00\x00\x00\x05hello\x00\x00");
+    _ = try engine.handle('E', "\x00\x00\x00\x00\x01");
+    _ = try engine.handle('S', "");
+    // Protocol errors deliberately translate OOM; tell the allocator checker
+    // that the induced failure was observed after releasing session resources.
+    if (host.allocation_failed) return error.OutOfMemory;
+}
+test "every allocation failure releases copied binds, prepared statements and suspended reads" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationCycle, .{});
 }
 test "live command engine dispatches a write only after one valid Sync and recovers from failure" {
     const t = std.testing;
