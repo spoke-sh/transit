@@ -1,5 +1,374 @@
 # Validation and milestone evidence
 
+## Database wire gateway
+
+The [retained report](verification/results/sql-wire-2026-10-14.json) records the
+2026-10-14 UTC full gateway run at `858732ad`, its raw observations, local log
+digests and failed attempts. `just test::sql-wire-gateway` passes in **1412.941
+seconds**, with no tracked changes at measurement. It runs the actual TLS gateway,
+Catalog host/courier and native authority over disk-backed Ursula and pinned
+MinIO, with eight resident pages, 8 MiB hot storage and an 8 MiB cold cache.
+The run flushes 1426 cold data objects; MinIO's sampled file size is 374415355 bytes.
+This is a workspace run, not clean-checkout CI.
+
+The pinned clients are Psycopg 3.3.4, psql/libpq 18.6, Connector/Python 9.4.0 and
+Oracle mysql/libmysqlclient 8.4.11. In that recorded run, Python and C checks
+execute CREATE, prepared INSERT/SELECT/UPDATE/DELETE and all six scalar types;
+CLI checks execute literal SELECT. The independent C checks cover signed/unsigned
+extremes, parameter/result metadata, NULL, binary values, reset and counts.
+PostgreSQL checks both result
+formats and duplicate rejection SQLSTATE 23505. MySQL checks changed-row and
+CLIENT_FOUND_ROWS modes. Literal int64 joins/groups and defaults versus explicit
+NULL use the shared owners.
+
+The same run qualifies operator initialization, locked/synced signed controls,
+paged discovery, current terminal inspection, processed-control retry and fenced
+restart. Raw TLS tests reject write Flush/double Execute cycles before mutation,
+close PostgreSQL portals at Sync, cancel suspended reads, reject stale cancellation
+keys and recover the next request. An admitted INSERT completes once after losing
+its database reply. Both protocols reject wrong credentials/account/database and
+plaintext downgrade. Certificate replacement rejects old trust and accepts new
+trust; PostgreSQL additionally checks invalid hostname/trust. Verifier revision
+changes invalidate retained sessions, and disabled credentials reject new sessions.
+
+Catalog administration uses principal 1234 independently of the gateway's Table
+principal 1235. Read-only policy denies CREATE/INSERT/UPDATE/DELETE, including
+retained prepared handles, without adding gateway operations; reads still work.
+External ALTER, DROP and name reuse invalidate both protocols' prepared reads and
+writes. Native read revocation denies retained handles and suspended portals.
+The subsequent **210.596-second controls slice** additionally proves that new
+preparation metadata and previously committed operator counts are suppressed after
+native read revocation, with no partial stdout from failed control inspection.
+That slice excludes the independent client matrix and wide values.
+
+A single prepared INSERT carries ten 4096-byte variable fields, **40 KiB total**.
+The 270-second SQL wait ends, while discovery identifies the one original durable
+operation. Its terminal result is observed after **965.415 seconds**, with exactly
+one matched and changed row and no SQL retry. Binary readback through both
+protocols verifies the values; a supplemental read checks every one of the ten
+cells, and the repeatable fixture includes that full readback. A 4097-byte bound
+cell rejects with SQLSTATE 54000. The operator proof has a separate 1800-second
+observation budget and two-second polling; these do not extend the SQL deadline.
+This measured completion cost is not an interactive latency guarantee.
+
+Eight-session saturation preserves private health and reserved TLS cancellation.
+Four stalled authentication attempts expire at their absolute deadline. The
+fixture checks 16 prepared handles, four portals, oversized header refusal,
+readiness withdrawal and joined SIGTERM drain. Package tests additionally cover
+malformed Sync recovery, dependent portal cleanup, remembered MySQL parameter
+types, invalid cursors, monotonic handles and no replay after partial output.
+Exhaustive allocation-failure schedules pass both session owners.
+
+The report separates framed-row encoding, verified connection startup,
+preparation, first-row/complete-read and durable write timings. It retains raw
+samples, native/provider request and byte counters, and sampled gateway RSS/HWM.
+`just test::sql-wire-encoding` measures all six scalar types plus NULL in 10000-row
+samples, independently of TLS, sockets, authority and storage; it also runs before
+the full gateway proof. The native read comparison includes a fresh helper process
+and compilation, while driver paths retain connections/preparations. Instrumented
+request windows include concurrent account maintenance; Catalog host/courier
+traffic bypasses that proxy. No causal subtraction or throughput claim follows.
+
+Failed attempts remain failures. Early wide tests exposed the 4096-byte scalar
+bound, command/native-read deadlines and the 64 MiB hot-only Ursula limit; the
+latter produced ColdBackpressure/DeadlineExpired. The cold fixture removes that
+capacity condition. A later inventory race required fresh read-conflict retries
+and ordered operation cursors across forward revisions. The 900-second operator
+observation still ended with an active, unblocked original operation; it did not
+establish completion. The longer passing observation retains the SQL deadline.
+Initial policy/DDL fixtures also misclassified successful `policy_applied` and
+`delegated`/Table-applied dispositions; their corrected assertions pass.
+
+`just test::sql-gateway` passes again in **74.181 seconds** during concurrent wire
+qualification: 33 retained operations, three fenced replacements, lost receipts
+for Table/ingress principals and a detached wait, 214 turns and 208 sends. It checks
+original signed bytes, counts, paged recovery and control decisions against disk.
+Its scope is native ledger/runtime recovery, independently of database framing.
+
+`just test::sql-wire-placement compose` passes in **277.639 seconds** and the
+`reference` placement passes in **326.564 seconds**, including image preparation.
+Both use the pinned OpenSSL package, actual TLS, six scalar values, typed prepared
+queries/mutations and original counts. Both stop the gateway, Catalog host,
+courier, node and store, then recover the same state with fresh native generations
+before another write. Reference additionally runs the Catalog host in Substrate,
+retains gateway activation markers on a PVC and executes independent egress
+denials. These replacements occur after completed mutations; the separate native
+ledger schedules cover pending steps, lost receipts and fencing.
+
+The full `just check` passes at `858732ad`. `just transit-board::query-browser`
+also passes its real Chromium recovery, Canvas/Browse and current-grant/cut checks.
+The diagnostic inventory includes the gateway application; its preexisting mapping
+manifest covers its declared boundaries, not this entire new wire surface.
+Application/session tests and actual negative cases own the SQLSTATE mappings.
+Final clean qualification uses `just ci-clean` (all five ordinary lanes at one
+committed revision) or `just ci-clean --complete` with the installed browser.
+Individual `--lane` runs provide scoped clean evidence. When composing them,
+record each source revision and intervening changes; a failed complete run is
+not a complete pass, even when all tasks in an earlier lane finished successfully.
+Those runs create revision-qualified timing/completion reports under `.cache/ci/clean`;
+focused and deployment results do not stand in for them. Hosted CI status is
+reported separately in the implementation PR.
+
+The clean SDK run at `c5d46e8f` passed the Python Table consumer checks but failed
+the enclosing prepared-parameter schedule: its hot-only Ursula store reached
+the 64 MiB total limit and returned `ColdBackpressure`. The supplied host then
+stopped; this is a failed task, not a Python qualification pass. Installed SDK
+Table recipes now select the existing cold-store fixture, with 8 MiB hot/cache
+bounds and eight resident authority pages. They retain all cases and deadlines.
+
+Board query setup also exceeded its former 60-second fixture budget in two clean
+attempts, at `c5d46e8f` and `2fa8da42`. The latter log still shows successful
+commits through position 257 at the cutoff, before any browser/query assertion.
+Board now uses the same 300-second provisioning budget as `public_query.py`,
+which invokes the identical setup helper, and reports setup time separately.
+Other administrative waits, native requests and query deadlines are unchanged.
+The clean experience lane at `fec5dd68` passed separately; it does not turn
+either timed-out attempt into a pass.
+
+The clean browser run at `534c334d` passed its first five tasks, then failed
+`test::reactive-views`: a newer completed query retained the source resource,
+contract and schema, but Board reported reset-required when its bound execution
+fingerprint changed. A focused diagnostic run reproduced the same failure.
+That fingerprint includes the captured source basis. Board now compares the
+source/contract/schema across refreshes; the native owner still copies and
+verifies the original template, and complete-result verification still requires
+one identical manifest across every page and the current-authority reread.
+The browser proof explicitly checks the new namespace, advanced cut, unchanged
+source contract/schema and changed execution fingerprint before testing denial.
+These failed attempts remain separate from the subsequent qualification results.
+The corrected focused run passes in **190.09 seconds**; its measured mutation to
+verified visible query result is **27012 ms**, followed by successful denial
+between full verification and the visible reread. `just check` also passes with
+the correction. These are workspace results; the committed-source browser lane
+is recorded separately.
+
+The expanded gateway run at `12236039` passed its CLI/C/Python matrix and raw
+write cycle but failed the 1800-second wide-write observation. The original
+operation remained active and unblocked; the native log still records successful
+turns and delivery through position 12662. Completion was not established. The
+added CLI mutations had changed the accumulated history before that measurement.
+The full gateway task now runs those CLI lifecycles in a separate owned fresh
+fixture, preserving the earlier wide workload and its deadlines. Both schedules
+must pass; neither the failed observation nor the passing client prefix qualifies
+the complete task.
+
+### Committed-source qualification
+
+The [clean qualification record](verification/results/sql-wire-clean-2026-10-14.json)
+retains passing evidence for all **89 inventory tasks**, including the seven
+browser tasks. This is composed coverage across committed-source clean checkouts,
+not one complete run at a single HEAD. Exact task scopes, revisions, durations,
+log digests, orchestration scripts and failed attempts remain in the record.
+
+| Lane | Passed tasks | Source revisions |
+| --- | ---: | --- |
+| core | 23/23 | `d9c0e599` |
+| growth | 32/32 | `6cfeab83`, `f3687a86` |
+| experience | 7/7 | `fec5dd68` |
+| launchers | 2/2 | `c5d46e8f` |
+| bindings | 18/18 | `2fa8da42`, `74391333` |
+| browser | 7/7 | `74391333` |
+
+The original complete run at `6cfeab83` finished all 32 growth tasks, then failed
+in the TypeScript SDK inspection decoder. Later clean runs qualify that correction,
+Board asset grouping, SDK cold-store selection, provisioning setup and refresh
+identity. Native runtime and wire/ABI definitions are unchanged after that growth
+source. The expanded CLI fixture has a fresh full gateway pass.
+
+Bindings combines eight completed tasks from its original clean run with complete
+Java/.NET and BEAM/remaining-task subsets executing unchanged canonical recipes.
+The original sequence was intentionally interrupted during duplicate Java work
+after Java had passed in its separate clean subset. Its incomplete enclosing run
+is retained as interrupted; it is not counted as a complete bindings-lane pass.
+
+The fresh gateway task passes at `f3687a86` in **1709.14 seconds** across two owned
+fixtures. Both `psql` and Oracle `mysql` execute CREATE, INSERT, UPDATE and DELETE
+in their own fresh history with Unicode/NULL and independent-connection row readback.
+The original fixture retains its wide workload and deadlines alongside the full
+C/Python prepared matrix and authority, credential, schema, bounds and drain cases.
+Its one original 40 KiB operation completes after **1056.655 seconds**
+with original matched/changed counts and all ten cells verified through both
+protocols. The SQL wait remains 270 seconds, the operator observation budget
+remains 1800 seconds, and SQL is sent once. The earlier 965.415-second workspace
+measurement remains a separate observation; neither establishes a latency bound.
+
+The first expanded CLI run at `fed0ed76` completed the client matrix, then failed
+when the raw fault client used its ten-second connection timeout for a valid
+durable INSERT. Only that command now receives one absolute 300-second client
+response deadline around the existing 270-second SQL wait. Authentication and
+malformed-cycle checks retain ten seconds; no mutation is resent. The failed
+587.02-second enclosing task remains recorded separately from the later pass.
+
+The complete clean browser lane at `74391333` passes all seven tasks. Its live-view
+fixture takes **306.73 seconds**, with **52500 ms** from mutation to verified display,
+then denies the visible reread after revocation. Lifecycle reset also passes in
+**69.81 seconds**. The full source manifest remains fixed within each finite result;
+a later source cut may change the bound execution fingerprint without changing
+the original template, resource, contract or schema.
+
+Local timing sums inform CI execution caps, separately from hosted setup and
+feedback budgets. Parallel local qualification can affect those measurements.
+Hosted status is reported in the PR and cannot be inferred from these passes.
+
+## Database wire foundation
+
+Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,
+`just test::sql-wire-reference` passes against owned PostgreSQL 18.6 and Oracle
+MySQL 8.4.11 servers with verified TLS. Psycopg 3.3.4 and Connector/Python 9.4.0
+execute prepared reads, INSERT, UPDATE and DELETE where exercised by the
+[probe](sql_wire/reference.py); psql/mysql execute literal reads. The
+[sanitized transcript](sql_wire/reference-transcript.json) retains message kinds
+and selected driver settings, never authentication, parameter or result bytes.
+The PostgreSQL intermediary actively withholds Execute through Sync; the
+prepared executions complete without a Flush dependency. The MySQL intermediary
+removes unsupported capability flags from both sides of negotiation. Connector
+configuration explicitly selects autocommit, `utf8mb4_0900_bin` and
+`ANSI_QUOTES,NO_BACKSLASH_ESCAPES`; the initial handshake still proposes
+collation ID 255, before its SET NAMES command. The repeated reference run
+checks the observed settings, trailing-space/case inequality and literal
+backslashes. It replaces the initial PAD SPACE `utf8mb4_bin` probe setting;
+NO PAD matches the intended gateway comparison profile.
+
+`just test::sql-wire-tls` passes the standalone Zig/OpenSSL server transport:
+both database upgrade request formats, TLS 1.2/1.3, fragmented application input,
+certificate trust and hostname rejection, plaintext refusal and absolute
+handshake timeout. Its MySQL upgrade probe begins at SSLRequest; the reference
+server probe separately exercises a real greeting and password authentication.
+The TLS package unit test also checks the exact OpenSSL version and rejects
+missing credentials. `just doctor` passes in the new shell. The locked Nix input
+revisions and Zig compiler are unchanged.
+
+These are client and transport foundation checks. Neither Transit database
+listener, gateway authentication, prepared Table binding nor durable gateway
+write recovery is qualified by them. Later gateway, fault and placement results are recorded above; these foundation
+checks alone do not establish them or clean-suite completion.
+
+## Database wire primitives
+
+On 2026-10-13, `just test::sql-wire-contracts` passes bounded PostgreSQL/MySQL
+frame decoding, fragmented/coalesced input, lengths and sequence rejection,
+PostgreSQL write deferral through Sync, failed-cycle draining and suspended-read
+identity checks. Common scalar admission refuses unsupported logical types and
+non-SQL cell states. Authentication tests verify an independently generated
+PBKDF2/SCRAM fixture, wrong credentials/proofs, unsupported password characters,
+channel binding and consumed authentication state. The Python fixture checker
+recomputes all credential and proof bytes using hashlib and hmac.
+
+The extended codec corpus also passes: 25 independently generated PostgreSQL
+scalar cases and 26 MySQL cases cover full signed/unsigned ranges, signed zero,
+subnormal/max finite floats, Boolean, UTF-8, empty values and all 256 binary byte
+values. Python struct/base-10000 encoders produce the expected wire bytes. Zig
+checks both decoding and emitted binary bytes; text round trips preserve values.
+Message tests distinguish NULL/empty, reject malformed bodies/flags/overflow,
+and retain MySQL parameter types only after complete valid input. PostgreSQL
+text rejects NUL while length-encoded MySQL values retain it.
+
+PostgreSQL backend/startup package tests also pass independent framed SCRAM,
+parameter metadata, numeric RowDescription, text/binary DataRow with NULL,
+full-width UPDATE count, SQLSTATE error and minor-version negotiation fixtures.
+Startup tests reject duplicate accounts, ambiguous termination and unsupported
+major versions. Aggregate frame overflow and invalid logical cells clear the
+backend buffer. These checks supply protocol bytes, not a live session proof.
+
+Independent MySQL backend fixtures cover all six scalar fields in text/binary
+rows, NULL bitmap offset two, UTF-8 collation 309, binary metadata, full uint64
+counts, prepare replies, EOF/OK, errors and full-auth negotiation. Handshake units
+reject truncated/changed TLS negotiation, nonzero reserved bytes, unsupported
+capabilities and trailing password bytes. The combined
+`just test::sql-wire-contracts` passes these fixtures and all three package suites.
+
+These are library-level checks, registered in ordinary core CI. They do not
+qualify an authenticated listener, session resource enforcement or durable write
+recovery. The complete native `just test::unit` also passes after replacing two
+stale inline signed-request digests and preserving shared Python dependencies in
+the SQL-wire development shell. Later gateway results are recorded above; this primitive checkpoint alone does
+not establish gateway or clean-suite completion.
+
+The full `just check` passes after the nullable-predicate browser validator is
+updated; its focused TypeScript package has 35 passing tests. Saved-step codec
+checks preserve the existing Table client's canonical signed JSON byte for byte,
+verify signatures and reject truncation/foreign definitions/tampering. A private
+Station-turn fixture checks 1301-byte publication across discarded turns, exact
+retries after lost replies, conflicting parts, committed-only visibility and
+current read denial. This fixture models atomic turns; it is not disk durability,
+native fencing or gateway recovery evidence.
+
+The ledger model tests also pass nonce recovery after a lost begin reply, staged
+intent admission, one active sequence owner, stale-generation rejection, a
+sequence-conflicting unpublished step, explicit abandoned-step collection,
+committed-only pending dispatch evidence, retained receipt/processed/terminal
+facts, operator/coordinator role separation, local pre-dispatch cancellation,
+quota reservation/release and 27-item paged discovery. Independent Python bytes
+check full-width quota and outcome counters. These tests use an atomic in-memory
+turn fixture; real disk, signed control transport and host replacement remain
+separate required proofs.
+
+The subsequent `just test::sql-gateway` run passes the
+[native coordinator schedule](sql_gateway_native.py) in 31.102 seconds: 31 retained
+operations, 191 owner turns and 185 native sends, on disk-backed Ursula with eight
+resident pages. Lost ingress and Table receipts replay the identical signed bytes
+and recover the original receipt. The schedule kills both authority and storage,
+replaces the ledger owner three times, records old-generation rejection through
+the new owner, abandons/collects an interrupted unpublished step and resumes a
+published step after dispatch without a recorded receipt. CREATE and three-row
+INSERT complete once; an unchanged UPDATE retains matched=1, changed=0. Four
+inventory pages preserve nonce discovery and terminal history while the separate
+scheduling indexes are empty. Inspection issues no sends; all observed turns
+remain within four mutations and 256-byte values.
+
+The shared `Statement` integration repeats this schedule in 32.956 seconds with
+the same operation/turn/send counts. It prepares and binds actual CREATE/DML
+intents, then reads through PostgreSQL `$n` and MySQL backtick/`?` syntax, including
+a NULL comparison and a MySQL self-join/grouped SUM. Preparing and reading adds
+no native sends. Fuze unit checks independently compare dialect plan fingerprints
+and exercise quoted CREATE names and rejected DDL/relational parameters.
+
+The live `AccountRuntime` extension passes in 37.772 seconds with 33 retained
+operations, 214 owner turns and 208 sends. The worker, coordinator, Table worker
+and ingress caller run concurrently. A delayed accepted ingress reply is cut off
+by cancelling the caller task; the account retains the exact signed request,
+recovers its original receipt and completes a subsequent SQL UPDATE. The detached
+reservation remains discoverable and is explicitly cancelled afterward. Two
+downstream replies encounter joined/cancelled sockets; those are recorded
+separately from upstream failures. The initial concurrent run exposed a stale
+ledger-read race, corrected by reacquiring exact-current reads without replacing
+pending commands. The next run completed the SQL operation but failed because
+the proxy counted cancellation's broken response sockets as upstream failures;
+the corrected classification and full schedule pass.
+
+This proof exercises the library coordinator and native GenServer adapter through
+a dedicated harness. It does not qualify a deployed database listener, concurrent
+wire sessions, account credential rotation, slow sockets or placement lifecycle.
+Those matrices remain open. Initial runs found a CREATE-only identity incorrectly
+supplied to INSERT by the harness; the corrected, complete schedule passes.
+
+## Catalog Table parameters
+
+On 2026-10-13, the shared SQL-wire implementation adds caller-owned
+`TablePrepared`, `TablePreparedDml` and nullable logical bindings. Fuze and query
+package unit suites pass, including allocation-failure ownership, quoted/comment
+placeholder handling, defaults versus NULL, NULL LIMIT/non-null constraints,
+exact uint64, predicate unknown truth and all five vector lane states.
+
+`zig build test-typed-tables -Doptimize=ReleaseSafe` passes in 251.621 seconds
+through disk Ursula, signed native clients and real catalog/Station hosts. The
+[prepared lifetime schedule](table_parameters_native.py) keeps the same Zig
+objects alive across data changes, read denial/restoration, ALTER and
+DROP/recreate. Preparation and binding issue no native sends; execution observes
+new data cuts. DML returns an owned intent for the existing exact-send recovery
+path. The complete existing lifecycle schedule also passes; its largest observed
+turn has four mutations and values remain at most 256 bytes. This run is not a
+wire-driver or gateway-ledger qualification.
+
+The native definition is
+`138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365`,
+SHA-256 of `transit.native.v1.sql-wire-parameters.2026-10-13`. FQP1 replaces its
+codec definition for nullable comparison atoms. Shared schemas, language binding
+resources, independent plan fixtures and native/SDK signing vectors migrate
+together. Historical execution records retain their original definitions.
+Earlier compilation failures from missing exhaustive cases and new test setup
+were corrected before these passes; full clean qualification remains pending.
+
 ## Integrated vector execution
 
 [Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated query runtime is

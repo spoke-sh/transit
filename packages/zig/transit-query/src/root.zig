@@ -6,6 +6,7 @@ pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const TableQuery = @import("TableQuery.zig").Query(true);
+pub const TablePrepared = @import("TablePrepared.zig");
 /// Independent row evaluator for proofs and measurements, never a query mode.
 pub const ReferenceTableQuery = @import("TableQuery.zig").Query(false);
 pub const ComputePool = @import("ComputePool.zig");
@@ -30,6 +31,7 @@ pub const RelationalCompilation = @import("RelationalCompilation.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const RelationalCaller = @import("RelationalCaller.zig");
 pub const RelationalQuery = @import("RelationalQuery.zig");
+pub const QueryMemory = @import("QueryMemory.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");

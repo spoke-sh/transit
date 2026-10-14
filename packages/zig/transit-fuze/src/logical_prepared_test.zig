@@ -12,10 +12,10 @@ const schema: t.Type = .{ .structure = &.{
     .{ .name = "detail", .type = .{ .structure = &.{.{ .name = "nested", .type = .int32 }} } },
 } };
 const text = "SELECT detail, id, name FROM people WHERE id >= $1 AND NOT (name = $2 OR name IS NULL) LIMIT $3";
-const values = [_]t.Values.Atom{ .{ .signed = std.math.minInt(i128) }, .{ .bytes = "it's 東京'; DROP TABLE people; -- $4" }, .{ .unsigned = std.math.maxInt(u64) } };
+const values = [_]?t.Values.Atom{ .{ .signed = std.math.minInt(i128) }, .{ .bytes = "it's 東京'; DROP TABLE people; -- $4" }, .{ .unsigned = std.math.maxInt(u64) } };
 test "SQL single atoms preserve typed plan bytes with grouping and parameters" {
     const input: t.Type = .{ .structure = &.{.{ .name = "id", .type = .int128, .nullable = true }} };
-    for ([_]struct { sql: []const u8, atom: f.LogicalQuery.Plan.Atom, parameters: []const t.Values.Atom }{
+    for ([_]struct { sql: []const u8, atom: f.LogicalQuery.Plan.Atom, parameters: []const ?t.Values.Atom }{
         .{ .sql = "SELECT id FROM people WHERE ((id = -1))", .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = -1 } } }, .parameters = &.{} },
         .{ .sql = "SELECT id FROM people WHERE ((id = $1))", .atom = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = -1 } } }, .parameters = &.{.{ .signed = -1 }} },
         .{ .sql = "SELECT id FROM people WHERE ((id IS NULL))", .atom = .{ .state = .{ .column = 0, .value = .null } }, .parameters = &.{} },
@@ -42,7 +42,7 @@ fn owned(allocator: std.mem.Allocator) !void {
     @memset(&input, 0);
     try e.expectEqual(@as(usize, 3), template.parameterTypes().len);
     try e.expectEqual(.int128, template.parameterTypes()[0]);
-    const parameters = [_]t.Values.Atom{ values[0], .{ .bytes = &value_bytes }, values[2] };
+    const parameters = [_]?t.Values.Atom{ values[0], .{ .bytes = &value_bytes }, values[2] };
     var bound = try template.bind(allocator, "people", schema, basis, &parameters, null);
     defer bound.deinit();
     template.deinit();
@@ -50,10 +50,10 @@ fn owned(allocator: std.mem.Allocator) !void {
     @memset(&value_bytes, 0);
     try e.expectEqual(std.math.maxInt(u64), bound.plan.limit.?);
     try e.expectEqual(std.math.minInt(i128), bound.plan.predicate.program.instructions[0].atom.compare.value.signed);
-    try e.expectEqualStrings(values[1].bytes, bound.plan.predicate.program.instructions[1].atom.compare.value.bytes);
+    try e.expectEqualStrings(values[1].?.bytes, bound.plan.predicate.program.instructions[1].atom.compare.value.bytes);
     try e.expectEqualStrings("nested", bound.plan.schema.structure[4].type.structure[0].name);
     try e.expectEqual(.true_value, try bound.plan.predicate.program.truth(bound.plan.schema, &.{
-        .{ .value = .{ .atom = values[0] } }, .{ .value = .{ .atom = .{ .bytes = "Ada" } } },
+        .{ .value = .{ .atom = values[0].? } }, .{ .value = .{ .atom = .{ .bytes = "Ada" } } },
     }));
     var bytes: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
     _ = try f.LogicalPlanCodec.encode(bound.plan, &bytes);
@@ -202,7 +202,7 @@ test "logical templates bound repeated parameter work by the predicate machine a
     var template = try Prepared.init(e.allocator, text_writer.buffered(), "people", schema, basis, null);
     defer template.deinit();
     try e.expectEqual(@as(usize, 33), template.parameterTypes().len);
-    var bindings: [33]t.Values.Atom = @splat(.{ .signed = 17 });
+    var bindings: [33]?t.Values.Atom = @splat(.{ .signed = 17 });
     bindings[32] = .{ .unsigned = 0 };
     var bound = try template.bind(e.allocator, "people", schema, basis, &bindings, null);
     defer bound.deinit();

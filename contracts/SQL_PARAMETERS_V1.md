@@ -168,10 +168,12 @@ rebinding never changes accepted or uncertain work.
 Comparison parameters cover the scalar families admitted by logical predicates:
 all signed/unsigned integer widths through 128 bits, finite float32/64, decimal,
 boolean, UTF-8, binary, date, time, civil/UTC timestamp and UUID. LIMIT uses uint64.
-Bindings use `Types.Values.Atom` directly; integer sign, exact width bounds,
+Bindings use optional `Types.Values.Atom` values directly; integer sign, exact width bounds,
 float32 representability, decimal coefficient range and temporal limits remain
-checked. This interface has no NULL, missing, conflict or source-error parameter
-variant. Interval, JSON and recursive container comparisons remain unsupported;
+checked. A null optional value is SQL NULL. Comparisons with this operand
+produce unknown for value/null/missing source cells; source type errors and
+conflicts still fail in predicate order. NULL is not IS NULL and is not folded
+to false. NULL LIMIT rejects. Missing, conflict and source-error bindings reject. Interval, JSON and recursive container comparisons remain unsupported;
 those columns can still be projected or used with their admitted state/count
 operations. Parameterization does not add comparison or aggregate capabilities.
 
@@ -188,3 +190,54 @@ Flight, Board or console parameter routes described above. Those owners must
 admit the shared logical descriptors and values when integrating this compiler.
 The separate reference `parameterTemplate` remains the documented six-scalar
 entry until its consumers and corpus are migrated together.
+
+
+## Catalog Table preparation
+
+`LogicalPrepared.initDialect` and `TableDmlPrepared.init` select either Transit
+`$n` placeholders or MySQL `?` placeholders. The lexer assigns each unquoted `?`
+a distinct ordinal in source order. MySQL mode accepts doubled backtick escapes
+for identifiers, ANSI double-quoted identifiers and strings without backslash
+escapes. `$n` in that mode rejects; quoted text and comments consume no slots.
+This lexer profile requires ANSI_QUOTES and NO_BACKSLASH_ESCAPES at its wire
+owner. It does not implement every SQL dialect feature.
+
+`TableDmlPrepared` accepts parameters in INSERT values, UPDATE assignments and
+right comparison operands for UPDATE/DELETE. It owns the full Table schema and
+syntax, infers exact descriptors, and rejects gaps and inconsistent repeated
+slots. It admits at most 256 parameters in one 4096-byte statement. Binding
+checks count, types, NULL constraints and column limits and returns an owned
+canonical DML plan. Explicit NULL never requests a default. The existing
+1024-row and 4 MiB intent limits apply; binding uses a bounded codec buffer of
+at most the intent limit plus its 512-byte envelope allowance.
+
+`transit-catalog.TablePreparedDml.prepare` and
+`transit-query.TablePrepared.prepare` acquire current metadata and rights before
+and after compilation. They retain no data snapshot and send no native command.
+`TableBinding` commits to the current contract, realm, resource, catalog, owner,
+principal and complete immutable metadata reference. Ordinary data revisions do
+not invalidate it. ALTER, rename, DROP/recreate and caller changes require new
+preparation, including changes that leave projected column types unchanged.
+
+`TableQuery.openPrepared` captures a new authorized resource cut for every
+execution, checks that preparation identity and binds a new plan to the captured
+basis. `LogicalPrepared.instantiate` requires both the original immutable basis
+and the new captured basis explicitly; it never changes an existing plan.
+Execution uses the normal bounded Table query path and its current disclosure
+checks, including terminal and empty results. Result metadata is owned by the
+template and available without scanning data.
+
+`TablePreparedDml.bind` rechecks current operation rights and metadata and returns
+a new `TableIntent` with an explicit operation/namespace identity. The existing
+`TableClient` owns signing, admission, progress, cancellation and terminal counts.
+A saved intent or signed send remains the exact recovery object after disconnect;
+recompiling or rebinding is a new operation.
+
+The logical predicate and FDM1 payload add atom tag 4, followed by column:u8 and
+comparison:u8, for a bound NULL comparison. FQP1 uses the definition derived from
+`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters`.
+The shared native definition changes with this stored-semantics cutover. Generated
+schemas, binding resources and independent canonical/signing fixtures use that
+same definition. Missing and foreign definitions reject before execution.
+The neutral six-scalar compilation action described above retains its own input
+profile; these Zig Table APIs do not add NULL to that action's bindings.

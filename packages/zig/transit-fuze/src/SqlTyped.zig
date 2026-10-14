@@ -74,16 +74,19 @@ pub fn initTemplate(allocator: std.mem.Allocator, text: []const u8, location: ?*
     return initMode(allocator, text, location, true);
 }
 fn initMode(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, parameters: bool) !Self {
+    return initDialect(allocator, text, location, parameters, .transit);
+}
+pub fn initDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, parameters: bool, dialect: sql.Dialect) !Self {
     if (location) |detail| detail.* = .{};
     try sql.validateText(text);
-    var self: Self = .{ .allocator = allocator, .lexer = .{ .text = text, .parameters_enabled = parameters }, .location = location };
+    var self: Self = .{ .allocator = allocator, .lexer = .{ .text = text, .parameters_enabled = parameters, .dialect = dialect }, .location = location };
     try self.advance();
     return self;
 }
 pub fn parameter(self: *Self) !?sql.Parameter {
-    if (self.token.tag != .integer or self.token.text.len == 0 or self.token.text[0] != '$') return null;
+    if (self.token.tag != .integer or self.token.text.len == 0 or (self.token.text[0] != '$' and self.token.text[0] != '?')) return null;
     if (!self.lexer.parameters_enabled) return error.UnboundParameters;
-    const index = std.fmt.parseInt(u32, self.token.text[1..], 10) catch return error.InvalidParameterIndex;
+    const index = if (self.token.text[0] == '?') self.lexer.parameter_ordinal else std.fmt.parseInt(u32, self.token.text[1..], 10) catch return error.InvalidParameterIndex;
     if (index == 0) return error.InvalidParameterIndex;
     const site: sql.Parameter = .{ .index = index, .offset = self.lexer.start };
     self.annotate(.parameter);
@@ -183,7 +186,7 @@ fn number(self: *Self) ![]const u8 {
     const negative = try self.take(.minus);
     if (!negative) _ = try self.take(.plus);
     if (self.token.tag != .integer) return error.InvalidSqlSyntax;
-    if (self.token.text.len != 0 and self.token.text[0] == '$') return error.InvalidParameterSite;
+    if (self.token.text.len != 0 and (self.token.text[0] == '$' or self.token.text[0] == '?')) return error.InvalidParameterSite;
     const start = self.lexer.start;
     self.annotate(.number);
     var end = start + self.token.text.len;

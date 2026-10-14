@@ -35,6 +35,11 @@ test("compiled metadata preserves output names and rejects malformed name vector
     },
   };
   expect(validateUnifiedQuery({ compiled })).toBe(true);
+  const withPredicate = (predicate: unknown) =>
+    validateUnifiedQuery({ compiled: { ...compiled, plan: { ...compiled.plan, predicate } } });
+  expect(withPredicate({ null_compare: { column: 0, op: "eq" } })).toBe(true);
+  expect(withPredicate({ null_compare: { column: 128, op: "eq" } })).toBe(false);
+  expect(withPredicate({ null_compare: { column: 0, op: "eq", value: null } })).toBe(false);
   for (const names of [
     null,
     [null, null],
@@ -100,6 +105,9 @@ test("compound inspection accepts bounded postfix structure and rejects malforme
     ]),
   ).toBe(true);
   expect(check([atom, ...Array.from({ length: 63 }, () => ({ negate: {} }))])).toBe(true);
+  expect(check([{ atom: { null_compare: { column: "id", op: "eq", type: { int64: {} } } } }])).toBe(
+    true,
+  );
   for (const invalid of [
     [],
     [{ negate: {} }],
@@ -108,6 +116,8 @@ test("compound inspection accepts bounded postfix structure and rejects malforme
     [atom, ...Array.from({ length: 64 }, () => ({ negate: {} }))],
     [{ atom: { state: { column: "bad\0name", value: "null" } } }],
     [{ atom: { program: [atom] } }],
+    [{ atom: { null_compare: { column: "bad\0name", op: "eq", type: { int64: {} } } } }],
+    [{ atom: { null_compare: { column: "id", op: "eq", type: { json: {} } } } }],
   ])
     expect(check(invalid)).toBe(false);
 });

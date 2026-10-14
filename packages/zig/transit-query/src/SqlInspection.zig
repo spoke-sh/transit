@@ -15,6 +15,7 @@ pub const PredicateAtom = union(enum) {
     all,
     state: struct { column: []const u8, value: types.State },
     compare: struct { column: []const u8, op: m.Plan.Comparison, type: types.Type },
+    null_compare: struct { column: []const u8, op: m.Plan.Comparison, type: types.Type },
 };
 pub const PredicateInstruction = union(enum) {
     atom: PredicateAtom,
@@ -27,6 +28,7 @@ pub const Predicate = union(enum) {
     all,
     state: @FieldType(PredicateAtom, "state"),
     compare: @FieldType(PredicateAtom, "compare"),
+    null_compare: @FieldType(PredicateAtom, "null_compare"),
     program: []const PredicateInstruction,
 };
 fn inspectAtom(allocator: Allocator, atom: f.LogicalQuery.Plan.Atom, schema: types.Type) !PredicateAtom {
@@ -34,6 +36,7 @@ fn inspectAtom(allocator: Allocator, atom: f.LogicalQuery.Plan.Atom, schema: typ
         .all => .all,
         .state => |state| .{ .state = .{ .column = try allocator.dupe(u8, schema.structure[state.column].name), .value = state.value } },
         .compare => |comparison| .{ .compare = .{ .column = try allocator.dupe(u8, schema.structure[comparison.column].name), .op = comparison.op, .type = try schema.structure[comparison.column].type.cloneInto(allocator) } },
+        .null_compare => |comparison| .{ .null_compare = .{ .column = try allocator.dupe(u8, schema.structure[comparison.column].name), .op = comparison.op, .type = try schema.structure[comparison.column].type.cloneInto(allocator) } },
     };
 }
 fn inspectPredicate(allocator: Allocator, predicate: @FieldType(f.LogicalQuery.Plan, "predicate"), schema: types.Type) !Predicate {

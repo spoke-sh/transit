@@ -127,18 +127,40 @@ pub fn upload(self: *const Self) c.TableControl.Upload {
 }
 /// Saved signed transport steps must belong to this original complete intent.
 /// This check does not authenticate a signature or assert that SQL was admitted.
+pub const Binding = struct {
+    header: Command.Header,
+    namespace: u64,
+    spec: Pub.Spec,
+    identity: Identity,
+    pub fn upload(self: Binding) c.TableControl.Upload {
+        return .{ .scope = self.header.scope, .namespace = self.namespace };
+    }
+    /// The owner supplies equality against the original committed command
+    /// bytes. At most one inline command or one 128-byte upload part is read.
+    /// No name resolution, recompilation or replacement schema is involved.
+    pub fn matches(self: Binding, payload: c.protocol.Value, bytes: anytype) !bool {
+        if (std.mem.startsWith(u8, payload.slice(), "TCQ1")) return payload.len == self.spec.length and try bytes.matchBytes(0, payload.slice());
+        const control = try c.TableControl.Command.decode(payload);
+        return switch (control) {
+            .initialize, .policy, .dependency => false,
+            .begin => |value| value.namespace == self.namespace and std.mem.eql(u8, &value.header, &try self.header.encode()) and std.meta.eql(value.spec, self.spec),
+            .part => |value| blk: {
+                if (!std.meta.eql(value.upload, self.upload()) or value.offset >= self.spec.length or value.length != @min(c.TableUpload.part_bytes, self.spec.length - value.offset)) break :blk false;
+                break :blk try bytes.matchBytes(value.offset, value.bytes[0..value.length]);
+            },
+            .seal, .drive, .cancel_upload, .collect_upload => |value| std.meta.eql(value, self.upload()),
+            .cancel_ddl, .cleanup_ddl => |value| self.identity == .ddl and std.meta.eql(value, self.identity.ddl),
+            .cancel_dml, .cleanup_dml => |value| self.identity == .dml and std.meta.eql(value.scope, self.header.scope) and std.meta.eql(value.reference, self.identity.dml.reference),
+        };
+    }
+};
+pub fn binding(self: *const Self) Binding {
+    return .{ .header = self.header, .namespace = self.namespace, .spec = self.spec, .identity = self.identity };
+}
+pub fn matchBytes(self: *const Self, offset: u32, bytes: []const u8) !bool {
+    if (offset > self.body.len or bytes.len > self.body.len - offset) return false;
+    return std.mem.eql(u8, bytes, self.body[offset..][0..bytes.len]);
+}
 pub fn matches(self: *const Self, payload: c.protocol.Value) !bool {
-    if (std.mem.startsWith(u8, payload.slice(), "TCQ1")) return std.mem.eql(u8, payload.slice(), self.body);
-    const control = try c.TableControl.Command.decode(payload);
-    return switch (control) {
-        .initialize, .policy, .dependency => false,
-        .begin => |value| value.namespace == self.namespace and std.mem.eql(u8, &value.header, self.body[0..Command.header_bytes]) and std.meta.eql(value.spec, self.spec),
-        .part => |value| blk: {
-            if (!std.meta.eql(value.upload, self.upload()) or value.offset >= self.body.len or value.length != @min(c.TableUpload.part_bytes, self.body.len - value.offset)) break :blk false;
-            break :blk std.mem.eql(u8, value.bytes[0..value.length], self.body[value.offset..][0..value.length]);
-        },
-        .seal, .drive, .cancel_upload, .collect_upload => |value| std.meta.eql(value, self.upload()),
-        .cancel_ddl, .cleanup_ddl => |value| self.identity == .ddl and std.meta.eql(value, self.identity.ddl),
-        .cancel_dml, .cleanup_dml => |value| self.identity == .dml and std.meta.eql(value.scope, self.header.scope) and std.meta.eql(value.reference, self.identity.dml.reference),
-    };
+    return self.binding().matches(payload, self);
 }

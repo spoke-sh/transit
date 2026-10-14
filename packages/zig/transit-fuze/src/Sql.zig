@@ -267,11 +267,16 @@ pub fn isReserved(word: []const u8) bool {
 
 pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
 pub const Token = struct { tag: Tag, text: []const u8 };
+/// MySQL ingress selects ANSI_QUOTES and NO_BACKSLASH_ESCAPES explicitly.
+/// Dialect affects lexical spelling, never evaluation or source authority.
+pub const Dialect = enum { transit, mysql };
 pub const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
     parameters_enabled: bool = false,
+    dialect: Dialect = .transit,
+    parameter_ordinal: u32 = 0,
     start: usize = 0,
     pub fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
@@ -310,7 +315,8 @@ pub const Lexer = struct {
             while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
             break :blk .integer;
         } else switch (byte) {
-            '\'', '"' => blk: {
+            '\'', '"', '`' => blk: {
+                if (byte == '`' and self.dialect != .mysql) return error.UnsupportedConstruct;
                 while (true) {
                     if (self.position == self.text.len) return error.InvalidSqlSyntax;
                     const current = self.text[self.position];
@@ -325,11 +331,18 @@ pub const Lexer = struct {
             },
             1 => if (self.cursor_enabled) .cursor else return error.UnsupportedConstruct,
             '$' => blk: {
+                if (self.dialect == .mysql) return error.InvalidParameterIndex;
                 if (!self.parameters_enabled) return error.UnboundParameters;
                 const first = self.position;
                 while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
                 if (self.position == first) return error.InvalidParameterIndex;
                 // Keep template-only syntax out of the ordinary assistance vocabulary.
+                break :blk .integer;
+            },
+            '?' => blk: {
+                if (self.dialect != .mysql) return error.UnsupportedConstruct;
+                if (!self.parameters_enabled) return error.UnboundParameters;
+                self.parameter_ordinal = std.math.add(u32, self.parameter_ordinal, 1) catch return error.InvalidParameterIndex;
                 break :blk .integer;
             },
             '(' => .left,

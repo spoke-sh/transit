@@ -58,7 +58,7 @@ python-test: python-build
     zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
-    just test::typed-tables --sdk python
+    just test::typed-tables --cold --sdk python
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
 
 # Build installed Node SDK tarballs with independent native artifacts.
@@ -88,7 +88,7 @@ node-sdk-test: node-build
     zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
-    just test::typed-tables --sdk node
+    just test::typed-tables --cold --sdk node
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
 
 # Qualify installed logical values and Arrow ownership outside the checkout.
@@ -119,7 +119,7 @@ rust-sdk-test: rust-build
     zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
-    just test::typed-tables --sdk rust
+    just test::typed-tables --cold --sdk rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -152,7 +152,7 @@ ruby-sdk-test: ruby-build
     zig build transit-station-grpc-worker
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
-    just test::typed-tables --sdk ruby
+    just test::typed-tables --cold --sdk ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
@@ -171,7 +171,7 @@ c-sdk-test: c-build
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
-    just test::typed-tables --sdk c --sdk cpp
+    just test::typed-tables --cold --sdk c --sdk cpp
     python3 -B tests/c_logical_values.py .cache/bindings/c
 
 # Qualify owned recursive models through installed C11 and C++17 consumers.
@@ -188,7 +188,7 @@ java-sdk-test: java-build
     python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
-    just test::typed-tables --sdk java
+    just test::typed-tables --cold --sdk java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
 dotnet-build: build
@@ -205,7 +205,7 @@ dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
-    just test::typed-tables --sdk dotnet
+    just test::typed-tables --cold --sdk dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
@@ -223,7 +223,7 @@ beam-sdk-test: beam-build
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
-    just test::typed-tables --sdk erlang --sdk elixir
+    just test::typed-tables --cold --sdk erlang --sdk elixir
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -352,37 +352,37 @@ unified-codecs: python-build node-build ruby-build rust-build c-build java-build
 # Installed Python sync/async catalog clients and exact saved command recovery.
 catalog-python: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
-    just test::typed-tables --sdk python
+    just test::typed-tables --cold --sdk python
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
 catalog-node: node-build node-check
-    just test::typed-tables --sdk node
+    just test::typed-tables --cold --sdk node
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
 catalog-rust: rust-build
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
-    just test::typed-tables --sdk rust
+    just test::typed-tables --cold --sdk rust
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
 catalog-ruby: ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/catalog_values.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/logical.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
-    just test::typed-tables --sdk ruby
+    just test::typed-tables --cold --sdk ruby
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
 catalog-c: c-build
-    just test::typed-tables --sdk c --sdk cpp
+    just test::typed-tables --cold --sdk c --sdk cpp
 
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: java-build
-    just test::typed-tables --sdk java
+    just test::typed-tables --cold --sdk java
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
 catalog-dotnet: dotnet-build
-    just test::typed-tables --sdk dotnet
+    just test::typed-tables --cold --sdk dotnet
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
 catalog-beam: beam-build
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
-    just test::typed-tables --sdk erlang --sdk elixir
+    just test::typed-tables --cold --sdk erlang --sdk elixir

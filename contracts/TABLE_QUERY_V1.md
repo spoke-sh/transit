@@ -24,7 +24,8 @@ names, foreign qualifiers, trailing statements and unsupported constructs reject
 WHERE shares the typed scalar comparison and eager Boolean program used by
 UPDATE and DELETE. Decimal, date, timestamp and integer literals bind to the
 declared logical type without passing through float64 or narrowing integer
-values. NULL comparisons reject in favor of IS NULL/IS NOT NULL. All state
+values. Literal NULL comparisons reject in favor of IS NULL/IS NOT NULL. Bound
+NULL operands from typed templates retain SQL unknown truth. All state
 tests and error/conflict behavior retain the shared logical predicate semantics.
 
 COUNT(*), COUNT(column) and checked int64 SUM(column) use the shared finite
@@ -66,7 +67,7 @@ literals, then owns all descriptor children, names, projections and literals.
 Releasing the encoded input or original descriptor does not invalidate the plan.
 
 The codec definition is SHA-256 of the UTF-8 bytes
-`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names`.
+`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters`.
 All multibyte integers below are little-endian:
 
 1. `FQP1`, the 32-byte codec definition, 32-byte source binding and 32-byte logical
@@ -78,7 +79,8 @@ All multibyte integers below are little-endian:
 4. LIMIT presence byte (0 or 1) and uint64 value; an absent value must be zero.
 5. One predicate atom or program. Atom tags are all 0, state 1 (column byte and
    state byte), compare 2 (column byte, comparison byte, uint16 payload length
-   and a descriptor-bound canonical logical value payload). Program tag 3 is
+   and a descriptor-bound canonical logical value payload), or bound NULL
+   comparison 4 (column byte and comparison byte, no literal payload). Program tag 3 is
    followed by a one-byte instruction count and ordered instructions: atom 0
    followed by its atom; negate 1; conjunction 2; disjunction 3.
 

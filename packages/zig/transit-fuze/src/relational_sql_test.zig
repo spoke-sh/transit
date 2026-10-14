@@ -9,6 +9,16 @@ const sources = [_]r.Source{
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
 };
 const budgets: r.Budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
+test "MySQL relational dialect preserves the same bound plan with backtick identifiers" {
+    const quoted = "SELECT `l`.`key`, COUNT(*) AS `rows`, COUNT(`r`.`value`) AS `values`, SUM(`r`.`value`) AS `total` FROM `lefts` `l` LEFT JOIN `rights` `r` ON `r`.`key` = `l`.`key` GROUP BY `l`.`key`";
+    try t.expect(try sql.requiredDialect(quoted, .mysql));
+    var mysql = try sql.parseDialect(t.allocator, quoted, null, .mysql);
+    defer mysql.deinit();
+    var original = try sql.parse(t.allocator, statement, null);
+    defer original.deinit();
+    try t.expectEqualSlices(u8, &try (try original.bind(&sources, .captured, budgets, null)).fingerprint(), &try (try mysql.bind(&sources, .captured, budgets, null)).fingerprint());
+    try t.expectError(error.UnboundParameters, sql.parseDialect(t.allocator, "SELECT COUNT(*) FROM `lefts` WHERE `key` = ?", null, .mysql));
+}
 test "relational routing distinguishes clause words from existing names" {
     for ([_][]const u8{
         "SELECT join, group FROM items",

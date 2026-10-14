@@ -47,7 +47,7 @@ class Reference(query.Reference):
                 result += self.kube('logs', 'deployment/' + name, '-c', name, '--tail=300', missing=True) or ''
         return result
 
-    def start_gateway(self, name, board=False):
+    def start_gateway(self, name, board=False, loopback_ports=(8080,)):
         self.secret(name, self.work / name)
         dns = json.loads(self.kube('get', 'service', 'kube-dns', '-n', 'kube-system', '-o', 'json'))['spec']['clusterIP']
         node = self.address('node')
@@ -55,7 +55,7 @@ class Reference(query.Reference):
         # network namespace before launching either the probe or the gateway.
         rules = f'''set -eu
 iptables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -w -A OUTPUT -p tcp -d 127.0.0.1 --dport 8080 -j ACCEPT
+{''.join('iptables -w -A OUTPUT -p tcp -d 127.0.0.1 --dport ' + str(port) + ' -j ACCEPT' + chr(10) for port in loopback_ports)}
 iptables -w -A OUTPUT -p tcp -d {node} --dport 8080 -j ACCEPT
 iptables -w -A OUTPUT -p udp -d {dns} --dport 53 -j ACCEPT
 iptables -w -A OUTPUT -p tcp -d {dns} --dport 53 -j ACCEPT

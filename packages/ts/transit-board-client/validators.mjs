@@ -12,24 +12,35 @@ const ajv = new Ajv2020({
   strict: true,
 });
 ajv.addSchema(shareValidatorSchemas(ajv, { root: schemas }).root);
-const generated = standalone(
-  ajv,
-  Object.fromEntries(
-    Object.keys(schemas.$defs).map((name) => [name, `${schemas.$id}#/$defs/${name}`]),
-  ),
-);
-const text =
-  '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
-  generated.replaceAll('require("ajv/dist/runtime/ucs2length").default', "ucs2length");
-const path = new URL("./src/validators.js", import.meta.url);
-const declarations =
-  Object.keys(schemas.$defs)
-    .map((name) => `export function ${name}(value: unknown): boolean;`)
-    .join("\n") + "\n";
-for (const [target, content] of [
-  [path, text],
-  [new URL("./src/validators.d.ts", import.meta.url), declarations],
+const names = Object.keys(schemas.$defs);
+const relational = ["RelationalRequest", "RelationalResponse"];
+const outputs = [];
+for (const [file, selected] of [
+  ["validators", names.filter((name) => !relational.includes(name))],
+  ["relational-validators", relational],
 ]) {
+  const generated = standalone(
+    ajv,
+    Object.fromEntries(selected.map((name) => [name, `${schemas.$id}#/$defs/${name}`])),
+  );
+  const reexports =
+    file === "validators"
+      ? '\nexport { RelationalRequest, RelationalResponse } from "./relational-validators.js";\n'
+      : "";
+  const text =
+    '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
+    generated.replaceAll('require("ajv/dist/runtime/ucs2length").default', "ucs2length") +
+    reexports;
+  const declarations =
+    (file === "validators" ? names : selected)
+      .map((name) => `export function ${name}(value: unknown): boolean;`)
+      .join("\n") + "\n";
+  outputs.push(
+    [new URL(`./src/${file}.js`, import.meta.url), text],
+    [new URL(`./src/${file}.d.ts`, import.meta.url), declarations],
+  );
+}
+for (const [target, content] of outputs) {
   if (process.argv.includes("--check")) {
     if (readFileSync(target, "utf8") !== content)
       throw new Error(`Validator drift: ${fileURLToPath(target)}`);

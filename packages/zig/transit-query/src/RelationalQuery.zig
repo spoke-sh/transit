@@ -9,6 +9,7 @@ const Memory = @import("QueryMemory.zig");
 const Self = @This();
 const Run = e.Execution(*q.RelationalTables, *q.RelationalSpill);
 pub const Options = struct {
+    dialect: f.Sql.Dialect = .transit,
     consistency: q.RelationalTables.Consistency,
     budgets: r.Budgets,
     /// Physical access limits supplement the logical operation budget.
@@ -39,7 +40,7 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, spi
     self.parent = allocator;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     const owned = self.memory.allocator();
-    self.syntax = try f.RelationalSql.parse(owned, text, location);
+    self.syntax = try f.RelationalSql.parseDialect(owned, text, location, options.dialect);
     errdefer self.syntax.deinit();
     if (clients.len != self.syntax.targets.len) return error.InvalidRelationalSources;
     var resources: usize = 0;

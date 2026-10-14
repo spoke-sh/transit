@@ -27,6 +27,7 @@ pub const Plan = struct {
         all,
         state: @FieldType(Atom, "state"),
         compare: @FieldType(Atom, "compare"),
+        null_compare: @FieldType(Atom, "null_compare"),
         program: Program,
     } = .all,
     aggregate: finite.Aggregate = .rows,
@@ -164,6 +165,7 @@ pub const Plan = struct {
             .all => null,
             .state => |item| item.column,
             .compare => |item| item.column,
+            .null_compare => |item| item.column,
         };
     }
 };

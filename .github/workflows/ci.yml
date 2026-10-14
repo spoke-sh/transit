@@ -77,7 +77,8 @@ jobs:
             shell: default
             cache: core
             cache_writer: false
-            timeout: 90
+            # Includes the full database client/recovery proof and retained-state regressions.
+            timeout: 120
           - lane: experience
             shell: ci-experience
             cache: experience
@@ -91,7 +92,7 @@ jobs:
             shell: ci-bindings
             cache: bindings
             cache_writer: true
-            timeout: 240
+            timeout: 300
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
     steps:

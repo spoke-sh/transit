@@ -6,7 +6,7 @@ import { DraftSession } from "@rey/transit-query-client";
 export const liveDraft = new DraftSession(query);
 
 export const querySession = new Session();
-let identity: { resource: number; contract: string; plan: string } | null = null;
+let identity: { resource: number; contract: string; schema: string } | null = null;
 export function selectLiveTemplate() {
   identity = null;
 }
@@ -25,13 +25,18 @@ export const liveQuery = new LiveView<ResultPage>(querySession, async (signal, n
     const next = {
       resource: basis.cut.resource,
       contract: JSON.stringify(basis.contract),
-      plan: JSON.stringify(page.evidence.manifest.plan),
+      schema: JSON.stringify(basis.schema),
     };
     if (
       basis.cut.kind !== "table" ||
       basis.cut.resource !== description.description.source.source.resource
     )
       throw new ReactiveError(409, "reset_required");
+    // The durable refresh generation copies the original submitted bundle and
+    // verifies its commitment before execution. Its bound plan fingerprint also
+    // includes the captured source basis, so it changes on a legitimate refresh.
+    // Keep source/contract/schema fixed here; verifiedPage checks the complete
+    // manifest, including that execution fingerprint, within each finite result.
     if (identity && JSON.stringify(identity) !== JSON.stringify(next))
       throw new ReactiveError(409, "reset_required");
     identity = next;

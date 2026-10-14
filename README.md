@@ -11,6 +11,8 @@ Integrate through [HTTP](docs/reference/openapi.md) and
 [reactive APIs](docs/reference/asyncapi.md), connect analytical tools with
 [Flight SQL and ADBC](docs/reference/flight.md), and inspect the system in
 [Board](docs/guides/inspect-board.md).
+The [database gateway](apps/transit-sql-gateway/README.md) provides PostgreSQL and
+MySQL autocommit access to authorized Table catalogs.
 
 The [interface guide](docs/guides/choose-interface.md) describes supported
 operations, types and compatibility rules for each entry point.

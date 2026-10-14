@@ -32,6 +32,90 @@ peer stalls. Protected disclosure must recheck current policy, including on late
 pages or attachments. Transport liveness establishes neither durable application
 progress nor a complete answer.
 
+## Database sockets and durable Table writes
+
+The database adapter asks a narrower question: how can an autocommit PostgreSQL
+or MySQL execution retain its accepted write when the client supplies no stable
+Transit operation identity? This section describes the implementation introduced
+after source `24a91402` and the native v1 definition named by the
+[SQL gateway contract](../../contracts/SQL_GATEWAY_V1.md). It assumes one current
+native authority, its qualified durable storage, honest gateway/Catalog code and
+an explicitly provisioned account. Protocol validation does not prove honest
+computation. Interactive transactions and automatic cross-build history migration
+are excluded.
+
+The actors are a transient database session, an account worker, a fenced
+coordinator and a Catalog worker. The account has a paged private ledger and a
+dedicated sequenced Table principal. Before dispatch, it freezes the operation's
+bound Table intent and then the exact signed native step. Native receipt,
+processed input and attributed Table terminal outcome are distinct observations.
+The [ledger](../../packages/zig/transit-sql-gateway/docs/ledger.md) defines the
+records and transition bounds; [AccountRuntime](../../packages/zig/transit-sql-gateway/src/AccountRuntime.zig)
+owns progress outside socket tasks.
+
+```mermaid
+flowchart LR
+    Socket[Authenticated SQL execution] --> Reserve[Reserve durable operation]
+    Reserve --> Intent[Persist bound Table intent]
+    Intent --> Saved[Persist exact signed step]
+    Saved --> Send[Submit or reconcile identical step]
+    Send --> Evidence[Observe original Table outcome]
+    Evidence --> Rights[Recheck current disclosure rights]
+    Rights --> Reply[CommandComplete or OK]
+```
+
+Three invariants explain the ordering. First, a native dispatch has an earlier
+durable saved step, so losing a transport reply does not require inventing a new
+sequence or reconstructing SQL. Second, only one eligible native generation can
+advance an account; a local process or provider restart cannot establish that
+eligibility. Third, a wire completion requires the original Table terminal
+evidence and current permission to disclose it. Losing permission can therefore
+hide a committed result without undoing the commit. The implementation would
+violate these claims if it dispatched before saving, replaced an unresolved
+signed request, or disclosed cached counts without authorization.
+
+The protocol cycle has a separate admission boundary. PostgreSQL buffers one
+write execution through a valid Sync and rejects a second execution or write
+Flush before dispatch. Read suspension retains the same cut until completion,
+Close, error or Sync. MySQL admits one complete supported command with autocommit
+status. Neither path accepts transaction syntax as a harmless no-op. Preparing
+freezes descriptors and object/schema identity; executing acquires a fresh read
+cut or bound write intent. Pure current-metadata retries cannot reopen a partly
+disclosed result or repeat a mutation.
+
+This design chooses explicit durable quotas and one serialized principal over
+per-socket write lanes. Retained history grows on disk; bounded indexes select
+active work without scanning all terminal operations. The tradeoff is native
+publication/read amplification and serialization within one account. A local
+recovery file per connection would be simpler but would not provide discovery
+after the connection disappears or fenced sequence ownership. Replaying SQL on
+reconnect would hide ambiguity by creating new work.
+
+The [retained experiment](../../tests/verification/results/sql-wire-2026-10-14.json)
+measures that cost with eight resident pages, 8 MiB hot storage and an 8 MiB cold
+cache. It separates framed-row encoding from verified connection startup,
+preparation, read/write completion and native/provider request windows. Native
+read samples start a fresh helper and compile; wire samples retain connections
+and preparations. Request windows include concurrent account maintenance, so
+they do not attribute every request to the foreground query. A single 40 KiB row
+outlives its 270-second SQL wait and reaches its original terminal outcome after
+965 seconds. This establishes eventual completion in that schedule and exposes
+the cost of the chosen durable path. It supplies neither a latency bound nor an
+isolated estimate of storage or coordinator cost. Further attribution requires
+controlled changes to those components, with the same authority and durability
+checks preserved.
+
+The [proof ledger](../../tests/README.md#database-wire-gateway) and its linked
+native recovery tests separate executable observations from these design
+arguments. It records the pinned toolchain and reproduction commands for native
+recovery, independent wire contracts and actual clients; deployment commands are
+in the [example](../../examples/sql-wire/README.md). Selected fault
+schedules establish their asserted outcomes, not exhaustive correctness or a
+throughput guarantee. Progress additionally requires available native storage,
+current permissions, an eligible worker, finite admitted work and sufficient
+quota. Socket timeout or successful shutdown alone establishes none of those
+conditions and cannot promise rollback.
+
 ## Reactive consistency
 
 The implemented reactive profile combines int64 Table notifications with exact

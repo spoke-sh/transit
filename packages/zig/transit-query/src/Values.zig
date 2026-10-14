@@ -140,10 +140,12 @@ pub const PredicateAtom = union(enum) {
     all,
     state: struct { column: u8, value: types.State },
     compare: struct { column: u8, op: m.Plan.Comparison, value: Scalar },
+    null_compare: struct { column: u8, op: m.Plan.Comparison },
     pub fn native(self: PredicateAtom, alloc: Allocator, schema: types.Type) !f.LogicalQuery.Plan.Atom {
         const atom: f.LogicalQuery.Plan.Atom = switch (self) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
+            .null_compare => |v| .{ .null_compare = .{ .column = v.column, .op = v.op } },
             .compare => |v| blk: {
                 if (schema != .structure or v.column >= schema.structure.len) return error.UnknownColumn;
                 break :blk .{ .compare = .{ .column = v.column, .op = v.op, .value = try scalar(alloc, v.value, schema.structure[v.column].type) } };
@@ -158,6 +160,7 @@ pub const PredicateAtom = union(enum) {
             .all => .all,
             .state => |v| .{ .state = .{ .column = v.column, .value = v.value } },
             .compare => |v| .{ .compare = .{ .column = v.column, .op = v.op, .value = try foreignScalar(alloc, v.value, schema.structure[v.column].type) } },
+            .null_compare => |v| .{ .null_compare = .{ .column = v.column, .op = v.op } },
         };
     }
 };
@@ -167,6 +170,7 @@ pub const Predicate = union(enum) {
     all,
     state: @FieldType(PredicateAtom, "state"),
     compare: @FieldType(PredicateAtom, "compare"),
+    null_compare: @FieldType(PredicateAtom, "null_compare"),
     program: []const PredicateInstruction,
     pub fn native(self: Predicate, alloc: Allocator, schema: types.Type) !@FieldType(f.LogicalQuery.Plan, "predicate") {
         return switch (self) {

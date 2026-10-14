@@ -62,6 +62,16 @@ Do not put keys, tokens, raw payloads or private data in logs, URLs or Git.
 
 ## Ingress and isolation profiles
 
+The [database gateway](../../apps/transit-sql-gateway/README.md) requires TLS,
+separate SQL password verifiers and explicit account/catalog bindings. SQL
+credentials select a configured native principal; they do not grant resource or
+catalog rights. Sessions recheck credential revision and current authority before
+metadata, rows and terminal counts. Revocation can suppress a reply while an
+admitted write remains in the account's private recovery ledger. Operator
+reconciliation uses a separate signed control identity. Verifier rotation and
+fenced replacement are described in its
+[configuration guide](../../apps/transit-sql-gateway/docs/configuration.md).
+
 Board admits viewers through its private deployment boundary. Everyone who can
 reach it sees the configured shared scope; there is no per-viewer login or
 credential session. Its upstream identity remains read-only. Optional query and

@@ -142,6 +142,7 @@ pub const Atom = struct {
         return switch (atom) {
             .all => .{ .column = 0, .run = all },
             .state => |v| .{ .column = v.column, .state = v.value, .run = states },
+            .null_compare => |v| .{ .column = v.column, .run = nullComparison },
             .compare => |v| .{ .column = v.column, .literal = v.value, .kind = kind, .uses_values = true, .run = switch (v.op) {
                 inline else => |op| switch (kind) {
                     .int64 => &Compare(i64, op).run,
@@ -158,6 +159,13 @@ pub const Atom = struct {
     }
     pub fn states(self: Atom, column: View, start: usize, output: []Outcome) void {
         for (output, start..) |*out, i| out.* = .{ .truth = finite.Truth.fromBool(column.state(i) == self.state) };
+    }
+    pub fn nullComparison(_: Atom, column: View, start: usize, output: []Outcome) void {
+        for (output, start..) |*out, i| out.* = switch (column.state(i)) {
+            .type_error => .type_error,
+            .conflict => .conflict,
+            else => .{ .truth = .unknown },
+        };
     }
 };
 

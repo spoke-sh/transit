@@ -70,3 +70,27 @@ Unresolved placeholders in ordinary SQL submission, named `PREPARE`/`EXECUTE`,
 parameters for captured file sources and saved templates are unsupported. See the
 [compiler API](../../../packages/zig/transit-fuze/docs/unified-sql.md#typed-templates)
 and [exact parameter contract](../../../contracts/SQL_PARAMETERS_V1.md).
+
+
+## General Table APIs in Zig
+
+`transit-query.TablePrepared` prepares a SELECT against an authorized catalog
+Table and exposes owned result metadata without opening a data snapshot.
+`TableQuery.openPrepared` checks that Table identity and opens a new cut for each
+execution. Data changes are visible to later executions; schema changes,
+renames and replacement Tables require new preparation. Current read permission
+is checked on every execution and disclosure.
+
+`transit-catalog.TablePreparedDml` prepares INSERT, UPDATE and DELETE. Binding
+checks exact types, defaults and nullability and produces a new owned intent for
+the ordinary signed Table caller. Binding never dispatches that intent. Save its
+exact recovery material before submission; another binding is new work.
+
+These APIs accept typed SQL NULL and the scalar descriptors supported by the
+shared logical compiler. NULL comparisons evaluate to unknown; use `IS NULL`
+when testing for null cells. NULL cannot bind LIMIT or a non-nullable assignment.
+Transit mode uses `$n`; the explicit MySQL lexer profile uses positional `?` and
+backtick identifiers. SQL strings are never assembled from values. The
+[parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
+defines the precise dialect, limits and ownership. These APIs are separate from
+the six-scalar SDK/CLI compilation interface above.

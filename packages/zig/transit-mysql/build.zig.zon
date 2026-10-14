@@ -1,0 +1,8 @@
+.{
+    .name = .transit_mysql,
+    .fingerprint = 0x534bd77d98349701,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_sql_gateway = .{ .path = "../transit-sql-gateway" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

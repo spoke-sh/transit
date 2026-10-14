@@ -8,7 +8,7 @@ pub const max_bytes = 8192 + 256;
 pub const definition = blk: {
     @setEvalBranchQuota(10000);
     var hash: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash("transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names", &hash, .{});
+    std.crypto.hash.sha2.Sha256.hash("transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters", &hash, .{});
     break :blk hash;
 };
 pub const Owned = struct {
@@ -23,6 +23,7 @@ fn writeAtom(writer: *std.Io.Writer, schema: t.Type, atom: q.Plan.Atom) !void {
     switch (atom) {
         .all => try writer.writeByte(0),
         .state => |state| try writer.writeAll(&.{ 1, state.column, @backingInt(state.value) }),
+        .null_compare => |comparison| try writer.writeAll(&.{ 4, comparison.column, @backingInt(comparison.op) }),
         .compare => |compare| {
             try writer.writeAll(&.{ 2, compare.column, @backingInt(compare.op) });
             var scratch: [t.Query.max_cell_bytes + 32]u8 = undefined;
@@ -71,6 +72,7 @@ fn readAtom(arena: std.mem.Allocator, reader: *std.Io.Reader, schema: t.Type, ta
     return switch (tag) {
         0 => .all,
         1 => .{ .state = .{ .column = try reader.takeByte(), .value = std.enums.fromInt(t.State, try reader.takeByte()) orelse return error.InvalidPlanEncoding } },
+        4 => .{ .null_compare = .{ .column = try reader.takeByte(), .op = std.enums.fromInt(finite.Comparison, try reader.takeByte()) orelse return error.InvalidPlanEncoding } },
         2 => blk: {
             const column = try reader.takeByte();
             if (column >= schema.structure.len) return error.UnknownColumn;

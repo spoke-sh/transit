@@ -58,6 +58,11 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
+| `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |
+| `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
+| `just test::sql-gateway` | Exercise signed gateway controls and coordinator recovery through native owners on disk-backed Ursula; included in growth CI |
+| `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in growth CI |
+| `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
@@ -170,16 +175,32 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-The bindings job has a 240-minute execution cap. The [recorded task durations](../tests/verification/results/m46-clean-task-coverage-2026-10-07.json)
-total about 184 minutes across clean checkouts, separately from hosted setup.
-This cap includes toolchain setup and leaves room for the complete matrix. Individual
-proof deadlines and the separately recorded feedback budgets remain unchanged.
+The bindings job has a 300-minute execution cap and growth has 120 minutes.
+The [qualification record](../tests/verification/results/sql-wire-clean-2026-10-14.json)
+retains task durations totaling **265.07 minutes** for bindings and
+**104.96 minutes** for growth across the recorded clean checkouts.
+The latter includes the expanded database gateway proof and its observation of
+an original wide mutation after the SQL response deadline. These local runs
+include concurrent qualification work; their sums are not hosted runtime
+measurements. Job caps include hosted setup. Individual proof deadlines and the
+separately recorded feedback budgets remain unchanged.
+
+Installed SDK Table schedules select `--cold`: the native history plus SDK and
+prepared-parameter cases exceed the hot-only fixture's 64 MiB total capacity.
+They use owned pinned MinIO with 8 MiB hot storage, an 8 MiB cold cache and eight
+resident authority pages. Both `bindings::*-test` and `bindings::catalog-*`
+retain the full schedule and its existing operation deadlines.
 
 The growing query fixture allows 600 seconds for complete result delivery over
 physical disk and 180 seconds for each other phase. Delivery includes hundreds
 of durable paged turns; the proof records actual phase times and verifies the
 complete original result. These fixture limits do not define runtime latency
 guarantees or change the separate performance regression budgets.
+
+Board's query fixture shares the public-query proof's 300-second catalog
+provisioning budget. Setup performs hundreds of signed durable transitions
+before browser or query checks begin; its elapsed time is printed separately.
+Other administrative waits remain 60 seconds and native requests 10 seconds.
 
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer

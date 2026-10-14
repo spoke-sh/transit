@@ -53,6 +53,12 @@ new finite query identity and captures the actual available source basis; no
 arbitrary executable `AS OF` operation is implied. While it runs, retain one
 latest unsubmitted invalidation. Only proven coverage clears that dirty position.
 
+The refresh owner copies the original submitted bundle and verifies its
+commitment before execution. A result's bound plan fingerprint includes its
+captured source basis and can change across refreshes. Compare source resource,
+contract and schema across the generation, and require the full manifest to
+remain identical across pages of each individual finite result.
+
 Verify the complete ordered result through bounded pages, discard each verification
 page and reread the visible page from that same immutable result. Recheck current
 authorization on the reread. Replace rows and summaries together only after

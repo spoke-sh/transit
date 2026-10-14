@@ -6,6 +6,12 @@ Station owns bounded immutable row/index publication; Catalog owns names,
 metadata, current policy and attributed operation outcomes. The deterministic
 catalog helper performs no I/O. The signed caller uses the public native client.
 
+`TableIntent.Binding.matches` checks saved steps through a bounded equality
+adapter over the original command bytes. An immutable-publication owner can
+validate one inline command or one upload part without reloading a whole intent.
+The owner must establish the complete canonical intent before retaining that
+binding; this interface performs no authorization or signing.
+
 ## Schema, lifecycle and policies
 
 `TableCatalog` resolves live names and immutable historical definitions in an
@@ -46,6 +52,13 @@ and [SQL reference](../../../docs/reference/sql.md) describe user-facing behavio
 steps, submits exact saved commands and inspects original outcomes. Current
 metadata lookup binds the source before preparation. Loading saved work never
 resolves its name again or recompiles against a replacement schema.
+
+`TablePreparedDml.prepare` owns a typed INSERT/UPDATE/DELETE template after
+current operation-right and metadata checks. `bind` rechecks both and returns an
+independent `TableIntent`; it performs no send. `TableBinding` includes the
+caller and complete immutable metadata while allowing later data revisions.
+See [Table preparation](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
+for NULL, dialect, identity and bounded-operation rules.
 
 Each metadata acquisition seeds a bounded 64-key cache from one authorized
 resource revision. Schema chunks share native read batches at that same cut;

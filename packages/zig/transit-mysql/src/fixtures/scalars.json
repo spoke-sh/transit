@@ -1,0 +1,158 @@
+[
+  {
+    "kind": "int64",
+    "value": "-9223372036854775808",
+    "binary": "0000000000000080",
+    "text": "142d39323233333732303336383534373735383038"
+  },
+  {
+    "kind": "int64",
+    "value": "-32769",
+    "binary": "ff7fffffffffffff",
+    "text": "062d3332373639"
+  },
+  {
+    "kind": "int64",
+    "value": "-1",
+    "binary": "ffffffffffffffff",
+    "text": "022d31"
+  },
+  {
+    "kind": "int64",
+    "value": "0",
+    "binary": "0000000000000000",
+    "text": "0130"
+  },
+  {
+    "kind": "int64",
+    "value": "1",
+    "binary": "0100000000000000",
+    "text": "0131"
+  },
+  {
+    "kind": "int64",
+    "value": "32768",
+    "binary": "0080000000000000",
+    "text": "053332373638"
+  },
+  {
+    "kind": "int64",
+    "value": "9223372036854775807",
+    "binary": "ffffffffffffff7f",
+    "text": "1339323233333732303336383534373735383037"
+  },
+  {
+    "kind": "uint64",
+    "value": "0",
+    "binary": "0000000000000000",
+    "text": "0130"
+  },
+  {
+    "kind": "uint64",
+    "value": "1",
+    "binary": "0100000000000000",
+    "text": "0131"
+  },
+  {
+    "kind": "uint64",
+    "value": "10000",
+    "binary": "1027000000000000",
+    "text": "053130303030"
+  },
+  {
+    "kind": "uint64",
+    "value": "9223372036854775807",
+    "binary": "ffffffffffffff7f",
+    "text": "1339323233333732303336383534373735383037"
+  },
+  {
+    "kind": "uint64",
+    "value": "9223372036854775808",
+    "binary": "0000000000000080",
+    "text": "1339323233333732303336383534373735383038"
+  },
+  {
+    "kind": "uint64",
+    "value": "18446744073709551615",
+    "binary": "ffffffffffffffff",
+    "text": "143138343436373434303733373039353531363135"
+  },
+  {
+    "kind": "float64",
+    "value": "-0.0",
+    "binary": "0000000000000080",
+    "text": "042d302e30"
+  },
+  {
+    "kind": "float64",
+    "value": "0.0",
+    "binary": "0000000000000000",
+    "text": "03302e30"
+  },
+  {
+    "kind": "float64",
+    "value": "-1.25",
+    "binary": "000000000000f4bf",
+    "text": "052d312e3235"
+  },
+  {
+    "kind": "float64",
+    "value": "5e-324",
+    "binary": "0100000000000000",
+    "text": "0635652d333234"
+  },
+  {
+    "kind": "float64",
+    "value": "2.2250738585072014e-308",
+    "binary": "0000000000001000",
+    "text": "17322e32323530373338353835303732303134652d333038"
+  },
+  {
+    "kind": "float64",
+    "value": "1.7976931348623157e+308",
+    "binary": "ffffffffffffef7f",
+    "text": "17312e37393736393331333438363233313537652b333038"
+  },
+  {
+    "kind": "boolean",
+    "value": "false",
+    "binary": "00",
+    "text": "0130"
+  },
+  {
+    "kind": "boolean",
+    "value": "true",
+    "binary": "01",
+    "text": "0131"
+  },
+  {
+    "kind": "utf8",
+    "value": "",
+    "binary": "00",
+    "text": "00"
+  },
+  {
+    "kind": "utf8",
+    "value": "736e6f7720e2988320616e6420e58897",
+    "binary": "10736e6f7720e2988320616e6420e58897",
+    "text": "10736e6f7720e2988320616e6420e58897"
+  },
+  {
+    "kind": "utf8",
+    "value": "610062",
+    "binary": "03610062",
+    "text": "03610062"
+  },
+  {
+    "kind": "binary",
+    "value": "",
+    "binary": "00",
+    "text": "00"
+  },
+  {
+    "kind": "binary",
+    "value": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "binary": "fc0001000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "text": "fc0001000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+  }
+]

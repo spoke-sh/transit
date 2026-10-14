@@ -12,6 +12,11 @@ for (const origin of [config.board, config.counter])
   await context.grantPermissions(["local-network-access"], { origin });
 const errors = [],
   operations = [];
+// Retain identity/reset evidence independently of the rolling request log:
+// ordinary status polling must not overwrite the event that stopped Follow.
+const resultIdentities = new Map(),
+  reactiveObservations = new Map(),
+  semanticFailures = [];
 const counter = await context.newPage();
 const board = await context.newPage();
 for (const page of [counter, board]) {
@@ -26,6 +31,33 @@ for (const page of [counter, board]) {
   page.on("response", async (response) => {
     if (!response.request().postData()) return;
     const result = await response.json().catch(() => ({}));
+    const request = response.request().postDataJSON();
+    const path = new URL(response.url()).pathname;
+    const retain = (map, key, value) => {
+      map.set(key, value);
+      if (map.size > 4) map.delete(map.keys().next().value);
+    };
+    if (request.page && result.page?.evidence?.manifest) {
+      const { basis, plan } = result.page.evidence.manifest;
+      retain(resultIdentities, request.page.namespace, { basis, plan });
+    }
+    if (
+      path.startsWith("/reactive/") &&
+      response.status() === 200 &&
+      ["describe", "inspect", "refresh_status", "observe", "clock"].includes(
+        Object.keys(request)[0],
+      )
+    )
+      retain(reactiveObservations, Object.keys(request)[0], result);
+    if (result.reason || (result.err && ![429, 503, 504].includes(response.status()))) {
+      semanticFailures.push({
+        path,
+        operation: Object.keys(request)[0],
+        status: response.status(),
+        result,
+      });
+      if (semanticFailures.length > 8) semanticFailures.shift();
+    }
     operations.push([
       response.url().split("/").slice(-2).join("/"),
       Object.keys(response.request().postDataJSON())[0],
@@ -177,6 +209,9 @@ try {
   assert(exact);
   await expect(board.getByLabel("Verified query result")).toContainText("20 total rows");
   const original = await board.getByLabel("Verified query result").textContent();
+  const originalNamespace = displayedNamespace;
+  const originalIdentity = resultIdentities.get(originalNamespace);
+  assert(originalIdentity);
   if (config.recovery) {
     const namespace = displayedNamespace;
     assert(namespace);
@@ -213,6 +248,14 @@ try {
     { timeout: 40000 },
   );
   timings.queryMutationToVerifiedVisibleMs = Math.round(performance.now() - queryStart);
+  const refreshedIdentity = resultIdentities.get(displayedNamespace);
+  assert(refreshedIdentity);
+  assert.notEqual(displayedNamespace, originalNamespace);
+  assert.equal(refreshedIdentity.basis.cut.resource, originalIdentity.basis.cut.resource);
+  assert.deepEqual(refreshedIdentity.basis.contract, originalIdentity.basis.contract);
+  assert.deepEqual(refreshedIdentity.basis.schema, originalIdentity.basis.schema);
+  assert(refreshedIdentity.basis.cut.revision > originalIdentity.basis.cut.revision);
+  assert.notDeepEqual(refreshedIdentity.plan, originalIdentity.plan);
   for (const [name, page] of [
     ["board", board],
     ["counter", counter],
@@ -250,6 +293,9 @@ try {
   console.error("Counter status:", await counter.locator("#status").allTextContents());
   console.error("Board status:", await board.getByRole("status").allTextContents());
   console.error("Recent API outcomes:", operations);
+  console.error("Result identity evidence:", JSON.stringify([...resultIdentities]));
+  console.error("Reactive observation evidence:", JSON.stringify([...reactiveObservations]));
+  console.error("Semantic failure evidence:", JSON.stringify(semanticFailures));
   console.error("Observed live-view wall times before failure:", JSON.stringify(timings));
   console.error("Browser errors:", errors);
   throw error;

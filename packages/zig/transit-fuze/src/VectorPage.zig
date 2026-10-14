@@ -39,10 +39,12 @@ pub fn logicalSite(plan: q.Plan, instruction: u8) q.Plan.PredicateFailure {
     const column = switch (plan.predicate) {
         .program => |program| switch (program.instructions[instruction].atom) {
             .compare => |v| v.column,
+            .null_compare => |v| v.column,
             .state => |v| v.column,
             .all => unreachable,
         },
         .compare => |v| v.column,
+        .null_compare => |v| v.column,
         .state => |v| v.column,
         .all => unreachable,
     };

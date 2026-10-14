@@ -338,6 +338,20 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     const config = try load(Config, init, directory, "catalog.json");
+    if (std.mem.eql(u8, mode, "activate-host")) {
+        if (args.len != 5) return error.Usage;
+        var public: [32]u8 = undefined;
+        if ((try std.fmt.hexToBytes(&public, args[4])).len != 32) return error.InvalidPublicKey;
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        _ = try admin.submit(.{ .grant = .{ .subject = config.worker, .public_key = public, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = config.writer.pid } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = config.worker, .permissions = p.State.all_permissions } });
+        _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = config.worker } });
+        var replacement = config;
+        replacement.writer.generation += 1;
+        try save(init, directory, "catalog.json", replacement);
+        return print(init, .{ .generation = replacement.writer.generation });
+    }
     if (std.mem.eql(u8, mode, "board-inspector")) {
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
@@ -348,10 +362,83 @@ pub fn main(init: std.process.Init) !void {
     }
     const owner = configuration(config);
     var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = owner.scope, .owner = owner.owner, .principal = 1234 }, .key = try key(10) };
+    if (std.mem.eql(u8, mode, "external-provision")) {
+        // Provision before assigning either principal's dedicated sequence role.
+        // The wire fixture uses 1235 for SQL and retains 1234 for administration.
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        _ = try admin.submit(.{ .grant = .{ .subject = 1235, .public_key = (try key(11)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1235, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        return submit(init, directory, &caller, try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = try c.TableCatalogRecords.Policy.administrator(owner.scope, 1235) } }));
+    }
+    if (std.mem.eql(u8, mode, "external-write-policy")) {
+        // Principal 1234 administers the catalog; 1235 belongs exclusively to
+        // the SQL gateway in this fixture. Reads never borrow its sequence.
+        var observer = caller;
+        observer.connection.principal = 1235;
+        observer.key = try key(11);
+        const before = try currentRead(init, &wire, c.TableClient.describe, .{&observer});
+        var policy = before.policy;
+        policy.revision += 1;
+        const allowed = std.mem.eql(u8, args[4], "allow");
+        policy.create = allowed;
+        policy.insert = allowed;
+        policy.update = allowed;
+        policy.delete = allowed;
+        policy.alter = allowed;
+        policy.drop = allowed;
+        const request = try caller.prepareControl(.{ .policy = .{ .expected_revision = before.policy.revision, .policy = policy } });
+        const saved = try request.save(init.gpa);
+        defer init.gpa.free(saved);
+        try saveBytes(init, directory, "external-policy-prepared.json", saved);
+        const receipt = try caller.submit(request);
+        const started = std.Io.Clock.awake.now(init.io);
+        while (try currentRead(init, &wire, c.TableClient.waitObserve, .{ &caller, request, receipt.position }) == .pending) {
+            if (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 30) return error.ProofTimeout;
+            try init.io.sleep(.fromMilliseconds(5), .awake);
+        }
+        const disposition = (try currentRead(init, &wire, c.TableClient.inputDisposition, .{ &caller, request, receipt.position })) orelse return error.ProofPolicyMissing;
+        if (disposition.outcome != .policy_applied) return error.ProofPolicyRejected;
+        const after = try currentRead(init, &wire, c.TableClient.describe, .{&observer});
+        if (!std.meta.eql(policy, after.policy)) return error.ProofPolicyChanged;
+        return print(init, .{ .write = allowed, .revision = policy.revision });
+    }
+    if (std.mem.eql(u8, mode, "external-ddl") or std.mem.eql(u8, mode, "external-ddl-admin")) {
+        if (std.mem.eql(u8, mode, "external-ddl")) {
+            caller.connection.principal = 1235;
+            caller.key = try key(11);
+        }
+        const operation = try std.fmt.parseInt(u64, args[4], 10);
+        var work = try currentRead(init, &wire, c.TableClient.compile, .{ &caller, init.gpa, args[5], .{ .operation = operation, .namespace = 1000 + operation, .create_object = if (std.mem.startsWith(u8, args[5], "CREATE")) operation else null }, null });
+        defer work.deinit();
+        try saveBytes(init, directory, "external-intent.bin", work.bytes);
+        const started = std.Io.Clock.awake.now(init.io);
+        while (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() < 120) {
+            switch (try currentRead(init, &wire, c.TableClient.next, .{ &caller, &work })) {
+                .send => |request| {
+                    const saved = try request.save(init.gpa);
+                    defer init.gpa.free(saved);
+                    try saveBytes(init, directory, "external-prepared.json", saved);
+                    const receipt = try caller.submit(request);
+                    while (true) {
+                        const progress = try currentRead(init, &wire, c.TableClient.waitProgress, .{ &caller, &work, request, receipt.position });
+                        if (progress != .pending) break;
+                        if (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 120) return error.ProofTimeout;
+                        try init.io.sleep(.fromMilliseconds(5), .awake);
+                    }
+                },
+                .terminal => |value| return outcome(init, value),
+                .upload_cancelled => return error.UnexpectedUploadCancellation,
+                .running => try init.io.sleep(.fromMilliseconds(5), .awake),
+            }
+        }
+        return error.ProofTimeout;
+    }
     if (std.mem.eql(u8, mode, "host")) return host(init, &wire, directory, config, args[1]);
     if (std.mem.eql(u8, mode, "initialize")) return submit(init, directory, &caller, try caller.prepareControl(.{ .initialize = owner }));
     if (std.mem.eql(u8, mode, "pump")) return pump(init, &wire, directory, config, if (args.len > 4) try std.fmt.parseInt(usize, args[4], 10) else 10000);
     if (std.mem.eql(u8, mode, "inspect")) return inspect(init, &wire, &caller, config, args[4]);
+    if (std.mem.startsWith(u8, mode, "prepared-")) return @import("table_parameters_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "exchange-")) return @import("relational_exchange_native.zig").run(@This(), init, &wire, directory, config, args);
     if (std.mem.startsWith(u8, mode, "captured-") or std.mem.startsWith(u8, mode, "maintained-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);

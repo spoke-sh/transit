@@ -7,6 +7,7 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.NullLimitParameter, .code = "sql.null_limit_parameter", .category = .binding, .summary = "LIMIT requires a non-NULL value", .hint = "Bind a nonnegative uint64 value to LIMIT." },
     .{ .cause = error.RelationalSourceChanged, .code = "sql.relational_source_changed", .category = .conflict, .summary = "The declared relational source differs from its binding", .hint = "Bind the exact ordered source aliases and immutable schemas before compiling new work." },
     .{ .cause = error.AmbiguousRelationalColumn, .code = "sql.ambiguous_relational_column", .category = .binding, .summary = "Column name is ambiguous across the declared Tables", .hint = "Qualify the column with its FROM or JOIN alias." },
     .{ .cause = error.UnknownRelationalSource, .code = "sql.unknown_relational_source", .category = .binding, .summary = "Source alias is not declared by this query", .hint = "Use the exact FROM or JOIN alias; an alias replaces the Table name in column references." },

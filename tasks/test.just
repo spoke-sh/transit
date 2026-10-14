@@ -10,6 +10,35 @@ _default:
 unit:
     zig build test
 
+# Independent pinned database clients, TLS/authentication and prepared cycles.
+sql-wire-reference:
+    nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py
+
+sql-wire-tls:
+    nix develop .#sql-wire --command bash -euc 'cd packages/zig/transit-tls-server; zig build test probe --prefix ../../../zig-out/sql-wire-tls'
+    nix develop .#sql-wire --command python3 -B tests/sql_wire/tls.py zig-out/sql-wire-tls/bin/transit-tls-server-probe
+
+# Shared byte/credential primitives; independent Python oracle and Zig owners.
+sql-wire-contracts:
+    python3 -B tests/sql_wire/contracts.py
+    cd packages/zig/transit-sql-gateway && zig build test
+    cd packages/zig/transit-postgres && zig build test
+    cd packages/zig/transit-mysql && zig build test
+
+# Signed ledger, exact Table steps and fenced replacement on disk-backed Ursula.
+sql-gateway:
+    zig build test-sql-gateway -Doptimize=ReleaseSafe
+
+sql-wire-gateway:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
+
+# Framed row costs without TLS/native/storage work; also runs before the gateway proof.
+sql-wire-encoding:
+    zig build test-sql-wire-encoding -Doptimize=ReleaseSafe
+
+sql-wire-placement profile:
+    nix develop .#sql-wire --command zig build test-sql-wire-placement -Doptimize=ReleaseSafe -Dsql-wire-placement={{quote(profile)}}
+
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
 tls-alpn:
     zig build test-tls-alpn
@@ -113,6 +142,10 @@ packages:
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
+    cd packages/zig/transit-tls-server && zig build test
+    cd packages/zig/transit-sql-gateway && zig build test
+    cd packages/zig/transit-postgres && zig build test
+    cd packages/zig/transit-mysql && zig build test
     cd packages/zig/transit-station-bindings && zig build test
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
@@ -141,6 +174,10 @@ packages-build:
     cd packages/zig/transit-station-grpc && zig build check
     cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check
+    cd packages/zig/transit-tls-server && zig build check
+    cd packages/zig/transit-sql-gateway && zig build check
+    cd packages/zig/transit-postgres && zig build check
+    cd packages/zig/transit-mysql && zig build check
     cd packages/zig/transit-station-bindings && zig build check
     cd packages/zig/transit-exchange && zig build check
     cd packages/zig/transit-station-http && zig build check

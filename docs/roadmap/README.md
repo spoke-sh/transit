@@ -49,7 +49,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M39](M39.md) | Comprehensive types and bounded schema on demand | Complete for the delivered profile: shared logical types, frozen CSV/JSONL discovery, Arrow/SDK owners, 75 ordinary clean tasks and physical-disk recovery |
 | [M40](M40.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
 | [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
-| [M42](M42.md) | PostgreSQL and MySQL wire access | Proposed read/write profile; Zig adapters over interactive queries and explicit mutation/catalog owners, durable write recovery, TLS/authentication, typed parameters and independent client qualification |
+| [M42](M42.md) | PostgreSQL and MySQL wire access | Read/write profiles and all 89 clean inventory tasks qualified across recorded revisions; implementation review/merge pending |
 | [M43](M43.md) | Durable Table mutation latency | Implemented and locally qualified: shared candidates/caller work, authorized wake-ups, compact pages, provider correction and 75-task clean recovery qualification |
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 | [M45](M45.md) | Mutation completion and authority efficiency | Complete: bounded completion waits, leaf staging batches, attribution and finite load controls |
@@ -139,12 +139,14 @@ M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
-[M42](M42.md) investigates PostgreSQL and MySQL wire access through shared Fuze,
+[M42](M42.md) implements PostgreSQL and MySQL wire access through shared Fuze,
 interactive-query and explicit mutation/catalog owners. Its selected profile
-requires autocommit SELECT, bounded INSERT/UPDATE/DELETE and compatible CREATE
+provides autocommit SELECT, bounded INSERT/UPDATE/DELETE and compatible CREATE
 TABLE through both protocols, with durable write identity/reconciliation and
-explicit TLS, authentication, parameter, metadata and completion gates. Neither
-a listener nor general database compatibility is implemented. M39/M40 retain
+explicit TLS, authentication, parameter, metadata and completion gates. The
+proof ledger records the selected client, recovery and deployment evidence;
+committed-source delivery and implementation review remain the final gates.
+General database compatibility is excluded. M39/M40 retain
 the prerequisite type and parameter/transaction semantics; explicit transaction
 sessions remain outside the selected wire profile.
 

@@ -10,8 +10,11 @@ pub const Target = struct { name: []const u8, alias: []const u8 };
 /// Classifies syntax before any source is opened. This is routing, not parsing
 /// acceptance: malformed/unsupported relational input still goes to parse.
 pub fn required(text: []const u8) !bool {
+    return requiredDialect(text, .transit);
+}
+pub fn requiredDialect(text: []const u8, dialect: sql.Dialect) !bool {
     try sql.validateText(text);
-    var lexer: sql.Lexer = .{ .text = text };
+    var lexer: sql.Lexer = .{ .text = text, .dialect = dialect };
     var selection = true;
     var aggregate = false;
     var comma = false;
@@ -130,13 +133,16 @@ pub const Owned = struct {
 pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Owned {
     return parseWithContext(allocator, text, location, .{});
 }
-pub const Context = struct { editor: ?*Parser.Editor = null, roles: ?[]sql.TokenRole = null, lookup: ?Predicate.Lookup = null };
+pub fn parseDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, dialect: sql.Dialect) !Owned {
+    return parseWithContext(allocator, text, location, .{ .dialect = dialect });
+}
+pub const Context = struct { editor: ?*Parser.Editor = null, roles: ?[]sql.TokenRole = null, lookup: ?Predicate.Lookup = null, dialect: sql.Dialect = .transit };
 /// Completion and presentation consume the same parser as executable SQL.
 /// Editor expectations and token roles do not establish semantic acceptance.
 pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, context: Context) !Owned {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
-    var parser = try Parser.init(arena.allocator(), text, location);
+    var parser = try Parser.initDialect(arena.allocator(), text, location, false, context.dialect);
     parser.editor = context.editor;
     parser.roles = context.roles;
     try parser.requireWord("SELECT");

@@ -76,6 +76,8 @@ without literal values. `undefined` means an absent input limit or unfiltered
 plan. Inspection operates on the supplied source alias under current access;
 it acquires no snapshot and submits no query. See the
 [inspection contract](../../../../contracts/SQL_INSPECTION_V1.md).
+`inspectSql` accepts no parameter bindings and does not inspect bound NULL
+comparisons. An unsupported native predicate response raises `IncompatibleNative`.
 
 `q.Uncertain` carries the identical `prepared` value after unconfirmed dispatch.
 Retain it across process loss and resubmit unchanged on a new client. Do not parse

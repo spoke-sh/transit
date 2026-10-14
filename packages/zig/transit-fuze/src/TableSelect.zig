@@ -97,10 +97,17 @@ pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location
 fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) ![]const u8 {
     var parser = try Parser.init(allocator, text, location);
     parser.editor = editor;
-    const selection = try Selection.parse(&parser);
+    return targetParsed(&parser);
+}
+pub fn targetDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, dialect: sql.Dialect) ![]const u8 {
+    var parser = try Parser.initDialect(allocator, text, location, true, dialect);
+    return targetParsed(&parser);
+}
+fn targetParsed(parser: *Parser) ![]const u8 {
+    const selection = try Selection.parse(parser);
     if (selection.aggregate == .rows and parser.token.tag == .left) return error.UnsupportedConstruct;
     if (selection.aggregate != .rows and try parser.take(.left)) {
-        const inner = try Selection.parse(&parser);
+        const inner = try Selection.parse(parser);
         if (inner.aggregate != .rows) return error.UnsupportedConstruct;
     }
     return parser.named(.source);
@@ -132,10 +139,10 @@ pub const Syntax = struct {
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location) !logical.Plan {
         return self.bindParameters(allocator, name, schema, basis, location, null);
     }
-    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !logical.Plan {
+    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom) !logical.Plan {
         return self.bindParametersDiagnostic(allocator, name, schema, basis, location, parameters, null);
     }
-    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom, diagnostic: ?*sql.Binding) !logical.Plan {
+    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom, diagnostic: ?*sql.Binding) !logical.Plan {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
         if (!std.mem.eql(u8, self.subject.name, name)) {
             if (location) |at| at.* = .{ .offset = self.subject.span.start };
@@ -153,7 +160,7 @@ pub const Syntax = struct {
         plan.limit = self.limit;
         if (self.limit_parameter) |site| {
             if (self.limit != null) return error.InvalidParameterSite;
-            plan.limit = @intCast((try predicate.parameterValue(site, parameters, .uint64, location)).unsigned);
+            plan.limit = @intCast((try predicate.parameterValue(site, parameters, .uint64, location) orelse return error.NullLimitParameter).unsigned);
         }
         if (self.outer) |outer| {
             var fields: [max_columns]t.Field = undefined;

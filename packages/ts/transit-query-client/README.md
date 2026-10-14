@@ -33,7 +33,9 @@ or saved outcome and clears on a new state transition.
 metadata through the same transport. Its `inspection` response remains separate
 from compiled bundles and Arrow results. Validation checks full-width revisions,
 configured Table scope, operator order, projection/output agreement and budgets;
-it rejects extra literal values through the generated strict schema. Inspection
+it rejects extra literal values through the generated strict schema. Nullable
+comparison atoms validate their source column/type without inventing a literal
+value; they remain distinct from `IS NULL` state predicates. Inspection
 is on the explicit read-conflict retry allowlist and cannot submit a query.
 
 `verifiedPage` performs a bounded full-coverage pass over one immutable result,

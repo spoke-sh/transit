@@ -834,6 +834,10 @@ pub fn build(b: *std.Build) void {
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     build_test_step.dependOn(&flight_gateway.step);
+    const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
+    b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&b.addInstallArtifact(sql_gateway_app, .{}).step);
+    build_test_step.dependOn(&sql_gateway_app.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));
@@ -1086,6 +1090,48 @@ pub fn build(b: *std.Build) void {
     typed_table_native.has_side_effects = true;
     typed_table_native.stdio = .inherit;
     b.step("test-typed-tables", "Prove general typed Table lifecycle and exact recovery on disk").dependOn(&typed_table_native.step);
+    const sql_gateway_proof = b.addExecutable(.{ .name = "transit-sql-gateway-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_gateway_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_sql_gateway", .module = b.dependency("transit_sql_gateway", .{ .target = target, .optimize = optimize }).module("transit_sql_gateway") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+    }) });
+    build_test_step.dependOn(&sql_gateway_proof.step);
+    const sql_gateway_native = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_gateway_native.addFileArg(b.path("tests/sql_gateway_native.py"));
+    sql_gateway_native.addArtifactArg(node_artifact);
+    sql_gateway_native.addArtifactArg(typed_table_proof);
+    sql_gateway_native.addArtifactArg(sql_gateway_proof);
+    sql_gateway_native.has_side_effects = true;
+    sql_gateway_native.stdio = .inherit;
+    b.step("test-sql-gateway", "Prove signed gateway ledger recovery through real native owners").dependOn(&sql_gateway_native.step);
+    const sql_wire_encoding = b.addExecutable(.{ .name = "transit-sql-wire-encoding", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_wire_encoding.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_postgres", .module = b.dependency("transit_postgres", .{ .target = target, .optimize = optimize }).module("transit_postgres") }, .{ .name = "transit_mysql", .module = b.dependency("transit_mysql", .{ .target = target, .optimize = optimize }).module("transit_mysql") } },
+    }) });
+    build_test_step.dependOn(&sql_wire_encoding.step);
+    const encoding_cost = b.addRunArtifact(sql_wire_encoding);
+    encoding_cost.has_side_effects = true;
+    b.step("test-sql-wire-encoding", "Measure framed row encoding separately from authority and transport").dependOn(&encoding_cost.step);
+    const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_wire_gateway.step.dependOn(&encoding_cost.step);
+    sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
+    sql_wire_gateway.addPassthruArgs();
+    sql_wire_gateway.has_side_effects = true;
+    sql_wire_gateway.stdio = .inherit;
+    b.step("test-sql-wire-gateway", "Exercise database clients against native gateway owners").dependOn(&sql_wire_gateway.step);
+    if (b.option([]const u8, "sql-wire-placement", "Database gateway placement: compose or reference")) |placement| {
+        const placed = b.addSystemCommand(&.{ "python3", "-B" });
+        placed.addFileArg(b.path("examples/sql-wire/run.py"));
+        placed.addArg(placement);
+        for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
+        placed.has_side_effects = true;
+        placed.stdio = .inherit;
+        b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
+    }
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
     relational_callers_native.addArtifactArg(node_artifact);

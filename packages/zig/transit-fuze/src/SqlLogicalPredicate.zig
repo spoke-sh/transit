@@ -15,10 +15,10 @@ pub const Syntax = struct {
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location) !Predicate.Program {
         return self.bindParameters(allocator, schema, name, location, null);
     }
-    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom) !Predicate.Program {
+    pub fn bindParameters(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom) !Predicate.Program {
         return self.bindParametersDiagnostic(allocator, schema, name, location, parameters, null);
     }
-    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const t.Values.Atom, diagnostic: ?*sql.Binding) !Predicate.Program {
+    pub fn bindParametersDiagnostic(self: Syntax, allocator: std.mem.Allocator, schema: t.Type, name: []const u8, location: ?*sql.Location, parameters: ?[]const ?t.Values.Atom, diagnostic: ?*sql.Binding) !Predicate.Program {
         if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
         if (self.instructions.len > Predicate.Program.max_instructions) return error.PredicateTooComplex;
         const instructions = try allocator.alloc(Predicate.Program.Instruction, self.instructions.len);
@@ -31,7 +31,7 @@ pub const Syntax = struct {
                     .state => |state| .{ .state = .{ .column = @intCast(try state.column.resolve(name, schema.structure, location)), .value = state.value } },
                     .compare => |compare| blk: {
                         const index = try compare.column.resolve(name, schema.structure, location);
-                        const value = switch (compare.value) {
+                        const value: ?t.Values.Atom = switch (compare.value) {
                             .parameter => |site| try parameterValue(site, parameters, schema.structure[index].type, location),
                             .literal => |literal| literal_blk: {
                                 var failure: ?Parser.Literal.Span = null;
@@ -60,7 +60,7 @@ pub const Syntax = struct {
                                 break :literal_blk cell.value.atom;
                             },
                         };
-                        const bound: Predicate.Atom = .{ .compare = .{ .column = @intCast(index), .op = compare.op, .value = value } };
+                        const bound: Predicate.Atom = if (value) |scalar| .{ .compare = .{ .column = @intCast(index), .op = compare.op, .value = scalar } } else .{ .null_compare = .{ .column = @intCast(index), .op = compare.op } };
                         try bound.validate(schema);
                         break :blk bound;
                     },
@@ -101,13 +101,13 @@ pub fn validateParameter(value: t.Values.Atom, expected: t.Type) !void {
     try expected.validate(.{});
     try t.Semantics.validate(value, expected);
 }
-pub fn parameterValue(site: sql.Parameter, parameters: ?[]const t.Values.Atom, expected: t.Type, location: ?*sql.Location) !t.Values.Atom {
+pub fn parameterValue(site: sql.Parameter, parameters: ?[]const ?t.Values.Atom, expected: t.Type, location: ?*sql.Location) !?t.Values.Atom {
     if (location) |at| at.* = .{ .offset = site.offset };
     if (site.index == 0) return error.InvalidParameterIndex;
     const values = parameters orelse return error.UnboundParameters;
     if (site.index > values.len) return error.ParameterCountMismatch;
     const value = values[site.index - 1];
-    try validateParameter(value, expected);
+    if (value) |atom| try validateParameter(atom, expected);
     return value;
 }
 pub fn syntax(parser: *Parser, hints: ?t.Type, name: []const u8, unsupported: anyerror) !Syntax {

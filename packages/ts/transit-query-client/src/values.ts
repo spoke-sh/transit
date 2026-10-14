@@ -29,11 +29,13 @@ const comparable = (type: LogicalField["type"]) =>
     (kind) => kind in type,
   );
 function inspectedAtom(value: Atom): boolean {
+  if ("all" in value) return true;
+  if ("state" in value) return logicalName(value.state.column);
+  const comparison = "compare" in value ? value.compare : value.null_compare;
   return (
-    "all" in value ||
-    (logicalName("state" in value ? value.state.column : value.compare.column) &&
-      (!("compare" in value) ||
-        (logicalTypeValid(value.compare.type) && comparable(value.compare.type))))
+    logicalName(comparison.column) &&
+    logicalTypeValid(comparison.type) &&
+    comparable(comparison.type)
   );
 }
 function inspectedPredicate(value: Predicate): boolean {
@@ -336,11 +338,13 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       "all" in a ||
       ("state" in a
         ? a.state.column < fields.length
-        : a.compare.column < fields.length &&
-          comparable(fields[a.compare.column]!.type) &&
-          logicalAtomValid(a.compare.value, fields[a.compare.column]!.type) &&
-          (!("utf8" in a.compare.value) || text(a.compare.value.utf8, 4096)) &&
-          (!("binary" in a.compare.value) || hex(a.compare.value.binary, 4096)));
+        : "null_compare" in a
+          ? a.null_compare.column < fields.length && comparable(fields[a.null_compare.column]!.type)
+          : a.compare.column < fields.length &&
+            comparable(fields[a.compare.column]!.type) &&
+            logicalAtomValid(a.compare.value, fields[a.compare.column]!.type) &&
+            (!("utf8" in a.compare.value) || text(a.compare.value.utf8, 4096)) &&
+            (!("binary" in a.compare.value) || hex(a.compare.value.binary, 4096)));
     if (!("program" in plan.predicate)) return atom(plan.predicate);
     if (!plan.predicate.program.length || plan.predicate.program.length > 64) return false;
     let depth = 0;

@@ -32,13 +32,16 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
     return targetWithEditor(allocator, text, null);
 }
 pub fn targetWithEditor(allocator: std.mem.Allocator, text: []const u8, editor: ?*Parser.Editor) !Target {
-    return targetContext(allocator, text, null, editor);
+    return targetContext(allocator, text, null, editor, .transit);
 }
 pub fn targetDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Target {
-    return targetContext(allocator, text, location, null);
+    return targetContext(allocator, text, location, null, .transit);
 }
-fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Target {
-    var parser = try Parser.init(allocator, text, location);
+pub fn targetDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, dialect: sql.Dialect) !Target {
+    return targetContext(allocator, text, location, null, dialect);
+}
+fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, editor: ?*Parser.Editor, dialect: sql.Dialect) !Target {
+    var parser = try Parser.initDialect(allocator, text, location, false, dialect);
     parser.editor = editor;
     const kind: std.meta.Tag(Statement) = if (try parser.takeWord("CREATE")) .create else if (try parser.takeWord("ALTER")) .alter else if (try parser.takeWord("DROP")) .drop else return error.UnsupportedStatement;
     try parser.requireWord("TABLE");
@@ -60,9 +63,15 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema,
     return compileWithEditor(allocator, text, basis, location, null);
 }
 pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
+    return compileContext(allocator, text, basis, location, editor, .transit);
+}
+pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, dialect: sql.Dialect) !Owned {
+    return compileContext(allocator, text, basis, location, null, dialect);
+}
+fn compileContext(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor, dialect: sql.Dialect) !Owned {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
-    var parser = try Parser.init(arena.allocator(), text, location);
+    var parser = try Parser.initDialect(arena.allocator(), text, location, false, dialect);
     parser.editor = editor;
     const input = try syntax(&parser, basis);
     try parser.finish();

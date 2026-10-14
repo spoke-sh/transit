@@ -51,6 +51,7 @@
           inherit ursula;
           inherit zig kubectl-transit;
           inherit transit minio;
+          transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
           transit-local = pkgs.callPackage ./nix/transit-local.nix {
             inherit transit minio ursula;
           };
@@ -68,6 +69,7 @@
             kubectl-transit
             sql-tools
             transit
+            transit-sql-gateway
             ursula
             ;
         }
@@ -115,6 +117,15 @@
             inputsFrom = [ default ];
             packages = [ pkgs.nginx ];
           };
+          sql-wire =
+            let
+              tools = import ./nix/sql-wire-tools.nix { inherit pkgs; };
+            in
+            pkgs.mkShell {
+              inputsFrom = [ default ];
+              packages = tools.packages;
+              PKG_CONFIG_PATH = "${tools.openssl.dev}/lib/pkgconfig";
+            };
           ci-bindings = import ./nix/ci-bindings.nix {
             inherit pkgs;
             inherit (toolchains.${system}) sql-tools minio;
@@ -136,21 +147,11 @@
                 pkgs.just
                 pkgs.git
                 pkgs.duckdb
-                (pkgs.python3.withPackages (ps: [
-                  ps.pyyaml
-                  ps.jsonschema
-                  ps.pyarrow
-                  ps.grpcio
-                  ps.protobuf
-                  ps.h2
-                  ps.build
-                  ps.setuptools
-                  ps.wheel
-                  ps.pip
-                  ps.mypy
-                ]))
+                (pkgs.python3.withPackages (import ./nix/python-tools.nix))
                 pkgs.process-compose
                 pkgs.openssl
+                pkgs.openssl.dev
+                pkgs.pkg-config
                 pkgs.protobuf
                 zig
                 vite-plus
