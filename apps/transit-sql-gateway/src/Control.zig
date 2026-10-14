@@ -107,8 +107,8 @@ fn status(init: std.process.Init, client: *g.Client, id: u64, key: p.Ed25519.Key
 }
 // A concurrent ledger turn can invalidate a current-revision metadata read.
 // Retry only the observation before printing any output. Caller-supplied page
-// cursors still reject on revision change; controls and signatures never retry
-// through this path.
+// cursors still reject foreign accounts or backward revisions; controls and
+// signatures never retry through this path.
 fn fresh(init: std.process.Init, client: *g.Client, timeout_ms: u32, comptime function: anytype, arguments: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     const deadline: g.AccountRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = timeout_ms };
     while (true) {

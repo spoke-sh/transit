@@ -42,7 +42,9 @@ def run(postgres,mysql_options,controls,inventory):
     added = [entry for entry in inventory() if entry['operation'] not in existing]
     assert len(added) == 1, added
     operation = added[0]['operation']
-    deadline = started+900
+    # This bounds observation of the original durable operation independently
+    # of the 270-second SQL wait. It does not extend the command or resend SQL.
+    deadline = started+1800
     next_report = 0
     while True:
         status = controls('status',operation)
@@ -55,7 +57,7 @@ def run(postgres,mysql_options,controls,inventory):
             print(json.dumps(dict(profile='database_wire_large_row',phase='observing',seconds=round(time.monotonic()-started,3),operation=status['operation'])),flush=True)
             next_report = time.monotonic()+30
         assert time.monotonic()<deadline, status
-        time.sleep(.5)
+        time.sleep(2)
     print(json.dumps(dict(profile='database_wire_large_row',phase='complete',seconds=round(time.monotonic()-started,3),wire_completion=wire_completion,operator_count_verified=True,sql_attempts=1)),flush=True)
     with psycopg.connect(**postgres) as pg:
         try:

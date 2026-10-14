@@ -7,7 +7,21 @@ const p = c.protocol;
 const native = p.Growth;
 const support = @import("typed_table_native.zig");
 const Admin = @import("growing_support.zig").Admin(46);
-const Config = struct { definition: native.Definition, writer: Admin.Provision, binding: gateway.Ledger.Binding };
+const Config = struct { definition: native.Definition, writer: Admin.Provision, binding: gateway.Ledger.Binding, table_principal: u64 };
+fn tableSeed(config: Config) !u8 {
+    return switch (config.table_principal) {
+        1234 => 10,
+        1235 => 11,
+        else => error.UnknownProofPrincipal,
+    };
+}
+fn tableKey(config: Config) !p.Ed25519.KeyPair {
+    return switch (config.table_principal) {
+        1234 => support.key(10),
+        1235 => support.key(11),
+        else => error.UnknownProofPrincipal,
+    };
+}
 const read_options: gateway.query.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn appendRow(allocator: std.mem.Allocator, rows: *std.ArrayList([]const ?i128), cells: []const c.fuze.Types.Values.Cell) !void {
     if (rows.items.len == 32 or cells.len > 8) return error.ProofRowBudget;
@@ -26,7 +40,7 @@ fn appendRow(allocator: std.mem.Allocator, rows: *std.ArrayList([]const ?i128), 
 fn ledger(config: Config) !gateway.Ledger {
     if (config.definition != native.current_definition) return error.IncompatibleDefinition;
     // The caller retains config for the lifetime of the returned binding slice.
-    return .{ .configuration = .{ .realm = 46, .resource = config.writer.resource, .owner = config.writer.pid, .worker = 2000, .ingress = 2001, .control = 2002, .coordinator = 2003, .table_principal = 1234, .table_public_key = (try support.key(10)).public_key.toBytes(), .account = @splat(77), .bindings = undefined, .intent_bytes = 65536, .operation_quota = 1000, .byte_quota = 128 * 1024 * 1024, .pending_quota = 32 } };
+    return .{ .configuration = .{ .realm = 46, .resource = config.writer.resource, .owner = config.writer.pid, .worker = 2000, .ingress = 2001, .control = 2002, .coordinator = 2003, .table_principal = config.table_principal, .table_public_key = (try tableKey(config)).public_key.toBytes(), .account = @splat(77), .bindings = undefined, .intent_bytes = 65536, .operation_quota = 1000, .byte_quota = 128 * 1024 * 1024, .pending_quota = 32 } };
 }
 fn roleKey(principal: u64) !p.Ed25519.KeyPair {
     return switch (principal) {
@@ -129,7 +143,8 @@ pub fn main(init: std.process.Init) !void {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         const catalog = try support.load(support.Config, init, directory, "catalog.json");
-        const config: Config = .{ .definition = native.current_definition, .writer = try admin.provision(2000, try roleKey(2000)), .binding = .{ .resource = catalog.writer.resource, .catalog = std.math.maxInt(u64), .owner = catalog.writer.pid } };
+        const config: Config = .{ .definition = native.current_definition, .writer = try admin.provision(2000, try roleKey(2000)), .binding = .{ .resource = catalog.writer.resource, .catalog = std.math.maxInt(u64), .owner = catalog.writer.pid }, .table_principal = if (args.len > 4) try std.fmt.parseInt(u64, args[4], 10) else 1234 };
+        _ = try tableSeed(config);
         for ([_]u64{ 2001, 2002, 2003 }) |principal| {
             _ = try admin.submit(.{ .grant = .{ .subject = principal, .public_key = (try roleKey(principal)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send), .pid = config.writer.pid } });
             _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
@@ -139,7 +154,7 @@ pub fn main(init: std.process.Init) !void {
         var registry = try ledger(config);
         registry.configuration.bindings = &.{config.binding};
         var caller = try client(&wire, registry, 2002);
-        const capabilities = try wire.query(.{ .realm = 46, .principal = 1234, .kind = .capabilities }, try support.key(10));
+        const capabilities = try wire.query(.{ .realm = 46, .principal = config.table_principal, .kind = .capabilities }, try tableKey(config));
         _ = try control(init, &caller, directory, config, .{ .initialize = capabilities.principal_sequence });
         return support.print(init, config);
     }
@@ -147,10 +162,10 @@ pub fn main(init: std.process.Init) !void {
     var registry = try ledger(config);
     registry.configuration.bindings = &.{config.binding};
     var coordinator_client = try client(&wire, registry, 2003);
-    var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try support.key(10), .generation = config.writer.generation };
+    var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try tableKey(config), .generation = config.writer.generation };
     defer coordinator.deinit();
     if (std.mem.eql(u8, mode, "app-config")) {
-        const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", @as(u8, 10) } };
+        const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", try tableSeed(config) } };
         var files: gateway.Configuration.KeyFiles = undefined;
         inline for (keys) |entry| {
             const name = "gateway-" ++ entry[0] ++ ".seed";
@@ -169,11 +184,11 @@ pub fn main(init: std.process.Init) !void {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         const permissions = p.State.permission(.inspect) | (if (std.mem.eql(u8, mode, "native-read-allow")) p.State.permission(.read) else @as(u8, 0));
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.binding.resource, .subject = 1234, .permissions = permissions } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.binding.resource, .subject = config.table_principal, .permissions = permissions } });
         return support.print(init, .{ .permissions = permissions });
     }
     if (std.mem.eql(u8, mode, "runtime")) {
-        const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try support.key(10) }, 5000);
+        const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try tableKey(config) }, 5000);
         defer runtime.deinit();
         var worker = try init.io.concurrent(runtimeWorker, .{runtime});
         defer worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
@@ -196,7 +211,7 @@ pub fn main(init: std.process.Init) !void {
             try init.io.sleep(.fromMilliseconds(100), .awake);
             if (waiting.cancel(init.io)) |_| return error.ExpectedCancelledWait else |err| if (err != error.Canceled and err != error.Cancelled) return err;
         }
-        var table: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = 1234 }, .key = try support.key(10) };
+        var table: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = config.table_principal }, .key = try tableKey(config) };
         var statement = try gateway.Statement.prepare(init.gpa, &table, args[4], .transit, read_options);
         defer statement.deinit();
         var operation: ?u64 = null;
@@ -206,7 +221,7 @@ pub fn main(init: std.process.Init) !void {
         return support.print(init, .{ .operation = operation, .outcome = result, .detached = detached });
     }
     if (std.mem.eql(u8, mode, "read")) {
-        var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = 1234 }, .key = try support.key(10) };
+        var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = config.table_principal }, .key = try tableKey(config) };
         const dialect: c.fuze.Sql.Dialect = if (std.mem.eql(u8, args[4], "mysql")) .mysql else .transit;
         var statement = try gateway.Statement.prepare(init.gpa, &caller, args[5], dialect, read_options);
         defer statement.deinit();

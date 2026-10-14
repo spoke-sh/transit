@@ -15,7 +15,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, slice="all"):
-    assert slice in ("all","faults")
+    assert slice in ("all","faults","controls")
     node, catalog, ledger, host, gateway = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
@@ -61,6 +61,9 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             configuration['request_timeout_ms'] = 30000
             configuration['limits'] = dict(connections=8,connections_per_account=8,authentications=4,command_ms=270000,idle_ms=270000)
             (root/'sql-gateway.json').write_text(json.dumps(configuration))
+        def certificate():
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost', '-keyout', str(root/'key.pem'), '-out', str(root/'certificate.pem')], capture_output=True, check=True, timeout=30)
+            (root/'key.pem').chmod(0o600)
         started = time.monotonic()
         try:
             subprocess.run([node, str(node_config), '--initialize'], capture_output=True, check=True, timeout=30)
@@ -71,11 +74,12 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             call(catalog, 'pump')
             call(catalog, 'external-provision')
             call(catalog, 'pump')
-            call(ledger, 'provision-empty')
+            # Catalog administration and external DDL retain principal 1234;
+            # this gateway alone sequences Table principal 1235.
+            call(ledger, 'provision-empty', 1235)
             call(catalog, 'host')
             configure()
-            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost', '-keyout', str(root/'key.pem'), '-out', str(root/'certificate.pem')], capture_output=True, check=True, timeout=30)
-            (root/'key.pem').chmod(0o600)
+            certificate()
             start(host, root/'host.json')
             start(host, root/'courier-config.json')
             bootstrap = start(gateway, root/'sql-gateway.json', '--initialize')
@@ -103,6 +107,8 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
             from faults import run as faults
             faults(root, options, mysql_options, controls, lambda allowed:call(ledger,'native-read-allow' if allowed else 'native-read-deny'))
+            from authority import run as authority_checks
+            authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-policy','allow' if allowed else 'deny'),inventory)
             page = controls('list')
             operation = page['entries'][0]['operation']
             assert controls('status',operation)['terminal']['state'] == 'applied'
@@ -117,6 +123,9 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             assert stale.returncode != 0 and 'FreshOwnershipRequired' in stale.stderr
             call(ledger,'fence')
             configure()
+            old_certificate = root/'old-certificate.pem'
+            old_certificate.write_bytes((root/'certificate.pem').read_bytes())
+            certificate()
             server = start(gateway,root/'sql-gateway.json')
             deadline = time.monotonic()+20
             while True:
@@ -129,13 +138,28 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             with connection:
                 assert connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone() == (3,)
                 assert connection.execute('INSERT INTO wire_rows (id) VALUES (200)').rowcount == 1
+            for connect,error in ((lambda:psycopg.connect(**(options|dict(sslrootcert=str(old_certificate)))),psycopg.Error),
+                                  (lambda:mysql.connector.connect(**(mysql_options|dict(ssl_ca=str(old_certificate)))),mysql.connector.Error)):
+                try:
+                    connect().close()
+                except error:
+                    pass
+                else:
+                    raise AssertionError('Old certificate trust admitted the replacement server')
+            with mysql.connector.connect(**mysql_options) as verified:
+                cursor = verified.cursor()
+                cursor.execute('SELECT COUNT(*) FROM wire_rows')
+                assert cursor.fetchone() == (4,)
+                cursor.close()
+            print(json.dumps(dict(profile='database_wire_certificate_rotation',both_protocols=True,old_trust_rejected=True,new_trust_verified=True)),flush=True)
             from measure import run as measure
             measure(options,mysql_options,lambda sql:call(catalog,"select",sql))
-            from values import run as values
-            values(options,mysql_options,controls,inventory)
+            if slice != 'controls':
+                from values import run as values
+                values(options,mysql_options,controls,inventory)
             from schema import run as schema
-            schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl',operation,sql))
-            if slice == 'all':
+            schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl-admin',operation,sql))
+            if slice in ('all','controls'):
                 from phases import run as phases
                 phases(options,mysql_options,server.pid)
                 # Instrument a fresh activation separately from direct timings.
@@ -163,7 +187,10 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             from lifecycle import capacity, drain
             capacity(options,health_port)
             drain(server,options,health_port)
-            print(json.dumps(dict(profile='database_native_gateway', slice=slice, psycopg=psycopg.__version__, connector=mysql.connector.__version__, driver_matrix=slice=='all', seconds=round(time.monotonic()-started, 3))))
+            objects = cold.data_objects()
+            assert objects > 0, 'No data reached the cold-store fixture'
+            print(json.dumps(dict(profile='database_wire_cold_storage',data_objects=objects,file_bytes=cold.file_bytes(),hot_bytes=8*1024*1024,cache_bytes=8*1024*1024,resident_pages=8)),flush=True)
+            print(json.dumps(dict(profile='database_native_gateway', slice=slice, psycopg=psycopg.__version__, connector=mysql.connector.__version__, driver_matrix=slice=='all',wide_values=slice!='controls', seconds=round(time.monotonic()-started, 3))))
         finally:
             if sys.exc_info()[0]:
                 # Let bounded telemetry flush before terminating the fixtures.
