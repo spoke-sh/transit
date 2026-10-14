@@ -125,7 +125,7 @@ pub fn main(init: std.process.Init) !void {
     defer wire.deinit();
     wire.timeout_ms = 10000;
     errdefer if (wire.last_rejection) |cause| std.debug.print("Authority rejection: {s}\n", .{@tagName(cause)});
-    if (std.mem.eql(u8, mode, "provision")) {
+    if (std.mem.eql(u8, mode, "provision") or std.mem.eql(u8, mode, "provision-empty")) {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         const catalog = try support.load(support.Config, init, directory, "catalog.json");
@@ -135,6 +135,7 @@ pub fn main(init: std.process.Init) !void {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         }
         try support.save(init, directory, "gateway.json", config);
+        if (std.mem.eql(u8, mode, "provision-empty")) return support.print(init, config);
         var registry = try ledger(config);
         registry.configuration.bindings = &.{config.binding};
         var caller = try client(&wire, registry, 2002);
@@ -148,6 +149,29 @@ pub fn main(init: std.process.Init) !void {
     var coordinator_client = try client(&wire, registry, 2003);
     var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try support.key(10), .generation = config.writer.generation };
     defer coordinator.deinit();
+    if (std.mem.eql(u8, mode, "app-config")) {
+        const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", @as(u8, 10) } };
+        var files: gateway.Configuration.KeyFiles = undefined;
+        inline for (keys) |entry| {
+            const name = "gateway-" ++ entry[0] ++ ".seed";
+            try support.saveBytes(init, directory, name, &std.fmt.bytesToHex(@as([32]u8, @splat(entry[1])), .lower));
+            @field(files, entry[0]) = try support.path(init, directory, name);
+        }
+        try support.save(init, directory, "gateway-credential.json", gateway.Configuration.Credential{ .version = 1, .definition = native.current_definition, .account = registry.configuration.account, .revision = 1, .enabled = true, .verifier = try gateway.Authentication.Verifier.create("proof-password", @splat(19), 4096) });
+        const configuration: gateway.Configuration = .{ .version = 1, .definition = native.current_definition, .native_url = args[1], .certificate_file = try support.path(init, directory, "certificate.pem"), .certificate_key_file = try support.path(init, directory, "key.pem"), .activation_directory = directory, .spill_directory = directory, .postgres_port = try std.fmt.parseInt(u16, args[4], 10), .accounts = &.{.{ .name = "proof", .verifier_file = try support.path(init, directory, "gateway-credential.json"), .ledger = registry.configuration, .generation = config.writer.generation, .keys = files, .databases = &.{.{ .name = "data", .binding = config.binding }} }} };
+        try configuration.validate();
+        try support.save(init, directory, "sql-gateway.json", configuration);
+        try support.saveBytes(init, directory, "gateway-control.seed", &std.fmt.bytesToHex(@as([32]u8, @splat(23)), .lower));
+        try support.save(init, directory, "sql-control.json", .{ .version = @as(u8, 1), .definition = native.current_definition, .native_url = args[1], .ledger = registry.configuration, .control_key_file = try support.path(init, directory, "gateway-control.seed"), .table_key_file = files.table, .pending_file = try support.path(init, directory, "operator-pending.json"), .timeout_ms = @as(u32, 30000) });
+        return support.print(init, .{ .configured = true });
+    }
+    if (std.mem.eql(u8, mode, "native-read-allow") or std.mem.eql(u8, mode, "native-read-deny")) {
+        var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const permissions = p.State.permission(.inspect) | (if (std.mem.eql(u8, mode, "native-read-allow")) p.State.permission(.read) else @as(u8, 0));
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.binding.resource, .subject = 1234, .permissions = permissions } });
+        return support.print(init, .{ .permissions = permissions });
+    }
     if (std.mem.eql(u8, mode, "runtime")) {
         const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try support.key(10) }, 5000);
         defer runtime.deinit();
@@ -214,12 +238,13 @@ pub fn main(init: std.process.Init) !void {
         }
         return support.print(init, .{ .rows = rows.items, .columns = statement.fields().len });
     }
-    if (std.mem.eql(u8, mode, "replace")) {
+    if (std.mem.eql(u8, mode, "replace") or std.mem.eql(u8, mode, "fence")) {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = 2000 } });
         config.writer.generation += 1;
         try support.save(init, directory, "gateway.json", config);
+        if (std.mem.eql(u8, mode, "fence")) return support.print(init, .{ .generation = config.writer.generation });
         if (coordinator.fence()) |_| return error.ExpectedStaleFence else |err| if (err != error.StaleGatewayCoordinator) return err;
         const stale = try coordinator_client.prepare(.{ .activate = coordinator.generation });
         const receipt = try coordinator_client.submit(stale);

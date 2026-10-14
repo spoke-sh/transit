@@ -23,8 +23,9 @@ The full-password verifier supports MySQL's full authentication path only when
 the caller has already established TLS. Callers own account selection, current
 credential revision, TLS, authentication concurrency and input-buffer erasure.
 
-These are library interfaces. Network listeners and deployment lifecycle are
-separate integration work. See the
+These are library interfaces. The
+[gateway application](../../../apps/transit-sql-gateway/README.md) owns network
+listeners and deployment lifecycle. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) and
 [executed evidence](../../../tests/README.md#database-wire-foundation).
 
@@ -57,6 +58,9 @@ Callers run `tick` independently of sockets, supply exclusive activation evidenc
 before starting, and join worker/connections before freeing the runtime. Startup
 requires an already provisioned and initialized ledger with eligible native
 ownership; it does not grant rights or reuse an activation.
+`bootstrap` permits a separate initialization activation to wait for an explicit
+operator-signed initialize control, without becoming ready while the ledger is
+absent. The application keeps SQL listeners closed during that activation.
 
 `Configuration` validates explicit SQL account/database mappings, disjoint native
 sequence owners, TLS/key references and connection budgets. `Credential` binds a

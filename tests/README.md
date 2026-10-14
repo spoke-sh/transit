@@ -1,5 +1,48 @@
 # Validation and milestone evidence
 
+## Database wire gateway
+
+On 2026-10-13, `just test::sql-wire-gateway` passes against the real Transit TLS
+gateway, catalog host/courier and disk-backed Ursula with eight resident pages.
+Psycopg 3.3.4, psql/libpq 18.6, Connector/Python 9.4.0 and Oracle
+mysql/libmysqlclient 8.4.11 execute the selected SQL profile. Python and C drivers
+exercise CREATE, prepared INSERT/SELECT/UPDATE/DELETE and all six scalar types;
+CLI clients execute literal SELECT. Independent C checks cover signed/unsigned
+extremes, typed parameter/result metadata, NULL, binary data, reset and counts.
+libpq checks both result formats and duplicate rejection SQLSTATE 23505. MySQL
+checks both changed-row and CLIENT_FOUND_ROWS modes. The run takes 161.740 seconds
+including provisioning and both client families; this is not a latency SLO.
+
+The gateway negotiates unadvertised MySQL client capability offers by intersection,
+without the reference probe's intermediary. Transaction commands, autocommit-off
+and multi-statement writes reject. Session units cover deferred-write cycle
+rejection, malformed Sync recovery, one suspended read cut, metadata denial,
+dependent portal cleanup and no retry after a partial transport failure. MySQL
+units cover remembered types, invalid cursors, monotonic handles and reset. The
+combined `just test::sql-wire-contracts` passes those units and independent bytes.
+
+Socket fault, credential/native-right rotation, operator controls, initialization,
+replacement, saturation and deployment proofs remain separate checks under active
+implementation. This checkpoint does not claim their results or clean CI.
+
+A subsequent 195.655-second gateway run also passes real operator initialization,
+locked/synced signed-control preparation and submission, paged discovery, current
+terminal inspection, processed-control retry and fresh-generation restart. Raw
+TLS PostgreSQL tests reject write Flush/double Execute cycles before mutation,
+close portals at Sync, cancel a suspended read and recover the next request.
+An admitted INSERT completes exactly once after losing its database reply.
+Both protocols reject wrong credentials/account/database and plaintext downgrade;
+PostgreSQL also rejects invalid trust/hostname. Atomic verifier revision changes
+invalidate existing sessions, disabled credentials reject new sessions, and a
+fresh verifier permits login. MySQL rejects unknown commands, transaction controls
+and multi-statements, then accepts PING. Metadata-only revision-race retries fix
+the concurrent detached-write/read schedule without replaying SQL work.
+
+Exhaustive injected allocation failures pass both session owners. The opt-in
+Nix package also builds offline against its fixed Zig dependencies and pinned
+OpenSSL. Native-right revocation, health/capacity/drain and placement schedules
+remain subsequent qualification; no clean-suite result is claimed yet.
+
 ## Database wire foundation
 
 Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,

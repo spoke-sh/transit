@@ -29,6 +29,9 @@ sql-wire-contracts:
 sql-gateway:
     zig build test-sql-gateway -Doptimize=ReleaseSafe
 
+sql-wire-gateway:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
+
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
 tls-alpn:
     zig build test-tls-alpn

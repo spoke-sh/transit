@@ -1,12 +1,20 @@
 # SQL reference
 
 Transit executes finite `SELECT` queries through Fuze and bounded Table writes
-through configured console catalog routes. The automatic local connection
+through configured console catalog routes or the optional PostgreSQL/MySQL
+gateway. The automatic local connection
 supplies a catalog owner; other connections configure their own routes. Table
 DDL creates, changes and drops named typed schemas through that owner. SQL
 compiles to shared typed plans and never grants access. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
 publish bounded Arrow result segments. See [query execution](queries.md).
+
+The [database gateway](../../apps/transit-sql-gateway/README.md) exposes a bounded
+autocommit profile with typed prepared single-Table SELECT/INSERT/UPDATE/DELETE,
+literal CREATE and the supported literal relational queries. It maps each
+authenticated account/database to an explicit native catalog and retains admitted
+writes outside socket lifetimes. Its transaction, wire-type and settings limits
+are distinct from the console's full Table lifecycle surface.
 
 Transit does not claim SQL Core, full PostgreSQL, SQL/PGQ or GQL conformance.
 The [checked compatibility corpus](../../contracts/sql/README.md#compatibility-corpus)

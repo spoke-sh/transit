@@ -9792,6 +9792,39 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Session.zig": {
+      "errors": {
+        "EmptyWireQuery": 2,
+        "InvalidWireColumns": 1,
+        "TooManyWireParameters": 2,
+        "TooManyWireStatements": 1,
+        "UnknownWireStatement": 2,
+        "UnsupportedWireCapabilities": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Engine().<return>.columns()": "<inferred>",
+        "Engine().<return>.execute()": "<inferred>",
+        "Engine().<return>.handle()": "<inferred>",
+        "Engine().<return>.init()": "<inferred>",
+        "Engine().<return>.metadataEnd()": "<inferred>",
+        "Engine().<return>.prepare()": "<inferred>",
+        "Engine().<return>.process()": "<inferred>",
+        "Engine().<return>.resultEnd()": "<inferred>",
+        "Engine().<return>.send()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 61,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9809,6 +9842,7 @@
         "Frame.zig",
         "Handshake.zig",
         "Scalar.zig",
+        "Session.zig",
         "transit_sql_gateway"
       ]
     },
@@ -10027,6 +10061,45 @@
         "std"
       ]
     },
+    "packages/zig/transit-postgres/src/Session.zig": {
+      "errors": {
+        "CompletedWirePortal": 1,
+        "DuplicateWirePortal": 1,
+        "DuplicateWireStatement": 1,
+        "InvalidWireColumns": 1,
+        "InvalidWireName": 1,
+        "TooManyWirePortals": 1,
+        "TooManyWireStatements": 1,
+        "UnknownWirePortal": 3,
+        "UnknownWireStatement": 2,
+        "WireParameterCountMismatch": 2,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Engine().<return>.bind()": "<inferred>",
+        "Engine().<return>.columns()": "<inferred>",
+        "Engine().<return>.describe()": "<inferred>",
+        "Engine().<return>.execute()": "<inferred>",
+        "Engine().<return>.handle()": "<inferred>",
+        "Engine().<return>.init()": "<inferred>",
+        "Engine().<return>.parse()": "<inferred>",
+        "Engine().<return>.process()": "<inferred>",
+        "Engine().<return>.send()": "<inferred>",
+        "Engine().<return>.simple()": "<inferred>",
+        "Name.init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 71,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/Startup.zig": {
       "errors": {
         "DuplicateStartupOption": 1,
@@ -10073,6 +10146,7 @@
         "Frame.zig",
         "Frontend.zig",
         "Scalar.zig",
+        "Session.zig",
         "Startup.zig",
         "transit_sql_gateway"
       ]
@@ -13639,6 +13713,7 @@
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "QueryFailure.zig",
+        "QueryMemory.zig",
         "RelationalBridge.zig",
         "RelationalBundle.zig",
         "RelationalCaller.zig",
@@ -15062,10 +15137,12 @@
     },
     "packages/zig/transit-sql-gateway/src/AccountRuntime.zig": {
       "errors": {
+        "CatalogDefinitionChanged": 1,
         "Conflict": 3,
         "GatewayControlRejected": 2,
         "GatewayDeadline": 1,
         "GatewayIdentityConflict": 2,
+        "GatewayNotInitialized": 2,
         "GatewayOperationBlocked": 1,
         "GatewayOwnerUnavailable": 2,
         "GatewayWaitCancelled": 1,
@@ -15079,7 +15156,9 @@
       "error_returns": {
         "Deadline.check()": "<inferred>",
         "advancePrivate()": "<inferred>",
+        "bootstrap()": "<inferred>",
         "control()": "<inferred>",
+        "create()": "<inferred>",
         "discover()": "<inferred>",
         "execute()": "<inferred>",
         "finishControl()": "<inferred>",
@@ -15090,7 +15169,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 49,
-        "catch": 8
+        "catch": 10
       },
       "imports": [
         "root.zig",
@@ -15221,7 +15300,7 @@
         "GatewayDatabaseDenied": 1,
         "IncompatibleDefinition": 2,
         "InvalidAuthentication": 3,
-        "InvalidGatewayConfiguration": 9
+        "InvalidGatewayConfiguration": 10
       },
       "outcomes": {},
       "error_sets": {},
@@ -15235,7 +15314,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -15531,6 +15610,43 @@
       },
       "imports": []
     },
+    "packages/zig/transit-sql-gateway/src/Probe.zig": {
+      "errors": {
+        "InvalidWireColumns": 1
+      },
+      "outcomes": {
+        "kind": [
+          "empty",
+          "one",
+          "version",
+          "database",
+          "version_comment",
+          "server_version",
+          "server_version_num",
+          "encoding",
+          "strings",
+          "collation",
+          "mode",
+          "autocommit",
+          "mysql_settings",
+          "set"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/SavedStep.zig": {
       "errors": {
         "GatewayStepIdentityConflict": 1,
@@ -15738,6 +15854,7 @@
         "Ledger.zig",
         "LedgerRecords.zig",
         "Limits.zig",
+        "Probe.zig",
         "SavedStep.zig",
         "Statement.zig",
         "Terminal.zig",

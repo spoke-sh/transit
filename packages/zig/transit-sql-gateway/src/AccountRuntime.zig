@@ -20,6 +20,7 @@ ingress_mutex: std.Io.Mutex = .init,
 ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
+await_initialization: bool = false,
 pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return (err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource;
@@ -27,6 +28,14 @@ fn staleRead(client: *s.client.Client, err: anyerror) bool {
 /// Construction owns transports, but neither initializes an unprovisioned ledger
 /// nor assumes ownership. The operator provisions and initializes before start.
 pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.Ledger, generation: u64, association: []const u8, keys: Keys, timeout_ms: u32) !*Self {
+    return create(allocator, io, url, ledger, generation, association, keys, timeout_ms, false);
+}
+/// A separate fenced bootstrap activation consumes an operator-signed initialize
+/// control. It never supplies SQL listeners and cannot initialize by itself.
+pub fn bootstrap(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.Ledger, generation: u64, association: []const u8, keys: Keys, timeout_ms: u32) !*Self {
+    return create(allocator, io, url, ledger, generation, association, keys, timeout_ms, true);
+}
+fn create(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.Ledger, generation: u64, association: []const u8, keys: Keys, timeout_ms: u32, await_initialization: bool) !*Self {
     try ledger.configuration.validate();
     if (generation == 0 or timeout_ms == 0 or timeout_ms > 60000) return error.InvalidGatewayConfiguration;
     const self = try allocator.create(Self);
@@ -36,6 +45,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g
     errdefer self.ingress_wire.deinit();
     self.background.timeout_ms = timeout_ms;
     self.ingress_wire.timeout_ms = timeout_ms;
+    self.await_initialization = await_initialization;
     const config = ledger.configuration;
     self.ingress = .{ .transport = &self.ingress_wire, .ledger = ledger, .principal = config.ingress, .key = keys.ingress };
     self.private = .{ .transport = &self.background, .ledger = ledger, .principal = config.coordinator, .key = keys.coordinator };
@@ -46,7 +56,10 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g
     _ = try self.server.session.receive();
     try self.coordinator.fence();
     var source = try self.private.source();
-    _ = try ledger.head(&source);
+    _ = ledger.head(&source) catch |err| {
+        if (await_initialization and err == error.GatewayNotInitialized) return self;
+        return err;
+    };
     return self;
 }
 /// Call only after joining the worker and every borrowing connection. A restart
@@ -98,6 +111,7 @@ pub fn tick(self: *Self) !bool {
         progressed = try self.advancePrivate() or progressed;
     } else switch (self.coordinator.next() catch |err| {
         if (staleRead(&self.background, err)) return progressed;
+        if (self.await_initialization and err == error.GatewayNotInitialized) return progressed;
         return err;
     }) {
         .idle, .blocked => {},
@@ -175,7 +189,16 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
         };
     };
     operation.* = item.id;
-    var intent = try statement.bindWrite(allocator, table, values, item.id);
+    var attempts: u8 = 0;
+    var intent = while (true) {
+        try deadline.check(self.io);
+        break statement.bindWrite(allocator, table, values, item.id) catch |err| {
+            if (attempts == 64 or (!staleRead(table.transport, err) and err != error.CatalogDefinitionChanged)) return err;
+            attempts += 1;
+            try self.io.sleep(.fromMilliseconds(1), .awake);
+            continue;
+        };
+    };
     defer intent.deinit();
     try self.control(.{ .begin_intent = .{ .operation = item.id, .spec = try s.Publication.Digest.of(g.LedgerRecords.intent_format, intent.bytes) } }, deadline);
     var offset: usize = 0;

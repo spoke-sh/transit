@@ -14,6 +14,9 @@ spill_directory: []const u8,
 bind_address: []const u8 = "127.0.0.1",
 postgres_port: ?u16 = null,
 mysql_port: ?u16 = null,
+health_address: []const u8 = "127.0.0.1",
+health_port: ?u16 = null,
+drain_ms: u32 = 30000,
 limits: g.Limits = .{},
 request_timeout_ms: u32 = 5000,
 accounts: []const Account,
@@ -45,6 +48,8 @@ fn path(value: []const u8) !void {
 pub fn validate(self: Self) !void {
     if (self.version != 1 or self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try self.limits.validate();
+    if (self.health_port == 0 or (self.health_port != null and (self.health_port == self.postgres_port or self.health_port == self.mysql_port)) or self.drain_ms == 0 or self.drain_ms > 270000) return error.InvalidGatewayConfiguration;
+    try path(self.health_address);
     if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port == null and self.mysql_port == null) or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;
     for ([_][]const u8{ self.native_url, self.certificate_file, self.certificate_key_file, self.activation_directory, self.spill_directory, self.bind_address }) |value| try path(value);
     for (self.accounts, 0..) |value, i| {

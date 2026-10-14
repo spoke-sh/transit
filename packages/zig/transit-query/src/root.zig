@@ -31,6 +31,7 @@ pub const RelationalCompilation = @import("RelationalCompilation.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const RelationalCaller = @import("RelationalCaller.zig");
 pub const RelationalQuery = @import("RelationalQuery.zig");
+pub const QueryMemory = @import("QueryMemory.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");

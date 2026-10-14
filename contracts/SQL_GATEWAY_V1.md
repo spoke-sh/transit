@@ -1,8 +1,10 @@
-# Database wire adaptation primitives v1
+# Database wire adaptation v1
 
-This contract defines the shared gateway library, PostgreSQL frame/cycle gate,
-MySQL frame decoder and typed message/scalar codecs. These primitives do not themselves open a listener or
-admit a durable write. Executed evidence belongs to the
+This contract defines the shared gateway library, PostgreSQL/MySQL sessions,
+typed message/scalar codecs and signed account recovery. The
+[gateway application](../apps/transit-sql-gateway/README.md) composes those owners
+with authenticated TLS listeners. Codec acceptance alone cannot admit a durable
+write. Executed evidence belongs to the
 [proof ledger](../tests/README.md).
 
 ## Common values and resource budgets
@@ -38,6 +40,21 @@ syntax/plan bound. The constants reserve at most 63 bytes for account/database/s
 names and 32 configured accounts. Their owning session/configuration APIs must
 enforce these ceilings; Table identifiers retain the SQL owner's limits. These
 constants do not bound durable operation history.
+
+The application enforces one account runtime independently of sockets, a bounded
+session allocator, at most one borrowed output row and direct write backpressure.
+Two extra transport slots are reserved for PostgreSQL cancellation; they cannot
+authenticate ordinary sessions. Absolute command deadlines join native and socket
+work before freeing borrowed state. Metadata-only preparation/validation retries
+at most 64 exact-current revision races within the same deadline; query iteration
+and SQL mutations are never transparently replayed.
+
+Interactive reads admit at most 10000 output rows, 16 MiB result bytes and 10000
+native requests. Relational reads additionally bound resident/spill bytes to
+16 MiB each, work to one million steps, source pins to two and spill operations to
+10000. Limits fail explicitly; a suspended portal retains its original snapshot
+and lease rather than opening a new cut. These per-query budgets are subordinate
+to the session allocator and the native snapshot owner's lease/resource quotas.
 
 ## Credential verification
 
