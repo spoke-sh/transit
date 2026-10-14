@@ -175,10 +175,15 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-The bindings job has a 240-minute execution cap. The [recorded task durations](../tests/verification/results/m46-clean-task-coverage-2026-10-07.json)
-total about 184 minutes across clean checkouts, separately from hosted setup.
-This cap includes toolchain setup and leaves room for the complete matrix. Individual
-proof deadlines and the separately recorded feedback budgets remain unchanged.
+The bindings job has a 300-minute execution cap and growth has 120 minutes.
+The [qualification record](../tests/verification/results/sql-wire-clean-2026-10-14.json)
+retains task durations totaling **265.07 minutes** for bindings and
+**104.96 minutes** for growth across the recorded clean checkouts.
+The latter includes the expanded database gateway proof and its observation of
+an original wide mutation after the SQL response deadline. These local runs
+include concurrent qualification work; their sums are not hosted runtime
+measurements. Job caps include hosted setup. Individual proof deadlines and the
+separately recorded feedback budgets remain unchanged.
 
 Installed SDK Table schedules select `--cold`: the native history plus SDK and
 prepared-parameter cases exceed the hot-only fixture's 64 MiB total capacity.
