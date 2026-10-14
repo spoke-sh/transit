@@ -91,6 +91,20 @@ recovery file per connection would be simpler but would not provide discovery
 after the connection disappears or fenced sequence ownership. Replaying SQL on
 reconnect would hide ambiguity by creating new work.
 
+The [retained experiment](../../tests/verification/results/sql-wire-2026-10-14.json)
+measures that cost with eight resident pages, 8 MiB hot storage and an 8 MiB cold
+cache. It separates framed-row encoding from verified connection startup,
+preparation, read/write completion and native/provider request windows. Native
+read samples start a fresh helper and compile; wire samples retain connections
+and preparations. Request windows include concurrent account maintenance, so
+they do not attribute every request to the foreground query. A single 40 KiB row
+outlives its 270-second SQL wait and reaches its original terminal outcome after
+965 seconds. This establishes eventual completion in that schedule and exposes
+the cost of the chosen durable path. It supplies neither a latency bound nor an
+isolated estimate of storage or coordinator cost. Further attribution requires
+controlled changes to those components, with the same authority and durability
+checks preserved.
+
 The [proof ledger](../../tests/README.md#database-wire-gateway) and its linked
 native recovery tests separate executable observations from these design
 arguments. It records the pinned toolchain and reproduction commands for native

@@ -1,0 +1,847 @@
+{
+  "version": 1,
+  "implementation_commit": "858732ad6025c5ad32ccb94aabda9450f3a7d1a2",
+  "definition": "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+  "command": "nix develop .#sql-wire --command just test::sql-wire-gateway",
+  "result": "passed",
+  "clean_checkout": false,
+  "tracked_changes_at_measurement": false,
+  "clients": {
+    "psql_libpq": "18.6",
+    "psycopg": "3.3.4",
+    "oracle_mysql_libmysqlclient": "8.4.11",
+    "connector_python": "9.4.0"
+  },
+  "topology": {
+    "authority": "one native node",
+    "catalog": "separate host and courier",
+    "ledger": "one fenced account owner",
+    "catalog_administrator": 1234,
+    "gateway_table_principal": 1235,
+    "storage": "disk-backed Ursula and owned pinned MinIO",
+    "resident_pages": 8,
+    "hot_bytes": 8388608,
+    "cold_cache_bytes": 8388608,
+    "sql_wait_seconds": 270,
+    "operator_observation_seconds": 1800,
+    "operator_poll_seconds": 2
+  },
+  "observations": [
+    {
+      "profile": "database_wire_encoding",
+      "rows_per_sample": 10000,
+      "columns": 7,
+      "warmups": 1,
+      "repetitions": 5,
+      "optimize": "safe",
+      "samples": [
+        {
+          "path": "postgres_text",
+          "milliseconds": [
+            31.097042,
+            31.644297,
+            30.82618,
+            30.772507,
+            30.858984
+          ],
+          "framed_bytes": 5948890
+        },
+        {
+          "path": "postgres_binary",
+          "milliseconds": [
+            20.425699,
+            20.792386,
+            20.468502,
+            20.454725,
+            20.589805
+          ],
+          "framed_bytes": 3420000
+        },
+        {
+          "path": "mysql_text",
+          "milliseconds": [
+            10.737761,
+            10.739685,
+            10.777297,
+            10.708014,
+            10.733483
+          ],
+          "framed_bytes": 3148890
+        },
+        {
+          "path": "mysql_binary",
+          "milliseconds": [
+            8.784047,
+            8.917904,
+            8.790609,
+            9.120395,
+            8.840205
+          ],
+          "framed_bytes": 3080000
+        }
+      ],
+      "limits": "Six scalar types plus NULL; signed values vary by row, binary covers all 256 byte values. Includes scalar validation, formatting, framed-row construction and allocator work. Reuses each backend buffer; output escapes optimization. Excludes metadata, TLS, sockets, authority and storage. Framed bytes are database-protocol application bytes, not network traffic. Local observations, not a throughput or latency guarantee."
+    },
+    {
+      "profile": "database_wire_faults",
+      "deferred_write_cycles": true,
+      "suspended_cancel": true,
+      "detached_write": true,
+      "invalid_connections": 10,
+      "native_revocation": true,
+      "credential_rotation": true,
+      "credential_cli": true
+    },
+    {
+      "profile": "database_wire_authority",
+      "administrator": 1234,
+      "table_principal": 1235,
+      "prepared_revocation": true,
+      "read_only_writes_rejected_before_admission": true,
+      "reads_preserved": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_certificate_rotation",
+      "both_protocols": true,
+      "old_trust_rejected": true,
+      "new_trust_verified": true
+    },
+    {
+      "profile": "database_wire_measurement",
+      "source_revision": "858732ad6025c5ad32ccb94aabda9450f3a7d1a2",
+      "tracked_changes": false,
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+      "available_cpus": 48,
+      "rows": 4,
+      "selected_rows": 1,
+      "warmups": 1,
+      "repetitions": 5,
+      "unit": "ms",
+      "samples": {
+        "native_process": [
+          61.517,
+          63.093,
+          45.413,
+          47.469,
+          50.812
+        ],
+        "postgres_literal": [
+          271.994,
+          272.48,
+          257.791,
+          263.535,
+          248.532
+        ],
+        "postgres_prepared": [
+          263.284,
+          250.84,
+          216.736,
+          240.074,
+          237.701
+        ],
+        "mysql_literal": [
+          203.584,
+          198.912,
+          210.702,
+          231.997,
+          203.77
+        ],
+        "mysql_prepared": [
+          206.851,
+          183.869,
+          218.776,
+          222.893,
+          186.104
+        ]
+      },
+      "median": {
+        "native_process": 50.812,
+        "postgres_literal": 263.535,
+        "postgres_prepared": 240.074,
+        "mysql_literal": 203.77,
+        "mysql_prepared": 206.851
+      },
+      "limits": "Native includes a fresh process and compilation; drivers retain a connection and prepared handles. Sequential local observations include authority and TLS costs; other proof/build tasks may compete for resources. No throughput, speedup or production latency claim."
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "begin",
+      "variable_bytes": 40960
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "wait_ended",
+      "seconds": 270.1
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "complete",
+      "seconds": 965.415,
+      "wire_completion": false,
+      "operator_count_verified": true,
+      "sql_attempts": 1
+    },
+    {
+      "profile": "database_wire_values",
+      "utf8_bytes": 4096,
+      "binary_bytes": 4096,
+      "variable_bytes_per_row": 40960,
+      "oversized_binding_rejected": true,
+      "defaults_and_null": true,
+      "required_rejection": true,
+      "literal_relational": true,
+      "stale_cancel": true,
+      "fragmented_query": true
+    },
+    {
+      "profile": "database_wire_schema",
+      "external_principal": 1234,
+      "alter_invalidates": true,
+      "drop_invalidates": true,
+      "name_reuse_invalidates": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_phases",
+      "unit": "ms",
+      "samples": {
+        "postgres_connect": [
+          51.774,
+          48.886,
+          49.566,
+          53.001,
+          51.454
+        ],
+        "mysql_connect": [
+          110.632,
+          105.084,
+          114.085,
+          112.032,
+          114.558
+        ],
+        "postgres_prepare": [
+          48.991,
+          49.475,
+          53.45,
+          47.294,
+          48.586
+        ],
+        "mysql_prepare": [
+          77.096,
+          80.309,
+          96.032,
+          88.022,
+          84.488
+        ],
+        "postgres_first_row": [
+          283.24,
+          261.247,
+          297.077,
+          260.899,
+          288.472
+        ],
+        "postgres_complete": [
+          440.532,
+          406.006,
+          472.184,
+          437.185,
+          452.305
+        ],
+        "mysql_first_row": [
+          235.163,
+          229.904,
+          284.509,
+          273.131,
+          260.159
+        ],
+        "mysql_complete": [
+          342.349,
+          338.558,
+          406.046,
+          403.087,
+          400.483
+        ],
+        "postgres_write": [
+          7026.834,
+          8488.765,
+          7061.258,
+          8458.021,
+          8030.649
+        ],
+        "mysql_write": [
+          6807.668,
+          7469.007,
+          7565.418,
+          8052.999,
+          8095.384
+        ]
+      },
+      "median": {
+        "postgres_connect": 51.454,
+        "mysql_connect": 112.032,
+        "postgres_prepare": 48.991,
+        "mysql_prepare": 84.488,
+        "postgres_first_row": 283.24,
+        "postgres_complete": 440.532,
+        "mysql_first_row": 260.159,
+        "mysql_complete": 400.483,
+        "postgres_write": 8030.649,
+        "mysql_write": 7565.418
+      },
+      "gateway_memory_kib": {
+        "VmRSS": 71112,
+        "VmHWM": 72444
+      },
+      "warmups": 1,
+      "repetitions": 5,
+      "rows": 4,
+      "limits": "Connect includes verified TLS, authentication and driver startup. Preparation excludes execution. First-row/complete use raw PostgreSQL frames and unbuffered Connector/Python, including driver and transport work. Writes include durable admission and observed completion. RSS is a Linux process sample; HWM covers this activation, not an allocator bound. Timings are sequential local observations, not an SLO or an encoding-only benchmark."
+    },
+    {
+      "profile": "database_wire_native_costs",
+      "observations": [
+        {
+          "path": "idle_100ms",
+          "elapsed_ms": 100.079,
+          "counters": {
+            "attempts": 29,
+            "POST": 29,
+            "request_bytes": 13267,
+            "read:process": 7,
+            "principal:2000": 3,
+            "principal:2000:read:process": 3,
+            "elapsed_ns": 66486096,
+            "POST:elapsed_ns": 66486096,
+            "work:wait_ns": 9444870,
+            "work:work_ns": 41228164,
+            "work:cache_hits": 213,
+            "work:cache_misses": 45,
+            "work:provider:requests": 103,
+            "work:provider:elapsed_ns": 25200155,
+            "work:provider:response_bytes": 139455,
+            "work:responses": 29,
+            "read:process:elapsed_ns": 20182982,
+            "principal:2000:read:process:elapsed_ns": 6752438,
+            "response_bytes": 39217,
+            "status:200": 29,
+            "principal:2003": 26,
+            "principal:2003:read:process": 4,
+            "principal:2003:read:process:elapsed_ns": 13430544,
+            "read:resource": 4,
+            "principal:2003:read:resource": 4,
+            "read:resource:elapsed_ns": 4833534,
+            "principal:2003:read:resource:elapsed_ns": 4833534,
+            "read:entries": 18,
+            "principal:2003:read:entries": 18,
+            "read:entries:elapsed_ns": 41469580,
+            "principal:2003:read:entries:elapsed_ns": 41469580
+          }
+        },
+        {
+          "path": "native_process",
+          "elapsed_ms": 79.386,
+          "counters": {
+            "attempts": 27,
+            "POST": 27,
+            "request_bytes": 15644,
+            "read:process": 4,
+            "principal:2000": 2,
+            "principal:2000:read:process": 2,
+            "elapsed_ns": 116212205,
+            "POST:elapsed_ns": 116212205,
+            "work:wait_ns": 40583109,
+            "work:work_ns": 60428701,
+            "work:cache_hits": 301,
+            "work:cache_misses": 73,
+            "work:provider:requests": 140,
+            "work:provider:elapsed_ns": 40852701,
+            "work:provider:response_bytes": 210339,
+            "work:responses": 27,
+            "read:process:elapsed_ns": 19607706,
+            "principal:2000:read:process:elapsed_ns": 7485143,
+            "response_bytes": 40780,
+            "status:200": 27,
+            "principal:2003": 11,
+            "principal:2003:read:process": 2,
+            "principal:2003:read:process:elapsed_ns": 12122563,
+            "read:resource": 2,
+            "principal:2003:read:resource": 2,
+            "read:resource:elapsed_ns": 9461175,
+            "principal:2003:read:resource:elapsed_ns": 9461175,
+            "read:entries": 7,
+            "principal:2003:read:entries": 7,
+            "read:entries:elapsed_ns": 29962155,
+            "principal:2003:read:entries:elapsed_ns": 29962155,
+            "read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 2807698,
+            "principal:1234": 14,
+            "principal:1234:read:capabilities": 1,
+            "principal:1234:read:capabilities:elapsed_ns": 2807698,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "principal:1234:read:snapshot_read": 13,
+            "read:snapshot_read:elapsed_ns": 54373471,
+            "principal:1234:read:snapshot_read:elapsed_ns": 54373471,
+            "snapshot_finish": 1
+          }
+        },
+        {
+          "path": "postgres_literal",
+          "elapsed_ms": 377.597,
+          "counters": {
+            "attempts": 162,
+            "POST": 162,
+            "request_bytes": 84252,
+            "read:process": 26,
+            "principal:2000": 9,
+            "principal:2000:read:process": 9,
+            "elapsed_ns": 570980895,
+            "POST:elapsed_ns": 570980895,
+            "work:wait_ns": 186600960,
+            "work:work_ns": 289474998,
+            "work:cache_hits": 1350,
+            "work:cache_misses": 463,
+            "work:provider:requests": 800,
+            "work:provider:elapsed_ns": 184464642,
+            "work:provider:response_bytes": 1297785,
+            "work:responses": 162,
+            "read:process:elapsed_ns": 73019970,
+            "principal:2000:read:process:elapsed_ns": 19467254,
+            "response_bytes": 214246,
+            "status:200": 162,
+            "principal:2003": 67,
+            "principal:2003:read:process": 9,
+            "principal:2003:read:process:elapsed_ns": 30293213,
+            "read:resource": 9,
+            "principal:2003:read:resource": 9,
+            "read:resource:elapsed_ns": 27420369,
+            "principal:2003:read:resource:elapsed_ns": 27420369,
+            "read:entries": 56,
+            "principal:2003:read:entries": 49,
+            "read:entries:elapsed_ns": 222233769,
+            "principal:2003:read:entries:elapsed_ns": 194826184,
+            "principal:2001": 8,
+            "principal:2001:read:process": 8,
+            "principal:2001:read:process:elapsed_ns": 23259503,
+            "read:capabilities": 2,
+            "principal:1235": 78,
+            "principal:1235:read:capabilities": 2,
+            "read:capabilities:elapsed_ns": 5646225,
+            "principal:1235:read:capabilities:elapsed_ns": 5646225,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 54300652,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 188359910,
+            "principal:1235:read:read_entries:elapsed_ns": 188359910,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 27407585,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 54300652
+          }
+        },
+        {
+          "path": "postgres_prepared",
+          "elapsed_ms": 430.337,
+          "counters": {
+            "attempts": 173,
+            "POST": 173,
+            "request_bytes": 89059,
+            "read:process": 31,
+            "principal:2000": 11,
+            "principal:2000:read:process": 11,
+            "elapsed_ns": 619875259,
+            "POST:elapsed_ns": 619875259,
+            "work:wait_ns": 204617440,
+            "work:work_ns": 314614371,
+            "work:cache_hits": 1432,
+            "work:cache_misses": 463,
+            "work:provider:requests": 822,
+            "work:provider:elapsed_ns": 198695547,
+            "work:provider:response_bytes": 1318273,
+            "work:responses": 173,
+            "read:process:elapsed_ns": 78656141,
+            "principal:2000:read:process:elapsed_ns": 24170183,
+            "response_bytes": 228674,
+            "status:200": 173,
+            "principal:2003": 76,
+            "principal:2003:read:process": 11,
+            "principal:2003:read:process:elapsed_ns": 29870251,
+            "read:resource": 11,
+            "principal:2003:read:resource": 11,
+            "read:resource:elapsed_ns": 29966236,
+            "principal:2003:read:resource:elapsed_ns": 29966236,
+            "read:entries": 61,
+            "principal:2003:read:entries": 54,
+            "read:entries:elapsed_ns": 249537388,
+            "principal:2003:read:entries:elapsed_ns": 221137489,
+            "principal:2001": 9,
+            "principal:2001:read:process": 9,
+            "principal:2001:read:process:elapsed_ns": 24615707,
+            "read:capabilities": 1,
+            "principal:1235": 77,
+            "principal:1235:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 1433521,
+            "principal:1235:read:capabilities:elapsed_ns": 1433521,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 57474763,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 202807210,
+            "principal:1235:read:read_entries:elapsed_ns": 202807210,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 28399899,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 57474763
+          }
+        },
+        {
+          "path": "mysql_literal",
+          "elapsed_ms": 274.924,
+          "counters": {
+            "attempts": 121,
+            "POST": 121,
+            "request_bytes": 63358,
+            "read:process": 20,
+            "principal:2000": 7,
+            "principal:2000:read:process": 7,
+            "elapsed_ns": 422677001,
+            "POST:elapsed_ns": 422677001,
+            "work:wait_ns": 146114835,
+            "work:work_ns": 214384185,
+            "work:cache_hits": 1030,
+            "work:cache_misses": 329,
+            "work:provider:requests": 584,
+            "work:provider:elapsed_ns": 136772976,
+            "work:provider:response_bytes": 928627,
+            "work:responses": 121,
+            "read:process:elapsed_ns": 51240361,
+            "principal:2000:read:process:elapsed_ns": 19423144,
+            "response_bytes": 158106,
+            "status:200": 121,
+            "principal:2003": 48,
+            "principal:2003:read:process": 7,
+            "principal:2003:read:process:elapsed_ns": 17962710,
+            "read:resource": 7,
+            "principal:2003:read:resource": 7,
+            "read:resource:elapsed_ns": 24254684,
+            "principal:2003:read:resource:elapsed_ns": 24254684,
+            "read:entries": 39,
+            "principal:2003:read:entries": 34,
+            "read:entries:elapsed_ns": 160717726,
+            "principal:2003:read:entries:elapsed_ns": 138925317,
+            "principal:2001": 6,
+            "principal:2001:read:process": 6,
+            "principal:2001:read:process:elapsed_ns": 13854507,
+            "read:capabilities": 2,
+            "principal:1235": 60,
+            "principal:1235:read:capabilities": 2,
+            "read:capabilities:elapsed_ns": 2092736,
+            "principal:1235:read:capabilities:elapsed_ns": 2092736,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 56500018,
+            "snapshot_finish": 1,
+            "read:read_entries": 40,
+            "principal:1235:read:read_entries": 40,
+            "read:read_entries:elapsed_ns": 127871476,
+            "principal:1235:read:read_entries:elapsed_ns": 127871476,
+            "principal:1235:read:entries": 5,
+            "principal:1235:read:entries:elapsed_ns": 21792409,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 56500018
+          }
+        },
+        {
+          "path": "mysql_prepared",
+          "elapsed_ms": 417.482,
+          "counters": {
+            "attempts": 173,
+            "POST": 173,
+            "request_bytes": 89002,
+            "read:process": 32,
+            "principal:2000": 11,
+            "principal:2000:read:process": 11,
+            "elapsed_ns": 604535669,
+            "POST:elapsed_ns": 604535669,
+            "work:wait_ns": 201236445,
+            "work:work_ns": 308426512,
+            "work:cache_hits": 1428,
+            "work:cache_misses": 459,
+            "work:provider:requests": 818,
+            "work:provider:elapsed_ns": 195387696,
+            "work:provider:response_bytes": 1304925,
+            "work:responses": 173,
+            "read:process:elapsed_ns": 89255201,
+            "principal:2000:read:process:elapsed_ns": 31173111,
+            "response_bytes": 228352,
+            "status:200": 173,
+            "principal:2003": 75,
+            "principal:2003:read:process": 11,
+            "principal:2003:read:process:elapsed_ns": 32621822,
+            "read:resource": 11,
+            "principal:2003:read:resource": 11,
+            "read:resource:elapsed_ns": 31534575,
+            "principal:2003:read:resource:elapsed_ns": 31534575,
+            "read:entries": 60,
+            "principal:2003:read:entries": 53,
+            "read:entries:elapsed_ns": 236221356,
+            "principal:2003:read:entries:elapsed_ns": 201511888,
+            "principal:2001": 10,
+            "principal:2001:read:process": 10,
+            "principal:2001:read:process:elapsed_ns": 25460268,
+            "read:capabilities": 1,
+            "principal:1235": 77,
+            "principal:1235:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 2212807,
+            "principal:1235:read:capabilities:elapsed_ns": 2212807,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 50462587,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 194849143,
+            "principal:1235:read:read_entries:elapsed_ns": 194849143,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 34709468,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 50462587
+          }
+        }
+      ],
+      "limits": "One cold preparation/read per path through a bounded HTTP diagnostic proxy; this changes transport costs and is separate from unproxied timings. Counts cover gateway and explicit native caller attempts during each wall-clock window, including concurrent account maintenance; Catalog worker/courier requests bypass the proxy. Provider and authority work come from completed x-transit-work responses. Byte counters are native JSON payloads, not TLS/database-wire traffic. No payloads or credentials are retained; no causal subtraction or speedup claim."
+    },
+    {
+      "profile": "database_wire_capacity",
+      "normal_connections": 8,
+      "authentications": 4,
+      "reserved_cancel": true,
+      "health_progress": true,
+      "prepared_limit": 16,
+      "portal_limit": 4,
+      "oversized_header": true
+    },
+    {
+      "profile": "database_wire_drain",
+      "readiness_revoked": true,
+      "joined_exit": true
+    },
+    {
+      "profile": "database_wire_cold_storage",
+      "data_objects": 1426,
+      "file_bytes": 374415355,
+      "hot_bytes": 8388608,
+      "cache_bytes": 8388608,
+      "resident_pages": 8
+    },
+    {
+      "profile": "database_native_gateway",
+      "slice": "all",
+      "psycopg": "3.3.4",
+      "connector": "9.4.0",
+      "driver_matrix": true,
+      "wide_values": true,
+      "seconds": 1412.941
+    }
+  ],
+  "supplemental_wide_readback": {
+    "profile": "database_wire_large_readback",
+    "both_protocols": true,
+    "binary_results": true,
+    "columns": 10,
+    "variable_bytes": 40960,
+    "all_cells_exact": true
+  },
+  "other_passed_checks": [
+    {
+      "command": "just check",
+      "source": "858732ad6025c5ad32ccb94aabda9450f3a7d1a2",
+      "clean_checkout": false
+    },
+    {
+      "command": "just transit-board::query-browser",
+      "source_state": "9b87d7ac with later fixture and encoding changes pending",
+      "clean_checkout": false,
+      "browser_seconds": 56.0
+    },
+    {
+      "command": "just test::sql-gateway",
+      "source_state": "9b87d7ac with independent-principal proof changes pending",
+      "clean_checkout": false,
+      "seconds": 74.181,
+      "operations": 33,
+      "fenced_replacements": 3,
+      "turns": 214,
+      "sends": 208
+    },
+    {
+      "command": "just test::sql-wire-placement compose",
+      "seconds": 277.639,
+      "scope": "Completed mutations and whole-stack replacement under fresh native generations; six scalar types and counts."
+    },
+    {
+      "command": "just test::sql-wire-placement reference",
+      "seconds": 326.564,
+      "scope": "Same completed-mutation replacement, actual Substrate Catalog host, activation PVC and independent egress denials."
+    }
+  ],
+  "failed_attempts": [
+    {
+      "attempt": "hot-only fixture",
+      "result": "failed",
+      "observed": "Ursula ColdBackpressure at the 64 MiB hot-only limit and native DeadlineExpired; no wide completion established.",
+      "resolution": "Existing cold-store fixture with 8 MiB hot and 8 MiB cache; no scalar, storage-page or frame constants increased.",
+      "log": "hot_backpressure"
+    },
+    {
+      "attempt": "operator discovery after 270-second SQL wait",
+      "result": "failed",
+      "observed": "Concurrent current-revision inventory read rejected; no SQL retry.",
+      "resolution": "Fresh read-conflict retries plus ordered keyset cursors across forward revisions, preserving current authority and rejecting foreign/backward cursors.",
+      "log": "stale_inventory"
+    },
+    {
+      "attempt": "900-second operator observation at 9b87d7ac",
+      "result": "failed",
+      "observed": "Original operation still active and unblocked, pending native sequence 322; no terminal result established.",
+      "resolution": "1800-second proof observation budget and two-second polling, independently of unchanged 270-second SQL deadline.",
+      "log": "observation_deadline"
+    },
+    {
+      "attempt": "initial independent-policy and external-DDL fixtures",
+      "result": "failed",
+      "observed": "Assertions mistook policy_applied and delegated/Table-applied terminal records for rejection.",
+      "resolution": "Check the owning successful dispositions explicitly; subsequent controls and full runs pass."
+    }
+  ],
+  "logs": {
+    "gateway": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/gateway-858732ad-all.log",
+      "sha256": "2e667aeb058e61862afafbc104f4087d9e1efca728d86897d55de430501bffdb",
+      "bytes": 22064
+    },
+    "wide_readback": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/wide-readback-858732ad.log",
+      "sha256": "8ce1e4a084230013dd499d9cc42fa672fa57add583d15e0223c90824f9ac26d8",
+      "bytes": 157
+    },
+    "ledger": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/ledger-workspace.log",
+      "sha256": "c2d724afb4dc0f8515e7b0b599b84a8cb5a66817cafa07b3d79d5ebd20b80345",
+      "bytes": 220
+    },
+    "compose": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/compose.log",
+      "sha256": "11d4ca4cfd491e852c2c2d36f547ca47369e9c34d9a5ab33d965947483aadef8",
+      "bytes": 527
+    },
+    "reference": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/reference.log",
+      "sha256": "fdca53bfbf2d11c1b9622d6322fd50b88c7004d7d6f4f3836989015647aecab1",
+      "bytes": 531
+    },
+    "check": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/check-858732ad.log",
+      "sha256": "057793ca7eeec7474bdf2148ec93b9d94704746c118867285cf8af76f97f67f6",
+      "bytes": 19127
+    },
+    "browser": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/query-browser-workspace.log",
+      "sha256": "2bb59727fa8c2b2bac32180756893d3400909fb36a4d82a2b1c0e49adce4cdc8",
+      "bytes": 2757
+    },
+    "hot_backpressure": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/failed-hot-backpressure.log",
+      "sha256": "f3f800762abaa30efbecf46f8d93c0bf66ee84871110866febf1d7b827f0bc85",
+      "bytes": 65181
+    },
+    "stale_inventory": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/failed-stale-inventory.log",
+      "sha256": "03a6b98a7559e5cd664bef84c9f14d41448a4606531e1e74facb27c5d8fd211b",
+      "bytes": 66156
+    },
+    "observation_deadline": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/failed-observation-deadline.log",
+      "sha256": "792f8a6296f691c9f201610260572cf0a23639f5aa9a3612a23229cb459ae4be",
+      "bytes": 71342
+    },
+    "final_controls": {
+      "path": ".cache/sql-wire-qualification/2026-10-14/controls-final-workspace.log",
+      "sha256": "ae2d139da06f176e10eca1b1dd799d4a0f96b1b35e8731655c8837654a60da43",
+      "bytes": 15271
+    }
+  },
+  "limits": [
+    "This is a committed-source workspace run, not clean-checkout CI. Ordinary clean qualification requires every lane at one committed revision; deployment and browser scopes remain separate.",
+    "Native comparison includes a fresh helper process and compilation; wire paths retain connections and prepared handles. Samples are local and may compete with other checks.",
+    "Request counters include concurrent account maintenance within each window. Catalog host/courier traffic bypasses the diagnostic proxy; native/provider payload bytes are distinct from database/TLS traffic.",
+    "The 40 KiB write outlasts its SQL wait. Only original operator terminal evidence establishes completion; repeated SQL would be new work. This is not a latency or throughput guarantee.",
+    "Physical deployment replacements occur after completed mutations. Native ledger fault schedules separately cover pending steps, lost receipts and fencing."
+  ],
+  "supplemental_controls": {
+    "result": "passed",
+    "source_state": "858732ad with final disclosure assertions pending",
+    "seconds": 210.596,
+    "profiles": [
+      {
+        "profile": "database_wire_faults",
+        "deferred_write_cycles": true,
+        "suspended_cancel": true,
+        "detached_write": true,
+        "invalid_connections": 10,
+        "native_revocation": true,
+        "revoked_metadata_suppressed": true,
+        "revoked_terminal_suppressed": true,
+        "credential_rotation": true,
+        "credential_cli": true
+      },
+      {
+        "profile": "database_wire_authority",
+        "administrator": 1234,
+        "table_principal": 1235,
+        "prepared_revocation": true,
+        "read_only_writes_rejected_before_admission": true,
+        "reads_preserved": true,
+        "both_protocols": true
+      },
+      {
+        "profile": "database_wire_certificate_rotation",
+        "both_protocols": true,
+        "old_trust_rejected": true,
+        "new_trust_verified": true
+      },
+      {
+        "profile": "database_wire_schema",
+        "external_principal": 1234,
+        "alter_invalidates": true,
+        "drop_invalidates": true,
+        "name_reuse_invalidates": true,
+        "both_protocols": true
+      },
+      {
+        "profile": "database_wire_capacity",
+        "normal_connections": 8,
+        "authentications": 4,
+        "reserved_cancel": true,
+        "health_progress": true,
+        "prepared_limit": 16,
+        "portal_limit": 4,
+        "oversized_header": true
+      },
+      {
+        "profile": "database_wire_drain",
+        "readiness_revoked": true,
+        "joined_exit": true
+      }
+    ],
+    "scope": "Adds explicit suppression of new metadata and committed operator counts after native read revocation; repeats the other controls/schema/cost/capacity/drain checks. This slice does not run the independent driver matrix or wide values."
+  }
+}

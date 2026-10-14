@@ -405,7 +405,10 @@ a published Table step or ingress/operator control.
 Execution reserves a nonce/operation, binds an immutable Table intent, uploads it
 and waits for original terminal evidence. Cancellation/deadline releases the
 wait; it does not roll back, discard or authorize expiry of accepted work. A
-partial upload remains discoverable. The returned terminal record must equal a
+partial upload remains discoverable with its received parts, but missing intent
+bytes are not reconstructed after the originating task ends. It cannot dispatch
+until the complete intent is sealed and admitted; qualified unsent cancellation
+can close it. The returned terminal record must equal a
 fresh authorized observation from the Table owner; a cached ledger count alone
 cannot establish disclosure authority. The host joins workers and connections
 before destruction and requires fresh eligible ownership for a restarted process.

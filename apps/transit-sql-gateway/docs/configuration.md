@@ -125,10 +125,17 @@ traversal. A changed account or backward revision rejects. A listing is not an
 atomic snapshot; phases can change between pages and later appends may require a
 new listing. Retained history has no automatic expiry.
 List/status observations retry a concurrent current-revision read conflict within
-the configured timeout, before printing a result. Terminal inspection batches finite intent reads and
-checks the original Table result under current rights. A SQL command can exhaust
+the configured timeout, before printing a result. Terminal inspection batches
+finite intent reads and checks the original Table result under current rights.
+A SQL command can exhaust
 its wait while an admitted operation continues; discover and inspect that
 operation instead of sending the SQL again.
+
+If the wait ends before the complete intent is sealed, the operation remains
+reserved or uploading. Its received parts remain durable, but the gateway cannot
+reconstruct missing bytes. Qualified cancellation can close that unsent operation;
+it does not establish cancellation of a dispatched Table operation. Inspect the
+phase and original outcome before deciding whether to submit new SQL.
 
 The credential command reads 1–128 printable ASCII bytes exactly, without
 stripping a newline, uses secure random salt and 65536 PBKDF2 iterations, and

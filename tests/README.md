@@ -2,72 +2,108 @@
 
 ## Database wire gateway
 
-The real TLS gateway runs against the Catalog host/courier and disk-backed
-Ursula with eight resident pages. The pinned clients are Psycopg 3.3.4,
-psql/libpq 18.6, Connector/Python 9.4.0 and Oracle mysql/libmysqlclient 8.4.11.
-Python and C checks execute CREATE, prepared INSERT/SELECT/UPDATE/DELETE and all
-six scalar types. CLI checks execute literal SELECT. C checks independently
-cover signed/unsigned extremes, parameter/result metadata, NULL, binary values,
-reset and counts. PostgreSQL checks both result formats and duplicate rejection
-SQLSTATE 23505; MySQL checks changed-row and CLIENT_FOUND_ROWS modes.
+The [retained report](verification/results/sql-wire-2026-10-14.json) records the
+2026-10-14 UTC full gateway run at `858732ad`, its raw observations, local log
+digests and failed attempts. `just test::sql-wire-gateway` passes in **1412.941
+seconds**, with no tracked changes at measurement. It runs the actual TLS gateway,
+Catalog host/courier and native authority over disk-backed Ursula and pinned
+MinIO, with eight resident pages, 8 MiB hot storage and an 8 MiB cold cache.
+The run flushes 1426 cold data objects; MinIO's sampled file size is 374415355 bytes.
+This is a workspace run, not clean-checkout CI.
 
-The 2026-10-14 UTC expanded `just test::sql-wire-gateway` run passes in
-246.949 seconds including provisioning. It qualifies actual operator
-initialization, locked/synced signed controls, paged discovery, current terminal
-inspection, processed-control retry and fresh-generation restart. Raw TLS tests
-reject PostgreSQL write Flush/double Execute cycles before mutation, close
-portals at Sync, cancel suspended reads and recover the next request. An admitted
-INSERT completes once after losing its database reply. Both protocols reject
-wrong credentials/account/database and plaintext downgrade; PostgreSQL rejects
-invalid trust/hostname. Verifier revision changes invalidate retained sessions;
-disabled credentials reject new sessions. Native read revocation denies retained
-prepared handles and a suspended portal. MySQL rejects unsupported commands,
-transactions and multi-statements, then accepts PING.
+The pinned clients are Psycopg 3.3.4, psql/libpq 18.6, Connector/Python 9.4.0 and
+Oracle mysql/libmysqlclient 8.4.11. Python and C checks execute CREATE, prepared
+INSERT/SELECT/UPDATE/DELETE and all six scalar types; CLI checks execute literal
+SELECT. The independent C checks cover signed/unsigned extremes, parameter/result
+metadata, NULL, binary values, reset and counts. PostgreSQL checks both result
+formats and duplicate rejection SQLSTATE 23505. MySQL checks changed-row and
+CLIENT_FOUND_ROWS modes. Literal int64 joins/groups and defaults versus explicit
+NULL use the shared owners.
 
-The same run checks eight-session saturation with independent private health and
-reserved TLS cancellation, four stalled authentication attempts with absolute
-timeout, 16 prepared handles, four portals, oversized header refusal, readiness
-withdrawal and joined SIGTERM drain. Session package tests additionally cover
+The same run qualifies operator initialization, locked/synced signed controls,
+paged discovery, current terminal inspection, processed-control retry and fenced
+restart. Raw TLS tests reject write Flush/double Execute cycles before mutation,
+close PostgreSQL portals at Sync, cancel suspended reads, reject stale cancellation
+keys and recover the next request. An admitted INSERT completes once after losing
+its database reply. Both protocols reject wrong credentials/account/database and
+plaintext downgrade. Certificate replacement rejects old trust and accepts new
+trust; PostgreSQL additionally checks invalid hostname/trust. Verifier revision
+changes invalidate retained sessions, and disabled credentials reject new sessions.
+
+Catalog administration uses principal 1234 independently of the gateway's Table
+principal 1235. Read-only policy denies CREATE/INSERT/UPDATE/DELETE, including
+retained prepared handles, without adding gateway operations; reads still work.
+External ALTER, DROP and name reuse invalidate both protocols' prepared reads and
+writes. Native read revocation denies retained handles and suspended portals.
+The subsequent **210.596-second controls slice** additionally proves that new
+preparation metadata and previously committed operator counts are suppressed after
+native read revocation, with no partial stdout from failed control inspection.
+That slice excludes the independent client matrix and wide values.
+
+A single prepared INSERT carries ten 4096-byte variable fields, **40 KiB total**.
+The 270-second SQL wait ends, while discovery identifies the one original durable
+operation. Its terminal result is observed after **965.415 seconds**, with exactly
+one matched and changed row and no SQL retry. Binary readback through both
+protocols verifies the values; a supplemental read checks every one of the ten
+cells, and the repeatable fixture includes that full readback. A 4097-byte bound
+cell rejects with SQLSTATE 54000. The operator proof has a separate 1800-second
+observation budget and two-second polling; these do not extend the SQL deadline.
+This measured completion cost is not an interactive latency guarantee.
+
+Eight-session saturation preserves private health and reserved TLS cancellation.
+Four stalled authentication attempts expire at their absolute deadline. The
+fixture checks 16 prepared handles, four portals, oversized header refusal,
+readiness withdrawal and joined SIGTERM drain. Package tests additionally cover
 malformed Sync recovery, dependent portal cleanup, remembered MySQL parameter
 types, invalid cursors, monotonic handles and no replay after partial output.
 Exhaustive allocation-failure schedules pass both session owners.
 
-Subsequent fault runs exercise the real credential CLI and expose native HTTP
-capacity and temporary owner readiness during concurrent observation. Explicit
-classification preserves write uncertainty; only pure metadata/status reads
-retry inside their original deadline. Fresh SELECT attempts in the observer
-fixture are explicit. The larger-upload test exposed the existing 4096-byte
-bound per scalar, a 120-second command wait and a five-second native status-read
-timeout. Later runs reached Ursula's 64 MiB hot-only capacity and stopped on
-ColdBackpressure/DeadlineExpired. Those failures do not establish completion.
-The extended fixture uses the existing disk-backed MinIO cold store with 8 MiB
-hot storage, an 8 MiB cold cache, and published request/command deadline controls;
-scalar/frame constants are unchanged. Final large-value, schema-change and
-clean-checkout qualification is still in progress.
+The report separates framed-row encoding, verified connection startup,
+preparation, first-row/complete-read and durable write timings. It retains raw
+samples, native/provider request and byte counters, and sampled gateway RSS/HWM.
+`just test::sql-wire-encoding` measures all six scalar types plus NULL in 10000-row
+samples, independently of TLS, sockets, authority and storage; it also runs before
+the full gateway proof. The native read comparison includes a fresh helper process
+and compilation, while driver paths retain connections/preparations. Instrumented
+request windows include concurrent account maintenance; Catalog host/courier
+traffic bypasses that proxy. No causal subtraction or throughput claim follows.
 
-`just test::sql-gateway` passes again in 38.196 seconds: 33 retained operations,
-three fenced replacements, lost receipts for the Table principal, ingress and a
-detached wait, 214 turns and 208 sends. It checks original signed bytes, counts,
-paged recovery and control decisions against disk-backed storage. Its scope is
-native ledger/runtime recovery, independently of database framing.
+Failed attempts remain failures. Early wide tests exposed the 4096-byte scalar
+bound, command/native-read deadlines and the 64 MiB hot-only Ursula limit; the
+latter produced ColdBackpressure/DeadlineExpired. The cold fixture removes that
+capacity condition. A later inventory race required fresh read-conflict retries
+and ordered operation cursors across forward revisions. The 900-second operator
+observation still ended with an active, unblocked original operation; it did not
+establish completion. The longer passing observation retains the SQL deadline.
+Initial policy/DDL fixtures also misclassified successful `policy_applied` and
+`delegated`/Table-applied dispositions; their corrected assertions pass.
 
-`just test::sql-wire-placement compose` passes in 277.639 seconds and
-`just test::sql-wire-placement reference` passes in 326.564 seconds, including
-image preparation. Both use the pinned OpenSSL package, actual TLS listeners,
-six scalar values, typed prepared queries/mutations and original committed
-counts. Both stop the gateway, Catalog host, courier, native node and disk store,
-then recover the same state under fresh native generations before another write.
-The reference run additionally places the Catalog host in Substrate, retains
-gateway activation markers on a PVC, and executes its egress denial probe.
-These physical replacement schedules occur after completed mutations; the
-native ledger proof separately covers lost receipts and pending-step replacement.
+`just test::sql-gateway` passes again in **74.181 seconds** during concurrent wire
+qualification: 33 retained operations, three fenced replacements, lost receipts
+for Table/ingress principals and a detached wait, 214 turns and 208 sends. It checks
+original signed bytes, counts, paged recovery and control decisions against disk.
+Its scope is native ledger/runtime recovery, independently of database framing.
 
-The full `just check` run passes after correcting Internals documentation ownership.
-Diagnostic inventory/mapping checks remain scoped: the source inventory includes
-the gateway application, while SQLSTATE/native-cause classification has owning
-application/session tests and real negative cases. The preexisting semantic
-mapping manifest does not certify this entire new wire surface. No clean-suite
-result is established yet by the focused or deployment runs.
+`just test::sql-wire-placement compose` passes in **277.639 seconds** and the
+`reference` placement passes in **326.564 seconds**, including image preparation.
+Both use the pinned OpenSSL package, actual TLS, six scalar values, typed prepared
+queries/mutations and original counts. Both stop the gateway, Catalog host,
+courier, node and store, then recover the same state with fresh native generations
+before another write. Reference additionally runs the Catalog host in Substrate,
+retains gateway activation markers on a PVC and executes independent egress
+denials. These replacements occur after completed mutations; the separate native
+ledger schedules cover pending steps, lost receipts and fencing.
+
+The full `just check` passes at `858732ad`. `just transit-board::query-browser`
+also passes its real Chromium recovery, Canvas/Browse and current-grant/cut checks.
+The diagnostic inventory includes the gateway application; its preexisting mapping
+manifest covers its declared boundaries, not this entire new wire surface.
+Application/session tests and actual negative cases own the SQLSTATE mappings.
+Final clean qualification uses `just ci-clean` (all five ordinary lanes at one
+committed revision) or `just ci-clean --complete` with the installed browser.
+Those runs create revision-qualified timing/completion reports under `.cache/ci/clean`;
+focused and deployment results do not stand in for them. Hosted CI status is
+reported separately in the implementation PR.
 
 ## Database wire foundation
 
