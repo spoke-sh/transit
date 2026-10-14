@@ -125,7 +125,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+              "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
             ]
           },
           "code": {
@@ -922,7 +922,7 @@
               "definition": {
                 "type": "string",
                 "enum": [
-                  "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                  "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                 ]
               },
               "realm": {
@@ -958,7 +958,8 @@
                     "additionalProperties": false,
                     "x-transit-field-order": [
                       "pid",
-                      "value"
+                      "value",
+                      "role"
                     ],
                     "properties": {
                       "pid": {
@@ -973,13 +974,29 @@
                         "pattern": "^(?:[0-9a-f]{2})*$",
                         "maxLength": 512,
                         "x-transit-encoding": "lowercase-hex"
+                      },
+                      "role": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
                       "pid",
                       "value"
                     ],
-                    "x-transit-defaults": {}
+                    "x-transit-defaults": {
+                      "role": null
+                    }
                   }
                 },
                 "required": [
@@ -1132,7 +1149,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                      "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                     ]
                   },
                   "realm": {
@@ -1174,7 +1191,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                  "definition": "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                 }
               },
               "signature": {
@@ -2109,7 +2126,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                      "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                     ]
                   },
                   "realm": {
@@ -2151,7 +2168,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                  "definition": "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                 }
               },
               "signature": {
@@ -3049,7 +3066,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                      "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                     ]
                   },
                   "realm": {
@@ -3085,7 +3102,8 @@
                         "additionalProperties": false,
                         "x-transit-field-order": [
                           "pid",
-                          "value"
+                          "value",
+                          "role"
                         ],
                         "properties": {
                           "pid": {
@@ -3100,13 +3118,29 @@
                             "pattern": "^(?:[0-9a-f]{2})*$",
                             "maxLength": 512,
                             "x-transit-encoding": "lowercase-hex"
+                          },
+                          "role": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "pid",
                           "value"
                         ],
-                        "x-transit-defaults": {}
+                        "x-transit-defaults": {
+                          "role": null
+                        }
                       }
                     },
                     "required": [
@@ -3511,7 +3545,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                          "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                         ]
                       },
                       "realm": {
@@ -3553,7 +3587,7 @@
                     ],
                     "x-transit-defaults": {
                       "version": 1,
-                      "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                      "definition": "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                     }
                   },
                   "signature": {
@@ -3639,7 +3673,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                              "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                             ]
                           },
                           "realm": {
@@ -3675,7 +3709,8 @@
                                 "additionalProperties": false,
                                 "x-transit-field-order": [
                                   "pid",
-                                  "value"
+                                  "value",
+                                  "role"
                                 ],
                                 "properties": {
                                   "pid": {
@@ -3690,13 +3725,29 @@
                                     "pattern": "^(?:[0-9a-f]{2})*$",
                                     "maxLength": 512,
                                     "x-transit-encoding": "lowercase-hex"
+                                  },
+                                  "role": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "x-transit-bits": 64,
+                                        "x-transit-signed": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": [
                                   "pid",
                                   "value"
                                 ],
-                                "x-transit-defaults": {}
+                                "x-transit-defaults": {
+                                  "role": null
+                                }
                               }
                             },
                             "required": [
@@ -4101,7 +4152,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                                  "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                                 ]
                               },
                               "realm": {
@@ -4143,7 +4194,7 @@
                             ],
                             "x-transit-defaults": {
                               "version": 1,
-                              "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                              "definition": "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                             }
                           },
                           "signature": {
@@ -4217,7 +4268,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                          "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                         ]
                       },
                       "realm": {
@@ -4253,7 +4304,8 @@
                             "additionalProperties": false,
                             "x-transit-field-order": [
                               "pid",
-                              "value"
+                              "value",
+                              "role"
                             ],
                             "properties": {
                               "pid": {
@@ -4268,13 +4320,29 @@
                                 "pattern": "^(?:[0-9a-f]{2})*$",
                                 "maxLength": 512,
                                 "x-transit-encoding": "lowercase-hex"
+                              },
+                              "role": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "x-transit-bits": 64,
+                                    "x-transit-signed": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
                               "pid",
                               "value"
                             ],
-                            "x-transit-defaults": {}
+                            "x-transit-defaults": {
+                              "role": null
+                            }
                           }
                         },
                         "required": [
@@ -4348,7 +4416,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                          "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                         ]
                       },
                       "realm": {
@@ -4384,7 +4452,8 @@
                             "additionalProperties": false,
                             "x-transit-field-order": [
                               "pid",
-                              "value"
+                              "value",
+                              "role"
                             ],
                             "properties": {
                               "pid": {
@@ -4399,13 +4468,29 @@
                                 "pattern": "^(?:[0-9a-f]{2})*$",
                                 "maxLength": 512,
                                 "x-transit-encoding": "lowercase-hex"
+                              },
+                              "role": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "x-transit-bits": 64,
+                                    "x-transit-signed": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
                               "pid",
                               "value"
                             ],
-                            "x-transit-defaults": {}
+                            "x-transit-defaults": {
+                              "role": null
+                            }
                           }
                         },
                         "required": [
@@ -4819,7 +4904,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                              "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                             ]
                           },
                           "realm": {
@@ -4861,7 +4946,7 @@
                         ],
                         "x-transit-defaults": {
                           "version": 1,
-                          "definition": "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246"
+                          "definition": "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9"
                         }
                       },
                       "signature": {

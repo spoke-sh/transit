@@ -3182,6 +3182,53 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/TableAuthority.zig": {
+      "errors": {
+        "CatalogDenied": 2,
+        "InvalidCatalogConfiguration": 4,
+        "InvalidCatalogIdentity": 3,
+        "InvalidCatalogName": 2
+      },
+      "outcomes": {
+        "Access": [
+          "database",
+          "schema",
+          "create_schema",
+          "create_table",
+          "inspect",
+          "read",
+          "insert",
+          "update",
+          "delete",
+          "alter",
+          "drop"
+        ],
+        "Kind": [
+          "database",
+          "schema",
+          "table"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Name.init()": "<inferred>",
+        "Name.validate()": "<inferred>",
+        "Profile.validate()": "<inferred>",
+        "Schema.validate()": "<inferred>",
+        "binding()": "<inferred>",
+        "guard()": "<inferred>",
+        "validateObject()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableBehavior.zig": {
       "errors": {
         "CatalogAlreadyPopulated": 2,
@@ -4214,6 +4261,7 @@
         "Model.zig",
         "Records.zig",
         "TableAttempt.zig",
+        "TableAuthority.zig",
         "TableBehavior.zig",
         "TableBinding.zig",
         "TableBridge.zig",
@@ -4367,6 +4415,35 @@
       "imports": [
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-client/src/AuthorizationClient.zig": {
+      "errors": {
+        "InvalidAuthorizationObject": 4
+      },
+      "outcomes": {
+        "WithTransport().<return>.Registration": [
+          "ready",
+          "submit"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "WithTransport().<return>.authenticate()": "<inferred>",
+        "WithTransport().<return>.binding()": "<inferred>",
+        "WithTransport().<return>.check()": "<inferred>",
+        "WithTransport().<return>.proof()": "<inferred>",
+        "WithTransport().<return>.read()": "<inferred>",
+        "WithTransport().<return>.registration()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-client/src/Host.zig": {
@@ -4741,6 +4818,7 @@
       },
       "imports": [
         "Application.zig",
+        "AuthorizationClient.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
@@ -10386,16 +10464,16 @@
       "errors": {
         "InvalidAuthorizationBudget": 1,
         "InvalidAuthorizationChange": 1,
-        "InvalidAuthorizationCredential": 1,
+        "InvalidAuthorizationCredential": 3,
         "InvalidAuthorizationCursor": 1,
-        "InvalidAuthorizationDomain": 1,
+        "InvalidAuthorizationDomain": 2,
         "InvalidAuthorizationGrant": 4,
         "InvalidAuthorizationName": 1,
-        "InvalidAuthorizationObject": 5,
-        "InvalidAuthorizationPrivilege": 1,
+        "InvalidAuthorizationObject": 6,
+        "InvalidAuthorizationPrivilege": 4,
         "InvalidAuthorizationRevision": 1,
         "InvalidAuthorizationRole": 2,
-        "InvalidRead": 15,
+        "InvalidRead": 19,
         "InvalidRoleMembership": 1
       },
       "outcomes": {
@@ -10436,24 +10514,38 @@
         ],
         "Query.kind": [
           "identity",
+          "authenticate",
+          "check",
           "decision",
           "role",
           "resolve",
           "roles",
           "memberships",
           "object",
+          "binding",
+          "registration",
           "grants",
           "defaults",
           "change"
         ],
+        "Requirement.access": [
+          "all",
+          "any",
+          "ownership",
+          "visible"
+        ],
         "Result.body": [
           "identity",
+          "authenticate",
+          "check",
           "decision",
           "role",
           "resolve",
           "roles",
           "memberships",
           "object",
+          "binding",
+          "registration",
           "grants",
           "defaults",
           "change"
@@ -10467,20 +10559,32 @@
           "ready",
           "published",
           "abandoned"
+        ],
+        "Subject": [
+          "signed",
+          "accepted"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Claim.digest()": "<inferred>",
+        "Claim.validate()": "<inferred>",
         "Credential.validate()": "<inferred>",
         "DefaultGrant.validate()": "<inferred>",
         "Domain.validate()": "<inferred>",
         "Grant.validate()": "<inferred>",
+        "Guard.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
         "Membership.validate()": "<inferred>",
         "Object.validate()": "<inferred>",
         "ObjectRef.validate()": "<inferred>",
+        "Proof.sign()": "<inferred>",
+        "Proof.verify()": "<inferred>",
+        "Requirement.validate()": "<inferred>",
         "Role.validate()": "<inferred>",
+        "Subject.validate()": "<inferred>",
         "cursorScope()": "<inferred>",
+        "inputContext()": "<inferred>",
         "mask()": "<inferred>",
         "name()": "<inferred>",
         "revision()": "<inferred>",
@@ -10490,7 +10594,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 71,
         "catch": 0
       },
       "imports": [
@@ -10837,7 +10941,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246\""
+          "@\"f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9\""
         ],
         "Effect.phase": [
           "pending",
@@ -10970,7 +11074,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 58,
         "catch": 1
       },
       "imports": [
@@ -11257,6 +11361,7 @@
       "errors": {},
       "outcomes": {
         "ErrorCode": [
+          "AuthorizationSubjectDenied",
           "AuthorizationBudgetExceeded",
           "AuthorizationChangeQuota",
           "AuthorizationIdentityExhausted",
@@ -19408,8 +19513,9 @@
     },
     "packages/zig/transit-station/src/GenServer.zig": {
       "errors": {
+        "AccessDenied": 1,
         "Cancelled": 1,
-        "Conflict": 2,
+        "Conflict": 4,
         "InvalidAuthorityResponse": 8,
         "InvalidStateAssociation": 1,
         "InvalidStateView": 3,
@@ -19461,6 +19567,7 @@
         "prepare()": "<inferred>",
         "prepareTurn()": "<inferred>",
         "preprocess()": "<inferred>",
+        "readAuthorization()": "anyerror",
         "readKey()": "anyerror",
         "readMany()": "anyerror",
         "readPage()": "anyerror",
@@ -19470,10 +19577,10 @@
         "setReadResources()": "<inferred>",
         "step()": "<inferred>"
       },
-      "open_error_set_uses": 11,
+      "open_error_set_uses": 12,
       "propagation": {
-        "try": 37,
-        "catch": 9
+        "try": 36,
+        "catch": 11
       },
       "imports": [
         "Frame.zig",
@@ -20663,9 +20770,13 @@
     },
     "packages/zig/transit-station/src/Turn.zig": {
       "errors": {
+        "AccessDenied": 1,
+        "AuthorizationBudgetExceeded": 1,
         "CorrelationAlreadyUsed": 1,
         "ExpectedCall": 1,
         "ExpectedReply": 1,
+        "InvalidAuthorityResponse": 2,
+        "InvalidAuthorizationCredential": 3,
         "InvalidCommittedSource": 2,
         "InvalidDeadline": 1,
         "InvalidDestination": 1,
@@ -20683,6 +20794,7 @@
         "UncapturedStateResource": 1,
         "UnexpectedReplySource": 1,
         "UnknownCorrelation": 1,
+        "UnsupportedAuthorization": 1,
         "UnsupportedReadVersion": 2,
         "UnsupportedStateScan": 2,
         "VersionBudgetExceeded": 2,
@@ -20711,6 +20823,7 @@
         "Committed.page()": "<inferred>",
         "Committed.prefetch()": "<inferred>",
         "Committed.read()": "<inferred>",
+        "Reader.authorization()": "anyerror",
         "Reader.many()": "anyerror",
         "Reader.page()": "anyerror",
         "Reader.read()": "anyerror",
@@ -20739,6 +20852,7 @@
         "readCommittedFresh()": "<inferred>",
         "release()": "<inferred>",
         "reply()": "<inferred>",
+        "requireAuthorization()": "<inferred>",
         "retain()": "<inferred>",
         "retainView()": "<inferred>",
         "send()": "<inferred>",
@@ -20748,10 +20862,10 @@
         "waiting()": "<inferred>",
         "write()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 45,
-        "catch": 9
+        "try": 47,
+        "catch": 10
       },
       "imports": [
         "Frame.zig",

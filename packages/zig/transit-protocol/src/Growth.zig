@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.declarative-authorization.2026-10-14.
+/// SHA-256 of transit.native.v1.authenticated-domain-authority.2026-10-14.
 pub const Definition = enum {
-    @"9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
+    @"f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -93,6 +93,8 @@ pub const Turn = struct {
     outputs: [turn_outputs]?Output = @splat(null),
     effect: ?p.Value = null,
     failed: bool = false,
+    /// Current original-subject requirements, independent of executor fencing.
+    authorization: ?p.Authorization.Guard = null,
 };
 pub const Command = union(enum) {
     authorization: p.Authorization.Command,
@@ -101,7 +103,7 @@ pub const Command = union(enum) {
     spawn: Create,
     own: struct { pid: Id, expected_generation: u64, worker: Id },
     retry: struct { pid: Id, expected_generation: u64, failure_input: Id },
-    send: struct { pid: Id, value: p.Value },
+    send: struct { pid: Id, value: p.Value, role: ?Id = null },
     begin_turn: struct { pid: Id, generation: u64, input: Id },
     turn: Turn,
     terminate: Id,
@@ -428,6 +430,7 @@ pub fn validate(request: Request) !void {
     }
 }
 fn validateTurn(turn: Turn) !void {
+    if (turn.authorization) |guard| try guard.validate();
     for (turn.current_views, 0..) |slot, i| if (slot) |id| {
         if (id == 0 or std.mem.indexOfScalar(?Id, &turn.views, id) == null) return error.InvalidStateView;
         for (turn.current_views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
@@ -804,6 +807,8 @@ test "native responses require the current contract definition even with a v1 la
         "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
         // Coupled native credential/permission records before declarative roles.
         "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+        // Role graph before authenticated service claims and publication guards.
+        "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
     }) |definition| {
         const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, previous, .{}));

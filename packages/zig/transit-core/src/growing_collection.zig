@@ -126,6 +126,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             for (associations.records) |slot| if (slot) |record| try detach(candidate, record.value);
             if (associations.records[0] != null) return;
             if (try removePage(candidate, g.Input, .mailbox, request.pid)) return;
+            if (try removePage(candidate, core.protocol.Authorization.Claim, .authorization_origin, request.pid)) return;
             _ = try @import("growing_authorization.zig").retireObject(engine, next, .{ .kind = .process, .id = request.pid });
             try candidate.put(address(.retired_process, request.pid), growth.RetiredProcess{ .pid = request.pid, .lifecycle = process.lifecycle });
             try candidate.remove(address(.process, request.pid));

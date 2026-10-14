@@ -181,7 +181,17 @@ pub fn prepare(self: *GenServer, read_deadline_ms: u64) !Poll {
 pub fn dispatchPending(self: *GenServer) !Poll {
     const pending = if (self.pending) |*value| value else return error.NoPendingOperation;
     self.confirmation = null;
-    const receipt = try pending.submit(self.session.client);
+    const receipt = pending.submit(self.session.client) catch |err| {
+        if (err == error.Conflict and self.pending_kind == .commit and self.session.client.last_rejection == .AuthorizationSubjectDenied) {
+            // The native rejection proves this exact proposal has no receipt.
+            // Re-run the same durable input to record its current disposition.
+            // An uncertain send or denied receipt never reaches this branch.
+            self.pending = null;
+            self.handler_error = null;
+            return .progress;
+        }
+        return err;
+    };
     self.confirmation = .{ .kind = self.pending_kind, .input = self.delivery.?.input.position, .receipt = receipt };
     self.pending = null;
     switch (self.pending_kind) {
@@ -277,7 +287,7 @@ fn prepareTurn(self: *GenServer) !void {
     const view = page.view orelse return error.InvalidAuthorityResponse;
     if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
     const fresh = try self.freshDelivery();
-    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries });
+    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries, .authorization = readAuthorization });
     errdefer self.ready = null;
     for (self.read_view_ids, self.read_resources) |id, resource| if (id) |selected| {
         const response = try self.session.readView(selected, descriptor_key, null);
@@ -297,6 +307,14 @@ fn readKey(context: *anyopaque, view: p.Growth.View, key: p.Value) anyerror!?p.V
     const page = try self.session.readView(view.id, key, null);
     if (page.view == null or !std.meta.eql(page.view.?, view)) return error.InvalidAuthorityResponse;
     return if (page.page.entries[0]) |entry| entry.value else null;
+}
+fn readAuthorization(context: *anyopaque, guard: p.Authorization.Guard) anyerror!?p.Authorization.Verified {
+    const self: *GenServer = @ptrCast(@alignCast(context));
+    const result = self.session.client.query(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .authorization = .{ .kind = .{ .check = guard } } } }, self.session.key) catch |err| {
+        if (err == error.AccessDenied or (err == error.Conflict and self.session.client.last_rejection == .StaleAuthorizationCredential)) return null;
+        return err;
+    };
+    return result.body.authorization.body.check;
 }
 fn readMany(context: *anyopaque, view: p.Growth.View, keys: [p.Growth.page_size]?p.Value) anyerror![p.Growth.page_size]?p.Growth.Entry {
     const self: *GenServer = @ptrCast(@alignCast(context));

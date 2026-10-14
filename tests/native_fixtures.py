@@ -30,12 +30,22 @@ def generated():
             digest = hashlib.sha256(domain + compact(body)).digest()
             return dict(canonical=compact(body).decode(), sha256=digest.hex(), signature=key.sign(digest))
 
+        def current(body):
+            body['definition'] = definition
+            command = body.get('command', {})
+            if 'send' in command:
+                command['send']['role'] = None
+            if 'turn' in command:
+                command['turn']['authorization'] = None
+            if 'turn_with_versions' in command:
+                command['turn_with_versions']['turn']['authorization'] = None
+
         requests = json.loads((FIXTURES / 'requests-v1.json').read_text())
         assert requests['public_key'] == key.public
         assert requests['seed_hex'] == '07' * 32
         for case in requests['cases']:
             body = json.loads(case['canonical'])
-            body['definition'] = definition
+            current(body)
             case.update(vector(body, b'transit.request.v1\0'))
         results[FIXTURES / 'requests-v1.json'] = requests
 
@@ -44,7 +54,7 @@ def generated():
         assert sdk['seed_hex'] == '07' * 32
         for case in sdk['cases']:
             body = json.loads(case['canonical'])
-            body['definition'] = definition
+            current(body)
             generated_case = vector(body, case['domain'].encode())
             case.update(generated_case)
         results[sdk_path] = sdk
@@ -74,13 +84,19 @@ def generated():
         turn = dict(version=1, definition=definition, realm=42, principal=0, sequence=1,
                     command=dict(turn=dict(pid=2, generation=3, input=4, expected_revision=0,
                         permit=None, views=[None]*4, current_views=[None]*4, write_view=None,
-                        mutations=[None]*4, outputs=[None]*4, effect=None, failed=False)))
+                        mutations=[None]*4, outputs=[None]*4, effect=None, failed=False, authorization=None)))
         entries = dict(version=1, definition=definition, realm=42, principal=0,
                        kind=dict(entries=dict(view=5, resource=None, revision=None, key=None, after=None)))
         results[FIXTURES / 'authorization-v1.json'] = dict(version=1, public_key=key.public,
             request=vector(request, b'transit.request.v1\0'), query=vector(query, b'transit.query.v1\0'),
             turn=vector(turn, b'transit.request.v1\0'), entries=vector(entries, b'transit.query.v1\0'),
             cursor=dict(realm=42, principal=11, role=3, query=selector, scope=scope))
+        claim = dict(definition=definition, realm=42, principal=11, credential_epoch=9,
+                     role=3, audience=17, context=list(hashlib.sha256(b'complete immutable service request').digest()))
+        results[FIXTURES / 'authorization-subject-v1.json'] = dict(
+            public_key=key.public, subject=vector(claim, b'transit.authorization.subject.v1\0'),
+            input=dict(value=b'original native input'.hex(),
+                       digest=hashlib.sha256(b'transit.authorization.input.v1\0original native input').hexdigest()))
 
         diagnostic = json.loads((FIXTURES / 'diagnostic-v1.json').read_text())
         diagnostic['definition'] = definition

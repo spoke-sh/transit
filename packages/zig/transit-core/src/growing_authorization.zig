@@ -178,7 +178,7 @@ pub fn retireObject(engine: anytype, next: *growth.Head, reference: a.ObjectRef)
     return true;
 }
 
-fn actor(engine: anytype, principal_id: u64, selected: ?u64) !admin.Actor {
+pub fn actor(engine: anytype, principal_id: u64, selected: ?u64) !admin.Actor {
     const identity = try engine.principal(principal_id);
     if (!identity.enabled) return error.Forbidden;
     const role = selected orelse identity.role;
@@ -187,20 +187,78 @@ fn actor(engine: anytype, principal_id: u64, selected: ?u64) !admin.Actor {
     if (!try check.canSet(identity.role, role)) return error.Forbidden;
     return .{ .principal = principal_id, .role = role };
 }
+
+/// The authority authenticates the original subject independently of the
+/// executor. Domain owners bind claim.context to their immutable request.
+pub fn authenticate(engine: anytype, subject: a.Subject, audience: u64) !a.Verified {
+    try subject.validate();
+    if (subject.audience() != audience) return error.Forbidden;
+    const claim = switch (subject) {
+        .signed => |proof| proof.claim,
+        .accepted => |value| claim: {
+            var state = try engine.state();
+            break :claim (try state.get(a.Claim, try c.key(.authorization_origin, value.pid, value.input, ""))) orelse return error.Forbidden;
+        },
+    };
+    try claim.validate();
+    if (claim.realm != engine.genesis.realm or claim.audience != audience or claim.principal != subject.principal()) return error.Forbidden;
+    const identity = try engine.principal(claim.principal);
+    if (!identity.enabled) return error.Forbidden;
+    if (identity.credential_epoch != claim.credential_epoch) return error.StaleAuthorizationCredential;
+    if (subject == .signed) subject.signed.verify(identity.grant.public_key) catch return error.Forbidden;
+    const selected = try actor(engine, claim.principal, claim.role);
+    return .{ .principal = selected.principal, .role = selected.role, .credential_epoch = identity.credential_epoch, .audience = audience, .context = claim.context };
+}
+pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {
+    try value.validate();
+    const subject = try authenticate(engine, value.subject, audience);
+    var store = try engine.authorization();
+    var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
+    for (value.requirements) |slot| {
+        const required = slot orelse break;
+        if (required.access == .ownership) {
+            if (!try check.owns(subject.role, required.object)) return error.Forbidden;
+        } else {
+            const decision = check.evaluate(subject.role, required.object, required.privileges) catch |err| switch (err) {
+                error.UnknownAuthorizationObject, error.InvalidAuthorizationPrivilege => return error.Forbidden,
+                else => return err,
+            };
+            const allowed = switch (required.access) {
+                .all => decision.permits(),
+                .any => decision.allowed != 0,
+                .visible => decision.allowed != 0 or try check.owns(subject.role, required.object),
+                .ownership => unreachable,
+            };
+            if (!allowed) return error.Forbidden;
+        }
+    }
+    return subject;
+}
 pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g.Request) !void {
     switch (request.command.authorization) {
         .begin => |value| {
             if (value.expected_revision != engine.head.authorization.revision) return error.StaleAuthorizationRevision;
             const caller = try actor(engine, request.principal, value.role);
             var store = try engine.authorization();
+            const registration = if (value.action == .register_object and value.action.register_object.binding != null) try c.key(.authorization_registration, value.action.register_object.domain, 0, &value.action.register_object.binding.?) else null;
+            if (registration != null) {
+                const domain = (try store.domain(value.action.register_object.domain)) orelse return error.Forbidden;
+                if (!domain.enabled or domain.registrar != caller.principal) return error.Forbidden;
+            }
+            if (registration) |key| if (try candidate.get(u64, key)) |prior| {
+                const previous = (try candidate.get(admin.Change, growth.address(.authorization_change, prior))) orelse return error.InvalidAuthorizationState;
+                if (previous.outcome.status != .abandoned) return error.AuthorizationNameExists;
+            };
             const change = try admin.begin(&store, caller, engine.head.position, value.action, engine.genesis.authorization_limits, engine.genesis.authorization_change_quota);
             next.authorization_next_id = store.next_id;
             try candidate.put(growth.address(.authorization_change, change.outcome.id), change);
+            if (registration) |key| try candidate.put(key, change.outcome.id);
         },
         inline .advance, .publish, .abandon => |id, tag| {
             var change = (try candidate.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
-            if (change.outcome.principal != request.principal) return error.Forbidden;
-            _ = try actor(engine, request.principal, change.outcome.role);
+            if (change.outcome.principal != request.principal) {
+                if (tag != .abandon or (try actor(engine, request.principal, null)).role != a.root_role) return error.Forbidden;
+            } else _ = try actor(engine, request.principal, change.outcome.role);
             if (change.outcome.status == .published or change.outcome.status == .abandoned) return error.InvalidAuthorizationChange;
             if (comptime tag == .abandon) {
                 change.outcome.status = .abandoned;
@@ -256,6 +314,12 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
     var store = try engine.authorization();
     const observer = caller.role == a.root_role or (identity.grant.pid == null and identity.grant.permissions & p.permission(.inspect) != 0);
     const body: @FieldType(a.Result, "body") = switch (query.kind) {
+        inline .authenticate, .check => |value, tag| result: {
+            const subject = if (comptime tag == .authenticate) value else value.subject;
+            if (!try nativeHas(engine, identity, subject.audience(), .inspect)) return error.Forbidden;
+            const verified = if (comptime tag == .authenticate) try authenticate(engine, subject, subject.audience()) else try guard(engine, value, subject.audience());
+            break :result @unionInit(@FieldType(a.Result, "body"), @tagName(tag), verified);
+        },
         .identity => .{ .identity = .{ .principal = identity.grant.subject, .login_role = identity.role, .credential_epoch = identity.credential_epoch } },
         .decision => |value| result: {
             var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
@@ -288,6 +352,19 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
                 if ((try check.evaluate(caller.role, value, selected.actions)).allowed == 0) return error.Forbidden;
             }
             break :result .{ .object = selected };
+        },
+        .binding => |value| result: {
+            const domain = (try store.domain(value.domain)) orelse return error.Forbidden;
+            if (!observer and domain.registrar != identity.grant.subject) return error.Forbidden;
+            break :result .{ .binding = try store.bound(value.domain, value.key) };
+        },
+        .registration => |value| result: {
+            const domain = (try store.domain(value.domain)) orelse return error.Forbidden;
+            if (domain.registrar != identity.grant.subject and caller.role != a.root_role) return error.Forbidden;
+            var state = try engine.state();
+            const id = (try state.get(u64, try c.key(.authorization_registration, value.domain, 0, &value.key))) orelse break :result .{ .registration = null };
+            const change = (try state.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.InvalidAuthorizationState;
+            break :result .{ .registration = .{ .outcome = change.outcome, .action = change.action } };
         },
         .grants => |value| result: {
             const selected = (try store.object(value.object)) orelse return error.Forbidden;

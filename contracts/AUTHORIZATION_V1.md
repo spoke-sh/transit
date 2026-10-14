@@ -20,6 +20,22 @@ retired native identities. Non-login roles cannot authenticate. A selected activ
 role requires a current eligible membership path from the authenticated login
 role. Services cannot authenticate a caller by supplying an arbitrary subject ID.
 
+Native sends can select an eligible `role`. Admission retains an immutable
+subject claim, indexed by destination PID and admitted input position, including
+the principal, selected role, credential epoch and payload commitment. A domain
+continuation references that admission through `Subject.accepted`; an invented
+principal, input or destination rejects. The claim remains independent of a
+worker's execution generation and survives journal checkpointing. Opted-in
+process collection removes its claims in bounded pages.
+
+For service reads, `Subject.signed` carries a separately signed `Claim`: mandatory
+definition, realm, principal, credential epoch, optional selected role, service
+PID and domain-owned request digest. SHA-256 over
+`transit.authorization.subject.v1\0` plus canonical claim JSON is signed with
+Ed25519. The service must bind the context to its complete immutable request;
+the native authority cannot interpret application request bytes. Current
+credential, role selection and object privileges remain required on every use.
+
 Names are bounded UTF-8 identifiers resolved to stable realm-local identities.
 Rename preserves identity. Retired role/object identities are never reused.
 Role membership, grants and ownership use IDs, not unresolved names.
@@ -55,6 +71,14 @@ realm. Process/resource objects use their native identities. Framework domains
 and objects receive separately allocated stable IDs. Root explicitly registers
 each domain's registrar principal and action mask; only that registrar creates
 its objects. Ownership alone never allows an arbitrary registrar substitution.
+
+A registrar may supply an immutable 32-byte binding key and optional parent
+object. These opaque values establish no inherited access. The binding is unique
+within its domain and survives retirement. The native registration index records
+the original administrative action and outcome before object publication.
+`registration` inspection lets that registrar recover a lost begin reply;
+`binding` inspection returns only published objects. Abandonment permits another
+candidate with a new reserved identity; retirement never permits binding reuse.
 
 The SQL profile maps CONNECT to databases, USAGE/CREATE to schemas and
 SELECT/INSERT/UPDATE/DELETE to Tables. Lifecycle control follows logical ownership.
@@ -139,6 +163,23 @@ checks current authorization before disclosure; mutation publication validates
 its original subject/active-role requirements against current authority and
 retains the existing execution/fencing checks. A racing policy publication
 invalidates stale prepared authority decisions.
+
+`authenticate` verifies an original subject, and `check` evaluates a `Guard`.
+Their service caller needs current native inspection rights on the audience PID.
+A guard contains at most 16 requirements, all of which must succeed, sharing one
+4096-charge object-evaluation budget. Requirements distinguish all requested
+privileges, any requested privilege, ownership and metadata visibility (ownership
+or any requested privilege). The latter never authorizes an ordinary data read.
+The native turn's optional `authorization` guard checks the original subject
+again at publication and receipt disclosure. A domain worker is responsible for
+declaring every actual dependency; the kernel does not prove its computation.
+
+`AuthorizationSubjectDenied` rejects a proposed turn only after exact-retry
+lookup established that it has no receipt. Station may rerun the same input to
+record its current rejection. A denied receipt retains the ordinary denial or
+credential-conflict code and never justifies discarding uncertain work. Root can
+abandon another principal's staged administrative change for recovery; it cannot
+publish that change under the other principal's attribution.
 
 Revocation does not recall bytes already sent or undo committed writes. Work
 that has not committed retains its original operation identity and exposes its

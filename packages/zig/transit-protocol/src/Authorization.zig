@@ -13,6 +13,111 @@ pub const max_depth = 32;
 pub const Privileges = u64;
 pub const all_privileges: Privileges = p.max_counter;
 
+/// One bounded disclosure/publication may depend on several domain objects.
+/// This is a per-operation limit, independent of retained object cardinality.
+pub const max_requirements = 16;
+pub const Claim = struct {
+    definition: p.Growth.Definition,
+    realm: Id,
+    principal: Id,
+    credential_epoch: u64,
+    role: ?Id,
+    audience: Id,
+    /// Domain-owned digest of the complete immutable operation or read request.
+    context: [32]u8,
+    pub fn validate(self: Claim) !void {
+        if (self.definition != p.Growth.current_definition or self.realm == 0 or self.realm > p.max_counter or self.principal > p.max_counter or self.audience == 0 or self.audience > p.max_counter) return error.InvalidAuthorizationCredential;
+        try revision(self.credential_epoch);
+        if (self.role) |id| try roleId(id);
+    }
+    pub fn digest(self: Claim) ![32]u8 {
+        try self.validate();
+        var bytes: [1024]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try std.json.Stringify.value(self, .{}, &writer);
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.authorization.subject.v1\x00");
+        hash.update(writer.buffered());
+        return hash.finalResult();
+    }
+};
+pub const Proof = struct {
+    claim: Claim,
+    signature: [64]u8,
+    pub fn sign(claim: Claim, key: p.Ed25519.KeyPair) !Proof {
+        return .{ .claim = claim, .signature = (try key.sign(&try claim.digest(), null)).toBytes() };
+    }
+    pub fn verify(self: Proof, public_key: [32]u8) !void {
+        try p.Ed25519.Signature.fromBytes(self.signature).verify(&try self.claim.digest(), try p.Ed25519.PublicKey.fromBytes(public_key));
+    }
+};
+/// Native admission is already a verified signature. Its immutable claim can
+/// authorize bounded continuations without enlarging application messages.
+pub const Subject = union(enum) {
+    signed: Proof,
+    accepted: struct { pid: Id, input: Id, principal: Id },
+    pub fn validate(self: Subject) !void {
+        switch (self) {
+            .signed => |proof| try proof.claim.validate(),
+            .accepted => |value| if (value.pid == 0 or value.pid > p.max_counter or value.input == 0 or value.input > p.max_counter or value.principal > p.max_counter) return error.InvalidAuthorizationCredential,
+        }
+    }
+    pub fn audience(self: Subject) Id {
+        return switch (self) {
+            .signed => |proof| proof.claim.audience,
+            .accepted => |value| value.pid,
+        };
+    }
+    pub fn principal(self: Subject) Id {
+        return switch (self) {
+            .signed => |proof| proof.claim.principal,
+            .accepted => |value| value.principal,
+        };
+    }
+    pub fn matches(self: Subject, value: Verified) bool {
+        if (value.principal != self.principal() or value.audience != self.audience()) return false;
+        return switch (self) {
+            .signed => |proof| value.credential_epoch == proof.claim.credential_epoch and std.mem.eql(u8, &value.context, &proof.claim.context) and (proof.claim.role == null or proof.claim.role == value.role),
+            .accepted => true,
+        };
+    }
+};
+pub fn inputContext(value: p.Value) ![32]u8 {
+    try value.validate();
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.authorization.input.v1\x00");
+    hash.update(value.slice());
+    return hash.finalResult();
+}
+pub const Requirement = struct {
+    object: ObjectRef,
+    privileges: Privileges = 0,
+    access: enum { all, any, ownership, visible } = .all,
+    pub fn validate(self: Requirement) !void {
+        try self.object.validate();
+        try mask(self.privileges);
+        if ((self.privileges == 0) != (self.access == .ownership)) return error.InvalidAuthorizationPrivilege;
+    }
+};
+pub const Guard = struct {
+    subject: Subject,
+    requirements: [max_requirements]?Requirement,
+    pub fn validate(self: Guard) !void {
+        try self.subject.validate();
+        if (self.requirements[0] == null) return error.InvalidAuthorizationPrivilege;
+        var ended = false;
+        for (self.requirements) |slot| {
+            const value = slot orelse {
+                ended = true;
+                continue;
+            };
+            if (ended) return error.InvalidAuthorizationPrivilege;
+            try value.validate();
+        }
+    }
+};
+pub const Verified = struct { principal: Id, role: Id, credential_epoch: u64, audience: Id, context: [32]u8 };
+
 pub const Limits = struct {
     vertices: u16 = max_vertices,
     records: u16 = max_records,
@@ -61,6 +166,9 @@ pub const Object = struct {
     actions: Privileges,
     /// An authorized framework declares the action vocabulary for its objects.
     domain: ?Id = null,
+    /// Immutable domain-owned identity commitment. Names are not binding keys.
+    binding: ?[32]u8 = null,
+    parent: ?ObjectRef = null,
     revision: u64,
     retired: bool = false,
     pub fn validate(self: Object) !void {
@@ -69,6 +177,8 @@ pub const Object = struct {
         if (self.registrar > p.max_counter) return error.InvalidAuthorizationObject;
         try mask(self.actions);
         if ((self.reference.kind == .domain) != (self.domain != null)) return error.InvalidAuthorizationObject;
+        if ((self.binding != null or self.parent != null) and self.domain == null) return error.InvalidAuthorizationObject;
+        if (self.parent) |parent| try parent.validate();
         if (self.domain) |id| if (id == 0 or id >= public_role) return error.InvalidAuthorizationObject;
         try revision(self.revision);
     }
@@ -189,7 +299,7 @@ pub const Action = union(enum) {
     membership: struct { member: Id, role: Id, admin: bool = false, inherit: bool = true, set: bool = true },
     revoke_membership: struct { id: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
     register_domain: struct { registrar: Id, actions: Privileges },
-    register_object: struct { domain: Id, owner: Id, schema: ?ObjectRef = null },
+    register_object: struct { domain: Id, owner: Id, schema: ?ObjectRef = null, binding: ?[32]u8 = null },
     transfer_object: struct { object: ObjectRef, owner: Id },
     retire_object: ObjectRef,
     grant: struct { object: ObjectRef, grantee: Id, privileges: Privileges, grant_options: Privileges = 0 },
@@ -230,12 +340,16 @@ pub const Query = struct {
     role: ?Id = null,
     kind: union(enum) {
         identity: void,
+        authenticate: Subject,
+        check: Guard,
         decision: struct { object: ObjectRef, privileges: Privileges },
         role: Id,
         resolve: p.Value,
         roles: ?Cursor,
         memberships: struct { member: Id, cursor: ?Cursor = null },
         object: ObjectRef,
+        binding: struct { domain: Id, key: [32]u8 },
+        registration: struct { domain: Id, key: [32]u8 },
         grants: struct { object: ObjectRef, grantee: Id, cursor: ?Cursor = null },
         defaults: struct { creator: Id, cursor: ?Cursor = null },
         change: Id,
@@ -246,12 +360,16 @@ pub const Result = struct {
     role: Id,
     body: union(enum) {
         identity: struct { principal: Id, login_role: Id, credential_epoch: u64 },
+        authenticate: Verified,
+        check: Verified,
         decision: Decision,
         role: Role,
         resolve: Role,
         roles: ReadPage(Role),
         memberships: ReadPage(Membership),
         object: Object,
+        binding: ?Object,
+        registration: ?struct { outcome: Outcome, action: Action },
         grants: ReadPage(Grant),
         defaults: ReadPage(DefaultGrant),
         change: Outcome,
@@ -261,6 +379,8 @@ pub const Result = struct {
 pub fn validateQuery(query: Query) !void {
     if (query.role) |id| try roleId(id);
     switch (query.kind) {
+        .authenticate => |value| try value.validate(),
+        .check => |value| try value.validate(),
         .decision => |value| {
             try value.object.validate();
             try mask(value.privileges);
@@ -273,6 +393,7 @@ pub fn validateQuery(query: Query) !void {
             if (value.cursor) |cursor| try revision(cursor.revision);
         },
         .object => |value| try value.validate(),
+        inline .binding, .registration => |value| if (value.domain == 0 or value.domain >= public_role) return error.InvalidAuthorizationDomain,
         .grants => |value| {
             try value.object.validate();
             if (value.grantee > public_role) return error.InvalidAuthorizationRole;
@@ -308,6 +429,11 @@ pub fn validateResult(result: Result, query: Query, realm: Id, principal: Id) !v
     if (query.role) |id| if (id != result.role) return error.InvalidRead;
     if (!std.mem.eql(u8, @tagName(result.body), @tagName(query.kind))) return error.InvalidRead;
     switch (result.body) {
+        inline .authenticate, .check => |value, tag| {
+            const subject = if (comptime tag == .authenticate) query.kind.authenticate else query.kind.check.subject;
+            if (!subject.matches(value)) return error.InvalidRead;
+            try roleId(value.role);
+        },
         .identity => |value| {
             if (value.principal != principal) return error.InvalidRead;
             try roleId(value.login_role);
@@ -327,6 +453,15 @@ pub fn validateResult(result: Result, query: Query, realm: Id, principal: Id) !v
         .object => |value| {
             try value.validate();
             if (!value.reference.eql(query.kind.object) or value.revision > result.revision) return error.InvalidRead;
+        },
+        .binding => |slot| if (slot) |value| {
+            try value.validate();
+            if (value.domain != query.kind.binding.domain or value.binding == null or !std.mem.eql(u8, &value.binding.?, &query.kind.binding.key) or value.revision > result.revision) return error.InvalidRead;
+        },
+        .registration => |slot| if (slot) |value| {
+            if (value.action != .register_object) return error.InvalidRead;
+            const action = value.action.register_object;
+            if (action.domain != query.kind.registration.domain or action.binding == null or !std.mem.eql(u8, &action.binding.?, &query.kind.registration.key) or value.outcome.id == 0) return error.InvalidRead;
         },
         inline .roles, .memberships, .grants, .defaults => |page, tag| {
             const cursor = if (comptime tag == .roles) query.kind.roles else @field(query.kind, @tagName(tag)).cursor;
@@ -396,6 +531,29 @@ test "authorization values reject public delegation, malformed names and masks" 
     try name(try p.Value.init("分析员"));
     try t.expectError(error.InvalidAuthorizationPrivilege, mask(@as(u64, 1) << 63));
     try t.expectError(error.InvalidAuthorizationBudget, (Limits{ .vertices = 0 }).validate());
+}
+
+test "service subject signatures and native admission contexts match independent bytes" {
+    const t = std.testing;
+    const Fixture = struct {
+        public_key: [32]u8,
+        subject: struct { canonical: []const u8, sha256: []const u8, signature: [64]u8 },
+        input: struct { value: p.Value, digest: []const u8 },
+    };
+    const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/authorization-subject-v1.json"), .{});
+    defer fixture.deinit();
+    const parsed = try std.json.parseFromSlice(Claim, t.allocator, fixture.value.subject.canonical, .{});
+    defer parsed.deinit();
+    const proof: Proof = .{ .claim = parsed.value, .signature = fixture.value.subject.signature };
+    try proof.verify(fixture.value.public_key);
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, fixture.value.subject.sha256);
+    try t.expectEqualSlices(u8, &expected, &try proof.claim.digest());
+    var changed = proof;
+    changed.claim.audience += 1;
+    try t.expectError(error.SignatureVerificationFailed, changed.verify(fixture.value.public_key));
+    _ = try std.fmt.hexToBytes(&expected, fixture.value.input.digest);
+    try t.expectEqualSlices(u8, &expected, &try inputContext(fixture.value.input.value));
 }
 
 test "authorization signing and cursor scope match independent Python OpenSSL vectors" {

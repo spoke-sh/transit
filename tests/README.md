@@ -45,6 +45,17 @@ This proves generic native policy recovery and denial of raw resource reads;
 it does **not** prove Table mediation, SQL adapters or the two-Tables isolation
 gate. The suite runs this proof in the core lane.
 
+The authenticated-domain run passes **102/102 core tests**, **40/40 protocol
+tests** and **20/20 client tests**; the repository Zig unit task also passes.
+It adds original-subject proofs, selected-role loss, credential epochs, native
+publication guards, immutable domain bindings and interrupted registration.
+The extended disk proof passes in **8.274 s** on dirty `fe806633`, including
+rejection of forged subjects and a revocation between admission and guarded
+publication. The rejected turn does not consume its input; granting access again
+permits that original operation. The node SHA-256 is
+`583dd1abd327e29759622765894f7068a1978891373856217f5fa178b8a4e878`.
+These are generic opaque-object checks, not Table-service isolation evidence.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

@@ -58,6 +58,7 @@ test {
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
 pub const ErrorCode = enum {
+    AuthorizationSubjectDenied,
     AuthorizationBudgetExceeded,
     AuthorizationChangeQuota,
     AuthorizationIdentityExhausted,

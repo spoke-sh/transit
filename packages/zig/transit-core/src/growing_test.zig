@@ -511,6 +511,63 @@ test "named role native grants remain process scoped and current reads fence pol
     _ = try f.engine.submit(try f.worker(2, .{ .send = .{ .pid = first, .value = .{} } }));
 }
 
+test "original subject proofs bind context and current guards fence every source and publication" {
+    const a = core.protocol.Authorization;
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const input = try f.root(.{ .send = .{ .pid = pid, .value = .{} } });
+    const reader = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("reader"), .login = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = reader, .public_key = f.worker_key.public_key.toBytes() } });
+    const domain = (try f.authorization(.{ .register_domain = .{ .registrar = 0, .actions = 3 } })).?;
+    const first: a.ObjectRef = .{ .kind = .domain, .id = (try f.authorization(.{ .register_object = .{ .domain = domain, .owner = 0 } })).? };
+    const second: a.ObjectRef = .{ .kind = .domain, .id = (try f.authorization(.{ .register_object = .{ .domain = domain, .owner = 0 } })).? };
+    _ = try f.authorization(.{ .grant = .{ .object = first, .grantee = reader, .privileges = 1 } });
+    const epoch = (try f.engine.principal(65536)).credential_epoch;
+    const proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 65536, .credential_epoch = epoch, .role = reader, .audience = pid, .context = @splat(7) }, f.worker_key);
+    var guard: a.Guard = .{ .subject = .{ .signed = proof }, .requirements = @splat(null) };
+    guard.requirements[0] = .{ .object = first, .privileges = 1 };
+    const checked = try f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    try t.expectEqual(reader, checked.body.authorization.body.check.role);
+    try t.expectEqualSlices(u8, &proof.claim.context, &checked.body.authorization.body.check.context);
+    // Neither an otherwise valid service signature nor caller-chosen role/context
+    // can replace the separately signed original subject.
+    guard.subject.signed.claim.context[0] ^= 1;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    guard.subject = .{ .signed = proof };
+    guard.subject.signed.claim.role = 0;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    guard.subject = .{ .signed = proof };
+    guard.subject.signed.claim.realm = 43;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    guard.subject = .{ .signed = proof };
+    guard.requirements[1] = .{ .object = second, .privileges = 1 };
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    const grant = (try f.authorization(.{ .grant = .{ .object = second, .grantee = reader, .privileges = 1 } })).?;
+    _ = try f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    const process = try f.engine.process(pid);
+    const turn: g.Command = .{ .turn = .{ .pid = pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .authorization = guard } };
+    const prepared = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = turn }, f.root_key));
+    _ = try f.authorization(.{ .revoke = .{ .id = grant, .privileges = 1, .behavior = .cascade } });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    try t.expectError(error.AuthorizationSubjectDenied, f.root(turn));
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(pid)).consumed);
+    _ = try f.authorization(.{ .grant = .{ .object = second, .grantee = reader, .privileges = 1 } });
+    const exact = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = turn }, f.root_key);
+    _ = try f.engine.submit(exact);
+    f.root_sequence += 1;
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).consumed);
+    const replacement = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    _ = try f.authorization(.{ .rotate_credential = .{ .principal = 65536, .expected_epoch = epoch, .public_key = replacement.public_key.toBytes() } });
+    try t.expectError(error.StaleAuthorizationCredential, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    try t.expectError(error.StaleAuthorizationCredential, f.engine.submit(exact));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectError(error.StaleAuthorizationCredential, f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = .{ .signed = proof } } } }));
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).consumed);
+}
+
 test "authorization inspection cursors bind caller scope and current policy revision" {
     var f: Fixture = .{};
     defer f.deinit();
@@ -529,6 +586,64 @@ test "authorization inspection cursors bind caller scope and current policy revi
     try t.expectError(error.InvalidRead, g.validateResponse(first, first_query));
     _ = try f.authorization(.{ .create_role = .{ .name = try core.Value.init("new-reader") } });
     try t.expectError(error.StaleAuthorizationRevision, f.query(0, .{ .authorization = .{ .kind = .{ .roles = cursor } } }));
+}
+
+test "accepted native subjects retain selected role and epoch without trusting continuation payloads" {
+    const a = core.protocol.Authorization;
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const login = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("login"), .login = true } })).?;
+    const selected = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("writer") } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = login, .public_key = f.worker_key.public_key.toBytes() } });
+    _ = try f.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = login, .privileges = core.permission(.send) } });
+    const membership = (try f.authorization(.{ .membership = .{ .member = login, .role = selected, .inherit = false, .set = true } })).?;
+    const payload = try core.Value.init("original operation");
+    const input = try f.engine.submit(try f.worker(1, .{ .send = .{ .pid = pid, .value = payload, .role = selected } }));
+    const subject: a.Subject = .{ .accepted = .{ .pid = pid, .input = input, .principal = 65536 } };
+    const verified = (try f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = subject } } })).body.authorization.body.authenticate;
+    try t.expectEqual(selected, verified.role);
+    try t.expectEqualSlices(u8, &try a.inputContext(payload), &verified.context);
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .authenticate = subject } } }));
+    var forged = subject;
+    forged.accepted.principal = 0;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = forged } } }));
+    forged = subject;
+    forged.accepted.pid += 1;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = forged } } }));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    _ = try f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = subject } } });
+    _ = try f.authorization(.{ .revoke_membership = .{ .id = membership, .option = .set, .behavior = .cascade } });
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = subject } } }));
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(2, .{ .send = .{ .pid = pid, .value = payload, .role = selected } })));
+}
+
+test "domain registration retains its recovery identity and binding across abandonment and retirement" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const domain = (try f.authorization(.{ .register_domain = .{ .registrar = 0, .actions = 3 } })).?;
+    const binding: [32]u8 = @splat(7);
+    const action: core.protocol.Authorization.Action = .{ .register_object = .{ .domain = domain, .owner = 0, .binding = binding } };
+    const pending = try f.root(.{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = action } } });
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    const recovery = (try f.query(0, .{ .authorization = .{ .kind = .{ .registration = .{ .domain = domain, .key = binding } } } })).body.authorization.body.registration.?;
+    try t.expectEqual(pending, recovery.outcome.id);
+    try t.expect(std.meta.eql(action, recovery.action));
+    try t.expectEqual(@as(?core.protocol.Authorization.Object, null), (try f.query(0, .{ .authorization = .{ .kind = .{ .binding = .{ .domain = domain, .key = binding } } } })).body.authorization.body.binding);
+    try t.expectError(error.AuthorizationNameExists, f.authorization(action));
+    _ = try f.root(.{ .authorization = .{ .abandon = pending } });
+    const created = (try f.authorization(action)).?;
+    try t.expect(created > recovery.outcome.created_id.?);
+    const target = (try f.query(0, .{ .authorization = .{ .kind = .{ .binding = .{ .domain = domain, .key = binding } } } })).body.authorization.body.binding.?;
+    try t.expectEqual(created, target.reference.id);
+    _ = try f.authorization(.{ .retire_object = target.reference });
+    try t.expectError(error.AuthorizationNameExists, f.authorization(action));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    const retired = (try f.query(0, .{ .authorization = .{ .kind = .{ .binding = .{ .domain = domain, .key = binding } } } })).body.authorization.body.binding.?;
+    try t.expect(retired.retired);
+    try t.expectEqual(created, retired.reference.id);
 }
 
 test "closed admission preserves declarative credential revocation through the control reserve" {

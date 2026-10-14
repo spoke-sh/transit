@@ -40,6 +40,7 @@ pub fn WithTransport(comptime Transport: type) type {
             outputs: [g.turn_outputs]?g.Output = @splat(null),
             effect: ?p.Value = null,
             failed: bool = false,
+            authorization: ?p.Authorization.Guard = null,
             read_versions: [g.version_changes]?g.ReadVersionId = @splat(null),
             retain: [g.version_changes]?u64 = @splat(null),
             release: [g.version_changes]?g.ReadVersionId = @splat(null),
@@ -125,7 +126,7 @@ pub fn WithTransport(comptime Transport: type) type {
         }
         pub fn prepareCommit(self: *const Self, delivery: Delivery, decision: Decision) !Pending {
             if (delivery.needs_permit) return error.MissingTurnPermit;
-            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .current_views = decision.current_views, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed };
+            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .current_views = decision.current_views, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed, .authorization = decision.authorization };
             for (decision.views, 0..) |slot, i| if (slot) |view| {
                 if (view.pid != self.pid or view.principal != self.principal or view.generation != self.generation or
                     view.input != delivery.input.position or view.process_revision != delivery.revision or view.closed_at != null) return error.InvalidStateView;

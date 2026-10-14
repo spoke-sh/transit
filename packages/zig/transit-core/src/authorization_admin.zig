@@ -149,11 +149,12 @@ pub fn begin(store: anytype, actor: Actor, id: u64, action: a.Action, limits: a.
         .register_object => |value| {
             const class = try domain(store, value.domain);
             if (class.registrar != actor.principal) return error.Forbidden;
+            if (value.binding) |binding| if (try store.bound(value.domain, binding) != null) return error.AuthorizationNameExists;
             try logicalOwner(store, value.owner);
             if (value.schema) |schema| _ = try object(store, schema);
             const created = try store.allocate();
             const reference: a.ObjectRef = .{ .kind = .domain, .id = created };
-            try store.putObject(.{ .reference = reference, .owner = value.owner, .registrar = actor.principal, .domain = class.id, .actions = class.actions, .revision = id });
+            try store.putObject(.{ .reference = reference, .owner = value.owner, .registrar = actor.principal, .domain = class.id, .binding = value.binding, .parent = value.schema, .actions = class.actions, .revision = id });
             try store.putGrant(.{ .id = try store.allocate(), .object = reference, .grantee = value.owner, .grantor = value.owner, .privileges = class.actions, .revision = id });
             try changed(&change);
             change.outcome.created_id = created;

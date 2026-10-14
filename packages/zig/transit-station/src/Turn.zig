@@ -13,6 +13,9 @@ pub const Reader = struct {
     page: ?*const fn (*anyopaque, p.Growth.View, ?p.Value) anyerror!Page = null,
     version: ?*const fn (*anyopaque, p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion = null,
     version_entries: ?*const fn (*anyopaque, p.Growth.ReadVersion, ?p.Value, ?p.Value) anyerror!Page = null,
+    /// Current authority evidence injected by the host. Null is a known denial;
+    /// transport/integrity failures poison private work instead of becoming denial.
+    authorization: ?*const fn (*anyopaque, p.Authorization.Guard) anyerror!?p.Authorization.Verified = null,
 };
 const Turn = @This();
 const Session = client.Session;
@@ -60,6 +63,45 @@ pub const Committed = struct {
 };
 pub fn committed(self: *Turn) Committed {
     return .{ .turn = self, .view = self.view };
+}
+
+/// Freeze the caller proof and union of requirements into the native proposal.
+/// The host supplies current evidence; the authority checks again at publication.
+pub fn requireAuthorization(self: *Turn, requested: p.Authorization.Guard) !p.Authorization.Verified {
+    if (self.read_error) |err| return err;
+    try requested.validate();
+    if (requested.subject.audience() != self.delivery.pid) return error.InvalidAuthorizationCredential;
+    if (requested.subject == .signed and requested.subject.signed.claim.realm != self.delivery.realm) return error.InvalidAuthorizationCredential;
+    var combined = self.decision.authorization orelse requested;
+    if (!std.meta.eql(combined.subject, requested.subject)) return error.InvalidAuthorizationCredential;
+    for (requested.requirements) |slot| {
+        const requirement = slot orelse break;
+        for (&combined.requirements) |*entry| {
+            if (entry.*) |*previous| {
+                if (std.meta.eql(previous.*, requirement)) break;
+                if (previous.object.eql(requirement.object) and previous.access == .all and requirement.access == .all) {
+                    previous.privileges |= requirement.privileges;
+                    break;
+                }
+                // Different predicates stay separate: every entry is required.
+                continue;
+            } else {
+                entry.* = requirement;
+                break;
+            }
+        } else return error.AuthorizationBudgetExceeded;
+    }
+    const check = self.reader.authorization orelse return error.UnsupportedAuthorization;
+    const evidence = (check(self.reader.context, combined) catch |err| {
+        self.read_error = err;
+        return err;
+    }) orelse return error.AccessDenied;
+    if (!combined.subject.matches(evidence)) {
+        self.read_error = error.InvalidAuthorityResponse;
+        return error.InvalidAuthorityResponse;
+    }
+    self.decision.authorization = combined;
+    return evidence;
 }
 
 /// A read-only source borrowed for this handler. Reopen its durable ID
@@ -461,6 +503,7 @@ pub fn acceptReply(self: *Turn) !Reply {
 }
 pub fn validate(self: *const Turn) !void {
     if (self.read_error) |err| return err;
+    if (self.decision.authorization) |guard| try guard.validate();
 }
 
 test "private writes read their own values and reject oversize batches before publication" {
@@ -474,6 +517,45 @@ test "private writes read their own values and reject oversize batches before pu
     for ([_][]const u8{ "b", "c", "d" }) |key| try turn.put(try p.Value.init(key), .{});
     try std.testing.expectError(error.MutationBudgetExceeded, turn.put(try p.Value.init("e"), .{}));
     try std.testing.expectError(error.ReservedFrameworkKey, turn.put(Turn.waitKey(4), .{}));
+}
+
+test "subject guards union all privileges without weakening ownership or hiding unavailable evidence" {
+    const t = std.testing;
+    const Authority = struct {
+        denied: bool = false,
+        failed: bool = false,
+        calls: usize = 0,
+        fn check(context: *anyopaque, guard: p.Authorization.Guard) !?p.Authorization.Verified {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.calls += 1;
+            if (self.failed) return error.AuthorityUnavailable;
+            if (self.denied) return null;
+            return .{ .principal = guard.subject.principal(), .role = 2, .credential_epoch = 1, .audience = guard.subject.audience(), .context = @splat(0) };
+        }
+    };
+    var store: @import("TestStore.zig") = .{};
+    var turn = try store.turn(.{});
+    var authority: Authority = .{};
+    turn.reader.context = &authority;
+    turn.reader.authorization = Authority.check;
+    var required: p.Authorization.Guard = .{ .subject = .{ .accepted = .{ .pid = turn.delivery.pid, .input = 1, .principal = 2 } }, .requirements = @splat(null) };
+    required.requirements[0] = .{ .object = .{ .kind = .domain, .id = 9 }, .privileges = 1 };
+    _ = try turn.requireAuthorization(required);
+    required.requirements[0].?.privileges = 2;
+    _ = try turn.requireAuthorization(required);
+    try t.expectEqual(@as(u64, 3), turn.decision.authorization.?.requirements[0].?.privileges);
+    required.requirements[0] = .{ .object = .{ .kind = .domain, .id = 9 }, .access = .ownership };
+    _ = try turn.requireAuthorization(required);
+    try t.expectEqual(.ownership, turn.decision.authorization.?.requirements[1].?.access);
+    const before = turn.decision.authorization;
+    authority.denied = true;
+    try t.expectError(error.AccessDenied, turn.requireAuthorization(required));
+    try t.expect(turn.read_error == null);
+    try t.expect(std.meta.eql(before, turn.decision.authorization));
+    authority.failed = true;
+    try t.expectError(error.AuthorityUnavailable, turn.requireAuthorization(required));
+    try t.expectError(error.AuthorityUnavailable, turn.validate());
+    try t.expectEqual(@as(usize, 5), authority.calls);
 }
 
 test "call and waiting state are one proposal; forged and closed replies cannot resolve it" {

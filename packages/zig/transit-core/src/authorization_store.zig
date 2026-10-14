@@ -89,11 +89,22 @@ pub fn Store(comptime PageStore: type) type {
         pub fn object(self: *Self, reference: a.ObjectRef) !?a.Object {
             return self.catalog.get(a.Object, try objectKey(reference));
         }
+        pub fn bound(self: *Self, domain_id: u64, binding: [32]u8) !?a.Object {
+            const id = (try self.catalog.get(u64, try c.key(.authorization_binding, domain_id, 0, &binding))) orelse return null;
+            const value = (try self.object(.{ .kind = .domain, .id = id })) orelse return error.InvalidAuthorizationState;
+            if (value.domain != domain_id or value.binding == null or !std.mem.eql(u8, &value.binding.?, &binding)) return error.InvalidAuthorizationState;
+            return value;
+        }
         pub fn putObject(self: *Self, value: a.Object) !void {
             try self.current(value);
             if (try self.object(value.reference)) |previous| {
                 if (previous.retired and !value.retired) return error.RetiredAuthorizationObject;
-                if (previous.registrar != value.registrar or previous.domain != value.domain or previous.actions != value.actions) return error.InvalidAuthorizationObject;
+                if (previous.registrar != value.registrar or previous.domain != value.domain or previous.actions != value.actions or !std.meta.eql(previous.binding, value.binding) or !std.meta.eql(previous.parent, value.parent)) return error.InvalidAuthorizationObject;
+            }
+            if (value.binding) |binding| {
+                const domain_id = value.domain orelse return error.InvalidAuthorizationObject;
+                if (try self.bound(domain_id, binding)) |previous| if (!previous.reference.eql(value.reference)) return error.AuthorizationNameExists;
+                try self.catalog.put(try c.key(.authorization_binding, domain_id, 0, &binding), value.reference.id);
             }
             try self.catalog.put(try objectKey(value.reference), value);
         }

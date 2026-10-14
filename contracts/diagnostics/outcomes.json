@@ -13530,6 +13530,13 @@
             "inspect_scope"
           ]
         },
+        "AuthorizationSubjectDenied": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
         "AuthorizationDependencies": {
           "code": "inspection.authority_rejected",
           "category": "conflict",

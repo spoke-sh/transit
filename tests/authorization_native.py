@@ -98,6 +98,32 @@ def run(node, cli, report=None):
         assert query(decision, 101, analyst_seed, 403)['err'] == 'AccessDenied'
         print('Authorization: staged revoke is invisible until publication and remains revoked after disk restart.', flush=True)
 
+        # Domain workers guard publication with the separately authenticated
+        # original admission; infrastructure execution rights cannot replace it.
+        apply({'grant': {'object': {'kind': 'process', 'id': pid}, 'grantee': analyst,
+                         'privileges': 4, 'grant_options': 0}})
+        system.command({'own': {'pid': pid, 'expected_generation': 0, 'worker': 0}})
+        admitted = system.available_post('/v1/command', system.signed(
+            {'send': {'pid': pid, 'value': b'original operation'.hex(), 'role': analyst}},
+            1, 101, analyst_seed))['position']
+        subject = {'accepted': {'pid': pid, 'input': admitted, 'principal': 101}}
+        guarded = {'subject': subject, 'requirements': [dict(object=protected, privileges=1, access='all')] + [None] * 15}
+        assert query({'check': guarded}, status=403)['err'] == 'AccessDenied'
+        current_grant = apply({'grant': {'object': protected, 'grantee': analyst,
+                                        'privileges': 1, 'grant_options': 0}})
+        assert query({'check': guarded})['body']['check']['role'] == analyst
+        forged = dict(guarded, subject={'accepted': dict(subject['accepted'], principal=0)})
+        assert query({'check': forged}, status=403)['err'] == 'AccessDenied'
+        apply({'revoke': {'id': current_grant, 'privileges': 1, 'grant_option_only': False, 'behavior': 'cascade'}})
+        turn = {'turn': {'pid': pid, 'generation': 1, 'input': admitted, 'expected_revision': 0, 'authorization': guarded}}
+        denied = system.post('/v1/command', system.signed(turn, system.sequence + 1), 409)
+        assert denied['err'] == 'AuthorizationSubjectDenied', denied
+        assert system.native_query({'process': pid})['body']['process']['process']['consumed'] == 0
+        apply({'grant': {'object': protected, 'grantee': analyst, 'privileges': 1, 'grant_options': 0}})
+        system.command(turn)
+        assert system.native_query({'process': pid})['body']['process']['process']['consumed'] == 1
+        print('Authorization: original admission guards refuse forged subjects and revoked publication without consuming the input.', flush=True)
+
         for index in range(10):
             apply({'create_role': {'name': f'role-{index}'.encode().hex(), 'login': False, 'create_role': False}})
         first = query({'roles': None})['body']['roles']

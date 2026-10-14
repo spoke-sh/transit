@@ -153,6 +153,7 @@ pub fn authorizeReceipt(engine: anytype, request: g.Request) anyerror!void {
     }
 }
 fn authorizeTurnReceipt(engine: anytype, principal: u64, command: g.Turn) !void {
+    if (command.authorization) |guard| _ = try @import("growing_authorization.zig").guard(engine, guard, command.pid);
     for (command.views) |slot| if (slot) |id| {
         const stored = try view(engine, id);
         if (stored.meta.principal != principal or stored.meta.pid != command.pid) return error.InvalidHistory;
@@ -363,6 +364,12 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     try engine.executable(process, sample, true);
     if (process.owner != principal or process.generation != command.generation) return error.StaleGeneration;
     if (process.revision != command.expected_revision) return error.StaleState;
+    if (command.authorization) |guard| _ = @import("growing_authorization.zig").guard(engine, guard, command.pid) catch |err| switch (err) {
+        // This code is emitted only after exact-retry lookup found no receipt.
+        // Receipt disclosure denial above deliberately keeps its ordinary code.
+        error.Forbidden, error.Unauthorized, error.StaleAuthorizationCredential => return error.AuthorizationSubjectDenied,
+        else => return err,
+    };
     _ = try nextInput(engine, process, command.input);
     if (process.turn_permit) |permit| {
         if (command.permit != permit.id or permit.input != command.input) return error.InvalidTurnPermit;

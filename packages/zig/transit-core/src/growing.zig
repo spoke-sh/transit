@@ -214,6 +214,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         fn authorize(self: *Self, principal_value: Principal, command: g.Command) !void {
             if (!principal_value.enabled) return error.Forbidden;
             if (command == .authorization) return;
+            if (command == .send) _ = try auth_ops.actor(self, principal_value.grant.subject, command.send.role);
             const needed: p.Permission = switch (command) {
                 .spawn, .create => .spawn,
                 .send => .send,
@@ -429,9 +430,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try self.admissible(process_value, sample, false);
                     process_value.admitted += 1;
                     const input: g.Input = .{ .position = position, .ordinal = process_value.admitted, .value = send.value, .origin = .{ .external = .{ .principal = request.principal, .policy_revision = (try self.principal(request.principal)).revision } } };
+                    const caller = try self.principal(request.principal);
+                    const claim: p.Authorization.Claim = .{ .definition = g.current_definition, .realm = request.realm, .principal = request.principal, .credential_epoch = caller.credential_epoch, .role = (try auth_ops.actor(self, request.principal, send.role)).role, .audience = send.pid, .context = try p.Authorization.inputContext(send.value) };
                     try candidate.mutate(&.{
                         try catalog.putMutation(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input),
                         try catalog.putMutation(address(.process, send.pid), process_value),
+                        try catalog.putMutation(try catalog.key(.authorization_origin, send.pid, input.position, ""), claim),
                     });
                 },
                 .retry => |command| {

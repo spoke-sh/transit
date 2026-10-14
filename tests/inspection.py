@@ -80,10 +80,10 @@ class System:
         path.chmod(0o600)
         return path, self.invoke("public-key", path)
 
-    def signed(self, command, sequence=0):
+    def signed(self, command, sequence=0, principal=0, seed=None):
         path = self.root / "command.json"
-        path.write_text(json.dumps({"realm": 72, "principal": 0, "sequence": sequence, "command": command}))
-        return self.invoke("sign", self.seed, path)
+        path.write_text(json.dumps({"realm": 72, "principal": principal, "sequence": sequence, "command": command}))
+        return self.invoke("sign", seed or self.seed, path)
 
     def post(self, path, value, status=200):
         request = urllib.request.Request(self.url + path, json.dumps(value).encode(), {"Content-Type": "application/json"})

@@ -173,6 +173,16 @@ pub fn Evaluator(comptime Store: type) type {
             for (inherited.values[0..inherited.len]) |id| if (id == target) return true;
             return false;
         }
+        pub fn owns(self: *Self, subject: u64, reference: a.ObjectRef) anyerror!bool {
+            try reference.validate();
+            try self.charge();
+            const object = (try self.store.object(reference)) orelse return false;
+            try object.validate();
+            if (!object.reference.eql(reference) or object.revision > self.policy_revision) return error.InvalidAuthorizationState;
+            if (object.retired) return false;
+            if (subject == a.root_role) return try self.role(subject) != null;
+            return self.inherits(subject, object.owner);
+        }
         pub fn validMembership(self: *Self, edge: a.Membership) anyerror!bool {
             return self.memberValid(edge);
         }

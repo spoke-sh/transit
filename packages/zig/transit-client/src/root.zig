@@ -3,6 +3,7 @@ const std = @import("std");
 pub const ResourceReader = @import("ResourceReader.zig");
 pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const WorkerHandoff = @import("WorkerHandoff.zig");
+pub const AuthorizationClient = @import("AuthorizationClient.zig").Client;
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const SessionWithTransport = @import("Session.zig").WithTransport;
@@ -321,6 +322,7 @@ test "a full metadata view fits the bounded HTTP response" {
 }
 
 test {
+    _ = @import("AuthorizationClient.zig");
     _ = WaitHint;
     _ = @import("ConcurrencyTests.zig");
     _ = SnapshotReader;

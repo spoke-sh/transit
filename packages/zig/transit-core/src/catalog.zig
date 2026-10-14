@@ -57,6 +57,9 @@ pub const Namespace = enum(u8) {
     authorization_change,
     authorization_outcome,
     authorization_native_resource_grant,
+    authorization_binding,
+    authorization_registration,
+    authorization_origin,
 };
 pub const Snapshot = struct {
     version: u32 = version,
