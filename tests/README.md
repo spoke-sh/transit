@@ -29,6 +29,23 @@ listener, gateway authentication, prepared Table binding nor durable gateway
 write recovery is qualified by them. Full gateway, fault, load and placement
 proofs remain implementation work; no clean-suite result is claimed here.
 
+## Database wire primitives
+
+On 2026-10-13, `just test::sql-wire-contracts` passes bounded PostgreSQL/MySQL
+frame decoding, fragmented/coalesced input, lengths and sequence rejection,
+PostgreSQL write deferral through Sync, failed-cycle draining and suspended-read
+identity checks. Common scalar admission refuses unsupported logical types and
+non-SQL cell states. Authentication tests verify an independently generated
+PBKDF2/SCRAM fixture, wrong credentials/proofs, unsupported password characters,
+channel binding and consumed authentication state. The Python fixture checker
+recomputes all credential and proof bytes using hashlib and hmac.
+
+These are library-level checks, registered in ordinary core CI. They do not
+qualify an authenticated listener, session resource enforcement or durable write
+recovery. The complete native `just test::unit` also passes after replacing two
+stale inline signed-request digests and preserving shared Python dependencies in
+the SQL-wire development shell. Full gateway and clean qualification remain open.
+
 ## Catalog Table parameters
 
 On 2026-10-13, the shared SQL-wire implementation adds caller-owned

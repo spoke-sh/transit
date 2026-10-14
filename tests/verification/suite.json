@@ -15,6 +15,7 @@
       "test::deployments",
       "test::telemetry",
       "test::packages-build",
+      "test::sql-wire-contracts",
       "test::compute",
       "test::client-abi",
       "test::station",

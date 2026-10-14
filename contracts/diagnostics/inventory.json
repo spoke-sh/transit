@@ -9600,6 +9600,126 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Frame.zig": {
+      "errors": {
+        "FrameTooLarge": 2,
+        "InvalidFrameBudget": 1,
+        "PacketSequenceMismatch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "header()": "<inferred>",
+        "length()": "<inferred>",
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-mysql/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Frame.zig",
+        "transit_sql_gateway"
+      ]
+    },
+    "packages/zig/transit-postgres/src/Cycle.zig": {
+      "errors": {
+        "ExecutionCycleTooLarge": 1,
+        "UnsupportedExecutionCycle": 6,
+        "UnsupportedProtocolMessage": 1
+      },
+      "outcomes": {
+        "Action": [
+          "handle",
+          "ignore",
+          "flush",
+          "sync_empty",
+          "sync_write",
+          "terminate"
+        ],
+        "state": [
+          "idle",
+          "extended",
+          "failed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "accept()": "<inferred>",
+        "execute()": "<inferred>",
+        "init()": "<inferred>",
+        "suspendRead()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-postgres/src/Frame.zig": {
+      "errors": {
+        "FrameTooLarge": 2,
+        "InvalidCancelRequest": 1,
+        "InvalidFrameBudget": 1,
+        "InvalidMessageLength": 1,
+        "InvalidUpgradeRequest": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "header()": "<inferred>",
+        "length()": "<inferred>",
+        "read()": "<inferred>",
+        "startup()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-postgres/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Cycle.zig",
+        "Frame.zig",
+        "transit_sql_gateway"
+      ]
+    },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
         "DiagnosticCapacity": 4,
@@ -14583,6 +14703,101 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/Authentication.zig": {
+      "errors": {
+        "AuthenticationFailed": 3,
+        "IncompatibleCredentialDefinition": 1,
+        "InvalidCredentialCost": 1,
+        "InvalidPasswordProfile": 2,
+        "InvalidScramMessage": 10
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Scram.finish()": "<inferred>",
+        "Scram.init()": "<inferred>",
+        "Verifier.create()": "<inferred>",
+        "Verifier.validate()": "<inferred>",
+        "Verifier.verifyPassword()": "<inferred>",
+        "password()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/Limits.zig": {
+      "errors": {
+        "InvalidGatewayLimits": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-sql-gateway/src/Type.zig": {
+      "errors": {
+        "MissingWireValue": 1,
+        "NullNotAllowed": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "UnsupportedWireType": 2
+      },
+      "outcomes": {
+        "Kind": [
+          "int64",
+          "uint64",
+          "float64",
+          "boolean",
+          "utf8",
+          "binary"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "from()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Authentication.zig",
+        "Limits.zig",
+        "Type.zig",
+        "transit_catalog",
+        "transit_query"
+      ]
+    },
     "packages/zig/transit-station-app/src/Api.zig": {
       "errors": {
         "InterfaceProgramTooLarge": 1,
@@ -19161,6 +19376,78 @@
         "Waiting.zig",
         "transit_client",
         "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-tls-server/src/OpenSsl.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-tls-server/src/probe.zig": {
+      "errors": {
+        "InvalidSslRequest": 2,
+        "Usage": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_tls_server"
+      ]
+    },
+    "packages/zig/transit-tls-server/src/root.zig": {
+      "errors": {
+        "EndOfStream": 4,
+        "InvalidTimeout": 1,
+        "InvalidTlsCredentials": 1,
+        "TlsAllocationFailed": 4,
+        "TlsConfiguration": 2,
+        "TlsControlBudget": 2,
+        "TlsHandshakeFailed": 1,
+        "TlsHandshakeTooLarge": 1,
+        "TlsIoFailed": 4,
+        "TruncatedTlsStream": 1,
+        "UnsupportedTlsLibrary": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Context.init()": "<inferred>",
+        "Session.accept()": "<inferred>",
+        "Session.feed()": "<inferred>",
+        "Session.finish()": "<inferred>",
+        "Session.flush()": "<inferred>",
+        "Session.read()": "<inferred>",
+        "Session.readExact()": "<inferred>",
+        "Session.writeAll()": "<inferred>",
+        "Transport.read()": "<inferred>",
+        "Transport.readExact()": "<inferred>",
+        "Transport.resetDeadline()": "<inferred>",
+        "Transport.writeAll()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "OpenSsl.zig",
+        "std"
       ]
     },
     "packages/zig/transit-tls/src/Client.zig": {
