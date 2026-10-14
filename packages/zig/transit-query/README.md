@@ -48,6 +48,10 @@ without opening data snapshots or spill. It rechecks each resource revision and
 returns no captured basis; execution separately acquires cuts and read authority.
 The console uses this owner for relational EXPLAIN.
 
+Relational compilation and execution accept an explicit lexer dialect in their
+shared options. The default remains Transit syntax; the MySQL choice changes
+quoting and token admission, preserving the same logical plan and native owners.
+
 `RelationalQuery` executes finite int64 Table joins and grouped COUNT/SUM through
 the shared Fuze compiler and executor. Callers explicitly select
 `per_resource_snapshot_vector`, ordered catalog routes, resident/spill/result/work

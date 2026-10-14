@@ -143,6 +143,18 @@ Error fields carry validated five-character SQLSTATE, severity, a bounded safe
 message and optional safe detail. This encoder does not decide authority,
 transaction outcomes or which errors may be disclosed.
 
+## Shared statement ownership
+
+`Statement` owns immutable prepared SQL, catalog identity and output/parameter
+metadata. Bind validation submits no native input and opens no data snapshot.
+Every metadata disclosure rechecks current rights and the complete Table binding.
+Execution uses the shared query owners with a fresh authorized cut, or binds a
+new Table intent to its reserved gateway operation identity. Literal relational
+SELECT resolves every target through the explicitly selected catalog; captured
+descriptors must match preparation before executor work. Parameters are confined
+to the shared single-Table SELECT/DML profile. MySQL quoting is handled by the
+shared lexer for SELECT, DML, CREATE and literal relational SQL.
+
 ## MySQL frame ownership
 
 Classic packets carry payload length:u24 little-endian and sequence:u8. The

@@ -6980,7 +6980,7 @@
           "count",
           "sum"
         ],
-        "required().source": [
+        "requiredDialect().source": [
           "none",
           "target",
           "tail",
@@ -6993,8 +6993,10 @@
         "Owned.bind()": "<inferred>",
         "discoverTargets()": "<inferred>",
         "parse()": "<inferred>",
+        "parseDialect()": "<inferred>",
         "parseWithContext()": "<inferred>",
         "required()": "<inferred>",
+        "requiredDialect()": "<inferred>",
         "resolve()": "<inferred>",
         "target()": "<inferred>"
       },
@@ -8008,6 +8010,8 @@
         "alter()": "<inferred>",
         "column()": "<inferred>",
         "compile()": "<inferred>",
+        "compileContext()": "<inferred>",
+        "compileDialect()": "<inferred>",
         "compileWithEditor()": "<inferred>",
         "create()": "<inferred>",
         "drop()": "<inferred>",
@@ -8015,6 +8019,7 @@
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
         "targetDiagnostic()": "<inferred>",
+        "targetDialect()": "<inferred>",
         "targetWithEditor()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -15389,6 +15394,55 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/Statement.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "CatalogDenied": 3,
+        "CatalogIdentityConflict": 2,
+        "ExpectedGatewayWrite": 1,
+        "ExpectedRelationalSelect": 1,
+        "ExpectedSingleTableSelect": 1,
+        "InvalidCatalogIdentity": 1,
+        "InvalidQueryBudget": 1,
+        "TableNotFound": 1,
+        "UnsupportedGatewayStatement": 3,
+        "WireParameterCountMismatch": 2
+      },
+      "outcomes": {
+        "Kind": [
+          "select",
+          "insert",
+          "update",
+          "delete",
+          "create"
+        ],
+        "plan": [
+          "select",
+          "dml",
+          "create",
+          "relational"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "bindWrite()": "<inferred>",
+        "checkBinding()": "<inferred>",
+        "checkValues()": "<inferred>",
+        "openRelational()": "<inferred>",
+        "openSelect()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Terminal.zig": {
       "errors": {
         "GatewayIdentityConflict": 5,
@@ -15520,6 +15574,7 @@
         "LedgerRecords.zig",
         "Limits.zig",
         "SavedStep.zig",
+        "Statement.zig",
         "Terminal.zig",
         "Type.zig",
         "Upload.zig",

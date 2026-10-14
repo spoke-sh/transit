@@ -46,3 +46,12 @@ failures. `Client` prepares and retains exact signed controls and observes input
 progress. `Coordinator` proposes fenced transitions, reads published saved steps
 before dispatch, and observes original Table outcomes. Its caller serializes
 control requests and retains each exact request until its disposition is known.
+
+`Statement` owns SQL text and immutable catalog metadata for typed single-Table
+SELECT/DML, literal CREATE and literal relational SELECT. Preparation and
+`checkValues` do not open a data snapshot or submit a native input. `validate`
+rechecks current rights and source identity before cached metadata disclosure;
+execution independently captures a new authorized cut or creates an exact typed
+Table intent. Every relational target uses the selected database's explicit
+catalog mapping. Captured relational descriptors must still match preparation
+before any executor step. Parameterized relational SQL is excluded.

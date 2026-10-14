@@ -8,6 +8,21 @@ const native = p.Growth;
 const support = @import("typed_table_native.zig");
 const Admin = @import("growing_support.zig").Admin(46);
 const Config = struct { definition: native.Definition, writer: Admin.Provision, binding: gateway.Ledger.Binding };
+const read_options: gateway.query.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+fn appendRow(allocator: std.mem.Allocator, rows: *std.ArrayList([]const ?i128), cells: []const c.fuze.Types.Values.Cell) !void {
+    if (rows.items.len == 32 or cells.len > 8) return error.ProofRowBudget;
+    const values = try allocator.alloc(?i128, cells.len);
+    for (cells, values) |cell, *value| value.* = switch (cell) {
+        .null => null,
+        .value => |item| if (item != .atom) return error.UnexpectedProofValue else switch (item.atom) {
+            .signed => |number| number,
+            .unsigned => |number| @intCast(number),
+            else => return error.UnexpectedProofValue,
+        },
+        else => return error.UnexpectedProofValue,
+    };
+    try rows.append(allocator, values);
+}
 fn ledger(config: Config) !gateway.Ledger {
     if (config.definition != native.current_definition) return error.IncompatibleDefinition;
     // The caller retains config for the lifetime of the returned binding slice.
@@ -117,6 +132,39 @@ pub fn main(init: std.process.Init) !void {
     var coordinator_client = try client(&wire, registry, 2003);
     var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try support.key(10), .generation = config.writer.generation };
     defer coordinator.deinit();
+    if (std.mem.eql(u8, mode, "read")) {
+        var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = 1234 }, .key = try support.key(10) };
+        const dialect: c.fuze.Sql.Dialect = if (std.mem.eql(u8, args[4], "mysql")) .mysql else .transit;
+        var statement = try gateway.Statement.prepare(init.gpa, &caller, args[5], dialect, read_options);
+        defer statement.deinit();
+        var values: [1]?c.fuze.Types.Values.Atom = .{null};
+        if (args.len > 6 and !std.mem.eql(u8, args[6], "null")) values[0] = .{ .signed = try std.fmt.parseInt(i64, args[6], 10) };
+        const bound = values[0..@intFromBool(args.len > 6)];
+        try statement.checkValues(init.gpa, bound);
+        try statement.validate(&caller);
+        var rows: std.ArrayList([]const ?i128) = .empty;
+        const arena = init.arena.allocator();
+        var nonces: [c.fuze.Relational.max_sources][16]u8 = undefined;
+        try init.io.randomSecure(std.mem.asBytes(&nonces));
+        if (statement.plan == .relational) {
+            var directory_handle = try std.Io.Dir.cwd().openDir(init.io, directory, .{});
+            defer directory_handle.close(init.io);
+            const query = try statement.openRelational(init.gpa, init.io, directory_handle, "gateway-read-spill", &caller, nonces, read_options, null);
+            defer query.deinit();
+            while (try query.next()) |row| try appendRow(arena, &rows, row.cells[0..row.len]);
+            try query.close();
+        } else {
+            var query = try statement.openSelect(init.gpa, &caller, bound, nonces[0], .{ .requests = 10000, .rows = 32, .result_bytes = 65536 }, null);
+            defer query.deinit();
+            while (try query.next()) |value| {
+                var row = value;
+                defer row.deinit();
+                try appendRow(arena, &rows, row.cells);
+            }
+            try query.close();
+        }
+        return support.print(init, .{ .rows = rows.items, .columns = statement.fields().len });
+    }
     if (std.mem.eql(u8, mode, "replace")) {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
@@ -151,7 +199,9 @@ pub fn main(init: std.process.Init) !void {
         const item = (try registry.discover(&source, nonce)) orelse return error.MissingOperation;
         if (std.mem.eql(u8, mode, "begin")) return support.print(init, item);
         var table = coordinator.table(item);
-        var intent = try table.compile(init.gpa, args[5], .{ .operation = item.id, .namespace = item.id, .create_object = if (std.mem.startsWith(u8, args[5], "CREATE TABLE ")) item.id else null }, null);
+        var statement = try gateway.Statement.prepare(init.gpa, &table, args[5], .transit, read_options);
+        defer statement.deinit();
+        var intent = try statement.bindWrite(init.gpa, &table, &.{}, item.id);
         defer intent.deinit();
         _ = try control(init, &caller, directory, config, .{ .begin_intent = .{ .operation = item.id, .spec = try s.Publication.Digest.of(gateway.LedgerRecords.intent_format, intent.bytes) } });
         for (0..(intent.bytes.len + 127) / 128) |part| {

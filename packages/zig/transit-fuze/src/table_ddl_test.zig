@@ -2,6 +2,18 @@ const std = @import("std");
 const e = std.testing;
 const ddl = @import("TableDdl.zig");
 const s = @import("TableSchema.zig");
+test "MySQL DDL uses shared quoted names and literal backslashes without statement rewriting" {
+    var owned = try ddl.compileDialect(e.allocator, "CREATE TABLE `people``archive` (`id` BIGINT PRIMARY KEY, `path` TEXT DEFAULT 'a\\b')", null, null, .mysql);
+    defer owned.deinit();
+    try e.expectEqualStrings("people`archive", owned.statement.create.name);
+    const schema = try owned.statement.create.bind(7);
+    try e.expectEqualStrings("a\\b", schema.columns[1].default.?.value.atom.bytes);
+    try e.expectEqualSlices(u64, &.{1}, schema.primary_key);
+    var ansi = try ddl.compileDialect(e.allocator, "CREATE TABLE \"quoted\" (\"field\" BIGINT)", null, null, .mysql);
+    defer ansi.deinit();
+    try e.expectEqualStrings("quoted", ansi.statement.create.name);
+    try e.expectError(error.UnboundParameters, ddl.compileDialect(e.allocator, "CREATE TABLE t (id BIGINT DEFAULT ?)", null, null, .mysql));
+}
 test "CREATE compiles the reported nullable example and realistic typed schemas" {
     var simple = try ddl.compile(e.allocator, "CREATE TABLE people (id INT64, name UTF8);", null, null);
     defer simple.deinit();

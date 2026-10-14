@@ -90,6 +90,11 @@ SQL text. Logical SELECT and DML bindings accept SQL NULL with three-valued
 comparison semantics. See [Table preparation](../../../contracts/SQL_PARAMETERS_V1.md#catalog-table-preparation)
 for bounds and the catalog owners' current-identity checks.
 
+`TableDdl.compileDialect` and `RelationalSql.parseDialect` use the same explicit
+lexer dialect. MySQL accepts escaped backtick names, ANSI double-quoted names and
+literal backslashes in SQL strings. DDL and relational plans admit literals only;
+neither interface enables identifier parameters or parameterized relational SQL.
+
 Logical binding failures retain the exact caller identifier at the failing token,
 including quoted, escaped and UTF-8 names up to 255 bytes. The owned diagnostic
 survives releasing parser inputs; it does not reread source metadata for context.

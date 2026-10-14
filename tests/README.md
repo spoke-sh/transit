@@ -98,6 +98,13 @@ inventory pages preserve nonce discovery and terminal history while the separate
 scheduling indexes are empty. Inspection issues no sends; all observed turns
 remain within four mutations and 256-byte values.
 
+The shared `Statement` integration repeats this schedule in 32.956 seconds with
+the same operation/turn/send counts. It prepares and binds actual CREATE/DML
+intents, then reads through PostgreSQL `$n` and MySQL backtick/`?` syntax, including
+a NULL comparison and a MySQL self-join/grouped SUM. Preparing and reading adds
+no native sends. Fuze unit checks independently compare dialect plan fingerprints
+and exercise quoted CREATE names and rejected DDL/relational parameters.
+
 This proof exercises the library coordinator and native GenServer adapter through
 a dedicated harness. It does not qualify a deployed database listener, concurrent
 wire sessions, account credential rotation, slow sockets or placement lifecycle.

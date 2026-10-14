@@ -30,7 +30,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const *c.TableClient, te
     self.parent = allocator;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.definitions = @splat(null);
-    self.syntax = try f.RelationalSql.parse(self.memory.allocator(), text, location);
+    self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
     errdefer self.syntax.deinit();
     if (clients.len != self.syntax.targets.len) return error.InvalidRelationalSources;
     var bindings: [r.max_sources]q.RelationalTables.Binding = undefined;

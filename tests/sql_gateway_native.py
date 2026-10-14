@@ -134,6 +134,13 @@ def run(node, catalog, gateway):
             result = call(gateway, 'status', inserted['operation'])
             assert (result['summary'], result['matched'], result['changed']) == ('applied', 3, 3), result
             assert call(catalog, 'inspect', 'wire_data')['count'] == 3
+            before = sends
+            assert call(gateway, 'read', 'postgres', 'SELECT value FROM wire_data WHERE id = $1', 2)['rows'] == [[20]]
+            assert call(gateway, 'read', 'postgres', 'SELECT value FROM wire_data WHERE id = $1', 'null')['rows'] == []
+            assert call(gateway, 'read', 'mysql', 'SELECT `value` FROM `wire_data` WHERE `id` = ?', 3)['rows'] == [[30]]
+            grouped = 'SELECT `a`.`id`, SUM(`b`.`value`) AS `total` FROM `wire_data` `a` JOIN `wire_data` `b` ON `a`.`id` = `b`.`id` GROUP BY `a`.`id`'
+            assert call(gateway, 'read', 'mysql', grouped)['rows'] == [[1, 10], [2, 20], [3, 30]]
+            assert sends == before, 'Statement preparation/read dispatched a write'
             updated = call(gateway, 'enqueue', 4, 'UPDATE wire_data SET value = 10 WHERE id = 1')
             call(gateway, 'run')
             result = call(gateway, 'status', updated['operation'])

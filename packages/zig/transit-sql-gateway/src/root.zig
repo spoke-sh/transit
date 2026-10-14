@@ -7,6 +7,7 @@ pub const Authentication = @import("Authentication.zig");
 pub const Limits = @import("Limits.zig");
 pub const Client = @import("Client.zig");
 pub const Coordinator = @import("Coordinator.zig");
+pub const Statement = @import("Statement.zig");
 pub const Behavior = @import("Behavior.zig");
 pub const Control = @import("Control.zig");
 pub const Terminal = @import("Terminal.zig");
