@@ -338,6 +338,20 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     const config = try load(Config, init, directory, "catalog.json");
+    if (std.mem.eql(u8, mode, "activate-host")) {
+        if (args.len != 5) return error.Usage;
+        var public: [32]u8 = undefined;
+        if ((try std.fmt.hexToBytes(&public, args[4])).len != 32) return error.InvalidPublicKey;
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        _ = try admin.submit(.{ .grant = .{ .subject = config.worker, .public_key = public, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = config.writer.pid } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = config.worker, .permissions = p.State.all_permissions } });
+        _ = try admin.submit(.{ .own = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .worker = config.worker } });
+        var replacement = config;
+        replacement.writer.generation += 1;
+        try save(init, directory, "catalog.json", replacement);
+        return print(init, .{ .generation = replacement.writer.generation });
+    }
     if (std.mem.eql(u8, mode, "board-inspector")) {
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;

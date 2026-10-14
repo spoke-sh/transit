@@ -43,6 +43,30 @@ Nix package also builds offline against its fixed Zig dependencies and pinned
 OpenSSL. Native-right revocation, health/capacity/drain and placement schedules
 remain subsequent qualification; no clean-suite result is claimed yet.
 
+On 2026-10-14 UTC, the expanded gateway run passes in 246.949 seconds. It adds
+revoked native read access against retained prepared handles and a suspended
+portal, eight-session saturation with independent health and reserved TLS Cancel,
+four stalled authentication attempts with absolute timeout, 16 prepared handles,
+four portals, oversized header refusal, and readiness withdrawal followed by
+joined SIGTERM drain. The fault schedule subsequently exposed native HTTP
+capacity refusal during concurrent observation. The gateway now retries only
+bounded pure metadata acquisition and reports remaining exhaustion as PostgreSQL
+53000 / MySQL 1041-HY000; a fresh SELECT retry is explicit in the observer test.
+Application and MySQL session units check classification without implying write
+rollback or replay.
+
+`just test::sql-wire-placement compose` passes in 277.639 seconds and
+`just test::sql-wire-placement reference` passes in 326.564 seconds, including
+image preparation. Both use the pinned OpenSSL package, actual TLS listeners,
+six scalar values, typed prepared queries and mutations, and original committed
+counts. Both stop the gateway, Catalog host, courier, native node and disk store,
+then recover the same state under fresh native generations before another write.
+The reference run additionally places the Catalog host in Substrate, retains
+gateway activation markers on a PVC, and executes the gateway's egress denial
+probe. These are physical replacement schedules after completed mutations; the
+separate native ledger proof covers lost receipts and pending-step replacement.
+No clean-suite result is established by these placement runs.
+
 ## Database wire foundation
 
 Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,

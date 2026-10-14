@@ -32,6 +32,9 @@ sql-gateway:
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
 
+sql-wire-placement profile:
+    nix develop .#sql-wire --command zig build test-sql-wire-placement -Doptimize=ReleaseSafe -Dsql-wire-placement={{quote(profile)}}
+
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
 tls-alpn:
     zig build test-tls-alpn

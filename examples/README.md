@@ -20,6 +20,7 @@ and enrichment, with source excerpts across SQL, Python, TypeScript, Rust and Zi
 | [State query](state-query/README.md) | `example-state-query` | Finite SQL, persisted original intent, exact signed retry and bounded nested result pages |
 | [Signed HTTP service](serving/README.md) | `transit-serving-example` | Two gateways, durable admission, scoped results and fresh worker/disk recovery |
 | [Finite Flight](flight/README.md) | `transit-flight-gateway` / `transit-query-host` | TLS Flight SQL with independent PyArrow/ADBC consumers, exact admission retry and physical recovery |
+| [Database wire](sql-wire/README.md) | `transit-sql-gateway` / `transit-query-host` | PostgreSQL/MySQL TLS, typed prepared reads/writes and fenced physical recovery |
 | [Language callers](station-sdk/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
 
 M11's [public SDK examples](station-sdk/README.md) define shared counter/query

@@ -837,6 +837,7 @@ pub fn build(b: *std.Build) void {
     const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&b.addInstallArtifact(sql_gateway_app, .{}).step);
     build_test_step.dependOn(&sql_gateway_app.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));
@@ -1107,9 +1108,19 @@ pub fn build(b: *std.Build) void {
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
+    sql_wire_gateway.addPassthruArgs();
     sql_wire_gateway.has_side_effects = true;
     sql_wire_gateway.stdio = .inherit;
     b.step("test-sql-wire-gateway", "Exercise database clients against native gateway owners").dependOn(&sql_wire_gateway.step);
+    if (b.option([]const u8, "sql-wire-placement", "Database gateway placement: compose or reference")) |placement| {
+        const placed = b.addSystemCommand(&.{ "python3", "-B" });
+        placed.addFileArg(b.path("examples/sql-wire/run.py"));
+        placed.addArg(placement);
+        for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
+        placed.has_side_effects = true;
+        placed.stdio = .inherit;
+        b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
+    }
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_callers_native.addFileArg(b.path("tests/relational_callers_native.py"));
     relational_callers_native.addArtifactArg(node_artifact);

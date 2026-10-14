@@ -62,6 +62,14 @@ are full. A cancelled command task is joined before freeing its host or buffers.
 Native terminal evidence, rather than a successful transport send, determines a
 write's result.
 
+Native HTTP capacity refusal maps to PostgreSQL SQLSTATE `53000`, or MySQL error
+1041 with SQLSTATE `HY000`. Bounded metadata acquisition can retry that explicit
+refusal within the command deadline. A failed query iterator is never restarted
+inside the same result. Applications can issue a fresh SELECT after discarding
+an incomplete result. For mutations, inspect the retained operation first:
+capacity exhaustion can interrupt observation after admission. SQLSTATE alone
+does not establish that a write was rejected before admission.
+
 The optional private health listener serves GET `/health` with 200 only while all
 account workers report ready and the service is admitting requests; otherwise it
 returns 503. GET `/live` reports process liveness. Neither route reads application
@@ -71,6 +79,14 @@ SIGTERM stop SQL admission and allow active commands to finish within `drain_ms`
 then join connection tasks before account workers. Accepted work remains in the
 ledger for a fresh fenced activation. A completed shutdown is not a rollback or
 proof that all durable work is terminal.
+
+The [deployment example](../../../examples/sql-wire/README.md) supplies Compose
+and Kubernetes/Substrate placement with persistent activation storage, separate
+spill, verified client TLS and explicit native replacement. Keep SQL and health
+listeners private to their intended clients and operators. Kubernetes readiness
+uses `/health`; liveness uses `/live`. A failed activation must be repaired
+through native ownership and retained operation evidence, not by removing its
+activation marker or repeatedly restarting the same generation.
 
 ## Signed operator controls
 
