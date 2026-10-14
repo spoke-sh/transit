@@ -1,0 +1,2983 @@
+{
+  "version": 1,
+  "issue": 48,
+  "result": "passed_scoped_composition",
+  "base_revision": "b775e2b7a50bf46192acadf5e36102beef05057c",
+  "qualification_head": "f3687a86025038b8f6a84d00bc8d12b4cf1dfab9",
+  "qualification_method": "All 89 inventory tasks pass from committed-source clean checkouts. Four complete individual lanes are combined with the completed growth portion of an earlier failed complete run, a fresh full gateway proof with expanded CLI mutation/readback coverage, and explicitly composed bindings coverage. Bindings combines completed tasks from the original clean run with two clean subsets executing unchanged canonical recipes. This is composed scoped evidence, not one complete run at one HEAD. Failed or interrupted enclosing runs remain distinct from their completed tasks.",
+  "inventory": {
+    "path": "tests/verification/suite.json",
+    "sha256": "a74b012f97bed8ee764ef6f40ad3bf159235ebbf6b4f53a3d49df06acd35593e",
+    "bytes": 6894
+  },
+  "covered_tasks": 89,
+  "expected_tasks": 89,
+  "missing_tasks": [],
+  "changes_after_native_growth": [
+    ".github/workflows/ci.yml",
+    "apps/transit-board-web/README.md",
+    "apps/transit-board-web/browser/live-views.mjs",
+    "apps/transit-board-web/src/query-live.ts",
+    "apps/transit-board-web/vite.config.ts",
+    "apps/transit-board/docs/reactive.md",
+    "docs/reference/reactive.md",
+    "packages/ts/transit-board-client/README.md",
+    "packages/ts/transit-board-client/src/relational-validators.d.ts",
+    "packages/ts/transit-board-client/src/relational-validators.js",
+    "packages/ts/transit-board-client/src/validators.js",
+    "packages/ts/transit-board-client/validators.mjs",
+    "packages/ts/transit-board-client/vite.config.ts",
+    "packages/ts/transit-station-sdk/docs/unified-query.md",
+    "packages/ts/transit-station-sdk/src/unified.test.ts",
+    "packages/ts/transit-station-sdk/src/unified.ts",
+    "tasks/README.md",
+    "tasks/bindings.just",
+    "tests/README.md",
+    "tests/board_query.py",
+    "tests/sql_wire/clients.py",
+    "tests/sql_wire/faults.py",
+    "tests/sql_wire/gateway.py"
+  ],
+  "change_scope": "Native runtime and wire/ABI definitions are unchanged after the growth source. Subsequent changes correct the TypeScript SDK inspection decoder, Board validator asset grouping and refresh source-identity checks, SDK cold-store fixture selection, Board provisioning setup budget, expanded CLI mutation/readback fixtures in their own fresh history and the explicit raw-client durable-command deadline, documentation, and CI execution caps. Changed frontend and fixture tasks have later passing evidence.",
+  "lanes": [
+    {
+      "lane": "core",
+      "expected": [
+        "check-core",
+        "test::properties",
+        "test::simulation",
+        "test::resource-simulation-smoke",
+        "test::scheduler-simulation",
+        "test::domain-simulation",
+        "test::vortex",
+        "test::codecs",
+        "test::dev-environment",
+        "test::kubectl-transit",
+        "test::deployments",
+        "test::telemetry",
+        "test::packages-build",
+        "test::sql-wire-contracts",
+        "test::compute",
+        "test::client-abi",
+        "test::station",
+        "test::storage",
+        "test::service",
+        "test::runtime-upgrade",
+        "test::callers",
+        "test::inspection",
+        "test::state"
+      ],
+      "results": [
+        {
+          "lane": "core",
+          "task": "check-core",
+          "seconds": 177.95,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::properties",
+          "seconds": 12.29,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::simulation",
+          "seconds": 13.0,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::resource-simulation-smoke",
+          "seconds": 3.28,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::scheduler-simulation",
+          "seconds": 11.45,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::domain-simulation",
+          "seconds": 12.28,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::vortex",
+          "seconds": 9.21,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::codecs",
+          "seconds": 5.04,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::dev-environment",
+          "seconds": 0.1,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::kubectl-transit",
+          "seconds": 3.47,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::deployments",
+          "seconds": 1.63,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::telemetry",
+          "seconds": 1.65,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::packages-build",
+          "seconds": 191.84,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::sql-wire-contracts",
+          "seconds": 0.67,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::compute",
+          "seconds": 0.37,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::client-abi",
+          "seconds": 5.95,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::station",
+          "seconds": 144.98,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::storage",
+          "seconds": 72.37,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::service",
+          "seconds": 41.44,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::runtime-upgrade",
+          "seconds": 5.43,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::callers",
+          "seconds": 14.33,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::inspection",
+          "seconds": 3.49,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        },
+        {
+          "lane": "core",
+          "task": "test::state",
+          "seconds": 8.11,
+          "exit_code": 0,
+          "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+          "run": "core"
+        }
+      ],
+      "revisions": [
+        "d9c0e5999d2b5519b05a079d25c5c626ca19d65d"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    },
+    {
+      "lane": "growth",
+      "expected": [
+        "test::arrow",
+        "test::fuze-types",
+        "test::fuze-sources",
+        "test::file-query",
+        "test::logical-arrow",
+        "test::logical-codec",
+        "test::pages",
+        "test::growing",
+        "test::growing-service",
+        "test::public-query",
+        "test::publication",
+        "test::table-query-writer",
+        "test::catalog",
+        "test::typed-tables",
+        "test::sql-gateway",
+        "test::sql-wire-gateway",
+        "test::relational-callers",
+        "test::relational-maintenance",
+        "test::relational-exchanges",
+        "test::named-relational",
+        "test::http-transport",
+        "test::tls-alpn",
+        "test::grpc-libraries",
+        "test::grpc-codegen",
+        "test::grpc-transport",
+        "test::grpc-server",
+        "test::flight-metadata",
+        "test::grpc-worker",
+        "test::grpc-faults",
+        "test::http-worker",
+        "examples::http",
+        "examples::grpc"
+      ],
+      "results": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.51,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-types",
+          "seconds": 0.61,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-sources",
+          "seconds": 0.83,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::file-query",
+          "seconds": 19.09,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-arrow",
+          "seconds": 4.43,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-codec",
+          "seconds": 2.45,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 5.47,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 34.33,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 264.78,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::public-query",
+          "seconds": 187.81,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::publication",
+          "seconds": 109.8,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::table-query-writer",
+          "seconds": 186.14,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::catalog",
+          "seconds": 408.71,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::typed-tables",
+          "seconds": 251.12,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::sql-gateway",
+          "seconds": 151.52,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-callers",
+          "seconds": 154.77,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-maintenance",
+          "seconds": 1337.74,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-exchanges",
+          "seconds": 308.22,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::named-relational",
+          "seconds": 146.94,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-transport",
+          "seconds": 23.39,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::tls-alpn",
+          "seconds": 2.95,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-libraries",
+          "seconds": 11.08,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-codegen",
+          "seconds": 7.31,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-transport",
+          "seconds": 12.98,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-server",
+          "seconds": 15.58,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::flight-metadata",
+          "seconds": 49.65,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-worker",
+          "seconds": 251.68,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-faults",
+          "seconds": 216.18,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-worker",
+          "seconds": 352.77,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "examples::http",
+          "seconds": 27.33,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "examples::grpc",
+          "seconds": 32.35,
+          "exit_code": 0,
+          "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+          "run": "growth"
+        },
+        {
+          "lane": "growth",
+          "task": "test::sql-wire-gateway",
+          "seconds": 1709.14,
+          "exit_code": 0,
+          "source_revision": "f3687a86025038b8f6a84d00bc8d12b4cf1dfab9",
+          "run": "gateway-cli"
+        }
+      ],
+      "revisions": [
+        "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+        "f3687a86025038b8f6a84d00bc8d12b4cf1dfab9"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    },
+    {
+      "lane": "experience",
+      "expected": [
+        "transit-board::check",
+        "transit-docs::check",
+        "bindings::node-check",
+        "test::observability",
+        "transit-board::test",
+        "transit-board::query-test",
+        "launchers::local::test-station"
+      ],
+      "results": [
+        {
+          "lane": "experience",
+          "task": "transit-board::check",
+          "seconds": 75.22,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "transit-docs::check",
+          "seconds": 62.93,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "bindings::node-check",
+          "seconds": 9.61,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "test::observability",
+          "seconds": 13.1,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::test",
+          "seconds": 10.28,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::query-test",
+          "seconds": 114.39,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        },
+        {
+          "lane": "experience",
+          "task": "launchers::local::test-station",
+          "seconds": 295.13,
+          "exit_code": 0,
+          "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+          "run": "experience"
+        }
+      ],
+      "revisions": [
+        "fec5dd68fcb6dc49067d7763abea66a889b3805a"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    },
+    {
+      "lane": "launchers",
+      "expected": [
+        "test::build",
+        "launchers::local::test"
+      ],
+      "results": [
+        {
+          "lane": "launchers",
+          "task": "test::build",
+          "seconds": 35.3,
+          "exit_code": 0,
+          "source_revision": "c5d46e8fb8044f56fbab4a3d7ab68d09f321758b",
+          "run": "launchers"
+        },
+        {
+          "lane": "launchers",
+          "task": "launchers::local::test",
+          "seconds": 333.65,
+          "exit_code": 0,
+          "source_revision": "c5d46e8fb8044f56fbab4a3d7ab68d09f321758b",
+          "run": "launchers"
+        }
+      ],
+      "revisions": [
+        "c5d46e8fb8044f56fbab4a3d7ab68d09f321758b"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    },
+    {
+      "lane": "bindings",
+      "expected": [
+        "bindings::check",
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::logical-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test",
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
+        "test::model",
+        "test::model-delivery",
+        "test::sql-rewrites",
+        "test::sql",
+        "bindings::grpc-faults",
+        "bindings::connector-preparation"
+      ],
+      "results": [
+        {
+          "lane": "bindings",
+          "task": "bindings::check",
+          "seconds": 16.94,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::native",
+          "seconds": 217.9,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::python-test",
+          "seconds": 1300.78,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::node-sdk-test",
+          "seconds": 1140.84,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::logical-test",
+          "seconds": 37.49,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::rust-sdk-test",
+          "seconds": 1170.72,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::ruby-sdk-test",
+          "seconds": 1378.95,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::c-sdk-test",
+          "seconds": 2743.71,
+          "exit_code": 0,
+          "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+          "run": "bindings-prefix"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test",
+          "seconds": 1816.73,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-java-dotnet"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::dotnet-sdk-test",
+          "seconds": 1493.76,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-java-dotnet"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::beam-sdk-test",
+          "seconds": 3165.06,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::sdk-interop",
+          "seconds": 1219.43,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model",
+          "seconds": 5.86,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model-delivery",
+          "seconds": 1.03,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql-rewrites",
+          "seconds": 8.13,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql",
+          "seconds": 17.94,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::grpc-faults",
+          "seconds": 128.68,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::connector-preparation",
+          "seconds": 40.5,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "bindings-beam-rest"
+        }
+      ],
+      "revisions": [
+        "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+        "743913338850cddfa1092159f7bbcdf02c2017af"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    },
+    {
+      "lane": "browser",
+      "expected": [
+        "transit-board::browser",
+        "transit-board::query-browser",
+        "transit-board::http-browser",
+        "transit-board::grpc-browser",
+        "test::reactive-browser",
+        "test::reactive-views",
+        "test::reactive-views-lifecycle"
+      ],
+      "results": [
+        {
+          "lane": "browser",
+          "task": "transit-board::browser",
+          "seconds": 245.56,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::query-browser",
+          "seconds": 167.74,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::http-browser",
+          "seconds": 495.52,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::grpc-browser",
+          "seconds": 374.2,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-browser",
+          "seconds": 182.96,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-views",
+          "seconds": 315.32,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-views-lifecycle",
+          "seconds": 78.55,
+          "exit_code": 0,
+          "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+          "run": "browser"
+        }
+      ],
+      "revisions": [
+        "743913338850cddfa1092159f7bbcdf02c2017af"
+      ],
+      "active_tasks": [],
+      "all_lane_tasks_passed": true
+    }
+  ],
+  "runs": [
+    {
+      "label": "core",
+      "lane": "core",
+      "source_revision": "d9c0e5999d2b5519b05a079d25c5c626ca19d65d",
+      "command": "just ci-clean --lane core",
+      "requested_tasks": [
+        "check-core",
+        "test::properties",
+        "test::simulation",
+        "test::resource-simulation-smoke",
+        "test::scheduler-simulation",
+        "test::domain-simulation",
+        "test::vortex",
+        "test::codecs",
+        "test::dev-environment",
+        "test::kubectl-transit",
+        "test::deployments",
+        "test::telemetry",
+        "test::packages-build",
+        "test::sql-wire-contracts",
+        "test::compute",
+        "test::client-abi",
+        "test::station",
+        "test::storage",
+        "test::service",
+        "test::runtime-upgrade",
+        "test::callers",
+        "test::inspection",
+        "test::state"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "core",
+          "task": "check-core",
+          "seconds": 177.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::properties",
+          "seconds": 12.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::simulation",
+          "seconds": 13.0,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::resource-simulation-smoke",
+          "seconds": 3.28,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::scheduler-simulation",
+          "seconds": 11.45,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::domain-simulation",
+          "seconds": 12.28,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::vortex",
+          "seconds": 9.21,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::codecs",
+          "seconds": 5.04,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::dev-environment",
+          "seconds": 0.1,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::kubectl-transit",
+          "seconds": 3.47,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::deployments",
+          "seconds": 1.63,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::telemetry",
+          "seconds": 1.65,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::packages-build",
+          "seconds": 191.84,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::sql-wire-contracts",
+          "seconds": 0.67,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::compute",
+          "seconds": 0.37,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::client-abi",
+          "seconds": 5.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::station",
+          "seconds": 144.98,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::storage",
+          "seconds": 72.37,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::service",
+          "seconds": 41.44,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::runtime-upgrade",
+          "seconds": 5.43,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::callers",
+          "seconds": 14.33,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::inspection",
+          "seconds": 3.49,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::state",
+          "seconds": 8.11,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/core.json",
+        "sha256": "821f72f768a676ced0bf2ad14ddcc44db0275ae69bc60f415c3e1e48f8ef2294",
+        "bytes": 2362
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/core.meta.json",
+        "sha256": "edc562b7e61420f9fb221f747fe28a82c4e83d02a6a8eb6620f2c8ad2a85374e",
+        "bytes": 1514
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/core.log",
+        "sha256": "d5aff19558e666f35adccc1e411c8cffdd6ff239eb7470c2d3b4b6fa8e2e6742",
+        "bytes": 29392
+      }
+    },
+    {
+      "label": "growth",
+      "lane": "growth",
+      "source_revision": "6cfeab83866e5d69a04ff4581c84e289a7ea4f6a",
+      "command": "just ci-clean --complete",
+      "requested_tasks": [
+        "test::arrow",
+        "test::fuze-types",
+        "test::fuze-sources",
+        "test::file-query",
+        "test::logical-arrow",
+        "test::logical-codec",
+        "test::pages",
+        "test::growing",
+        "test::growing-service",
+        "test::public-query",
+        "test::publication",
+        "test::table-query-writer",
+        "test::catalog",
+        "test::typed-tables",
+        "test::sql-gateway",
+        "test::sql-wire-gateway",
+        "test::relational-callers",
+        "test::relational-maintenance",
+        "test::relational-exchanges",
+        "test::named-relational",
+        "test::http-transport",
+        "test::tls-alpn",
+        "test::grpc-libraries",
+        "test::grpc-codegen",
+        "test::grpc-transport",
+        "test::grpc-server",
+        "test::flight-metadata",
+        "test::grpc-worker",
+        "test::grpc-faults",
+        "test::http-worker",
+        "examples::http",
+        "examples::grpc"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": false,
+      "results": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.51,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-types",
+          "seconds": 0.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::fuze-sources",
+          "seconds": 0.83,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::file-query",
+          "seconds": 19.09,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-arrow",
+          "seconds": 4.43,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::logical-codec",
+          "seconds": 2.45,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 5.47,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 34.33,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 264.78,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::public-query",
+          "seconds": 187.81,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::publication",
+          "seconds": 109.8,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::table-query-writer",
+          "seconds": 186.14,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::catalog",
+          "seconds": 408.71,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::typed-tables",
+          "seconds": 251.12,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::sql-gateway",
+          "seconds": 151.52,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::sql-wire-gateway",
+          "seconds": 1531.75,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-callers",
+          "seconds": 154.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-maintenance",
+          "seconds": 1337.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::relational-exchanges",
+          "seconds": 308.22,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::named-relational",
+          "seconds": 146.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-transport",
+          "seconds": 23.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::tls-alpn",
+          "seconds": 2.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-libraries",
+          "seconds": 11.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-codegen",
+          "seconds": 7.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-transport",
+          "seconds": 12.98,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-server",
+          "seconds": 15.58,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::flight-metadata",
+          "seconds": 49.65,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-worker",
+          "seconds": 251.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-faults",
+          "seconds": 216.18,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-worker",
+          "seconds": 352.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::http",
+          "seconds": 27.33,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::grpc",
+          "seconds": 32.35,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/growth.json",
+        "sha256": "868495aacc402ff603bc0da7f9419a6316173a7f320a121e048195155ef75063",
+        "bytes": 6104
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/growth.meta.json",
+        "sha256": "773cc800f291bf61144bcfd17fbf357a07ae13322c955afc87488fbb1c8612c8",
+        "bytes": 3355
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/growth.log",
+        "sha256": "94dbe525c56335a8527eb5374258537db8cf8a5f03ce9ae31d2662a315b5604d",
+        "bytes": 130639
+      }
+    },
+    {
+      "label": "experience",
+      "lane": "experience",
+      "source_revision": "fec5dd68fcb6dc49067d7763abea66a889b3805a",
+      "command": "just ci-clean --lane experience",
+      "requested_tasks": [
+        "transit-board::check",
+        "transit-docs::check",
+        "bindings::node-check",
+        "test::observability",
+        "transit-board::test",
+        "transit-board::query-test",
+        "launchers::local::test-station"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "experience",
+          "task": "transit-board::check",
+          "seconds": 75.22,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-docs::check",
+          "seconds": 62.93,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "bindings::node-check",
+          "seconds": 9.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "test::observability",
+          "seconds": 13.1,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::test",
+          "seconds": 10.28,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "transit-board::query-test",
+          "seconds": 114.39,
+          "exit_code": 0
+        },
+        {
+          "lane": "experience",
+          "task": "launchers::local::test-station",
+          "seconds": 295.13,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/experience.json",
+        "sha256": "09984bdb37da03cd4094063375ad830f4176084587bc2dfa0e2c0f4452fce1d0",
+        "bytes": 799
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/experience.meta.json",
+        "sha256": "0cf2018325427032c135d1a67540602b04c49924973d0f5aa47bd061f57c8f2d",
+        "bytes": 1150
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/experience.log",
+        "sha256": "e61a56fb017e7290b14b333d624d7271912d0cbdd570777c127a4ca51a269bb2",
+        "bytes": 25737
+      }
+    },
+    {
+      "label": "launchers",
+      "lane": "launchers",
+      "source_revision": "c5d46e8fb8044f56fbab4a3d7ab68d09f321758b",
+      "command": "just ci-clean --lane launchers",
+      "requested_tasks": [
+        "test::build",
+        "launchers::local::test"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "launchers",
+          "task": "test::build",
+          "seconds": 35.3,
+          "exit_code": 0
+        },
+        {
+          "lane": "launchers",
+          "task": "launchers::local::test",
+          "seconds": 333.65,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/launchers.json",
+        "sha256": "55b886ce32544e1cc3bee730c3f709f54ed68cb86fa5657b7d92adff5c7769e9",
+        "bytes": 218
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/launchers.meta.json",
+        "sha256": "4924baa857ca69bd104535e53f234c794cc3ebfc65d5e95dd12a0ec390fc71f2",
+        "bytes": 990
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/launchers.log",
+        "sha256": "e8c67420f121215c61a9b2dfca8d5608fb7cb907a6f9c8010cad1865b0202bdc",
+        "bytes": 8670
+      }
+    },
+    {
+      "label": "bindings-prefix",
+      "lane": "bindings",
+      "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+      "command": "just ci-clean --lane bindings",
+      "requested_tasks": [
+        "bindings::check",
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::logical-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test",
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
+        "test::model",
+        "test::model-delivery",
+        "test::sql-rewrites",
+        "test::sql",
+        "bindings::grpc-faults",
+        "bindings::connector-preparation"
+      ],
+      "all_requested_tasks_passed": false,
+      "enclosing_run_completed": false,
+      "results": [
+        {
+          "lane": "bindings",
+          "task": "bindings::check",
+          "seconds": 16.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::native",
+          "seconds": 217.9,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::python-test",
+          "seconds": 1300.78,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::node-sdk-test",
+          "seconds": 1140.84,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::logical-test",
+          "seconds": 37.49,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::rust-sdk-test",
+          "seconds": 1170.72,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::ruby-sdk-test",
+          "seconds": 1378.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::c-sdk-test",
+          "seconds": 2743.71,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-prefix.json",
+        "sha256": "3f92f7a3ec9e3931973012eb0e08aceb1900cd7bf8726528675f4493033f02e6",
+        "bytes": 896
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-prefix.meta.json",
+        "sha256": "71bdab5446cf653a5a72d84d16b921b04400a06b3c9a8dd2c826faff8dfb3ccb",
+        "bytes": 1514
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-prefix.log",
+        "sha256": "247dc262a3ee5d846c7b5f37b6662aed6b23f0beebc424774b024e92ee2a6f75",
+        "bytes": 271474
+      }
+    },
+    {
+      "label": "bindings-java-dotnet",
+      "lane": "bindings",
+      "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+      "command": "python3 /tmp/rey-sql-clean-subset.py java-dotnet bindings::java-sdk-test bindings::dotnet-sdk-test",
+      "requested_tasks": [
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test",
+          "seconds": 1816.73,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::dotnet-sdk-test",
+          "seconds": 1493.76,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-java-dotnet.json",
+        "sha256": "37b2c62bbf449b1a266305a2a4c59ff534ea74c5c0bde93616719867a65dcf6a",
+        "bytes": 235
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-java-dotnet.meta.json",
+        "sha256": "860b8360fcd04f5205c6712d7f9894c391384feacf795dc7952dda3b217a4861",
+        "bytes": 1004
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-java-dotnet.log",
+        "sha256": "296ed9c79e51d8fb5bdddec702b652bed4a0b9359f16f166bcbeafe4810aeba2",
+        "bytes": 73204
+      }
+    },
+    {
+      "label": "bindings-beam-rest",
+      "lane": "bindings",
+      "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+      "command": "python3 /tmp/rey-sql-clean-subset.py beam-rest bindings::beam-sdk-test bindings::sdk-interop test::model test::model-delivery test::sql-rewrites test::sql bindings::grpc-faults bindings::connector-preparation",
+      "requested_tasks": [
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
+        "test::model",
+        "test::model-delivery",
+        "test::sql-rewrites",
+        "test::sql",
+        "bindings::grpc-faults",
+        "bindings::connector-preparation"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "bindings",
+          "task": "bindings::beam-sdk-test",
+          "seconds": 3165.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::sdk-interop",
+          "seconds": 1219.43,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model",
+          "seconds": 5.86,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model-delivery",
+          "seconds": 1.03,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql-rewrites",
+          "seconds": 8.13,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql",
+          "seconds": 17.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::grpc-faults",
+          "seconds": 128.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::connector-preparation",
+          "seconds": 40.5,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-beam-rest.json",
+        "sha256": "0eb5c844978058449774cb18f98de08a805ae2f3b7ef266a84dc504added41e0",
+        "bytes": 878
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-beam-rest.meta.json",
+        "sha256": "b10922679d00dd1c26516b6ab9168cb9cf02c834cca3c169085e9cc14aada637",
+        "bytes": 1159
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-beam-rest.log",
+        "sha256": "3b2a2ef80f37628a32b0af43552c5551c27a6d12c847c60a4c2e59736fe8003c",
+        "bytes": 471248
+      }
+    },
+    {
+      "label": "gateway-cli",
+      "lane": "growth",
+      "source_revision": "f3687a86025038b8f6a84d00bc8d12b4cf1dfab9",
+      "command": "python3 /tmp/rey-sql-clean-gateway.py gateway test::sql-wire-gateway",
+      "requested_tasks": [
+        "test::sql-wire-gateway"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "growth",
+          "task": "test::sql-wire-gateway",
+          "seconds": 1709.14,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/gateway-cli.json",
+        "sha256": "5214b62bd6d691edc8d3f3591786bebd97f125bb0b87a54e0f73b084469bcfaf",
+        "bytes": 115
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/gateway-cli.meta.json",
+        "sha256": "3ce8abe0e4ffcab516d854fa3c67310319f97f2fdb4772d162e8a1299816deab",
+        "bytes": 968
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/gateway-cli.log",
+        "sha256": "53b0f503d81d7ee2fc2d1d149875179948a52c8e070853d546a0c650995cee30",
+        "bytes": 28344
+      }
+    },
+    {
+      "label": "browser",
+      "lane": "browser",
+      "source_revision": "743913338850cddfa1092159f7bbcdf02c2017af",
+      "command": "just ci-clean --lane browser",
+      "requested_tasks": [
+        "transit-board::browser",
+        "transit-board::query-browser",
+        "transit-board::http-browser",
+        "transit-board::grpc-browser",
+        "test::reactive-browser",
+        "test::reactive-views",
+        "test::reactive-views-lifecycle"
+      ],
+      "all_requested_tasks_passed": true,
+      "enclosing_run_completed": true,
+      "results": [
+        {
+          "lane": "browser",
+          "task": "transit-board::browser",
+          "seconds": 245.56,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::query-browser",
+          "seconds": 167.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::http-browser",
+          "seconds": 495.52,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "transit-board::grpc-browser",
+          "seconds": 374.2,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-browser",
+          "seconds": 182.96,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-views",
+          "seconds": 315.32,
+          "exit_code": 0
+        },
+        {
+          "lane": "browser",
+          "task": "test::reactive-views-lifecycle",
+          "seconds": 78.55,
+          "exit_code": 0
+        }
+      ],
+      "recorded_results": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/browser.json",
+        "sha256": "335a4caa7f025364dfab4e8b73e7ed8d5dfaa8204660c48ddd83be9b8dc5c6fd",
+        "bytes": 807
+      },
+      "recorded_metadata": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/browser.meta.json",
+        "sha256": "6b84c0f6753ea30da75b02b7789c8d9bb32e9a05a15398b2cd86fbbe2a6cb72c",
+        "bytes": 1172
+      },
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/browser.log",
+        "sha256": "fc2e95ce0ad3009a745730f90b0c76e05a896f4d1ec387aee9e08663082d680b",
+        "bytes": 50245
+      }
+    }
+  ],
+  "qualification_orchestration": [
+    {
+      "path": "tests/verification/results/sql-wire-clean-2026-10-14/clean-subset.py.gz",
+      "sha256": "d73b27501cfd599dfdfb7354e252a8ecbaf264b5f78273926a450d751cd95bff",
+      "bytes": 749
+    },
+    {
+      "path": "tests/verification/results/sql-wire-clean-2026-10-14/subset-runner.py.gz",
+      "sha256": "79d440c7dab042eeadc81c805a636f98fa9a93c7d61c47021a98e3a234d35641",
+      "bytes": 545
+    },
+    {
+      "path": "tests/verification/results/sql-wire-clean-2026-10-14/clean-gateway.py.gz",
+      "sha256": "c20e6226b912ec58068e107c18a178a37c14501c15d0c60c67817b83dba38e5c",
+      "bytes": 761
+    },
+    {
+      "path": "tests/verification/results/sql-wire-clean-2026-10-14/growth-subset-runner.py.gz",
+      "sha256": "981a85ac43422a0de3277a73e904f40cbf19db47dcc2fc3f9e99e6b7a104c07d",
+      "bytes": 544
+    }
+  ],
+  "gateway_observations": [
+    {
+      "profile": "database_wire_encoding",
+      "rows_per_sample": 10000,
+      "columns": 7,
+      "warmups": 1,
+      "repetitions": 5,
+      "optimize": "safe",
+      "samples": [
+        {
+          "path": "postgres_text",
+          "milliseconds": [
+            30.436178,
+            32.039094,
+            30.503919,
+            31.182384,
+            30.559286
+          ],
+          "framed_bytes": 5948890
+        },
+        {
+          "path": "postgres_binary",
+          "milliseconds": [
+            19.909519,
+            20.826243,
+            20.351339,
+            20.556513,
+            20.37307
+          ],
+          "framed_bytes": 3420000
+        },
+        {
+          "path": "mysql_text",
+          "milliseconds": [
+            11.069224,
+            11.178334,
+            10.836076,
+            10.834222,
+            11.089112
+          ],
+          "framed_bytes": 3148890
+        },
+        {
+          "path": "mysql_binary",
+          "milliseconds": [
+            9.403258,
+            9.24833,
+            9.122498,
+            9.338063,
+            9.307463
+          ],
+          "framed_bytes": 3080000
+        }
+      ],
+      "limits": "Six scalar types plus NULL; signed values vary by row, binary covers all 256 byte values. Includes scalar validation, formatting, framed-row construction and allocator work. Reuses each backend buffer; output escapes optimization. Excludes metadata, TLS, sockets, authority and storage. Framed bytes are database-protocol application bytes, not network traffic. Local observations, not a throughput or latency guarantee."
+    },
+    {
+      "profile": "database_wire_valid_write_cycle",
+      "seconds": 5.738,
+      "client_wait_seconds": 300,
+      "sql_wait_seconds": 270
+    },
+    {
+      "profile": "database_wire_faults",
+      "deferred_write_cycles": true,
+      "suspended_cancel": true,
+      "detached_write": true,
+      "invalid_connections": 10,
+      "native_revocation": true,
+      "revoked_metadata_suppressed": true,
+      "revoked_terminal_suppressed": true,
+      "credential_rotation": true,
+      "credential_cli": true
+    },
+    {
+      "profile": "database_wire_authority",
+      "administrator": 1234,
+      "table_principal": 1235,
+      "prepared_revocation": true,
+      "read_only_writes_rejected_before_admission": true,
+      "reads_preserved": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_certificate_rotation",
+      "both_protocols": true,
+      "old_trust_rejected": true,
+      "new_trust_verified": true
+    },
+    {
+      "profile": "database_wire_measurement",
+      "source_revision": "f3687a86025038b8f6a84d00bc8d12b4cf1dfab9",
+      "tracked_changes": false,
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+      "available_cpus": 48,
+      "rows": 4,
+      "selected_rows": 1,
+      "warmups": 1,
+      "repetitions": 5,
+      "unit": "ms",
+      "samples": {
+        "native_process": [
+          66.373,
+          50.478,
+          61.284,
+          48.081,
+          59.202
+        ],
+        "postgres_literal": [
+          248.658,
+          271.066,
+          249.007,
+          239.559,
+          262.082
+        ],
+        "postgres_prepared": [
+          202.663,
+          231.887,
+          215.177,
+          212.149,
+          184.138
+        ],
+        "mysql_literal": [
+          204.954,
+          227.582,
+          193.455,
+          218.897,
+          186.113
+        ],
+        "mysql_prepared": [
+          201.562,
+          217.601,
+          197.438,
+          211.424,
+          179.503
+        ]
+      },
+      "median": {
+        "native_process": 59.202,
+        "postgres_literal": 249.007,
+        "postgres_prepared": 212.149,
+        "mysql_literal": 204.954,
+        "mysql_prepared": 201.562
+      },
+      "limits": "Native includes a fresh process and compilation; drivers retain a connection and prepared handles. Sequential local observations include authority and TLS costs; other proof/build tasks may compete for resources. No throughput, speedup or production latency claim."
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "begin",
+      "variable_bytes": 40960
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "wait_ended",
+      "seconds": 270.116
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 270.366,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 301.166,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 332.043,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 167,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 362.749,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 393.738,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 424.59,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 207,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 455.271,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 220,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 486.105,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 233,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 517.042,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 246,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 547.975,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 259,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 578.761,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 609.521,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 640.35,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 671.017,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 310,
+        "input": 9847,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 701.736,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 732.619,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 335,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 763.857,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 343,
+        "input": 10639,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 795.351,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 826.686,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 858.066,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 889.996,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 921.359,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 385,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 952.574,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 983.163,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 1013.736,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "observing",
+      "seconds": 1044.284,
+      "operation": {
+        "operation": 3016,
+        "resource": 3,
+        "catalog": 18446744073709551615,
+        "phase": "active",
+        "pending_sequence": 0,
+        "input": 0,
+        "blocked": false,
+        "cancellation_requested": false
+      }
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "complete",
+      "seconds": 1056.655,
+      "wire_completion": false,
+      "operator_count_verified": true,
+      "sql_attempts": 1
+    },
+    {
+      "profile": "database_wire_values",
+      "utf8_bytes": 4096,
+      "binary_bytes": 4096,
+      "variable_bytes_per_row": 40960,
+      "all_ten_cells_verified": true,
+      "oversized_binding_rejected": true,
+      "defaults_and_null": true,
+      "required_rejection": true,
+      "literal_relational": true,
+      "stale_cancel": true,
+      "fragmented_query": true
+    },
+    {
+      "profile": "database_wire_schema",
+      "external_principal": 1234,
+      "alter_invalidates": true,
+      "drop_invalidates": true,
+      "name_reuse_invalidates": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_phases",
+      "unit": "ms",
+      "samples": {
+        "postgres_connect": [
+          53.562,
+          50.623,
+          50.428,
+          53.546,
+          49.71
+        ],
+        "mysql_connect": [
+          112.769,
+          109.983,
+          115.416,
+          105.887,
+          123.632
+        ],
+        "postgres_prepare": [
+          47.9,
+          46.106,
+          44.396,
+          45.503,
+          45.4
+        ],
+        "mysql_prepare": [
+          77.714,
+          80.083,
+          72.969,
+          70.275,
+          78.409
+        ],
+        "postgres_first_row": [
+          287.159,
+          250.352,
+          273.655,
+          283.545,
+          266.795
+        ],
+        "postgres_complete": [
+          451.386,
+          424.659,
+          438.765,
+          436.368,
+          430.238
+        ],
+        "mysql_first_row": [
+          246.55,
+          237.529,
+          237.497,
+          250.821,
+          241.675
+        ],
+        "mysql_complete": [
+          361.763,
+          364.755,
+          348.022,
+          367.572,
+          355.366
+        ],
+        "postgres_write": [
+          6442.105,
+          7595.233,
+          7300.098,
+          9275.654,
+          7856.945
+        ],
+        "mysql_write": [
+          6878.874,
+          7505.249,
+          8023.803,
+          8068.448,
+          7971.091
+        ]
+      },
+      "median": {
+        "postgres_connect": 50.623,
+        "mysql_connect": 112.769,
+        "postgres_prepare": 45.503,
+        "mysql_prepare": 77.714,
+        "postgres_first_row": 273.655,
+        "postgres_complete": 436.368,
+        "mysql_first_row": 241.675,
+        "mysql_complete": 361.763,
+        "postgres_write": 7595.233,
+        "mysql_write": 7971.091
+      },
+      "gateway_memory_kib": {
+        "VmRSS": 61812,
+        "VmHWM": 63024
+      },
+      "warmups": 1,
+      "repetitions": 5,
+      "rows": 4,
+      "limits": "Connect includes verified TLS, authentication and driver startup. Preparation excludes execution. First-row/complete use raw PostgreSQL frames and unbuffered Connector/Python, including driver and transport work. Writes include durable admission and observed completion. RSS is a Linux process sample; HWM covers this activation, not an allocator bound. Timings are sequential local observations, not an SLO or an encoding-only benchmark."
+    },
+    {
+      "profile": "database_wire_native_costs",
+      "observations": [
+        {
+          "path": "idle_100ms",
+          "elapsed_ms": 100.073,
+          "counters": {
+            "attempts": 27,
+            "POST": 28,
+            "request_bytes": 12970,
+            "read:process": 6,
+            "principal:2000": 3,
+            "principal:2000:read:process": 3,
+            "elapsed_ns": 64065353,
+            "POST:elapsed_ns": 64065353,
+            "work:wait_ns": 6021730,
+            "work:work_ns": 44105898,
+            "work:cache_hits": 214,
+            "work:cache_misses": 54,
+            "work:provider:requests": 110,
+            "work:provider:elapsed_ns": 28205600,
+            "work:provider:response_bytes": 188778,
+            "work:responses": 28,
+            "read:process:elapsed_ns": 14278439,
+            "principal:2000:read:process:elapsed_ns": 6163663,
+            "response_bytes": 41773,
+            "status:200": 28,
+            "principal:2003": 25,
+            "principal:2003:read:process": 3,
+            "principal:2003:read:process:elapsed_ns": 8114776,
+            "read:resource": 3,
+            "principal:2003:read:resource": 3,
+            "read:resource:elapsed_ns": 3256928,
+            "principal:2003:read:resource:elapsed_ns": 3256928,
+            "read:entries": 19,
+            "principal:2003:read:entries": 19,
+            "read:entries:elapsed_ns": 46529986,
+            "principal:2003:read:entries:elapsed_ns": 46529986
+          }
+        },
+        {
+          "path": "native_process",
+          "elapsed_ms": 68.292,
+          "counters": {
+            "attempts": 29,
+            "POST": 28,
+            "request_bytes": 16087,
+            "read:process": 4,
+            "principal:2000": 2,
+            "principal:2000:read:process": 2,
+            "elapsed_ns": 94998684,
+            "POST:elapsed_ns": 94998684,
+            "work:wait_ns": 30428768,
+            "work:work_ns": 49413841,
+            "work:cache_hits": 325,
+            "work:cache_misses": 61,
+            "work:provider:requests": 130,
+            "work:provider:elapsed_ns": 32616638,
+            "work:provider:response_bytes": 190883,
+            "work:responses": 28,
+            "read:process:elapsed_ns": 7543273,
+            "principal:2000:read:process:elapsed_ns": 3276848,
+            "response_bytes": 42174,
+            "status:200": 28,
+            "principal:2003": 12,
+            "principal:2003:read:process": 2,
+            "principal:2003:read:process:elapsed_ns": 4266425,
+            "read:resource": 2,
+            "principal:2003:read:resource": 2,
+            "read:resource:elapsed_ns": 4923533,
+            "principal:2003:read:resource:elapsed_ns": 4923533,
+            "read:entries": 8,
+            "principal:2003:read:entries": 8,
+            "read:entries:elapsed_ns": 35950034,
+            "principal:2003:read:entries:elapsed_ns": 35950034,
+            "read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 3082564,
+            "principal:1234": 14,
+            "principal:1234:read:capabilities": 1,
+            "principal:1234:read:capabilities:elapsed_ns": 3082564,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "principal:1234:read:snapshot_read": 13,
+            "read:snapshot_read:elapsed_ns": 43499280,
+            "principal:1234:read:snapshot_read:elapsed_ns": 43499280,
+            "snapshot_finish": 1
+          }
+        },
+        {
+          "path": "postgres_literal",
+          "elapsed_ms": 329.175,
+          "counters": {
+            "attempts": 157,
+            "POST": 157,
+            "request_bytes": 81712,
+            "read:process": 26,
+            "principal:2000": 9,
+            "principal:2000:read:process": 9,
+            "elapsed_ns": 481520055,
+            "POST:elapsed_ns": 481520055,
+            "work:wait_ns": 149971983,
+            "work:work_ns": 238748362,
+            "work:cache_hits": 1439,
+            "work:cache_misses": 296,
+            "work:provider:requests": 623,
+            "work:provider:elapsed_ns": 143772558,
+            "work:provider:response_bytes": 937672,
+            "work:responses": 157,
+            "read:process:elapsed_ns": 61776337,
+            "principal:2000:read:process:elapsed_ns": 21166280,
+            "response_bytes": 203857,
+            "status:200": 157,
+            "principal:2003": 62,
+            "principal:2003:read:process": 9,
+            "principal:2003:read:process:elapsed_ns": 22699447,
+            "read:resource": 9,
+            "principal:2003:read:resource": 9,
+            "read:resource:elapsed_ns": 26205015,
+            "principal:2003:read:resource:elapsed_ns": 26205015,
+            "read:entries": 51,
+            "principal:2003:read:entries": 44,
+            "read:entries:elapsed_ns": 178553030,
+            "principal:2003:read:entries:elapsed_ns": 155465196,
+            "principal:2001": 8,
+            "principal:2001:read:process": 8,
+            "principal:2001:read:process:elapsed_ns": 17910610,
+            "read:capabilities": 2,
+            "principal:1235": 78,
+            "principal:1235:read:capabilities": 2,
+            "read:capabilities:elapsed_ns": 2347015,
+            "principal:1235:read:capabilities:elapsed_ns": 2347015,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 41266055,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 171372603,
+            "principal:1235:read:read_entries:elapsed_ns": 171372603,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 23087834,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 41266055
+          }
+        },
+        {
+          "path": "postgres_prepared",
+          "elapsed_ms": 352.682,
+          "counters": {
+            "attempts": 172,
+            "POST": 172,
+            "request_bytes": 88517,
+            "read:process": 31,
+            "principal:2000": 11,
+            "principal:2000:read:process": 11,
+            "elapsed_ns": 476419627,
+            "POST:elapsed_ns": 476419627,
+            "work:wait_ns": 125265255,
+            "work:work_ns": 259999854,
+            "work:cache_hits": 1532,
+            "work:cache_misses": 337,
+            "work:provider:requests": 694,
+            "work:provider:elapsed_ns": 154516885,
+            "work:provider:response_bytes": 1083807,
+            "work:responses": 172,
+            "read:process:elapsed_ns": 70471030,
+            "principal:2000:read:process:elapsed_ns": 22662246,
+            "response_bytes": 227855,
+            "status:200": 172,
+            "principal:2003": 75,
+            "principal:2003:read:process": 11,
+            "principal:2003:read:process:elapsed_ns": 30531761,
+            "read:resource": 11,
+            "principal:2003:read:resource": 11,
+            "read:resource:elapsed_ns": 28143975,
+            "principal:2003:read:resource:elapsed_ns": 28143975,
+            "read:entries": 60,
+            "principal:2003:read:entries": 53,
+            "read:entries:elapsed_ns": 178572580,
+            "principal:2003:read:entries:elapsed_ns": 156685219,
+            "principal:2001": 9,
+            "principal:2001:read:process": 9,
+            "principal:2001:read:process:elapsed_ns": 17277023,
+            "read:capabilities": 1,
+            "principal:1235": 77,
+            "principal:1235:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 1790773,
+            "principal:1235:read:capabilities:elapsed_ns": 1790773,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 44574263,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 152867006,
+            "principal:1235:read:read_entries:elapsed_ns": 152867006,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 21887361,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 44574263
+          }
+        },
+        {
+          "path": "mysql_literal",
+          "elapsed_ms": 264.678,
+          "counters": {
+            "attempts": 122,
+            "POST": 122,
+            "request_bytes": 63850,
+            "read:process": 20,
+            "principal:2000": 7,
+            "principal:2000:read:process": 7,
+            "elapsed_ns": 388557561,
+            "POST:elapsed_ns": 388557561,
+            "work:wait_ns": 120576419,
+            "work:work_ns": 195415176,
+            "work:cache_hits": 1125,
+            "work:cache_misses": 238,
+            "work:provider:requests": 495,
+            "work:provider:elapsed_ns": 117733769,
+            "work:provider:response_bytes": 766186,
+            "work:responses": 122,
+            "read:process:elapsed_ns": 47151693,
+            "principal:2000:read:process:elapsed_ns": 22037791,
+            "response_bytes": 162072,
+            "status:200": 122,
+            "principal:2003": 49,
+            "principal:2003:read:process": 7,
+            "principal:2003:read:process:elapsed_ns": 14956457,
+            "read:resource": 7,
+            "principal:2003:read:resource": 7,
+            "read:resource:elapsed_ns": 14299813,
+            "principal:2003:read:resource:elapsed_ns": 14299813,
+            "read:entries": 40,
+            "principal:2003:read:entries": 35,
+            "read:entries:elapsed_ns": 147407816,
+            "principal:2003:read:entries:elapsed_ns": 130182093,
+            "principal:2001": 6,
+            "principal:2001:read:process": 6,
+            "principal:2001:read:process:elapsed_ns": 10157445,
+            "read:capabilities": 2,
+            "principal:1235": 60,
+            "principal:1235:read:capabilities": 2,
+            "read:capabilities:elapsed_ns": 5799492,
+            "principal:1235:read:capabilities:elapsed_ns": 5799492,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 42066045,
+            "snapshot_finish": 1,
+            "read:read_entries": 40,
+            "principal:1235:read:read_entries": 40,
+            "read:read_entries:elapsed_ns": 131832702,
+            "principal:1235:read:read_entries:elapsed_ns": 131832702,
+            "principal:1235:read:entries": 5,
+            "principal:1235:read:entries:elapsed_ns": 17225723,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 42066045
+          }
+        },
+        {
+          "path": "mysql_prepared",
+          "elapsed_ms": 378.363,
+          "counters": {
+            "attempts": 170,
+            "POST": 170,
+            "request_bytes": 87805,
+            "read:process": 30,
+            "principal:2000": 10,
+            "principal:2000:read:process": 10,
+            "elapsed_ns": 527490287,
+            "POST:elapsed_ns": 527490287,
+            "work:wait_ns": 157210076,
+            "work:work_ns": 274816288,
+            "work:cache_hits": 1532,
+            "work:cache_misses": 331,
+            "work:provider:requests": 684,
+            "work:provider:elapsed_ns": 170740997,
+            "work:provider:response_bytes": 1067361,
+            "work:responses": 170,
+            "read:process:elapsed_ns": 69180826,
+            "principal:2000:read:process:elapsed_ns": 22513458,
+            "response_bytes": 224486,
+            "status:200": 170,
+            "principal:2003": 73,
+            "principal:2003:read:process": 10,
+            "principal:2003:read:process:elapsed_ns": 20188524,
+            "read:resource": 10,
+            "principal:2003:read:resource": 10,
+            "read:resource:elapsed_ns": 24934245,
+            "principal:2003:read:resource:elapsed_ns": 24934245,
+            "read:entries": 60,
+            "principal:2003:read:entries": 53,
+            "read:entries:elapsed_ns": 214611778,
+            "principal:2003:read:entries:elapsed_ns": 192909554,
+            "principal:2001": 10,
+            "principal:2001:read:process": 10,
+            "principal:2001:read:process:elapsed_ns": 26478844,
+            "read:capabilities": 1,
+            "principal:1235": 77,
+            "principal:1235:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 4156044,
+            "principal:1235:read:capabilities:elapsed_ns": 4156044,
+            "read:snapshot_read": 13,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 48191588,
+            "snapshot_finish": 1,
+            "read:read_entries": 56,
+            "principal:1235:read:read_entries": 56,
+            "read:read_entries:elapsed_ns": 166415806,
+            "principal:1235:read:read_entries:elapsed_ns": 166415806,
+            "principal:1235:read:entries": 7,
+            "principal:1235:read:entries:elapsed_ns": 21702224,
+            "principal:1235:read:snapshot_read": 13,
+            "principal:1235:read:snapshot_read:elapsed_ns": 48191588
+          }
+        }
+      ],
+      "limits": "One cold preparation/read per path through a bounded HTTP diagnostic proxy; this changes transport costs and is separate from unproxied timings. Counts cover gateway and explicit native caller attempts during each wall-clock window, including concurrent account maintenance; Catalog worker/courier requests bypass the proxy. Provider and authority work come from completed x-transit-work responses. Byte counters are native JSON payloads, not TLS/database-wire traffic. No payloads or credentials are retained; no causal subtraction or speedup claim."
+    },
+    {
+      "profile": "database_wire_capacity",
+      "normal_connections": 8,
+      "authentications": 4,
+      "reserved_cancel": true,
+      "health_progress": true,
+      "prepared_limit": 16,
+      "portal_limit": 4,
+      "oversized_header": true
+    },
+    {
+      "profile": "database_wire_drain",
+      "readiness_revoked": true,
+      "joined_exit": true
+    },
+    {
+      "profile": "database_wire_cold_storage",
+      "data_objects": 1435,
+      "file_bytes": 376759882,
+      "hot_bytes": 8388608,
+      "cache_bytes": 8388608,
+      "resident_pages": 8
+    },
+    {
+      "profile": "database_native_gateway",
+      "slice": "all",
+      "psycopg": "3.3.4",
+      "connector": "9.4.0",
+      "driver_matrix": true,
+      "wide_values": true,
+      "seconds": 1509.737
+    },
+    {
+      "profile": "database_wire_cli",
+      "seconds": 46.651,
+      "fresh_fixture": true,
+      "both_protocols": true
+    }
+  ],
+  "failed_attempts": [
+    {
+      "scope": "complete: unsupported SDK null predicate branch",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-1.log",
+        "sha256": "94dbe525c56335a8527eb5374258537db8cf8a5f03ce9ae31d2662a315b5604d",
+        "bytes": 130639
+      }
+    },
+    {
+      "scope": "experience: provisioning timeout60",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-2.log",
+        "sha256": "06401751713a5fee3e7feaf5cb8c4a1f6408460e5c1dee798bc678be471edbe4",
+        "bytes": 42234
+      }
+    },
+    {
+      "scope": "browser: inspection asset exceeded900k",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-3.log",
+        "sha256": "a9102c33477c9f4a0e32e4ccd7d5b090805e3cb00e13b082081344621caf58d6",
+        "bytes": 24966
+      }
+    },
+    {
+      "scope": "bindings: hot-only64MiB capacity",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-4.log",
+        "sha256": "0e672cc40034b0d4b810d5a06d858b8ab9d16bf3c2f4d339a6ba127bea0603d6",
+        "bytes": 123628
+      }
+    },
+    {
+      "scope": "browser: provisioning timeout60",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-5.log",
+        "sha256": "d566d33f38fe86d0dff682ea0ae3d831a7bf5961e7d4a70a331c0592947d0eec",
+        "bytes": 29580
+      }
+    },
+    {
+      "scope": "browser: live view reset before replacement result",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-6.log",
+        "sha256": "c44777fb660da8b25b2134be9f9eeacc54c1833f410d9989cedd4f1abc1dc134",
+        "bytes": 135934
+      }
+    },
+    {
+      "scope": "focused negative control: changed execution fingerprint mistaken for changed template",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-7.log",
+        "sha256": "5f8c1930829f45b23c923624ff9cb4c9132c7beaba234a97a138c52e77101fef",
+        "bytes": 120872
+      }
+    },
+    {
+      "scope": "expanded gateway: valid write inherited ten-second raw-client connection timeout",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-8.log",
+        "sha256": "78af1be53155be53e1be4ea7dfdfebdafc7699057466d17a57347a36e72c1231",
+        "bytes": 61928
+      }
+    },
+    {
+      "scope": "expanded gateway: 1800-second wide observation expired after added CLI history; original operation active, unblocked, native progress continuing",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/failed-9.log",
+        "sha256": "51932230c975682bab11b8acae9e2da7785a535044a0f812e6111d0b12a4166b",
+        "bytes": 86330
+      }
+    }
+  ],
+  "intentional_interruptions": [
+    {
+      "record": {
+        "reason": "Intentional interruption of redundant Java task after required original prefix passed; Java and .NET already passed in a separate pristine74391333 subset. BEAM/rest subset owns remaining inventory tasks. No pass is claimed for the enclosing original bindings lane or interrupted task.",
+        "unix": 1791978021.165601,
+        "source_revision": "2fa8da4271c3c132d09b6bb1eaf51771c7bafadb",
+        "active_task": {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test"
+        },
+        "completed_tasks": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test"
+        ],
+        "process_group": 624202
+      },
+      "evidence": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/bindings-prefix-stop.json",
+        "sha256": "d2ac1dec5e0ddaf0a03b4fee3a33caa05120d4853b4ac2d4319254b7d8e6bcea",
+        "bytes": 764
+      }
+    }
+  ],
+  "focused_workspace_regressions": [
+    {
+      "scope": "just check at f3687a86 includes the Board refresh correction and the complete two-fixture gateway schedule; final changes only record evidence, documentation and CI job caps.",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/check.log",
+        "sha256": "418112b5693ccb6f937110402e722b92fbf30583d4956c6af3fea3563c8ecf68",
+        "bytes": 19207
+      }
+    },
+    {
+      "scope": "Workspace proof: 190.09 seconds; newer finite result with unchanged resource/contract/schema and changed bound execution fingerprint, then denial between verification and visible reread.",
+      "log": {
+        "path": ".cache/sql-wire-qualification/2026-10-14/clean/refresh.log",
+        "sha256": "c0323b994d385455d40c389189161b7b60e1773e771bc3f76e5554165197e4fd",
+        "bytes": 19110
+      }
+    }
+  ],
+  "limits": [
+    "Hosted Actions status is reported separately in the PR; local evidence cannot establish a hosted pass.",
+    "A 40 KiB mutation outlasts the 270-second SQL wait and completes through its original operation after 1056.655 seconds in this clean cold-store fixture. The earlier workspace measurement took 965.415 seconds. Neither is a latency guarantee.",
+    "Compose/reference physical replacements follow completed mutations. Native ledger schedules separately qualify pending-step, lost-receipt and fencing recovery."
+  ]
+}

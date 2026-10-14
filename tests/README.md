@@ -12,10 +12,11 @@ The run flushes 1426 cold data objects; MinIO's sampled file size is 374415355 b
 This is a workspace run, not clean-checkout CI.
 
 The pinned clients are Psycopg 3.3.4, psql/libpq 18.6, Connector/Python 9.4.0 and
-Oracle mysql/libmysqlclient 8.4.11. Python and C checks execute CREATE, prepared
-INSERT/SELECT/UPDATE/DELETE and all six scalar types; CLI checks execute literal
-SELECT. The independent C checks cover signed/unsigned extremes, parameter/result
-metadata, NULL, binary values, reset and counts. PostgreSQL checks both result
+Oracle mysql/libmysqlclient 8.4.11. In that recorded run, Python and C checks
+execute CREATE, prepared INSERT/SELECT/UPDATE/DELETE and all six scalar types;
+CLI checks execute literal SELECT. The independent C checks cover signed/unsigned
+extremes, parameter/result metadata, NULL, binary values, reset and counts.
+PostgreSQL checks both result
 formats and duplicate rejection SQLSTATE 23505. MySQL checks changed-row and
 CLIENT_FOUND_ROWS modes. Literal int64 joins/groups and defaults versus explicit
 NULL use the shared owners.
@@ -150,6 +151,64 @@ The full gateway task now runs those CLI lifecycles in a separate owned fresh
 fixture, preserving the earlier wide workload and its deadlines. Both schedules
 must pass; neither the failed observation nor the passing client prefix qualifies
 the complete task.
+
+### Committed-source qualification
+
+The [clean qualification record](verification/results/sql-wire-clean-2026-10-14.json)
+retains passing evidence for all **89 inventory tasks**, including the seven
+browser tasks. This is composed coverage across committed-source clean checkouts,
+not one complete run at a single HEAD. Exact task scopes, revisions, durations,
+log digests, orchestration scripts and failed attempts remain in the record.
+
+| Lane | Passed tasks | Source revisions |
+| --- | ---: | --- |
+| core | 23/23 | `d9c0e599` |
+| growth | 32/32 | `6cfeab83`, `f3687a86` |
+| experience | 7/7 | `fec5dd68` |
+| launchers | 2/2 | `c5d46e8f` |
+| bindings | 18/18 | `2fa8da42`, `74391333` |
+| browser | 7/7 | `74391333` |
+
+The original complete run at `6cfeab83` finished all 32 growth tasks, then failed
+in the TypeScript SDK inspection decoder. Later clean runs qualify that correction,
+Board asset grouping, SDK cold-store selection, provisioning setup and refresh
+identity. Native runtime and wire/ABI definitions are unchanged after that growth
+source. The expanded CLI fixture has a fresh full gateway pass.
+
+Bindings combines eight completed tasks from its original clean run with complete
+Java/.NET and BEAM/remaining-task subsets executing unchanged canonical recipes.
+The original sequence was intentionally interrupted during duplicate Java work
+after Java had passed in its separate clean subset. Its incomplete enclosing run
+is retained as interrupted; it is not counted as a complete bindings-lane pass.
+
+The fresh gateway task passes at `f3687a86` in **1709.14 seconds** across two owned
+fixtures. Both `psql` and Oracle `mysql` execute CREATE, INSERT, UPDATE and DELETE
+in their own fresh history with Unicode/NULL and independent-connection row readback.
+The original fixture retains its wide workload and deadlines alongside the full
+C/Python prepared matrix and authority, credential, schema, bounds and drain cases.
+Its one original 40 KiB operation completes after **1056.655 seconds**
+with original matched/changed counts and all ten cells verified through both
+protocols. The SQL wait remains 270 seconds, the operator observation budget
+remains 1800 seconds, and SQL is sent once. The earlier 965.415-second workspace
+measurement remains a separate observation; neither establishes a latency bound.
+
+The first expanded CLI run at `fed0ed76` completed the client matrix, then failed
+when the raw fault client used its ten-second connection timeout for a valid
+durable INSERT. Only that command now receives one absolute 300-second client
+response deadline around the existing 270-second SQL wait. Authentication and
+malformed-cycle checks retain ten seconds; no mutation is resent. The failed
+587.02-second enclosing task remains recorded separately from the later pass.
+
+The complete clean browser lane at `74391333` passes all seven tasks. Its live-view
+fixture takes **306.73 seconds**, with **52500 ms** from mutation to verified display,
+then denies the visible reread after revocation. Lifecycle reset also passes in
+**69.81 seconds**. The full source manifest remains fixed within each finite result;
+a later source cut may change the bound execution fingerprint without changing
+the original template, resource, contract or schema.
+
+Local timing sums inform CI execution caps, separately from hosted setup and
+feedback budgets. Parallel local qualification can affect those measurements.
+Hosted status is reported in the PR and cannot be inferred from these passes.
 
 ## Database wire foundation
 
