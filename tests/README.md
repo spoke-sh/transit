@@ -60,6 +60,13 @@ Startup tests reject duplicate accounts, ambiguous termination and unsupported
 major versions. Aggregate frame overflow and invalid logical cells clear the
 backend buffer. These checks supply protocol bytes, not a live session proof.
 
+Independent MySQL backend fixtures cover all six scalar fields in text/binary
+rows, NULL bitmap offset two, UTF-8 collation 309, binary metadata, full uint64
+counts, prepare replies, EOF/OK, errors and full-auth negotiation. Handshake units
+reject truncated/changed TLS negotiation, nonzero reserved bytes, unsupported
+capabilities and trailing password bytes. The combined
+`just test::sql-wire-contracts` passes these fixtures and all three package suites.
+
 These are library-level checks, registered in ordinary core CI. They do not
 qualify an authenticated listener, session resource enforcement or durable write
 recovery. The complete native `just test::unit` also passes after replacing two
@@ -104,6 +111,19 @@ intents, then reads through PostgreSQL `$n` and MySQL backtick/`?` syntax, inclu
 a NULL comparison and a MySQL self-join/grouped SUM. Preparing and reading adds
 no native sends. Fuze unit checks independently compare dialect plan fingerprints
 and exercise quoted CREATE names and rejected DDL/relational parameters.
+
+The live `AccountRuntime` extension passes in 37.772 seconds with 33 retained
+operations, 214 owner turns and 208 sends. The worker, coordinator, Table worker
+and ingress caller run concurrently. A delayed accepted ingress reply is cut off
+by cancelling the caller task; the account retains the exact signed request,
+recovers its original receipt and completes a subsequent SQL UPDATE. The detached
+reservation remains discoverable and is explicitly cancelled afterward. Two
+downstream replies encounter joined/cancelled sockets; those are recorded
+separately from upstream failures. The initial concurrent run exposed a stale
+ledger-read race, corrected by reacquiring exact-current reads without replacing
+pending commands. The next run completed the SQL operation but failed because
+the proxy counted cancellation's broken response sockets as upstream failures;
+the corrected classification and full schedule pass.
 
 This proof exercises the library coordinator and native GenServer adapter through
 a dedicated harness. It does not qualify a deployed database listener, concurrent

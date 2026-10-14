@@ -47,6 +47,23 @@ progress. `Coordinator` proposes fenced transitions, reads published saved steps
 before dispatch, and observes original Table outcomes. Its caller serializes
 control requests and retains each exact request until its disposition is known.
 
+`AccountRuntime` composes that worker and coordinator with one bounded
+`ControlLane` per sequenced role. Connection cancellation releases its wait while
+the account retains and polls the exact pending ingress request. Concurrent ledger
+updates invalidate exact-current reads; the runtime reacquires those reads while
+preserving pending commands. Terminal disclosure checks the original Table
+outcome under current rights, separately from the ledger's retained summary.
+Callers run `tick` independently of sockets, supply exclusive activation evidence
+before starting, and join worker/connections before freeing the runtime. Startup
+requires an already provisioned and initialized ledger with eligible native
+ownership; it does not grant rights or reuse an activation.
+
+`Configuration` validates explicit SQL account/database mappings, disjoint native
+sequence owners, TLS/key references and connection budgets. `Credential` binds a
+versioned verifier to an account identity and credential revision. File loading,
+atomic credential replacement and session revocation are host responsibilities;
+these types do not themselves supply a listener or credential-watching service.
+
 `Statement` owns SQL text and immutable catalog metadata for typed single-Table
 SELECT/DML, literal CREATE and literal relational SELECT. Preparation and
 `checkValues` do not open a data snapshot or submit a native input. `validate`

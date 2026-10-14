@@ -29,12 +29,14 @@ def run(node, catalog, gateway):
         failures = []
         sends = 0
         turns = 0
+        delay_ingress = False
+        detached_replies = 0
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
-                nonlocal armed, sends, turns
+                nonlocal armed, sends, turns, delay_ingress, detached_replies
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', port, timeout=15)
                 try:
@@ -56,6 +58,10 @@ def run(node, catalog, gateway):
                                 assert data == receipt
                                 replayed.add(name)
                         selected = request['principal'] if 'send' in command else 'turn' if turn else None
+                        if delay_ingress and selected == 2001:
+                            delay_ingress = False
+                            lost['detached'] = body, data
+                            time.sleep(0.25)
                         if armed is not None and selected == armed:
                             lost[str(armed)] = body, data
                             armed = None
@@ -64,7 +70,12 @@ def run(node, catalog, gateway):
                     self.send_header('Content-Length', str(len(data)))
                     self.send_header('Content-Type', 'application/json')
                     self.end_headers()
-                    self.wfile.write(data)
+                    try:
+                        self.wfile.write(data)
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Joining a cancelled host task can close its current
+                        # read/receipt socket after the authority has responded.
+                        detached_replies += 1
                 except BaseException as error:
                     failures.append(repr(error))
                 finally:
@@ -147,10 +158,19 @@ def run(node, catalog, gateway):
             assert (result['matched'], result['changed']) == (1, 0), result
             history = call(gateway, 'history')
             assert history == dict(count=31, pages=4, empty_scheduling_indexes=True), history
+            delay_ingress = True
+            result = call(gateway, 'runtime', 'UPDATE wire_data SET value = 21 WHERE id = 2', 'detach')
+            assert (result['outcome']['state'], result['outcome']['matched'], result['outcome']['changed']) == ('applied', 1, 1), result
+            assert call(gateway, 'read', 'postgres', 'SELECT value FROM wire_data WHERE id = $1', 2)['rows'] == [[21]]
+            assert 'detached' in replayed and result['detached'] is not None
+            assert call(gateway, 'status', result['detached'])['phase'] == 'reserved'
+            call(gateway, 'cancel', result['detached'])
+            call(gateway, 'run')
+            assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
             assert not failures, failures
-            print(json.dumps(dict(profile='native_gateway_ledger', operations=31,
+            print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
                                   lost_receipts=sorted(replayed), fenced_replacements=3,
-                                  exact_counts=True, turns=turns, sends=sends,
+                                  exact_counts=True, detached_replies=detached_replies, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
             if authority is not None:

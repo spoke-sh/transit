@@ -9607,6 +9607,43 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Backend.zig": {
+      "errors": {
+        "FrameTooLarge": 1,
+        "InvalidAuthentication": 1,
+        "InvalidSqlState": 1,
+        "InvalidWireColumns": 2,
+        "InvalidWireStatement": 1,
+        "InvalidWireText": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "begin()": "<inferred>",
+        "columns()": "<inferred>",
+        "describe()": "<inferred>",
+        "eof()": "<inferred>",
+        "failure()": "<inferred>",
+        "fullAuthentication()": "<inferred>",
+        "greeting()": "<inferred>",
+        "int()": "<inferred>",
+        "length()": "<inferred>",
+        "ok()": "<inferred>",
+        "prepared()": "<inferred>",
+        "row()": "<inferred>",
+        "string()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/Codec.zig": {
       "errors": {
         "InvalidWireLength": 1,
@@ -9698,6 +9735,36 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/Handshake.zig": {
+      "errors": {
+        "FrameTooLarge": 1,
+        "InvalidAuthentication": 3,
+        "InvalidWireMessage": 1,
+        "TooManyWireAttributes": 1,
+        "UnsupportedAuthentication": 1,
+        "UnsupportedWireCapabilities": 1,
+        "UnsupportedWireCharset": 1,
+        "WireNegotiationChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Prefix.read()": "<inferred>",
+        "name()": "<inferred>",
+        "password()": "<inferred>",
+        "response()": "<inferred>",
+        "upgrade()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/Scalar.zig": {
       "errors": {
         "InvalidWireParameterType": 1,
@@ -9736,9 +9803,11 @@
         "catch": 0
       },
       "imports": [
+        "Backend.zig",
         "Codec.zig",
         "Command.zig",
         "Frame.zig",
+        "Handshake.zig",
         "Scalar.zig",
         "transit_sql_gateway"
       ]
@@ -14991,6 +15060,43 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/AccountRuntime.zig": {
+      "errors": {
+        "Conflict": 3,
+        "GatewayControlRejected": 2,
+        "GatewayDeadline": 1,
+        "GatewayIdentityConflict": 2,
+        "GatewayOperationBlocked": 1,
+        "GatewayOwnerUnavailable": 2,
+        "GatewayWaitCancelled": 1,
+        "InvalidGatewayConfiguration": 1,
+        "MissingGatewayOperation": 1,
+        "MissingGatewayTerminal": 2,
+        "Rejected": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Deadline.check()": "<inferred>",
+        "advancePrivate()": "<inferred>",
+        "control()": "<inferred>",
+        "discover()": "<inferred>",
+        "execute()": "<inferred>",
+        "finishControl()": "<inferred>",
+        "init()": "<inferred>",
+        "observe()": "<inferred>",
+        "tick()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 49,
+        "catch": 8
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Authentication.zig": {
       "errors": {
         "AuthenticationFailed": 3,
@@ -15110,6 +15216,33 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/Configuration.zig": {
+      "errors": {
+        "GatewayDatabaseDenied": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidAuthentication": 3,
+        "InvalidGatewayConfiguration": 9
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Account.database()": "<inferred>",
+        "Credential.validate()": "<inferred>",
+        "account()": "<inferred>",
+        "path()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateName()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Control.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -15157,6 +15290,35 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 33,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-gateway/src/ControlLane.zig": {
+      "errors": {
+        "GatewayControlBusy": 1,
+        "GatewayControlNotPending": 1,
+        "GatewayUnresolvedStep": 1
+      },
+      "outcomes": {
+        "Result": [
+          "idle",
+          "pending",
+          "processed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "discardConflictingProposal()": "<inferred>",
+        "poll()": "<inferred>",
+        "start()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
         "catch": 0
       },
       "imports": [
@@ -15564,11 +15726,14 @@
         "catch": 0
       },
       "imports": [
+        "AccountRuntime.zig",
         "Authentication.zig",
         "Behavior.zig",
         "Bytes.zig",
         "Client.zig",
+        "Configuration.zig",
         "Control.zig",
+        "ControlLane.zig",
         "Coordinator.zig",
         "Ledger.zig",
         "LedgerRecords.zig",

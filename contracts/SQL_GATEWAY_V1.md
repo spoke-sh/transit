@@ -352,6 +352,40 @@ and signature, then attempts the original request once. Unknown outcomes retain
 that request; no helper silently allocates a successor or substitutes a new
 signature. Read-only list/discover/status acquisition does not call the scheduler.
 
+## Runtime handoff and configuration
+
+`ControlLane` owns at most one exact signed request and its optional native
+receipt. Preparation transfers into the lane before submit. Polling neither
+allocates a successor nor replaces the request after transport/status failure.
+The lane clears only after an attributed processed observation. It belongs to
+the account runtime, independent of a connection's wait or allocation lifetime.
+
+`AccountRuntime` serializes ingress through its lane and ticks the ledger worker
+and private coordinator independently. Each native HTTP client has one borrower;
+sessions use their own transport for metadata, reads and observations. An
+exact-current ledger reader invalidated by concurrent publication is reacquired,
+while signed pending work is retained. Only a definite native `ConflictingRetry`
+on an unreceipted private coordinator proposal permits clearing that proposal,
+after checking the actual current native fence. This exception never applies to
+a published Table step or ingress/operator control.
+
+Execution reserves a nonce/operation, binds an immutable Table intent, uploads it
+and waits for original terminal evidence. Cancellation/deadline releases the
+wait; it does not roll back, discard or authorize expiry of accepted work. A
+partial upload remains discoverable. The returned terminal record must equal a
+fresh authorized observation from the Table owner; a cached ledger count alone
+cannot establish disclosure authority. The host joins workers and connections
+before destruction and requires fresh eligible ownership for a restarted process.
+
+`Configuration` requires version 1 and the current native definition explicitly.
+SQL account names and database names map to configured native bindings only.
+Within a realm, configured accounts cannot share a ledger owner/resource or any
+sequenced principal. TLS material, native keys, activation and spill paths are
+explicit references. A `Credential` binds account identity, nonzero revision,
+enabled state and current verifier definition. The host owns file loading,
+atomic replacement and existing-session revision checks; validating these values
+does not provision grants, certify an activation or open a listener.
+
 ## Primary definitions
 
 The adapters follow the selected portions of PostgreSQL's

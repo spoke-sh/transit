@@ -100,6 +100,22 @@ fn control(init: std.process.Init, caller: *gateway.Client, directory: []const u
     try std.Io.Dir.cwd().deleteFile(init.io, try support.path(init, directory, "control-pending.json"));
     return receipt;
 }
+fn runtimeWorker(runtime: *gateway.AccountRuntime) !void {
+    while (true) {
+        _ = runtime.tick() catch |err| {
+            if (!s.client.Client.unavailable(err)) return err;
+        };
+        try runtime.io.sleep(.fromMilliseconds(2), .awake);
+    }
+}
+fn runtimeTable(init: std.process.Init, url: []const u8, directory: []const u8, config: Config) !void {
+    var wire = s.client.Client.init(init.gpa, init.io, url);
+    defer wire.deinit();
+    while (true) {
+        _ = try pump(init, &wire, directory, config, true);
+        try init.io.sleep(.fromMilliseconds(2), .awake);
+    }
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len < 4) return error.Usage;
@@ -132,6 +148,39 @@ pub fn main(init: std.process.Init) !void {
     var coordinator_client = try client(&wire, registry, 2003);
     var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try support.key(10), .generation = config.writer.generation };
     defer coordinator.deinit();
+    if (std.mem.eql(u8, mode, "runtime")) {
+        const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try support.key(10) }, 5000);
+        defer runtime.deinit();
+        var worker = try init.io.concurrent(runtimeWorker, .{runtime});
+        defer worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
+            std.debug.print("Runtime failed: {s}\n", .{@errorName(err)});
+        };
+        var table_worker = try init.io.concurrent(runtimeTable, .{ init, args[1], directory, config });
+        defer table_worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
+            std.debug.print("Table failed: {s}\n", .{@errorName(err)});
+        };
+        const deadline: gateway.AccountRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = 60000 };
+        while (!runtime.ready.load(.acquire)) {
+            try deadline.check(init.io);
+            try init.io.sleep(.fromMilliseconds(2), .awake);
+        }
+        var observer = try client(&wire, registry, 2001);
+        const detached_nonce: [16]u8 = @splat(177);
+        const detach = args.len > 5 and std.mem.eql(u8, args[5], "detach");
+        if (detach) {
+            var waiting = try init.io.concurrent(gateway.AccountRuntime.control, .{ runtime, .{ .begin = .{ .nonce = detached_nonce, .binding = config.binding } }, deadline });
+            try init.io.sleep(.fromMilliseconds(100), .awake);
+            if (waiting.cancel(init.io)) |_| return error.ExpectedCancelledWait else |err| if (err != error.Canceled and err != error.Cancelled) return err;
+        }
+        var table: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = 1234 }, .key = try support.key(10) };
+        var statement = try gateway.Statement.prepare(init.gpa, &table, args[4], .transit, read_options);
+        defer statement.deinit();
+        var operation: ?u64 = null;
+        const result = try runtime.execute(init.gpa, &observer, &table, &statement, &.{}, deadline, &operation);
+        var source = try observer.source();
+        const detached = if (detach) (try registry.discover(&source, detached_nonce)).?.id else null;
+        return support.print(init, .{ .operation = operation, .outcome = result, .detached = detached });
+    }
     if (std.mem.eql(u8, mode, "read")) {
         var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = 1234 }, .key = try support.key(10) };
         const dialect: c.fuze.Sql.Dialect = if (std.mem.eql(u8, args[4], "mysql")) .mysql else .transit;
