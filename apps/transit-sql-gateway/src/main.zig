@@ -9,6 +9,9 @@ const Stop = @import("Stop.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const telemetry = g.query.wire.observability.telemetry;
+test {
+    _ = @import("Host.zig");
+}
 const Worker = struct {
     done: std.atomic.Value(bool) = .init(true),
     active: std.atomic.Value(bool) = .init(false),
@@ -180,6 +183,8 @@ const Server = struct {
         try self.acquire(index);
         defer self.release(index);
         const host = try Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, startup.database(), .transit, &slot.cancelled, &slot.active);
+        host.diagnostics = self.diagnostics;
+        host.wire.observer = self.diagnostics;
         defer host.deinit();
         try tx.writeAll(try backend.authenticate(.final, &proof));
         try tx.writeAll(try backend.authenticate(.ok, ""));
@@ -255,6 +260,8 @@ const Server = struct {
         try self.acquire(index);
         defer self.release(index);
         const host = try Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, database, .mysql, &slot.cancelled, &slot.active);
+        host.diagnostics = self.diagnostics;
+        host.wire.observer = self.diagnostics;
         defer host.deinit();
         std.crypto.secureZero(u8, response.payload);
         var limits = self.config.limits;

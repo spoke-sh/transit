@@ -6,6 +6,7 @@ const q = g.query;
 const c = g.catalog;
 const f = g.fuze;
 const p = c.protocol;
+const telemetry = q.wire.observability.telemetry;
 const Self = @This();
 allocator: std.mem.Allocator,
 io: std.Io,
@@ -25,6 +26,7 @@ deadline: g.AccountRuntime.Deadline,
 operation: ?u64 = null,
 terminal: ?g.Terminal = null,
 detail_buffer: [160]u8 = undefined,
+diagnostics: ?*telemetry.Runtime = null,
 pub const read_options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
@@ -136,9 +138,10 @@ fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@Type
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            if (!stale or attempts == 64) return err;
+            const capacity = err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity;
+            if ((!stale and !capacity) or attempts == 64) return err;
             attempts += 1;
-            try self.io.sleep(.fromMilliseconds(1), .awake);
+            try self.io.sleep(.fromMilliseconds(if (capacity) 5 else 1), .awake);
             continue;
         };
     }
@@ -219,6 +222,8 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     return read;
 }
 pub fn closeRead(self: *Self, read: *Read) void {
+    const rejection = self.wire.last_rejection;
+    defer self.wire.last_rejection = rejection;
     if (read.row) |*row| row.deinit();
     switch (read.value) {
         .single => |*query| {
@@ -256,7 +261,8 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     }, .count = terminal.matched, .changed = terminal.changed };
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
-    const info: struct { [5]u8, []const u8 } = switch (err) {
+    if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "sql.request.failed", .level = .warn, .outcome = .failed, .error_type = if (self.wire.last_rejection) |rejection| @tagName(rejection) else @errorName(err) });
+    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else switch (err) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled => .{ "57014".*, "Request wait ended; admitted writes require outcome inspection" },
@@ -293,4 +299,17 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     };
     const detail = if (self.operation) |id| std.fmt.bufPrint(&self.detail_buffer, "Gateway operation {d}; sending SQL again creates new work", .{id}) catch null else null;
     return .{ .state = info[0], .message = info[1], .detail = detail };
+}
+
+test "capacity diagnostics retain operation uncertainty and do not override denial" {
+    var host: Self = undefined;
+    host.diagnostics = null;
+    host.operation = 17;
+    host.wire.last_rejection = .HttpCapacity;
+    const capacity = host.diagnostic(error.AuthorityUnavailable);
+    try std.testing.expectEqualStrings("53000", &capacity.state);
+    try std.testing.expect(std.mem.indexOf(u8, capacity.detail.?, "17") != null);
+    try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
+    host.wire.last_rejection = null;
+    try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
 }

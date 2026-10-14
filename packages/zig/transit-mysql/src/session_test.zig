@@ -6,6 +6,7 @@ const Host = struct {
     writes: usize = 0,
     value: u64 = 0,
     allocation_failed: bool = false,
+    diagnostic_state: [5]u8 = "0A000".*,
     pub const Prepared = struct {
         pub fn parameters(_: *const Prepared) []const f.Types.Type {
             return &.{.uint64};
@@ -53,7 +54,7 @@ const Host = struct {
     }
     pub fn diagnostic(self: *Host, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
         if (err == error.OutOfMemory) self.allocation_failed = true;
-        return .{ .state = "0A000".*, .message = "Request rejected", .detail = null };
+        return .{ .state = self.diagnostic_state, .message = "Request rejected", .detail = null };
     }
 };
 const Transport = struct {
@@ -66,6 +67,19 @@ const Transport = struct {
 const Engine = m.Session.Engine(Host, Transport);
 const execute_new = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x01\x08\x80\xff\xff\xff\xff\xff\xff\xff\xff";
 const execute_again = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
+test "native capacity refusal projects a MySQL resource error without execution" {
+    var host: Host = .{ .allocator = std.testing.allocator, .diagnostic_state = "53000".* };
+    var transport: Transport = .{ .allocator = std.testing.allocator };
+    defer transport.bytes.deinit(std.testing.allocator);
+    var engine = try Engine.init(std.testing.allocator, &host, &transport, .{}, m.Handshake.required);
+    defer engine.deinit();
+    _ = try engine.handle("\xff");
+    const packet = (try m.Frame.decode(transport.bytes.items, 1, m.gateway.Limits.max_frame_bytes)).?;
+    try std.testing.expectEqual(@as(u8, 255), packet.payload[0]);
+    try std.testing.expectEqual(@as(u16, 1041), std.mem.readInt(u16, packet.payload[1..3], .little));
+    try std.testing.expectEqualStrings("#HY000", packet.payload[3..9]);
+    try std.testing.expectEqual(@as(usize, 0), host.writes);
+}
 test "MySQL commands preserve unsigned values and remembered types, with exact affected-row selection" {
     const t = std.testing;
     for ([_]bool{ false, true }) |found| {

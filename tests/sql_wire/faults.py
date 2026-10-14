@@ -90,7 +90,15 @@ def cancel(options, key):
 
 def run(root, postgres, mysql_options, controls, native_access):
     def count(connection):
-        return connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone()[0]
+        deadline = time.monotonic()+10
+        while True:
+            try:
+                return connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone()[0]
+            except psycopg.errors.InsufficientResources:
+                # This explicit observation is a new read. No write is retried,
+                # and no incomplete result is appended to an earlier result.
+                assert time.monotonic() < deadline
+                time.sleep(.05)
     with psycopg.connect(**postgres) as witness:
         baseline = count(witness)
         wire = PostgreSQL(postgres)

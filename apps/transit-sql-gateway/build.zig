@@ -7,4 +7,5 @@ pub fn build(b: *std.Build) void {
     const executable = b.addExecutable(.{ .name = "transit-sql-gateway", .root_module = module });
     b.installArtifact(executable);
     b.step("check", "Compile the database gateway").dependOn(&executable.step);
+    b.step("test", "Check database application boundary diagnostics").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
 }

@@ -109,6 +109,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 const Mapping = struct { source: [5]u8, code: u16, state: [5]u8 };
                 const mappings = [_]Mapping{
                     .{ .source = "42501".*, .code = 1142, .state = "42000".* },
+                    .{ .source = "53000".*, .code = 1041, .state = "HY000".* },
                     .{ .source = "57014".*, .code = 1317, .state = "70100".* },
                     .{ .source = "0A000".*, .code = 1235, .state = "42000".* },
                     .{ .source = "22003".*, .code = 1264, .state = "22003".* },
