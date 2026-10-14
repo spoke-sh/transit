@@ -121,6 +121,7 @@ packages:
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
+    cd packages/zig/transit-tls-server && zig build test
     cd packages/zig/transit-station-bindings && zig build test
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
@@ -149,6 +150,7 @@ packages-build:
     cd packages/zig/transit-station-grpc && zig build check
     cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check
+    cd packages/zig/transit-tls-server && zig build check
     cd packages/zig/transit-station-bindings && zig build check
     cd packages/zig/transit-exchange && zig build check
     cd packages/zig/transit-station-http && zig build check

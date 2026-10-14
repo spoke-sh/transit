@@ -160,6 +160,8 @@
                 ]))
                 pkgs.process-compose
                 pkgs.openssl
+                pkgs.openssl.dev
+                pkgs.pkg-config
                 pkgs.protobuf
                 zig
                 vite-plus

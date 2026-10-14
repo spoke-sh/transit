@@ -133,7 +133,9 @@ asserts their versions and pins the pure Python connector wheel by URL and hash.
 All lockfile input revisions deliberately remain unchanged. Reference database
 servers are test dependencies, not Transit runtime engines. The TLS server
 library links the selected OpenSSL; its C header and runtime version checks
-require deliberate review on upgrade. Run `just test::sql-wire-reference` and
+require deliberate review on upgrade. The default shell also supplies the pinned
+OpenSSL development files and `pkg-config` for ordinary package compilation.
+Run `just test::sql-wire-reference` and
 `just test::sql-wire-tls` for the independent peers.
 
 The default development shell supplies the DuckDB CLI from the existing locked
