@@ -42,7 +42,7 @@ pub fn attempt(session: *b.Session, connection: c.TableClient.Connection, action
     }
     const stage: d.Stage = switch (action) {
         .compile => .compile,
-        .prepare, .load, .forget, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_policy, .prepare_dependency => .prepare,
+        .prepare, .load, .forget, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_dependency => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };

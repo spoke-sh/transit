@@ -106,11 +106,11 @@ test "history vectors preserve consecutive transactions and one native cut acros
     try t.expectError(error.TableHistoryGap, History.open(&turn, t.allocator, bundle, 17, initial, 1));
     try store.state.put(t.allocator, address, original);
     // A cached data root never grants continuing read permission.
-    var policy = try q.catalog.TableCatalogRecords.Policy.administrator(tables.configuration.scope, 17);
+    var policy = try q.catalog.testing.Authority.Rights.administrator(tables.configuration.scope, 17);
     policy.revision = 2;
     policy.read = false;
     turn = try tables.turn(&store);
-    try tables.catalog.setPolicy(&turn, 1, policy);
+    try store.setRights(policy);
     try store.commit(turn);
     turn = try tables.turn(&store);
     try t.expectError(error.CatalogDenied, History.open(&turn, t.allocator, bundle, 17, initial, 1));

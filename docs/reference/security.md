@@ -64,6 +64,20 @@ response is not a bearer grant. A stronger gateway credential cannot replace the
 caller's missing source permission. If current policy cannot be established,
 access fails closed; the result is not proof that prior work never committed.
 
+Table authorization binds stable database, schema and Table identities to native
+objects. CONNECT and USAGE precede each Table privilege check; role ownership
+governs ALTER and DROP. Metadata visibility follows the current object's grants
+or ownership. Names and backing-resource associations do not inherit privileges.
+
+The [Table service](../../apps/transit-table-service/README.md) lets a restricted
+caller use one Table without raw access to the shared catalog resource. Its
+private storage identity reads bytes while a separate, action-bound caller proof
+supplies the credential epoch and selected role for authorization. It checks all
+observed requirements before returning a complete response. Metadata is filtered
+by current visibility. Historical definitions use the original Table's authority,
+including after DROP or name reuse. Direct raw-resource grants deliberately allow
+broader inspection and are not a Table isolation mechanism.
+
 ## Effects and secrets
 
 Once an external attempt is authorized, treat it as potentially in flight, even

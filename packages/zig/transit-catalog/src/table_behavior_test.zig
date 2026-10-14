@@ -4,7 +4,7 @@ const c = @import("root.zig");
 const p = c.protocol;
 const s = c.station;
 const Store = @import("TestStore.zig");
-const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } };
+const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } };
 const catalog: c.TableCatalog = .{ .configuration = config };
 const uploads: c.TableUpload = .{ .catalog = catalog };
 const upload: c.TableControl.Upload = .{ .scope = config.scope, .namespace = 1000 };
@@ -138,10 +138,10 @@ test "general owner pauses denied continuations and resumes original accepted wo
     var turn = try dispatch(&store, &behavior, external(17), deletion);
     const message = turn.decision.outputs[0].?.value;
     try store.commit(turn);
-    var policy = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
+    var policy = try @import("TestStore.zig").Rights.administrator(config.scope, 17);
     policy.revision = 2;
     policy.delete = false;
-    try store.commit(try dispatch(&store, &behavior, external(17), try frame(.{ .policy = .{ .expected_revision = 1, .policy = policy } })));
+    try store.setRights(policy);
     turn = try dispatch(&store, &behavior, process(3), message);
     try t.expectEqual(.denied, (try disposition(&turn)).?.outcome);
     try t.expectEqual(@as(usize, 1), writes(turn));
@@ -150,7 +150,7 @@ test "general owner pauses denied continuations and resumes original accepted wo
     try store.commit(turn);
     policy.revision = 3;
     policy.delete = true;
-    try store.commit(try dispatch(&store, &behavior, external(17), try frame(.{ .policy = .{ .expected_revision = 2, .policy = policy } })));
+    try store.setRights(policy);
     turn = try dispatch(&store, &behavior, external(17), deletion);
     const resumed = turn.decision.outputs[0].?.value;
     try store.commit(turn);
@@ -211,7 +211,6 @@ test "native Table controls round trip within one frame and reject padding" {
     const data: c.TableControl.Dml = .{ .scope = config.scope, .reference = reference };
     const commands = [_]c.TableControl.Command{
         .{ .initialize = config },
-        .{ .policy = .{ .expected_revision = 0, .policy = try c.TableCatalogRecords.Policy.administrator(config.scope, 18) } },
         .{ .dependency = .{ .dependency = .{ .scope = config.scope, .object = 100, .identity = 1, .owner = 4, .kind = .history }, .present = true } },
         .{ .cancel_ddl = ddl },
         .{ .cleanup_ddl = ddl },

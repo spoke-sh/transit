@@ -16,6 +16,7 @@ pub const Reader = struct {
     /// Current authority evidence injected by the host. Null is a known denial;
     /// transport/integrity failures poison private work instead of becoming denial.
     authorization: ?*const fn (*anyopaque, p.Authorization.Guard) anyerror!?p.Authorization.Verified = null,
+    authorization_binding: ?*const fn (*anyopaque, p.Authorization.Id, [32]u8) anyerror!?p.Authorization.Object = null,
 };
 const Turn = @This();
 const Session = client.Session;
@@ -29,6 +30,7 @@ reader: Reader,
 read_error: ?anyerror = null,
 decision: Decision,
 resource_deadline_ms: ?u64 = null,
+authorization_subject: ?p.Authorization.Subject = null,
 // One bounded metadata/row working set, independent of durable cardinality.
 // A native prefetch still requests at most one eight-key protocol page.
 read_cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
@@ -40,6 +42,15 @@ cache_next: usize = 0,
 pub const Committed = struct {
     turn: *Turn,
     view: View,
+    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who, audience);
+    }
+    pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
+        return self.turn.requireAuthorization(guard);
+    }
+    pub fn authorizationBinding(self: *@This(), domain: u64, key: [32]u8) !?p.Authorization.Object {
+        return self.turn.authorizationBinding(domain, key);
+    }
     fn check(self: *@This()) !void {
         if (self.turn.read_error) |err| return err;
         if (!std.meta.eql(self.view, self.turn.view)) {
@@ -65,6 +76,39 @@ pub fn committed(self: *Turn) Committed {
     return .{ .turn = self, .view = self.view };
 }
 
+/// Domain owners select the immutable original admission when resuming work.
+/// Native authority independently authenticates the referenced input claim.
+pub fn bindAuthorizationSubject(self: *Turn, subject: p.Authorization.Subject) !void {
+    try subject.validate();
+    if (subject.audience() != self.delivery.pid) return error.InvalidAuthorizationCredential;
+    if (self.decision.authorization) |guard| if (!std.meta.eql(guard.subject, subject)) return error.InvalidAuthorizationCredential;
+    if (self.authorization_subject) |previous| if (!std.meta.eql(previous, subject)) return error.InvalidAuthorizationCredential;
+    self.authorization_subject = subject;
+}
+pub fn authorizationSubject(self: *Turn, who: u64, audience: u64) !p.Authorization.Subject {
+    if (self.authorization_subject == null) {
+        if (self.delivery.input.origin != .external) return error.AccessDenied;
+        try self.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .principal = self.delivery.input.origin.external.principal } });
+    }
+    const subject = self.authorization_subject.?;
+    if (subject.principal() != who or subject.audience() != audience) return error.AccessDenied;
+    return subject;
+}
+/// An uploaded operation keeps its authenticated first admission across the
+/// receiver's self-messages. Low-level turns without a subject keep their input.
+pub fn originalAuthorizedInput(self: *const Turn) u64 {
+    if (self.authorization_subject) |subject| if (subject == .accepted) return subject.accepted.input;
+    return self.delivery.input.position;
+}
+pub fn authorizationBinding(self: *Turn, domain: u64, key: [32]u8) !?p.Authorization.Object {
+    if (self.read_error) |err| return err;
+    const resolve = self.reader.authorization_binding orelse return error.UnsupportedAuthorization;
+    return resolve(self.reader.context, domain, key) catch |err| {
+        self.read_error = err;
+        return err;
+    };
+}
+
 /// Freeze the caller proof and union of requirements into the native proposal.
 /// The host supplies current evidence; the authority checks again at publication.
 pub fn requireAuthorization(self: *Turn, requested: p.Authorization.Guard) !p.Authorization.Verified {
@@ -72,25 +116,7 @@ pub fn requireAuthorization(self: *Turn, requested: p.Authorization.Guard) !p.Au
     try requested.validate();
     if (requested.subject.audience() != self.delivery.pid) return error.InvalidAuthorizationCredential;
     if (requested.subject == .signed and requested.subject.signed.claim.realm != self.delivery.realm) return error.InvalidAuthorizationCredential;
-    var combined = self.decision.authorization orelse requested;
-    if (!std.meta.eql(combined.subject, requested.subject)) return error.InvalidAuthorizationCredential;
-    for (requested.requirements) |slot| {
-        const requirement = slot orelse break;
-        for (&combined.requirements) |*entry| {
-            if (entry.*) |*previous| {
-                if (std.meta.eql(previous.*, requirement)) break;
-                if (previous.object.eql(requirement.object) and previous.access == .all and requirement.access == .all) {
-                    previous.privileges |= requirement.privileges;
-                    break;
-                }
-                // Different predicates stay separate: every entry is required.
-                continue;
-            } else {
-                entry.* = requirement;
-                break;
-            }
-        } else return error.AuthorizationBudgetExceeded;
-    }
+    const combined = if (self.decision.authorization) |previous| try previous.merge(requested) else requested;
     const check = self.reader.authorization orelse return error.UnsupportedAuthorization;
     const evidence = (check(self.reader.context, combined) catch |err| {
         self.read_error = err;
@@ -112,6 +138,12 @@ pub const Retained = struct {
     cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
     cache_view: ?p.Growth.ReadVersion = null,
     cache_next: usize = 0,
+    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who, audience);
+    }
+    pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
+        return self.turn.requireAuthorization(guard);
+    }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try p.Growth.validateKey(key);
         if (self.turn.read_error) |err| return err;
@@ -206,6 +238,12 @@ pub const Captured = struct {
         };
         self.turn.read_error = error.InvalidStateView;
         return error.InvalidStateView;
+    }
+    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
+        return self.turn.authorizationSubject(who, audience);
+    }
+    pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
+        return self.turn.requireAuthorization(guard);
     }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try self.check();

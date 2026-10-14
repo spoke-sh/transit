@@ -34,7 +34,8 @@ pub const Claim = struct {
         try self.validate();
         var bytes: [1024]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
-        try std.json.Stringify.value(self, .{}, &writer);
+        var encoder: std.json.Stringify = .{ .writer = &writer };
+        try p.Json.write(self, &encoder);
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.authorization.subject.v1\x00");
         hash.update(writer.buffered());
@@ -102,6 +103,29 @@ pub const Requirement = struct {
 pub const Guard = struct {
     subject: Subject,
     requirements: [max_requirements]?Requirement,
+    /// Conjunction of current requirements. Different predicates remain distinct.
+    pub fn merge(self: Guard, other: Guard) !Guard {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self.subject, other.subject)) return error.InvalidAuthorizationCredential;
+        var combined = self;
+        for (other.requirements) |slot| {
+            const requirement = slot orelse break;
+            for (&combined.requirements) |*entry| {
+                if (entry.*) |*previous| {
+                    if (std.meta.eql(previous.*, requirement)) break;
+                    if (previous.object.eql(requirement.object) and previous.access == .all and requirement.access == .all) {
+                        previous.privileges |= requirement.privileges;
+                        break;
+                    }
+                } else {
+                    entry.* = requirement;
+                    break;
+                }
+            } else return error.AuthorizationBudgetExceeded;
+        }
+        return combined;
+    }
     pub fn validate(self: Guard) !void {
         try self.subject.validate();
         if (self.requirements[0] == null) return error.InvalidAuthorizationPrivilege;
@@ -535,23 +559,27 @@ test "authorization values reject public delegation, malformed names and masks" 
 
 test "service subject signatures and native admission contexts match independent bytes" {
     const t = std.testing;
+    const Vector = struct { canonical: []const u8, sha256: []const u8, signature: [64]u8 };
     const Fixture = struct {
         public_key: [32]u8,
-        subject: struct { canonical: []const u8, sha256: []const u8, signature: [64]u8 },
+        subject: Vector,
+        utf8_subject: Vector,
         input: struct { value: p.Value, digest: []const u8 },
     };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/authorization-subject-v1.json"), .{});
     defer fixture.deinit();
-    const parsed = try std.json.parseFromSlice(Claim, t.allocator, fixture.value.subject.canonical, .{});
-    defer parsed.deinit();
-    const proof: Proof = .{ .claim = parsed.value, .signature = fixture.value.subject.signature };
-    try proof.verify(fixture.value.public_key);
     var expected: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&expected, fixture.value.subject.sha256);
-    try t.expectEqualSlices(u8, &expected, &try proof.claim.digest());
-    var changed = proof;
-    changed.claim.audience += 1;
-    try t.expectError(error.SignatureVerificationFailed, changed.verify(fixture.value.public_key));
+    for ([_]Vector{ fixture.value.subject, fixture.value.utf8_subject }) |vector| {
+        const parsed = try p.Json.parseFromSlice(Claim, t.allocator, vector.canonical);
+        defer parsed.deinit();
+        const proof: Proof = .{ .claim = parsed.value, .signature = vector.signature };
+        try proof.verify(fixture.value.public_key);
+        _ = try std.fmt.hexToBytes(&expected, vector.sha256);
+        try t.expectEqualSlices(u8, &expected, &try proof.claim.digest());
+        var changed = proof;
+        changed.claim.audience += 1;
+        try t.expectError(error.SignatureVerificationFailed, changed.verify(fixture.value.public_key));
+    }
     _ = try std.fmt.hexToBytes(&expected, fixture.value.input.digest);
     try t.expectEqualSlices(u8, &expected, &try inputContext(fixture.value.input.value));
 }

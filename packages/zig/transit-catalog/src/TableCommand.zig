@@ -5,7 +5,7 @@ const c = @import("root.zig");
 const m = c.TableCatalogRecords;
 const Meta = c.TableMetadata;
 const s = c.station;
-pub const header_bytes = 141;
+pub const header_bytes = 149;
 pub const max_bytes = header_bytes + c.fuze.TableDmlCodec.max_bytes + c.fuze.TableSchema.max_bytes + 512;
 pub const format: u32 = 0x54435101;
 pub const Kind = enum(u8) { create = 1, alter = 2, rename = 3, drop = 4, insert = 5, update = 6, delete = 7 };
@@ -15,6 +15,7 @@ pub const Header = struct {
     principal: u64,
     operation: u64,
     object: u64,
+    namespace: u64 = 1,
     metadata: s.TablePages.Reference,
     kind: Kind,
     pub fn right(self: Header) m.Right {
@@ -30,6 +31,7 @@ pub const Header = struct {
     pub fn validate(self: Header) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
+        try c.Model.nativeId(self.namespace);
         if (self.principal > c.protocol.max_counter or self.operation == 0) return error.InvalidCatalogIdentity;
         if (self.object == 0 and self.kind != .drop) return error.InvalidCatalogIdentity;
         if (self.kind == .create or self.object == 0) {
@@ -43,7 +45,7 @@ pub const Header = struct {
         try out.writeAll("TCQ1");
         try out.writeAll(&Meta.definition());
         try Meta.scopeWrite(&out, self.scope);
-        inline for (.{ "owner", "principal", "operation", "object" }) |name| try out.writeInt(u64, @field(self, name), .little);
+        inline for (.{ "owner", "principal", "operation", "object", "namespace" }) |name| try out.writeInt(u64, @field(self, name), .little);
         try out.writeInt(u64, self.metadata.id, .little);
         try out.writeInt(u32, self.metadata.spec.format, .little);
         try out.writeInt(u32, self.metadata.spec.length, .little);
@@ -66,6 +68,7 @@ pub fn inspect(bytes: []const u8) !Header {
         .principal = try reader.takeInt(u64, .little),
         .operation = try reader.takeInt(u64, .little),
         .object = try reader.takeInt(u64, .little),
+        .namespace = try reader.takeInt(u64, .little),
         .metadata = .{ .id = try reader.takeInt(u64, .little), .spec = .{ .format = try reader.takeInt(u32, .little), .length = try reader.takeInt(u32, .little), .digest = (try reader.take(32))[0..32].* } },
         .kind = std.enums.fromInt(Kind, try reader.takeByte()) orelse return error.InvalidTableCommand,
     };
@@ -102,7 +105,7 @@ pub const Body = struct {
         }
         switch (self.request) {
             .ddl => |request| {
-                if (h.kind != ddlKind(request) or h.principal != request.principal or h.operation != request.operation or h.object != request.object or h.metadata.id != request.expected_revision) return error.InvalidTableCommand;
+                if (h.kind != ddlKind(request) or h.principal != request.principal or h.operation != request.operation or h.object != request.object or h.namespace != request.namespace or h.metadata.id != request.expected_revision) return error.InvalidTableCommand;
                 _ = try request.digest(h.scope);
                 if (self.basis) |basis| {
                     if (!request.name.eql(&basis.name)) return error.CatalogDefinitionChanged;
@@ -121,7 +124,7 @@ pub const Body = struct {
 };
 fn checkBasis(header: Header, record: Meta.Record) !void {
     try record.validate();
-    if (!std.meta.eql(header.scope, record.scope) or header.object != record.object or header.metadata.id != record.revision or !std.meta.eql(header.metadata.spec, try record.spec())) return error.CatalogDefinitionChanged;
+    if (!std.meta.eql(header.scope, record.scope) or header.object != record.object or header.namespace != record.namespace or header.metadata.id != record.revision or !std.meta.eql(header.metadata.spec, try record.spec())) return error.CatalogDefinitionChanged;
 }
 fn ddlKind(request: c.TableDdlRequest) Kind {
     return switch (request.action) {
@@ -139,12 +142,12 @@ fn dmlKind(request: c.TableDmlRequest) Kind {
     };
 }
 pub fn fromDdl(scope: m.Scope, owner: u64, request: c.TableDdlRequest, basis: ?Meta.Record) !Body {
-    const body: Body = .{ .header = .{ .scope = scope, .owner = owner, .principal = request.principal, .operation = request.operation, .object = request.object, .metadata = if (basis) |record| .{ .id = record.revision, .spec = try record.spec() } else m.empty_reference, .kind = ddlKind(request) }, .request = .{ .ddl = request }, .basis = basis };
+    const body: Body = .{ .header = .{ .scope = scope, .owner = owner, .principal = request.principal, .operation = request.operation, .object = request.object, .namespace = request.namespace, .metadata = if (basis) |record| .{ .id = record.revision, .spec = try record.spec() } else m.empty_reference, .kind = ddlKind(request) }, .request = .{ .ddl = request }, .basis = basis };
     try body.validate();
     return body;
 }
 pub fn fromDml(scope: m.Scope, owner: u64, request: c.TableDmlRequest, basis: Meta.Record) !Body {
-    const body: Body = .{ .header = .{ .scope = scope, .owner = owner, .principal = request.principal, .operation = request.operation, .object = request.plan.schema.object, .metadata = request.metadata, .kind = dmlKind(request) }, .request = .{ .dml = request }, .basis = basis };
+    const body: Body = .{ .header = .{ .scope = scope, .owner = owner, .principal = request.principal, .operation = request.operation, .object = request.plan.schema.object, .namespace = basis.namespace, .metadata = request.metadata, .kind = dmlKind(request) }, .request = .{ .dml = request }, .basis = basis };
     try body.validate();
     return body;
 }
@@ -323,7 +326,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, basis: ?Basis) !O
         dml_owner = try c.fuze.TableDmlCodec.decodePayload(allocator, original.?, basis.?.record.name.slice(), bytes[header_bytes..]);
         break :blk .{ .dml = .{ .principal = h.principal, .operation = h.operation, .metadata = h.metadata, .plan = dml_owner.?.plan } };
     } else blk: {
-        var ddl: c.TableDdlRequest = .{ .principal = h.principal, .operation = h.operation, .object = h.object, .expected_revision = h.metadata.id, .name = if (basis) |value| value.record.name else undefined, .action = undefined };
+        var ddl: c.TableDdlRequest = .{ .principal = h.principal, .operation = h.operation, .object = h.object, .namespace = h.namespace, .expected_revision = h.metadata.id, .name = if (basis) |value| value.record.name else undefined, .action = undefined };
         ddl.action = switch (h.kind) {
             .create => creation: {
                 ddl.name = try nameRead(&reader);

@@ -106,8 +106,7 @@ pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
     if (!std.meta.eql(config.scope, self.scope)) return error.CatalogScopeChanged;
     if (config.owner != self.owner) return error.CatalogOwnerChanged;
     const catalog: c.TableCatalog = .{ .configuration = config };
-    _ = try catalog.authorize(current, who, .inspect);
-    _ = try catalog.authorize(current, who, .read);
+    _ = try catalog.authorizeObject(current, who, self.object, .read);
     return catalog;
 }
 fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c.TableCatalog.Definition {

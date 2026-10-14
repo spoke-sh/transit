@@ -6,7 +6,7 @@ const p = c.protocol;
 const Pages = c.station.TablePages;
 const Pub = c.station.Publication;
 pub const Scope = c.Model.Scope;
-pub const max_bytes = 436;
+pub const max_bytes = 444;
 pub const format: u32 = 0x54434d01;
 pub const name_digest_bytes = 13;
 pub const Name = struct {
@@ -28,9 +28,16 @@ pub const Name = struct {
         return std.mem.eql(u8, self.slice(), other.slice());
     }
     pub fn digest(self: *const Name) ![32]u8 {
+        return self.digestIn(1);
+    }
+    pub fn digestIn(self: *const Name, namespace: u64) ![32]u8 {
+        try c.Model.nativeId(namespace);
         try self.validate();
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.catalog.name.v1\x00");
+        var id: [8]u8 = undefined;
+        std.mem.writeInt(u64, &id, namespace, .little);
+        hash.update(&id);
         hash.update(self.slice());
         return hash.finalResult();
     }
@@ -43,6 +50,7 @@ pub fn definition() [32]u8 {
 pub const Record = struct {
     scope: Scope,
     object: u64,
+    namespace: u64 = 1,
     revision: u64,
     name: Name,
     schema: Pages.Reference,
@@ -52,6 +60,7 @@ pub const Record = struct {
     admitted_input: u64,
     pub fn validate(self: Record) !void {
         try self.scope.validate();
+        try c.Model.nativeId(self.namespace);
         try self.name.validate();
         if (self.object == 0 or self.revision == 0 or self.schema.id == 0 or self.schema.spec.format != Pages.schema_format or
             self.schema.spec.length == 0 or self.schema.spec.length > c.fuze.TableSchema.max_bytes or
@@ -64,6 +73,7 @@ pub const Record = struct {
         try writer.writeAll(&definition());
         try scopeWrite(&writer, self.scope);
         try writer.writeInt(u64, self.object, .little);
+        try writer.writeInt(u64, self.namespace, .little);
         try writer.writeInt(u64, self.revision, .little);
         try writer.writeByte(self.name.len);
         try writer.writeAll(self.name.slice());
@@ -82,6 +92,7 @@ pub const Record = struct {
         const result: Record = .{
             .scope = try scopeRead(&reader),
             .object = try reader.takeInt(u64, .little),
+            .namespace = try reader.takeInt(u64, .little),
             .revision = try reader.takeInt(u64, .little),
             .name = try Name.init(try reader.take(try reader.takeByte())),
             .schema = try referenceRead(&reader),

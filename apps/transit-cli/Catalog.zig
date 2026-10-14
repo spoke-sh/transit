@@ -24,7 +24,6 @@ pub const help =
     \\  prepare             Bind a typed request to a new private saved intent
     \\  next                Save the next signed step, or report running/terminal state
     \\  prepare-initialize  Save an explicit initialization command
-    \\  prepare-policy      Save a conditional administrator policy control
     \\  prepare-dependency  Save a conditional dependency registration
     \\  prepare-resume      Save a continuation for the original operation
     \\  cancel, cleanup     Save an operation cancellation or candidate cleanup
@@ -226,11 +225,7 @@ fn actionFromInput(init: std.process.Init, options: Options.Options, diagnostic:
             _ = try configuration.native();
             return .{ .prepare_initialize = configuration };
         },
-        .@"prepare-policy" => {
-            const change = try artifact(V.PolicyChange, init, path, 4096, diagnostic);
-            _ = try change.native();
-            return .{ .prepare_policy = change };
-        },
+
         .@"prepare-dependency" => {
             const change = try artifact(V.DependencyChange, init, path, 4096, diagnostic);
             _ = try change.native();

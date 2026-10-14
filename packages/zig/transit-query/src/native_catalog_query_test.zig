@@ -6,7 +6,7 @@ const c = q.catalog;
 const s = q.station;
 const r = q.UnifiedRecords;
 const Store = q.testing.Store;
-const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
+const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
 const catalog: c.TableCatalog = .{ .configuration = config };
 const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 1000, .result_bytes = 1048576 };
 const Access = struct {
@@ -192,11 +192,11 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     // denial with exact pin release, never successful empty completion.
     const empty = try q.Bundle.fromSql(alloc, .{ .resource = 7, .source = .{ .table = replacement.source } }, "people", "SELECT * FROM people LIMIT 0", limits);
     const empty_job = try admit(&store, &requests, empty, 4);
-    var revoked = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
+    var revoked = try c.testing.Authority.Rights.administrator(config.scope, 17);
     revoked.revision = 2;
     revoked.read = false;
     reader = try turn(&store);
-    try catalog.setPolicy(&reader, 1, revoked);
+    try store.setRights(revoked);
     try store.commit(reader);
     reader = try store.capture();
     const completed = first_job.publication(store.resource);

@@ -1,0 +1,24 @@
+{
+  "assertions": "passed",
+  "definition": "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
+  "observations": {
+    "shared_resource": 10,
+    "tables": [
+      100,
+      101
+    ],
+    "restricted_reader": 104,
+    "service_restarts": 2,
+    "authority_and_disk_restarts": 1,
+    "credential_rotations": 1
+  },
+  "revision": "7eed560a6b9e0f2d828367b8fce4ede46aa0826f",
+  "dirty": true,
+  "binaries": {
+    "node": "c2aac3bfdc31013c82c0840ab0baa81278f6f62bf4f6857df7dc14796730bd10",
+    "cli": "cc2cd348c27b9794db6caf3494c83a83e6ec33d669abc076185aeabf5a9ae698",
+    "host": "7287456f44fef00033334d8c1fd6d7a8014f9b16b5e3d1d074c40cfdc45da05c",
+    "service": "2e2b01241a7a2c80074a9e3ea959fa2fae8eea9e2360623dee826c284fdfb958"
+  },
+  "elapsed_seconds": 114.44888889789581
+}

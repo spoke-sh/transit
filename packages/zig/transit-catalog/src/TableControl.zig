@@ -5,14 +5,6 @@ const c = @import("root.zig");
 const m = c.TableCatalogRecords;
 const p = c.protocol;
 const s = c.station;
-pub const Policy = struct {
-    expected_revision: u64,
-    policy: m.Policy,
-    pub fn validate(self: Policy) !void {
-        try self.policy.validate();
-        if (self.policy.revision != (std.math.add(u64, self.expected_revision, 1) catch return error.InvalidCatalogPolicy)) return error.InvalidCatalogPolicy;
-    }
-};
 pub const Dependency = struct {
     dependency: m.Dependency,
     present: bool,
@@ -75,7 +67,6 @@ pub const Part = struct {
 };
 pub const Command = union(enum(u8)) {
     initialize: m.Configuration = 'I',
-    policy: Policy = 'P',
     dependency: Dependency = 'D',
     cancel_ddl: Ddl = 'X',
     cleanup_ddl: Ddl = 'Y',
@@ -90,7 +81,6 @@ pub const Command = union(enum(u8)) {
     pub fn scope(self: Command) !m.Scope {
         return switch (self) {
             .initialize => |value| value.scope,
-            .policy => |value| value.policy.scope,
             .dependency => |value| value.dependency.scope,
             .cancel_ddl, .cleanup_ddl => |value| value.scope,
             .cancel_dml, .cleanup_dml => |value| value.scope,

@@ -7,7 +7,7 @@ const s = q.station;
 const Source = q.TableSource;
 const Store = q.testing.Store;
 const Cell = f.Types.Values.Cell;
-const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
+const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
 const catalog: c.TableCatalog = .{ .configuration = config };
 fn turn(store: *Store) !s.Turn {
     var result = try store.capture();
@@ -182,10 +182,10 @@ test "retained general Table pages preserve wide nested rows through ALTER DROP 
     try e.expectEqual(@as(i128, 19), observed);
     try e.expectEqual(@as(u64, 3), cursor.ordinal);
     try e.expectEqual(.source_end, progress.finished.?);
-    var denied = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
+    var denied = try c.testing.Authority.Rights.administrator(config.scope, 17);
     denied.read = false;
     denied.revision = 2;
-    try catalog.setPolicy(&current, 1, denied);
+    try store.setRights(denied);
     try store.commit(current);
     current = try turn(&store);
     data = try current.openVersion(retained);
@@ -213,26 +213,27 @@ test "complete composite key predicates seek one row and still bind the captured
         var changed = basis;
         changed.revision += 1;
         try e.expectError(error.SourceChanged, source.source.page(e.allocator, changed, try Source.Cursor.start(basis), compiled.plan, &current, &current, 17));
-        var revoked = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
-        revoked.read = false;
         const Live = struct {
             source: *s.Turn,
             view: q.protocol.Growth.View,
-            denied: q.protocol.Value,
-            policy_reads: usize = 0,
+            checks: usize = 0,
             pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
-                if (key.eql(catalog.key('p', 17, 0))) {
-                    self.policy_reads += 1;
-                    if (self.policy_reads > 2) return self.denied;
-                }
                 return self.source.read(key);
             }
+            pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !q.protocol.Authorization.Subject {
+                return self.source.authorizationSubject(who, audience);
+            }
+            pub fn requireAuthorization(self: *@This(), guard: q.protocol.Authorization.Guard) !q.protocol.Authorization.Verified {
+                self.checks += 1;
+                if (self.checks > 4) return error.AccessDenied;
+                return self.source.requireAuthorization(guard);
+            }
         };
-        var live: Live = .{ .source = &current, .view = current.view, .denied = try c.Records.encode('P', revoked) };
+        var live: Live = .{ .source = &current, .view = current.view };
         // Permission disappears after the initial gate. Both a populated page
         // and empty point completion must fail before exposing owned output.
         try e.expectError(error.CatalogDenied, source.source.page(e.allocator, basis, try Source.Cursor.start(basis), compiled.plan, &current, &live, 17));
-        try e.expectEqual(@as(usize, 4), live.policy_reads);
+        try e.expectEqual(@as(usize, 5), live.checks);
     }
 }
 
@@ -293,10 +294,10 @@ test "one committed requester policy delegates multiple Tables and still require
     var remapped = admitted;
     remapped.target.catalog.principal = 18;
     try e.expectError(error.StaleQueryPolicy, q.UnifiedCapture.setPolicy(&current, remapped));
-    var denied = try c.TableCatalogRecords.Policy.administrator(config.scope, who);
+    var denied = try c.testing.Authority.Rights.administrator(config.scope, who);
     denied.revision = 2;
     denied.read = false;
-    try catalog.setPolicy(&current, 1, denied);
+    try store.setRights(denied);
     try store.commit(current);
     current = try turn(&store);
     const unchanged = (try q.UnifiedCapture.policy(&current, 9)).?;

@@ -32,7 +32,7 @@ pub fn authorize(reader: anytype, principal: u64, source: r.Source) !c.TableCata
     if (!std.meta.eql(config.scope, source.scope()) or config.owner != source.target) return error.ReactiveResetRequired;
     const catalog: c.TableCatalog = .{ .configuration = config };
     _ = try catalog.authorize(reader, principal, .inspect);
-    _ = try catalog.authorize(reader, principal, .read);
+    _ = try catalog.authorizeObject(reader, principal, source.object.value, .read);
     return catalog;
 }
 fn resolve(allocator: std.mem.Allocator, reader: anytype, principal: u64, source: r.Source, context: ?*f.Context) !c.TableCatalog.Definition {

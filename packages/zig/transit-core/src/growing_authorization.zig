@@ -243,7 +243,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             const registration = if (value.action == .register_object and value.action.register_object.binding != null) try c.key(.authorization_registration, value.action.register_object.domain, 0, &value.action.register_object.binding.?) else null;
             if (registration != null) {
                 const domain = (try store.domain(value.action.register_object.domain)) orelse return error.Forbidden;
-                if (!domain.enabled or domain.registrar != caller.principal) return error.Forbidden;
+                if (!domain.enabled or (domain.registrar != caller.principal and caller.role != a.root_role)) return error.Forbidden;
             }
             if (registration) |key| if (try candidate.get(u64, key)) |prior| {
                 const previous = (try candidate.get(admin.Change, growth.address(.authorization_change, prior))) orelse return error.InvalidAuthorizationState;
@@ -258,7 +258,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             var change = (try candidate.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
             if (change.outcome.principal != request.principal) {
                 if (tag != .abandon or (try actor(engine, request.principal, null)).role != a.root_role) return error.Forbidden;
-            } else _ = try actor(engine, request.principal, change.outcome.role);
+            } else _ = try actor(engine, request.principal, if (tag == .abandon) null else change.outcome.role);
             if (change.outcome.status == .published or change.outcome.status == .abandoned) return error.InvalidAuthorizationChange;
             if (comptime tag == .abandon) {
                 change.outcome.status = .abandoned;

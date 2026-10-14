@@ -5,7 +5,7 @@ const s = c.station;
 const Upload = c.TableUpload;
 const Command = c.TableCommand;
 const TestStore = @import("TestStore.zig");
-const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } } };
+const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } } };
 const uploads: Upload = .{ .catalog = catalog };
 fn ready(store: *TestStore) !void {
     var turn = try store.capture(17);
@@ -194,6 +194,7 @@ test "upload cancellation and collection close every unadmitted phase without de
         turn = try store.capture(17);
         const retry = try uploads.begin(&turn, final.header, 1000, final.spec);
         try t.expectEqualDeep(final, retry);
+        turn = try store.capture(17);
         try t.expectError(error.TableUploadClosed, uploads.append(&turn, 1000, 0, body[0..128]));
         const pubn: s.Publication = .{ .resource = 7, .domain = .table_mutation, .namespace = 1000 };
         try t.expectEqual(@as(u32, 0), (try pubn.budget(&turn)).records);
@@ -210,10 +211,10 @@ test "upload recovery rechecks current action permission while inspect permits c
     try t.expect(!try catalog.executeUploaded(t.allocator, &turn, 1000));
     try store.commit(turn);
     turn = try store.capture(17);
-    var policy = try c.TableCatalogRecords.Policy.administrator(catalog.configuration.scope, 17);
+    var policy = try @import("TestStore.zig").Rights.administrator(catalog.configuration.scope, 17);
     policy.revision = 2;
     policy.create = false;
-    try catalog.setPolicy(&turn, 1, policy);
+    try store.setRights(policy);
     try store.commit(turn);
     turn = try selfTurn(&store, 3);
     try t.expectError(error.CatalogDenied, catalog.executeUploaded(t.allocator, &turn, 1000));
@@ -227,7 +228,7 @@ test "upload recovery rechecks current action permission while inspect permits c
     turn = try store.capture(17);
     policy.revision = 3;
     policy.inspect = false;
-    try catalog.setPolicy(&turn, 2, policy);
+    try store.setRights(policy);
     try store.commit(turn);
     turn = try selfTurn(&store, 3);
     try t.expectError(error.CatalogDenied, catalog.executeUploaded(t.allocator, &turn, 1000));

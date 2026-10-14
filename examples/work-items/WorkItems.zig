@@ -9,7 +9,7 @@ const Wide = app.Model.Wide;
 const c = query.catalog;
 pub const Table = @import("WorkTable.zig");
 const Self = @This();
-pub const Configuration = struct { application: u64, realm: u64, administrator: u64, writer: u64, resource: u64, owner: u64 };
+pub const Configuration = struct { application: u64, realm: u64, administrator: u64, writer: u64, resource: u64, owner: u64, authority: c.TableAuthority.Profile };
 pub const Failure = @import("WorkItemFailure.zig");
 allocator: std.mem.Allocator,
 configuration: Configuration,
@@ -30,7 +30,6 @@ pub const Command = union(enum(u8)) {
     release_writes: struct { epoch: Wide, contract: [32]u8 } = 6,
     catalog_initialize: void = 7,
     prepare_table: u32 = 8,
-    read_policy: struct { principal: u64, expected: u64, revision: u64, allow: bool } = 9,
     pub fn encode(self: Command) !p.Value {
         var value = try app.Records.encode('i', self);
         value.data[0..3].* = "WI1".*;
@@ -61,7 +60,7 @@ pub const Cursor = struct {
 const Active = struct { table: u32, writes: bool };
 const active_table = p.Value.init("work-items.active-table") catch unreachable;
 pub fn catalog(self: Self) c.TableCatalog {
-    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .table_limits = Table.limits } };
+    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .authority = self.configuration.authority, .table_limits = Table.limits } };
 }
 pub const Source = struct {
     owned: query.TableSource.Owned,
@@ -131,7 +130,7 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
     try self.scope(turn);
     if (turn.delivery.input.origin != .external) return error.WorkItemDenied;
     switch (command) {
-        .initialize, .catalog_initialize, .prepare_table, .read_policy => if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied,
+        .initialize, .catalog_initialize, .prepare_table => if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied,
         else => {},
     }
     const owner = try self.ledger();
@@ -144,7 +143,6 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
             try self.catalog().initialize(turn);
         },
         .prepare_table => |table| try self.create(turn, table, false),
-        .read_policy => |policy| try self.catalog().setPolicy(turn, policy.expected, .{ .scope = self.catalog().configuration.scope, .principal = policy.principal, .revision = policy.revision, .inspect = policy.allow, .read = policy.allow, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false }),
         .policy => |value| try owner.setPolicy(turn, value.principal, value.expected, value.next),
         .put => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.writer) return error.WorkItemDenied;

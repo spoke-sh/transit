@@ -48,7 +48,7 @@ fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), d
         .url = try @import("server/Provider.zig").url(allocator, topology.ports.gateway),
         .transport = .loopback,
         .seed_file = "caller.seed",
-        .catalog = .{ .scope = Installation.catalogFor(native).scope, .owner = native.source, .principal = native.principal },
+        .catalog = .{ .scope = .{ .realm = native.realm, .resource = native.resource, .catalog = 1 }, .owner = native.source, .principal = native.principal },
         .writes = .{ .recovery_file = "console-writes.json" },
     };
 }
@@ -531,7 +531,7 @@ pub const Console = struct {
             const catalog = self.catalog.?;
             const description = try catalog.describe();
             if (self.session.format == .json) return self.json(.{ .profile = "catalog_v1", .connection = catalog.connection, .description = description, .limits = self.table_limits, .writes_configured = self.writes != null });
-            return self.out.print("Table catalog {d}; resource {d}; revision {d}\nPolicy revision: {d}; writes configured: {s}\n", .{ catalog.connection.scope.catalog, catalog.connection.scope.resource, description.resource_revision, description.policy.revision, if (self.writes != null) "yes" else "no" });
+            return self.out.print("Table catalog {d}; resource {d}; revision {d}\nCurrent role: {d}; writes configured: {s}\n", .{ catalog.connection.scope.catalog, catalog.connection.scope.resource, description.resource_revision, description.subject.role, if (self.writes != null) "yes" else "no" });
         }
         if (std.mem.eql(u8, text, ".info")) {
             const id = self.session.namespace;

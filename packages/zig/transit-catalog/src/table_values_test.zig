@@ -13,7 +13,7 @@ const schema: f.TableSchema.Schema = .{ .object = std.math.maxInt(u64), .revisio
 fn definition(allocator: std.mem.Allocator) !c.TableCatalog.Definition {
     var buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const ref: c.station.TablePages.Reference = .{ .id = 1, .spec = try c.station.Publication.Digest.of(c.station.TablePages.schema_format, try schema.encode(&buffer)) };
-    return .{ .metadata = .{ .scope = connection.scope, .object = schema.object, .revision = 1, .name = try c.TableMetadata.Name.init("people"), .schema = ref, .schema_fingerprint = try schema.fingerprint(), .principal = 17, .operation = 1, .admitted_input = 10 }, .head = .{ .resource = 7, .object = schema.object, .revision = 1, .schema = ref, .next_record = 2 }, .schema = try schema.clone(allocator) };
+    return .{ .authority = .{ .id = schema.object, .schema = 1, .authorization = 100 }, .namespace = .{ .scope = connection.scope, .id = 1, .authorization = 5, .name = try .init("public"), .revision = 1 }, .metadata = .{ .scope = connection.scope, .object = schema.object, .revision = 1, .name = try c.TableMetadata.Name.init("people"), .schema = ref, .schema_fingerprint = try schema.fingerprint(), .principal = 17, .operation = 1, .admitted_input = 10 }, .head = .{ .resource = 7, .object = schema.object, .revision = 1, .schema = ref, .next_record = 2 }, .schema = try schema.clone(allocator) };
 }
 fn basis(allocator: std.mem.Allocator) !v.Basis {
     return .{ .object = "18446744073709551615", .revision = "1", .schema_fingerprint = try v.hex(allocator, &try schema.fingerprint()) };
@@ -29,13 +29,7 @@ test "neutral general catalog identities rights names and pages preserve full wi
     try t.expectEqualDeep(connection.scope, try scope.native());
     try t.expectEqualDeep(connection, try (v.Connection{ .scope = scope, .owner = 3, .principal = 17 }).native());
     for ([_][]const u8{ "", "01", "-1", "+1", "18446744073709551616", "123456789012345678901" }) |invalid| try t.expectError(error.InvalidCatalogInteger, v.unsigned(invalid));
-    var native_policy = try c.TableCatalogRecords.Policy.administrator(connection.scope, 17);
-    native_policy.revision = std.math.maxInt(u64);
-    native_policy.read = false;
-    const policy = try v.Policy.foreign(allocator, native_policy);
-    try t.expectEqualDeep(native_policy, try policy.native());
-    try t.expectEqualDeep(native_policy, (try (v.PolicyChange{ .expected_revision = "18446744073709551614", .policy = policy }).native()).policy);
-    const config: c.TableCatalogRecords.Configuration = .{ .scope = connection.scope, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = std.math.maxInt(u64), .staging_records = 1000 } };
+    const config: c.TableCatalogRecords.Configuration = .{ .scope = connection.scope, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = std.math.maxInt(u64), .staging_records = 1000 } };
     try t.expectEqualDeep(config, try (try v.Configuration.foreign(allocator, config)).native());
     const dependency = try (v.DependencyChange{ .scope = scope, .object = "18446744073709551615", .identity = "18446744073709551615", .owner = 3, .kind = .history, .present = true }).native();
     try t.expect(!dependency.dependency.restricts());

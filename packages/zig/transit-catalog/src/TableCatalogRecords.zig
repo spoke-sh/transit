@@ -12,6 +12,7 @@ pub const Configuration = struct {
     owner: u64,
     administrator: u64,
     table_limits: Pub.Limits,
+    authority: c.TableAuthority.Profile,
     pub fn validate(self: Configuration) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
@@ -19,37 +20,11 @@ pub const Configuration = struct {
         // remain nonzero; selecting root here grants no implicit catalog bypass.
         if (self.administrator > p.max_counter) return error.InvalidCatalogIdentity;
         try self.table_limits.validate();
+        try self.authority.validate();
         if (self.table_limits.record_bytes > c.fuze.TableRow.max_bytes) return error.InvalidCatalogLimits;
     }
 };
 pub const Right = enum { inspect, create, read, insert, update, delete, alter, drop };
-pub const Policy = struct {
-    scope: Scope,
-    principal: u64,
-    revision: u64,
-    inspect: bool,
-    create: bool,
-    read: bool,
-    insert: bool,
-    update: bool,
-    delete: bool,
-    alter: bool,
-    drop: bool,
-    pub fn validate(self: Policy) !void {
-        try self.scope.validate();
-        if (self.principal > p.max_counter or self.revision == 0) return error.InvalidCatalogPolicy;
-    }
-    pub fn permits(self: Policy, right: Right) bool {
-        return switch (right) {
-            inline else => |which| @field(self, @tagName(which)),
-        };
-    }
-    pub fn administrator(scope: Scope, principal: u64) !Policy {
-        const value: Policy = .{ .scope = scope, .principal = principal, .revision = 1, .inspect = true, .create = true, .read = true, .insert = true, .update = true, .delete = true, .alter = true, .drop = true };
-        try value.validate();
-        return value;
-    }
-};
 pub const Kind = enum(u8) { create = 1, alter = 2, rename = 3, drop = 4 };
 pub const empty_reference: Ref = .{ .id = 0, .spec = .{ .format = 0, .length = 0, .digest = @splat(0) } };
 pub fn metadataReference(ref: Ref) !void {
@@ -58,6 +33,8 @@ pub fn metadataReference(ref: Ref) !void {
 pub const Object = struct {
     scope: Scope,
     object: u64,
+    namespace: u64,
+    authorization: u64,
     state: enum(u8) { initializing = 1, live = 2, retired = 3 },
     metadata: Ref = empty_reference,
     next_revision: u64,
@@ -67,6 +44,8 @@ pub const Object = struct {
     pending_digest: [32]u8 = @splat(0),
     pub fn validate(self: Object) !void {
         try self.scope.validate();
+        try c.Model.nativeId(self.namespace);
+        try c.Model.nativeId(self.authorization);
         if (self.object == 0 or self.next_revision == 0 or self.pending_principal > p.max_counter) return error.InvalidCatalogObject;
         if (self.state == .initializing) {
             if (!std.meta.eql(self.metadata, empty_reference) or self.pending_operation == 0 or self.pending_revision != 1 or self.next_revision != 2) return error.InvalidCatalogObject;
@@ -93,6 +72,7 @@ pub const Operation = struct {
     operation: u64,
     object: u64,
     actual_object: u64 = 0,
+    namespace: u64 = 1,
     digest: [32]u8,
     kind: Kind,
     state: enum(u8) { preparing = 1, delegated = 2, applied = 3, unchanged = 4, rejected = 5, cancelled = 6 },

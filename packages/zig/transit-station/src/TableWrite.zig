@@ -299,7 +299,7 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
     const data: Data = .{ .schema = schema.schema, .index = head.index };
     var result = previous orelse Status{
         .reference = reference,
-        .admitted_input = turn.delivery.input.position,
+        .admitted_input = turn.originalAuthorizedInput(),
         .basis_revision = head.revision,
         .first_record = first,
         .end_record = first,

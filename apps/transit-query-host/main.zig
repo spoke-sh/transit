@@ -130,6 +130,25 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         defer wire.parent_context = null;
         const step = server.step(handler, now + 30000) catch |err| {
             observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (server.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
+            if (err == error.CatalogRegistrationRequired and config.role == .catalog and server.pending == null) {
+                const action = declarations.tables.registration orelse return err;
+                if (action != .register_object) return error.InvalidAuthorizationObject;
+                const registrar: q.wire.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
+                // The private Table turn was discarded. Register one native
+                // step, then reacquire the delivery's current sequence. The
+                // binding ledger reconstructs an identical in-flight retry.
+                const registration = registrar.registration(action.register_object) catch |failure| {
+                    if (!q.wire.Client.unavailable(failure)) return failure;
+                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                    continue;
+                };
+                if (registration == .submit) _ = wire.submit(registration.submit) catch |failure| {
+                    if (!q.wire.Client.unavailable(failure) and failure != error.Conflict) return failure;
+                    try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                    continue;
+                };
+                continue;
+            }
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.

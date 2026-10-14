@@ -6,7 +6,7 @@ const s = q.station;
 const c = q.catalog;
 const f = q.fuze;
 pub const Store = q.testing.Store;
-pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
+pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
 pub const catalog: c.TableCatalog = .{ .configuration = configuration };
 pub fn turn(store: *Store) !s.Turn {
     var result = try store.capture();

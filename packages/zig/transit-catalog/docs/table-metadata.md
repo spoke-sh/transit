@@ -6,23 +6,26 @@ authorize a caller. The enclosing catalog owner supplies current policy and
 atomically updates its live object/name bindings and original operation outcome.
 
 `TableCatalog` supplies the general namespace's captured-source policy and
-resolution helpers. Configuration binds realm/resource/catalog, owner,
-administrator and explicit Table Publication limits. The administrator may be
-native root principal zero; root has no implicit catalog rights when another
-administrator is configured, and current policy still governs its operations.
-Initialization refuses orphan
-state; repeating it cannot restore revoked rights. Inspect, create, data read,
-insert, update, delete, alter and drop are independent policy fields. Conditional
-administrator changes remain possible after revoking the administrator's own
-inspection right, provided native authority still permits the control.
+resolution helpers. Configuration binds realm/resource/catalog, worker PID,
+bootstrap principal, Table Publication limits and mandatory native authorization
+identities. Database, schema and Table action domains have an explicit registrar.
+Initialization requires database ownership and matching native database/schema
+bindings; it writes the initial `public` schema. It refuses orphan state and
+cannot restore grants when repeated. Native role ownership governs DDL, while
+CONNECT, USAGE, CREATE and Table SELECT/INSERT/UPDATE/DELETE govern their respective
+operations. No catalog-local policy record or policy control exists.
 
-Read helpers receive the authenticated principal from their enclosing caller;
-neither a supplied number nor a stored policy grants native source access.
-`lookup` checks current inspect policy, resolves complete names and verifies the
+Read helpers receive an authenticated original subject from their enclosing
+caller. A bare principal number is insufficient. An external native delivery
+supplies its admitted claim; continuations refer to the original input. A trusted
+read service verifies the caller's signed claim and action binding independently
+of its private storage identity. Native guards recheck credential epoch, selected
+role and grants before publication and disclosure.
+`lookup` checks current object visibility, resolves exact names in its namespace and verifies the
 live head against immutable metadata and schema. `list` returns at most eight
 inline metadata/head entries in object-ID order, without acquiring schema
 defaults or row data. Its cursor binds scope and exact native
-revision; current denial takes precedence over cursor use. Initializing/retired
+revision; current denial takes precedence over cursor use. Invisible, initializing and retired
 objects advance the scan without appearing as live Tables. Release lookup
 definitions with `deinit`; listing pages have no heap owner. Resident work does
 not grow with catalog size or schema defaults.
@@ -41,7 +44,10 @@ DROP publication.
 `TableDdlRequest` binds exact scope, principal, operation, object, expected
 metadata revision, name and typed action. `TableCatalog.step` checks both current
 inspect and action rights and the authenticated external principal on every
-proposal. CREATE reserves a never-reused object, stages its schema and publishes
+proposal. CREATE reserves a never-reused object and requires its native binding, owned by
+the verified active role. The registrar stages and publishes that binding through
+public authorization commands, retaining the exact candidate identity across
+retries. The catalog then stages its schema and publishes
 the head/name/metadata/original receipt atomically. `IF NOT EXISTS` records an
 unchanged outcome without adopting or altering the existing definition. A name
 race records the winning object; changing the saved intent is an identity error.
@@ -59,7 +65,10 @@ RESTRICT, removes the live name and retires the head/object in the same decision
 Dependency installation is fenced during pending DDL. New objects may reuse a
 dropped name; saved operations remain bound to their original object and outcome.
 `IF EXISTS` prepared against absence cannot drop a subsequently created object.
-Retained schema references remain readable under the caller's authorized source.
+Retained schema references remain readable under current Table authority. DROP
+keeps the opaque authorization object so retained definitions and outcomes can be
+checked against the original object after name reuse. Dropping a live name does
+not retire historical access authority or grant access to its replacement.
 
 `status` requires current inspect permission and verifies the original digest.
 `cancel` also requires that permission and the original authenticated principal;
@@ -124,9 +133,9 @@ Every continuation rechecks the original principal's current policy. Denial
 leaves the accepted work and reservation intact; scheduling, input dispositions
 and explicit resume/cancel remain responsibilities of the enclosing native host.
 
-`TableCommand` supplies a typed DDL/DML body for that host. Its 141-byte header
+`TableCommand` supplies a typed DDL/DML body for that host. Its 149-byte header
 checks the current shared definition and exact scope, owner, principal, operation,
-object and immutable metadata reference before schema-dependent decoding. Header
+object, schema namespace and immutable metadata reference before schema-dependent decoding. Header
 inspection is allocation-free and does not admit work. The host checks current
 native/catalog authority and resolves accepted metadata before supplying a basis.
 CREATE carries its schema; ALTER carries an explicit change against its original
@@ -170,7 +179,7 @@ other process outputs. A courier outage preserves the pending output and Table
 reservation; GenServer does not grant itself delivery authority or bypass native
 routing. Deployments must run the delivery service alongside the Table owner.
 
-Initialization, policy and dependency controls retain separate input outcomes.
+Initialization and dependency controls retain separate input outcomes.
 SQL outcomes remain in their original catalog/Table receipts. Cancellation and
 cleanup use those exact references, with no extra fifth receipt write. The supplied catalog host composes this module with the signed client and console.
 
@@ -189,7 +198,11 @@ exact recovery over these general owner hooks. Save the TCI1 intent and each
 signature and sequence; `next` is for a reconciled successor step. It distinguishes
 running SQL, terminal SQL and cancellation of unadmitted transport. `prepareResume`
 explicitly schedules paused original work. Typed controls expose cancellation,
-candidate/body cleanup and conditional policy/dependency changes.
+candidate/body cleanup and conditional dependency changes. Native authorization
+commands own role/grant changes. Mediated preparation returns an unsigned
+`Candidate`; its exact request, caller, role and command bytes are validated before
+caller signing. Read acquisition accumulates the object requirements and rechecks
+them before returning metadata or recovery evidence.
 
 `TableDiagnostic.status` projects original saved intent and durable execution
 evidence. Rejected primary keys include the key columns, bounded escaped values
@@ -204,8 +217,8 @@ receipt. Diagnostics report that recorded blocker after registry removal or
 replacement, Table retirement and name reuse; they do not claim it still exists.
 Current catalog inspection rights gate this evidence. It is metadata, not a
 stored row value, and does not require Table read permission. A blocked receipt
-uses 242 bytes; the rejection adds no separate evidence write. Other catalog
-receipts encode an explicit empty blocker and use 225 bytes. Readers reject
+uses 250 bytes; the rejection adds no separate evidence write. Other catalog
+receipts encode an explicit empty blocker and use 233 bytes. Readers reject
 missing tags, truncated evidence and contradictory reason/kind combinations.
 
 Catalog inspection permission gates all outcome access. Stored-row identity and

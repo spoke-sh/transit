@@ -95,6 +95,7 @@ def generated():
                      role=3, audience=17, context=list(hashlib.sha256(b'complete immutable service request').digest()))
         results[FIXTURES / 'authorization-subject-v1.json'] = dict(
             public_key=key.public, subject=vector(claim, b'transit.authorization.subject.v1\0'),
+            utf8_subject=vector(dict(claim, context=[0] * 32), b'transit.authorization.subject.v1\0'),
             input=dict(value=b'original native input'.hex(),
                        digest=hashlib.sha256(b'transit.authorization.input.v1\0original native input').hexdigest()))
 

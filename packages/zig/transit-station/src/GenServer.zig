@@ -287,7 +287,7 @@ fn prepareTurn(self: *GenServer) !void {
     const view = page.view orelse return error.InvalidAuthorityResponse;
     if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
     const fresh = try self.freshDelivery();
-    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries, .authorization = readAuthorization });
+    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries, .authorization = readAuthorization, .authorization_binding = readAuthorizationBinding });
     errdefer self.ready = null;
     for (self.read_view_ids, self.read_resources) |id, resource| if (id) |selected| {
         const response = try self.session.readView(selected, descriptor_key, null);
@@ -315,6 +315,11 @@ fn readAuthorization(context: *anyopaque, guard: p.Authorization.Guard) anyerror
         return err;
     };
     return result.body.authorization.body.check;
+}
+fn readAuthorizationBinding(context: *anyopaque, domain: u64, key: [32]u8) anyerror!?p.Authorization.Object {
+    const self: *GenServer = @ptrCast(@alignCast(context));
+    const result = try self.session.client.query(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .authorization = .{ .kind = .{ .binding = .{ .domain = domain, .key = key } } } } }, self.session.key);
+    return result.body.authorization.body.binding;
 }
 fn readMany(context: *anyopaque, view: p.Growth.View, keys: [p.Growth.page_size]?p.Value) anyerror![p.Growth.page_size]?p.Growth.Entry {
     const self: *GenServer = @ptrCast(@alignCast(context));

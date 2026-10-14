@@ -9,7 +9,7 @@ const Counter = @import("Counter.zig");
 const Store = q.testing.Store;
 const ingress = 42;
 fn setup(store: *Store) !void {
-    const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = store.resource, .catalog = 1 }, .owner = store.pid, .administrator = 17, .table_limits = .{ .record_bytes = s.fuze.TableRow.max_bytes, .staging_bytes = 8 * s.fuze.TableRow.max_bytes, .staging_records = 8 } } };
+    const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = store.resource, .catalog = 1 }, .owner = store.pid, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = s.fuze.TableRow.max_bytes, .staging_bytes = 8 * s.fuze.TableRow.max_bytes, .staging_records = 8 } } };
     var turn = try store.capture();
     turn.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
     try catalog.initialize(&turn);

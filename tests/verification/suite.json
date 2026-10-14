@@ -22,6 +22,7 @@
       "test::storage",
       "test::service",
       "test::authorization",
+      "test::authorization-tables",
       "test::runtime-upgrade",
       "test::callers",
       "test::inspection",

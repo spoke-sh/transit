@@ -39,3 +39,7 @@ test {
     _ = @import("table_catalog_test.zig");
     _ = @import("simulation_test.zig");
 }
+
+pub const testing = if (@import("builtin").is_test) struct {
+    pub const Authority = @import("TestAuthority.zig");
+} else struct {};

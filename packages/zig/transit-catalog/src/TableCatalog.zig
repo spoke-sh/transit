@@ -10,8 +10,12 @@ const Store = c.TableMetadataStore;
 const s = c.station;
 const Self = @This();
 configuration: m.Configuration,
+namespace: ?u64 = null,
+registration: ?*?p.Authorization.Action = null,
 pub const Definition = struct {
     metadata: Meta.Record,
+    authority: c.TableAuthority.Table,
+    namespace: c.TableAuthority.Schema,
     head: s.TableHead,
     schema: c.fuze.TableSchema.Owned,
     pub fn deinit(self: *Definition) void {
@@ -53,64 +57,99 @@ fn principal(turn: *s.Turn) !u64 {
 }
 fn administrator(self: Self, turn: *s.Turn) !void {
     try self.owner(turn);
-    if (try principal(turn) != self.configuration.administrator) return error.CatalogDenied;
+    const who = try principal(turn);
+    _ = try self.require(turn, who, null, null, .create_schema);
+}
+fn namespaceId(self: Self) u64 {
+    return self.namespace orelse self.configuration.authority.initial_schema;
+}
+pub fn namespaceRecord(self: Self, source: anytype, id: u64) !c.TableAuthority.Schema {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{self.key('S', id, 0)});
+    const value = try r.decode(c.TableAuthority.Schema, 'S', (try source.read(self.key('S', id, 0))) orelse return error.CatalogSchemaMissing);
+    try self.scope(value.scope);
+    if (value.id != id or value.retired) return error.CatalogSchemaMissing;
+    return value;
+}
+fn require(self: Self, source: anytype, who: u64, namespace: ?c.TableAuthority.Schema, table: ?c.TableAuthority.Table, access: c.TableAuthority.Access) !p.Authorization.Verified {
+    return c.TableAuthority.require(source, try c.TableAuthority.guard(try c.TableAuthority.subjectFor(source, who, self.configuration.owner), self.configuration.authority, namespace, table, access));
+}
+/// Namespace access never implies rights on every Table stored below it.
+pub fn authorize(self: Self, source: anytype, who: u64, right: m.Right) !p.Authorization.Verified {
+    try self.check(source);
+    const access: c.TableAuthority.Access = switch (right) {
+        .inspect => .schema,
+        .create => .create_table,
+        else => return error.InvalidCatalogIdentity,
+    };
+    return self.require(source, who, try self.namespaceRecord(source, self.namespaceId()), null, access);
+}
+pub fn authorizeDatabase(self: Self, source: anytype, who: u64) !p.Authorization.Verified {
+    try self.check(source);
+    return self.require(source, who, null, null, .database);
+}
+pub fn authorizeObject(self: Self, source: anytype, who: u64, id: u64, right: m.Right) !p.Authorization.Verified {
+    if (right == .create) return self.authorize(source, who, .create);
+    _ = try self.authorizeDatabase(source, who);
+    if (id == 0) return self.authorize(source, who, .inspect);
+    const value = (try self.object(source, id)) orelse return error.TableNotFound;
+    const access: c.TableAuthority.Access = switch (right) {
+        .inspect => .inspect,
+        .read => .read,
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        .alter => .alter,
+        .drop => .drop,
+        .create => unreachable,
+    };
+    return self.require(source, who, try self.namespaceRecord(source, value.namespace), .{ .id = id, .schema = value.namespace, .authorization = value.authorization }, access);
+}
+fn canRead(self: Self, source: anytype, who: u64, id: u64) !bool {
+    _ = self.authorizeObject(source, who, id, .read) catch |err| return if (err == error.CatalogDenied) false else err;
+    return true;
 }
 fn check(self: Self, source: anytype) !void {
     try self.configuration.validate();
     if (source.view.resource != self.configuration.scope.resource) return error.CrossResourceTransaction;
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{self.key('c', 0, 0)});
     const config = try r.decode(m.Configuration, 'C', (try source.read(self.key('c', 0, 0))) orelse return error.CatalogNotInitialized);
     if (!std.meta.eql(config, self.configuration)) return error.CatalogConfigurationChanged;
-}
-fn policy(self: Self, source: anytype, who: u64) !?m.Policy {
-    if (who > p.max_counter) return error.InvalidCatalogPolicy;
-    const rights = try r.decode(m.Policy, 'P', (try source.read(self.key('p', who, 0))) orelse return null);
-    try self.scope(rights.scope);
-    if (rights.principal != who) return error.InvalidCatalogPolicy;
-    return rights;
-}
-pub fn authorize(self: Self, source: anytype, who: u64, right: m.Right) !m.Policy {
-    try self.configuration.validate();
-    if (source.view.resource != self.configuration.scope.resource) return error.CrossResourceTransaction;
-    if (who > p.max_counter) return error.InvalidCatalogPolicy;
-    const Source = @typeInfo(@TypeOf(source)).pointer.child;
-    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{ self.key('c', 0, 0), self.key('p', who, 0) });
-    try self.check(source);
-    const rights = (try self.policy(source, who)) orelse return error.CatalogDenied;
-    if (!rights.permits(right)) return error.CatalogDenied;
-    return rights;
 }
 pub fn initialize(self: Self, turn: *s.Turn) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
-    try self.administrator(turn);
+    try self.owner(turn);
     const prefix = r.prefix(self.configuration.scope.catalog, 0);
     for (turn.decision.mutations) |slot| if (slot) |mutation| {
         if (std.mem.startsWith(u8, mutation.key.slice(), prefix.data[0..10])) return error.QueryAfterMutation;
     };
     if (try turn.read(self.key('c', 0, 0)) != null) {
         try self.check(turn);
-        _ = (try self.policy(turn, self.configuration.administrator)) orelse return error.InvalidCatalogPolicy;
+        _ = try self.authorizeDatabase(turn, try principal(turn));
         return;
     }
+    if (try principal(turn) != self.configuration.administrator) return error.CatalogDenied;
+    try self.administrator(turn);
     var committed = turn.committed();
     const page = try committed.page(prefix);
     try c.Inspection.validatePage(page, prefix, turn.view.revision);
     if (page.entries[0]) |entry| if (std.mem.startsWith(u8, entry.key.slice(), prefix.data[0..10])) return error.CatalogAlreadyPopulated;
     try turn.write(self.key('c', 0, 0), try r.encode('C', self.configuration));
-    try turn.write(self.key('p', self.configuration.administrator, 0), try r.encode('P', try m.Policy.administrator(self.configuration.scope, self.configuration.administrator)));
-}
-pub fn setPolicy(self: Self, turn: *s.Turn, expected_revision: u64, next: m.Policy) !void {
-    try self.administrator(turn);
-    try self.check(turn);
-    try next.validate();
-    try self.scope(next.scope);
-    if (next.revision != (std.math.add(u64, expected_revision, 1) catch return error.InvalidCatalogPolicy)) return error.InvalidCatalogPolicy;
-    const old = try self.policy(turn, next.principal);
-    if (old) |previous| if (std.meta.eql(previous, next)) return;
-    if ((if (old) |previous| previous.revision else 0) != expected_revision) return error.CatalogPolicyConflict;
-    try turn.write(self.key('p', next.principal, 0), try r.encode('P', next));
+    const profile = self.configuration.authority;
+    const database = (try turn.authorizationBinding(profile.database_domain, try c.TableAuthority.binding(self.configuration.scope, .database, 0))) orelse return error.CatalogRegistrationRequired;
+    try c.TableAuthority.validateObject(profile, self.configuration.scope, .database, 0, null, database);
+    if (database.reference.id != profile.database) return error.InvalidCatalogConfiguration;
+    const initial = (try turn.authorizationBinding(profile.schema_domain, try c.TableAuthority.binding(self.configuration.scope, .schema, profile.initial_schema))) orelse return error.CatalogRegistrationRequired;
+    try c.TableAuthority.validateObject(profile, self.configuration.scope, .schema, profile.initial_schema, c.TableAuthority.reference(profile.database), initial);
+    if (initial.reference.id != profile.initial_schema_authority) return error.InvalidCatalogConfiguration;
+    const namespace: c.TableAuthority.Schema = .{ .scope = self.configuration.scope, .id = profile.initial_schema, .authorization = profile.initial_schema_authority, .name = try .init("public"), .revision = 1 };
+    try turn.write(self.key('S', namespace.id, 0), try r.encode('S', namespace));
 }
 fn object(self: Self, source: anytype, id: u64) !?m.Object {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{self.key('O', id, 0)});
     if (id == 0) return error.InvalidCatalogIdentity;
     const value = try r.decode(m.Object, 'O', (try source.read(self.key('O', id, 0))) orelse return null);
     try self.scope(value.scope);
@@ -125,7 +164,7 @@ fn metadata(self: Self, source: anytype, value: m.Object) !Meta.Record {
 const Bound = struct { object: m.Object, metadata: Meta.Record };
 fn binding(self: Self, source: anytype, name: Meta.Name) !?Bound {
     try name.validate();
-    const digest = try name.digest();
+    const digest = try name.digestIn(self.namespaceId());
     const full = try Meta.nameKey(self.configuration.scope.catalog, digest, 1);
     const prefix = try p.Value.init(full.data[0..24]);
     var cursor = prefix;
@@ -144,9 +183,9 @@ fn binding(self: Self, source: anytype, name: Meta.Name) !?Bound {
             const current = (try self.object(source, id)) orelse return error.CatalogDefinitionMissing;
             if (current.state != .live) return error.CatalogDefinitionChanged;
             const record = try self.metadata(source, current);
-            const actual_digest = try record.name.digest();
+            const actual_digest = try record.name.digestIn(record.namespace);
             if (!std.mem.eql(u8, actual_digest[0..Meta.name_digest_bytes], digest[0..Meta.name_digest_bytes])) return error.CatalogDefinitionChanged;
-            if (record.name.eql(&name)) {
+            if (record.namespace == self.namespaceId() and record.name.eql(&name)) {
                 if (found != null) return error.InvalidCatalogBinding;
                 found = .{ .object = current, .metadata = record };
             }
@@ -166,11 +205,12 @@ fn resolve(self: Self, allocator: std.mem.Allocator, source: anytype, value: m.O
     var schema = try head.readSchema(allocator, source);
     errdefer schema.deinit();
     if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &record.schema_fingerprint)) return error.CatalogDefinitionChanged;
-    return .{ .metadata = record, .head = head, .schema = schema };
+    return .{ .metadata = record, .authority = .{ .id = value.object, .schema = value.namespace, .authorization = value.authorization }, .namespace = try self.namespaceRecord(source, value.namespace), .head = head, .schema = schema };
 }
 pub fn lookup(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, name: Meta.Name) !?Definition {
     _ = try self.authorize(source, who, .inspect);
     const current = (try self.binding(source, name)) orelse return null;
+    _ = self.authorizeObject(source, who, current.object.object, .inspect) catch |err| return if (err == error.CatalogDenied) null else err;
     return try self.resolve(allocator, source, current.object, current.metadata);
 }
 /// Object-ordered pages are bound to one native revision. Tombstoned and pending
@@ -199,7 +239,11 @@ pub fn list(self: Self, source: anytype, who: u64, cursor: ?Cursor) !Page {
         try self.scope(current.scope);
         if (current.object != id or id == 0) return error.InvalidCatalogObject;
         last = id;
-        if (current.state == .live) {
+        if (current.state == .live and current.namespace == self.namespaceId()) {
+            _ = self.authorizeObject(source, who, id, .inspect) catch |err| {
+                if (err == error.CatalogDenied) continue;
+                return err;
+            };
             const record = try self.metadata(source, current);
             result.entries[count] = .{ .metadata = record, .head = try self.resolveHead(source, current, record) };
             count += 1;
@@ -253,7 +297,7 @@ fn restrict(self: Self, source: anytype, id: u64) !?m.Dependency {
     return dependency;
 }
 pub fn blockingDependency(self: Self, source: anytype, who: u64, id: u64) !?m.Dependency {
-    _ = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeObject(source, who, id, .inspect);
     _ = (try self.object(source, id)) orelse return error.TableNotFound;
     return self.restrict(source, id);
 }
@@ -283,11 +327,13 @@ fn outcome(source: anytype, value: m.Operation) !Outcome {
     return .{ .operation = value, .table = table };
 }
 pub fn status(self: Self, source: anytype, who: u64, id: u64, digest: [32]u8) !?Outcome {
-    const rights = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeDatabase(source, who);
     const found = (try self.operation(source, who, id)) orelse return null;
     if (!std.mem.eql(u8, &found.digest, &digest)) return error.CatalogIdentityConflict;
+    const target = if (found.actual_object != 0) found.actual_object else if (found.object != 0 and try self.object(source, found.object) != null) found.object else 0;
+    if (target != 0) _ = try self.authorizeObject(source, who, target, .inspect) else _ = try self.require(source, who, try self.namespaceRecord(source, found.namespace), null, .schema);
     var result = try outcome(source, found);
-    if (result.table) |*table| table.* = try table.disclose(rights.read);
+    if (result.table) |*table| table.* = try table.disclose(try self.canRead(source, who, found.object));
     return result;
 }
 /// Published bytes alone do not establish an accepted definition. Retained
@@ -302,7 +348,7 @@ fn acceptedDefinition(self: Self, source: anytype, id: u64, ref: s.TablePages.Re
     };
 }
 pub fn historical(self: Self, source: anytype, who: u64, id: u64, ref: s.TablePages.Reference) !Meta.Record {
-    _ = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeObject(source, who, id, .inspect);
     const record = try (Store{ .scope = self.configuration.scope, .object = id }).read(source, ref);
     if (!try self.acceptedDefinition(source, id, ref, record)) return error.CatalogDefinitionMissing;
     return record;
@@ -310,9 +356,10 @@ pub fn historical(self: Self, source: anytype, who: u64, id: u64, ref: s.TablePa
 /// Exact metadata/schema inspection survives rename and DROP. Missing or never
 /// accepted revisions return null; incompatible/corrupt retained evidence fails.
 pub fn definition(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, revision: u64) !?HistoricalDefinition {
-    _ = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeDatabase(source, who);
     if (revision == 0) return error.InvalidCatalogIdentity;
     const current = (try self.object(source, id)) orelse return null;
+    _ = try self.authorizeObject(source, who, id, .inspect);
     if (current.metadata.id == 0) return null;
     const ref = (try (Store{ .scope = self.configuration.scope, .object = id }).referenceAt(source, revision)) orelse return null;
     const record = try (Store{ .scope = self.configuration.scope, .object = id }).read(source, ref);
@@ -370,14 +417,28 @@ fn emptyObjectNamespace(turn: *s.Turn, id: u64) !void {
     }
 }
 fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcome {
-    var pending: m.Operation = .{ .scope = self.configuration.scope, .principal = request.principal, .operation = request.operation, .object = request.object, .digest = digest, .kind = request.action, .state = .preparing, .admitted_input = turn.delivery.input.position };
+    var pending: m.Operation = .{ .scope = self.configuration.scope, .principal = request.principal, .operation = request.operation, .object = request.object, .namespace = request.namespace, .digest = digest, .kind = request.action, .state = .preparing, .admitted_input = turn.originalAuthorizedInput() };
     const bound = try self.binding(turn, request.name);
     switch (request.action) {
         .create => |creation| {
-            if (bound) |existing| return self.close(turn, pending, null, if (creation.if_not_exists) .unchanged else .rejected, if (creation.if_not_exists) .none else .name_conflict, existing.object.object);
+            if (bound) |existing| {
+                _ = try self.authorizeObject(turn, request.principal, existing.object.object, .inspect);
+                return self.close(turn, pending, null, if (creation.if_not_exists) .unchanged else .rejected, if (creation.if_not_exists) .none else .name_conflict, existing.object.object);
+            }
             if (try self.object(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .object_conflict, request.object);
             try emptyObjectNamespace(turn, request.object);
-            const fresh: m.Object = .{ .scope = pending.scope, .object = request.object, .state = .initializing, .next_revision = 2, .pending_principal = pending.principal, .pending_operation = pending.operation, .pending_revision = 1, .pending_digest = digest };
+            const namespace = try self.namespaceRecord(turn, self.namespaceId());
+            const identity = try c.TableAuthority.binding(pending.scope, .table, request.object);
+            const profile = self.configuration.authority;
+            const native = (try turn.authorizationBinding(profile.table_domain, identity)) orelse {
+                const verified = try self.authorize(turn, request.principal, .create);
+                if (self.registration) |slot| slot.* = .{ .register_object = .{ .domain = profile.table_domain, .owner = verified.role, .schema = c.TableAuthority.reference(namespace.authorization), .binding = identity } };
+                return error.CatalogRegistrationRequired;
+            };
+            try c.TableAuthority.validateObject(profile, pending.scope, .table, request.object, c.TableAuthority.reference(namespace.authorization), native);
+            const verified = try self.authorize(turn, request.principal, .create);
+            if (native.owner != verified.role) return error.CatalogIdentityConflict;
+            const fresh: m.Object = .{ .scope = pending.scope, .object = request.object, .namespace = namespace.id, .authorization = native.reference.id, .state = .initializing, .next_revision = 2, .pending_principal = pending.principal, .pending_operation = pending.operation, .pending_revision = 1, .pending_digest = digest };
             try self.saveObject(turn, fresh);
             var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
             const schema_ref: s.TablePages.Reference = .{ .id = 1, .spec = try s.Publication.Digest.of(s.TablePages.schema_format, try creation.schema.encode(&bytes)) };
@@ -415,7 +476,7 @@ fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcom
     return .{ .operation = pending };
 }
 fn candidate(self: Self, pending: m.Operation, current: m.Object, name: Meta.Name, schema: s.TablePages.Reference, fingerprint: [32]u8) Meta.Record {
-    return .{ .scope = self.configuration.scope, .object = current.object, .revision = current.pending_revision, .name = name, .schema = schema, .schema_fingerprint = fingerprint, .principal = pending.principal, .operation = pending.operation, .admitted_input = pending.admitted_input };
+    return .{ .scope = self.configuration.scope, .object = current.object, .namespace = current.namespace, .revision = current.pending_revision, .name = name, .schema = schema, .schema_fingerprint = fingerprint, .principal = pending.principal, .operation = pending.operation, .admitted_input = pending.admitted_input };
 }
 fn stagedMetadata(self: Self, turn: *s.Turn, record: Meta.Record) !bool {
     const store: Store = .{ .scope = self.configuration.scope, .object = record.object };
@@ -467,7 +528,7 @@ fn createStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: 
     if (!try self.stagedMetadata(turn, record)) return .{ .operation = pending };
     const head: s.TableHead = .{ .resource = self.configuration.scope.resource, .object = request.object, .revision = 1, .schema = schema_ref, .next_record = 2 };
     try head.create(allocator, turn);
-    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digest(), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
+    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digestIn(request.namespace), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
     return self.publishObject(turn, current, record, pending, false);
 }
 fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operation, current: m.Object) !Outcome {
@@ -485,9 +546,9 @@ fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operatio
     // DROP's name, object, head and outcome still publish together in four
     // writes. An earlier immutable predecessor stage does not retire anything.
     if (request.action == .drop and try s.TableHistory.stage(head, turn) == .progress) return .{ .operation = pending };
-    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digest(), request.object), null);
+    try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.name.digestIn(request.namespace), request.object), null);
     if (request.action == .rename) {
-        try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.action.rename.digest(), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
+        try turn.write(try Meta.nameKey(self.configuration.scope.catalog, try request.action.rename.digestIn(request.namespace), request.object), try r.encode('N', m.Binding{ .scope = self.configuration.scope, .object = request.object }));
     } else {
         var retired = head;
         retired.revision = try add(head.revision, 1);
@@ -537,12 +598,16 @@ fn alterStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: D
 /// One bounded private proposal. The native owner commits its writes with input
 /// progress, and supplies the exact same request on each continuation.
 pub fn step(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
-    return self.advanceDdl(allocator, turn, request, .external);
+    var scoped = self;
+    scoped.namespace = request.namespace;
+    return scoped.advanceDdl(allocator, turn, request, .external);
 }
 /// A native self-message can continue only an already admitted exact operation.
 /// Origin is never rewritten to impersonate the recorded external principal.
 pub fn continueDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest) !Outcome {
-    return self.advanceDdl(allocator, turn, request, .continuation);
+    var scoped = self;
+    scoped.namespace = request.namespace;
+    return scoped.advanceDdl(allocator, turn, request, .continuation);
 }
 fn actor(self: Self, turn: *s.Turn, who: u64, continuation: bool) !void {
     try self.owner(turn);
@@ -550,15 +615,31 @@ fn actor(self: Self, turn: *s.Turn, who: u64, continuation: bool) !void {
         if (turn.delivery.input.origin != .process or turn.delivery.input.origin.process.pid != self.configuration.owner) return error.CatalogDenied;
     } else if (try principal(turn) != who) return error.CatalogDenied;
 }
+pub fn bindCommand(self: Self, turn: *s.Turn, header: c.TableCommand.Header) !void {
+    if (turn.delivery.input.origin != .process) return;
+    if (turn.delivery.input.origin.process.pid != self.configuration.owner) return error.CatalogDenied;
+    const input = switch (header.kind) {
+        .create, .alter, .rename, .drop => ((try self.operation(turn, header.principal, header.operation)) orelse return error.CatalogOperationNotFound).admitted_input,
+        .insert, .update, .delete => blk: {
+            const ref: s.TableWrite.Reference = .{ .resource = header.scope.resource, .object = header.object, .principal = header.principal, .operation = header.operation, .digest = @splat(0) };
+            const record = try s.TableWrite.Status.decode((try turn.read(ref.key())) orelse return error.TableWriteNotFound);
+            if (record.reference.resource != ref.resource or record.reference.object != ref.object or record.reference.principal != ref.principal or record.reference.operation != ref.operation) return error.CatalogIdentityConflict;
+            break :blk record.admitted_input;
+        },
+    };
+    try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.configuration.owner, .input = input, .principal = header.principal } });
+}
 const Admission = enum { external, continuation, uploaded };
 fn advanceDdl(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, admission: Admission) !Outcome {
     const before = turn.decision;
     errdefer turn.decision = before;
     try self.actor(turn, request.principal, admission != .external);
-    _ = try self.authorize(turn, request.principal, .inspect);
-    _ = try self.authorize(turn, request.principal, request.right());
+    const existing = try self.operation(turn, request.principal, request.operation);
+    if (existing == null and admission == .continuation) return error.CatalogOperationNotFound;
+    if (admission != .external) if (existing) |value| try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.configuration.owner, .input = value.admitted_input, .principal = request.principal } });
+    _ = try self.authorizeObject(turn, request.principal, request.object, request.right());
     const digest = try request.digest(self.configuration.scope);
-    const pending = (try self.operation(turn, request.principal, request.operation)) orelse {
+    const pending = existing orelse {
         if (admission == .continuation) return error.CatalogOperationNotFound;
         return self.admit(turn, request, digest);
     };
@@ -668,13 +749,14 @@ fn advanceMutation(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, requ
     const before = turn.decision;
     errdefer turn.decision = before;
     try self.actor(turn, request.principal, admission != .external);
-    _ = try self.authorize(turn, request.principal, .inspect);
-    _ = try self.authorize(turn, request.principal, request.right());
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
     const route = try request.route(allocator, self.configuration.scope, &scratch);
     const ref = try route.reference(allocator);
-    _ = (try self.object(turn, ref.object)) orelse return error.TableNotFound;
-    if (try s.TableWrite.status(turn, ref)) |previous| {
+    const existing = try s.TableWrite.status(turn, ref);
+    if (existing == null and admission == .continuation) return error.TableWriteNotFound;
+    if (admission != .external) if (existing) |value| try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.configuration.owner, .input = value.admitted_input, .principal = request.principal } });
+    _ = try self.authorizeObject(turn, request.principal, ref.object, request.right());
+    if (existing) |previous| {
         if (previous.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
         if (previous.state != .building) return previous;
     } else if (admission == .continuation) return error.TableWriteNotFound;
@@ -696,33 +778,35 @@ pub fn executeUploaded(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, 
     var command = try uploads.resolve(allocator, turn, namespace);
     defer command.deinit();
     const admission: Admission = if (turn.delivery.input.origin == .external) .external else .uploaded;
+    var scoped = self;
+    scoped.namespace = upload.header.namespace;
     return switch (command.body.request) {
-        .ddl => |request| (try self.advanceDdl(allocator, turn, request, admission)).terminal(),
-        .dml => |request| (try self.advanceMutation(allocator, turn, request, admission)).state != .building,
+        .ddl => |request| (try scoped.advanceDdl(allocator, turn, request, admission)).terminal(),
+        .dml => |request| (try scoped.advanceMutation(allocator, turn, request, admission)).state != .building,
     };
 }
 pub fn mutationStatus(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, request: DmlRequest) !?s.TableWrite.Status {
-    const rights = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeDatabase(source, who);
     if (who != request.principal) return error.CatalogDenied;
     var scratch: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = undefined;
     const route = try request.route(allocator, self.configuration.scope, &scratch);
     const ref = try route.reference(allocator);
-    _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
+    _ = try self.authorizeObject(source, who, ref.object, .inspect);
     const result = try s.TableWrite.status(source, ref);
     if (result) |value| if (value.route != route.receiptRoute()) return error.InvalidTableWriteStatus;
-    return if (result) |value| try value.disclose(rights.read) else null;
+    return if (result) |value| try value.disclose(try self.canRead(source, who, ref.object)) else null;
 }
 
 /// A saved exact reference can inspect/cancel DML without retransmitting its
 /// original typed rows. Catalog ownership and current disclosure still apply.
 pub fn mutationReceipt(self: Self, source: anytype, who: u64, ref: s.TableWrite.Reference) !?s.TableWrite.Status {
-    const rights = try self.authorize(source, who, .inspect);
+    _ = try self.authorizeDatabase(source, who);
     if (who != ref.principal) return error.CatalogDenied;
     if (ref.resource != self.configuration.scope.resource) return error.CatalogScopeChanged;
-    _ = (try self.object(source, ref.object)) orelse return error.TableNotFound;
+    _ = try self.authorizeObject(source, who, ref.object, .inspect);
     const result = (try s.TableWrite.status(source, ref)) orelse return null;
     if (result.route == .alter) return error.CatalogIdentityConflict;
-    return try result.disclose(rights.read);
+    return try result.disclose(try self.canRead(source, who, ref.object));
 }
 pub fn cancelMutationReference(self: Self, turn: *s.Turn, ref: s.TableWrite.Reference) !s.TableWrite.Status {
     const before = turn.decision;
@@ -770,7 +854,7 @@ pub const DefinitionMismatch = struct { expected: s.TablePages.Reference, actual
 pub fn readDefinitionDiagnostic(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, id: u64, expected: s.TablePages.Reference, diagnostic: ?*?DefinitionMismatch) !Definition {
     if (diagnostic) |detail| detail.* = null;
     _ = try self.authorize(source, who, .inspect);
-    _ = try self.authorize(source, who, .read);
+    _ = try self.authorizeObject(source, who, id, .read);
     // These exact identities are already known from the authorized declaration.
     // Acquiring them together does not replace any lifecycle/commitment check.
     const Source = @typeInfo(@TypeOf(source)).pointer.child;
@@ -793,14 +877,17 @@ pub fn readDefinitionDiagnostic(self: Self, allocator: std.mem.Allocator, source
 /// The enclosing native caller supplies authenticated `who`; this read helper
 /// does not grant execution merely because a header names an allowed principal.
 pub fn commandBasis(self: Self, allocator: std.mem.Allocator, source: anytype, who: u64, header: c.TableCommand.Header, purpose: enum { inspect, execute }) !?c.TableCommand.ResolvedBasis {
-    _ = try self.authorize(source, who, .inspect);
+    var scoped = self;
+    scoped.namespace = header.namespace;
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{ self.key('c', 0, 0), self.key('O', header.object, 0), self.key('S', header.namespace, 0) });
+    _ = try self.authorizeDatabase(source, who);
     if (who != header.principal) return error.CatalogDenied;
     try header.validate();
     try self.scope(header.scope);
     if (header.owner != self.configuration.owner) return error.CatalogOwnerChanged;
-    if (purpose == .execute) _ = try self.authorize(source, who, header.right());
+    if (purpose == .execute) _ = try scoped.authorizeObject(source, who, header.object, header.right()) else if (header.kind != .create) _ = try self.authorizeObject(source, who, header.object, .inspect);
     if (header.metadata.id == 0) return null;
-    const Source = @typeInfo(@TypeOf(source)).pointer.child;
     if (comptime @hasDecl(Source, "prefetch")) {
         // All addresses follow the authenticated header. Acquire bounded
         // metadata together; every identity/lifecycle check below still runs.

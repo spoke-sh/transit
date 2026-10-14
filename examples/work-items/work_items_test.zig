@@ -7,10 +7,12 @@ const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
 const Store = struct {
     entries: std.AutoHashMap(p.Value, p.Value) = .init(t.allocator),
     changed_at: std.AutoHashMap(p.Value, u64) = .init(t.allocator),
+    authority: W.query.catalog.testing.Authority = .{},
     position: u64 = 0,
     pages: usize = 0,
     fail_read: bool = false,
     fn deinit(self: *@This()) void {
+        self.authority.deinit();
         self.entries.deinit();
         self.changed_at.deinit();
     }
@@ -38,9 +40,18 @@ const Store = struct {
         if (keys.items.len > p.Growth.page_size) result.next = keys.items[p.Growth.page_size - 1];
         return result;
     }
+    fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorization.Verified {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        return W.query.catalog.testing.Authority.authorize(&self.authority, guard);
+    }
+    fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Object {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        return W.query.catalog.testing.Authority.binding(&self.authority, domain, identity);
+    }
     fn turn(self: *@This(), principal: u64) !s.Turn {
         self.position += 1;
-        return s.Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page });
+        if (!self.authority.rights.contains(33)) try self.authority.setRights(.{ .principal = 33 });
+        return s.Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page, .authorization = authorize, .authorization_binding = binding });
     }
     fn commit(self: *@This(), turn_value: *s.Turn) !void {
         try turn_value.validate();
@@ -92,7 +103,7 @@ fn mutations(turn: s.Turn) usize {
     return count;
 }
 fn owner() W {
-    return .{ .allocator = t.allocator, .configuration = .{ .owner = 2, .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7 } };
+    return .{ .allocator = t.allocator, .configuration = .{ .owner = 2, .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7, .authority = W.query.catalog.testing.Authority.profile } };
 }
 test "independent WI1 commands retain full-width keys plans ordinals and cursors" {
     const Fixture = struct { version: u8, put: p.Value, cursor: p.Value, step: p.Value };
@@ -326,26 +337,23 @@ test "accepted puts block migration until exact Table completion" {
     _ = try store.execute(44, .{ .begin = try owner().proposal(2) });
 }
 
-test "catalog bootstrap and read grants require the independent administrator" {
+test "catalog bootstrap requires its administrator and native grants govern reads" {
     var store: Store = .{};
     defer store.deinit();
     try setup(&store, 0);
-    for ([_]W.Command{ .catalog_initialize, .{ .prepare_table = 4 }, .{ .read_policy = .{ .principal = 55, .expected = 0, .revision = 1, .allow = true } } }) |command| {
+    for ([_]W.Command{ .catalog_initialize, .{ .prepare_table = 4 } }) |command| {
         var turn = try store.turn(44);
         try t.expectError(error.WorkItemDenied, owner().execute(&turn, command));
         try t.expectEqual(0, mutations(turn));
     }
-    const grant: W.Command = .{ .read_policy = .{ .principal = 55, .expected = 0, .revision = 1, .allow = true } };
-    _ = try store.execute(33, grant);
+    try store.authority.setRights(.{ .principal = 55, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
     var read = try store.turn(55);
-    _ = try owner().catalog().authorize(&read, 55, .read);
+    _ = try owner().catalog().authorizeObject(&read, 55, 1, .read);
     try t.expectError(error.CatalogDenied, owner().catalog().authorize(&read, 55, .create));
     var declaration = try owner().source(&read, 55, 1);
     defer declaration.deinit();
     try t.expectEqual(1, declaration.definition.source.table.object);
-    _ = try store.execute(33, .{ .read_policy = .{ .principal = 55, .expected = 1, .revision = 2, .allow = false } });
+    try store.authority.setRights(.{ .principal = 55, .inspect = false, .read = false });
     read = try store.turn(55);
     try t.expectError(error.CatalogDenied, owner().source(&read, 55, 1));
-    const rejected = try handleCommand(&store, 33, grant);
-    try t.expectEqualStrings("work_items.read_policy_conflict", (try failureAt(&store, 33, rejected)).diagnostic.code.slice());
 }

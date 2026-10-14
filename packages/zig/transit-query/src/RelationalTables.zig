@@ -140,6 +140,7 @@ fn authorize(self: *Self) !void {
             found = true;
         };
         if (!found) return error.InvalidResourceRead;
+        try selected.checkRead();
     }
 }
 pub fn next(self: *Self, source: u8, after: ?r.RowIdentity) !?e.Row {

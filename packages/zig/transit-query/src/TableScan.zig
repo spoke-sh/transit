@@ -13,6 +13,7 @@ const Scan = @This();
 allocator: std.mem.Allocator,
 connection: c.TableClient.Connection,
 configuration: c.TableCatalogRecords.Configuration,
+authority: c.TableAuthority.Context,
 definition: ?c.TableCatalog.Definition = null,
 source: q.wire.SnapshotReader,
 owns_lease: bool = true,
@@ -35,7 +36,6 @@ rejection: ?p.ErrorCode = null,
 pub fn metadata(connection: c.TableClient.Connection) [g.SnapshotRead.current_resources]?g.SnapshotRead.Current {
     var keys: g.SnapshotRead.Keys = @splat(null);
     keys[0] = c.Records.key(connection.scope.catalog, 'c', 0, 0);
-    keys[1] = c.Records.key(connection.scope.catalog, 'p', connection.principal, 0);
     return .{ .{ .resource = connection.scope.resource, .keys = keys }, null };
 }
 pub fn current(connection: c.TableClient.Connection, result: g.SnapshotRead.Result) !q.wire.ResourceReader.Batch {
@@ -47,16 +47,14 @@ pub fn current(connection: c.TableClient.Connection, result: g.SnapshotRead.Resu
 pub fn configurationAt(connection: c.TableClient.Connection, batch: *q.wire.ResourceReader.Batch) !c.TableCatalogRecords.Configuration {
     const config = try c.Records.decode(c.TableCatalogRecords.Configuration, 'C', (try batch.read(metadata(connection)[0].?.keys[0].?)) orelse return error.CatalogNotInitialized);
     if (!std.meta.eql(config.scope, connection.scope) or config.owner != connection.owner) return error.CatalogConfigurationChanged;
-    const catalog: c.TableCatalog = .{ .configuration = config };
-    _ = try catalog.authorize(batch, connection.principal, .inspect);
-    _ = try catalog.authorize(batch, connection.principal, .read);
     return config;
 }
 pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableMetadata.Name, nonce: [16]u8, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Scan {
     var self = try openResource(allocator, client, nonce, request_limit, cancellation);
     errdefer self.deinit();
-    const catalog: c.TableCatalog = .{ .configuration = self.configuration };
+    const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
     self.definition = (try catalog.lookup(allocator, &self, client.connection.principal, name)) orelse return error.TableNotFound;
+    try self.checkRead();
     return self;
 }
 /// Authorized backing cut for immutable Table history, including retired Tables.
@@ -64,7 +62,7 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableM
 pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce: [16]u8, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Scan {
     if (request_limit == 0) return error.InvalidQueryBudget;
     try client.connection.validate();
-    const resources: q.wire.ResourceReader = .{ .wire = client.transport, .realm = client.connection.scope.realm, .principal = client.connection.principal, .key = client.key };
+    const resources = client.resources();
     const support = try q.wire.SnapshotReader.support(resources);
     const requested = metadata(client.connection);
     var acquired = try support.acquire(.{ .snapshot = .{ .open = .{ .resource = client.connection.scope.resource, .nonce = nonce } }, .current = requested, .points = requested[0].?.keys });
@@ -75,12 +73,25 @@ pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce:
     }
     if (acquired.reader.snapshot.resource.writer != client.connection.owner or acquired.reader.snapshot.resource.phase != .active) return error.CatalogOwnerChanged;
     var batch = try current(client.connection, acquired.result);
-    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .source = acquired.reader, .view = acquired.reader.view, .request_limit = request_limit };
+    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .authority = try client.authorizationContext(), .source = acquired.reader, .view = acquired.reader.view, .request_limit = request_limit };
     self.source.cancellation = cancellation;
     for (requested[0].?.keys, acquired.result.points) |key, value| if (key) |address| self.remember(address, value);
-    const catalog: c.TableCatalog = .{ .configuration = self.configuration };
-    _ = try catalog.authorize(&self, client.connection.principal, .read);
+    const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
+    _ = try catalog.authorize(&self, client.connection.principal, .inspect);
     return self;
+}
+pub fn authorizationSubject(self: *Scan, who: u64, audience: u64) !p.Authorization.Subject {
+    return self.authority.authorizationSubject(who, audience);
+}
+pub fn requireAuthorization(self: *Scan, requested: p.Authorization.Guard) !p.Authorization.Verified {
+    return self.authority.requireAuthorization(requested);
+}
+pub fn checkRead(self: *const Scan) !void {
+    if (self.definition) |definition| {
+        _ = try self.authority.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, definition.namespace, definition.authority, .read));
+    } else {
+        _ = try self.authority.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, null, null, .database));
+    }
 }
 pub fn fingerprint(self: *const Scan) ![32]u8 {
     const definition = self.definition.?;
@@ -108,16 +119,17 @@ pub fn deinit(self: *Scan) void {
 /// Reuse an already retained resource cut for another Table/alias. The
 /// owning scan alone releases this lease. Never open a second resource cut.
 pub fn openAt(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableMetadata.Name, source: q.wire.SnapshotReader, request_limit: u64) !Scan {
-    if (source.view.resource != client.connection.scope.resource or source.client.principal != client.connection.principal or source.client.wire != client.transport) return error.RelationalSourceChanged;
+    if (source.view.resource != client.connection.scope.resource or source.client.principal != client.resources().principal or source.client.wire != client.transport) return error.RelationalSourceChanged;
     var retained = source;
     const requested = metadata(client.connection);
     const response = try retained.batch(.{ .snapshot = .{ .existing = source.snapshot.id }, .current = requested, .points = requested[0].?.keys });
     var batch = try current(client.connection, response);
-    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .source = retained, .owns_lease = false, .view = retained.view, .request_limit = request_limit };
+    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .authority = try client.authorizationContext(), .source = retained, .owns_lease = false, .view = retained.view, .request_limit = request_limit };
     errdefer self.deinit();
     for (requested[0].?.keys, response.points) |key, value| if (key) |address| self.remember(address, value);
-    const catalog: c.TableCatalog = .{ .configuration = self.configuration };
+    const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
     self.definition = (try catalog.lookup(allocator, &self, client.connection.principal, name)) orelse return error.TableNotFound;
+    try self.checkRead();
     return self;
 }
 pub fn nextAfter(self: *Scan, after: ?f.TableRow.Identity) !?logical.Row {
@@ -148,6 +160,7 @@ pub fn validateCurrent(self: *Scan, finish: bool) !void {
     const response = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata(self.connection), .finish = finish });
     var batch = try current(self.connection, response);
     if (!std.meta.eql(try configurationAt(self.connection, &batch), self.configuration)) return error.CatalogConfigurationChanged;
+    try self.checkRead();
 }
 fn remember(self: *Scan, key: p.Value, entry: ?g.Entry) void {
     self.cache[self.cache_slot] = .{ .key = key, .entry = entry };

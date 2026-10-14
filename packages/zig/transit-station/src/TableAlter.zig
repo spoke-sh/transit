@@ -90,7 +90,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         reserved.pending = head.next_record;
         // The schema owns the first ID; row overlays have a complete interval.
         reserved.next_record = try add(head.next_record, 1 + Candidate.max_records);
-        const admitted: Write.Status = .{ .reference = reference, .route = .alter, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
+        const admitted: Write.Status = .{ .reference = reference, .route = .alter, .admitted_input = turn.originalAuthorizedInput(), .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
         const progress: Statement.Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = if (transition.work == .rewrite_rows) .{} else head.index };
         try head.replace(turn, reserved);
         try turn.write(reference.key(), try admitted.encode());

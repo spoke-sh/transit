@@ -9,7 +9,7 @@ const Command = c.TableCommand;
 const Self = @This();
 catalog: c.TableCatalog,
 pub const part_bytes = 128;
-pub const status_bytes = 239;
+pub const status_bytes = Command.header_bytes + 98;
 const limits: Pub.Limits = .{ .record_bytes = Command.max_bytes, .staging_bytes = Command.max_bytes, .staging_records = 1 };
 pub const Status = struct {
     header: Command.Header,
@@ -94,8 +94,10 @@ fn headerCheck(self: Self, source: anytype, who: u64, header: Command.Header, ex
     try header.validate();
     if (!std.meta.eql(header.scope, self.catalog.configuration.scope) or header.owner != self.catalog.configuration.owner) return error.CatalogScopeChanged;
     if (who != header.principal) return error.CatalogDenied;
-    _ = try self.catalog.authorize(source, who, .inspect);
-    if (execute) _ = try self.catalog.authorize(source, who, header.right());
+    var scoped = self.catalog;
+    scoped.namespace = header.namespace;
+    _ = try scoped.authorize(source, who, .inspect);
+    if (execute) _ = try scoped.authorizeObject(source, who, header.object, header.right()) else if (header.kind != .create) _ = try scoped.authorizeObject(source, who, header.object, .inspect);
 }
 fn actor(self: Self, turn: *s.Turn, header: Command.Header, continuation: bool) !void {
     if (turn.delivery.realm != header.scope.realm or turn.delivery.pid != self.catalog.configuration.owner or turn.view.resource != header.scope.resource) return error.CatalogOwnerChanged;
@@ -112,7 +114,7 @@ fn load(self: Self, source: anytype, namespace: u64) !Status {
     return result;
 }
 pub fn status(self: Self, source: anytype, who: u64, namespace: u64) !Status {
-    _ = try self.catalog.authorize(source, who, .inspect);
+    _ = try self.catalog.authorizeDatabase(source, who);
     const result = try self.load(source, namespace);
     try self.headerCheck(source, who, result.header, false);
     return result;
@@ -120,6 +122,7 @@ pub fn status(self: Self, source: anytype, who: u64, namespace: u64) !Status {
 fn accepted(self: Self, turn: *s.Turn, namespace: u64, continuation: bool, execute: bool) !Status {
     const result = try self.load(turn, namespace);
     try self.actor(turn, result.header, continuation);
+    if (continuation or execute) try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.catalog.configuration.owner, .input = result.admitted_input, .principal = result.header.principal } });
     try self.headerCheck(turn, result.header.principal, result.header, execute);
     return result;
 }

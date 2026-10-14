@@ -230,7 +230,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         reserved.revision = try add(head.revision, 1);
         reserved.pending = head.next_record;
         reserved.next_record = try add(head.next_record, Candidate.max_records);
-        const admitted: Write.Status = .{ .reference = reference, .route = .statement, .admitted_input = turn.delivery.input.position, .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
+        const admitted: Write.Status = .{ .reference = reference, .route = .statement, .admitted_input = turn.originalAuthorizedInput(), .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
         const progress: Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = head.index };
         try head.replace(turn, reserved);
         try record(turn, admitted);

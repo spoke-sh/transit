@@ -51,7 +51,6 @@ pub const Action = union(enum) {
     prepare_resume: Reference,
     prepare_control: struct { intent: Reference, control: Control },
     prepare_initialize: v.Configuration,
-    prepare_policy: v.PolicyChange,
     prepare_dependency: v.DependencyChange,
     submit: []const u8,
     observe: Input,
@@ -134,7 +133,7 @@ pub const Session = struct {
             .capabilities => .{ .capabilities = .{} },
             .describe => blk: {
                 const value = try client.describe();
-                break :blk .{ .description = .{ .configuration = try v.Configuration.foreign(allocator, value.configuration), .policy = try v.Policy.foreign(allocator, value.policy), .resource_revision = value.resource_revision } };
+                break :blk .{ .description = .{ .configuration = try v.Configuration.foreign(allocator, value.configuration), .subject = value.subject, .authorization_revision = value.authorization_revision, .resource_revision = value.resource_revision } };
             },
             .lookup => |name| blk: {
                 var value = (try client.lookup(allocator, try c.TableMetadata.Name.init(name))) orelse break :blk .{ .definition = null };
@@ -209,7 +208,6 @@ pub const Session = struct {
                 break :blk .{ .prepared = try (try client.prepareControl(command)).save(allocator) };
             },
             .prepare_initialize => |value| .{ .prepared = try (try client.prepareControl(.{ .initialize = try value.native() })).save(allocator) },
-            .prepare_policy => |value| .{ .prepared = try (try client.prepareControl(.{ .policy = try value.native() })).save(allocator) },
             .prepare_dependency => |value| .{ .prepared = try (try client.prepareControl(.{ .dependency = try value.native() })).save(allocator) },
             .submit => |value| .{ .receipt = try client.submit(try prepared(allocator, value)) },
             .observe => |value| .{ .observation = try client.observe(try prepared(allocator, value.prepared), value.input) },

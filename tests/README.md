@@ -56,6 +56,36 @@ permits that original operation. The node SHA-256 is
 `583dd1abd327e29759622765894f7068a1978891373856217f5fa178b8a4e878`.
 These are generic opaque-object checks, not Table-service isolation evidence.
 
+## Table authorization service isolation
+
+`just test::authorization-tables` runs the actual node, signing CLI, catalog
+worker, courier and Table service over disk-backed Ursula. The
+[retained report](verification/results/authorization-tables-2026-10-14.json)
+records a passing 2026-10-14 run in **114.449 s**, on dirty `7eed560a`, under
+shared definition `3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51`.
+It records the four executable hashes. The fixture provisions roles, bindings,
+grants and data through public signed operations; it does not edit private state.
+
+Two real Tables share one resource. A restricted reader queries its granted
+Table, sees only that Table in metadata, and cannot read the other Table's schema
+or rows. Native resource, entry, batched-entry and snapshot acquisition are
+denied. INSERT and CREATE preparation are denied. Altered request actions and
+caller identities fail authentication. Credential rotation rejects the old proof
+while preserving role grants. Two service restarts and one node/store SIGKILL
+cycle preserve data and the final SELECT revocation without reprovisioning.
+
+The focused protocol/core run passes **40/40** and **103/103** tests after the
+cutover. The catalog run passes **80/80** tests, including per-object visibility
+and exact unsigned-candidate signing. Independent subject-signature vectors now
+include a context whose bytes are valid UTF-8, requiring JSON arrays throughout.
+
+This closes the initial shared-resource service-isolation gate. It does not
+qualify durable/maintained query propagation, all retained-result/recovery routes,
+SQL administration, database adapters or installed SDK workflows. Their migration
+is in progress; the broader repository unit run still has query-subject failures.
+The full check and committed-HEAD clean suite have not passed this slice. Durations
+include provisioning and are not query latency or throughput measurements.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

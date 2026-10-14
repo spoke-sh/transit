@@ -5,6 +5,7 @@ pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
+pub const TableService = @import("TableService.zig");
 pub const TableQuery = @import("TableQuery.zig").Query(true);
 pub const TablePrepared = @import("TablePrepared.zig");
 /// Independent row evaluator for proofs and measurements, never a query mode.

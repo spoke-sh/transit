@@ -57,8 +57,10 @@ pub const Connection = struct {
     scope: Scope,
     owner: u64,
     principal: u64,
+    role: ?u64 = null,
+    namespace: u64 = 1,
     pub fn native(self: Connection) !c.TableClient.Connection {
-        const value: c.TableClient.Connection = .{ .scope = try self.scope.native(), .owner = self.owner, .principal = self.principal };
+        const value: c.TableClient.Connection = .{ .scope = try self.scope.native(), .owner = self.owner, .principal = self.principal, .role = self.role, .namespace = self.namespace };
         try value.validate();
         return value;
     }
@@ -68,6 +70,7 @@ pub const Configuration = struct {
     owner: u64,
     administrator: u64,
     table_limits: Limits,
+    authority: c.TableAuthority.Profile,
     pub const Limits = struct {
         record_bytes: u32,
         staging_bytes: []const u8,
@@ -79,44 +82,13 @@ pub const Configuration = struct {
         }
     };
     pub fn native(self: Configuration) !m.Configuration {
-        const value: m.Configuration = .{ .scope = try self.scope.native(), .owner = self.owner, .administrator = self.administrator, .table_limits = try self.table_limits.native() };
+        const value: m.Configuration = .{ .scope = try self.scope.native(), .owner = self.owner, .administrator = self.administrator, .authority = self.authority, .table_limits = try self.table_limits.native() };
         try value.validate();
         return value;
     }
     pub fn foreign(allocator: Allocator, value: m.Configuration) !Configuration {
         try value.validate();
-        return .{ .scope = try Scope.foreign(allocator, value.scope), .owner = value.owner, .administrator = value.administrator, .table_limits = .{ .record_bytes = value.table_limits.record_bytes, .staging_bytes = try decimal(allocator, value.table_limits.staging_bytes), .staging_records = value.table_limits.staging_records } };
-    }
-};
-pub const Policy = struct {
-    scope: Scope,
-    principal: u64,
-    revision: []const u8,
-    inspect: bool,
-    create: bool,
-    read: bool,
-    insert: bool,
-    update: bool,
-    delete: bool,
-    alter: bool,
-    drop: bool,
-    pub fn native(self: Policy) !m.Policy {
-        const value: m.Policy = .{ .scope = try self.scope.native(), .principal = self.principal, .revision = try unsigned(self.revision), .inspect = self.inspect, .create = self.create, .read = self.read, .insert = self.insert, .update = self.update, .delete = self.delete, .alter = self.alter, .drop = self.drop };
-        try value.validate();
-        return value;
-    }
-    pub fn foreign(allocator: Allocator, value: m.Policy) !Policy {
-        try value.validate();
-        return .{ .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .revision = try decimal(allocator, value.revision), .inspect = value.inspect, .create = value.create, .read = value.read, .insert = value.insert, .update = value.update, .delete = value.delete, .alter = value.alter, .drop = value.drop };
-    }
-};
-pub const PolicyChange = struct {
-    expected_revision: []const u8,
-    policy: Policy,
-    pub fn native(self: PolicyChange) !c.TableControl.Policy {
-        const value: c.TableControl.Policy = .{ .expected_revision = try unsigned(self.expected_revision), .policy = try self.policy.native() };
-        try value.validate();
-        return value;
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .owner = value.owner, .administrator = value.administrator, .authority = value.authority, .table_limits = .{ .record_bytes = value.table_limits.record_bytes, .staging_bytes = try decimal(allocator, value.table_limits.staging_bytes), .staging_records = value.table_limits.staging_records } };
     }
 };
 pub const DependencyChange = struct {
@@ -132,9 +104,10 @@ pub const DependencyChange = struct {
         return value;
     }
 };
-pub const Description = struct { configuration: Configuration, policy: Policy, resource_revision: u64 };
+pub const Description = struct { configuration: Configuration, subject: c.protocol.Authorization.Verified, authorization_revision: u64, resource_revision: u64 };
 pub const Metadata = struct {
     scope: Scope,
+    namespace: u64,
     object: []const u8,
     revision: []const u8,
     name: []const u8,
@@ -147,7 +120,7 @@ pub const Metadata = struct {
     commitment: c.station.Publication.Spec,
     pub fn foreign(allocator: Allocator, value: c.TableMetadata.Record) !Metadata {
         try value.validate();
-        return .{ .scope = try Scope.foreign(allocator, value.scope), .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .name = try allocator.dupe(u8, value.name.slice()), .schema_fingerprint = try hex(allocator, &value.schema_fingerprint), .principal = value.principal, .operation = try decimal(allocator, value.operation), .admitted_input = value.admitted_input, .commitment = try value.spec() };
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .namespace = value.namespace, .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .name = try allocator.dupe(u8, value.name.slice()), .schema_fingerprint = try hex(allocator, &value.schema_fingerprint), .principal = value.principal, .operation = try decimal(allocator, value.operation), .admitted_input = value.admitted_input, .commitment = try value.spec() };
     }
 };
 pub const Head = struct {
@@ -161,13 +134,14 @@ pub const Head = struct {
     }
 };
 pub const Definition = struct {
+    authorization: u64,
     metadata: Metadata,
     head: Head,
     schema: Schema,
     pub fn foreign(arena: *std.heap.ArenaAllocator, value: c.TableCatalog.Definition) !Definition {
         try entryValid(.{ .metadata = value.metadata, .head = value.head });
         if (value.schema.schema.object != value.metadata.object or !std.mem.eql(u8, &try value.schema.schema.fingerprint(), &value.metadata.schema_fingerprint)) return error.CatalogDefinitionChanged;
-        return .{ .metadata = try Metadata.foreign(arena.allocator(), value.metadata), .head = try Head.foreign(arena.allocator(), value.head), .schema = try f.TableSchemaJson.foreign(arena, value.schema.schema) };
+        return .{ .authorization = value.authority.authorization, .metadata = try Metadata.foreign(arena.allocator(), value.metadata), .head = try Head.foreign(arena.allocator(), value.head), .schema = try f.TableSchemaJson.foreign(arena, value.schema.schema) };
     }
 };
 pub const Entry = struct { metadata: Metadata, head: Head };

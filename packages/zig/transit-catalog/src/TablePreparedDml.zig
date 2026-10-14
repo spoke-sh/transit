@@ -12,9 +12,9 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
     defer arena.deinit();
     const target = try f.TableDml.targetDialect(arena.allocator(), text, location, dialect);
     const before = try client.describe();
-    if (!before.policy.permits(right(target.kind))) return error.CatalogDenied;
     var definition = (try client.lookup(allocator, try c.TableMetadata.Name.init(target.name))) orelse return error.TableNotFound;
     defer definition.deinit();
+    _ = try client.requireObject(definition.metadata.object, right(target.kind));
     var result: Self = .{
         .binding = try c.TableBinding.init(client.connection, definition.metadata),
         .template = try f.TableDmlPrepared.init(allocator, text, target.name, definition.schema.schema, dialect, location),
@@ -41,10 +41,10 @@ pub fn parameterTypes(self: *const Self) []const f.Types.Type {
 pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: *c.TableClient, values: []const ?f.Types.Values.Atom, identity: c.TableClient.CompileIdentity, location: ?*f.Sql.Location) !c.TableIntent {
     if (identity.operation == 0 or identity.namespace == 0 or identity.create_object != null) return error.InvalidCatalogIdentity;
     const before = try client.describe();
-    if (!before.policy.permits(right(self.template.syntax.subject.kind))) return error.CatalogDenied;
     var definition = (try client.lookup(allocator, self.binding.metadata.name)) orelse return error.TableNotFound;
     defer definition.deinit();
     try self.binding.check(client.connection, definition.metadata);
+    _ = try client.requireObject(definition.metadata.object, right(self.template.syntax.subject.kind));
     var plan = try self.template.bind(allocator, self.template.name, definition.schema.schema, values, location);
     defer plan.deinit();
     const request: c.TableDmlRequest = .{

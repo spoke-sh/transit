@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 

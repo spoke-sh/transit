@@ -13,6 +13,10 @@ const Self = @This();
 transport: *wire.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
+/// Explicit trusted mediation: private storage credentials and original subject.
+/// With no override the caller is an explicitly privileged raw-resource reader.
+reader: ?wire.ResourceReader = null,
+authority: ?c.TableAuthority.Context = null,
 batch_support: bool = false,
 // Scheduling only; never cache authorization, progress or application truth.
 pending_observation: ?struct { signature: [64]u8, input: u64, position: u64 } = null,
@@ -22,15 +26,19 @@ pub const Connection = struct {
     scope: m.Scope,
     owner: u64,
     principal: u64,
+    role: ?u64 = null,
+    namespace: u64 = 1,
     pub fn validate(self: Connection) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
+        try c.Model.nativeId(self.namespace);
+        if (self.role) |role| if (role > p.max_counter) return error.InvalidCatalogIdentity;
         if (self.principal > p.max_counter) return error.InvalidCatalogIdentity;
     }
     pub fn header(self: Connection, value: c.TableCommand.Header) !void {
         try self.validate();
         try value.validate();
-        if (!std.meta.eql(self.scope, value.scope) or self.owner != value.owner or self.principal != value.principal) return error.CatalogIdentityConflict;
+        if (!std.meta.eql(self.scope, value.scope) or self.owner != value.owner or self.principal != value.principal or self.namespace != value.namespace) return error.CatalogIdentityConflict;
     }
 };
 pub const Payload = union(enum) { inline_command: c.TableCommand.Header, control: Control.Command };
@@ -53,6 +61,33 @@ fn payload(connection: Connection, value: p.Value) !Payload {
     }
     return .{ .control = command };
 }
+/// A reviewable native request without credentials or a fabricated signature.
+/// The original caller supplies its next native sequence and signs it locally.
+pub const Candidate = struct {
+    definition: g.Definition,
+    connection: Connection,
+    request: g.Request,
+    pub fn command(self: Candidate) !Payload {
+        if (self.definition != g.current_definition) return error.IncompatibleDefinition;
+        try self.connection.validate();
+        try g.validate(self.request);
+        if (self.request.command != .send) return error.InvalidCatalogPrepared;
+        const send = self.request.command.send;
+        if (self.request.realm != self.connection.scope.realm or self.request.principal != self.connection.principal or send.pid != self.connection.owner or send.role != self.connection.role) return error.CatalogIdentityConflict;
+        const frame = try s.Frame.decode(send.value);
+        if (frame.kind != .cast) return error.InvalidCatalogPrepared;
+        return payload(self.connection, frame.payload);
+    }
+    pub fn matches(self: Candidate, intent: *const Intent) !bool {
+        _ = try self.command();
+        try self.connection.header(intent.header);
+        return intent.matches((try s.Frame.decode(self.request.command.send.value)).payload);
+    }
+    pub fn sign(self: Candidate, key: p.Ed25519.KeyPair) !Prepared {
+        _ = try self.command();
+        return .{ .version = 1, .definition = self.definition, .connection = self.connection, .signed = try g.sign(self.request, key) };
+    }
+};
 pub const Prepared = struct {
     version: u8,
     definition: g.Definition,
@@ -66,7 +101,7 @@ pub const Prepared = struct {
         try g.validate(self.signed.request);
         const envelope = self.signed.request;
         if (envelope.command != .send) return error.InvalidCatalogPrepared;
-        if (envelope.realm != self.connection.scope.realm or envelope.principal != self.connection.principal or envelope.command.send.pid != self.connection.owner) return error.CatalogIdentityConflict;
+        if (envelope.realm != self.connection.scope.realm or envelope.principal != self.connection.principal or envelope.command.send.pid != self.connection.owner or envelope.command.send.role != self.connection.role) return error.CatalogIdentityConflict;
         const frame = try s.Frame.decode(envelope.command.send.value);
         if (frame.kind != .cast) return error.InvalidCatalogPrepared;
         return payload(self.connection, frame.payload);
@@ -91,7 +126,7 @@ pub const Prepared = struct {
         return parsed.value;
     }
 };
-pub const Description = struct { configuration: m.Configuration, policy: m.Policy, resource_revision: u64 };
+pub const Description = struct { configuration: m.Configuration, subject: p.Authorization.Verified, authorization_revision: u64, resource_revision: u64 };
 pub const Outcome = union(enum) {
     ddl: c.TableCatalog.Outcome,
     dml: s.TableWrite.Status,
@@ -113,25 +148,35 @@ pub const State = struct { outcome: ?Outcome, upload: ?c.TableUpload.Status };
 /// treats a closed command upload as a Table operation outcome.
 pub fn inspectIntent(self: *Self, intent: *const Intent) !State {
     var current = try self.intentSource(intent, null);
-    return .{ .outcome = try self.outcome(&current, intent.identity), .upload = try self.uploadStatus(&current, intent) };
+    const result: State = .{ .outcome = try self.outcome(&current, intent.identity), .upload = try self.uploadStatus(&current, intent) };
+    try current.finish();
+    return result;
 }
-fn resources(self: *Self) wire.ResourceReader {
+pub fn resources(self: *Self) wire.ResourceReader {
+    if (self.reader) |value| return value;
     return .{ .wire = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key };
+}
+pub fn authorizationContext(self: *Self) !c.TableAuthority.Context {
+    if (self.authority) |value| {
+        _ = try value.authorizationSubject(self.connection.principal, self.connection.owner);
+        return value;
+    }
+    const native: wire.AuthorizationClient = .{ .transport = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
+    return .{ .client = native, .subject = try native.proof(self.connection.owner, try c.TableAuthority.binding(self.connection.scope, .database, 0)) };
 }
 fn address(self: *Self, tag: u8, id: u64, revision: u64) p.Value {
     return c.Records.key(self.connection.scope.catalog, tag, id, revision);
 }
 fn batch(self: *Self, extra: []const p.Value) !wire.ResourceReader.Batch {
     try self.connection.validate();
-    if (extra.len > g.page_size - 2) return error.InvalidCatalogPage;
+    if (extra.len > g.page_size - 1) return error.InvalidCatalogPage;
     if (!self.batch_support) {
         _ = try self.resources().batches();
         self.batch_support = true;
     }
     var keys: [g.page_size]p.Value = undefined;
     keys[0] = self.address('c', 0, 0);
-    keys[1] = self.address('p', self.connection.principal, 0);
-    var count: usize = 2;
+    var count: usize = 1;
     next: for (extra) |key| {
         for (keys[0..count]) |old| if (old.eql(key)) continue :next;
         keys[count] = key;
@@ -142,10 +187,29 @@ fn batch(self: *Self, extra: []const p.Value) !wire.ResourceReader.Batch {
     return result;
 }
 const Source = struct {
+    authority: c.TableAuthority.Context,
+    authorization_revision: u64 = 0,
+    guard: ?p.Authorization.Guard = null,
     position: u64,
     cache: wire.ResourceReader.Cached(wire.ResourceReader.Batches),
     reader: wire.ResourceReader.Reader,
     view: @FieldType(wire.ResourceReader.Reader, "view"),
+    pub fn authorizationSubject(self: *@This(), who: u64, audience: u64) !p.Authorization.Subject {
+        return self.authority.authorizationSubject(who, audience);
+    }
+    pub fn requireAuthorization(self: *@This(), requested: p.Authorization.Guard) !p.Authorization.Verified {
+        const response = try self.authority.observe(requested);
+        self.guard = if (self.guard) |previous| try previous.merge(requested) else requested;
+        self.authorization_revision = response.body.authorization.revision;
+        return response.body.authorization.body.check;
+    }
+    pub fn finish(self: *@This()) !void {
+        if (self.cache.failed) |err| return err;
+        if (self.guard) |required| {
+            const response = try self.authority.observe(required);
+            self.authorization_revision = response.body.authorization.revision;
+        }
+    }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         return self.cache.read(key);
     }
@@ -163,28 +227,38 @@ const Source = struct {
 fn source(self: *Self, extra: []const p.Value) !Source {
     const metadata = try self.batch(extra);
     const reader: wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = metadata.view.resource, .revision = metadata.view.revision } };
-    return .{ .position = metadata.position, .cache = (wire.ResourceReader.Batches{ .client = self.resources() }).cached(metadata), .reader = reader, .view = reader.view };
+    return .{ .authority = try self.authorizationContext(), .position = metadata.position, .cache = (wire.ResourceReader.Batches{ .client = self.resources() }).cached(metadata), .reader = reader, .view = reader.view };
 }
 fn catalog(self: *Self, current: *Source) !c.TableCatalog {
     const config = try c.Records.decode(m.Configuration, 'C', (try current.read(self.address('c', 0, 0))) orelse return error.CatalogNotInitialized);
     if (!std.meta.eql(config.scope, self.connection.scope) or config.owner != self.connection.owner) return error.CatalogConfigurationChanged;
-    return .{ .configuration = config };
+    return .{ .configuration = config, .namespace = self.connection.namespace };
 }
 pub fn describe(self: *Self) !Description {
     var current = try self.source(&.{});
     const owner = try self.catalog(&current);
-    const policy = try owner.authorize(&current, self.connection.principal, .inspect);
-    return .{ .configuration = owner.configuration, .policy = policy, .resource_revision = current.view.revision };
+    const subject = try owner.authorize(&current, self.connection.principal, .inspect);
+    try current.finish();
+    return .{ .configuration = owner.configuration, .subject = subject, .authorization_revision = current.authorization_revision, .resource_revision = current.view.revision };
 }
 /// Every acquisition checks current native/scoped rights and one exact cut.
 /// No current metadata observation becomes a retained query snapshot.
+pub fn requireObject(self: *Self, id: u64, right: m.Right) !p.Authorization.Verified {
+    var current = try self.source(&.{});
+    return (try self.catalog(&current)).authorizeObject(&current, self.connection.principal, id, right);
+}
 pub fn lookup(self: *Self, allocator: std.mem.Allocator, name: c.TableMetadata.Name) !?c.TableCatalog.Definition {
     var current = try self.source(&.{});
-    return (try self.catalog(&current)).lookup(allocator, &current, self.connection.principal, name);
+    var result = try (try self.catalog(&current)).lookup(allocator, &current, self.connection.principal, name);
+    errdefer if (result) |*value| value.deinit();
+    try current.finish();
+    return result;
 }
 pub fn list(self: *Self, cursor: ?c.TableCatalog.Cursor) !c.TableCatalog.Page {
     var current = try self.source(&.{});
-    return (try self.catalog(&current)).list(&current, self.connection.principal, cursor);
+    const result = try (try self.catalog(&current)).list(&current, self.connection.principal, cursor);
+    try current.finish();
+    return result;
 }
 pub fn definition(self: *Self, allocator: std.mem.Allocator, object: u64, revision: u64) !?c.TableCatalog.HistoricalDefinition {
     if (object == 0 or revision == 0) return error.InvalidCatalogIdentity;
@@ -194,12 +268,22 @@ pub fn definition(self: *Self, allocator: std.mem.Allocator, object: u64, revisi
         c.TableMetadataStore.key(object, 'i', revision),
         c.TableMetadataStore.key(object, 'r', revision),
     });
-    return (try self.catalog(&current)).definition(allocator, &current, self.connection.principal, object, revision);
+    var result = try (try self.catalog(&current)).definition(allocator, &current, self.connection.principal, object, revision);
+    errdefer if (result) |*value| value.deinit();
+    try current.finish();
+    return result;
 }
 pub const CompileIdentity = struct { operation: u64, namespace: u64, create_object: ?u64 = null };
 /// SQL and typed callers lower to the same immutable intent. Names resolve at
 /// this preparation boundary only; saved recovery never invokes this method.
 pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, identity: CompileIdentity, location: ?*c.fuze.Sql.Location) !Intent {
+    var result = try self.compileDefinition(allocator, text, identity, location);
+    errdefer result.deinit();
+    // CREATE can be compiled offline; preparing its native candidate checks CREATE.
+    if (result.header.kind != .create) _ = try self.requireObject(result.header.object, result.header.right());
+    return result;
+}
+fn compileDefinition(self: *Self, allocator: std.mem.Allocator, text: []const u8, identity: CompileIdentity, location: ?*c.fuze.Sql.Location) !Intent {
     try self.connection.validate();
     if (identity.operation == 0 or identity.namespace == 0 or identity.create_object == 0) return error.InvalidCatalogIdentity;
     var names: std.heap.ArenaAllocator = .init(allocator);
@@ -214,7 +298,7 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
             var statement = try c.fuze.TableDdl.compile(allocator, text, null, location);
             defer statement.deinit();
             const value = statement.statement.create;
-            const request: c.TableDdlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .object = object, .expected_revision = 0, .name = try c.TableMetadata.Name.init(value.name), .action = .{ .create = .{ .schema = try value.bind(object), .if_not_exists = value.if_not_exists } } };
+            const request: c.TableDdlRequest = .{ .principal = self.connection.principal, .namespace = self.connection.namespace, .operation = identity.operation, .object = object, .expected_revision = 0, .name = try c.TableMetadata.Name.init(value.name), .action = .{ .create = .{ .schema = try value.bind(object), .if_not_exists = value.if_not_exists } } };
             return Intent.create(allocator, try c.TableCommand.fromDdl(self.connection.scope, self.connection.owner, request, null), identity.namespace);
         }
         if (identity.create_object != null) return error.InvalidCatalogIdentity;
@@ -223,7 +307,7 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, text: []const u8, iden
         var statement = try c.fuze.TableDdl.compile(allocator, text, if (resolved) |value| value.schema.schema else null, location);
         defer statement.deinit();
         const record = if (resolved) |value| value.metadata else null;
-        var request: c.TableDdlRequest = .{ .principal = self.connection.principal, .operation = identity.operation, .object = if (record) |value| value.object else 0, .expected_revision = if (record) |value| value.revision else 0, .name = try c.TableMetadata.Name.init(target.name), .action = undefined };
+        var request: c.TableDdlRequest = .{ .principal = self.connection.principal, .namespace = self.connection.namespace, .operation = identity.operation, .object = if (record) |value| value.object else 0, .expected_revision = if (record) |value| value.revision else 0, .name = try c.TableMetadata.Name.init(target.name), .action = undefined };
         request.action = switch (statement.statement) {
             .create => unreachable,
             .alter => |alter| switch (alter.action) {
@@ -280,7 +364,9 @@ fn intentSource(self: *Self, intent: *const Intent, input: ?u64) !Source {
 }
 pub fn status(self: *Self, intent: *const Intent) !?Outcome {
     var current = try self.intentSource(intent, null);
-    return self.outcome(&current, intent.identity);
+    const result = try self.outcome(&current, intent.identity);
+    try current.finish();
+    return result;
 }
 fn uploadStatus(self: *Self, current: *Source, intent: *const Intent) !?c.TableUpload.Status {
     const owner = try self.catalog(current);
@@ -289,28 +375,29 @@ fn uploadStatus(self: *Self, current: *Source, intent: *const Intent) !?c.TableU
     return value;
 }
 fn sign(self: *Self, value: p.Value) !Prepared {
+    if (self.authority != null or self.reader != null) return error.CatalogSigningUnavailable;
     _ = try payload(self.connection, value);
     const sequence = (try self.resources().query(.capabilities)).principal_sequence;
-    return .{ .version = 1, .definition = g.current_definition, .connection = self.connection, .signed = try g.sign(.{ .realm = self.connection.scope.realm, .principal = self.connection.principal, .sequence = try std.math.add(u64, sequence, 1), .command = .{ .send = .{ .pid = self.connection.owner, .value = try (s.Frame{ .kind = .cast, .payload = value }).encode() } } }, self.key) };
+    return (try self.candidate(value, try std.math.add(u64, sequence, 1))).sign(self.key);
 }
-fn prepareAt(self: *Self, current: *Source, value: p.Value) !Prepared {
+fn prepareAt(self: *Self, current: *Source, value: p.Value) !p.Value {
     const command = try payload(self.connection, value);
     if (command == .control and command.control == .initialize) {
         if (try current.read(self.address('c', 0, 0)) != null and !std.meta.eql((try self.catalog(current)).configuration, command.control.initialize)) return error.CatalogConfigurationChanged;
-        return self.sign(value);
+        return value;
     }
     const owner = try self.catalog(current);
     if (command == .inline_command) {
         _ = try owner.authorize(current, self.connection.principal, .inspect);
-        _ = try owner.authorize(current, self.connection.principal, command.inline_command.right());
-        return self.sign(value);
+        _ = try owner.authorizeObject(current, self.connection.principal, command.inline_command.object, command.inline_command.right());
+        return value;
     }
     switch (command.control) {
         .initialize => unreachable,
-        .policy, .dependency => if (owner.configuration.administrator != self.connection.principal) return error.CatalogDenied,
+        .dependency => |change| _ = try owner.authorizeObject(current, self.connection.principal, change.dependency.object, .alter),
         .begin => |begin| {
             _ = try owner.authorize(current, self.connection.principal, .inspect);
-            _ = try owner.authorize(current, self.connection.principal, (try c.TableCommand.inspect(&begin.header)).right());
+            _ = try owner.authorizeObject(current, self.connection.principal, (try c.TableCommand.inspect(&begin.header)).object, (try c.TableCommand.inspect(&begin.header)).right());
         },
         .part, .seal, .drive, .cancel_upload, .collect_upload => {
             const namespace = switch (command.control) {
@@ -319,33 +406,41 @@ fn prepareAt(self: *Self, current: *Source, value: p.Value) !Prepared {
                 else => unreachable,
             };
             const upload_value = try (c.TableUpload{ .catalog = owner }).status(current, self.connection.principal, namespace);
-            if (command.control == .part or command.control == .seal or command.control == .drive) _ = try owner.authorize(current, self.connection.principal, upload_value.header.right());
+            if (command.control == .part or command.control == .seal or command.control == .drive) _ = try owner.authorizeObject(current, self.connection.principal, upload_value.header.object, upload_value.header.right());
         },
         .cancel_ddl, .cleanup_ddl => |ref| _ = (try owner.status(current, ref.principal, ref.operation, ref.digest)) orelse return error.CatalogOperationNotFound,
         .cancel_dml, .cleanup_dml => |ref| _ = (try owner.mutationReceipt(current, self.connection.principal, ref.reference)) orelse return error.TableWriteNotFound,
     }
-    return self.sign(value);
+    return value;
 }
 pub fn prepareControl(self: *Self, command: Control.Command) !Prepared {
     const value = try command.encode();
     _ = try payload(self.connection, value);
     var current = try self.source(&.{});
-    return self.prepareAt(&current, value);
+    const prepared = try self.prepareAt(&current, value);
+    try current.finish();
+    return self.sign(prepared);
 }
 /// Prepare one next upload/send only when no automatic execution is in flight.
 /// Persist the returned Prepared before submit. An uncertain prior send must
 /// be retried with submit(original), never by calling next again.
-pub fn next(self: *Self, intent: *const Intent) !Next {
+const NextValue = union(enum) { send: p.Value, running, terminal: Outcome, upload_cancelled };
+fn nextValue(self: *Self, intent: *const Intent) !NextValue {
     self.pending_change = null;
     var current = try self.intentSource(intent, null);
-    if (try self.outcome(&current, intent.identity)) |result| {
+    const next_value = try self.nextAt(&current, intent);
+    try current.finish();
+    return next_value;
+}
+fn nextAt(self: *Self, current: *Source, intent: *const Intent) !NextValue {
+    if (try self.outcome(current, intent.identity)) |result| {
         if (result.terminal()) return .{ .terminal = result };
         self.pending_change = .{ .connection = self.connection, .identity = intent.identity, .namespace = intent.namespace, .position = current.position };
         return .running;
     }
-    const upload_value = (try self.uploadStatus(&current, intent)) orelse {
-        if (intent.body.len <= s.Frame.max_payload) return .{ .send = try self.prepareAt(&current, try p.Value.init(intent.body)) };
-        return .{ .send = try self.prepareAt(&current, try (Control.Command{ .begin = .{ .header = try intent.header.encode(), .namespace = intent.namespace, .spec = intent.spec } }).encode()) };
+    const upload_value = (try self.uploadStatus(current, intent)) orelse {
+        if (intent.body.len <= s.Frame.max_payload) return .{ .send = try self.prepareAt(current, try p.Value.init(intent.body)) };
+        return .{ .send = try self.prepareAt(current, try (Control.Command{ .begin = .{ .header = try intent.header.encode(), .namespace = intent.namespace, .spec = intent.spec } }).encode()) };
     };
     const command: Control.Command = switch (upload_value.phase) {
         .sealed, .ready => {
@@ -355,7 +450,38 @@ pub fn next(self: *Self, intent: *const Intent) !Next {
         .cancelled => return .upload_cancelled,
         .uploading => if (upload_value.received == upload_value.spec.length) .{ .seal = intent.upload() } else .{ .part = try Control.Part.init(intent.upload(), upload_value.received, intent.body[upload_value.received..][0..@min(c.TableUpload.part_bytes, intent.body.len - upload_value.received)]) },
     };
-    return .{ .send = try self.prepareAt(&current, try command.encode()) };
+    return .{ .send = try self.prepareAt(current, try command.encode()) };
+}
+pub fn next(self: *Self, intent: *const Intent) !Next {
+    return switch (try self.nextValue(intent)) {
+        .send => |value| .{ .send = try self.sign(value) },
+        .running => .running,
+        .terminal => |value| .{ .terminal = value },
+        .upload_cancelled => .upload_cancelled,
+    };
+}
+pub const CandidateNext = union(enum) { send: Candidate, running, terminal: Outcome, upload_cancelled };
+fn candidate(self: *Self, value: p.Value, sequence: u64) !Candidate {
+    _ = try payload(self.connection, value);
+    const result: Candidate = .{ .definition = g.current_definition, .connection = self.connection, .request = .{ .realm = self.connection.scope.realm, .principal = self.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.connection.owner, .role = self.connection.role, .value = try (s.Frame{ .kind = .cast, .payload = value }).encode() } } } };
+    _ = try result.command();
+    return result;
+}
+pub fn nextCandidate(self: *Self, intent: *const Intent, sequence: u64) !CandidateNext {
+    return switch (try self.nextValue(intent)) {
+        .send => |value| .{ .send = try self.candidate(value, sequence) },
+        .running => .running,
+        .terminal => |value| .{ .terminal = value },
+        .upload_cancelled => .upload_cancelled,
+    };
+}
+pub fn controlCandidate(self: *Self, command: Control.Command, sequence: u64) !Candidate {
+    const value = try command.encode();
+    _ = try payload(self.connection, value);
+    var current = try self.source(&.{});
+    const prepared = try self.prepareAt(&current, value);
+    try current.finish();
+    return self.candidate(prepared, sequence);
 }
 /// Advisory scheduling after next reports running. This consumes no durable
 /// cursor and says nothing about completion; the caller must acquire next again.
@@ -381,10 +507,10 @@ pub fn prepareResume(self: *Self, intent: *const Intent) !Prepared {
     if (try self.uploadStatus(&current, intent)) |upload_value| {
         if (upload_value.phase == .cancelled) return error.TableUploadClosed;
         if (upload_value.phase == .uploading) return error.TableUploadNotReady;
-        return self.prepareAt(&current, try (Control.Command{ .drive = intent.upload() }).encode());
+        return self.sign(try self.prepareAt(&current, try (Control.Command{ .drive = intent.upload() }).encode()));
     }
     if (intent.body.len > s.Frame.max_payload) return error.TableUploadNotFound;
-    return self.prepareAt(&current, try p.Value.init(intent.body));
+    return self.sign(try self.prepareAt(&current, try p.Value.init(intent.body)));
 }
 pub fn validate(self: *Self, prepared: Prepared) !void {
     if (!std.meta.eql(self.connection, prepared.connection)) return error.CatalogIdentityConflict;
@@ -439,7 +565,9 @@ pub fn inputDisposition(self: *Self, prepared: Prepared, input: u64) !?Control.D
     try c.Model.nativeId(input);
     const target = self.address('e', input, 0);
     var current = try self.source(&.{target});
-    return self.dispositionFrom(&current, prepared, input);
+    const result = try self.dispositionFrom(&current, prepared, input);
+    try current.finish();
+    return result;
 }
 fn dispositionFrom(self: *Self, current: *Source, prepared: Prepared, input: u64) !?Control.Disposition {
     const target = self.address('e', input, 0);
@@ -464,5 +592,7 @@ pub fn waitProgress(self: *Self, intent: *const Intent, prepared: Prepared, inpu
 }
 fn processed(self: *Self, intent: *const Intent, prepared: Prepared, input: u64) !Progress {
     var current = try self.intentSource(intent, input);
-    return .{ .processed = .{ .disposition = try self.dispositionFrom(&current, prepared, input), .outcome = try self.outcome(&current, intent.identity), .upload = try self.uploadStatus(&current, intent) } };
+    const result: Progress = .{ .processed = .{ .disposition = try self.dispositionFrom(&current, prepared, input), .outcome = try self.outcome(&current, intent.identity), .upload = try self.uploadStatus(&current, intent) } };
+    try current.finish();
+    return result;
 }

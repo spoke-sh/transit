@@ -646,6 +646,26 @@ test "domain registration retains its recovery identity and binding across aband
     try t.expectEqual(created, retired.reference.id);
 }
 
+test "root bootstrap preserves the domain registrar and replacement can abandon its old candidate" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    const domain = (try f.authorization(.{ .register_domain = .{ .registrar = 65536, .actions = 3 } })).?;
+    const identity: [32]u8 = @splat(31);
+    const object = (try f.authorization(.{ .register_object = .{ .domain = domain, .owner = 0, .binding = identity } })).?;
+    const observed = (try f.query(65536, .{ .authorization = .{ .kind = .{ .binding = .{ .domain = domain, .key = identity } } } })).body.authorization.body.binding.?;
+    try t.expectEqual(object, observed.reference.id);
+    try t.expectEqual(@as(u64, 65536), observed.registrar);
+    const change = try f.engine.submit(try f.worker(1, .{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = .{ .register_object = .{ .domain = domain, .owner = 0, .binding = @splat(32) } } } } }));
+    const original_role = (try f.engine.principal(65536)).role;
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) | core.permission(.send) } });
+    try t.expect(original_role != (try f.engine.principal(65536)).role);
+    _ = try f.engine.submit(try f.worker(2, .{ .authorization = .{ .abandon = change } }));
+    const abandoned = (try f.query(0, .{ .authorization = .{ .kind = .{ .change = change } } })).body.authorization.body.change;
+    try t.expectEqual(.abandoned, abandoned.status);
+}
+
 test "closed admission preserves declarative credential revocation through the control reserve" {
     var f: Fixture = .{};
     defer f.deinit();

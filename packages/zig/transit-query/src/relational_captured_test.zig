@@ -93,9 +93,7 @@ test "captured self join retains one exact guarded cut and rejects schema identi
     try tables.mutate(&store, 4, .{ .insert = &.{&.{ integer(1), integer(std.math.maxInt(i64)) }} });
     try admission(&store, bundle, error.Overflow);
     // Revoke catalog reads; retaining the cut does not preserve permission.
-    var revoke = try tables.turn(&store);
-    try tables.catalog.setPolicy(&revoke, 1, .{ .scope = tables.configuration.scope, .principal = 17, .revision = 2, .inspect = true, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
-    try store.commit(revoke);
+    try store.setRights(.{ .principal = 17, .revision = 2, .inspect = true, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
     turn = try tables.turn(&store);
     try t.expectError(error.CatalogDenied, Captured.open(&turn, t.allocator, bundle, 17, vector, 20));
     // Closure needs no source read; both aliases release exactly one retained ID.

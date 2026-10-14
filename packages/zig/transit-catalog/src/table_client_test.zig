@@ -12,6 +12,20 @@ fn intent() !c.TableIntent {
 fn signed(value: p.Value) !Client.Prepared {
     return .{ .version = 1, .definition = g.current_definition, .connection = connection, .signed = try g.sign(.{ .realm = connection.scope.realm, .principal = connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = connection.owner, .value = try (c.station.Frame{ .kind = .cast, .payload = value }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(10))) };
 }
+test "unsigned mediated candidates preserve the caller's exact native request" {
+    var operation = try intent();
+    defer operation.deinit();
+    const original = try signed(try p.Value.init(operation.body));
+    var candidate: Client.Candidate = .{ .definition = g.current_definition, .connection = connection, .request = original.signed.request };
+    try t.expect(try candidate.matches(&operation));
+    const prepared = try candidate.sign(try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
+    try t.expectEqualDeep(original, prepared);
+    candidate.connection.principal += 1;
+    try t.expectError(error.CatalogIdentityConflict, candidate.command());
+    candidate.connection = connection;
+    candidate.request.command.send.role = 9;
+    try t.expectError(error.CatalogIdentityConflict, candidate.command());
+}
 test "signed typed Table sends persist exact bytes and require explicit definitions" {
     var operation = try intent();
     defer operation.deinit();

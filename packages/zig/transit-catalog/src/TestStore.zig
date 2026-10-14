@@ -14,14 +14,42 @@ pages: usize = 0,
 fail_at: ?usize = null,
 fail_page: bool = false,
 bad_page: enum { none, gap, next, revision, order } = .none,
+authority: Authority = .{},
+const Authority = @import("TestAuthority.zig");
+pub const profile = Authority.profile;
+pub const Rights = Authority.Rights;
+pub fn setRights(self: *Self, rights: Rights) !void {
+    try self.authority.setRights(rights);
+}
+pub fn grantObject(self: *Self, principal: u64, object: u64, privileges: u64) !void {
+    try self.authority.grantObject(principal, object, privileges);
+}
+pub fn authorizationSubject(self: *Self, who: u64, audience: u64) !p.Authorization.Subject {
+    self.authority.input = self.input;
+    return self.authority.authorizationSubject(who, audience);
+}
+pub fn requireAuthorization(self: *Self, guard: p.Authorization.Guard) !p.Authorization.Verified {
+    return self.authority.requireAuthorization(guard);
+}
+fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorization.Verified {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    return Authority.authorize(&self.authority, guard);
+}
+fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Object {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    return Authority.binding(&self.authority, domain, identity);
+}
 pub fn deinit(self: *Self) void {
     self.state.deinit(t.allocator);
     self.changed_at.deinit(t.allocator);
+    self.authority.deinit();
 }
 pub fn clone(self: *Self) !Self {
     var state = try self.state.clone(t.allocator);
     errdefer state.deinit(t.allocator);
-    return .{ .state = state, .changed_at = try self.changed_at.clone(t.allocator), .revision = self.revision, .input = self.input };
+    var changed_at = try self.changed_at.clone(t.allocator);
+    errdefer changed_at.deinit(t.allocator);
+    return .{ .state = state, .changed_at = changed_at, .authority = try self.authority.clone(), .revision = self.revision, .input = self.input };
 }
 fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
     const self: *Self = @ptrCast(@alignCast(raw));
@@ -61,7 +89,7 @@ fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !c.station.Turn.Page
     return result;
 }
 pub fn capture(self: *Self, principal: u64) !c.station.Turn {
-    return c.station.Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page });
+    return c.station.Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .authorization = authorize, .authorization_binding = binding });
 }
 pub fn commit(self: *Self, turn: c.station.Turn) !void {
     try turn.validate();

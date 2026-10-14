@@ -3,9 +3,10 @@
 The native `declarative_authorization` capability provides roles, credential
 bindings, generic objects, grants, staged administration and current policy
 inspection. [Authorization.zig](../packages/zig/transit-protocol/src/Authorization.zig)
-owns the types; the native schema reflects them. The SQL mapping and trusted Table
-mediation described below are integration profiles under implementation; the
-native capability alone does not advertise restricted Table access.
+owns the types; the native schema reflects them. The catalog and explicit Table
+service enforce database/schema/Table privileges. SQL administration and the
+remaining adapter integrations are under implementation; the native capability
+alone does not advertise restricted Table access.
 
 ## Authority and identity
 
@@ -32,7 +33,8 @@ For service reads, `Subject.signed` carries a separately signed `Claim`: mandato
 definition, realm, principal, credential epoch, optional selected role, service
 PID and domain-owned request digest. SHA-256 over
 `transit.authorization.subject.v1\0` plus canonical claim JSON is signed with
-Ed25519. The service must bind the context to its complete immutable request;
+Ed25519. Fixed byte arrays remain JSON arrays, even when their bytes form valid
+UTF-8. The service must bind the context to its complete immutable request;
 the native authority cannot interpret application request bytes. Current
 credential, role selection and object privileges remain required on every use.
 
@@ -69,8 +71,9 @@ kernel does not infer Table semantics or authorize an arbitrary registration.
 The realm authorization object is `{ kind: realm, id: 0 }` within the envelope's
 realm. Process/resource objects use their native identities. Framework domains
 and objects receive separately allocated stable IDs. Root explicitly registers
-each domain's registrar principal and action mask; only that registrar creates
-its objects. Ownership alone never allows an arbitrary registrar substitution.
+each domain's registrar principal and action mask. That registrar or native root
+can create an object; root bootstrap still records the domain's registrar as the
+object registrar. Ownership alone never allows a registrar substitution.
 
 A registrar may supply an immutable 32-byte binding key and optional parent
 object. These opaque values establish no inherited access. The binding is unique

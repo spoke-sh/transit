@@ -2,11 +2,11 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Diagnostic = @import("Diagnostic.zig");
-pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, prepare, next, @"prepare-initialize", @"prepare-policy", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, observe, disposition, progress, status };
+pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, prepare, next, @"prepare-initialize", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, observe, disposition, progress, status };
 pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, namespace: ?[]const u8 = null, intent: ?[]const u8 = null, input: ?[]const u8 = null };
 pub const Options = struct { mode: Mode, flags: Flags = .{}, input: u64 = 0, help: bool = false };
 fn preparation(mode: Mode) bool {
-    return mode == .@"prepare-initialize" or mode == .@"prepare-policy" or mode == .@"prepare-dependency" or mode == .@"prepare-resume" or mode == .next or mode == .cancel or mode == .cleanup or mode == .@"cancel-upload" or mode == .@"collect-upload";
+    return mode == .@"prepare-initialize" or mode == .@"prepare-dependency" or mode == .@"prepare-resume" or mode == .next or mode == .cancel or mode == .cleanup or mode == .@"cancel-upload" or mode == .@"collect-upload";
 }
 fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "config")) return mode != .capabilities;
@@ -38,7 +38,6 @@ pub fn usage(mode: Mode) []const u8 {
         .@"collect-upload" => "transit catalog collect-upload --config PATH --file COMPILED --output PREPARED",
         .@"prepare-dependency" => "transit catalog prepare-dependency --config PATH --file DEPENDENCY_CHANGE --output PREPARED",
         .progress => "transit catalog progress --config PATH --intent COMPILED --file PREPARED --input POSITION",
-        .@"prepare-policy" => "transit catalog prepare-policy --config PATH --file POLICY_CHANGE --output PREPARED",
         .submit => "transit catalog submit --config PATH --file PREPARED",
         .observe => "transit catalog observe --config PATH --file PREPARED --input POSITION",
         .disposition => "transit catalog disposition --config PATH --file PREPARED --input POSITION",

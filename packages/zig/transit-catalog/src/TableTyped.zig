@@ -173,7 +173,7 @@ pub fn intent(allocator: std.mem.Allocator, connection: c.TableClient.Connection
         const mutation: c.TableDmlRequest = .{ .principal = connection.principal, .operation = identity.operation, .metadata = .{ .id = selected.metadata.revision, .spec = try selected.metadata.spec() }, .plan = try plan(&arena, selected.schema.schema, request.name, request.action.mutate.mutation) };
         return c.TableIntent.create(allocator, try c.TableCommand.fromDml(connection.scope, connection.owner, mutation, selected.metadata), identity.namespace);
     }
-    var ddl: c.TableDdlRequest = .{ .principal = connection.principal, .operation = identity.operation, .object = if (current) |value| value.metadata.object else 0, .expected_revision = if (current) |value| value.metadata.revision else 0, .name = name, .action = undefined };
+    var ddl: c.TableDdlRequest = .{ .namespace = connection.namespace, .principal = connection.principal, .operation = identity.operation, .object = if (current) |value| value.metadata.object else 0, .expected_revision = if (current) |value| value.metadata.revision else 0, .name = name, .action = undefined };
     ddl.action = switch (request.action) {
         .create => |value| blk: {
             const schema = try f.TableSchemaJson.native(&arena, value.schema);

@@ -119,22 +119,23 @@ schema changes cannot retarget that saved work. Callers sharing a principal must
 coordinate native sequences; the CLI does not supply an automatic send retry or
 session coordinator. Deleting files does not remove accepted work.
 
-## Initialization and policy controls
+## Initialization and dependency controls
 
-`prepare-initialize`, `prepare-policy` and `prepare-dependency` accept the shared
+`prepare-initialize` and `prepare-dependency` accept the shared
 neutral configuration or conditional control JSON and save one signed step:
 
 ```sh
 transit catalog prepare-initialize --config catalog.yaml --file initialize.json --output initialize-prepared.json
-transit catalog prepare-policy --config catalog.yaml --file policy.json --output policy-prepared.json
 transit catalog prepare-dependency --config catalog.yaml --file dependency.json --output dependency-prepared.json
 ```
 
 Initialization includes the exact scope, owner, administrator and explicit
-Table publication quotas. The configured administrator controls all eight
-catalog permissions and dependency records. Controls carry expected revisions;
-the owner checks them again when applying the command. Matching repeated
-initialization does not reset policy. Inspect each admitted control's separate
+Table publication quotas plus the mandatory native authorization profile.
+Provision the database and initial schema bindings through native authorization
+before initialization. Dependency controls carry expected revisions; the owner
+checks them again when applying the command. Roles, membership and Table grants
+use native authorization operations. Matching repeated initialization cannot
+restore grants. Inspect each admitted control's separate
 input disposition. These operations do not implement SQL GRANT or REVOKE.
 
 ## Metadata and saved pages

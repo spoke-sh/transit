@@ -16,7 +16,34 @@ pid: u64 = 3,
 revision: u64 = 1,
 input: u64 = 1,
 denied: bool = false,
+authority: Authority = .{},
+const Authority = q.catalog.testing.Authority;
+pub const profile = Authority.profile;
+pub const Rights = Authority.Rights;
+pub fn setRights(self: *Self, rights: Rights) !void {
+    try self.authority.setRights(rights);
+}
+pub fn grantObject(self: *Self, principal: u64, object: u64, privileges: u64) !void {
+    try self.authority.grantObject(principal, object, privileges);
+}
+pub fn authorizationSubject(self: *Self, who: u64, audience: u64) !p.Authorization.Subject {
+    self.authority.input = self.input;
+    return self.authority.authorizationSubject(who, audience);
+}
+pub fn requireAuthorization(self: *Self, guard: p.Authorization.Guard) !p.Authorization.Verified {
+    return self.authority.requireAuthorization(guard);
+}
+fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorization.Verified {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    return Authority.authorize(&self.authority, guard);
+}
+fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Object {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    return Authority.binding(&self.authority, domain, identity);
+}
+
 pub fn deinit(self: *Self) void {
+    self.authority.deinit();
     self.state.deinit(t.allocator);
     self.revisions.deinit(t.allocator);
     var versions = self.versions.valueIterator();
@@ -28,6 +55,8 @@ pub fn deinit(self: *Self) void {
 }
 pub fn clone(self: *Self) !Self {
     var copy: Self = .{ .resource = self.resource, .pid = self.pid, .revision = self.revision, .input = self.input };
+    copy.authority = try self.authority.clone();
+    errdefer copy.authority.deinit();
     copy.state = try self.state.clone(t.allocator);
     copy.revisions = try self.revisions.clone(t.allocator);
     return copy;
@@ -80,7 +109,7 @@ fn versionEntries(raw: *anyopaque, view: p.Growth.ReadVersion, key: ?p.Value, af
     return pageMap(&retained.state, &retained.revisions, after);
 }
 pub fn capture(self: *Self) !Turn {
-    return Turn.init(.{ .realm = 1, .principal = 2, .pid = self.pid, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .version = version, .version_entries = versionEntries });
+    return Turn.init(.{ .realm = 1, .principal = 2, .pid = self.pid, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .version = version, .version_entries = versionEntries, .authorization = authorize, .authorization_binding = binding });
 }
 pub fn commit(self: *Self, turn: Turn) !void {
     try turn.validate();

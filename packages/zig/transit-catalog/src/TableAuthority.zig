@@ -36,7 +36,7 @@ pub const Name = struct {
     len: u8,
     bytes: [a.max_name_bytes]u8 = @splat(0),
     pub fn init(text: []const u8) !Name {
-        try a.name(try p.Value.init(text));
+        if (text.len == 0 or text.len > a.max_name_bytes or !std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidCatalogName;
         var result: Name = .{ .len = @intCast(text.len) };
         @memcpy(result.bytes[0..text.len], text);
         return result;
@@ -46,7 +46,7 @@ pub const Name = struct {
     }
     pub fn validate(self: Name) !void {
         if (self.len == 0 or self.len > self.bytes.len) return error.InvalidCatalogName;
-        try a.name(try p.Value.init(self.bytes[0..self.len]));
+        _ = try init(self.bytes[0..self.len]);
         for (self.bytes[self.len..]) |byte| if (byte != 0) return error.InvalidCatalogName;
     }
 };
@@ -67,6 +67,45 @@ pub const Schema = struct {
     }
 };
 pub const Table = struct { id: u64, schema: u64, authorization: u64 };
+/// A trusted reader's native identity and the independently authenticated
+/// original subject. The enclosing service binds signed subjects to requests.
+pub const Context = struct {
+    client: c.station.client.AuthorizationClient,
+    subject: a.Subject,
+    observed: ?*?a.Guard = null,
+    pub fn authorizationSubject(self: Context, who: u64, audience: u64) !a.Subject {
+        try self.subject.validate();
+        if (self.subject.principal() != who or self.subject.audience() != audience) return error.CatalogDenied;
+        return self.subject;
+    }
+    pub fn requireAuthorization(self: Context, requested: a.Guard) !a.Verified {
+        return (try self.observe(requested)).body.authorization.body.check;
+    }
+    pub fn observe(self: Context, requested: a.Guard) !p.Growth.Response {
+        if (!std.meta.eql(requested.subject, self.subject)) return error.CatalogDenied;
+        const response = self.client.read(.{ .check = requested }) catch |err| {
+            if (err == error.AccessDenied or (err == error.Conflict and self.client.transport.last_rejection == .StaleAuthorizationCredential)) return error.CatalogDenied;
+            return err;
+        };
+        if (self.observed) |target| target.* = if (target.*) |previous| try previous.merge(requested) else requested;
+        return response;
+    }
+};
+pub fn subjectFor(source: anytype, who: u64, audience: u64) !a.Subject {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime !@hasDecl(Source, "authorizationSubject")) return error.UnsupportedAuthorization;
+    return source.authorizationSubject(who, audience) catch |err| return if (err == error.AccessDenied) error.CatalogDenied else err;
+}
+pub fn require(source: anytype, requested: a.Guard) !a.Verified {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime !@hasDecl(Source, "requireAuthorization")) return error.UnsupportedAuthorization;
+    return source.requireAuthorization(requested) catch |err| return if (err == error.AccessDenied) error.CatalogDenied else err;
+}
+pub fn resolve(source: anytype, domain: u64, identity: [32]u8) !?a.Object {
+    const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime !@hasDecl(Source, "authorizationBinding")) return error.UnsupportedAuthorization;
+    return source.authorizationBinding(domain, identity);
+}
 pub fn reference(id: u64) a.ObjectRef {
     return .{ .kind = .domain, .id = id };
 }
