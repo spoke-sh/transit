@@ -59,6 +59,8 @@ def run(postgres,mysql_options,controls,inventory):
         assert time.monotonic()<deadline, status
         time.sleep(2)
     print(json.dumps(dict(profile='database_wire_large_row',phase='complete',seconds=round(time.monotonic()-started,3),wire_completion=wire_completion,operator_count_verified=True,sql_attempts=1)),flush=True)
+    readback = 'SELECT label,payload,'+','.join(f'b{i}' for i in range(8))+' FROM wire_large WHERE id=%s'
+    expected = (label,payload,*([payload]*8))
     with psycopg.connect(**postgres) as pg:
         try:
             pg.execute('INSERT INTO wire_large (id,label) VALUES (%s,%s)',(2,'x'*4097),prepare=True)
@@ -67,14 +69,14 @@ def run(postgres,mysql_options,controls,inventory):
         else:
             raise AssertionError('Oversized bound cell was admitted')
         with pg.cursor(binary=True) as cursor:
-            cursor.execute('SELECT label,payload FROM wire_large WHERE id=%s',(1,),prepare=True)
-            assert cursor.fetchone() == (label,payload)
+            cursor.execute(readback,(1,),prepare=True)
+            assert cursor.fetchall() == [expected]
         sql = 'SELECT a.id, SUM(b.id) AS total FROM wire_rows a JOIN wire_rows b ON a.id=b.id GROUP BY a.id'
         assert sorted(pg.execute(sql).fetchall()) == [(101,101),(102,102),(103,103),(200,200)]
     with mysql.connector.connect(**mysql_options) as my:
         cursor = my.cursor(prepared=True)
-        cursor.execute('SELECT label,payload FROM wire_large WHERE id=%s',(1,))
-        assert cursor.fetchone() == (label,payload)
+        cursor.execute(readback,(1,))
+        assert cursor.fetchall() == [expected]
         cursor.close()
         cursor = my.cursor()
         cursor.execute(sql)
@@ -99,4 +101,4 @@ def run(postgres,mysql_options,controls,inventory):
         assert any(tag == b'D' for tag,_ in wire.until(b'Z'))
     finally:
         wire.close()
-    print(json.dumps(dict(profile='database_wire_values',utf8_bytes=len(label.encode()),binary_bytes=len(payload),variable_bytes_per_row=10*4096,oversized_binding_rejected=True,defaults_and_null=True,required_rejection=True,literal_relational=True,stale_cancel=True,fragmented_query=True)),flush=True)
+    print(json.dumps(dict(profile='database_wire_values',utf8_bytes=len(label.encode()),binary_bytes=len(payload),variable_bytes_per_row=10*4096,all_ten_cells_verified=True,oversized_binding_rejected=True,defaults_and_null=True,required_rejection=True,literal_relational=True,stale_cancel=True,fragmented_query=True)),flush=True)

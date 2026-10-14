@@ -39,6 +39,8 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             return json.loads(result.stdout)
         def controls(*args):
             result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
+            if result.returncode:
+                assert not result.stdout, 'Failed control inspection disclosed output'
             assert result.returncode == 0, result.stderr
             return json.loads(result.stdout)
         def inventory():

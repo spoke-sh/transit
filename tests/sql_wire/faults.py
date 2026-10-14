@@ -137,6 +137,8 @@ def run(root, postgres, mysql_options, controls, native_access):
             time.sleep(.05)
         page = controls('list')
         assert page['entries'] and all('matched' not in entry for entry in page['entries'])
+        committed_operation = page['entries'][0]['operation']
+        assert controls('status',committed_operation)['terminal']['state'] == 'applied'
 
     for changes in ({'password':'wrong'}, {'user':'other'}, {'dbname':'other'}, {'sslmode':'disable'}, {'host':'wrong.invalid'}, {'sslrootcert':str(root/'key.pem')}):
         try:
@@ -177,6 +179,29 @@ def run(root, postgres, mysql_options, controls, native_access):
             held.sock.sendall(frame(b'P',b'hold\0SELECT id FROM wire_rows\0\0\0')+frame(b'B',b'portal\0hold\0\0\0\0\0\0\0')+frame(b'E',b'portal\0'+struct.pack('!I',1))+frame(b'H'))
             assert held.until(b's',b'E')[-1][0] == b's'
             native_access(False)
+            try:
+                controls('status',committed_operation)
+            except AssertionError as error:
+                assert 'AccessDenied' in str(error), str(error)
+            else:
+                raise AssertionError('Operator disclosed a committed outcome after native read revocation')
+            metadata = PostgreSQL(postgres)
+            try:
+                metadata.sock.sendall(frame(b'P',b'denied\0SELECT id FROM wire_rows\0\0\0')+frame(b'D',b'Sdenied\0')+frame(b'S'))
+                replies = metadata.until(b'Z')
+                assert any(tag == b'E' and b'42501' in payload for tag,payload in replies)
+                assert not any(tag in (b'T',b't',b'D') for tag,_ in replies)
+            finally:
+                metadata.close()
+            metadata_cursor = my.cursor(prepared=True)
+            try:
+                metadata_cursor.execute('SELECT n FROM wire_rows')
+            except mysql.connector.Error as error:
+                assert error.errno == 1142 and metadata_cursor.description is None
+            else:
+                raise AssertionError('MySQL disclosed revoked preparation metadata')
+            finally:
+                metadata_cursor.close()
             for execute,error in ((lambda:pg.execute('SELECT id FROM wire_rows WHERE id=%s',(101,),prepare=True),psycopg.errors.InsufficientPrivilege),(lambda:cursor.execute('SELECT id FROM wire_rows WHERE id=%s',(101,)),mysql.connector.Error)):
                 try:
                     execute()
@@ -228,4 +253,4 @@ def run(root, postgres, mysql_options, controls, native_access):
                     raise AssertionError('Disabled credential authenticated')
         finally:
             replace(original | {'revision':original['revision']+3})
-    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True, credential_rotation=True, credential_cli=True)), flush=True)
+    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,credential_rotation=True, credential_cli=True)), flush=True)
