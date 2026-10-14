@@ -93,9 +93,9 @@ reconnect would hide ambiguity by creating new work.
 
 The [proof ledger](../../tests/README.md#database-wire-gateway) and its linked
 native recovery tests separate executable observations from these design
-arguments. Reproduction uses the pinned toolchain, `just test::sql-gateway`,
-`just test::sql-wire-contracts` and `just test::sql-wire-gateway`; deployment
-commands are in the [example](../../examples/sql-wire/README.md). Selected fault
+arguments. It records the pinned toolchain and reproduction commands for native
+recovery, independent wire contracts and actual clients; deployment commands are
+in the [example](../../examples/sql-wire/README.md). Selected fault
 schedules establish their asserted outcomes, not exhaustive correctness or a
 throughput guarantee. Progress additionally requires available native storage,
 current permissions, an eligible worker, finite admitted work and sufficient

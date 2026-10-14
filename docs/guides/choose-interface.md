@@ -10,6 +10,7 @@ Choose the owner that matches the job; a transport never grants authority.
 | Implement a worker or durable caller | [Zig client and language SDKs](../reference/sdks.md) | Shared protocol/Station semantics with target-language types and ownership |
 | Integrate a native protocol client | [Signed HTTP protocol](../reference/native.md) | Versioned JSON envelopes, canonical signing, current grants and exact retry |
 | Run interactive queries | [Console](../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Explicit finite SELECT over configured KV/Table/Document sources |
+| Use a PostgreSQL or MySQL client | [Database gateway](../../apps/transit-sql-gateway/README.md) | TLS, autocommit general-Table reads/writes, six scalar types and typed single-Table parameters |
 | Inspect the system | [Board OpenAPI](../reference/board-api.md) | Private viewers share a scoped read identity; optional query/operator identities are separate |
 | Expose application commands and reads | [Serving OpenAPI](../reference/openapi.md) | Signed native commands and scoped reads through a published service |
 | Follow changes | [Reactive API / AsyncAPI](../reference/asyncapi.md) | Int64 Table sessions and resumable notifications, fetch-SSE or WebSocket |
