@@ -11,6 +11,9 @@ pub fn Evaluator(comptime Store: type) type {
         store: *Store,
         policy_revision: u64,
         limits: a.Limits = .{},
+        /// Dependency cleanup follows retained grant provenance even while a
+        /// role is disabled. Never use this mode to admit a caller operation.
+        include_disabled: bool = false,
         records: u16 = 0,
         vertices: [a.max_vertices]u64 = undefined,
         vertex_count: usize = 0,
@@ -38,7 +41,7 @@ pub fn Evaluator(comptime Store: type) type {
         }
         fn role(self: *Self, id: u64) anyerror!?a.Role {
             const value = (try self.storedRole(id)) orelse return null;
-            if (!value.enabled or value.retired) return null;
+            if ((!value.enabled and !self.include_disabled) or value.retired) return null;
             return value;
         }
         fn storedRole(self: *Self, id: u64) anyerror!?a.Role {
@@ -164,6 +167,14 @@ pub fn Evaluator(comptime Store: type) type {
             const inherited = try self.roles(target, .cycle);
             for (inherited.values[0..inherited.len]) |id| if (id == member) return true;
             return false;
+        }
+        pub fn inherits(self: *Self, subject: u64, target: u64) anyerror!bool {
+            const inherited = try self.roles(subject, .inherit);
+            for (inherited.values[0..inherited.len]) |id| if (id == target) return true;
+            return false;
+        }
+        pub fn validMembership(self: *Self, edge: a.Membership) anyerror!bool {
+            return self.memberValid(edge);
         }
         fn grants(self: *Self, who: u64, object: a.Object, bit: u64, option: bool) anyerror!bool {
             var after: ?u64 = null;

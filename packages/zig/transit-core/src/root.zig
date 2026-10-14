@@ -8,6 +8,8 @@ pub const Runtime = protocol.Runtime;
 pub const pages = @import("pages.zig");
 pub const catalog = @import("catalog.zig");
 pub const authorization = @import("authorization.zig");
+pub const authorization_store = @import("authorization_store.zig");
+pub const authorization_admin = @import("authorization_admin.zig");
 pub const growing = @import("growing.zig");
 pub const Engine = growing.Engine;
 pub const Genesis = growing.Genesis;
@@ -31,4 +33,6 @@ test {
     _ = @import("catalog_test.zig");
     _ = @import("growing_test.zig");
     _ = @import("authorization_test.zig");
+    _ = @import("authorization_store_test.zig");
+    _ = @import("authorization_admin_test.zig");
 }

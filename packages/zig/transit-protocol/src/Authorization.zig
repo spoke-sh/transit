@@ -57,6 +57,8 @@ pub const Object = struct {
     /// Principal permitted to bind this generic object to its domain lifecycle.
     registrar: Id,
     actions: Privileges,
+    /// An authorized framework declares the action vocabulary for its objects.
+    domain: ?Id = null,
     revision: u64,
     retired: bool = false,
     pub fn validate(self: Object) !void {
@@ -64,6 +66,61 @@ pub const Object = struct {
         try roleId(self.owner);
         if (self.registrar > p.max_counter) return error.InvalidAuthorizationObject;
         try mask(self.actions);
+        if ((self.reference.kind == .domain) != (self.domain != null)) return error.InvalidAuthorizationObject;
+        if (self.domain) |id| if (id == 0 or id >= public_role) return error.InvalidAuthorizationObject;
+        try revision(self.revision);
+    }
+};
+
+pub const Domain = struct {
+    id: Id,
+    registrar: Id,
+    actions: Privileges,
+    revision: u64,
+    enabled: bool = true,
+    pub fn validate(self: Domain) !void {
+        if (self.id == 0 or self.id >= public_role or self.registrar > p.max_counter or self.actions == 0) return error.InvalidAuthorizationDomain;
+        try mask(self.actions);
+        try revision(self.revision);
+    }
+};
+
+/// A credential authenticates a principal; privileges belong to the bound role.
+/// Epoch changes invalidate sessions without transferring or reviving grants.
+pub const Credential = struct {
+    principal: Id,
+    public_key: [32]u8,
+    role: Id,
+    pid: ?Id,
+    epoch: u64,
+    revision: u64,
+    enabled: bool,
+    pub fn validate(self: Credential) !void {
+        if (self.principal > p.max_counter or self.pid == 0 or (self.pid orelse 0) > p.max_counter) return error.InvalidAuthorizationCredential;
+        try roleId(self.role);
+        try revision(self.epoch);
+        try revision(self.revision);
+        _ = try p.Ed25519.PublicKey.fromBytes(self.public_key);
+    }
+};
+
+pub const DefaultGrant = struct {
+    id: Id,
+    creator: Id,
+    schema: ObjectRef,
+    domain: Id,
+    grantee: Id,
+    privileges: Privileges,
+    grant_options: Privileges,
+    revision: u64,
+    enabled: bool = true,
+    pub fn validate(self: DefaultGrant) !void {
+        if (self.id == 0 or self.id >= public_role or self.domain == 0 or self.domain >= public_role or self.grantee > public_role) return error.InvalidAuthorizationGrant;
+        try roleId(self.creator);
+        try self.schema.validate();
+        try mask(self.privileges);
+        try mask(self.grant_options);
+        if (self.grant_options & ~self.privileges != 0 or (self.grantee == public_role and self.grant_options != 0)) return error.InvalidAuthorizationGrant;
         try revision(self.revision);
     }
 };
@@ -118,6 +175,48 @@ pub const Decision = struct {
     pub fn permits(self: Decision) bool {
         return self.allowed & self.requested == self.requested;
     }
+};
+
+pub const RevokeBehavior = enum { restrict, cascade };
+pub const MembershipOption = enum { admin, inherit, set };
+pub const Action = union(enum) {
+    create_role: struct { name: p.Value, login: bool = false, create_role: bool = false },
+    alter_role: struct { id: Id, name: ?p.Value = null, owner: ?Id = null, login: ?bool = null, enabled: ?bool = null, create_role: ?bool = null },
+    retire_role: struct { id: Id, behavior: RevokeBehavior = .restrict },
+    membership: struct { member: Id, role: Id, admin: bool = false, inherit: bool = true, set: bool = true },
+    revoke_membership: struct { id: Id, option: ?MembershipOption = null, behavior: RevokeBehavior = .restrict },
+    register_domain: struct { registrar: Id, actions: Privileges },
+    register_object: struct { domain: Id, owner: Id, schema: ?ObjectRef = null },
+    transfer_object: struct { object: ObjectRef, owner: Id },
+    retire_object: ObjectRef,
+    grant: struct { object: ObjectRef, grantee: Id, privileges: Privileges, grant_options: Privileges = 0 },
+    revoke: struct { id: Id, privileges: Privileges, grant_option_only: bool = false, behavior: RevokeBehavior = .restrict },
+    default_grant: struct { creator: Id, schema: ObjectRef, domain: Id, grantee: Id, privileges: Privileges, grant_options: Privileges = 0 },
+    revoke_default: Id,
+    bind_credential: struct { principal: Id, role: Id, public_key: [32]u8, pid: ?Id = null },
+    rotate_credential: struct { principal: Id, expected_epoch: u64, public_key: [32]u8 },
+    disable_credential: struct { principal: Id, expected_epoch: u64 },
+};
+
+/// The administration workflow always retains the original signed begin.
+/// Advancing a private candidate confers no permission; publish selects its root.
+pub const Command = union(enum) {
+    begin: struct { expected_revision: u64, role: ?Id = null, action: Action },
+    advance: Id,
+    publish: Id,
+    abandon: Id,
+};
+pub const Status = enum { preparing, ready, published, abandoned };
+pub const Outcome = struct {
+    id: Id,
+    principal: Id,
+    role: Id,
+    basis: u64,
+    revision: u64,
+    status: Status,
+    created_id: ?Id,
+    changed_records: u64,
+    steps: u64,
 };
 
 pub fn Page(comptime T: type) type {

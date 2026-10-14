@@ -9,7 +9,7 @@ const Store = struct {
     role_records: []const a.Role,
     membership_records: []const a.Membership = &.{},
     grant_records: []const a.Grant = &.{},
-    object_record: ?a.Object = .{ .reference = reference, .owner = 0, .registrar = 0, .actions = 3, .revision = 1 },
+    object_record: ?a.Object = .{ .reference = reference, .owner = 0, .registrar = 0, .domain = 1, .actions = 3, .revision = 1 },
     corrupt_page: bool = false,
 
     pub fn role(self: *Store, id: u64) !?a.Role {

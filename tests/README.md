@@ -17,6 +17,14 @@ This evidence covers the pure injected-store evaluator. It does not establish
 durable administration, adapter enforcement or restricted Table isolation. Those
 integration gates remain open in [the delivery plan](../docs/roadmap/M49.md).
 
+The subsequent paged-store and administrative-candidate run passes **92/92 core
+tests** using the same command. It adds reopen and page-boundary checks, private
+staging failure, role rename/retirement, RESTRICT/CASCADE with independent paths,
+ADMIN/INHERIT/SET revocation, owner transfer, paged default templates and
+credential-epoch checks. Each staged step reopens its immutable root in the
+fixtures. These use the in-memory injected page store; they are not disk restart,
+native signed administration or service-isolation evidence.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

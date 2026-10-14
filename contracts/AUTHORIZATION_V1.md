@@ -73,6 +73,25 @@ large cascades and change sets stage paged candidates with explicit byte/work
 quotas. Only a complete candidate can publish one new authorization revision.
 Abandoned candidates supply no authority. No retained-state expiry is implicit.
 
+The typed administrative workflow uses `begin`, `advance`, `publish` and
+`abandon`. Each begin carries its expected policy revision, active role and one
+owned action. The retained outcome identifies the original caller, basis,
+created identity, changed-record count, step count and status. A step processes
+at most eight records; each dependency decision has the evaluation bounds above.
+Deployment quotas default to 65536 steps and 1000000 changed primary records per
+candidate. These are work limits, not limits on retained roles, grants or objects.
+Index entries are storage details of the corresponding primary record.
+
+Credential changes and role-name changes preserve stable role identities.
+Role retirement checks owned objects and administrative role ownership before
+processing memberships, credentials, grants and defaults. Ownership must be
+explicitly transferred or the owned object retired; CASCADE does not delete
+application data. Cascaded grants cannot revive when a later independent grant
+restores the former grantor's authority. Temporarily disabling a role preserves
+its grant provenance while denying its use; an unrelated cascade does not erase
+those suspended paths. Ownership transfer rewrites owner grant provenance within
+the same private candidate before publication.
+
 ## Publication, replay and concurrent changes
 
 Administration is authenticated, revision-checked and bound to an original native
