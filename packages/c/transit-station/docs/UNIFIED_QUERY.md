@@ -37,7 +37,7 @@ with its matching build before changing definitions. Source, schema and plan com
 and source/resource/requester/request-resource connection. It owns a bounded
 native worker and copied credential; it acquires no process activation.
 `describe` checks current policy and the declared source. The maximum bundle is
-25,069 bytes, an Arrow segment is at most 64 KiB and a batch has at most eight
+25,255 bytes, an Arrow segment is at most 64 KiB and a batch has at most eight
 rows and 128 columns. Column/output names allow 255 UTF-8 bytes. Local capability support does not establish remote permission.
 
 `transit_station_unified_compile_sql(client, source, name, sql, budgets,
@@ -101,3 +101,15 @@ destroying public handles. No destructor dispatches a durable control.
 C++17 consumers against signed KV recovery. An optional source argument chooses
 `table` or `document`. The [proof guide](../../../../tests/README.md) records
 measured runs and remaining qualification separately.
+
+Connections accept an optional selected native role; omission uses the login role.
+Local bundle construction produces a description. Call `transit_station_unified_authorize_bundle` once on the
+query client before persisting a newly constructed Table bundle or its fingerprint.
+The returned bytes bind the authenticated caller, role, credential epoch, source
+owner and requester to the exact query and budget. SQL compilation already returns
+an authorized bundle. An already authorized Table bundle rejects resealing.
+
+Persist and recover the original bundle bytes unchanged, alongside each prepared
+command and receipt. Current authorization is checked again during progress and
+result disclosure. Credential or policy changes never justify replacing accepted
+work with a newly signed bundle. The complete bundle bound is 25,255 bytes.

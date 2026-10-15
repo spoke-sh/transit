@@ -1,5 +1,14 @@
 // Public language-native API; neutral codecs stay inside the package.
-export { Bundle, Connection, Prepared, Uncertain, Cursor, Page, Client } from "./unified.ts";
+export {
+  Bundle,
+  Connection,
+  Prepared,
+  Uncertain,
+  Cursor,
+  Page,
+  Client,
+  decodeArrow,
+} from "./unified.ts";
 export type {
   Type,
   Scalar,

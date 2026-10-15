@@ -126,9 +126,9 @@ public static class UnifiedQuery
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {
         public Bytes Bytes { get; }
-        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25069) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
+        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25255) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
         public static async Task<Bundle> PrepareAsync(Source source,Plan plan,Budgets budgets,string? nativeDirectory=null) {
-            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25069));
+            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25255));
         }
     }
     public sealed record Prepared {
@@ -143,12 +143,12 @@ public static class UnifiedQuery
         if(output.Count!=rows || output.Any(row => row.Count!=columns.Count)) throw V.Incompatible("query-shape"); return output;
     }
     public sealed record Connection {
-        public ProcessRef Source { get; } public ResourceRef Resource { get; } public ProcessRef Requester { get; } public ResourceRef Requests { get; }
-        public Connection(ProcessRef source,ResourceRef resource,ProcessRef requester,ResourceRef requests) {
-            if(source.Realm!=resource.Realm || source.Realm!=requester.Realm || source.Realm!=requests.Realm) throw new ArgumentException("Different query realms"); Source=source; Resource=resource; Requester=requester; Requests=requests;
+        public ProcessRef Source { get; } public ResourceRef Resource { get; } public ProcessRef Requester { get; } public ResourceRef Requests { get; } public ulong? Role { get; }
+        public Connection(ProcessRef source,ResourceRef resource,ProcessRef requester,ResourceRef requests,ulong? role=null) {
+            if(source.Realm!=resource.Realm || source.Realm!=requester.Realm || source.Realm!=requests.Realm) throw new ArgumentException("Different query realms"); Source=source; Resource=resource; Requester=requester; Requests=requests; Role=role is {} selected?V.Counter(selected,0):null;
         }
         internal JsonObject Wire(Credential identity) {
-            if(identity.Realm!=Source.Realm) throw new ArgumentException("Different credential realm"); return V.Obj(("realm",Source.Realm),("principal",identity.Principal),("source",Source.Pid),("resource",Resource.Resource),("requester",Requester.Pid),("requests",Requests.Resource));
+            if(identity.Realm!=Source.Realm) throw new ArgumentException("Different credential realm"); return V.Obj(("realm",Source.Realm),("principal",identity.Principal),("source",Source.Pid),("resource",Resource.Resource),("requester",Requester.Pid),("requests",Requests.Resource),("role",Role));
         }
     }
     public sealed record Description(ulong ResourceRevision,ulong PolicyRevision,Budgets Budgets,ulong? Active,int BundleBytes,int SegmentBytes,int BatchRows);
@@ -280,7 +280,12 @@ public static class UnifiedQuery
                 values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
             }
             var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
-            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25069)),cancellation);
+            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25255)),cancellation);
+        }
+        /// <summary>Seal new work before persistence; recover saved bundles unchanged.</summary>
+        public Task<Bundle> AuthorizeBundleAsync(Bundle bundle,CancellationToken cancellation=default) {
+            var action=V.Obj(("authorize",Hex(bundle.Bytes)));
+            return worker.Invoke(b=>new Bundle(Encoded(b.UnifiedQuery(action)["authorized"],25255)),cancellation);
         }
         public Task<Prepared?> PrepareNextAsync(ulong ns,Bundle bundle,CancellationToken cancellation=default) {
             var action=V.Obj(("next",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(bundle.Bytes)))));

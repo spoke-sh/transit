@@ -282,8 +282,10 @@ pub fn main(init: std.process.Init) !void {
         try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = client_config.source, .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
         var query_client: q.UnifiedClient = .{ .wire = &transport, .connection = connection, .key = caller_key };
-        const authorized_bundle = try query_client.authorizeBundle(try bundle(client_config, init.arena.allocator()));
+        const description_bundle = try bundle(client_config, init.arena.allocator());
         var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle-description.bin"), .data = try description_bundle.encode(&bundle_bytes) });
+        const authorized_bundle = try query_client.authorizeBundle(description_bundle);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try authorized_bundle.encode(&bundle_bytes) });
         if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .catalog = table_config.? } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
         try save(init, directory, "requester.json", .{ .url = url, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = try keyFile(init, directory, "requester.seed", 9), .activation_directory = directory, .role = .{ .unified_requester = behavior } });

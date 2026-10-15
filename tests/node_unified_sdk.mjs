@@ -14,7 +14,7 @@ function atomValue(type, value) {
 }
 function tableSource(resource, owner, scope, object, revision, bytes, digest, columns) {
   return {kind: 'table', owner: new ProcessRef(resource.realm, owner),
-    metadata: new catalog.Metadata({scope: new catalog.Scope(resource, scope), objectId: object,
+    metadata: new catalog.Metadata({namespace: 1, scope: new catalog.Scope(resource, scope), objectId: object,
       revision, name: 'items', schemaFingerprint: '01'.repeat(32), principal: 17, operation: 1n,
       admittedInput: 1, commitment: new catalog.MetadataCommitment(bytes, digest)}),
     schema: new catalog.Schema(object, 1n, BigInt(columns.length + 1), columns)};
@@ -164,12 +164,12 @@ async function serve() {
   ]};
   const bundle = await q.Bundle.prepare(source, {projection: doc ? [0, 1, 2, 3] : [1],
     outputNames: doc ? ['Result', null, null, null] : ['Result'], predicate}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
-  assert.equal(hex(bundle.data), hex(await readFile(config.bundle)));
   const client = await q.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
     new Credential(v.realm, v.principal, config.seed_file), connection);
   try {
+    assert.equal(hex((await client.authorizeBundle(bundle)).data), hex(await readFile(config.bundle)));
     const description = await client.describe(source);
-    assert.equal(description.bundleBytes, 25069); assert.equal(description.batchRows, 8);
+    assert.equal(description.bundleBytes, 25255); assert.equal(description.batchRows, 8);
     console.log(JSON.stringify({ready: true}));
     for await (const line of readline.createInterface({input: process.stdin})) {
       const action = JSON.parse(line);

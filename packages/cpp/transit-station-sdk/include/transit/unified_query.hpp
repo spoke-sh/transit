@@ -112,7 +112,7 @@ inline Rows decode_arrow(const std::vector<Column> &columns, const Bytes &ipc, u
     }
     return rows;
 }
-struct Connection { ProcessRef source; ResourceRef resource; ProcessRef requester; ResourceRef requests; };
+struct Connection { ProcessRef source; ResourceRef resource; ProcessRef requester; ResourceRef requests; std::optional<uint64_t> role = {}; };
 using Description = transit_station_unified_description;
 enum class SourceKind { Kv, Table, Document };
 enum class InspectionOperator { Scan, Filter, Limit, Project, Count, Sum, CountValues };
@@ -166,7 +166,7 @@ public:
     Client &operator=(Client &&) noexcept = default;
     static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection) {
         const auto cfg = config.native(); const auto identity = credential.native(); transit_station_unified_client *out = nullptr;
-        check(transit_station_unified_open(&cfg, &identity, {connection.source.native(), connection.requester.native(), connection.resource.native(), connection.requests.native()}, &out)); return Client(out);
+        check(transit_station_unified_open(&cfg, &identity, {connection.source.native(), connection.requester.native(), connection.resource.native(), connection.requests.native(), connection.role.has_value(), connection.role.value_or(0)}, &out)); return Client(out);
     }
     Description describe(const Source &source) { const detail::SourceView s(source); Description out{}; check(transit_station_unified_describe(value_.get(), &s.value, &out)); return out; }
     Inspection inspect_sql(const Source &source,const std::string &name,const std::string &sql,Budgets budgets) {
@@ -217,6 +217,10 @@ public:
         transit_station_unified_bundle *out=nullptr;
         check(transit_station_unified_compile_sql(value_.get(),&s.value,name.c_str(),sql.c_str(),{budgets.pages,budgets.segments,budgets.result_bytes},parameters?&bindings:nullptr,&out));
         return Bundle(out);
+    }
+    // Seal new work before persistence; recover saved bundles unchanged.
+    Bundle authorize_bundle(const Bundle &bundle) {
+        transit_station_unified_bundle *out = nullptr; check(transit_station_unified_authorize_bundle(value_.get(), bundle.native(), &out)); return Bundle(out);
     }
     std::optional<Prepared> prepare_next(uint64_t ns, const Bundle &bundle) {
         transit_station_unified_prepared *out = nullptr; check(transit_station_unified_prepare_next(value_.get(), ns, bundle.native(), &out));

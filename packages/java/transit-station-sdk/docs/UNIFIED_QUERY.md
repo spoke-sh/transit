@@ -80,7 +80,7 @@ logical representation. Copies survive client close. Standalone `decodeArrow`
 checks shape; it does not establish current access or result completion. No
 optional Java Arrow dependency is selected.
 
-Bundles contain at most 25,069 bytes, batches at most eight rows and 128 result
+Bundles contain at most 25,255 bytes, batches at most eight rows and 128 result
 columns, and IPC segments at most 64 KiB. KV sources have two columns; Document
 projections remain bounded to eight. Predicate byte literals are limited to
 4 KiB. Source/output names are nonempty UTF-8 of at most 255 bytes without NUL.
@@ -90,3 +90,15 @@ Build/install using `nix develop .#bindings` and `just bindings::java-build`.
 schedule; its source argument accepts `kv` or `document`. The
 [proof guide](../../../../tests/README.md) distinguishes measured profiles from
 remaining source/deployment qualification.
+
+Connections accept an optional selected native role; omission uses the login role.
+Local bundle construction produces a description. Call `authorizeBundle` once on the
+query client before persisting a newly constructed Table bundle or its fingerprint.
+The returned bytes bind the authenticated caller, role, credential epoch, source
+owner and requester to the exact query and budget. SQL compilation already returns
+an authorized bundle. An already authorized Table bundle rejects resealing.
+
+Persist and recover the original bundle bytes unchanged, alongside each prepared
+command and receipt. Current authorization is checked again during progress and
+result disclosure. Credential or policy changes never justify replacing accepted
+work with a newly signed bundle. The complete bundle bound is 25,255 bytes.

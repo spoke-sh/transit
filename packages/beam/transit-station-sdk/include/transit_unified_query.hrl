@@ -14,7 +14,7 @@
 -record(transit_unified_bundle, {bytes :: binary()}).
 -record(transit_unified_prepared, {bytes :: binary()}).
 -record(transit_unified_cursor, {opaque :: binary()}).
--record(transit_unified_connection, {source :: #transit_process{}, resource :: #transit_resource{}, requester :: #transit_process{}, requests :: #transit_resource{}}).
+-record(transit_unified_connection, {source :: #transit_process{}, resource :: #transit_resource{}, requester :: #transit_process{}, requests :: #transit_resource{}, role=undefined :: undefined | non_neg_integer()}).
 -record(transit_unified_description, {resource_revision, policy_revision, budgets, active = undefined, bundle_bytes, segment_bytes, batch_rows}).
 -record(transit_unified_source_description, {columns = []}).
 -record(transit_unified_table_listing, {names = []}).

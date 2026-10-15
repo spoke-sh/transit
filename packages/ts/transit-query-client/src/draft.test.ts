@@ -112,7 +112,7 @@ function fixture() {
               source: 1,
               plan: 1,
               result: 1,
-              bundle_bytes: 25069,
+              bundle_bytes: 25255,
               part_bytes: 128,
               segment_bytes: 65536,
               batch_rows: 8,

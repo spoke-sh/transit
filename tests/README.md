@@ -265,6 +265,22 @@ operation namespaces retain their full-width decimal encoding. The removed local
 policy API is absent. These injected-reply and owned-port checks complete the
 catalog adapter migration matrix; live SDK grant/use/revoke remains a separate gate.
 
+All ten freshly packaged query SDKs pass `python3 -B tests/sdk_unified.py`
+in the bindings shell on dirty `42592985`. Isolated installations check the
+three source encodings, nine Boolean programs, six scalar types, five cell
+states, 128-column bounds, nested values, full-width integers, malformed input
+and owned Arrow results. The initial Node attempts exposed a missing namespace
+in the consumer and a missing public export for the documented `decodeArrow`;
+the passing rerun includes both corrections.
+
+Each SDK now exposes explicit authorization of a locally prepared Table bundle,
+through the shared Zig signer, and optional selected roles on query connections.
+Sealing precedes persistence/fingerprinting; retained accepted bytes are never
+re-signed. SQL compilation already supplies a sealed bundle. The installed codec
+run validates values and compiled APIs, not live sealing or native recovery;
+the combined signed-authority schedule remains a separate gate. The bundle bound
+is 25,255 bytes, including its original-subject proof.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

@@ -162,10 +162,10 @@ public final class JavaUnifiedSdk {
                 var definition=await(catalog.lookup("items")).orElseThrow(); source=new TableSource(connection.source(),definition.metadata(),definition.schema());
             }
         } else source=source(resource,kind,false);
-        check(bundle(source,kind,false,true,config.get("compound").getAsBoolean()).bytes().equals(read(config,"bundle")));
         Page saved=null;
         try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
-            var description=await(client.describe(source)); check(description.bundleBytes()==25069 && description.batchRows()==8);
+            check(await(client.authorizeBundle(bundle(source,kind,false,true,config.get("compound").getAsBoolean()))).bytes().equals(read(config,"bundle")));
+            var description=await(client.describe(source)); check(description.bundleBytes()==25255 && description.batchRows()==8);
             System.out.println("{\"ready\":true}");
             try(var reader=new java.io.BufferedReader(new java.io.InputStreamReader(System.in,StandardCharsets.UTF_8))) {
                 for(String line;(line=reader.readLine())!=null;) {

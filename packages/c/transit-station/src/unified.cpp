@@ -196,7 +196,8 @@ struct NativeQuery {
         :local(config.native_directory),handle(nullptr,local.station_unified_query_destroy) {
         require(config.sdk_version==TRANSIT_SDK_VERSION,"query-sdk-version");credential(identity);process(c.source);process(c.requester);resource_check(c.resource);resource_check(c.requests);
         require(identity.realm==c.source.realm && c.source.realm==c.resource.realm && c.source.realm==c.requester.realm && c.source.realm==c.requests.realm,"query-realm");
-        const auto url=text(config.url,2048);const auto json="{\"connection\":{\"realm\":"+decimal(identity.realm)+",\"principal\":"+decimal(identity.principal)+",\"source\":"+decimal(c.source.pid)+",\"resource\":"+decimal(c.resource.resource)+",\"requester\":"+decimal(c.requester.pid)+",\"requests\":"+decimal(c.requests.resource)+"},\"timeout_ms\":"+decimal(config.timeout_ms)+"}";
+        if(c.has_role)counter(c.role,true);
+        const auto url=text(config.url,2048);const auto json="{\"connection\":{\"realm\":"+decimal(identity.realm)+",\"principal\":"+decimal(identity.principal)+",\"source\":"+decimal(c.source.pid)+",\"resource\":"+decimal(c.resource.resource)+",\"requester\":"+decimal(c.requester.pid)+",\"requests\":"+decimal(c.requests.resource)+",\"role\":"+(c.has_role?decimal(c.role):"null")+"},\"timeout_ms\":"+decimal(config.timeout_ms)+"}";
         Seed seed(identity.seed_file);station_query_client *pointer=nullptr;
         const auto status=local.station_unified_query_create(STATION_ABI_VERSION,reinterpret_cast<const uint8_t*>(url.data()),url.size(),seed.data(),reinterpret_cast<const uint8_t*>(json.data()),json.size(),&pointer);
         handle.reset(pointer);local.raw.check(status,{},"open-query");require(pointer,"query-handle");
@@ -244,9 +245,9 @@ std::string query_plan_wire(const transit_station_unified_plan &value) { return 
 }
 extern "C" {
 transit_sdk_error transit_station_unified_prepare_bundle(const transit_station_unified_source *source,const transit_station_unified_plan *plan,transit_station_unified_budgets budgets,const char *directory,transit_station_unified_bundle **out){
-    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25069);});*out=bundle.release();});
+    Uninterruptible guard;if(out)*out=nullptr;return boundary([&]{require(source && plan && out,"query-bundle");const auto action="{\"prepare\":{\"source\":"+source_wire(*source)+",\"plan\":"+plan_wire(*plan)+",\"limits\":"+limits_wire(budgets)+"}}";auto bundle=std::make_unique<transit_station_unified_bundle>();Worker worker;worker.run([&]{Local local(directory);bundle->bytes=unhex(local.raw.field(codec(local,action),"prepared/bytes",true),25255);});*out=bundle.release();});
 }
-transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25069)};});}
+transit_sdk_error transit_station_unified_bundle_import(transit_sdk_bytes bytes,transit_station_unified_bundle **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-bundle");*out=new transit_station_unified_bundle{copy(bytes,25255)};});}
 transit_sdk_error transit_station_unified_bundle_bytes(const transit_station_unified_bundle *v,transit_sdk_bytes *out){if(out)*out={};return boundary([&]{require(v&&out,"query-bundle");*out=view(v->bytes);});}
 void transit_station_unified_bundle_destroy(transit_station_unified_bundle *v){delete v;}
 transit_sdk_error transit_station_unified_prepared_import(transit_sdk_bytes bytes,transit_station_unified_prepared **out){if(out)*out=nullptr;return boundary([&]{require(out,"query-prepared");*out=new transit_station_unified_prepared{copy(bytes,8192)};});}
@@ -270,7 +271,7 @@ transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_cl
         std::string values="null";
         if(parameters){require(parameters->count<=65 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
         const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
-        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25069)};
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),25255)};
     });
 }
 transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection **out){
@@ -298,6 +299,13 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
 }
 transit_sdk_error transit_station_unified_inspection_get(const transit_station_unified_inspection *v,const transit_station_unified_inspection_info **out){if(out)*out=nullptr;return boundary([&]{require(v&&out,"query-inspection");*out=&v->info;});}
 void transit_station_unified_inspection_destroy(transit_station_unified_inspection *v){delete v;}
+transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *client,const transit_station_unified_bundle *bundle,transit_station_unified_bundle **out){
+    Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
+        require(bundle&&out,"query-authorization");
+        const auto result=n.call("{\"authorize\":"+quote(hex(bundle->bytes))+"}");
+        *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"authorized",true),25255)};
+    });
+}
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-next");auto value=prepared(n.local.raw,n.call("{\"next\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));*out=value.release();});
 }

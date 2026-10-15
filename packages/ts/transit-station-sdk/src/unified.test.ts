@@ -169,7 +169,7 @@ for await (const line of createInterface({input: process.stdin})) {
   const action=JSON.parse(line); let value;
   if ('hello' in action) value={host_version:1,station_version:1,transit_version:1};
   else if ('growing_capabilities' in action) value={definition:${JSON.stringify(contract.definition)}};
-  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25069,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
+  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25255,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
   else value=${JSON.stringify(response)};
   console.log(JSON.stringify({status:0,value}));
 }

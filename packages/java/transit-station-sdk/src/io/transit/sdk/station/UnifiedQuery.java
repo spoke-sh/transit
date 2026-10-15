@@ -123,9 +123,9 @@ public final class UnifiedQuery {
         JsonObject wire() { return obj("pages",pages.toString(),"segments",segments.toString(),"result_bytes",resultBytes.toString()); }
     }
     public record Bundle(Bytes bytes) {
-        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25069)throw new IllegalArgumentException("Expected finite query bundle"); }
+        public Bundle { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>25255)throw new IllegalArgumentException("Expected finite query bundle"); }
         public static Bundle prepare(Source source,Plan plan,Budgets budgets) { return prepare(source,plan,budgets,null); }
-        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) { return new Bundle(encoded(object(local(obj("prepare",obj("source",UnifiedQuery.source(source),"plan",plan.wire(),"limits",budgets.wire())),host).get("prepared")).get("bytes"),25069)); }
+        public static Bundle prepare(Source source,Plan plan,Budgets budgets,Path host) { return new Bundle(encoded(object(local(obj("prepare",obj("source",UnifiedQuery.source(source),"plan",plan.wire(),"limits",budgets.wire())),host).get("prepared")).get("bytes"),25255)); }
     }
     public record Prepared(Bytes bytes) {
         public Prepared { Objects.requireNonNull(bytes); if(bytes.size()==0 || bytes.size()>8192)throw new IllegalArgumentException("Expected bounded prepared query command"); text(bytes.copy()); }
@@ -138,9 +138,10 @@ public final class UnifiedQuery {
         List<List<Logical.Cell>> out=array(local(obj("inspect_arrow",obj("columns",schema,"rows",rows,"ipc",hex(ipc))),host).get("rows"),8).stream().map(row -> array(row,128).stream().map(Logical::cellFromWire).toList()).toList();
         if(out.size()!=rows || out.stream().anyMatch(row -> row.size()!=columns.size()))throw incompatible("query-shape"); return out;
     }
-    public record Connection(ProcessRef source,ResourceRef resource,ProcessRef requester,ResourceRef requests) {
-        public Connection { Objects.requireNonNull(source); Objects.requireNonNull(resource); Objects.requireNonNull(requester); Objects.requireNonNull(requests); if(source.realm()!=resource.realm() || source.realm()!=requester.realm() || source.realm()!=requests.realm())throw new IllegalArgumentException("Different query realms"); }
-        JsonObject wire(Credential identity) { if(identity.realm()!=source.realm())throw new IllegalArgumentException("Different credential realm"); return obj("realm",source.realm(),"principal",identity.principal(),"source",source.pid(),"resource",resource.resource(),"requester",requester.pid(),"requests",requests.resource()); }
+    public record Connection(ProcessRef source,ResourceRef resource,ProcessRef requester,ResourceRef requests,Optional<Long> role) {
+        public Connection(ProcessRef source,ResourceRef resource,ProcessRef requester,ResourceRef requests) { this(source,resource,requester,requests,Optional.empty()); }
+        public Connection { Objects.requireNonNull(role); role.ifPresent(value -> counter(value,0)); Objects.requireNonNull(source); Objects.requireNonNull(resource); Objects.requireNonNull(requester); Objects.requireNonNull(requests); if(source.realm()!=resource.realm() || source.realm()!=requester.realm() || source.realm()!=requests.realm())throw new IllegalArgumentException("Different query realms"); }
+        JsonObject wire(Credential identity) { if(identity.realm()!=source.realm())throw new IllegalArgumentException("Different credential realm"); return obj("realm",source.realm(),"principal",identity.principal(),"source",source.pid(),"resource",resource.resource(),"requester",requester.pid(),"requests",requests.resource(),"role",role.orElse(null)); }
     }
     public record Description(long resourceRevision,BigInteger policyRevision,Budgets budgets,Optional<BigInteger> active,int bundleBytes,int segmentBytes,int batchRows) {}
     public enum InspectionOperator { SCAN, FILTER, LIMIT, PROJECT, COUNT, SUM, COUNT_VALUES }
@@ -276,7 +277,12 @@ public final class UnifiedQuery {
                 JsonArray bound=new JsonArray();for(Logical.Atom value:parameters)bound.add(wire(Objects.requireNonNull(value)));values=bound;
             }
             JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096),"parameters",values));
-            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),25069)));
+            return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),25255)));
+        }
+        /** Seal new work before persistence; recover saved bundles unchanged. */
+        public CompletableFuture<Bundle> authorizeBundle(Bundle bundle) {
+            JsonObject action=obj("authorize",hex(bundle.bytes()));
+            return worker.submit(b -> new Bundle(encoded(b.unifiedQuery(action,false).get("authorized"),25255)));
         }
         public CompletableFuture<Optional<Prepared>> prepareNext(BigInteger namespace,Bundle bundle) {
             JsonObject action=obj("next",obj("namespace",positive(namespace).toString(),"bundle",hex(bundle.bytes())));

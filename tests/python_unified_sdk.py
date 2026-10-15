@@ -141,8 +141,7 @@ def source(config):
     plan = q.Plan((0, 1, 2, 3) if doc else (1,), predicate,
         output_names=('Result', None, None, None) if config['kind'] == 'document' else ('Result',))
     bundle = q.Bundle.prepare(value, plan, q.Budgets(1000, 100, 1048576))
-    assert bundle.data == Path(config['bundle']).read_bytes()
-    return value
+    return value, bundle
 
 
 async def serve(config, asynchronous):
@@ -154,13 +153,15 @@ async def serve(config, asynchronous):
     connection = q.Connection(ProcessRef(realm, values['source']), ResourceRef(realm, values['resource']),
         ProcessRef(realm, values['requester']), ResourceRef(realm, values['requests']))
     owner = (q.AsyncClient if asynchronous else q.Client)(config['url'], values['principal'], Path(config['seed_file']), connection, timeout_ms=10000)
-    declared = source(config)
+    declared, unsigned_bundle = source(config)
     async def invoke(method, *args):
         value = getattr(owner, method)(*args)
         return await value if asynchronous else value
     try:
+        sealed = await invoke('authorize_bundle', unsigned_bundle)
+        assert sealed.data == Path(config['bundle']).read_bytes()
         description = await invoke('describe', declared)
-        assert description.bundle_bytes == 25069 and description.batch_rows == 8
+        assert description.bundle_bytes == 25255 and description.batch_rows == 8
         print(json.dumps({'ready': True}), flush=True)
         for line in sys.stdin:
             action = json.loads(line)
