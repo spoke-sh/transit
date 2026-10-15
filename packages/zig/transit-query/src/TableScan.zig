@@ -15,6 +15,7 @@ connection: c.TableClient.Connection,
 configuration: c.TableCatalogRecords.Configuration,
 authority: c.TableAuthority.Context,
 definition: ?c.TableCatalog.Definition = null,
+history_object: ?u64 = null,
 source: q.wire.SnapshotReader,
 owns_lease: bool = true,
 view: @FieldType(q.wire.SnapshotReader, "view"),
@@ -84,13 +85,18 @@ pub fn authorizationSubject(self: *Scan, who: u64) !p.Authorization.Subject {
     return self.authority.authorizationSubject(who);
 }
 pub fn requireAuthorization(self: *Scan, requested: p.Authorization.Guard) !p.Authorization.Verified {
-    return self.authority.requireAuthorization(requested);
+    var authority = self.authority;
+    authority.budget = .{ .used = &self.requests, .limit = self.request_limit };
+    return authority.requireAuthorization(requested);
 }
-pub fn checkRead(self: *const Scan) !void {
+pub fn checkRead(self: *Scan) !void {
     if (self.definition) |definition| {
-        _ = try self.authority.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, definition.namespace, definition.authority, .read));
+        _ = try self.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, definition.namespace, definition.authority, .read));
+    } else if (self.history_object) |object| {
+        const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
+        _ = try catalog.authorizeObject(self, self.connection.principal, object, .read);
     } else {
-        _ = try self.authority.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, null, null, .database));
+        _ = try self.requireAuthorization(try c.TableAuthority.guard(self.authority.subject, self.configuration.authority, null, null, .database));
     }
 }
 pub fn fingerprint(self: *const Scan) ![32]u8 {

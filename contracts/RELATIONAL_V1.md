@@ -531,6 +531,12 @@ records use the Publication namespace with the high bit set on the admission ID.
 `RelationalRevision.open` receives the frozen bundle, owner, resource, admission
 peer/correlation, request budget, optional local cancellation flag, and either a
 selected revision or the latest complete revision observed when opening. It
+requires a fresh disclosure proof bound to the frozen bundle fingerprint, owner,
+resource, peer/correlation, selected revision, result/delta mode, exact predecessor
+and request budget. `ResultDisclosure` uses the same domain-separated canonical
+selection digest as captured result reads. The proof authenticates the reading
+caller, independently of the retained original execution identity. Native raw
+resource grants remain a separate requirement for this low-level reader. It
 captures a fresh result lease and verifies the manifest, final checkpoint, source
 vector and predecessor. An authorized historical revision remains readable as
 newer revisions publish or the query fails/cancels. Retirement requires a reset.
@@ -538,7 +544,7 @@ newer revisions publish or the query fails/cancels. Retirement requires a reset.
 The reader supports full rows or the delta against an exact caller-supplied
 previous manifest reference. Initial delta delivery uses an absent predecessor.
 Wrong predecessors reject before delivery. Every page and terminal completion
-rechecks current coordinator policy plus native/catalog rights to all sources,
+rechecks current coordinator policy plus the reading caller's native/catalog rights to all sources,
 including noncontributors. The original bundle is never rebound through names.
 Output/delta order, ordinals, publication digests, counts and chains must cover the
 whole manifest; a prefix cannot replace the consumer's exact relation.

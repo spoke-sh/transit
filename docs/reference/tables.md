@@ -107,8 +107,11 @@ and remains separate from accepted-history retention.
 resume position only after its complete traversal. Later writes remain in the
 Table's immutable head history while backfill is paused. `openTail` resumes that
 exact object, including after rename, retirement or reuse of its former name.
-The signed caller needs current native resource access and catalog inspection
-and read rights throughout snapshot and tail delivery.
+The signed caller needs current native resource access, database CONNECT,
+schema USAGE and Table SELECT throughout snapshot and tail delivery. A resume
+position retains the original Table identity; rename, DROP or name reuse cannot
+substitute another object's permissions. Every delivered batch and completion
+checks current authority, including a tail reopened from a saved position.
 
 The tail covers every committed head revision in order. Inserts have an after
 row, deletes have a before row, and updates pair both values under one stable

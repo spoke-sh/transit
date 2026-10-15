@@ -54,6 +54,10 @@ pub fn openTail(allocator: std.mem.Allocator, client: *q.catalog.TableClient, po
     if (!std.meta.eql(position.connection, client.connection)) return error.RelationalCallerChanged;
     var scan = try Scan.openResource(allocator, client, nonce, requests, cancellation);
     errdefer scan.deinit();
+    // A raw resource lease grants no Table disclosure. Preserve the original
+    // object's binding when resuming history, including DROP and name reuse.
+    scan.history_object = previous.head.object;
+    try scan.checkRead();
     const upper = try s.TableHistory.current(&scan, previous.head.object);
     const observed = try s.TableHistory.revision(&scan, upper, previous.head.revision);
     if (!(try observed.encode()).eql(position.record)) return error.TableHistoryConflict;

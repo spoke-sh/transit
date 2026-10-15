@@ -37,6 +37,23 @@ pub fn Admin(comptime realm: u64) type {
         pub fn send(self: *Self, pid: u64, index: i64) !void {
             _ = try self.submit(.{ .send = .{ .pid = pid, .value = try (@import("transit_station").Frame{ .kind = .cast, .payload = p.Value.integer(index) }).encode() } });
         }
+        /// Public staged policy changes for fresh proof installations. Every
+        /// command retains exact retry bytes through submit; no records are
+        /// written directly and an incomplete candidate grants nothing.
+        pub fn authorization(self: *Self, action: p.Authorization.Action) !?u64 {
+            const observed = try self.query(.{ .authorization = .{ .kind = .identity } });
+            const id = try self.submit(.{ .authorization = .{ .begin = .{ .expected_revision = observed.body.authorization.revision, .action = action } } });
+            for (0..10000) |_| {
+                const current = (try self.query(.{ .authorization = .{ .kind = .{ .change = id } } })).body.authorization.body.change;
+                switch (current.status) {
+                    .preparing => _ = try self.submit(.{ .authorization = .{ .advance = id } }),
+                    .ready => _ = try self.submit(.{ .authorization = .{ .publish = id } }),
+                    .published => return current.created_id,
+                    .abandoned => return error.AbandonedProofAuthorization,
+                }
+            }
+            return error.ProofAuthorizationBudget;
+        }
         pub fn provision(self: *Self, principal: u64, key: p.Ed25519.KeyPair) !Provision {
             return self.provisionReader(principal, key, null);
         }

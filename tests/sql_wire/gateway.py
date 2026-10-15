@@ -114,7 +114,7 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             from faults import run as faults
             faults(root, options, mysql_options, controls, lambda allowed:call(ledger,'native-read-allow' if allowed else 'native-read-deny'))
             from authority import run as authority_checks
-            authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-policy','allow' if allowed else 'deny'),inventory)
+            authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'),inventory)
             page = controls('list')
             operation = page['entries'][0]['operation']
             assert controls('status',operation)['terminal']['state'] == 'applied'

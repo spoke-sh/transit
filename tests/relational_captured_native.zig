@@ -117,7 +117,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             declarations[i] = .{ .alias = target.alias, .realm = conf.scope.realm, .resource = conf.scope.resource, .catalog = conf.scope.catalog, .owner = conf.owner, .schema = definitions[i].?.schema.schema };
         }
         const plan = try syntax.bind(declarations[0..syntax.targets.len], if (maintained) .maintained else .captured, .{ .resident_bytes = @max(q.RelationalMaintenance.resident_base, q.RelationalCapture.resident_base) + 8 * 1024 * 1024, .spill_bytes = 64 * 1024 * 1024, .result_bytes = 8 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, null);
-        const bundle: q.RelationalBundle = .{ .plan = plan, .sources = sources[0..syntax.targets.len] };
+        const bundle = try (q.RelationalBundle{ .plan = plan, .sources = sources[0..syntax.targets.len] }).authorize(.{ .transport = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }, config.writer.pid, config.writer.pid, config.writer.resource);
         var bytes: [q.RelationalBundle.max_bytes]u8 = undefined;
         try Test.saveBytes(init, directory, "relational-plan.bin", try bundle.encode(&bytes));
         const metadata: Metadata = .{ .definition = g.current_definition, .reference = try bundle.reference(config.writer.resource, authority.position + 1), .secondary = if (secondary_config) |other| other.writer.resource else null };
@@ -270,7 +270,9 @@ fn maintainedResult(comptime Test: type, init: std.process.Init, wire: *s.client
     const client: s.client.ResourceReader = .{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) };
     const reading_next = std.mem.eql(u8, mode, "next");
     const saved: ?q.RelationalRevision.Position = if (reading_next) try Test.load(q.RelationalRevision.Position, init, directory, "maintained-position.json") else null;
-    var result = if (saved) |position| try q.RelationalRevision.openNext(client, bundle, position, nonce, 10000, null) else try q.RelationalRevision.open(client, bundle, .{ .owner = config.writer.pid, .resource = config.writer.resource, .identity = stored.identity(), .revision = if (args.len > 4) try std.fmt.parseInt(u64, args[4], 10) else null, .mode = if (std.mem.eql(u8, mode, "delta")) .{ .delta = null } else .result, .requests = 10000 }, nonce);
+    const options: q.RelationalRevision.Options = if (saved) |position| try position.nextOptions(10000, null) else .{ .owner = config.writer.pid, .resource = config.writer.resource, .identity = stored.identity(), .revision = if (args.len > 4) try std.fmt.parseInt(u64, args[4], 10) else null, .mode = if (std.mem.eql(u8, mode, "delta")) .{ .delta = null } else .result, .requests = 10000 };
+    const disclosure = try q.ResultDisclosure.prepare(.{ .transport = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }, try options.selection(bundle));
+    var result = if (saved) |position| try q.RelationalRevision.openNext(client, bundle, position, disclosure, nonce, 10000, null) else try q.RelationalRevision.open(client, bundle, options, disclosure, nonce);
     defer result.close() catch {};
     try std.testing.expectError(error.IncompleteResult, result.checkpoint());
     if (std.mem.eql(u8, mode, "result-held")) {

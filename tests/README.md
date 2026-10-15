@@ -160,6 +160,15 @@ suite passes **36/36**, and the shared HTTP proof passes framing, capacity,
 deadlines and joined shutdown. Full checks, native proof-bootstrap migration,
 installed SDKs and committed-source clean CI remain separate gates.
 
+The subsequent retained-reader changes pass all **85 repository unit steps**,
+executing **326 tests** with remaining tasks cached on dirty `eab791f2`.
+The checks bind maintained-result disclosure to the requested revision, mode,
+predecessor, original bundle and budget, and reject mixed selected roles in a
+relational read. Resumed Table history now checks the original object's current
+SELECT privilege. The first ReleaseSafe disk run exposed that missing check;
+its rerun and maintained-query qualification remain separate from these unit
+results.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

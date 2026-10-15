@@ -24,16 +24,27 @@ pub const Selection = union(enum) {
         job: u64,
         requests: u64,
     },
+    maintained: struct {
+        request: [32]u8,
+        owner: u64,
+        resource: u64,
+        identity: q.RelationalMaintenanceRecords.Identity,
+        revision: ?u64,
+        mode: q.RelationalRevision.Mode,
+        requests: u64,
+    },
     fn audience(self: Selection) u64 {
         return switch (self) {
             .unified => |value| value.source,
             .relational => |value| value.owner,
+            .maintained => |value| value.owner,
         };
     }
     fn requester(self: Selection) u64 {
         return switch (self) {
             .unified => |value| value.requester,
             .relational => |value| value.peer,
+            .maintained => |value| value.identity.peer,
         };
     }
 };
@@ -83,4 +94,35 @@ test "result disclosure binds the complete selection separately from execution i
     changed = selection;
     changed.relational.peer += 1;
     try t.expectError(error.QueryDenied, check(accepted, changed, 1));
+}
+
+test "maintained disclosure binds admission revision mode predecessor and budget" {
+    const t = std.testing;
+    const selection: Selection = .{ .maintained = .{ .request = @splat(3), .owner = 7, .resource = 11, .identity = .{ .peer = 9, .correlation = 13 }, .revision = 2, .mode = .{ .delta = .{ .resource = 11, .domain = .query_result, .namespace = 17, .record = 19, .spec = .{ .format = 1, .length = 1, .digest = @splat(5) } } }, .requests = 100 } };
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(5));
+    const subject: a.Subject = .{ .signed = try a.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 23, .credential_epoch = 4, .role = 29, .audience = 7, .context = try context(selection) }, key) };
+    try t.expectEqualDeep(subject, try check(subject, selection, 1));
+    inline for (.{ "owner", "resource", "requests" }) |field| {
+        var changed = selection;
+        @field(changed.maintained, field) += 1;
+        try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    }
+    inline for (.{ "peer", "correlation" }) |field| {
+        var changed = selection;
+        @field(changed.maintained.identity, field) += 1;
+        try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    }
+    var changed = selection;
+    changed.maintained.revision = null;
+    try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    changed.maintained.revision = 3;
+    try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    changed = selection;
+    changed.maintained.mode.delta.?.record += 1;
+    try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    changed.maintained.mode = .result;
+    try t.expectError(error.QueryDenied, check(subject, changed, 1));
+    changed = selection;
+    changed.maintained.request[0] ^= 1;
+    try t.expectError(error.QueryDenied, check(subject, changed, 1));
 }

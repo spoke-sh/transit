@@ -291,10 +291,10 @@ def run(node, proof, host, cli, station_host, *arguments):
                 assert following['previous'] == previous['next'] and following['commit'] > previous['commit']
             assert call('history-tail') == tail, 'Repeating a complete cursor changed its transactions'
             denied_tail = hold('cdc_rows', 'history-tail-held')
-            call('policy', 'deny')
+            call('table-select', 'deny')
             call('pump')
             release(denied_tail, 'CatalogDenied')
-            call('policy', 'allow')
+            call('table-select', 'allow')
             call('pump')
             applied(execute(910007, 'DROP TABLE cdc_rows'))
             applied(execute(910008, 'CREATE TABLE cdc_rows (v BIGINT)', 910008))
@@ -337,10 +337,10 @@ def run(node, proof, host, cli, station_host, *arguments):
                         vector_samples.append(dict(sql=sql, engine=mode, repetition=repetition, elapsed_ns=time.monotonic_ns()-began))
                         assert relational_values(result) == expected, result
             denied_buffer = hold('SELECT v FROM rel_left', 'select-batch-buffered')
-            call('policy', 'deny')
+            call('table-select', 'deny')
             call('pump')
             release(denied_buffer, 'CatalogDenied')
-            call('policy', 'allow')
+            call('table-select', 'allow')
             call('pump')
 
             joined = call('relational', 'SELECT l.v AS left_value, r.v AS right_value FROM rel_left l JOIN rel_right r ON l.k = r.k')
@@ -360,10 +360,10 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert relational_values(release(retained_relation)) == [[None,1,0,None],[7,6,6,12],[9,1,0,None]]
             assert relational_values(call('relational', grouped_sql)) == [[None,1,0,None],[7,6,6,600],[9,1,0,None]]
             denied_relation = hold(grouped_sql, 'relational-held')
-            call('policy', 'deny')
+            call('table-select', 'deny')
             call('pump')
             release(denied_relation, 'CatalogDenied')
-            call('policy', 'allow')
+            call('table-select', 'allow')
             call('pump')
             secondary = root / 'secondary'
             secondary.mkdir()
@@ -382,10 +382,10 @@ def run(node, proof, host, cli, station_host, *arguments):
             applied(execute(900003, 'UPDATE rel_right SET v = 8', directory=secondary))
             assert relational_values(release(foreign_held)) == relational_values(separate)
             foreign_denied = hold(grouped_sql, 'relational-held', secondary)
-            call('policy', 'deny', directory=secondary)
+            call('table-select', 'deny', directory=secondary)
             call('pump', directory=secondary)
             release(foreign_denied, 'CatalogDenied')
-            call('policy', 'allow', directory=secondary)
+            call('table-select', 'allow', directory=secondary)
             call('pump', directory=secondary)
             # A captured job retains each resource cut across later Table
             # changes, private staging, exact lost-receipt replay and disk loss.
@@ -414,10 +414,10 @@ def run(node, proof, host, cli, station_host, *arguments):
             captured = call('captured-status')
             assert captured['state'] == 'complete' and captured['outputs'] == 3 and not captured['released'], captured
             assert relational_values(call('captured-result')) == [[None,1,0,None],[7,2,2,16],[9,1,0,None]]
-            call('policy', 'deny', directory=secondary)
+            call('table-select', 'deny', directory=secondary)
             call('pump', directory=secondary)
             call('captured-result', fail=True, expected_error='CatalogDenied')
-            call('policy', 'allow', directory=secondary)
+            call('table-select', 'allow', directory=secondary)
             call('pump', directory=secondary)
             call('captured-worker-deny')
             call('captured-retire')
@@ -446,13 +446,13 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert rejected_update['outcome'] == 'rejected' and rejected_update['witness'] == dict(
                 source='stored', row=dict(origin=1235, operation=2, ordinal=1), column=0, preview='9', truncated=False), rejected_update
             denied = hold('SELECT * FROM people')
-            call('policy', 'deny')
+            call('table-select', 'deny')
             call('pump')
             release(denied, 'CatalogDenied')
             call('select', 'SELECT * FROM people LIMIT 0', fail=True, expected_error='CatalogDenied')
             hidden = call('status')
             assert hidden['witness'] == dict(source='withheld', row=dict(origin=0, operation=0, ordinal=0), column=0, preview='', truncated=False), hidden
-            call('policy', 'allow')
+            call('table-select', 'allow')
             call('pump')
             assert call('status') == rejected_update
             frozen = hold('SELECT * FROM people')

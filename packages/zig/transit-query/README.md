@@ -88,7 +88,8 @@ for policy, host recovery, memory, closure and collection requirements.
 `RelationalMaintenance` records every complete Table-history basis, stages its
 result and paired delta, and atomically publishes a complete revision. A failed
 successor preserves the preceding result. `RelationalRevision` verifies full
-results or exact predecessor deltas under current source rights; its saved
+results or exact predecessor deltas under the reading caller's current source
+rights, using a fresh proof bound to the complete result selection; its saved
 position advances only after complete delivery. The host explicitly activates
 and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
 for scheduling, recomputation costs, quotas, resume and retirement.

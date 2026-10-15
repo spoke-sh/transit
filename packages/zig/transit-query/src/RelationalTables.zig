@@ -60,7 +60,7 @@ pub fn validateBindings(bindings: []const Binding) !void {
         if (binding.alias.len == 0 or binding.alias.len > 255 or !std.unicode.utf8ValidateSlice(binding.alias) or std.mem.indexOfScalar(u8, binding.alias, 0) != null) return error.InvalidRelationalName;
         const first = bindings[0].client;
         if (binding.client.connection.scope.realm != first.connection.scope.realm) return error.CrossRealmRelationalQuery;
-        if (binding.client.transport != first.transport or binding.client.connection.principal != first.connection.principal or !std.mem.eql(u8, &binding.client.key.public_key.bytes, &first.key.public_key.bytes)) return error.RelationalCallerChanged;
+        if (binding.client.transport != first.transport or binding.client.connection.principal != first.connection.principal or binding.client.connection.role != first.connection.role or !std.mem.eql(u8, &binding.client.key.public_key.bytes, &first.key.public_key.bytes)) return error.RelationalCallerChanged;
         for (bindings[0..i]) |earlier| if (std.mem.eql(u8, earlier.alias, binding.alias)) return error.DuplicateRelationalAlias;
     }
 }
@@ -95,8 +95,9 @@ fn remaining(self: *Self, scan: *Scan) !void {
 }
 fn authorize(self: *Self) !void {
     if (self.closed) return error.QueryClosed;
-    // Every resource's lease is checked. The last combined read checks ALL
-    // catalog policies and native resource rights at one current authority root.
+    // Every resource's lease is checked. The combined read checks native rights
+    // and catalog identities; the final guard checks ALL logical source rights
+    // together under the same original subject and current policy revision.
     var requested: [g.SnapshotRead.current_resources]?g.SnapshotRead.Current = @splat(null);
     for (self.scans[0..self.count]) |slot| {
         const scan = slot.?;
@@ -129,6 +130,7 @@ fn authorize(self: *Self) !void {
     const before = scan.requests;
     defer self.requests += scan.requests - before;
     const response = try scan.request(.{ .snapshot = .{ .existing = scan.source.snapshot.id }, .current = requested });
+    var guard: ?p.Authorization.Guard = null;
     for (self.scans[0..self.count]) |slot| {
         const selected = slot.?;
         var found = false;
@@ -140,8 +142,11 @@ fn authorize(self: *Self) !void {
             found = true;
         };
         if (!found) return error.InvalidResourceRead;
-        try selected.checkRead();
+        const definition = selected.definition.?;
+        const requirement = try c.TableAuthority.guard(scan.authority.subject, selected.configuration.authority, definition.namespace, definition.authority, .read);
+        guard = if (guard) |previous| try previous.merge(requirement) else requirement;
     }
+    _ = try scan.requireAuthorization(guard orelse return error.InvalidRelationalSources);
 }
 pub fn next(self: *Self, source: u8, after: ?r.RowIdentity) !?e.Row {
     if (self.closed) return error.QueryClosed;
@@ -173,4 +178,16 @@ fn commitment(scan: *const Scan) [32]u8 {
         hash.update(&bytes);
     }
     return hash.finalResult();
+}
+
+test "relational routes cannot combine different selected roles" {
+    var transport: q.wire.Client = undefined;
+    var left: c.TableClient = .{ .transport = &transport, .connection = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .principal = 17, .role = 23 }, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(5)) };
+    var right = left;
+    const bindings = [_]Binding{ .{ .client = &left, .name = try .init("items"), .alias = "a" }, .{ .client = &right, .name = try .init("items"), .alias = "b" } };
+    try validateBindings(&bindings);
+    right.connection.role = 29;
+    try std.testing.expectError(error.RelationalCallerChanged, validateBindings(&bindings));
+    right.connection.role = null;
+    try std.testing.expectError(error.RelationalCallerChanged, validateBindings(&bindings));
 }
