@@ -23,6 +23,16 @@ remaining completion/readback/schema/drain checks. The harness now allows
 and one SQL attempt. The complete replacement is part of `just ci-clean`'s
 ordinary growth lane; its result must be reported before submission.
 
+The [hosted execution budget record](verification/results/authorization-ci-budgets-2026-10-15.json)
+sets finite core/growth/bindings job caps of 60/300/360 minutes. The complete
+26-task core lane at `31319985` takes **1,674.66 s** before hosted setup. The
+separate SQL preflight completes the original 40 KiB write in **3,396.781 s**
+with one SQL attempt and verified applied counts, then passes both protocols'
+large-cell readback and schema invalidation. Its remaining complete-suite gates
+are still pending at this checkpoint. These measured phases and the older clean
+task totals justify execution headroom; they are not a full current-suite or
+hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
+
 The first clean core attempt found two simulation observers still reading the
 removed resource-grant record. They now project effective permissions from the
 current role graph; the independent model retains disabled-role denial.
