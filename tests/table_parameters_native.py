@@ -57,7 +57,7 @@ def qualify(proof, url, root, readers, call, execute, applied, finish, measureme
     null_query = prepare('SELECT k FROM prepared_rows WHERE NOT (k = $1) OR v = $2')
     assert rows(null_query, [None, text('other')]) == []
     assert len(rows(null_query, [None, text('fresh')])) == 1
-    call('policy', 'deny')
+    call('table-select', 'deny')
     deadline = time.monotonic() + 30
     while True:
         denied = bind(query, [integer(1)])
@@ -66,7 +66,7 @@ def qualify(proof, url, root, readers, call, execute, applied, finish, measureme
             break
         assert time.monotonic() < deadline
         time.sleep(.01)
-    call('policy', 'allow')
+    call('table-select', 'allow')
     deadline = time.monotonic() + 30
     while True:
         allowed = bind(query, [integer(1)])

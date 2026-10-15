@@ -229,12 +229,10 @@ def run(call, execute, applied, secondary, root, sql, restart, arm, hold, releas
     # Current read denial covers a frozen result, including a noncontributing
     # source. It does not overwrite the last complete publication.
     held = hold(str(previous['revision']), 'maintained-result-held')
-    call('policy', 'deny', directory=secondary)
-    call('pump', directory=secondary)
+    call('table-select', 'deny', directory=secondary)
     release(held, 'CatalogDenied')
     call('maintained-result', fail=True, expected_error='CatalogDenied')
-    call('policy', 'allow', directory=secondary)
-    call('pump', directory=secondary)
+    call('table-select', 'allow', directory=secondary)
     position_path.write_text(initial_position)
     replay = call('maintained-next')
     assert replay['manifest']['revision'] == 2

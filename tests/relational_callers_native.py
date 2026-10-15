@@ -204,8 +204,7 @@ def run(node, proof, host, languages=(), board=None, browser=False):
             execute(2, 'INSERT INTO rel_right VALUES (7,8)', directory=secondary)
 
             def policy(allow):
-                call('policy', 'allow' if allow else 'deny', directory=secondary)
-                call('pump', directory=secondary)
+                call('table-select', 'allow' if allow else 'deny', directory=secondary)
 
             result = exercise(host, url, root, readers, policy, lambda routes: call('relational', SQL, *([secondary] if routes == [0, 1] else [])))
             if languages:

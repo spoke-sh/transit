@@ -658,10 +658,15 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert status['uncertain'] and measurements['sends'] == sends, status
             assert (root / 'console-writes.json').read_bytes() == private
             cancelled = json.loads(console(script='.cancel\n').stdout)['table_operation']
-            assert cancelled['phase'] == 'cancelled' and not cancelled['uncertain'] and cancelled['counts'] is None, cancelled
+            # The lost reply follows native admission. The owner may publish an
+            # inline write before cancellation reaches it; cancellation cannot
+            # undo that result. Verify the original outcome and matching rows.
+            assert cancelled['phase'] in ('cancelled', 'applied') and not cancelled['uncertain'], cancelled
+            was_applied = cancelled['phase'] == 'applied'
+            assert cancelled['counts'] == ({'matched': '1', 'changed': '1'} if was_applied else None), cancelled
             assert json.loads((root / 'console-writes.json').read_text())['operation'] == json.loads(private)['operation']
-            empty = [json.loads(line) for line in console('SELECT * FROM console_people WHERE id=3').stdout.splitlines()]
-            assert not any('row' in line for line in empty) and empty[-1]['complete']['rows'] == '0', empty
+            observed = [json.loads(line) for line in console('SELECT * FROM console_people WHERE id=3').stdout.splitlines()]
+            assert sum('row' in line for line in observed) == int(was_applied) and observed[-1]['complete']['rows'] == str(int(was_applied)), observed
             console('ALTER TABLE console_people ADD COLUMN note TEXT')
             tightened = console('ALTER TABLE console_people ALTER COLUMN note SET NOT NULL', fail=True)
             failed = json.loads(tightened.stdout)['table_operation']
