@@ -9,6 +9,7 @@ const g = p.Growth;
 const c = q.catalog;
 const Self = @This();
 bundle: q.RelationalBundle,
+disclosure: p.Authorization.Subject,
 source: q.wire.SnapshotReader,
 stored: r.Job,
 vector: q.RelationalCaptured.Vector,
@@ -24,14 +25,24 @@ request_limit: u64,
 complete: bool = false,
 failed: bool = false,
 
-pub const Options = struct { owner: u64, peer: u64, resource: u64, job: u64, requests: u64 };
+pub const Options = struct {
+    owner: u64,
+    peer: u64,
+    resource: u64,
+    job: u64,
+    requests: u64,
+    pub fn selection(self: Options, bundle: q.RelationalBundle) !q.ResultDisclosure.Selection {
+        return .{ .relational = .{ .request = try bundle.fingerprint(), .owner = self.owner, .peer = self.peer, .resource = self.resource, .job = self.job, .requests = self.requests } };
+    }
+};
 /// client must hold current native read grants to the result and both sources.
 /// The selected profile keeps result state in the first Table owner's resource.
-pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, nonce: [16]u8) !Self {
+pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
     try bundle.validate();
     if (options.requests < 2) return error.QueryPageBudget;
     if (bundle.sources[0].scope.realm != client.realm or bundle.sources[0].scope.resource != options.resource or bundle.sources[0].owner != options.owner) return error.RelationalSourceChanged;
-    var self: Self = .{ .bundle = bundle, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .stored = undefined, .vector = undefined, .cuts = undefined, .progress = undefined, .canonical_bytes = 0, .requests = 2, .request_limit = options.requests };
+    const current = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
+    var self: Self = .{ .bundle = bundle, .disclosure = current, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .stored = undefined, .vector = undefined, .cuts = undefined, .progress = undefined, .canonical_bytes = 0, .requests = 2, .request_limit = options.requests };
     errdefer {
         const rejection = client.wire.last_rejection;
         self.close() catch {};
@@ -115,7 +126,7 @@ fn authorize(self: *Self, finish: bool) !void {
     const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.destination, self.stored.request.resource);
     if (original.principal() != grant.principal) return error.QueryDenied;
     var observed: ?p.Authorization.Guard = null;
-    var authority = q.QueryAuthorization.readerContext(self.source.client, original, &observed);
+    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, &observed);
     authority.budget = .{ .used = &self.requests, .limit = self.request_limit };
     for (self.bundle.sources) |source| {
         try add(&selections, source.scope.resource, c.Records.key(source.scope.catalog, 'c', 0, 0));
@@ -130,7 +141,7 @@ fn authorize(self: *Self, finish: bool) !void {
         var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = value.resource.id, .revision = value.resource.revision } };
         var authorized = authority.wrap(&data);
         for (self.bundle.sources) |source| if (source.scope.resource == value.resource.id) {
-            _ = try source.checkCurrent(&authorized, grant.principal);
+            _ = try source.checkCurrent(&authorized, self.disclosure.principal());
         };
     };
     _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);

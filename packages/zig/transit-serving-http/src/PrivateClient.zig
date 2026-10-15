@@ -5,7 +5,7 @@ const host = @import("root.zig");
 const serving = @import("transit_serving");
 const http = @import("transit_http_server");
 const r = serving.ReactiveModel;
-pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false, refresh: bool = false };
+pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false, refresh: bool = false, role: ?u64 = null };
 pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, attempt: *serving.ServingDiagnostic.Attempt) !void {
     var observation = context.diagnostics.begin(.service, null);
     var operation_name: ?[]const u8 = null;
@@ -41,12 +41,12 @@ fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocat
     wire.timeout_ms = context.config.request_timeout_ms;
     wire.observer = context.diagnostics;
     const base: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = context.config.realm, .principal = context.config.principal, .key = context.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource, .diagnostic = attempt };
-    const client: serving.ReactiveClient = .{ .wire = &wire, .connection = .{ .realm = context.config.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress }, .key = key, .refresh = viewer.refresh };
+    const client: serving.ReactiveClient = .{ .wire = &wire, .connection = .{ .realm = context.config.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress, .role = viewer.role }, .key = key, .refresh = viewer.refresh };
     var clock: Clock = .{ .io = io, .error_ms = config.clock_error_ms };
     const reactive: serving.ReactiveAdapter = .{ .base = base, .clock = .{ .context = &clock, .upper = Clock.upper } };
     const result: serving.ReactiveClient.Response = switch (operation) {
         .describe => blk: {
-            const signed = try serving.Model.SignedRead.sign(.{ .realm = client.connection.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress, .kind = .discovery }, key);
+            const signed = try client.servingRead(.{ .realm = client.connection.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress, .kind = .discovery });
             const discovery = try reactive.discovery(signed, key.public_key.toBytes(), alloc);
             var scoped = try base.readerFor(viewer.principal, &.{serving.Model.key('T', 0, 0)});
             const observed = try serving.ReactiveService.clock(&scoped.data);

@@ -122,7 +122,10 @@ canonical query, coordinator, requester PID and request resource. The configured
 principal cannot authenticate the caller. Current CONNECT, USAGE and each
 Table's SELECT gate admission, continuation, result pages and completion.
 Recovery retains the original proof; credential rotation never silently resigns
-accepted work. `UnifiedClient.authorizeBundle` seals a newly constructed Table
+accepted work. Completed-result disclosure uses a fresh, separately bound caller
+proof and checks that reader's current source rights. Internal refresh
+continuations instead retain the Follow input's accepted subject.
+`UnifiedClient.authorizeBundle` seals a newly constructed Table
 bundle once; SQL compilation does this before returning saved bytes. The neutral
 `authorize` operation accepts unsigned bundle hex and returns `authorized` hex.
 
@@ -257,6 +260,13 @@ source bundles, including a 512-byte predicate and their Publication commitments
 policy, Document lifecycle, publication publisher and complete manifest. Pages
 validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
+For Tables, `Expected.disclosure` is mandatory. `Expected.authorize` obtains a
+fresh proof bound to the complete result reference, expected route and cursor;
+`UnifiedClient.page` supplies it. `RelationalResult.open` takes an explicit
+disclosure subject bound to `Options.selection(bundle)` and checks every source
+under it. Private resource-reader credentials do not supply this subject. These
+low-level result readers still require separate raw native read access; their
+proofs do not grant access to backing resources.
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
 An error invalidates the entire page. The [proof guide](../../../tests/README.md)

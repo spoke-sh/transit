@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.mediated-table-recovery.2026-10-14.
+/// SHA-256 of transit.native.v1.serving-original-subject.2026-10-14.
 pub const Definition = enum {
-    @"84cad99694b96f29d0b8bff1529036006166000d56bc5889b19f6760ef0a6373",
+    dbabceb7ec736d0ab8c2874fb404249f45eea6ad9666a183a7e0a4125f6c4986,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -810,6 +810,8 @@ test "native responses require the current contract definition even with a v1 la
         // Role graph before authenticated service claims and publication guards.
         "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
         "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
+        // Serving reads before bound current original-subject proofs.
+        "84cad99694b96f29d0b8bff1529036006166000d56bc5889b19f6760ef0a6373",
         // Mediation recovery before retained signer and exact send receipts.
         "3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3",
         // Original-subject queries before recoverable administration semantics.

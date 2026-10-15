@@ -304,5 +304,6 @@ fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u
 pub fn page(self: *Self, namespace: u64, cursor: ?q.UnifiedResult.Cursor, allocator: std.mem.Allocator, workspace: []u8, output: []u8, decoded: *q.fuze.LogicalInspect.Batch) !q.UnifiedResult.Page {
     const current = (try self.status(namespace)) orelse return error.QueryUploadNotFound;
     if (current.phase != .complete) return error.IncompleteResult;
-    return q.UnifiedResult.page(current.manifest.?, .{ .resource = self.connection.resource, .source = self.connection.source, .requester = self.connection.requester, .correlation = current.correlation, .request = current.reference }, cursor, self.resources(), allocator, workspace, output, decoded);
+    const expected: q.UnifiedResult.Expected = .{ .resource = self.connection.resource, .source = self.connection.source, .requester = self.connection.requester, .correlation = current.correlation, .request = current.reference };
+    return q.UnifiedResult.page(current.manifest.?, try expected.authorize(current.manifest.?, cursor, self.authorizationClient()), cursor, self.resources(), allocator, workspace, output, decoded);
 }

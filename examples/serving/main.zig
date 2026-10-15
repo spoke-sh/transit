@@ -116,6 +116,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         live.upper_ms = try std.math.add(u64, now, 1000);
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "serving.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
+            if (err == error.CatalogRegistrationRequired and config.role == .application and host.pending == null) {
+                const action = application.registration orelse return err;
+                if (action != .register_object) return error.InvalidAuthorizationObject;
+                const registrar: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.realm, .principal = config.principal, .key = key };
+                const registration = registrar.registration(action.register_object) catch |failure| {
+                    if (!s.client.Client.unavailable(failure)) return failure;
+                    try init.io.sleep(.fromMilliseconds(10), .awake);
+                    continue;
+                };
+                if (registration == .submit) _ = wire.submit(registration.submit) catch |failure| {
+                    if (!s.client.Client.unavailable(failure) and failure != error.Conflict) return failure;
+                    try init.io.sleep(.fromMilliseconds(10), .awake);
+                    continue;
+                };
+                continue;
+            }
             if (s.client.Client.unavailable(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {

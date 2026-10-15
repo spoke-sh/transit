@@ -119,6 +119,10 @@ pub fn Source(comptime Reader: type) type {
             try self.authority.consume();
             return self.data.read(key);
         }
+        pub fn entry(self: *Self, key: p.Value) !?p.Growth.Entry {
+            try self.authority.consume();
+            return self.data.entry(key);
+        }
         pub fn page(self: *Self, after: ?p.Value) !p.Growth.Batch(p.Growth.Entry, p.Value) {
             try self.authority.consume();
             return self.data.page(after);

@@ -37,6 +37,7 @@ pub const RelationalQuery = @import("RelationalQuery.zig");
 pub const QueryMemory = @import("QueryMemory.zig");
 pub const Bundle = @import("Bundle.zig");
 pub const QueryAuthorization = @import("QueryAuthorization.zig");
+pub const ResultDisclosure = @import("ResultDisclosure.zig");
 pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");

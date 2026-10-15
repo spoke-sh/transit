@@ -47,7 +47,7 @@ pub const SseItem = struct {
 };
 pub fn terminal(err: anyerror) Terminal {
     return switch (err) {
-        error.AccessDenied, error.ServingDenied, error.QueryDenied, error.SignatureVerificationFailed => .denied,
+        error.AccessDenied, error.ServingDenied, error.QueryDenied, error.CatalogDenied, error.StaleAuthorizationCredential, error.SignatureVerificationFailed => .denied,
         error.ReactiveSessionExpired => .expired,
         error.ResourceUnavailable => .interrupted,
         error.ReactiveSessionClosed => .closed,
@@ -57,6 +57,13 @@ pub fn terminal(err: anyerror) Terminal {
         error.WebSocketProtocol, error.WebSocketBinaryUnsupported, error.WebSocketInvalidUtf8, error.WebSocketMessageTooLarge, error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingCommand, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .invalid_message,
         else => .interrupted,
     };
+}
+
+test "stream revocation retains an authorization terminal reason" {
+    const t = @import("std").testing;
+    inline for (.{ error.AccessDenied, error.ServingDenied, error.QueryDenied, error.CatalogDenied, error.StaleAuthorizationCredential, error.SignatureVerificationFailed }) |cause| try t.expectEqual(.denied, terminal(cause));
+    try t.expectEqual(.interrupted, terminal(error.ResourceUnavailable));
+    try t.expectEqual(.expired, terminal(error.ReactiveSessionExpired));
 }
 /// Only controls which release/renew existing work enter the reserved HTTP pool.
 /// Neither publication nor new command/session admission may consume it.

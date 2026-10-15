@@ -7,15 +7,16 @@ const q = serving.query;
 const c = q.catalog;
 const Counter = @import("Counter.zig");
 const Self = @This();
-pub const Configuration = struct { ingress: u64, initializer: u64, table_limits: s.Publication.Limits, queries: bool = false };
+pub const Configuration = struct { ingress: u64, initializer: u64, table_limits: s.Publication.Limits, authority: c.TableAuthority.Profile, database_name: c.TableAuthority.Name, queries: bool = false };
 allocator: std.mem.Allocator,
 configuration: Configuration,
 query: ?q.UnifiedBehavior.Source = null,
+registration: ?p.Authorization.Action = null,
 pub const progress_key = Counter.progress_key;
 const create_counter = p.Value.init("create-counter") catch unreachable;
 const continue_counter = p.Value.init("continue-counter") catch unreachable;
 fn catalog(self: *Self, turn: *s.Turn) c.TableCatalog {
-    return .{ .configuration = .{ .scope = .{ .realm = turn.delivery.realm, .resource = turn.view.resource, .catalog = 1 }, .owner = turn.delivery.pid, .administrator = self.configuration.initializer, .table_limits = self.configuration.table_limits } };
+    return .{ .configuration = .{ .scope = .{ .realm = turn.delivery.realm, .resource = turn.view.resource, .catalog = 1 }, .owner = turn.delivery.pid, .administrator = self.configuration.initializer, .table_limits = self.configuration.table_limits, .authority = self.configuration.authority, .database_name = self.configuration.database_name }, .registration = &self.registration };
 }
 fn create(self: *Self, turn: *s.Turn, continuing: bool) !void {
     const owner = self.catalog(turn);
@@ -43,15 +44,6 @@ fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
     if (frame.kind == .cast and turn.delivery.input.origin == .external and turn.delivery.input.origin.external.principal == self.configuration.initializer) {
         if (frame.payload.len == 0) return;
         if (frame.payload.eql(create_counter)) return self.create(turn, false);
-        if (std.mem.startsWith(u8, frame.payload.slice(), "TCA1")) {
-            // This application exposes explicit policy controls. It owns its
-            // Table shape and counter mutation semantics; no raw SQL mutation
-            // route can write behind a frozen counter command.
-            if (try c.TableControl.Command.decode(frame.payload) != .policy) return error.UnsupportedCounterControl;
-            var behavior: c.TableBehavior = .{ .allocator = self.allocator, .configuration = self.catalog(turn).configuration };
-            const handler = behavior.interface();
-            return handler.handle(handler.context, turn, frame);
-        }
         if (self.query != null and std.mem.startsWith(u8, frame.payload.slice(), "UQA1")) {
             const policy = try q.UnifiedRecords.Policy.decode(frame.payload);
             if (policy.peer != self.configuration.ingress) return error.UnexpectedQueryPeer;

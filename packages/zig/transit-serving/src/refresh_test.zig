@@ -13,7 +13,6 @@ const Store = q.testing.Store;
 const principal = 65536;
 const configuration: root.Model.Configuration = .{ .service = 10, .administrator = 11, .observer = 12 };
 const owner: root.Refresh = .{ .principal = principal, .source = 3 };
-const proof: m.Proof = .{ .identity = @splat(1), .source = @splat(2), .requester = @splat(3) };
 const Reader = struct {
     source: *Store,
     requests: *Store,
@@ -26,27 +25,28 @@ const Reader = struct {
         return scoped_reader;
     }
 
-    pub fn open(self: @This(), resource: u64) !s.Turn {
+    pub fn open(self: @This(), resource: u64) !Store.Reader {
         if (self.unavailable) return error.AuthorityUnavailable;
         const store = if (resource == self.source.resource) self.source else if (resource == self.requests.resource) self.requests else return error.AccessDenied;
         if (store.denied) return error.AccessDenied;
-        return store.capture();
+        return store.reader();
     }
-    pub fn authorize(self: @This(), caller: u64, source: r.Source, credentials: m.Proof) !void {
+    pub fn authorize(self: @This(), turn: *s.Turn, caller: u64, source: r.Source, credentials: m.Proof) !void {
         if (self.unavailable) return error.AuthorityUnavailable;
-        if (self.denied or caller != principal or source.resource != self.source.resource or source.target != self.source.pid or !std.meta.eql(credentials, proof)) return error.ServingDenied;
+        if (self.denied or caller != principal or source.resource != self.source.resource or source.target != self.source.pid or credentials.principal != caller or credentials.pid != turn.delivery.pid or credentials.input == 0) return error.ServingDenied;
     }
-    pub fn observe(self: @This(), caller: u64, source: r.Source) !root.TableWatch.Observation {
+    pub fn observe(self: @This(), caller: u64, source: r.Source, credentials: m.Proof) !root.TableWatch.Observation {
+        if (credentials.principal != caller) return error.ServingDenied;
         _ = try self.open(source.resource);
         var watch = try support.Reader.open(self.source);
         return root.TableWatch.observeDiagnostic(t.allocator, &watch, caller, source, self.diagnostic);
     }
-    pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source) !q.Basis {
+    pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source, credentials: m.Proof) !q.Basis {
         const status = (try q.UnifiedUpload.status(turn, namespace)) orelse return error.InvalidRefreshTemplate;
         if (status.phase != .complete) return error.InvalidRefreshTemplate;
         var arena = std.heap.ArenaAllocator.init(t.allocator);
         defer arena.deinit();
-        const opened = try q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = turn.delivery.pid, .correlation = status.correlation, .request = status.reference }, self, arena.allocator());
+        const opened = try q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = turn.delivery.pid, .correlation = status.correlation, .request = status.reference, .disclosure = .{ .accepted = credentials } }, self, arena.allocator());
         return try opened.manifest.checkpoint.basis(opened.bundle.source);
     }
 };
@@ -135,7 +135,7 @@ const Rig = struct {
         try self.requests.commit(turn);
     }
     fn follow(self: *@This(), identity: r.SessionIdentity, expected: u64, limit: u8) !m.Selection {
-        try self.apply(.{ .follow = .{ .view = .{ .session = identity, .expected = expected, .template = .{ .value = 1 }, .limit = limit }, .proof = proof } });
+        try self.apply(.{ .follow = .{ .view = .{ .session = identity, .expected = expected, .template = .{ .value = 1 }, .limit = limit } } });
         var turn = try self.requests.capture();
         return .{ .session = identity, .generation = try root.Refresh.head(&turn, principal, identity.session) };
     }
@@ -234,7 +234,7 @@ test "simulation: refresh source cuts survive replacement, interruption and in-f
         var turn = try rig.requests.capture();
         const status = (try q.UnifiedUpload.status(&turn, admitted.namespace.value)).?;
         try t.expectEqual(.complete, status.phase);
-        const basis = try rig.reader().result(&turn, admitted.namespace.value, rig.declaration);
+        const basis = try rig.reader().result(&turn, admitted.namespace.value, rig.declaration, .{ .pid = turn.delivery.pid, .input = admitted.generation, .principal = principal });
         try t.expectEqual(rig.source.resource, basis.cut.resource);
         if (replace) {
             try t.expectError(error.RefreshGenerationConflict, rig.apply(.{ .acknowledged = .{ .selection = selected, .namespace = admitted.namespace } }));
@@ -245,7 +245,7 @@ test "simulation: refresh source cuts survive replacement, interruption and in-f
             if (changed) try t.expect(view.dirty > view.covered) else try t.expect(view.covered >= view.dirty);
         }
         rig.source.denied = true;
-        try t.expectError(error.AccessDenied, rig.reader().result(&turn, admitted.namespace.value, rig.declaration));
+        try t.expectError(error.AccessDenied, rig.reader().result(&turn, admitted.namespace.value, rig.declaration, .{ .pid = turn.delivery.pid, .input = admitted.generation, .principal = principal }));
         if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"refresh\",\"round\":{d},\"interruptions\":{d},\"replaced\":{},\"mutated\":{}}}\n", .{ round, interrupted, replace, changed });
     }
 }
@@ -504,19 +504,19 @@ test "watch failures retain original metadata and head revision evidence at the 
     const reader = rig.reader().withDiagnostic(&context);
     var declaration = rig.declaration;
     declaration.metadata_digest = @splat(255);
-    try t.expectError(error.ReactiveResetRequired, reader.observe(principal, declaration));
+    try t.expectError(error.ReactiveResetRequired, reader.observe(principal, declaration, .{ .pid = rig.requests.pid, .input = 1, .principal = principal }));
     try t.expectEqualDeep(declaration.metadata_digest, context.witness.basis.expected);
     try t.expectEqualDeep(rig.declaration.metadata_digest, context.witness.basis.actual);
     try t.expectEqual(.metadata, context.witness.basis.kind);
     declaration = rig.declaration;
     const key = s.TableHead.key(declaration.object.value);
     try rig.source.revisions.put(t.allocator, key, p.max_counter);
-    try t.expectError(error.InvalidReactiveProgress, reader.observe(principal, declaration));
+    try t.expectError(error.InvalidReactiveProgress, reader.observe(principal, declaration, .{ .pid = rig.requests.pid, .input = 1, .principal = principal }));
     try t.expect(context.witness.progress.present);
     try t.expectEqual(p.max_counter, context.witness.progress.actual);
     try t.expect(context.witness.progress.limit < context.witness.progress.actual);
     declaration.object.value = 2;
-    try t.expectError(error.TableNotFound, reader.observe(principal, declaration));
+    try t.expectError(error.TableNotFound, reader.observe(principal, declaration, .{ .pid = rig.requests.pid, .input = 1, .principal = principal }));
     try t.expectEqual(@as(u64, 2), context.witness.table.value);
 }
 

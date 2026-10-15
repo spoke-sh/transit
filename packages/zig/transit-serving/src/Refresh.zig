@@ -130,13 +130,14 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
                 f.remember(self.diagnostic, .{ .revision = .{ .kind = .refresh, .expected = input.view.expected, .actual = generation, .proposed = turn.delivery.input.position, .present = generation != 0 } });
                 return error.RefreshGenerationConflict;
             }
-            try reader.authorize(principal, watch, input.proof);
-            const captured = try reader.result(turn, input.view.template.value, watch);
-            const observed = try reader.observe(principal, watch);
+            const original: m.Proof = .{ .pid = turn.delivery.pid, .input = turn.delivery.input.position, .principal = principal };
+            try reader.authorize(turn, principal, watch, original);
+            const captured = try reader.result(turn, input.view.template.value, watch, original);
+            const observed = try reader.observe(principal, watch, original);
             try sameBasis(observed, captured, self.diagnostic);
             const value: m.View = .{ .principal = principal, .session = input.view.session, .generation = turn.delivery.input.position, .source = watch, .template = input.view.template, .namespace = input.view.template, .dirty = observed.data_revision, .covered = captured.cut.revision, .limit = input.view.limit };
             try save(turn, value);
-            try turn.write(m.proofKey(principal, value.generation), try c.encode('I', input.proof));
+            try turn.write(m.proofKey(principal, value.generation), try c.encode('I', original));
             try turn.write(m.headKey(principal, value.session.session), try c.encode('F', value.generation));
         },
         .invalidate => |selection| {
@@ -147,8 +148,8 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
                 return error.ReactiveResetRequired;
             }
             if (!value.enabled) return;
-            try reader.authorize(principal, watch, try proof(turn, value));
-            const observed = try reader.observe(principal, watch);
+            try reader.authorize(turn, principal, watch, try proof(turn, value));
+            const observed = try reader.observe(principal, watch, try proof(turn, value));
             if (observed.data_revision > value.dirty) {
                 value.dirty = observed.data_revision;
                 try save(turn, value);
@@ -161,9 +162,9 @@ pub fn apply(self: Self, turn: *Turn, principal: u64, command: m.Command, input_
                 f.remember(self.diagnostic, .{ .refresh = .{ .expected = input.namespace, .actual = value.namespace, .phase = value.phase } });
                 return error.RefreshResultConflict;
             }
-            try reader.authorize(principal, value.source, try proof(turn, value));
-            const captured = try reader.result(turn, value.namespace.value, value.source);
-            const observed = try reader.observe(principal, value.source);
+            try reader.authorize(turn, principal, value.source, try proof(turn, value));
+            const captured = try reader.result(turn, value.namespace.value, value.source, try proof(turn, value));
+            const observed = try reader.observe(principal, value.source, try proof(turn, value));
             try sameBasis(observed, captured, self.diagnostic);
             value.covered = captured.cut.revision;
             value.dirty = @max(value.dirty, observed.data_revision);
@@ -302,7 +303,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
             try save(turn, value);
             return true;
         }
-        reader.withDiagnostic(&context).authorize(slot.principal, watch, try proof(turn, value)) catch |err| {
+        reader.withDiagnostic(&context).authorize(turn, slot.principal, watch, try proof(turn, value)) catch |err| {
             if (!denial(err)) return err;
             value.enabled = false;
             const why = failure.reason(err) orelse return err;
@@ -338,7 +339,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
 }
 fn advance(self: Self, turn: *Turn, value: m.View, reader: anytype) !bool {
     try policy(turn, value.principal, self.diagnostic);
-    try reader.authorize(value.principal, value.source, try proof(turn, value));
+    try reader.authorize(turn, value.principal, value.source, try proof(turn, value));
     if (try q.UnifiedUpload.active(turn)) |other| if (other != value.namespace.value) return false; // Explicit manual query won the intervening turn.
     if (!try q.UnifiedUpload.copyNext(turn, value.template.value, value.namespace.value)) return true;
     _ = try q.UnifiedUpload.submitWithObserver(turn, value.namespace.value, self.source, self.principal);

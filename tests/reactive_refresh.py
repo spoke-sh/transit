@@ -37,7 +37,7 @@ def run(env, _tls):
             assert env['fault']['lost']
         receipt = client({'submit': prepared}, control=control)['receipt']['receipt']
         drained(ingress)
-        observation = client({'observe': receipt['position']}, control=True)['observation']
+        observation = client({'observe': prepared}, control=True)['observation']
         assert observation == {'committed': {}}, (value, observation)
         if 'close' in value:
             leases.pop(value['close']['session'], None)
@@ -175,7 +175,7 @@ def run(env, _tls):
     env['sequences'][principal] = prepared['request']['sequence']
     receipt = client({'submit': prepared})['receipt']['receipt']
     drained(ingress)
-    rejected = client({'observe': receipt['position']}, control=True)['observation']
+    rejected = client({'observe': prepared}, control=True)['observation']
     assert rejected['rejected']['record']['reason'] in ('ServingDenied', 'AccessDenied'), rejected
     assert rejected['rejected']['record']['reason'] == 'AccessDenied', rejected
     denial = rejected['rejected']['diagnostic']
@@ -186,7 +186,7 @@ def run(env, _tls):
     assert original_facts['principal'] == {'unsigned': str(principal)}, denial
     assert original_facts['native_cause'] == {'text': 'AccessDenied'}, denial
     env['resource_grant'](resource, principal, 3)
-    assert client({'observe': receipt['position']}, control=True)['observation'] == rejected
+    assert client({'observe': prepared}, control=True)['observation'] == rejected
     for selection in selections:
         assert view(selection)['starts'] == 1
         paused_input = command({'pause': selection}, refresh=True, control=True)

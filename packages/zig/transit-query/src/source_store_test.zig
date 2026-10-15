@@ -20,6 +20,38 @@ authority: Authority = .{},
 const Authority = q.catalog.testing.Authority;
 pub const profile = Authority.profile;
 pub const Rights = Authority.Rights;
+/// Read-only domain mediation in the reference model. Unlike a committing
+/// Turn, a reader may check a subject admitted by a different requester PID.
+/// Native integration separately proves that subject through the authority.
+pub const Reader = struct {
+    store: *Self,
+    data: Turn,
+    view: p.Growth.View,
+    subject: ?p.Authorization.Subject = null,
+    pub fn read(self: *Reader, key: p.Value) !?p.Value {
+        return self.data.read(key);
+    }
+    pub fn currentReader(self: *Reader) *Turn {
+        return &self.data;
+    }
+    pub fn bindAuthorizationSubject(self: *Reader, subject: p.Authorization.Subject) !void {
+        try subject.validate();
+        self.subject = subject;
+    }
+    pub fn authorizationSubject(self: *Reader, who: u64) !p.Authorization.Subject {
+        const subject = self.subject orelse return error.AccessDenied;
+        if (subject.principal() != who) return error.AccessDenied;
+        return subject;
+    }
+    pub fn requireAuthorization(self: *Reader, guard: p.Authorization.Guard) !p.Authorization.Verified {
+        if (!std.meta.eql(self.subject orelse return error.AccessDenied, guard.subject)) return error.AccessDenied;
+        return self.store.requireAuthorization(guard);
+    }
+};
+pub fn reader(self: *Self) !Reader {
+    const data = try self.capture();
+    return .{ .store = self, .data = data, .view = data.view };
+}
 /// Explicit test credential and routing. Call before publishing or fingerprinting
 /// a request; the immutable query is never resigned by upload/recovery helpers.
 pub fn signQuery(description: anytype, principal: u64, audience: u64, requester: u64, requests: u64) !@TypeOf(description) {

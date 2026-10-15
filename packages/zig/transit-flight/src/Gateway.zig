@@ -225,7 +225,7 @@ const Call = struct {
     fn authorize(self: *Call, admission: bool) !void {
         try self.response.check();
         const caller = self.caller;
-        const signed = try s.Model.SignedRead.sign(.{ .realm = caller.connection.realm, .principal = caller.connection.principal, .service = caller.service, .ingress = caller.connection.requester, .kind = .discovery }, caller.key);
+        const signed = try s.Model.SignedRead.prepare(.{ .realm = caller.connection.realm, .principal = caller.connection.principal, .service = caller.service, .ingress = caller.connection.requester, .kind = .discovery }, .{ .transport = self.client.wire, .realm = caller.connection.realm, .principal = caller.connection.principal, .key = caller.key });
         const discovery = try self.adapter.read(signed, caller.key.public_key.toBytes());
         if (admission) {
             const binding = discovery.binding orelse return error.ServiceUnpublished;
@@ -407,7 +407,9 @@ const Call = struct {
             };
             if (status) |current| switch (current.phase) {
                 .complete => {
-                    const opened = try q.UnifiedResult.open(current.manifest orelse return error.InvalidResultManifest, .{ .resource = self.caller.connection.resource, .source = self.caller.connection.source, .requester = self.caller.connection.requester, .correlation = current.correlation, .request = current.reference }, self.client.resources(), self.allocator);
+                    const reference = current.manifest orelse return error.InvalidResultManifest;
+                    const expected: q.UnifiedResult.Expected = .{ .resource = self.caller.connection.resource, .source = self.caller.connection.source, .requester = self.caller.connection.requester, .correlation = current.correlation, .request = current.reference };
+                    const opened = try q.UnifiedResult.open(reference, try expected.authorize(reference, null, self.client.authorizationClient()), self.client.resources(), self.allocator);
                     return opened.manifest;
                 },
                 .denied, .cancelled, .retired, .rejected => {

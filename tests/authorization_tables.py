@@ -20,7 +20,7 @@ def canonical(value):
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, cli, host, service, transit, report=None):
+def run(node, cli, host, service, transit, report=None, serving_example=None):
     started = time.monotonic()
     with System(node, cli, clock_error_ms=10000, request_timeout_ms=30000) as system:
         definition = system.native_query({'capabilities': {}})['definition']
@@ -281,6 +281,13 @@ def run(node, cli, host, service, transit, report=None):
         for text in (join_sql, empty_join_sql):
             call({'query': dict(sql=text, rows=8, reads=256)}, 104, reader_key, 400)
         assert list(spill_directory.iterdir()) == [], 'query spill must remain private and unlinked'
+        serving_evidence = None
+        if serving_example:
+            from authorization_serving import run as serving_proof
+            execute('CREATE TABLE watchable (id INT64 PRIMARY KEY, value INT64)', 72, 300)
+            execute('INSERT INTO watchable VALUES (1, 7)', 73)
+            serving_evidence = serving_proof(system, serving_example, apply, query, owner_key,
+                reader_role, database, schema, pid, resource, call({'lookup': 'watchable'})['result']['lookup'])
         revision = system.native_query({'resource': resource})['body']['resource']['revision']
         for raw in ({'process': pid}, {'resource': resource}, {'read_access': resource}, {'entries': {'resource': resource, 'revision': revision}},
                     {'open_snapshot': {'resource': resource, 'nonce': list(range(16))}},
@@ -395,16 +402,16 @@ def run(node, cli, host, service, transit, report=None):
         assert not any(call({'list': None}, 104, reader_key)['result']['list']['entries'])
         call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key, 400)
         assert 'visible' in json.dumps(call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}))
-        observations = dict(shared_resource=resource, tables=[100, 101, 200, 201], restricted_reader=104,
+        observations = dict(shared_resource=resource, tables=[100, 101, 200, 201] + ([300] if serving_example else []), restricted_reader=104,
                             service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1,
                             schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True,
                             mediated_cli_write_recovery=True, no_native_process_inspection=True,
-                            multisource_queries=True, noncontributing_source_revocation=True)
+                            multisource_queries=True, noncontributing_source_revocation=True, serving=serving_evidence)
     result = dict(assertions='passed', definition=definition, observations=observations,
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
                   binaries={name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in
-                            [('node', node), ('cli', cli), ('host', host), ('service', service), ('transit', transit)]},
+                            [('node', node), ('cli', cli), ('host', host), ('service', service), ('transit', transit)] + ([('serving_example', serving_example)] if serving_example else [])},
                   elapsed_seconds=time.monotonic() - started)
     if report:
         report.parent.mkdir(parents=True, exist_ok=True)
@@ -417,5 +424,6 @@ if __name__ == '__main__':
     for binary in ('node', 'cli', 'host', 'service', 'transit'):
         parser.add_argument(binary, type=lambda value: Path(value).resolve(strict=True))
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--serving-example', type=lambda value: Path(value).resolve(strict=True))
     args = parser.parse_args()
-    run(args.node, args.cli, args.host, args.service, args.transit, args.report)
+    run(args.node, args.cli, args.host, args.service, args.transit, args.report, args.serving_example)

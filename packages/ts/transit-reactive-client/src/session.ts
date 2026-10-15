@@ -83,7 +83,7 @@ export class Session {
     }
     const deadline = performance.now() + 5000;
     while (performance.now() < deadline) {
-      const seen = await this.transport.host({ observe: pending.input }, signal, true);
+      const seen = await this.transport.host({ observe: pending.signed }, signal, true);
       if (!("observation" in seen)) return invalid();
       if ("committed" in seen.observation) {
         this.applied(pending.command, pending.input);

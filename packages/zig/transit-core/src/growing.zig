@@ -214,7 +214,6 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         fn authorize(self: *Self, principal_value: Principal, command: g.Command) !void {
             if (!principal_value.enabled) return error.Forbidden;
             if (command == .authorization) return;
-            if (command == .send) _ = try auth_ops.actor(self, principal_value.grant.subject, command.send.role);
             const needed: p.Permission = switch (command) {
                 .spawn, .create => .spawn,
                 .send => .send,
@@ -233,7 +232,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 else => null,
             };
             if (principal_value.grant.pid) |scope| if (pid != scope) return error.Forbidden;
-            if (!try auth_ops.nativeHas(self, principal_value, pid, needed)) return error.Forbidden;
+            const permitted = if (command == .send)
+                try auth_ops.selectedNativeHas(self, principal_value, command.send.role, pid, needed)
+            else
+                try auth_ops.nativeHas(self, principal_value, pid, needed);
+            if (!permitted) return error.Forbidden;
         }
         fn duplicate(self: *Self, request: g.Request, principal_value: Principal) !?u64 {
             if (request.sequence > principal_value.sequence) {

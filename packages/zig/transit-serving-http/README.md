@@ -29,7 +29,10 @@ context: route SSE challenge and events to the same instance. Durable session
 and cursor recovery still uses the public serving reader and configured signer.
 
 The host uses two-second challenges, 500 ms idle authority checks,
-one-second writes and the configured finite connection deadline. Cancellation
+one-second writes and the configured finite connection deadline. WebSocket
+authorization stays under the serialized write lock, bounded by the
+configured request deadline. The socket write itself retains its separate
+one-second deadline. Cancellation
 joins receive/event tasks before releasing sockets and buffers. No response
 status is appended after streaming headers. Data capacity and control capacity
 remain separate; accepted application work is never cancelled by disconnect.

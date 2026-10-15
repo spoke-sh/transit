@@ -22,8 +22,8 @@ binding revisions grow through durable point/page access. They are never held in
 an unbounded resident collection or deleted because of capacity pressure.
 
 `Model` owns typed commands, reads, accepted bindings and outcomes. `Codec` encodes
-the versioned records; `SignedRead` binds a read scope and native identity proof to
-the same provisioned key. A successful signature check alone does not establish a
+the versioned records; `SignedRead` binds the complete read to its original caller, current credential
+epoch, selected role and ingress audience. A successful signature check alone does not establish a
 current grant: adapters must ask authority, enforce current service read policy
 and revalidate before disclosing protected data. Incoming commands preserve their
 caller-signed native bytes. The service owner deduplicates across native sequences
@@ -60,7 +60,7 @@ checks do not advertise SSE/WebSocket or prove deployed recovery.
 
 `TableWatch` resolves immutable catalog metadata/schema, the Table-head entry
 and first bounded row page at one exact current resource revision. It requires
-current catalog inspect/read rights for the authenticated caller. The snapshot
+current database CONNECT, schema USAGE and Table SELECT for the authenticated caller. The snapshot
 transport admits two INT64 columns with the first a non-null primary key;
 application integers encode as decimal strings. Head reservations may notify
 possible change before atomic row publication; unrelated query bookkeeping does
@@ -83,8 +83,9 @@ up to three times; loss of coverage is explicit reset or interruption.
 Regenerate with `zig build serving-api -Doptimize=ReleaseSafe` then
 `python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --write`.
 The independent peer trace can additionally be checked with `--trace PATH`.
-Native identity proofs are narrowed to the only supported identity query; fixed
-byte arrays and version constants are validated before decoding host envelopes.
+Read proofs require the current contract definition and are authenticated through
+native authority. Fixed byte arrays and version constants are validated before
+decoding host envelopes. Restricted callers receive no private read credential.
 
 The final transport `check` retries up to three conflicting resource observations,
 just like snapshot acquisition; exhaustion remains interruption. The example resets

@@ -24,6 +24,9 @@ role requires a current eligible membership path from the authenticated login
 role. Services cannot authenticate a caller by supplying an arbitrary subject ID.
 Verified observations identify the login role separately from the selected role;
 `SESSION_USER` and an active role do not become interchangeable identities.
+Native SEND checks the selected role's effective privileges, including eligible
+inherited grants, rather than adding the login role's independent grants. The
+credential's PID restriction remains in force when selecting a role.
 
 Native sends can select an eligible `role`. Admission retains an immutable
 subject claim, indexed by destination PID and admitted input position, including

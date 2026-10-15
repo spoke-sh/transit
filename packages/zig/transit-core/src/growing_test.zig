@@ -677,9 +677,13 @@ test "accepted native subjects retain selected role and epoch without trusting c
     const login = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("login"), .login = true } })).?;
     const selected = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("writer") } })).?;
     _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = login, .public_key = f.worker_key.public_key.toBytes() } });
-    _ = try f.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = login, .privileges = core.permission(.send) } });
+    _ = try f.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = selected, .privileges = core.permission(.send) } });
     const membership = (try f.authorization(.{ .membership = .{ .member = login, .role = selected, .inherit = false, .set = true } })).?;
     const payload = try core.Value.init("original operation");
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(1, .{ .send = .{ .pid = pid, .value = payload } })));
+    const login_only = try f.root(.{ .spawn = .{} });
+    _ = try f.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = login_only }, .grantee = login, .privileges = core.permission(.send) } });
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(1, .{ .send = .{ .pid = login_only, .value = payload, .role = selected } })));
     const input = try f.engine.submit(try f.worker(1, .{ .send = .{ .pid = pid, .value = payload, .role = selected } }));
     const subject: a.Subject = .{ .accepted = .{ .pid = pid, .input = input, .principal = 65536 } };
     const verified = (try f.query(0, .{ .authorization = .{ .kind = .{ .authenticate = subject } } })).body.authorization.body.authenticate;

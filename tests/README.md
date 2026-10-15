@@ -133,6 +133,33 @@ The repository `just test::unit` task and the current-definition
 also pass. Changesets, remaining subject transports, adapters, SDK workflows and
 clean CI remain separate delivery gates.
 
+The [serving authorization report](verification/results/authorization-serving-2026-10-14.json)
+records `just test::authorization-serving` passing in **445.170 s** on dirty
+`ff45edb6`, retaining the definition and six executable hashes. An ordinary LOGIN
+caller selects a NOLOGIN role through SET-only membership. It prepares and
+submits controls, reads a private snapshot, and cannot inspect native processes
+or backing resources. Tampered roles and missing definitions reject. Credential
+rotation invalidates the old read proof while the exact old control remains
+recoverable. Membership revocation terminates SSE with `denied`; Table SELECT
+revocation terminates WebSocket with `denied`. Restarts preserve denial, and
+session-status reads omit the Table declaration. The preceding Table schema,
+defaults, finite joins, CLI recovery and node/store restart checks also pass.
+This is the explicitly configured insecure-HTTP development profile, not TLS,
+installed-client or durable refresh qualification. One snapshot takes **5.012 s**;
+the gateway's resident size sampled afterward is **50,827,264 bytes**, not a peak
+or throughput guarantee.
+
+The associated core run passes **110/110**, and serving passes **50/50** tests.
+The repository test task passes all **85 steps**; its latest run executes
+**125 tests**, with remaining steps cached. Earlier executions in this group
+cover fresh captured-result disclosure by a separately authorized recovery
+caller, unchanged execution attribution, missing/misbound proof rejection and
+subsequent denial. These are injected-store result checks; native durable-query
+qualification remains open. The Flight gateway compiles, the reactive browser
+suite passes **36/36**, and the shared HTTP proof passes framing, capacity,
+deadlines and joined shutdown. Full checks, native proof-bootstrap migration,
+installed SDKs and committed-source clean CI remain separate gates.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

@@ -3915,6 +3915,14 @@
         "CatalogDenied": {
           "code": "reactive.catalog_denied",
           "category": "access"
+        },
+        "StaleAuthorizationCredential": {
+          "code": "serving.credential_changed",
+          "category": "access"
+        },
+        "InvalidAuthorizationCredential": {
+          "code": "serving.invalid_subject",
+          "category": "syntax"
         }
       },
       "exceptions": [

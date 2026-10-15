@@ -221,6 +221,11 @@ authorization-tables:
     zig build transit-node rey-cli transit transit-query-host transit-table-service
     python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json
 
+# Restricted serving snapshots and exact control recovery under current roles.
+authorization-serving:
+    zig build transit-node rey-cli transit transit-query-host transit-table-service serving-example
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+
 # Exercise independent Zig callers against the same generic authority.
 callers:
     zig build test-callers

@@ -32,8 +32,11 @@ stable Table object, and immutable metadata revision/length/digest. Publication 
 are immutable. It grants no read rights. The gateway's inspect scope covers both ingress and source, with separate explicit
 resource grants. Its
 current source metadata, caller policy and accepted watch declaration must all
-permit a read. Catalog inspect/read rights are checked for the authenticated
-caller on every observation; the gateway identity does not substitute for them.
+permit a read. Database CONNECT, schema USAGE and Table SELECT are checked for the authenticated
+original subject on every observation and final bounded release; the gateway identity does not substitute for them.
+The session read returns session state and a null source under current service
+policy. It does not disclose the watch's Table declaration. Discovery, snapshot
+and event reads require the source privileges above.
 Draft configuration and observed listener capability are separate
 from accepted publication.
 
@@ -66,6 +69,12 @@ bodies. No private credential appears in a URL, subprotocol name, log or durable
 record. Exact HTTPS Host and browser Origin checks accompany signature/grant
 checks; Origin alone is not authentication.
 
+Read envelopes carry the complete scope-bound authorization proof described in
+[serving v1](SERVING_V1.md#identity-and-trust), including the current credential
+epoch and selected role. A credential rotation fences an existing read proof.
+The client acquires a fresh read proof while preserving any accepted control’s
+original signed bytes.
+
 Each new attachment uses a random server challenge with a short local validity
 window and bounded pending capacity. For SSE, an authenticated HTTP challenge
 exchange precedes the streaming POST on the same gateway; a proxy must preserve
@@ -95,7 +104,7 @@ this head. Neither the Table's logical revision nor another resource's native
 revision is a substitute for this watermark.
 
 The snapshot operation checks catalog configuration/owner, current caller
-inspect/read policy, live object, exact metadata, schema, head and the first
+database/schema/Table privileges, live object, exact metadata, schema, head and the first
 bounded row page at one resource revision. Conflicts retry the entire acquisition
 or return interruption/reset. Readers see only the published row/index root,
 including while a successor is staged. The later publication advances the head

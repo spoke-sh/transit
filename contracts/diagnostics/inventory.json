@@ -3413,6 +3413,7 @@
         "Profile.validate()": "<inferred>",
         "Schema.validate()": "<inferred>",
         "Source().<return>.authorizationSubject()": "<inferred>",
+        "Source().<return>.entry()": "<inferred>",
         "Source().<return>.finish()": "<inferred>",
         "Source().<return>.page()": "<inferred>",
         "Source().<return>.read()": "<inferred>",
@@ -3426,7 +3427,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 3
       },
       "imports": [
@@ -11577,7 +11578,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"84cad99694b96f29d0b8bff1529036006166000d56bc5889b19f6760ef0a6373\""
+          "dbabceb7ec736d0ab8c2874fb404249f45eea6ad9666a183a7e0a4125f6c4986"
         ],
         "Effect.phase": [
           "pending",
@@ -15215,7 +15216,7 @@
     },
     "packages/zig/transit-serving/src/Adapter.zig": {
       "errors": {
-        "Conflict": 3,
+        "Conflict": 4,
         "InvalidResourceRead": 1,
         "InvalidServingCommand": 1,
         "InvalidServingReceipt": 1,
@@ -15224,10 +15225,11 @@
         "ResourceUnavailable": 4,
         "ServiceReadConflict": 2,
         "ServiceUnpublished": 2,
-        "ServingDenied": 10,
+        "ServingDenied": 9,
         "ServingOperationNotFound": 1,
         "ServingResultPending": 1,
-        "ServingSequenceConflict": 1
+        "ServingSequenceConflict": 1,
+        "StaleAuthorizationCredential": 1
       },
       "outcomes": {
         "Stage": [
@@ -15255,8 +15257,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
-        "catch": 4
+        "try": 26,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -15284,6 +15286,7 @@
         "HttpDeadline": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
+        "InvalidAuthorizationCredential": 1,
         "InvalidCharacter": 1,
         "InvalidCorrelation": 1,
         "InvalidEnumTag": 1,
@@ -15341,6 +15344,7 @@
         "ServingResultPending": 1,
         "ServingSequenceConflict": 1,
         "SignatureVerificationFailed": 1,
+        "StaleAuthorizationCredential": 1,
         "StreamTooLong": 1,
         "SyntaxError": 1,
         "TableNotFound": 1,
@@ -15498,7 +15502,7 @@
         "InvalidServingIdentity": 1,
         "InvalidServingRead": 1,
         "InvalidServingRecord": 7,
-        "ServingDenied": 1
+        "ServingDenied": 2
       },
       "outcomes": {
         "Command": [
@@ -15509,9 +15513,6 @@
           "cancel",
           "reactive",
           "refresh"
-        ],
-        "Identity.query.kind": [
-          "identity"
         ],
         "Phase": [
           "admitted",
@@ -15532,10 +15533,11 @@
         "Binding.validate()": "<inferred>",
         "Command.decode()": "<inferred>",
         "Command.encode()": "<inferred>",
-        "Identity.sign()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Policy.validate()": "<inferred>",
         "Read.digest()": "<inferred>",
+        "SignedRead.fromProof()": "<inferred>",
+        "SignedRead.prepare()": "<inferred>",
         "SignedRead.sign()": "<inferred>",
         "SignedRead.verify()": "<inferred>",
         "Submit.digest()": "<inferred>",
@@ -15544,7 +15546,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 22,
         "catch": 3
       },
       "imports": [
@@ -15605,7 +15607,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 42,
+        "try": 46,
         "catch": 3
       },
       "imports": [
@@ -15620,13 +15622,11 @@
         "InvalidServingReceipt": 1,
         "ReactiveAdapterRequired": 1,
         "ReactiveGenerationConflict": 2,
-        "ReactiveResetRequired": 1,
-        "ReadAccessUnavailable": 1,
         "RefreshGenerationConflict": 2,
         "RefreshNotFound": 2,
         "Rejected": 2,
-        "ResourceUnavailable": 4,
-        "ServiceReadConflict": 4,
+        "ResourceUnavailable": 3,
+        "ServiceReadConflict": 5,
         "ServingDenied": 10
       },
       "outcomes": {
@@ -15679,12 +15679,13 @@
         "refreshPrepare()": "<inferred>",
         "refreshStatus()": "<inferred>",
         "refreshStatusOnce()": "<inferred>",
+        "servingRead()": "<inferred>",
         "signRead()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 52,
         "catch": 2
       },
       "imports": [
@@ -15695,7 +15696,7 @@
     "packages/zig/transit-serving/src/ReactiveModel.zig": {
       "errors": {
         "InvalidReactiveCursor": 2,
-        "InvalidReactiveScope": 4,
+        "InvalidReactiveScope": 5,
         "InvalidReactiveSource": 3
       },
       "outcomes": {
@@ -15733,6 +15734,8 @@
         "Position.validate()": "<inferred>",
         "Read.digest()": "<inferred>",
         "Scope.validate()": "<inferred>",
+        "SignedRead.fromProof()": "<inferred>",
+        "SignedRead.prepare()": "<inferred>",
         "SignedRead.sign()": "<inferred>",
         "SignedRead.verify()": "<inferred>",
         "Source.from()": "<inferred>",
@@ -15921,7 +15924,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 89,
+        "try": 91,
         "catch": 3
       },
       "imports": [
@@ -16035,28 +16038,24 @@
     },
     "packages/zig/transit-serving/src/RefreshReader.zig": {
       "errors": {
-        "AccessDenied": 2,
         "CatalogDenied": 1,
-        "Conflict": 1,
         "InvalidRefreshTemplate": 1,
-        "Rejected": 1,
-        "ResourceUnavailable": 2,
-        "ServingDenied": 3
+        "ResourceUnavailable": 1,
+        "ServingDenied": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "authority()": "<inferred>",
         "authorize()": "<inferred>",
-        "checkIdentity()": "<inferred>",
         "checkResource()": "<inferred>",
         "observe()": "<inferred>",
         "requireTemplate()": "<inferred>",
-        "result()": "<inferred>",
-        "signedQuery()": "<inferred>"
+        "result()": "<inferred>"
       },
-      "open_error_set_uses": 4,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 10,
+        "try": 12,
         "catch": 4
       },
       "imports": [

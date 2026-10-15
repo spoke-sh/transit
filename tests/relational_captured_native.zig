@@ -198,7 +198,9 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         const current = (try status(Test, init, wire, config)) orelse return error.QueryNotFound;
         var nonce: [16]u8 = undefined;
         init.io.random(&nonce);
-        var result = try q.RelationalResult.open(.{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }, owned.bundle, .{ .owner = config.writer.pid, .peer = config.writer.pid, .resource = config.writer.resource, .job = current.id, .requests = 10000 }, nonce);
+        const options: q.RelationalResult.Options = .{ .owner = config.writer.pid, .peer = config.writer.pid, .resource = config.writer.resource, .job = current.id, .requests = 10000 };
+        const disclosure = try q.ResultDisclosure.prepare(.{ .transport = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }, try options.selection(owned.bundle));
+        var result = try q.RelationalResult.open(.{ .wire = wire, .realm = 46, .principal = 1234, .key = try Test.key(10) }, owned.bundle, options, disclosure, nonce);
         defer result.close() catch {};
         var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
         const schema = try result.schema(&fields);

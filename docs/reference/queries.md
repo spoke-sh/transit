@@ -9,9 +9,12 @@ Durable Table queries bind the original caller, credential epoch and selected
 role to the immutable query and intended requester. Admission policies constrain
 that identity and work budgets; they do not authenticate a user. Every source
 requires current CONNECT, schema USAGE and Table SELECT, including join sources
-that contribute no rows. Continuation and result reads reuse the same proof after
-restart and recheck current rights. Credential rotation does not silently resign
-an accepted query. Result completion is also an authorization boundary.
+that contribute no rows. Continuations retain the original proof after restart;
+credential rotation does not silently resign an accepted query. Completed results
+from captured queries use a fresh proof for the requested result and page under the reader's
+current rights. An explicitly authorized recovery operator can read the original
+result without changing its request or execution attribution. Result completion
+is also an authorization boundary.
 
 Invalid editor cursor offsets identify the byte-offset/UTF-8 boundary requirement
 separately from invalid saved-result cursors. Invalid typed predicate programs

@@ -314,13 +314,19 @@ const Socket = struct {
     mutex: Io.Mutex = .init,
     closed: bool = false,
     fn send(self: *Socket, message: wire.ServerMessage, task: ?*Task) !void {
-        try http.deadline(self.io, 1000, write, .{ self, message, task });
+        // Authorization is bounded by the configured request deadline, not the
+        // socket's write timeout. Keep it under the lock so a queued message is
+        // checked after earlier writers, immediately before its bounded write.
+        try http.deadline(self.io, self.host.config.gateway.options.request_timeout_ms, write, .{ self, message, task });
     }
     fn write(self: *Socket, message: wire.ServerMessage, task: ?*Task) anyerror!void {
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         if (self.closed) return error.WebSocketConnectionClosed;
         if (task) |context| try context.check(self.signed, self.key);
+        try http.deadline(self.io, 1000, writeMessage, .{ self, message });
+    }
+    fn writeMessage(self: *Socket, message: wire.ServerMessage) anyerror!void {
         var encoded: [r.max_message_bytes]u8 = undefined;
         try self.ws.writeMessage(try json(message, &encoded), .text);
     }

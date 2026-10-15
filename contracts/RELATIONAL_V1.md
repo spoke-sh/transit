@@ -369,7 +369,11 @@ ordinal, trailing bytes and canonical representation are validated.
 ### Reading captured results
 
 `RelationalResult` accepts the caller's frozen bundle and explicit coordinator,
-peer, resource, job and native-request budget. It opens a fresh leased snapshot
+peer, resource, job and native-request budget, plus a separate
+[result-disclosure subject](UNIFIED_QUERY_V1.md#larger-requests-and-durable-publication).
+The selection binds the unchanged bundle fingerprint and all these options.
+Current privileges are evaluated for this reader; the stored query keeps its
+original execution attribution. It opens a fresh leased snapshot
 of the result resource and verifies the complete job, manifest, checkpoint,
 request identity and source vector. Its final combined native reads check the
 job, coordinator policy and every source catalog policy at one authority root,

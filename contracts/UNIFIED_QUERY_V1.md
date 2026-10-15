@@ -168,19 +168,33 @@ absent), audience PID u64, context digest (32 bytes) and Ed25519 signature
 The context is SHA-256 of `transit.query.original-subject.v1`, NUL, requester
 PID and request-resource as little-endian u64s, then the complete canonical
 bundle with its authorization absent. The audience is the query coordinator.
-Both identities must match the actual authenticated request route. Every source
-uses this same original subject, including noncontributing join sources.
+Both identities must match the actual authenticated request route. During
+execution every source uses this same original subject, including noncontributing
+join sources.
 Source owners need not equal the coordinator for an authorized foreign read.
 
 SQL compilation seals the Table bundle once before saving or upload. Typed
 callers use `UnifiedClient.authorizeBundle` or the neutral `authorize` operation
 before `next`; the latter also checks current source scope and budgets. The
 neutral result is `authorized`, containing canonical bundle hex. Authorizing
-an already sealed request rejects. Continuation, result reading and recovery
+an already sealed request rejects. Continuation and execution recovery
 reuse its exact proof and never replace its epoch, selected role or signature.
 Current native authority checks the proof and all object requirements on each
 use. A configured policy principal is only an equality constraint on the
 verified subject. It cannot authenticate that subject.
+
+Completed-result disclosure uses a separate current subject. A signed read binds
+the complete selection through SHA-256 of `transit.query.result-disclosure.v1`,
+NUL and the canonical protocol JSON `ResultDisclosure.Selection` union. A
+`unified` selection contains the manifest reference, expected resource/source/
+requester/correlation/request reference and nullable page cursor. A `relational`
+selection contains the immutable bundle fingerprint, owner, peer, resource,
+job and request budget. The proof audience is the query coordinator, and its
+realm matches the Table declaration. The reader checks every protected source
+under this fresh subject before release; the original bundle, manifest and
+execution attribution remain unchanged. No proof is inferred from the private
+resource reader's credentials. Internal requester continuations may instead use
+their accepted native input subject; its PID must match the result's requester.
 
 `UQS1` source declarations start with magic, the 32-byte shared definition,
 resource u64 and source kind u8. KV and Document retain their declared decoder/

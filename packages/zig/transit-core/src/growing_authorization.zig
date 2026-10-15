@@ -164,6 +164,18 @@ pub fn nativeHas(engine: anytype, subject: growth.Principal, pid: ?u64, needed: 
     var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
     return (try check.evaluate(subject.role, reference, bit)).permits();
 }
+/// Explicit selection replaces the login role's effective privileges. The
+/// credential's PID restriction still bounds every selected role.
+pub fn selectedNativeHas(engine: anytype, subject: growth.Principal, selected: ?u64, pid: ?u64, needed: p.Permission) !bool {
+    const caller = try actor(engine, subject.grant.subject, selected);
+    if (caller.role == subject.role) return nativeHas(engine, subject, pid, needed);
+    var store = try engine.authorization();
+    var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
+    var active = subject;
+    active.role = caller.role;
+    active.grant.permissions = @intCast((try check.evaluate(caller.role, realm, p.permission(needed))).allowed);
+    return nativeHas(engine, active, pid, needed);
+}
 pub fn retireObject(engine: anytype, next: *growth.Head, reference: a.ObjectRef) !bool {
     var store = try policy.Store(@TypeOf(engine.page_store.*)).open(engine.page_store, next.authorization);
     store.next_id = next.authorization_next_id;

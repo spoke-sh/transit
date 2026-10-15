@@ -21,7 +21,7 @@ const Graph = struct {
         if (self.count == self.nodes.len) @compileError("Host schema reflection exceeded its explicit type graph bound");
         self.nodes[self.count] = .{ .T = T, .options = options };
         self.count += 1;
-        if (comptime custom(T) or (T == p.Diagnostic and options.diagnostic_reference != null)) return;
+        if (comptime custom(T) or (T == p.Diagnostic and options.diagnostic_reference != null) or (T == p.Authorization.Proof and options.authorization_proof_reference != null)) return;
         switch (@typeInfo(T)) {
             inline .@"struct", .@"union" => |info| {
                 for (info.field_names, info.field_types) |name, F| {
@@ -66,7 +66,7 @@ pub fn writeAt(comptime T: type, out: *std.json.Stringify, comptime options: Opt
     try out.endObject();
 }
 fn writeNode(comptime base: []const u8, comptime graph: Graph, comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
-    if (comptime custom(T) or (T == p.Diagnostic and options.diagnostic_reference != null)) return s.write(T, out, options);
+    if (comptime custom(T) or (T == p.Diagnostic and options.diagnostic_reference != null) or (T == p.Authorization.Proof and options.authorization_proof_reference != null)) return s.write(T, out, options);
     switch (@typeInfo(T)) {
         .@"struct" => |info| {
             try out.beginObject();

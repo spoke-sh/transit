@@ -12,10 +12,10 @@ const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 1000, .result_byte
 const Access = struct {
     data: *Store,
     requests: *Store,
-    pub fn open(self: Access, resource: u64) !s.Turn {
+    pub fn open(self: Access, resource: u64) !Store.Reader {
         const store = if (resource == self.data.resource) self.data else if (resource == self.requests.resource) self.requests else return error.AccessDenied;
         if (store.denied) return error.AccessDenied;
-        return store.capture();
+        return store.reader();
     }
 };
 fn turn(store: *Store) !s.Turn {
@@ -173,7 +173,7 @@ test "one catalog query policy admits multiple general Tables and retains exact 
         const publication = job.publication(store.resource);
         const descriptor = try publication.inspect(&reader, r.manifest_record);
         const reference: s.PublicationReference = .{ .domain = .query_result, .resource = store.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = descriptor.spec };
-        const expected: q.UnifiedResult.Expected = .{ .resource = 7, .source = 3, .requester = 9, .correlation = which + 1, .request = job.request };
+        const expected: q.UnifiedResult.Expected = .{ .resource = 7, .source = 3, .requester = 9, .correlation = which + 1, .request = job.request, .disclosure = .{ .accepted = .{ .pid = 9, .input = 1, .principal = 17 } } };
         var bytes: [f.LogicalArrow.segment_bytes]u8 = undefined;
         var decoded: f.LogicalInspect.Batch = undefined;
         const page = try q.UnifiedResult.page(reference, expected, null, Access{ .data = &store, .requests = &requests }, alloc, workspace, &bytes, &decoded);
@@ -202,7 +202,31 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     const completed = first_job.publication(store.resource);
     const manifest = try completed.inspect(&reader, r.manifest_record);
     const reference: s.PublicationReference = .{ .domain = .query_result, .resource = 7, .namespace = completed.namespace, .record = r.manifest_record, .spec = manifest.spec };
-    try e.expectError(error.CatalogDenied, q.UnifiedResult.open(reference, .{ .resource = 7, .source = 3, .requester = 9, .correlation = 1, .request = first_job.request }, Access{ .data = &store, .requests = &requests }, alloc));
+    try e.expectError(error.CatalogDenied, q.UnifiedResult.open(reference, .{ .resource = 7, .source = 3, .requester = 9, .correlation = 1, .request = first_job.request, .disclosure = .{ .accepted = .{ .pid = 9, .input = 1, .principal = 17 } } }, Access{ .data = &store, .requests = &requests }, alloc));
+    // A recovery operator supplies a fresh request-bound proof and its own
+    // current rights. Neither the original request nor its attribution changes.
+    var recovery: q.UnifiedResult.Expected = .{ .resource = 7, .source = 3, .requester = 9, .correlation = 1, .request = first_job.request };
+    const access: Access = .{ .data = &store, .requests = &requests };
+    try e.expectError(error.QueryDenied, q.UnifiedResult.open(reference, recovery, access, alloc));
+    try store.setRights(.{ .principal = 23 });
+    recovery.disclosure = .{ .signed = try q.protocol.Authorization.Proof.sign(.{
+        .definition = q.protocol.Growth.current_definition,
+        .realm = 1,
+        .principal = 23,
+        .credential_epoch = 1,
+        .role = 23,
+        .audience = 3,
+        .context = try q.ResultDisclosure.context(recovery.selection(reference, null)),
+    }, try c.testing.Authority.key(23)) };
+    const recovered = try q.UnifiedResult.open(reference, recovery, access, alloc);
+    try e.expectEqual(@as(u64, 17), recovered.bundle.authorization.?.proof.claim.principal);
+    try e.expectEqualDeep(first_job.request, recovered.manifest.job.request);
+    try e.expectEqualDeep(try original.fingerprint(), try recovered.bundle.fingerprint());
+    var misrouted = recovery;
+    misrouted.disclosure.?.signed.claim.context[0] ^= 1;
+    try e.expectError(error.QueryDenied, q.UnifiedResult.open(reference, misrouted, access, alloc));
+    try store.setRights(.{ .principal = 23, .read = false });
+    try e.expectError(error.CatalogDenied, q.UnifiedResult.open(reference, recovery, access, alloc));
     const continuation: r.Continuation = .{ .job = empty_job.id, .input = empty_job.continuation };
     var next = try message(&store, 3, .{ .kind = .cast, .payload = try continuation.encode() });
     const before = next.decision;

@@ -9,8 +9,9 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import struct
 
-from serving import Key
+from serving import Key, subject_proof
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'packages/zig/transit-protocol/src/fixtures'
@@ -107,9 +108,9 @@ def generated():
         serving = json.loads(serving_path.read_text())
         serving_key = key
         assert serving['public_key'] == serving_key.public
-        identity = serving['read']['identity']
-        identity['query']['definition'] = definition
-        identity['signature'] = serving_key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(identity['query'])).digest())
+        read = serving['read']['read']
+        encoded = b'SV1r' + struct.pack('<QQQQBQ', read['realm'], read['principal'], read['service'], read['ingress'], {'discovery': 1, 'status': 2, 'result': 3, 'disposition': 4}[read['kind']], read['operation'])
+        serving['read'] = dict(read=read, proof=subject_proof(serving_key, read['principal'], read['ingress'], hashlib.sha256(b'transit.serving.read.v1\0' + encoded).digest(), credential_epoch=1, realm=read['realm']))
         results[serving_path] = serving
     return results
 

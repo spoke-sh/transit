@@ -43,9 +43,13 @@ prove the application command or session control completed.
 ## Authorization and disclosure
 
 Commands preserve caller-signed native bytes. Scoped reads bind the requested
-service/operation to a native identity proof and current service policy. The
+service/operation to the original caller’s current credential epoch, selected
+role and ingress audience. The native authority authenticates that proof; the
+service also enforces its current application read policy. The
 gateway's configured public keys authenticate; they do not grant operation rights.
-Its own read credential cannot substitute for a caller's missing permission.
+Its private read credential acquires stored bytes; the original subject’s
+current privileges authorize disclosure. Restricted callers need no raw process
+inspection or backing-resource read grants.
 
 Reauthorize before each bounded protected disclosure, including status and
 retained receipts. Headers supplied by a client cannot create trusted provenance.

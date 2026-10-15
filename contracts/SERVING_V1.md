@@ -39,17 +39,28 @@ external origin. The behavior never trusts a principal copied into an applicatio
 payload or forwarding header. Service admission is the owning Station commit,
 after current service policy and revision checks.
 
-Bounded reads use a scope-bound Ed25519 authorization over the versioned read
-request, plus a native signed identity query from that same provisioned key.
-The adapter verifies both signatures and asks the authority to validate current
-identity. It then uses its separately scoped resource reader to apply the current
-service read policy and return only that principal's operation. The resource
-reader is a trusted service component; callers receive no raw resource grant.
-Service policy explicitly permits this result disclosure. Neither the native
-identity proof alone nor a bearer operation ID authorizes another read scope.
-Every disclosure rechecks current authority and service policy. Browser session
-bootstrap follows the separate [reactive contract](REACTIVE_V1.md); it does not
-create an alternate native signing mechanism.
+Bounded reads contain `read` and an authorization `proof`. The proof's mandatory
+current definition, realm, principal, credential epoch, selected role and ingress
+audience bind the complete read digest. The adapter verifies the signature and
+asks native authority to authenticate that original subject through its private
+ingress inspection credential. An old epoch, ineligible role, foreign audience or
+changed read fails before disclosure. The former read signature plus signed
+native identity-query envelope is rejected.
+
+The adapter applies current service read policy and returns only that principal's
+operation. Its resource reader is a trusted service component; callers need no
+raw process-inspection or resource-read grant. Service policy explicitly permits
+this result disclosure. Table observations additionally require current database
+CONNECT, schema USAGE and Table SELECT for the original subject. The complete
+requirement set is checked again after copying protected bytes. A signature,
+cursor or bearer operation ID supplies no cached access decision.
+
+The private reactive host's `observe` accepts the exact saved `SignedSend`. It
+uses the caller's current credential to recover the original native receipt,
+then observes processing through the private reader under current service policy.
+It never infers acceptance from an arbitrary supplied input position or signs a
+replacement command. Browser attachment bootstrap follows the separate
+[reactive contract](REACTIVE_V1.md).
 
 The application trusts only the configured ingress PID's authority-derived
 process origin. The forwarded invocation includes original caller, service,

@@ -20,10 +20,9 @@ pub const Namespace = struct {
         try out.write(.{ .type = "string", .pattern = "^(0|[1-9][0-9]*)$", .maxLength = 20, .@"x-transit-encoding" = "unsigned-decimal-u64" });
     }
 };
-/// Scoped read proofs are rechecked with the native authority before each new
-/// evaluation. They are not credentials granting general delegation. The source
-/// and requester resource identities come from the frozen accepted declaration.
-pub const Proof = struct { identity: [64]u8, source: [64]u8, requester: [64]u8 };
+/// Native admission freezes the original principal, selected role and credential
+/// epoch. The stored reference is rechecked before every scheduler continuation.
+pub const Proof = @FieldType(p.Authorization.Subject, "accepted");
 pub const Selection = struct { session: r.SessionIdentity, generation: u64 };
 pub const Follow = struct { session: r.SessionIdentity, expected: u64, template: Namespace, limit: u8 };
 pub const Acknowledged = struct { selection: Selection, namespace: Namespace };
@@ -34,7 +33,7 @@ pub const Input = union(enum(u8)) {
     pause: Selection = 3,
 };
 pub const Command = union(enum(u8)) {
-    follow: struct { view: Follow, proof: Proof } = 0,
+    follow: struct { view: Follow } = 0,
     invalidate: Selection = 1,
     acknowledged: Acknowledged = 2,
     pause: Selection = 3,
@@ -76,10 +75,10 @@ pub const wake = p.Value.init("SV1w") catch unreachable;
 test "refresh records and full-width namespaces preserve existing frame bounds" {
     const t = std.testing;
     const scope: r.SessionIdentity = .{ .session = 3, .generation = 4 };
-    const command: Command = .{ .follow = .{ .view = .{ .session = scope, .expected = 0, .template = .{ .value = std.math.maxInt(u64) }, .limit = max_starts }, .proof = .{ .identity = @splat(1), .source = @splat(2), .requester = @splat(3) } } };
+    const command: Command = .{ .follow = .{ .view = .{ .session = scope, .expected = 0, .template = .{ .value = std.math.maxInt(u64) }, .limit = max_starts } } };
     const bytes = try (root.Model.Command{ .refresh = command }).encode();
     try t.expect(bytes.len <= root.station.Frame.max_payload);
-    try t.expectEqual(@as(u16, 231), bytes.len);
+    try t.expectEqual(@as(u16, 39), bytes.len);
     try t.expectEqualDeep(command, (try root.Model.Command.decode(bytes)).refresh);
     const view: View = .{ .principal = 65536, .session = scope, .generation = 9, .source = .{ .revision = 1, .target = 8, .resource = 9, .realm = 1, .catalog = .{ .value = 9 }, .object = .{ .value = 100 }, .metadata_revision = .{ .value = 1 }, .metadata_length = 200, .metadata_digest = @splat(5) }, .template = command.follow.view.template, .namespace = .{ .value = 1 << 63 }, .dirty = 11, .covered = 10, .limit = max_starts };
     const stored = try root.Codec.encode('G', view);

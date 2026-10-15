@@ -196,13 +196,13 @@ test "retained operations grow while admission performs bounded point reads" {
 test "scope signatures cannot reuse identity proof for another service or principal" {
     const pair = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const read: m.Read = .{ .realm = 1, .principal = 65536, .service = 9, .ingress = 2, .kind = .status, .operation = 1 };
-    const signed = try m.SignedRead.sign(read, pair);
+    const signed = try m.SignedRead.sign(read, pair, 1, null);
     try signed.verify(pair.public_key.toBytes());
     var forged = signed;
     forged.read.operation = 2;
-    try t.expectError(error.SignatureVerificationFailed, forged.verify(pair.public_key.toBytes()));
+    try t.expectError(error.ServingDenied, forged.verify(pair.public_key.toBytes()));
     forged = signed;
-    forged.identity.query.principal = 65537;
+    forged.proof.claim.principal = 65537;
     try t.expectError(error.ServingDenied, forged.verify(pair.public_key.toBytes()));
     const other = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
     try t.expectError(error.SignatureVerificationFailed, signed.verify(other.public_key.toBytes()));
@@ -591,4 +591,27 @@ test "oversized authenticated replies retain the original measurement through ex
 fn diagnosticNumber(detail: p.Diagnostic, field: p.Diagnostic.Field) u64 {
     for (detail.facts) |slot| if (slot) |fact| if (fact.field == field) return fact.value.?.unsigned.value() catch unreachable;
     unreachable;
+}
+
+test "serving read proof binds the selected role and epoch and requires the current definition" {
+    const pair = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const read: m.Read = .{ .realm = 1, .principal = 65536, .service = 9, .ingress = 2, .kind = .status, .operation = 1 };
+    const signed = try m.SignedRead.sign(read, pair, 11, 7);
+    inline for (.{ "role", "credential_epoch" }) |field| {
+        var forged = signed;
+        @field(forged.proof.claim, field) = 12;
+        try t.expectError(error.SignatureVerificationFailed, forged.verify(pair.public_key.toBytes()));
+    }
+    var foreign = signed;
+    foreign.read.ingress += 1;
+    try t.expectError(error.ServingDenied, foreign.verify(pair.public_key.toBytes()));
+    const encoded = try p.Json.valueAlloc(t.allocator, signed);
+    defer t.allocator.free(encoded);
+    var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+    defer tree.deinit();
+    const claim = tree.value.object.getPtr("proof").?.object.getPtr("claim").?;
+    try t.expect(claim.object.swapRemove("definition"));
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, tree.value, .{});
+    defer t.allocator.free(bytes);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(m.SignedRead, t.allocator, bytes));
 }
