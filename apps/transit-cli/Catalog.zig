@@ -155,7 +155,7 @@ fn mediatedQuery(init: std.process.Init, client: *c.TableClient, service: *c.sta
     var attempts: u8 = 0;
     const response = while (true) {
         const result = mediated.call(.{ .query = request }) catch |err| {
-            const stale = (err == error.Rejected or err == error.Conflict) and (service.last_rejection == .StaleStateResource or service.last_rejection == .QueryExpired);
+            const stale = (err == error.Rejected or err == error.Conflict) and (service.last_rejection == .StaleStateResource or service.last_rejection == .QueryExpired or service.last_rejection == .StaleAuthorizationRevision);
             if (stale and attempts < 8 and std.Io.Clock.boot.now(init.io).toMilliseconds() < deadline) {
                 attempts += 1;
                 continue;
@@ -184,9 +184,11 @@ fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, clien
                 client.transport.last_rejection = rejection;
             };
             // Restart only locally unsubmitted reads whose dependent metadata
-            // cut expired. Never retry sends, denial or an incompatible cursor,
+            // or policy cut changed. Recheck current authorization on each
+            // attempt. Never retry sends, denial or an incompatible cursor,
             // and never change the saved intent while the owner advances it.
-            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired;
+            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired or
+                (service != null and client.transport.last_rejection == .StaleAuthorizationRevision);
             if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or !stale or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
             attempts += 1;
             _ = arena.reset(.free_all);

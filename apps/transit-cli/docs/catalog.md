@@ -3,8 +3,10 @@
 `transit catalog` uses the shared general Table caller for SQL or typed intent,
 private saved steps, exact submission and outcome inspection. Provision the
 [catalog host](../../transit-query-host/README.md), resource, caller grants and
-worker ownership explicitly. CREATE, ALTER, DROP and typed DML share this owner;
-inspect, create, read, insert, update, delete, alter and drop remain separate rights.
+worker ownership explicitly. CREATE, ALTER, DROP and typed DML share this owner.
+Database CONNECT, schema USAGE/CREATE and Table SELECT/INSERT/UPDATE/DELETE use
+native grants. ALTER and DROP require logical object ownership; owning the worker
+PID does not supply those privileges.
 
 ## Connection and local preparation
 

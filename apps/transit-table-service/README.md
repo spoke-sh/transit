@@ -70,6 +70,13 @@ Recovery verifies the complete retained send against its native receipt before
 reporting processing. A supplied position alone cannot establish admission or
 completion, even when the mailbox has already advanced beyond it.
 
+The CLI and neutral catalog caller retry an unsubmitted read or preparation
+when a dependent resource or authorization revision changes. They make at most
+eight retries within the configured caller timeout, release each failed read's
+workspace and repeat current authorization. The saved intent and any explicit
+policy precondition remain unchanged. Denial, incompatible cursors, submission
+and uncertain mutation outcomes do not enter this retry loop.
+
 Default limits per request are 1 MiB input, 1 MiB output, 32 MiB resident
 workspace, 1,024 result rows and 4,096 native scan reads. HTTP defaults admit two
 data requests concurrently, four connections and one control slot, with a

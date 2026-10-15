@@ -122,8 +122,9 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     return .ok;
 }
 fn apply(client: *Impl, arena: *std.heap.ArenaAllocator, action: bridge.Action, location: *catalog.fuze.Sql.Location) !bridge.Result {
-    // Current resource cuts can advance between dependent metadata reads. Only
-    // restart locally unsubmitted work after that exact authority rejection.
+    // Resource and policy revisions can advance between dependent metadata
+    // reads (including object registration). Restart locally unsubmitted work
+    // after those exact conflicts, repeating authorization for the same intent.
     // A submit, uncertain send, cursor conflict or authorization failure is
     // never included in this loop. Each failed read releases its workspace.
     const io = client.threaded.io();
@@ -136,7 +137,8 @@ fn apply(client: *Impl, arena: *std.heap.ArenaAllocator, action: bridge.Action, 
             if (client.service) |service| if (service.last_rejection) |rejection| {
                 client.transport.last_rejection = rejection;
             };
-            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired;
+            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired or
+                (client.service != null and client.transport.last_rejection == .StaleAuthorizationRevision);
             if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or !stale or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
             attempts += 1;
             _ = arena.reset(.free_all);

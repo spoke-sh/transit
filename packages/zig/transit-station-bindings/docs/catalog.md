@@ -28,11 +28,13 @@ Initialization and dependency provisioning require the direct operator profile.
 
 Creating a handle performs no network request, provisioning, grant change,
 activation or catalog initialization. `capabilities` and loading saved intent are
-local. CREATE compilation is local; other SQL compilation and typed preparation
-resolve current authorized metadata. No preparation submits a command. The owning
+local. Direct CREATE compilation is local; mediated compilation uses the Table
+service. Other SQL compilation and typed preparation resolve current authorized
+metadata. No preparation submits a command. The owning
 catalog independently checks current authorization and conditional state when
-applying each input. Inspect, create, read, insert, update, delete, alter and drop
-rights remain independent.
+applying each input. Database CONNECT, schema USAGE/CREATE and Table
+SELECT/INSERT/UPDATE/DELETE are native privileges. ALTER and DROP require logical
+object ownership, independently of the catalog worker's PID ownership.
 
 ## Owned calls and exact recovery
 
@@ -64,12 +66,15 @@ Table outcome and upload independently. `progress`/`wait_progress` combine
 observation with the exact intent and signed input. `input_disposition` describes
 control application or input rejection; it is not a row-mutation result. Null
 outcome or disposition is absence, not success. Applied DML exposes recorded
-matched and changed counts. Current inspection rights gate retained outcomes. Reads and local preparation may
-restart after the exact native `StaleStateResource` rejection, within eight
-restarts and the configured deadline. Each restart releases its workspace; cursor
+matched and changed counts. Current inspection rights gate retained outcomes.
+Reads and local preparation may restart after `StaleStateResource` or
+`QueryExpired`; the mediated profile also retries `StaleAuthorizationRevision`
+when a policy change invalidates a dependent read. At most eight retries occur
+within the configured deadline. Each attempt releases its workspace and checks
+current authorization for the same saved intent and policy preconditions. Cursor
 conflicts, denials and submits are not retried.
 
-`prepare_resume`, `prepare_control`, `prepare_initialize`, `prepare_policy` and
+`prepare_resume`, `prepare_control`, `prepare_initialize` and
 `prepare_dependency` return signed commands without sending them. Operation
 cancellation, upload cancellation and cleanup are distinct controls. Closed
 uploads do not imply cancelled Table operations; cleanup does not erase accepted
