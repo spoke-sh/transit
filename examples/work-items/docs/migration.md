@@ -49,15 +49,21 @@ Commands use ordinary signed Station casts with an application-specific `WI1i`
 payload. Field encoding follows the shared fixed application codec: little-endian
 integers, explicitly numbered union tags, one-byte booleans and bounded Values.
 Tags are initialize=0, policy=1, put=2, begin=3, step=4, abandon=5,
-release_writes=6, catalog_initialize=7, prepare_table=8 and read_policy=9.
-`prepare_table` carries a u32 object ID. `read_policy` carries principal, expected
-revision and next revision as u64, followed by an allow bool, and grants only
-catalog inspect/read. Migration, catalog and native permissions remain distinct.
+release_writes=6, catalog_initialize=7 and prepare_table=8.
+`catalog_initialize` carries the six u64 IDs in `TableAuthority.Profile`;
+native authority validates their stable bindings before initialization.
+`prepare_table` carries a u32 object ID. Native roles and object privileges govern
+Table access. The application migration policy independently controls which
+caller may advance a migration; it does not grant Table access.
 
 Accepted puts retain their original native input, principal and chosen Table in
 paged state. A later turn freezes insert/update identity before staging. The
 Table receipt and removal of that queued work commit together. Only authenticated
-owner self-messages continue DDL, queued puts or admitted migration steps. A
+owner self-messages continue DDL, queued puts or admitted migration steps.
+Continuations bind the original accepted input and caller. Queued puts require
+current SELECT and INSERT or UPDATE; migration reads and target INSERT require
+current grants, including the final native publication guard. Revocation retains
+pending work and cannot turn the worker's own identity into caller authority. A
 revoked migration policy stops continuation while preserving the pending step;
 restored policy permits an explicit exact step to resume it. Abandonment retains
 unpublished staging for separate cleanup. Native input consumption alone is not

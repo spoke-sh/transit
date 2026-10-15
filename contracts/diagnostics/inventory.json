@@ -5970,7 +5970,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 93,
+        "try": 94,
         "catch": 18
       },
       "imports": [
@@ -11578,7 +11578,7 @@
           "deadline"
         ],
         "Definition": [
-          "dbabceb7ec736d0ab8c2874fb404249f45eea6ad9666a183a7e0a4125f6c4986"
+          "d70f7dc070a57a2da55ff74f938297ae6c48404d2b648aa3fdd7b214c481939b"
         ],
         "Effect.phase": [
           "pending",
@@ -13638,6 +13638,7 @@
       "error_sets": {},
       "error_returns": {
         "Current.read()": "<inferred>",
+        "Options.selection()": "<inferred>",
         "Reader.read()": "<inferred>",
         "add()": "<inferred>",
         "authorize()": "<inferred>",
@@ -13649,7 +13650,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 45,
         "catch": 1
       },
       "imports": [
@@ -13688,6 +13689,8 @@
       "error_sets": {},
       "error_returns": {
         "Current.read()": "<inferred>",
+        "Options.selection()": "<inferred>",
+        "Position.nextOptions()": "<inferred>",
         "Position.validate()": "<inferred>",
         "Reader.read()": "<inferred>",
         "add()": "<inferred>",
@@ -13703,7 +13706,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 58,
+        "try": 63,
         "catch": 3
       },
       "imports": [
@@ -13796,7 +13799,7 @@
         "InvalidQueryBudget": 1,
         "InvalidRelationalName": 1,
         "InvalidRelationalSourceRow": 2,
-        "InvalidRelationalSources": 4,
+        "InvalidRelationalSources": 5,
         "InvalidResourceRead": 1,
         "QueryClosed": 3,
         "QueryPageBudget": 3,
@@ -13823,11 +13826,38 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 18,
+        "try": 20,
         "catch": 2
       },
       "imports": [
         "TableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/ResultDisclosure.zig": {
+      "errors": {
+        "QueryDenied": 2
+      },
+      "outcomes": {
+        "Selection": [
+          "unified",
+          "relational",
+          "maintained"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "context()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -14135,7 +14165,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -14237,7 +14267,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 40,
         "catch": 3
       },
       "imports": [
@@ -14574,7 +14604,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 70,
+        "try": 71,
         "catch": 4
       },
       "imports": [
@@ -14703,23 +14733,25 @@
         "InvalidResultDigest": 1,
         "InvalidResultSegment": 1,
         "MissingResultSegment": 1,
-        "QueryDenied": 3,
+        "QueryDenied": 5,
         "QueryIdentityMismatch": 2,
         "ResultUnavailable": 3
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Expected.authorize()": "<inferred>",
         "Open.outputSchema()": "<inferred>",
         "checkReference()": "<inferred>",
         "completeCoverage()": "<inferred>",
         "live()": "<inferred>",
         "open()": "<inferred>",
+        "openAt()": "<inferred>",
         "page()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 40,
         "catch": 0
       },
       "imports": [
@@ -15039,6 +15071,7 @@
         "RelationalSpill.zig",
         "RelationalState.zig",
         "RelationalTables.zig",
+        "ResultDisclosure.zig",
         "RuntimeWitness.zig",
         "SourceDefinition.zig",
         "SourceWitness.zig",
@@ -15149,6 +15182,7 @@
         "Socket.run()": "<inferred>",
         "Socket.send()": "<inferred>",
         "Socket.write()": "anyerror",
+        "Socket.writeMessage()": "anyerror",
         "Task.attach()": "<inferred>",
         "Task.check()": "<inferred>",
         "Task.read()": "<inferred>",
@@ -15169,9 +15203,9 @@
         "websocketRun()": "<inferred>",
         "websocketSession()": "<inferred>"
       },
-      "open_error_set_uses": 11,
+      "open_error_set_uses": 12,
       "propagation": {
-        "try": 102,
+        "try": 103,
         "catch": 19
       },
       "imports": [
@@ -15617,17 +15651,17 @@
     },
     "packages/zig/transit-serving/src/ReactiveClient.zig": {
       "errors": {
-        "Conflict": 2,
+        "Conflict": 1,
         "InvalidServingCommand": 3,
         "InvalidServingReceipt": 1,
         "ReactiveAdapterRequired": 1,
         "ReactiveGenerationConflict": 2,
         "RefreshGenerationConflict": 2,
         "RefreshNotFound": 2,
-        "Rejected": 2,
-        "ResourceUnavailable": 3,
+        "Rejected": 1,
+        "ResourceUnavailable": 2,
         "ServiceReadConflict": 5,
-        "ServingDenied": 10
+        "ServingDenied": 7
       },
       "outcomes": {
         "Command": [
@@ -15675,7 +15709,6 @@
         "observedClock()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareAt()": "<inferred>",
-        "query()": "<inferred>",
         "refreshPrepare()": "<inferred>",
         "refreshStatus()": "<inferred>",
         "refreshStatusOnce()": "<inferred>",
@@ -15685,8 +15718,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 52,
-        "catch": 2
+        "try": 50,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -15804,6 +15837,7 @@
     "packages/zig/transit-serving/src/ReactiveWire.zig": {
       "errors": {
         "AccessDenied": 1,
+        "CatalogDenied": 1,
         "DuplicateField": 1,
         "InvalidEnumTag": 1,
         "InvalidJsonConstant": 1,
@@ -15825,6 +15859,7 @@
         "ServingCallerCapacity": 1,
         "ServingDenied": 1,
         "SignatureVerificationFailed": 1,
+        "StaleAuthorizationCredential": 1,
         "SyntaxError": 1,
         "UnexpectedToken": 1,
         "UnknownField": 1,
@@ -15924,7 +15959,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 91,
+        "try": 92,
         "catch": 3
       },
       "imports": [

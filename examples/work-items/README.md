@@ -21,6 +21,10 @@ IDs). Credentials and grants must already exist. A restarted worker requires a
 fresh native ownership generation; local activation markers never supply rights.
 `owner` must match the worker PID. `--bootstrap-json` uses the public fresh-key
 runtime handshake.
+The catalog's authorization profile arrives through an explicit administrator
+initialization command and remains in retained catalog state. The
+[local workflow](docs/local.md) provisions its native objects through public,
+recoverable authorization changes. Startup never recreates grants.
 Worker diagnostics exclude data and keys. Current read failures leave the input
 unresolved; malformed/denied commands have retained dispositions.
 The initial ownership read retries temporary unavailability within

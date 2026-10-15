@@ -169,6 +169,30 @@ SELECT privilege. The first ReleaseSafe disk run exposed that missing check;
 its rerun and maintained-query qualification remain separate from these unit
 results.
 
+The [application authorization report](verification/results/authorization-work-items-2026-10-14.json)
+records `just test::server-applications` passing in **937.687 s** on dirty
+`ea0a1ec6`, under definition `d70f7dc0…`. Explicit operator provisioning persists
+14 authorization changes before submission and verifies exact repeat recovery.
+Catalog initialization retains its native profile; application restarts do not
+regrant Table permissions. The installed workflow passes worker replacement,
+worker loss, installation restart and all **19 row migration steps**, with
+**21 receipts** and installation generation **9**. Sampled manager RSS peaks at
+**45,662,208 bytes** and checkpoints at **3,038 bytes** in this schedule. The
+report retains the five executable hashes. The root unit/build check passes
+**142/142 steps**; its latest run executes **11 tests**, with other steps cached.
+The added regression leaves registration-blocked input unresolved for the host
+handshake, instead of committing an application failure.
+
+The [native Table report](verification/results/authorization-native-tables-2026-10-14.json)
+records `just test::typed-tables --cold` passing in **698.059 s** on the same
+source/definition. It covers lost send/turn replies, exact CLI recovery, all
+**28 logical descriptors**, prepared parameters, held-snapshot renewal,
+current SELECT denial, retained history and captured relational results across
+checkpoint restart. Buffered vector results and noncontributing join sources
+remain authorization-bound. Cancellation accepts either durable cancellation
+or a write already committed before cancellation. Installed SDKs, maintained
+relations, physical exchange and SQL wire gateways are not exercised by this run.
+
 The TypeScript catalog migration passes `just bindings::node-check` on dirty
 `48b25956`: formatting, lint, both package type checks, four client-port tests
 and **67/67 Station tests**. Public catalog values now carry native bindings,

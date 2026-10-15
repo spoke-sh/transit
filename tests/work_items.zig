@@ -9,7 +9,9 @@ const Realm = 51;
 const Operator = 65537;
 const Worker = 65536;
 const Admin = @import("growing_support.zig").Admin(Realm);
-pub const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
+const c = W.query.catalog;
+const authorization = @import("table_authorization_support.zig");
+pub const Saved = struct { authority: ?c.TableAuthority.Profile = null, pid: u64, resource: u64, generation: u64, activation: u8 = 8, denied_input: u64 = 0, cursor_input: u64 = 0, ordinal_input: u64 = 0 };
 pub fn owner(allocator: std.mem.Allocator, saved: Saved) W {
     return .{ .allocator = allocator, .configuration = .{ .owner = saved.pid, .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
 }
@@ -34,6 +36,10 @@ pub const Caller = struct {
     }
     pub fn read(self: *@This()) !s.client.ResourceReader.Reader {
         return self.resources().open(self.saved.resource);
+    }
+    pub fn authorized(self: *@This(), source: *s.client.ResourceReader.Reader) !c.TableAuthority.Source(*s.client.ResourceReader.Reader) {
+        var client: c.TableClient = .{ .transport = self.wire, .connection = .{ .scope = .{ .realm = Realm, .resource = self.saved.resource, .catalog = 1 }, .owner = self.saved.pid, .principal = Operator }, .key = self.key };
+        return (try client.authorizationContext()).wrap(source);
     }
     pub fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
         const start = std.Io.Clock.awake.now(self.wire.http.io);
@@ -71,7 +77,8 @@ pub const Caller = struct {
         if (reason == null) {
             const started = std.Io.Clock.awake.now(io);
             while (true) {
-                var reader = try self.read();
+                var source = try self.read();
+                var reader = try self.authorized(&source);
                 const done = owner(self.wire.http.allocator, self.saved).completed(&reader, command, input) catch |err| value: {
                     if (!self.observationChanged(err)) return err;
                     break :value false;
@@ -138,7 +145,8 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, phase, "setup")) {
         const created = try admin.provision(Worker, try p.Ed25519.KeyPair.generateDeterministic(@splat(8)));
         saved = .{ .pid = created.pid, .resource = created.resource, .generation = created.generation };
-        _ = try admin.submit(.{ .grant = .{ .subject = Operator, .public_key = operator_key.public_key.toBytes(), .permissions = p.permission(.send) | p.permission(.inspect), .pid = saved.pid } });
+        const owner_role = try authorization.login(c, &admin, "work-items-owner", Operator, operator_key, saved.pid);
+        saved.authority = try authorization.profile(c, &admin, .{ .realm = Realm, .resource = saved.resource, .catalog = 1 }, Worker, owner_role);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         const courier_seed: [32]u8 = @splat(10);
         const courier_key = try p.Ed25519.KeyPair.generateDeterministic(courier_seed);
@@ -173,7 +181,7 @@ pub fn main(init: std.process.Init) !void {
     const ledger = try owner(init.gpa, saved).ledger();
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
-        _ = try caller.send(init.io, .catalog_initialize, null);
+        _ = try caller.send(init.io, .{ .catalog_initialize = saved.authority orelse return error.MissingProofAuthority }, null);
         for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);

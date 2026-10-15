@@ -106,7 +106,9 @@ fn acquirePublished(self: *Self, allocator: std.mem.Allocator, wire: *client.Cli
 fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, current: bool, diagnostic: *?app.protocol.Diagnostic) !q.Workspace.Config {
     const owner: W = .{ .allocator = allocator, .configuration = self.config.data };
     const resources: client.ResourceReader = .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.query.connection.principal, .key = self.query_key };
-    var reader = try resources.open(self.config.data.resource);
+    var source = try resources.open(self.config.data.resource);
+    var tables: q.catalog.TableClient = .{ .transport = wire, .connection = .{ .scope = .{ .realm = self.config.data.realm, .resource = self.config.data.resource, .catalog = 1 }, .owner = self.config.data.owner, .principal = self.config.query.connection.principal, .role = self.config.query.connection.role }, .key = self.query_key };
+    var reader = (try tables.authorizationContext()).wrap(&source);
     const selected_table = if (current) try owner.selected(&reader) else 1;
     var table_source = try owner.source(&reader, self.config.query.connection.principal, selected_table);
     defer table_source.deinit();

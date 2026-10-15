@@ -162,6 +162,35 @@ def run(cli, node, host, worker, operator):
         assert yaml_connection.read_text().startswith('version: 1\n')
         exported = {key: json.loads(value) for key, value in (line.split(': ', 1) for line in yaml_connection.read_text().splitlines())}
         assert exported == json.loads(connections['inspector'].read_text())
+        # Real application provisioning uses the installed operator and public
+        # native authorization lifecycle. Worker replacement never replays it.
+        capabilities = json.loads(subprocess.check_output([cli, 'auth', 'capabilities'], text=True))
+        caller = json.loads(connections['operator'].read_text())
+        administrator = fixture.root / 'authorization-admin.json'
+        administrator.write_text(json.dumps(dict(version=1, url=caller['url'],
+            connection=dict(definition=capabilities['capabilities']['definition'], realm=caller['realm'], principal=0),
+            seed_file=str(fixture.installation / 'root.seed'), request_timeout_ms=10000)))
+        administrator.chmod(0o600)
+        recovery = fixture.root / 'authorization-recovery'
+        recovery.mkdir(mode=0o700)
+        profile = fixture.root / 'catalog-authority.json'
+        provisioning = [operator, 'provision-authority', str(administrator),
+            *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(profile)]
+        provisioning_deadline = time.monotonic() + 300
+        while True:
+            provisioned = subprocess.run(provisioning, capture_output=True, text=True,
+                timeout=max(1, provisioning_deadline-time.monotonic()), env={'PATH': '/unavailable'})
+            if provisioned.returncode == 0:
+                break
+            assert provisioned.stderr.strip() in ('error: AuthorityUnavailable', 'error: AuthorityTimeout',
+                'error: HttpConnectionClosing', 'error: ConnectionRefused'), provisioned
+            assert time.monotonic() < provisioning_deadline, provisioned
+            time.sleep(.1)
+        recorded = {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')}
+        repeated = subprocess.run(provisioning, capture_output=True, text=True, timeout=120, env={'PATH': '/unavailable'})
+        assert repeated.returncode == 0 and json.loads(repeated.stdout) == json.loads(provisioned.stdout), repeated
+        assert {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')} == recorded
+        domain(connections['operator'], 'initialize-catalog', 'catalog-initialize', profile)
         domain(connections['operator'], 'authorize', 'authorize')
         domain(connections['operator'], 'prepare-table', 'prepare-initial', 1)
         invalid = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')

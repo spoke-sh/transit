@@ -11,6 +11,7 @@ const Store = struct {
     position: u64 = 0,
     pages: usize = 0,
     fail_read: bool = false,
+    missing_table_binding: bool = false,
     fn deinit(self: *@This()) void {
         self.authority.deinit();
         self.entries.deinit();
@@ -46,6 +47,7 @@ const Store = struct {
     }
     fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Object {
         const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.missing_table_binding and domain == W.query.catalog.testing.Authority.profile.table_domain) return null;
         return W.query.catalog.testing.Authority.binding(&self.authority, domain, identity);
     }
     fn turn(self: *@This(), principal: u64) !s.Turn {
@@ -103,7 +105,7 @@ fn mutations(turn: s.Turn) usize {
     return count;
 }
 fn owner() W {
-    return .{ .allocator = t.allocator, .configuration = .{ .owner = 2, .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7, .authority = W.query.catalog.testing.Authority.profile } };
+    return .{ .allocator = t.allocator, .configuration = .{ .owner = 2, .application = 9, .realm = 49, .administrator = 33, .writer = 55, .resource = 7 } };
 }
 test "independent WI1 commands retain full-width keys plans ordinals and cursors" {
     const Fixture = struct { version: u8, put: p.Value, cursor: p.Value, step: p.Value };
@@ -125,8 +127,10 @@ test "independent WI1 commands retain full-width keys plans ordinals and cursors
     try t.expectError(error.InvalidWorkItemCommand, W.Command.decode(trailing));
 }
 fn setup(store: *Store, rows: usize) !void {
+    try store.authority.setRights(.{ .principal = 44, .create = false, .update = false, .delete = false, .alter = false, .drop = false });
+    try store.authority.setRights(.{ .principal = 55, .create = false, .delete = false, .alter = false, .drop = false });
     try t.expectEqual(2, try store.execute(33, .initialize));
-    _ = try store.execute(33, .catalog_initialize);
+    _ = try store.execute(33, .{ .catalog_initialize = W.query.catalog.testing.Authority.profile });
     for ([_]u32{ 1, 2, 3 }) |table| _ = try store.execute(33, .{ .prepare_table = table });
     _ = try store.execute(33, .{ .policy = .{ .principal = 44, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } });
     for (0..rows) |i| _ = try store.execute(55, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 20, .state = @intCast(i % 2) } });
@@ -341,19 +345,68 @@ test "catalog bootstrap requires its administrator and native grants govern read
     var store: Store = .{};
     defer store.deinit();
     try setup(&store, 0);
-    for ([_]W.Command{ .catalog_initialize, .{ .prepare_table = 4 } }) |command| {
+    for ([_]W.Command{ .{ .catalog_initialize = W.query.catalog.testing.Authority.profile }, .{ .prepare_table = 4 } }) |command| {
         var turn = try store.turn(44);
         try t.expectError(error.WorkItemDenied, owner().execute(&turn, command));
         try t.expectEqual(0, mutations(turn));
     }
     try store.authority.setRights(.{ .principal = 55, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
     var read = try store.turn(55);
-    _ = try owner().catalog().authorizeObject(&read, 55, 1, .read);
-    try t.expectError(error.CatalogDenied, owner().catalog().authorize(&read, 55, .create));
+    _ = try (try owner().catalog(&read)).authorizeObject(&read, 55, 1, .read);
+    try t.expectError(error.CatalogDenied, (try owner().catalog(&read)).authorize(&read, 55, .create));
     var declaration = try owner().source(&read, 55, 1);
     defer declaration.deinit();
     try t.expectEqual(1, declaration.definition.source.table.object);
     try store.authority.setRights(.{ .principal = 55, .inspect = false, .read = false });
     read = try store.turn(55);
     try t.expectError(error.CatalogDenied, owner().source(&read, 55, 1));
+}
+
+test "queued work-item writes retain original authority across revocation" {
+    var store: Store = .{};
+    defer store.deinit();
+    try setup(&store, 0);
+    var admitted = try store.turn(55);
+    try owner().execute(&admitted, .{ .put = .{ .epoch = .{ .value = 1 }, .id = 9, .state = 0 } });
+    try store.commit(&admitted);
+    const message = admitted.decision.outputs[0].?.value;
+    try store.authority.setRights(.{ .principal = 55, .insert = false, .update = false });
+    var denied = try store.turn(55);
+    denied.delivery.input.origin = .{ .process = .{ .pid = 2, .turn = admitted.delivery.input.position, .output = 0 } };
+    denied.delivery.input.value = message;
+    var behavior: W.Behavior = .{ .owner = owner() };
+    const handler = behavior.interface();
+    try t.expectError(error.CatalogDenied, handler.handle(handler.context, &denied, try s.Frame.decode(message)));
+    try t.expectEqual(0, mutations(denied));
+    try t.expect(try W.putPending(&denied, admitted.delivery.input.position));
+    try store.authority.setRights(.{ .principal = 55 });
+    var restored = try store.turn(55);
+    restored.delivery.input.origin = denied.delivery.input.origin;
+    restored.delivery.input.value = message;
+    try handler.handle(handler.context, &restored, try s.Frame.decode(message));
+    const original = restored.decision.authorization.?.subject.accepted;
+    try t.expectEqual(admitted.delivery.input.position, original.input);
+    try t.expectEqual(55, original.principal);
+    try t.expectEqual(2, original.pid);
+    try store.commit(&restored);
+    var current = try store.turn(55);
+    try t.expect(try W.putPending(&current, admitted.delivery.input.position));
+}
+
+test "pending native Table registration cannot commit a failed application input" {
+    var store: Store = .{};
+    defer store.deinit();
+    _ = try store.execute(33, .initialize);
+    _ = try store.execute(33, .{ .catalog_initialize = W.query.catalog.testing.Authority.profile });
+    store.missing_table_binding = true;
+    var turn = try store.turn(33);
+    const frame: s.Frame = .{ .kind = .cast, .payload = try W.Command.encode(.{ .prepare_table = 1 }) };
+    turn.delivery.input.value = try frame.encode();
+    var behavior: W.Behavior = .{ .owner = owner() };
+    const handler = behavior.interface();
+    try t.expectError(error.CatalogRegistrationRequired, handler.handle(handler.context, &turn, frame));
+    try t.expectEqual(error.CatalogRegistrationRequired, turn.read_error.?);
+    try t.expect(behavior.registration.? == .register_object);
+    try t.expectEqual(0, mutations(turn));
+    try t.expect(!turn.decision.failed);
 }
