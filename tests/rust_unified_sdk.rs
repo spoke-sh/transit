@@ -60,6 +60,7 @@ fn table_source(columns: Vec<c::Column>) -> transit_client::Result<q::Source> {
     Ok(q::Source::Table {
         owner: ProcessRef::new(1, 3)?,
         metadata: c::Metadata {
+            namespace: 1,
             scope: c::Scope::new(ResourceRef::new(1, 7)?, 9)?,
             object: 9,
             revision: 1,

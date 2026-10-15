@@ -172,13 +172,20 @@ impl Scope {
 pub struct Connection {
     owner: ProcessRef,
     scope: Scope,
+    role: Option<u64>,
+    namespace: u64,
 }
 impl Connection {
     pub fn new(owner: ProcessRef, scope: Scope) -> Result<Self> {
         if owner.realm() != scope.resource.realm() {
             return Err(invalid());
         }
-        Ok(Self { owner, scope })
+        Ok(Self {
+            owner,
+            scope,
+            role: None,
+            namespace: 1,
+        })
     }
     pub fn owner(&self) -> ProcessRef {
         self.owner
@@ -186,8 +193,23 @@ impl Connection {
     pub fn scope(&self) -> Scope {
         self.scope
     }
+    pub fn with_role(mut self, role: u64) -> Result<Self> {
+        self.role = Some(native(role, true)?);
+        Ok(self)
+    }
+    pub fn with_namespace(mut self, namespace: u64) -> Result<Self> {
+        self.namespace = native(namespace, false)?;
+        Ok(self)
+    }
+    pub fn role(&self) -> Option<u64> {
+        self.role
+    }
+    pub fn namespace(&self) -> u64 {
+        self.namespace
+    }
     pub(crate) fn wire(&self, principal: u64) -> Value {
-        json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"principal":principal})
+        json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"principal":principal,
+            "role":self.role,"namespace":self.namespace})
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -224,48 +246,15 @@ pub struct Configuration {
     pub owner: ProcessRef,
     pub administrator: u64,
     pub table_limits: TableLimits,
+    pub authority: AuthorityProfile,
+    pub database_name: String,
 }
 impl Configuration {
     fn wire(&self) -> Result<Value> {
         Connection::new(self.owner, self.scope)?;
+        text(name(&self.database_name)?, 63)?;
         Ok(
-            json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"administrator":native(self.administrator,false)?,"table_limits":self.table_limits.wire()?}),
-        )
-    }
-    fn parse(v: &Value) -> Result<Self> {
-        object(v, &["scope", "owner", "administrator", "table_limits"])?;
-        let scope = Scope::parse(&v["scope"])?;
-        Ok(Self {
-            scope,
-            owner: ProcessRef::new(scope.resource.realm(), n(&v["owner"], false)?)?,
-            administrator: n(&v["administrator"], false)?,
-            table_limits: TableLimits::parse(&v["table_limits"])?,
-        })
-    }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Rights {
-    pub inspect: bool,
-    pub create: bool,
-    pub read: bool,
-    pub insert: bool,
-    pub update: bool,
-    pub delete: bool,
-    pub alter: bool,
-    pub drop: bool,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Policy {
-    pub scope: Scope,
-    pub principal: u64,
-    pub revision: u64,
-    pub rights: Rights,
-}
-impl Policy {
-    fn wire(&self) -> Result<Value> {
-        let r = self.rights;
-        Ok(
-            json!({"scope":self.scope.wire(),"principal":native(self.principal,true)?,"revision":positive(self.revision)?.to_string(),"inspect":r.inspect,"create":r.create,"read":r.read,"insert":r.insert,"update":r.update,"delete":r.delete,"alter":r.alter,"drop":r.drop}),
+            json!({"scope":self.scope.wire(),"owner":self.owner.pid(),"administrator":native(self.administrator,true)?,"table_limits":self.table_limits.wire()?,"authority":self.authority.wire()?,"database_name":self.database_name}),
         )
     }
     fn parse(v: &Value) -> Result<Self> {
@@ -273,49 +262,122 @@ impl Policy {
             v,
             &[
                 "scope",
-                "principal",
-                "revision",
-                "inspect",
-                "create",
-                "read",
-                "insert",
-                "update",
-                "delete",
-                "alter",
-                "drop",
+                "owner",
+                "administrator",
+                "table_limits",
+                "authority",
+                "database_name",
             ],
         )?;
-        let b = |key| boolean(&v[key], "catalog-right");
+        let scope = Scope::parse(&v["scope"])?;
         Ok(Self {
-            scope: Scope::parse(&v["scope"])?,
-            principal: n(&v["principal"], true)?,
-            revision: w(&v["revision"], false)?,
-            rights: Rights {
-                inspect: b("inspect")?,
-                create: b("create")?,
-                read: b("read")?,
-                insert: b("insert")?,
-                update: b("update")?,
-                delete: b("delete")?,
-                alter: b("alter")?,
-                drop: b("drop")?,
-            },
+            scope,
+            owner: ProcessRef::new(scope.resource.realm(), n(&v["owner"], false)?)?,
+            administrator: n(&v["administrator"], true)?,
+            table_limits: TableLimits::parse(&v["table_limits"])?,
+            authority: AuthorityProfile::parse(&v["authority"])?,
+            database_name: text(name(string(&v["database_name"], "database name")?)?, 63)?.into(),
         })
     }
 }
+/// Opaque native identities allocated by explicit administrative provisioning.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PolicyChange {
-    pub expected_revision: u64,
-    pub policy: Policy,
+pub struct AuthorityProfile {
+    pub database_domain: u64,
+    pub schema_domain: u64,
+    pub table_domain: u64,
+    pub database: u64,
+    pub initial_schema: u64,
+    pub initial_schema_authority: u64,
 }
-impl PolicyChange {
+impl AuthorityProfile {
     fn wire(&self) -> Result<Value> {
-        if self.expected_revision.checked_add(1) != Some(self.policy.revision) {
+        for value in [
+            self.database_domain,
+            self.schema_domain,
+            self.table_domain,
+            self.database,
+            self.initial_schema,
+            self.initial_schema_authority,
+        ] {
+            native(value, false)?;
+        }
+        if self.database_domain == self.schema_domain
+            || self.database_domain == self.table_domain
+            || self.schema_domain == self.table_domain
+            || self.database == self.initial_schema_authority
+        {
             return Err(invalid());
         }
         Ok(
-            json!({"expected_revision":self.expected_revision.to_string(),"policy":self.policy.wire()?}),
+            json!({"database_domain":self.database_domain,"schema_domain":self.schema_domain,
+            "table_domain":self.table_domain,"database":self.database,"initial_schema":self.initial_schema,
+            "initial_schema_authority":self.initial_schema_authority}),
         )
+    }
+    fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "database_domain",
+                "schema_domain",
+                "table_domain",
+                "database",
+                "initial_schema",
+                "initial_schema_authority",
+            ],
+        )?;
+        let out = Self {
+            database_domain: n(&v["database_domain"], false)?,
+            schema_domain: n(&v["schema_domain"], false)?,
+            table_domain: n(&v["table_domain"], false)?,
+            database: n(&v["database"], false)?,
+            initial_schema: n(&v["initial_schema"], false)?,
+            initial_schema_authority: n(&v["initial_schema_authority"], false)?,
+        };
+        out.wire()?;
+        Ok(out)
+    }
+}
+/// An observed subject, not a capability that can authorize another request.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Subject {
+    pub principal: u64,
+    pub login_role: u64,
+    pub role: u64,
+    pub credential_epoch: u64,
+    pub audience: u64,
+    pub context: [u8; 32],
+}
+impl Subject {
+    fn parse(v: &Value) -> Result<Self> {
+        object(
+            v,
+            &[
+                "principal",
+                "login_role",
+                "role",
+                "credential_epoch",
+                "audience",
+                "context",
+            ],
+        )?;
+        let data = v["context"]
+            .as_array()
+            .filter(|v| v.len() == 32)
+            .ok_or_else(malformed)?;
+        let mut context = [0u8; 32];
+        for (target, byte) in context.iter_mut().zip(data) {
+            *target = n(byte, true)?.try_into().map_err(|_| malformed())?;
+        }
+        Ok(Self {
+            principal: n(&v["principal"], true)?,
+            login_role: n(&v["login_role"], true)?,
+            role: n(&v["role"], true)?,
+            credential_epoch: n(&v["credential_epoch"], false)?,
+            audience: n(&v["audience"], false)?,
+            context,
+        })
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -495,7 +557,7 @@ pub struct MetadataCommitment {
 }
 impl MetadataCommitment {
     pub(crate) fn wire(&self) -> Result<Value> {
-        if !(1..=436).contains(&self.bytes) {
+        if !(1..=444).contains(&self.bytes) {
             return Err(invalid());
         }
         Ok(json!({"format":0x54434d01u32,"length":self.bytes,"digest":self.digest}))
@@ -523,6 +585,7 @@ impl MetadataCommitment {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Metadata {
+    pub namespace: u64,
     pub scope: Scope,
     pub object: u64,
     pub revision: u64,
@@ -545,6 +608,7 @@ impl Metadata {
         object(
             v,
             &[
+                "namespace",
                 "scope",
                 "object",
                 "revision",
@@ -557,6 +621,7 @@ impl Metadata {
             ],
         )?;
         Ok(Self {
+            namespace: n(&v["namespace"], false)?,
             scope: Scope::parse(&v["scope"])?,
             object: w(&v["object"], false)?,
             revision: w(&v["revision"], false)?,
@@ -592,6 +657,7 @@ pub struct Entry {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Definition {
+    pub authorization: u64,
     pub metadata: Metadata,
     pub head: Head,
     pub schema: Schema,
@@ -601,15 +667,22 @@ pub struct HistoricalDefinition {
     pub metadata: Metadata,
     pub schema: Schema,
 }
-fn resolved(v: &Value, scope: Scope, requested: &str) -> Result<Option<Definition>> {
+fn resolved(
+    v: &Value,
+    scope: Scope,
+    namespace: u64,
+    requested: &str,
+) -> Result<Option<Definition>> {
     optional(v, |v| {
-        object(v, &["metadata", "head", "schema"])?;
+        object(v, &["metadata", "head", "schema", "authorization"])?;
         let out = Definition {
+            authorization: n(&v["authorization"], false)?,
             metadata: Metadata::parse(&v["metadata"])?,
             head: Head::parse(&v["head"])?,
             schema: Schema::parse(&v["schema"])?,
         };
         if out.metadata.scope != scope
+            || out.metadata.namespace != namespace
             || out.metadata.name != requested
             || out.metadata.object != out.schema.object
         {
@@ -1533,21 +1606,32 @@ impl Capabilities {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Description {
     pub configuration: Configuration,
-    pub policy: Policy,
+    pub subject: Subject,
+    pub authorization_revision: u64,
     pub resource_revision: u64,
 }
 impl Description {
     fn parse(v: &Value, connection: &Connection, principal: u64) -> Result<Self> {
-        object(v, &["configuration", "policy", "resource_revision"])?;
+        object(
+            v,
+            &[
+                "configuration",
+                "subject",
+                "authorization_revision",
+                "resource_revision",
+            ],
+        )?;
         let out = Self {
             configuration: Configuration::parse(&v["configuration"])?,
-            policy: Policy::parse(&v["policy"])?,
+            subject: Subject::parse(&v["subject"])?,
+            authorization_revision: n(&v["authorization_revision"], true)?,
             resource_revision: n(&v["resource_revision"], true)?,
         };
         if out.configuration.scope != connection.scope
             || out.configuration.owner != connection.owner
-            || out.policy.scope != connection.scope
-            || out.policy.principal != principal
+            || out.subject.principal != principal
+            || out.subject.audience != connection.owner.pid()
+            || connection.role.is_some_and(|role| role != out.subject.role)
         {
             return Err(malformed());
         }
@@ -1591,13 +1675,32 @@ impl Client {
         credential: Credential,
         connection: Connection,
     ) -> Result<Self> {
+        Self::open_profile(config, credential, connection, None)
+    }
+    /// Table-restricted reads through the configured trusted access service.
+    pub fn open_mediated(
+        config: ClientConfig,
+        credential: Credential,
+        connection: Connection,
+        service_url: String,
+    ) -> Result<Self> {
+        text(&service_url, 2048)?;
+        ClientConfig::growing(&service_url)?;
+        Self::open_profile(config, credential, connection, Some(service_url))
+    }
+    fn open_profile(
+        config: ClientConfig,
+        credential: Credential,
+        connection: Connection,
+        service_url: Option<String>,
+    ) -> Result<Self> {
         if credential.realm() != connection.scope.resource.realm() {
             return Err(invalid());
         }
         let principal = credential.principal();
         let saved = connection.clone();
         let worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
-            CatalogNative::open(&config, &credential, &saved)
+            CatalogNative::open(&config, &credential, &saved, service_url.as_deref())
         })?;
         Ok(Self {
             connection,
@@ -1636,8 +1739,9 @@ impl Client {
     }
     pub fn lookup(&mut self, name_: &str) -> Result<Option<Definition>> {
         let scope = self.connection.scope;
+        let namespace = self.connection.namespace;
         self.query(json!({"lookup":name(name_)?}), "definition", |v| {
-            resolved(v, scope, name_)
+            resolved(v, scope, namespace, name_)
         })
     }
     pub fn definition(&mut self, id: u64, revision: u64) -> Result<Option<HistoricalDefinition>> {
@@ -1649,8 +1753,17 @@ impl Client {
         if cursor.is_some_and(|c| c.scope != scope) {
             return Err(invalid());
         }
+        let namespace = self.connection.namespace;
         self.query(json!({"list":cursor.map(Cursor::wire)}), "page", |v| {
-            Page::parse(v, scope, cursor)
+            let page = Page::parse(v, scope, cursor)?;
+            if page
+                .entries
+                .iter()
+                .any(|entry| entry.metadata.namespace != namespace)
+            {
+                return Err(malformed());
+            }
+            Ok(page)
         })
     }
     pub fn compile_sql(
@@ -1712,13 +1825,6 @@ impl Client {
     pub fn prepare_initialize(&mut self, configuration: &Configuration) -> Result<Prepared> {
         self.query(
             json!({"prepare_initialize":configuration.wire()?}),
-            "prepared",
-            prepared,
-        )
-    }
-    pub fn prepare_policy(&mut self, change: &PolicyChange) -> Result<Prepared> {
-        self.query(
-            json!({"prepare_policy":change.wire()?}),
             "prepared",
             prepared,
         )
@@ -1818,7 +1924,7 @@ mod tests {
         Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap()
     }
     fn metadata() -> Value {
-        json!({"scope":scope().wire(),"object":u64::MAX.to_string(),"revision":"2","name":"東京","schema_fingerprint":"ab".repeat(32),"principal":17,"operation":"9","admitted_input":3,"commitment":{"format":0x54434d01u32,"length":200,"digest":vec![1;32]}})
+        json!({"namespace":1,"scope":scope().wire(),"object":u64::MAX.to_string(),"revision":"2","name":"東京","schema_fingerprint":"ab".repeat(32),"principal":17,"operation":"9","admitted_input":3,"commitment":{"format":0x54434d01u32,"length":200,"digest":vec![1;32]}})
     }
     fn schema() -> Schema {
         Schema {
@@ -1902,7 +2008,7 @@ mod tests {
                     bad["entries"][0]["metadata"]["commitment"]["format"] = json!(0);
                 }
                 12 => {
-                    bad["entries"][0]["metadata"]["commitment"]["length"] = json!(437);
+                    bad["entries"][0]["metadata"]["commitment"]["length"] = json!(445);
                 }
                 _ => {
                     bad["entries"][0]["metadata"]["commitment"]["digest"][0] = json!(256);
@@ -1940,6 +2046,48 @@ mod tests {
         assert!(historical(&history, scope(), u64::MAX, 2).is_err());
     }
     #[test]
+    fn descriptions_bind_current_subject_and_metadata_namespace() {
+        let connection = Connection::new(ProcessRef::new(46, 2).unwrap(), scope())
+            .unwrap()
+            .with_role(7)
+            .unwrap()
+            .with_namespace(1)
+            .unwrap();
+        let value = json!({"configuration":{"scope":scope().wire(),"owner":2,"administrator":0,
+            "authority":{"database_domain":10,"schema_domain":11,"table_domain":12,"database":20,
+                "initial_schema":1,"initial_schema_authority":21},"database_name":"ledger",
+            "table_limits":{"record_bytes":4096,"staging_bytes":"32768","staging_records":8}},
+            "subject":{"principal":9,"login_role":8,"role":7,"credential_epoch":1,"audience":2,"context":vec![1;32]},
+            "authorization_revision":2,"resource_revision":3});
+        let parsed = Description::parse(&value, &connection, 9).unwrap();
+        assert_eq!(parsed.subject.role, 7);
+        assert_eq!(parsed.configuration.authority.database, 20);
+        assert_eq!(parsed.authorization_revision, 2);
+        assert_eq!(connection.wire(9)["role"], 7);
+        for (field, invalid) in [
+            ("principal", 10),
+            ("role", 8),
+            ("audience", 3),
+            ("credential_epoch", 0),
+        ] {
+            let mut bad = value.clone();
+            bad["subject"][field] = json!(invalid);
+            assert!(Description::parse(&bad, &connection, 9).is_err(), "{field}");
+        }
+        let mut bad = value;
+        bad["subject"]["context"][0] = json!(256);
+        assert!(Description::parse(&bad, &connection, 9).is_err());
+        let current = json!({"authorization":30,"metadata":metadata(),"head":entry()["head"],"schema":schema().wire().unwrap()});
+        assert_eq!(
+            resolved(&current, scope(), 1, "東京")
+                .unwrap()
+                .unwrap()
+                .authorization,
+            30
+        );
+        assert!(resolved(&current, scope(), 2, "東京").is_err());
+    }
+    #[test]
     fn typed_requests_own_wide_nested_values_and_recovery() {
         let saved = SavedIntent::new(abi::ABI_DEFINITION.into(), vec![1, 2, 255]).unwrap();
         let cloned = saved.clone();
@@ -1949,31 +2097,24 @@ mod tests {
         assert!(SavedIntent::new("".into(), vec![1]).is_err());
         assert!(Prepared::from_data("x".repeat(8193)).is_err());
         assert!(Connection::new(ProcessRef::new(47, 1).unwrap(), scope()).is_err());
-        let right = Rights {
-            inspect: true,
-            create: false,
-            read: true,
-            insert: false,
-            update: true,
-            delete: false,
-            alter: true,
-            drop: false,
+        let authority = AuthorityProfile {
+            database_domain: 10,
+            schema_domain: 11,
+            table_domain: 12,
+            database: 20,
+            initial_schema: 1,
+            initial_schema_authority: 21,
         };
-        let p = Policy {
-            scope: scope(),
-            principal: 0,
-            revision: u64::MAX,
-            rights: right,
-        };
-        assert_eq!(Policy::parse(&p.wire().unwrap()).unwrap(), p);
-        assert!(
-            PolicyChange {
-                expected_revision: u64::MAX,
-                policy: p.clone()
-            }
-            .wire()
-            .is_err()
+        assert_eq!(
+            AuthorityProfile::parse(&authority.wire().unwrap()).unwrap(),
+            authority
         );
+        let mut bad = authority.clone();
+        bad.table_domain = bad.database_domain;
+        assert!(bad.wire().is_err());
+        bad = authority;
+        bad.initial_schema_authority = bad.database;
+        assert!(bad.wire().is_err());
         let data = Cell::Value(CellValue::Structure(vec![Cell::Value(CellValue::Atom(
             Atom::Decimal(i128::MAX),
         ))]));

@@ -177,6 +177,14 @@ policy API is absent. Boundary tests reject foreign callers, audiences, selected
 roles and schema namespaces, and preserve owned context bytes. This is Node
 adapter validation, not an installed Node or all-language authorization proof.
 
+The corresponding Rust catalog migration passes locked source `cargo test`
+in the bindings shell with `TRANSIT_LIBRARY_DIR` pointing to the local native
+artifact directory: **15/15 tests**, on dirty `ea0a1ec6`. It checks current subject
+and selected-schema rejection, explicit native bindings and the 444-byte metadata
+bound. The adapter exposes direct infrastructure reads and explicit mediated
+reads separately, through the same shared implementation. No installed Rust
+native workflow is claimed by this source-only run.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful
