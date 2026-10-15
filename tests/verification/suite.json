@@ -22,6 +22,7 @@
       "test::storage",
       "test::service",
       "test::authorization",
+      "test::authorization-cli",
       "test::authorization-tables",
       "test::runtime-upgrade",
       "test::callers",
@@ -88,6 +89,7 @@
       "bindings::dotnet-sdk-test",
       "bindings::beam-sdk-test",
       "bindings::sdk-interop",
+      "bindings::authorization",
       "test::model",
       "test::model-delivery",
       "test::sql-rewrites",
@@ -160,6 +162,7 @@
       "test::domain-simulation-mutations"
     ],
     "focused": [
+      "test::authorization-serving",
       "test::packages",
       "test::growing-service-release",
       "test::growing-station",

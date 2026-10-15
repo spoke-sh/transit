@@ -23,7 +23,7 @@ public final class JavaCatalogSdk {
     private static Catalog.Client connect(JsonObject config) {
         JsonObject c = config.getAsJsonObject("connection"), s = c.getAsJsonObject("scope"); long realm = s.get("realm").getAsLong();
         Connection connection = new Connection(new ProcessRef(realm, c.get("owner").getAsLong()), new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())), c.has("role") && !c.get("role").isJsonNull() ? Optional.of(c.get("role").getAsLong()) : Optional.empty(), c.has("namespace") ? c.get("namespace").getAsLong() : 1);
-        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? config.get("table_service_url").getAsString() : null);
+        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? 30000 : 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? config.get("table_service_url").getAsString() : null);
     }
     private static void persist(Path path, byte[] bytes) throws java.io.IOException {
         try (FileChannel file = FileChannel.open(path, Set.of(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE), PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
@@ -92,6 +92,14 @@ public final class JavaCatalogSdk {
             System.out.println("{\"ready\":true}"); var reader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8));
             for (String line; (line = reader.readLine()) != null;) {
                 JsonObject action = new Gson().fromJson(line, JsonObject.class); if (action.has("close")) break;
+                if (action.has("denied")) {
+                    try (Catalog.Client fresh = connect(config)) {
+                        boolean denied = false;
+                        try { await(fresh.describe()); } catch (TransitException e) { check(e.kind() == TransitException.Kind.ACCESS_DENIED); denied = true; }
+                        check(denied);
+                    }
+                    System.out.println("{\"status\":0,\"value\":{\"denied\":true}}"); continue;
+                }
                 JsonObject result = new JsonObject(); result.addProperty("status", 0); result.add("value", scenario(client, config, path.getParent(), action.getAsJsonObject("scenario").get("index").getAsInt())); System.out.println(result);
             }
         }

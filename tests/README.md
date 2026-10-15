@@ -267,6 +267,28 @@ parameter and captured-query restart checks also pass. This run uses the explici
 infrastructure-reader profile and the source/definition recorded in the report;
 restricted mediation remains a separate schedule.
 
+The subsequent [restricted SDK report](verification/results/authorization-restricted-sdks-2026-10-15.json)
+records all ten installed SDKs plus Python async passing in **683.248 s** on
+dirty `24f2ba92`, definition `67f02f8b…2a15e`. The caller selects a NOLOGIN data
+role through SET-only membership, has scoped native SEND and cannot read the
+backing resource. Each caller creates a Table, mutates nested typed values,
+changes its schema, deletes/drops, reuses the name and recovers the original
+saved outcome after handle replacement. Revoking database CONNECT then returns
+the SDK's access-denied category, not a generic failed transport. Per-caller
+schedules take **41.885–52.981 s**. The surrounding CLI/schema/defaults,
+credential rotation, two service restarts and authority/disk restart checks pass.
+
+The first attempts found a .NET test-consumer integer type mismatch and a
+policy-revision conflict while registering a replacement Table. The shared
+caller now retries only that mediated, unsubmitted read conflict within its
+existing bounded retry budget, repeating authorization without changing saved
+work or policy preconditions. The complete rerun passes with strict denial
+assertions in every language. Runtime executable and log hashes are in the
+report. This is the explicit loopback service profile, not optional SQL listener
+packaging. `just bindings::authorization` builds the packages and runs this
+schedule in the ordinary bindings lane; native CLI/ABI/host administration also
+runs in the ordinary core lane.
+
 The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation

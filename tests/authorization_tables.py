@@ -20,7 +20,7 @@ def canonical(value):
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, cli, host, service, transit, report=None, serving_example=None):
+def run(node, cli, host, service, transit, report=None, serving_example=None, languages=()):
     started = time.monotonic()
     with System(node, cli, clock_error_ms=10000, request_timeout_ms=30000) as system:
         definition = system.native_query({'capabilities': {}})['definition']
@@ -359,6 +359,35 @@ def run(node, cli, host, service, transit, report=None, serving_example=None):
                     mediated(mode, '--file', step, '--input', receipt['position'] + 1, ok=False)
             raise AssertionError('mediated write step budget')
 
+        installed = []
+        if languages:
+            from sdk_catalog import install
+            sdk_key, sdk_public = system.key('sdk-writer')
+            sdk_login = apply({'create_role': {'name': b'sdk-login'.hex(), 'login': True, 'create_role': False}})
+            sdk_role = apply({'create_role': {'name': b'sdk-data'.hex(), 'login': False, 'create_role': False}})
+            apply({'bind_credential': {'principal': 105, 'role': sdk_login, 'public_key': sdk_public, 'pid': None}})
+            apply({'membership': {'member': sdk_login, 'role': sdk_role, 'inherit': False, 'set': True, 'admin': False}})
+            apply({'grant': {'object': {'kind': 'process', 'id': pid}, 'grantee': sdk_role, 'privileges': 4, 'grant_options': 0}})
+            apply({'grant': {'object': {'kind': 'domain', 'id': schema}, 'grantee': sdk_role, 'privileges': 3, 'grant_options': 0}})
+            sdk_state = system.root / 'sdk-state'
+            sdk_state.mkdir(mode=0o700)
+            (sdk_state / 'caller.seed').write_bytes(sdk_key.read_bytes())
+            (sdk_state / 'caller.seed').chmod(0o600)
+            connection = dict(scope=dict(scope, catalog='1'), owner=pid, principal=105, role=sdk_role, namespace=1)
+            for index, (language, factory) in enumerate(install(system.root / 'installed-restricted-tables', languages)):
+                apply({'grant': {'object': {'kind': 'domain', 'id': database}, 'grantee': sdk_role, 'privileges': 1, 'grant_options': 0}})
+                assert system.native_query({'read_access': resource}, 105, sdk_key, 403)['err'] == 'AccessDenied'
+                sdk_started = time.monotonic()
+                consumer = factory(system.url, connection, sdk_state, table_service_url=f'http://127.0.0.1:{port}')
+                try:
+                    result = consumer.call({'scenario': {'index': index}})
+                    apply({'revoke_privileges': {'object': {'kind': 'domain', 'id': database}, 'grantee': sdk_role, 'privileges': 1, 'behavior': 'cascade'}})
+                    assert consumer.call({'denied': {}}) == {'denied': True}
+                    installed.append(dict(language=language, result=result, raw_read_denied=True, revoked_connect_denied=True, seconds=round(time.monotonic() - sdk_started, 3)))
+                    print(json.dumps(dict(profile='restricted-sdk', **installed[-1])), flush=True)
+                finally:
+                    consumer.close()
+
         saved_intent, old_step, old_receipt = mediated_write(70, "INSERT INTO readable VALUES (2, 'mediated')")
         rows = call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key)['result']['query']['rows']
         assert len(rows) == 2
@@ -406,7 +435,7 @@ def run(node, cli, host, service, transit, report=None, serving_example=None):
                             service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1,
                             schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True,
                             mediated_cli_write_recovery=True, no_native_process_inspection=True,
-                            multisource_queries=True, noncontributing_source_revocation=True, serving=serving_evidence)
+                            multisource_queries=True, noncontributing_source_revocation=True, serving=serving_evidence, installed=installed)
     result = dict(assertions='passed', definition=definition, observations=observations,
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
@@ -425,5 +454,6 @@ if __name__ == '__main__':
         parser.add_argument(binary, type=lambda value: Path(value).resolve(strict=True))
     parser.add_argument('--report', type=Path)
     parser.add_argument('--serving-example', type=lambda value: Path(value).resolve(strict=True))
+    parser.add_argument('--sdk', action='append', default=[], choices=('node', 'python', 'rust', 'ruby', 'java', 'dotnet', 'erlang', 'elixir', 'c', 'cpp'))
     args = parser.parse_args()
-    run(args.node, args.cli, args.host, args.service, args.transit, args.report, args.serving_example)
+    run(args.node, args.cli, args.host, args.service, args.transit, args.report, args.serving_example, args.sdk)

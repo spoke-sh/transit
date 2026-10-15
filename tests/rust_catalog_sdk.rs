@@ -19,7 +19,7 @@ fn connect(config: &Value) -> Result<m::Client> {
     let c = &config["connection"];
     let s = &c["scope"];
     let realm = number(s, "realm");
-    let native = ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?;
+    let native = ClientConfig::growing(text(config, "url"))?.with_timeout(if config["table_service_url"].is_string() {30000} else {10000})?;
     let credential = Credential::new(realm, number(c, "principal"), text(config, "seed_file"))?;
     let mut connection = m::Connection::new(
         ProcessRef::new(realm, number(c, "owner"))?,
@@ -280,6 +280,14 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let action: Value = serde_json::from_str(&line?)?;
         if action.get("close").is_some() {
             break;
+        }
+        if action.get("denied").is_some() {
+            let mut fresh = connect(&config)?;
+            assert_eq!(fresh.describe().unwrap_err().status, Some(4));
+            fresh.close()?;
+            println!("{}", json!({"status":0,"value":{"denied":true}}));
+            io::stdout().flush()?;
+            continue;
         }
         let value = scenario(
             client.take().unwrap(),

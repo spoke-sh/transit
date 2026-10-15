@@ -1,6 +1,7 @@
 defmodule ElixirCatalogAdapter do
   alias Transit.Client
   alias Transit.Station.Sdk.Catalog, as: C
+  def open(c, i, r, service), do: result(C.open(Client.convert(c), Client.convert(i), C.convert(r), service))
   def open(c, i, r), do: result(C.open(Client.convert(c), Client.convert(i), C.convert(r)))
   def close(c), do: result(C.close(c))
   def capabilities(c), do: result(C.capabilities(c))

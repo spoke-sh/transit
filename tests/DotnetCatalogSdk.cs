@@ -23,7 +23,7 @@ static class Program
     static Task<C.Client> Connect(JsonNode config) {
         var c = config["connection"]!; var s = c["scope"]!; ulong realm = Number(s,"realm");
         C.Connection connection = new(new ProcessRef(realm, Number(c,"owner")), new C.Scope(new ResourceRef(realm, Number(s,"resource")), Wide(s,"catalog")), c["role"]?.GetValue<ulong>(), c["namespace"]?.GetValue<ulong>() ?? 1);
-        return C.Client.OpenAsync(new ClientConfig(new Uri(Text(config,"url")), Profile.NativeV1, timeoutMillis: 10000), new Credential(realm, Number(c,"principal"), Text(config,"seed_file")), connection, config["table_service_url"]?.GetValue<string>());
+        return C.Client.OpenAsync(new ClientConfig(new Uri(Text(config,"url")), Profile.NativeV1, timeoutMillis: config["table_service_url"] is null ? 10000u : 30000u), new Credential(realm, Number(c,"principal"), Text(config,"seed_file")), connection, config["table_service_url"]?.GetValue<string>());
     }
     static void Persist(string path, byte[] bytes) {
         FileStreamOptions options = new() { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
@@ -91,6 +91,13 @@ static class Program
             Console.WriteLine("{\"ready\":true}");
             while (Console.ReadLine() is {} line) {
                 var action = JsonNode.Parse(line)!.AsObject(); if (action.ContainsKey("close")) break;
+                if (action.ContainsKey("denied")) {
+                    await using var fresh = await Connect(config);
+                    bool denied = false;
+                    try { await fresh.DescribeAsync(); } catch (TransitException error) { Check(error.Kind == ErrorKind.AccessDenied); denied = true; }
+                    Check(denied);
+                    Console.WriteLine(Obj(("status",0),("value",Obj(("denied",true)))).ToJsonString()); continue;
+                }
                 Console.WriteLine(Obj(("status",0),("value",await Scenario(client,config,Path.GetDirectoryName(path)!,Number(action["scenario"]!,"index")))).ToJsonString());
             }
         }

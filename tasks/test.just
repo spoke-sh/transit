@@ -217,9 +217,9 @@ authorization-cli:
     python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Table isolation, original subjects, rotation and revocation across disk restart.
-authorization-tables:
-    zig build transit-node rey-cli transit transit-query-host transit-table-service
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json
+authorization-tables *args:
+    zig build transit-node rey-cli transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:

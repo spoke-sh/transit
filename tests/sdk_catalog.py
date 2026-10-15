@@ -78,10 +78,10 @@ def install(root, languages):
         shutil.copy2(ROOT / 'tests/python_catalog_values.py', values)
         subprocess.run([python, '-B', str(values)], check=True, env=env, cwd=target)
         for mode in ('sync', 'async'):
-            def create(url, connection, state, mode=mode, python=python, script=script, target=target, env=env):
+            def create(url, connection, state, mode=mode, python=python, script=script, target=target, env=env, table_service_url=None):
                 config = target / f'{mode}.json'
-                config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-                return Consumer([python, '-B', str(script), mode, str(config)], env, target)
+                config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+                return Consumer([python, '-B', str(script), mode, str(config)], env, target, read_timeout=600 if table_service_url else 90)
             factories.append((f'python-{mode}', create))
     return factories
 
@@ -105,10 +105,10 @@ def install_node(target):
     subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'], 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'], cwd=target, env=environment, check=True, stdout=subprocess.DEVNULL)
     script = target / 'consumer.mjs'
     shutil.copy2(ROOT / 'tests/node_catalog_sdk.mjs', script)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer(['node', str(script), str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer(['node', str(script), str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return 'node', create
 
 
@@ -147,10 +147,10 @@ def install_rust(target):
     rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=environment, capture_output=True, text=True)
     assert rejected.returncode and 'use of moved value: `client`' in rejected.stderr, (rejected.returncode, rejected.stderr[-4096:])
     shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer([str(executable), str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer([str(executable), str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return 'rust', create
 
 
@@ -175,10 +175,10 @@ def install_ruby(target):
     shutil.copy2(ROOT / 'tests/ruby_catalog_values.rb', values)
     shutil.copy2(ROOT / 'tests/ruby_schema_values.rb', target / 'schema_values.rb')
     subprocess.run(['ruby', str(values)], env=environment, cwd=target, check=True)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer(['ruby', str(script), str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer(['ruby', str(script), str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return 'ruby', create
 
 
@@ -187,6 +187,8 @@ class CatalogCConsumer(Consumer):
         name, value = next(iter(action.items()))
         if name == 'scenario':
             command = f"scenario {value['index']}"
+        elif name == 'denied':
+            command = name
         else:
             assert name == 'close'
             command = name
@@ -222,10 +224,10 @@ def install_c(target, language, packages=ROOT / '.cache/bindings/c'):
     if language == 'cpp':
         from c_catalog_values import run
         run(target / 'faults', prefix, flags, environment)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         s = connection['scope']
-        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog']), str(state)]
-        return CatalogCConsumer(arguments, environment, target)
+        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog']), str(state), table_service_url or '', str(connection.get('role') or 0), str(connection.get('namespace', 1))]
+        return CatalogCConsumer(arguments, environment, target, read_timeout=600 if table_service_url else 90)
     return language, create
 
 
@@ -258,10 +260,10 @@ def install_java(target, packages=ROOT / '.cache/bindings/java'):
     classpath = str(classes) + os.pathsep + str(library / '*')
     subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=environment, check=True, timeout=90)
     shutil.rmtree(faults)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return 'java', create
 
 
@@ -299,10 +301,10 @@ def install_dotnet(target, packages=ROOT / '.cache/bindings/dotnet'):
     shutil.rmtree(source)
     shutil.rmtree(target / 'packages')
     subprocess.run(['dotnet', str(app / 'Consumer.dll'), 'values', str(target)], cwd=target, env=environment, check=True, timeout=45)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer(['dotnet', str(app / 'Consumer.dll'), str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer(['dotnet', str(app / 'Consumer.dll'), str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return 'dotnet', create
 
 
@@ -344,8 +346,8 @@ def install_beam(target, language, packages=ROOT / '.cache/bindings/beam'):
     (faults / 'host').chmod(0o700)
     subprocess.run([*command('beam_catalog_values'), str(faults)], cwd=target, env=environment, check=True, timeout=90)
     shutil.rmtree(faults)
-    def create(url, connection, state):
+    def create(url, connection, state, table_service_url=None):
         config = target / 'client.json'
-        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
-        return Consumer([*command('beam_catalog_controller'), str(config)], environment, target)
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'), table_service_url=table_service_url)))
+        return Consumer([*command('beam_catalog_controller'), str(config)], environment, target, read_timeout=600 if table_service_url else 90)
     return language, create

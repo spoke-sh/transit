@@ -10,7 +10,7 @@ def connect(config)
   c = config.fetch('connection'); s = c.fetch('scope')
   scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: s.fetch('realm'), resource: s.fetch('resource')), catalog: Integer(s.fetch('catalog'), 10))
   connection = M::Connection.new(owner: Transit::ProcessRef.new(realm: s.fetch('realm'), pid: c.fetch('owner')), scope: scope, role: c['role'], namespace: c.fetch('namespace', 1))
-  M::Client.new(Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000),
+  M::Client.new(Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: config['table_service_url'] ? 30000 : 10000),
     Transit::Credential.new(realm: s.fetch('realm'), principal: c.fetch('principal'), seed_file: config.fetch('seed_file')), connection, table_service_url: config['table_service_url'])
 end
 
@@ -106,6 +106,16 @@ begin
   $stdin.each_line do |line|
     action = JSON.parse(line)
     break if action.key?('close')
+    if action.key?('denied')
+      fresh = connect(config)
+      begin
+        denied = false
+        begin; fresh.describe; rescue Transit::Error => error; check(error.status == 4); denied = true; end
+        check(denied)
+      ensure; fresh.close; end
+      puts JSON.generate(status: 0, value: {denied: true})
+      next
+    end
     result = scenario(client, config, File.dirname(path), action.fetch('scenario').fetch('index'))
     puts JSON.generate(status: 0, value: result)
   end

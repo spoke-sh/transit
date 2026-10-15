@@ -24,7 +24,8 @@ def compound_profile(state):
 
 
 class Consumer:
-    def __init__(self, command, environment, directory, *, inspection=False, predicate_programs=False, compilation=False):
+    def __init__(self, command, environment, directory, *, inspection=False, predicate_programs=False, compilation=False, read_timeout=90):
+        self.read_timeout = read_timeout
         self.inspection = inspection
         self.predicate_programs = predicate_programs
         self.compilation = compilation
@@ -37,7 +38,7 @@ class Consumer:
             raise
 
     def read(self):
-        assert select.select([self.child.stdout], [], [], 90)[0], 'installed query caller timed out'
+        assert select.select([self.child.stdout], [], [], self.read_timeout)[0], 'installed query caller timed out'
         line = self.child.stdout.readline()
         if not line:
             # EOF can race process reaping. Join before reporting the exit code;
