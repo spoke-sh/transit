@@ -248,6 +248,16 @@ Table SELECT denies refresh and new admission. Retained denial diagnostics stay
 stable after restoration, and pause/close controls remain available. Executable
 hashes and overall build time were not captured.
 
+The [Flight authorization report](verification/results/authorization-flight-2026-10-14.json)
+records the real TLS PyArrow and ADBC C/Python suite passing with original-subject
+query bundles and role-bound tickets. Its 41-row finite statement/retry schedule
+takes **84.70 s**; schema, exact int64/null rows, empty results, counts, aliases,
+sum, compiler diagnostics and retained overflow diagnostics after gateway
+replacement pass. Current disclosure denial passes. This is the configured
+infrastructure-reader profile, with native source/request resource access;
+selected-role ticket mismatch is a unit check and the fault/load schedule remains
+separate. Executable hashes and source/definition are in the report.
+
 The [installed general Table report](verification/results/authorization-catalog-sdks-2026-10-14.json)
 records all ten SDKs plus Python async completing Table creation, nested typed
 mutation, schema change, deletion, name reuse and saved original-outcome recovery

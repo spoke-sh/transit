@@ -5,10 +5,11 @@ const root = @import("root.zig");
 const p = root.query.protocol;
 const Self = @This();
 pub const max_command_bytes = 1024;
-pub const max_bytes = 4 + 32 + 8 * 8 + 32 + 8 + 1 + 2 + max_command_bytes + 32 + 64;
+pub const max_bytes = 4 + 32 + 8 * 8 + 9 + 32 + 8 + 1 + 2 + max_command_bytes + 32 + 64;
 pub const Scope = struct {
     realm: u64,
     principal: u64,
+    role: ?u64 = null,
     service: u64,
     binding_revision: u64,
     ingress: u64,
@@ -17,6 +18,7 @@ pub const Scope = struct {
     resource: u64,
     declaration: [32]u8,
     pub fn validate(self: Scope) !void {
+        if (self.role) |role| if (role == 0 or role > p.max_counter) return error.InvalidFlightTicket;
         inline for (identities) |name| {
             const value = @field(self, name);
             if (value == 0 or value > p.max_counter) return error.InvalidFlightTicket;
@@ -45,6 +47,8 @@ pub fn issue(self: Self, key: p.Ed25519.KeyPair, output: []u8) ![]const u8 {
     try writer.writeAll("FTK1");
     try writer.writeAll(&root.query.catalog.TableMetadata.definition());
     inline for (identities) |name| try writer.writeInt(u64, @field(self.scope, name), .little);
+    try writer.writeByte(@intFromBool(self.scope.role != null));
+    try writer.writeInt(u64, self.scope.role orelse 0, .little);
     try writer.writeAll(&self.scope.declaration);
     try writer.writeInt(u64, self.expires_ms, .little);
     switch (self.reference) {
@@ -71,7 +75,7 @@ pub fn issue(self: Self, key: p.Ed25519.KeyPair, output: []u8) ![]const u8 {
 /// every bounded disclosure; successful decoding supplies none of those rights.
 pub fn decode(bytes: []const u8, expected: Scope, now_ms: u64, public_key: p.Ed25519.PublicKey) !Self {
     try expected.validate();
-    if (bytes.len < 4 + 32 + 8 * 8 + 32 + 8 + 1 + 2 + 1 + 32 + 64 or bytes.len > max_bytes) return error.InvalidFlightTicket;
+    if (bytes.len < 4 + 32 + 8 * 8 + 9 + 32 + 8 + 1 + 2 + 1 + 32 + 64 or bytes.len > max_bytes) return error.InvalidFlightTicket;
     const body = bytes[0 .. bytes.len - 64];
     try p.Ed25519.Signature.fromBytes(bytes[bytes.len - 64 ..][0..64].*).verify(&digest(body), public_key);
     var reader: std.Io.Reader = .fixed(body);
@@ -79,6 +83,11 @@ pub fn decode(bytes: []const u8, expected: Scope, now_ms: u64, public_key: p.Ed2
     if (!std.mem.eql(u8, try reader.take(32), &root.query.catalog.TableMetadata.definition())) return error.IncompatibleDefinition;
     var scope: Scope = undefined;
     inline for (identities) |name| @field(scope, name) = try reader.takeInt(u64, .little);
+    const has_role = try reader.takeByte();
+    const role = try reader.takeInt(u64, .little);
+    if (has_role > 1 or (has_role == 0 and role != 0)) return error.InvalidFlightTicket;
+    scope.role = if (has_role == 1) role else null;
+    try scope.validate();
     scope.declaration = (try reader.takeArray(32)).*;
     if (!std.meta.eql(scope, expected)) return error.FlightTicketScope;
     const expires_ms = try reader.takeInt(u64, .little);
@@ -113,6 +122,9 @@ test "tickets bind principal, service generation and immutable result independen
     try t.expectError(error.FlightTicketExpired, decode(bytes, scope, 2000, key.public_key));
     var foreign = scope;
     foreign.principal += 1;
+    try t.expectError(error.FlightTicketScope, decode(bytes, foreign, 1999, key.public_key));
+    foreign = scope;
+    foreign.role = 19;
     try t.expectError(error.FlightTicketScope, decode(bytes, foreign, 1999, key.public_key));
     foreign = scope;
     foreign.binding_revision += 1;

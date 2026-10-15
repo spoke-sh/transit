@@ -115,7 +115,11 @@ pub fn main(init: std.process.Init) !void {
         }
         writer.generation = 3;
         requester.generation = 3;
-        const query_role = try authorization.login(catalog, &admin, if (second_flight) "flight-second-reader" else "query-reader", query_principal, caller_key, if (flight) requester.pid else null);
+        const query_role = try authorization.login(catalog, &admin, if (second_flight) "flight-second-reader" else "query-reader", query_principal, caller_key, null);
+        if (flight) {
+            _ = try admin.authorization(.{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = query_role, .privileges = p.permission(.send), .behavior = .cascade } });
+            _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .process, .id = requester.pid }, .grantee = query_role, .privileges = p.permission(.send) } });
+        }
         _ = try admin.submit(.{ .grant = .{ .subject = courier_principal, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
         const inspector_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(12));
         const inspector_role = if (!second_flight) try authorization.login(catalog, &admin, "query-inspector", 55, inspector_key, null) else try authorization.loginRole(catalog, &wire, 45, 55, inspector_key);

@@ -14,7 +14,7 @@ const Self = @This();
 pub const max_callers = 8;
 pub const request_bytes = 8 * 1024 * 1024;
 pub const arrow_bytes = root.Metadata.working_bytes;
-pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, name: []const u8, requester: u64, requests: u64 };
+pub const Connection = struct { realm: u64, principal: u64, role: ?u64 = null, source: u64, resource: u64, name: []const u8, requester: u64, requests: u64 };
 pub const Caller = struct {
     /// Hash of a private high-entropy Bearer credential; raw tokens never persist
     /// in gateway state, telemetry or durable query payloads.
@@ -27,7 +27,7 @@ pub const Caller = struct {
     table: q.TableSource,
     pub fn scope(self: Caller) !root.Ticket.Scope {
         const c = self.connection;
-        return .{ .realm = c.realm, .principal = c.principal, .service = self.service, .binding_revision = self.binding_revision, .ingress = c.requester, .requests = c.requests, .source = c.source, .resource = c.resource, .declaration = try self.table.fingerprint() };
+        return .{ .realm = c.realm, .principal = c.principal, .role = c.role, .service = self.service, .binding_revision = self.binding_revision, .ingress = c.requester, .requests = c.requests, .source = c.source, .resource = c.resource, .declaration = try self.table.fingerprint() };
     }
 };
 pub const Configuration = struct {
@@ -148,7 +148,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     wire.timeout_ms = self.config.native_timeout_ms;
     wire.observer = self.diagnostics;
     const caller = self.config.callers[index];
-    var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
+    var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .role = caller.connection.role, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
     var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic, .query_diagnostic = query_diagnostic, .attempt_diagnostic = attempt_diagnostic };
     return call.run(request) catch |err| {
@@ -225,7 +225,7 @@ const Call = struct {
     fn authorize(self: *Call, admission: bool) !void {
         try self.response.check();
         const caller = self.caller;
-        const signed = try s.Model.SignedRead.prepare(.{ .realm = caller.connection.realm, .principal = caller.connection.principal, .service = caller.service, .ingress = caller.connection.requester, .kind = .discovery }, .{ .transport = self.client.wire, .realm = caller.connection.realm, .principal = caller.connection.principal, .key = caller.key });
+        const signed = try s.Model.SignedRead.prepare(.{ .realm = caller.connection.realm, .principal = caller.connection.principal, .service = caller.service, .ingress = caller.connection.requester, .kind = .discovery }, .{ .transport = self.client.wire, .realm = caller.connection.realm, .principal = caller.connection.principal, .role = caller.connection.role, .key = caller.key });
         const discovery = try self.adapter.read(signed, caller.key.public_key.toBytes());
         if (admission) {
             const binding = discovery.binding orelse return error.ServiceUnpublished;
@@ -341,11 +341,12 @@ const Call = struct {
             return error.QueryBudgetExceeded;
         }
         var detail: f.Sql.Binding = .{};
-        const bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), self.caller.connection.name, sql, limits, &detail) catch |err| {
+        var bundle = q.Bundle.fromSqlDiagnostic(self.allocator, self.definition(), self.caller.connection.name, sql, limits, &detail) catch |err| {
             self.sql_diagnostic.* = f.SqlDiagnostic.bound(sql, err, false, detail);
             return err;
         };
         _ = try root.TableResult.init(bundle.plan);
+        bundle = try self.client.authorizeBundle(bundle);
         const reference = try bundle.reference(self.caller.connection.requests, first);
         var encoded: [q.Bundle.max_bytes]u8 = undefined;
         const bytes = try bundle.encode(&encoded);
@@ -370,7 +371,7 @@ const Call = struct {
     }
     fn uploadStep(self: *Call, sequence: u64, command: q.UnifiedRequest.Command) !void {
         try self.authorize(true);
-        const prepared: q.UnifiedClient.Prepared = .{ .signed = try p.Growth.sign(.{ .realm = self.caller.connection.realm, .principal = self.caller.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.caller.connection.requester, .value = try (q.station.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.caller.key) };
+        const prepared: q.UnifiedClient.Prepared = .{ .signed = try p.Growth.sign(.{ .realm = self.caller.connection.realm, .principal = self.caller.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.caller.connection.requester, .role = self.caller.connection.role, .value = try (q.station.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.caller.key) };
         const receipt = self.client.submit(prepared) catch |err| {
             const identity: p.Diagnostic.Identity = .{ .domain = .query, .id = .init(self.first_sequence.?), .sequence = .init(sequence), .realm = .init(self.caller.connection.realm), .resource = .init(self.caller.connection.requests) };
             self.attempt_diagnostic.* = q.ApiDiagnostic.attempt("Flight query upload", .submit, null, err, .{}, true, identity) catch null;
