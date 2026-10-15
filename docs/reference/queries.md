@@ -306,7 +306,10 @@ resource revision. Repeated metadata lookups share a bounded 64-entry scratch
 cache for that observation; eviction fetches the record again. This cache does
 not retain permissions across operations. Current authorization is interpreted
 using the exact keys requested for that observation, and a fresh check precedes
-schema or result disclosure.
+schema or result disclosure. Table capture and page reads carry the caller's
+signed identity and selected role through both the retained data reader and the
+current metadata reader. Native SELECT remains required for empty results and
+`LIMIT 0`; raw-resource read permission does not replace that Table check.
 
 Interactive execution failures identify the first failing scan row, source column
 and operation. Predicate failures include the zero-based postfix instruction;

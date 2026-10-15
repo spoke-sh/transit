@@ -53,6 +53,17 @@ cache, original work identities and all assertions remain unchanged. Exact lost
 reply recovery, fencing, retained continuation and two disk restarts pass.
 This focused result does not complete the clean growth lane.
 
+The [interactive Table authorization report](verification/results/authorization-interactive-tables-2026-10-15.json)
+passes the combined Table/query/console proof in **168.618 s** with eight resident
+pages. Authorized retained readers preserve old rows across an interleaved write;
+page reads carry the newly validated current metadata observation. Revoking native
+SELECT after computation but before final validation withholds all output while
+raw-resource access remains. Ordinary and `LIMIT 0` reads deny revoked SELECT and
+work again after restoration. Console lost replies, identity rejection, SIGINT,
+policy-raced input rejection and original cancellation also pass. The report
+retains four failed development attempts and their causes; it does not replace
+the complete committed-source growth lane.
+
 The [installed relational caller report](verification/results/authorization-relational-sdks-2026-10-15.json)
 passes the native host and installed Python sync/async and Node callers after
 native SELECT revocation. SDKs preserve `AccessDenied` as the native code and

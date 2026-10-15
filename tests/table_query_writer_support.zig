@@ -132,6 +132,11 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
         policy.allow = std.mem.eql(u8, command, "combined-query-restore");
         return print(init, try send(wire, connection.source, try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = expected, .policy = policy }).encode()));
     }
+    if (std.mem.eql(u8, command, "combined-select-revoke") or std.mem.eql(u8, command, "combined-select-restore")) {
+        const who = try Catalog.authorization.loginRole(c, wire, 46, connection.principal, try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
+        try Catalog.authorization.tablePrivileges(c, admin, config, 1, who, c.TableAuthority.select, std.mem.eql(u8, command, "combined-select-restore"));
+        return print(init, .{ .authorization_revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
+    }
     if (std.mem.eql(u8, command, "combined-mutation-revoke") or std.mem.eql(u8, command, "combined-mutation-restore")) {
         const who = try Catalog.authorization.loginRole(c, wire, 46, connection.principal, try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
         try Catalog.authorization.tablePrivileges(c, admin, config, 1, who, c.TableAuthority.insert | c.TableAuthority.update | c.TableAuthority.delete, std.mem.eql(u8, command, "combined-mutation-restore"));

@@ -85,6 +85,7 @@ fn logicalCell(expected: m.Type, value: m.Cell, allocator: std.mem.Allocator) !t
 /// Call deinit on successful output. Other slices borrow the caller's bounded
 /// request arena; any error invalidates the whole page.
 pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, cursor: Cursor, data: anytype, current: anytype, principal: ?u64, allocator: std.mem.Allocator, output: *Batch) !void {
+    if (definition.source == .table) return tablePage(definition, plan, expected, cursor, data, current, principal orelse return error.QueryDenied, allocator, output);
     if (cursor.done) return error.QueryComplete;
     if (data.view.resource != definition.resource or data.view.revision != expected.cut.revision or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
     try checkCurrent(definition, current, principal);
@@ -115,17 +116,7 @@ pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, curso
             };
             if (entries.next == null) output.next.done = true;
         },
-        .table => |table| {
-            const who = principal orelse return error.QueryDenied;
-            const captured = try table.restore(allocator, data, current, who, expected);
-            output.table = try table.page(allocator, captured, .{ .binding = binding, .ordinal = cursor.ordinal, .scanned = cursor.table_scanned, .after = cursor.table_after, .done = cursor.done }, plan, data, current, who);
-            const rows = &output.table.?;
-            output.count = rows.count;
-            output.next.table_after = rows.next.after;
-            output.next.table_scanned = rows.next.scanned;
-            output.next.done = rows.next.done;
-            for (rows.owned[0..rows.count], 0..) |row, index| output.keys[index] = .{ .table = row.?.identity };
-        },
+        .table => unreachable,
         .document => |document| {
             const service = try document.reference.identity().service();
             const live = try service.open(current, document.reference.revision);
@@ -170,6 +161,32 @@ pub fn page(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, curso
         },
     }
     try checkCurrent(definition, current, principal);
+}
+/// Table callers decorate both readers with original-subject authority. Keep
+/// this typed path separate from Document's exact current-reader requirement.
+pub fn tablePage(definition: Def, plan: f.LogicalQuery.Plan, expected: q.Basis, cursor: Cursor, data: anytype, current: anytype, principal: u64, allocator: std.mem.Allocator, output: *Batch) !void {
+    if (definition.source != .table) return error.InvalidQuerySource;
+    if (cursor.done) return error.QueryComplete;
+    if (data.view.resource != definition.resource or data.view.revision != expected.cut.revision or !std.meta.eql(expected, try q.Basis.from(definition, expected.cut))) return error.SourceChanged;
+    const table = definition.source.table;
+    _ = try table.checkCurrent(current, principal);
+    const binding = try expected.fingerprint();
+    if (!std.mem.eql(u8, &binding, &plan.source_basis)) return error.SourceChanged;
+    output.* = .{ .basis = expected, .binding = binding, .ordinal = cursor.ordinal, .next = cursor };
+    errdefer output.deinit();
+    const schema = try definition.schema(&output.columns);
+    output.column_count = @intCast(schema.structure.len);
+    @memcpy(output.columns[0..output.column_count], schema.structure);
+    output.next.ordinal = try std.math.add(u64, cursor.ordinal, 1);
+    const captured = try table.restore(allocator, data, current, principal, expected);
+    output.table = try table.page(allocator, captured, .{ .binding = binding, .ordinal = cursor.ordinal, .scanned = cursor.table_scanned, .after = cursor.table_after, .done = cursor.done }, plan, data, current, principal);
+    const rows = &output.table.?;
+    output.count = rows.count;
+    output.next.table_after = rows.next.after;
+    output.next.table_scanned = rows.next.scanned;
+    output.next.done = rows.next.done;
+    for (rows.owned[0..rows.count], 0..) |row, index| output.keys[index] = .{ .table = row.?.identity };
+    _ = try table.checkCurrent(current, principal);
 }
 fn checkReference(reference: doc.Client.Reference, state: doc.Document) !void {
     if (state.document != reference.document or state.epoch != reference.epoch or state.type_revision != reference.type_revision or state.revision != reference.revision) return error.DocumentIdentityMismatch;

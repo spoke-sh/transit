@@ -127,6 +127,12 @@ pub fn Source(comptime Reader: type) type {
             try self.authority.consume();
             return self.data.page(after);
         }
+        /// Preserve the caller's bounded immutable-node cache through authority
+        /// decoration; readers without one retain the uncached profile.
+        pub fn tableIndexCache(self: *Self) ?*c.station.ImmutableIndex.Cache {
+            if (comptime @hasDecl(@typeInfo(Reader).pointer.child, "tableIndexCache")) return self.data.tableIndexCache();
+            return null;
+        }
         pub fn authorizationSubject(self: *Self, who: u64) !a.Subject {
             return self.authority.authorizationSubject(who);
         }

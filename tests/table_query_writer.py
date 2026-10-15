@@ -46,6 +46,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
         send_fault = dict(lose=False, frozen=None, receipt=None, recovered=False)
         rejection_gate = dict(armed=False, seen=threading.Event(), release=threading.Event())
         publication_gate = dict(operation=None, seen=threading.Event(), release=threading.Event())
+        disclosure_gate = dict(armed=False, seen=threading.Event(), release=threading.Event())
         counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0, snapshot_pause_seconds=0.0)
         errors, processes, logs, clients = [], [], [], []
         snapshot_seen, snapshot_release = threading.Event(), threading.Event()
@@ -59,8 +60,17 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 try:
                     message = json.loads(body)
                     counts['reads'] += self.path == '/v1/query'
+                    if disclosure_gate['armed'] and self.path == '/v1/query':
+                        snapshot_read = message['query']['kind'].get('snapshot_read')
+                        if snapshot_read and snapshot_read['finish']:
+                            disclosure_gate['armed'] = False
+                            disclosure_gate['seen'].set()
+                            assert disclosure_gate['release'].wait(timeout=15), 'disclosure fault was never released'
                     if pause_snapshot and self.path == '/v1/query' and not snapshot_seen.is_set():
                         kind = message['query']['kind']
+                        observed = counts.setdefault('interactive_open_requests', {})
+                        operation = next(iter(kind))
+                        observed[operation] = observed.get(operation, 0) + 1
                         if 'snapshot_entries' in kind or ('snapshot_read' in kind and 'existing' in kind['snapshot_read']['snapshot']):
                             snapshot_seen.set()
                             assert snapshot_release.wait(timeout=30), 'snapshot fault was never released'
@@ -291,7 +301,15 @@ def run(node, host, proof, library, cli, *, sdks=()):
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append(console)
-            assert snapshot_seen.wait(timeout=15), 'interactive query did not retain its snapshot'
+            snapshot_deadline = time.monotonic() + 15
+            while not snapshot_seen.wait(timeout=.05):
+                if console.poll() is not None:
+                    stdout, stderr = console.communicate()
+                    raise AssertionError(('interactive query exited before snapshot retention',
+                                          console.returncode, stdout, stderr))
+                assert time.monotonic() < snapshot_deadline, (
+                    'interactive query did not retain its snapshot',
+                    counts.get('interactive_open_requests', {}), errors)
             paused = time.monotonic()
             try:
                 publication_gate['release'].set()
@@ -314,6 +332,35 @@ def run(node, host, proof, library, cli, *, sdks=()):
             latest = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
+            # Hold the final native validation after row computation. Revoking
+            # native SELECT must suppress even this already computed output.
+            disclosure_gate['armed'] = True
+            withheld = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, text=True)
+            processes.append(withheld)
+            assert disclosure_gate['seen'].wait(timeout=30), 'interactive terminal validation missing'
+            invoke('combined-select-revoke')
+            disclosure_gate['release'].set()
+            stdout, stderr = withheld.communicate(timeout=30)
+            assert withheld.returncode == 1 and not stdout, (withheld.returncode, stdout, stderr)
+            assert 'CatalogDenied' in stderr or 'QueryDenied' in stderr, stderr
+            invoke('combined-select-restore')
+            # Native SELECT is independent of retained query policy and raw
+            # resource access. Empty interactive results require it as well.
+            invoke('combined-select-revoke')
+            for statement in ('SELECT * FROM items;', 'SELECT * FROM items LIMIT 0;'):
+                denied_read = subprocess.run(console_args[:-1] + [statement], env=fixture.env,
+                                             capture_output=True, text=True, timeout=30)
+                assert denied_read.returncode == 1 and not denied_read.stdout, denied_read
+                assert 'CatalogDenied' in denied_read.stderr or 'QueryDenied' in denied_read.stderr, denied_read.stderr
+            invoke('combined-select-restore')
+            restored = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
+            assert restored.returncode == 0, restored.stderr
+            assert console_rows(restored.stdout) == current
+            empty = subprocess.run(console_args[:-1] + ['SELECT * FROM items LIMIT 0;'],
+                                   env=fixture.env, capture_output=True, text=True, timeout=30)
+            assert empty.returncode == 0, empty.stderr
+            assert console_rows(empty.stdout) == []
             # Autonomous continuations are explicitly delivered from here on.
             courier = start('courier', [host, str(root/'courier.json')])
             catalog_args = [cli, 'console', '--no-rc', '--config', str(root/'catalog-console.json')]
@@ -407,8 +454,9 @@ def run(node, host, proof, library, cli, *, sdks=()):
             processes.append(racing)
             try:
                 assert rejection_gate['seen'].wait(timeout=30), 'console did not prepare a Table part'
-                position = invoke('combined-mutation-revoke')['position']
-                until(lambda: processed(position))
+                # Native grant publication is synchronous; it no longer
+                # enqueues a policy mutation in the Table owner's mailbox.
+                assert invoke('combined-mutation-revoke')['authorization_revision'] > 0
             finally:
                 rejection_gate['release'].set()
             stdout, stderr = racing.communicate(timeout=30)
@@ -420,8 +468,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert not blocked.stdout and '.cancel' in blocked.stderr
             cancelled = json.loads(console_run(data='.cancel\n').stdout)['table_operation']
             assert cancelled['phase'] == 'cancelled', cancelled
-            position = invoke('combined-mutation-restore')['position']
-            until(lambda: processed(position))
+            assert invoke('combined-mutation-restore')['authorization_revision'] > 0
             assert catalog_rows(console_run('SELECT * FROM items').stdout) == current
             print('General console: atomic DML/counts, diagnostics, exact saved recovery, identity rejection, SIGINT and policy-raced cancellation passed.', flush=True)
             sdk_results = []
@@ -436,8 +483,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             mutation("UPDATE items SET value='after-revocation' WHERE id=2", (1 << 64)-1)
             position = invoke('combined-query-restore')['position']
             until(lambda: processed(position))
-            position = invoke('combined-mutation-revoke')['position']
-            until(lambda: processed(position))
+            assert invoke('combined-mutation-revoke')['authorization_revision'] > 0
             denied(lambda: mutation('DELETE FROM items WHERE id=1', 17), 'CatalogDenied')
             denied_console = console_run('DELETE FROM items WHERE id=1', code=1)
             assert not denied_console.stdout
@@ -463,6 +509,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             rejection_gate['release'].set()
             snapshot_release.set()
             publication_gate['release'].set()
+            disclosure_gate['release'].set()
             for client in clients: client.close()
             for process in reversed(processes):
                 if process.poll() is None: process.terminate()

@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "source_revision": "ea5775d68dd932e5602133598d011c5b1e4a60d4",
+  "dirty": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "command": "nix develop --command just test::table-query-writer",
+  "result": "passed",
+  "proof": {
+    "proof": "combined Table query/writer",
+    "elapsed_seconds": 168.618,
+    "reads": 24960,
+    "turns": 134,
+    "max_mutations": 4,
+    "max_value_bytes": 256,
+    "recovered_initialization_receipts": 2,
+    "snapshot_pause_seconds": 1.016,
+    "interactive_open_requests": {
+      "capabilities": 2,
+      "authorization": 23,
+      "process": 24,
+      "read_entries": 17,
+      "snapshot_read": 2
+    },
+    "resident_pages": 8,
+    "mutation_namespace": "9223372036854775973",
+    "installed_sdks": [],
+    "sdk_install_seconds": 0.0,
+    "sdk_callers": [],
+    "binaries": {
+      "node": "aeaecb8f27e9981d9b877da1406ec7bd0627665512b6dcd7c8aae929fcdb17b9",
+      "host": "44f5447bc9405d202fc8fbf98445c516f2a205ad4ed23444097e760311832560",
+      "proof": "36f27f101390e087e9a8aa58a27297ea17548473bfd9a365406b7e83d7ecb0f3",
+      "library": "2fbbbd86ebf6d3d71ae4350e8d71ac7afd53a26d07d8d851d1189f3eb210e6ca",
+      "cli": "8d614966104ee72047ae14f275083474e92b8dd030290fd4af59219500b90ffb"
+    }
+  },
+  "log_sha256": "53bf4b438aa9812b276b312b122202df335f1b4da9b3b6f53271192a7c91fe26",
+  "checks": [
+    "Retained durable and interactive snapshots return original rows across a concurrent same-namespace Table mutation.",
+    "Interactive capture and pages verify the signed caller and selected role through retained and live readers.",
+    "Revoking native SELECT after computation but before final validation withholds all output while raw-resource access remains.",
+    "Revoked SELECT denies ordinary and LIMIT 0 reads; restoring SELECT restores both.",
+    "Console uncertain recovery, identity rejection, SIGINT, current-policy input rejection and original cancellation pass.",
+    "Initialization lost replies, fresh fencing, native/store restarts and four-mutation/256-byte bounds remain."
+  ],
+  "prior_attempts": [
+    {
+      "log_sha256": "7467e86fd8fdea6a667670b7177edae8048859d6e257dca1941f8e9f7462e42e",
+      "result": "failed",
+      "cause": "Missing Table authority decoration caused UnsupportedAuthorization."
+    },
+    {
+      "log_sha256": "410ec355e5da3240edb1e4903c806af62079f6ea88b12ea0292545191ebabba2",
+      "result": "failed",
+      "cause": "Generic authorized Table reader instantiated Document exact-reader constraint; compilation failed."
+    },
+    {
+      "log_sha256": "d176d4d0eb620f5834b4cf4c47ea583f7f0a9cbfb140a887cd181064ee4ae836",
+      "result": "failed",
+      "cause": "The first page reused pre-refresh current metadata after an interleaved write."
+    },
+    {
+      "log_sha256": "8a41fcca72c664b79c6dc2d4ba6e41d650812ee73b724c041461a6c54a85a9ce",
+      "result": "failed",
+      "cause": "Native grant fixture still expected a Table mailbox position; authorization checks had passed."
+    }
+  ],
+  "limits": [
+    "Functional integration timing with concurrent checks, not an isolated latency measurement.",
+    "Default original caller in this proof; selected-role isolation is covered by the separate restricted SDK proof.",
+    "Not a complete clean growth lane."
+  ]
+}
