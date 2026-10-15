@@ -206,6 +206,17 @@ schema failure and drop/name-reuse failure all pass. The surrounding Table suite
 also completes, totaling 2,505 turns while retaining the four-write/256-byte
 native bounds. Installed callers and physical exchanges remain separate checks.
 
+The [exchange authorization report](verification/results/authorization-exchanges-2026-10-14.json)
+records `just test::relational-exchanges` passing in **645.972 s** on dirty
+`65bd94f4`, definition `c7446846…34cccd`. Its one-worker/one-partition and
+three-worker/seven-partition layouts retain the original signed assignment
+through every handoff phase. Exact acceptance retry, producer loss, node/store
+restart, missing/corrupt checkpoints, unavailable/truncated/corrupt reads,
+current native-reader denial, stale credentials and source-owner expiry pass.
+The schedule commits 672 turns with at most four mutations and 256-byte values.
+This run does not claim a separate SELECT-revocation injection at every exchange
+phase; executable hashes were not captured for this invocation.
+
 The public-query restart proof passes on dirty `a96989f7` with
 `just test::public-query` using ReleaseSafe. It exercises actual CLI/source
 hosts, 41 exact INT64/NULL rows, frozen retry, fenced crash recovery, busy

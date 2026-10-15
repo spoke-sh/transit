@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-14",
+  "revision": "65bd94f4",
+  "dirty": true,
+  "definition": "c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd",
+  "command": "nix develop --command just test::relational-exchanges",
+  "log": "/tmp/rey-auth-native-exchanges2.log",
+  "result": {
+    "profile": "relational-exchange-native",
+    "seconds": 645.972,
+    "layouts": [
+      {
+        "partitions": 1,
+        "workers": 1,
+        "batch": 1,
+        "exchange": 211,
+        "turns": 282,
+        "seconds": 254.579,
+        "retained_exchange_bytes": 11436,
+        "operator_bytes": 10422,
+        "rounds": 25,
+        "completed": 2,
+        "oracle": true,
+        "producer_loss": true,
+        "acceptance_loss": true,
+        "node_store_restart": true,
+        "stale_worker_rejected": true,
+        "handoff_phases": [
+          "planned",
+          "quiesced",
+          "checkpointed",
+          "fenced",
+          "restored",
+          "activated",
+          "retired"
+        ],
+        "checkpoint_entries": 270,
+        "corrupt_checkpoint_rejected": true,
+        "missing_checkpoint_rejected": true,
+        "denied_restore_blocked": true,
+        "unavailable_restore_blocked": true,
+        "truncated_read_rejected": true,
+        "corrupt_segment_rejected": true,
+        "receiver_denial_preserved_head": true,
+        "old_credential_rejected": true
+      },
+      {
+        "partitions": 7,
+        "workers": 3,
+        "batch": 4,
+        "exchange": 1510,
+        "turns": 337,
+        "seconds": 360.404,
+        "retained_exchange_bytes": 17252,
+        "operator_bytes": 10422,
+        "rounds": 16,
+        "completed": 14,
+        "oracle": true,
+        "producer_loss": true,
+        "acceptance_loss": true,
+        "node_store_restart": true,
+        "stale_worker_rejected": true,
+        "handoff_phases": [
+          "planned",
+          "quiesced",
+          "checkpointed",
+          "fenced",
+          "restored",
+          "activated",
+          "retired"
+        ],
+        "checkpoint_entries": 270,
+        "corrupt_checkpoint_rejected": true,
+        "missing_checkpoint_rejected": true,
+        "denied_restore_blocked": true,
+        "unavailable_restore_blocked": true,
+        "truncated_read_rejected": true,
+        "corrupt_segment_rejected": true,
+        "receiver_denial_preserved_head": true,
+        "old_credential_rejected": true
+      }
+    ],
+    "metrics": {
+      "turns": 672,
+      "max_mutations": 4,
+      "max_value_bytes": 256,
+      "accepted": 26
+    },
+    "cold_objects": 314,
+    "cold_bytes": 82455211,
+    "replays": [
+      "acceptance",
+      "handoff_activated",
+      "handoff_fenced",
+      "handoff_quiesced",
+      "producer"
+    ],
+    "read_faults": [
+      "unavailable",
+      "truncated",
+      "segment",
+      "unavailable",
+      "truncated",
+      "segment"
+    ],
+    "source_owner_expiry_blocks_restore": true,
+    "own_resource_retirement_after_expiry": true
+  },
+  "limits": [
+    "ReleaseSafe, disk-backed Ursula and cold storage.",
+    "Handoff verification retains the original assignment proof and current Table authority.",
+    "Native reader denial and source-owner expiry are exercised; a separate Table SELECT revocation at every exchange phase is not claimed.",
+    "Executable hashes were not captured for this invocation."
+  ]
+}
