@@ -86,7 +86,9 @@ def run(node, cli, host, service, transit, report=None):
         system.available_post('/v1/command', system.signed({'send': {'pid': pid, 'value': frame.hex()}}, 1, 101, owner_key))
         port = free_port()
         service_config = system.root / 'service.json'
-        service_config.write_text(json.dumps(dict(upstream=system.url, realm=72, principal=102, seed_file=str(service_key), scope=dict(scope, catalog='1'), owner=pid, port=port, upstream_timeout_ms=30000)))
+        spill_directory = system.root / 'query-spill'
+        spill_directory.mkdir(mode=0o700)
+        service_config.write_text(json.dumps(dict(upstream=system.url, realm=72, principal=102, seed_file=str(service_key), scope=dict(scope, catalog='1'), owner=pid, port=port, upstream_timeout_ms=30000, spill_directory=str(spill_directory))))
         serving = system.start(service, service_config)
         wait_ready(system.store.http, serving, f'http://127.0.0.1:{port}/health')
 
@@ -231,8 +233,8 @@ def run(node, cli, host, service, transit, report=None):
                     time.sleep(.02)
                 assert time.monotonic() < deadline, step
 
-        execute('CREATE TABLE readable (id INTEGER PRIMARY KEY, value TEXT)', 1, 100)
-        execute('CREATE TABLE private_data (id INTEGER PRIMARY KEY, value TEXT)', 2, 101)
+        execute('CREATE TABLE readable (id INT64 PRIMARY KEY, value TEXT)', 1, 100)
+        execute('CREATE TABLE private_data (id INT64 PRIMARY KEY, value TEXT)', 2, 101)
         execute("INSERT INTO readable VALUES (1, 'visible')", 3)
         execute("INSERT INTO private_data VALUES (1, 'never-disclose')", 4)
         _, nonempty = execute_schema('DROP SCHEMA public RESTRICT', 54)
@@ -265,6 +267,20 @@ def run(node, cli, host, service, transit, report=None):
         call({'compile': dict(identity=dict(operation='6', namespace='1006'), create_object='102',
                               sql='CREATE TABLE denied (id INTEGER)')}, 104, reader_key, 403)
         call({'query': dict(sql='SELECT * FROM private_data', rows=8, reads=100)}, 104, reader_key, 400)
+        join_sql = 'SELECT r.id FROM readable r JOIN private_data p ON r.id = p.id'
+        empty_join_sql = join_sql + ' WHERE p.id = 999'
+        for text in (join_sql, empty_join_sql):
+            call({'query': dict(sql=text, rows=8, reads=256)}, 104, reader_key, 400)
+        private_grant = apply({'grant': {'object': {'kind': 'domain', 'id': private_object},
+            'grantee': reader_role, 'privileges': 1, 'grant_options': 0}})
+        assert len(call({'query': dict(sql=join_sql, rows=8, reads=256)}, 104, reader_key)['result']['query']['rows']) == 1
+        assert call({'query': dict(sql=empty_join_sql, rows=8, reads=256)}, 104, reader_key)['result']['query']['rows'] == []
+        aggregate = call({'query': dict(sql='SELECT COUNT(*) FROM readable', rows=8, reads=256)}, 104, reader_key)['result']['query']
+        assert aggregate['complete'] and len(aggregate['rows']) == 1
+        apply({'revoke': {'id': private_grant, 'privileges': 1, 'grant_option_only': False, 'behavior': 'cascade'}})
+        for text in (join_sql, empty_join_sql):
+            call({'query': dict(sql=text, rows=8, reads=256)}, 104, reader_key, 400)
+        assert list(spill_directory.iterdir()) == [], 'query spill must remain private and unlinked'
         revision = system.native_query({'resource': resource})['body']['resource']['revision']
         for raw in ({'process': pid}, {'resource': resource}, {'read_access': resource}, {'entries': {'resource': resource, 'revision': revision}},
                     {'open_snapshot': {'resource': resource, 'nonce': list(range(16))}},
@@ -292,6 +308,11 @@ def run(node, cli, host, service, transit, report=None):
 
         assert mediated('lookup', '--name', 'readable')['definition'] is not None
         assert mediated('lookup', '--name', 'private_data')['definition'] is None
+        query_sql = system.root / 'mediated-read.sql'
+        query_sql.write_text('SELECT * FROM readable')
+        assert len(mediated('query', '--file', query_sql, '--rows', 8, '--reads', 256)['result']['query']['rows']) == 1
+        query_sql.write_text(empty_join_sql)
+        mediated('query', '--file', query_sql, ok=False)
         # These object writes use an original caller with no process inspection
         # or raw-resource access, including every progress and disposition read.
         write_grant = apply({'grant': {'object': {'kind': 'domain', 'id': readable},
@@ -377,7 +398,8 @@ def run(node, cli, host, service, transit, report=None):
         observations = dict(shared_resource=resource, tables=[100, 101, 200, 201], restricted_reader=104,
                             service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1,
                             schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True,
-                            mediated_cli_write_recovery=True, no_native_process_inspection=True)
+                            mediated_cli_write_recovery=True, no_native_process_inspection=True,
+                            multisource_queries=True, noncontributing_source_revocation=True)
     result = dict(assertions='passed', definition=definition, observations=observations,
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),

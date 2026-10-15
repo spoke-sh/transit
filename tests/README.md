@@ -133,6 +133,19 @@ The repository `just test::unit` task and the current-definition
 also pass. Changesets, remaining subject transports, adapters, SDK workflows and
 clean CI remain separate delivery gates.
 
+The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
+records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
+It uses explicit INT64 join keys, grants the second source, observes a successful
+join and complete empty join, then revokes that source and denies both queries.
+The private spill directory contains no surviving files. The actual catalog CLI
+returns a complete permitted query through mediation and rejects the forbidden
+empty join. The preceding write/recovery, key rotation and restart checks also
+pass. This proves the configured finite service profile, not durable-query,
+gateway-session or installed-SDK qualification.
+The root test task also passes (321 executed tests, with remaining tasks cached),
+as do the 130-test query package, service-schema drift check and declared
+diagnostic mappings.
+
 The [mediated recovery report](verification/results/authorization-tables-mediated-recovery-2026-10-14.json)
 records `just test::authorization-tables` passing in **288.766 s** on dirty
 `7ab3475c`, with the current-definition identifier and all five executable hashes.

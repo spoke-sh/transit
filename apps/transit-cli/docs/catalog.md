@@ -8,6 +8,21 @@ inspect, create, read, insert, update, delete, alter and drop remain separate ri
 
 ## Connection and local preparation
 
+`transit catalog query --config CONNECTION --file QUERY.sql` executes a finite
+read through the configured `table_service_url`. Optional `--rows` and `--reads`
+bound the request (defaults 1,024 and 4,096; maximums 65,536 and 1,048,576).
+The service's configured limits can be lower. The command prints one JSON
+response containing the contract definition, authorization revision and complete
+typed result. It emits no successful prefix when a query fails. It neither
+creates a durable query nor changes a saved Table intent.
+
+The service supports single-Table SELECT and, with configured private spill,
+the shared int64 joins and grouped COUNT/SUM profile. Every source requires
+current SELECT, including sources that produce no rows. SQL uses Transit syntax
+and literals; parameter binding and EXPLAIN use their separate caller interfaces.
+See the [Table service guide](../../transit-table-service/README.md) for the
+deployment profile and execution budgets.
+
 Use version-1 YAML or an explicit `.json` file with the provisioned identities:
 
 ```yaml

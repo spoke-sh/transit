@@ -13,6 +13,7 @@ resources: q.wire.ResourceReader,
 scope: c.Model.Scope,
 owner: u64,
 limits: Limits = .{},
+spill_directory: ?std.Io.Dir = null,
 
 pub const Limits = struct {
     request_bytes: u32 = 1048576,
@@ -20,8 +21,12 @@ pub const Limits = struct {
     resident_bytes: u32 = 32 * 1048576,
     rows: u32 = 1024,
     reads: u32 = 4096,
+    spill_bytes: u64 = 64 * 1048576,
+    work_steps: u32 = 1048576,
+    spill_operations: u32 = 1048576,
     pub fn validate(self: Limits) !void {
         if (self.request_bytes == 0 or self.request_bytes > b.max_input_bytes or self.response_bytes == 0 or self.response_bytes > 16 * 1048576 or self.resident_bytes < self.request_bytes or self.resident_bytes > 256 * 1048576 or self.rows == 0 or self.rows > 65536 or self.reads == 0 or self.reads > 1048576) return error.InvalidTableServiceLimits;
+        if (self.spill_bytes == 0 or self.spill_bytes > 4 * 1024 * 1048576 or self.work_steps == 0 or self.work_steps > 16 * 1048576 or self.spill_operations == 0 or self.spill_operations > 16 * 1048576) return error.InvalidTableServiceLimits;
     }
 };
 pub const Action = union(enum) {
@@ -207,6 +212,7 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
         },
         .query => |input| {
             if (input.sql.len > 4096 or input.rows == 0 or input.rows > self.limits.rows or input.reads == 0 or input.reads > self.limits.reads) return error.InvalidQueryBudget;
+            if (try q.fuze.RelationalSql.required(input.sql)) return self.relational(arena, client, input, nonce);
             var query = try q.TableQuery.open(alloc, client, input.sql, nonce, .{ .requests = input.reads, .rows = input.rows, .result_bytes = self.limits.response_bytes }, null, null);
             defer query.deinit();
             var fields: [q.fuze.TableSchema.max_columns]q.fuze.Types.Field = undefined;
@@ -223,6 +229,41 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             return .{ .query = .{ .columns = try q.Values.foreignColumns(alloc, schema), .rows = try rows.toOwnedSlice(alloc), .complete = true } };
         },
     }
+}
+
+fn relational(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, input: @FieldType(Action, "query"), nonce: [16]u8) !Result {
+    const directory = self.spill_directory orelse return error.TableServiceSpillRequired;
+    const alloc = arena.allocator();
+    var targets: [q.fuze.Relational.max_sources]q.fuze.RelationalSql.Target = undefined;
+    const count = try q.fuze.RelationalSql.discoverTargets(alloc, input.sql, &targets);
+    var clients: [q.fuze.Relational.max_sources]*Client = @splat(client);
+    var nonces: [q.fuze.Relational.max_sources][16]u8 = undefined;
+    for (&nonces, 0..) |*value, index| {
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.table.service.source.v1\x00");
+        hash.update(&nonce);
+        hash.update(&.{@intCast(index)});
+        value.* = hash.finalResult()[0..16].*;
+    }
+    var filename_buffer: [64]u8 = undefined;
+    const filename = try std.fmt.bufPrint(&filename_buffer, "table-query-{s}.spill", .{std.fmt.bytesToHex(nonce, .lower)});
+    const query = try q.RelationalQuery.open(alloc, client.transport.http.io, directory, filename, clients[0..count], input.sql, nonces, .{
+        .consistency = .per_resource_snapshot_vector,
+        .budgets = .{ .resident_bytes = self.limits.resident_bytes, .spill_bytes = self.limits.spill_bytes, .result_bytes = self.limits.response_bytes, .output_rows = input.rows, .work_steps = self.limits.work_steps, .source_pins = 1 },
+        .requests = input.reads,
+        .spill_work = self.limits.spill_operations,
+    }, null, null);
+    defer query.deinit();
+    var fields: [q.fuze.Relational.max_outputs]q.fuze.Types.Field = undefined;
+    const schema = try query.schema(&fields);
+    var rows: std.ArrayList([]const q.Values.Cell) = .empty;
+    while (try query.next()) |row| {
+        const cells = try alloc.alloc(q.Values.Cell, row.len);
+        for (row.cells[0..row.len], schema.structure, cells) |cell, field, *out| out.* = try q.fuze.LogicalJson.foreignCell(alloc, cell, field.type);
+        try rows.append(alloc, cells);
+    }
+    try query.close();
+    return .{ .query = .{ .columns = try q.Values.foreignColumns(alloc, schema), .rows = try rows.toOwnedSlice(alloc), .complete = true } };
 }
 
 test "service proof binds the action, nonce, scope and selected role" {

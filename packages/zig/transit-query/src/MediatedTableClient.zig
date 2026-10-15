@@ -26,6 +26,8 @@ pub fn signed(self: Self, action: Service.Action, nonce: [16]u8) !Service.Reques
 /// The response owns every string and row until deinit. No service action
 /// submits a Table mutation or signs one with the service's private credential.
 pub fn call(self: Self, action: Service.Action) !std.json.Parsed(Service.Response) {
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var temporary = self;

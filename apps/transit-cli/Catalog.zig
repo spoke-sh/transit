@@ -21,6 +21,7 @@ pub const help =
     \\  describe            Read current authorized configuration and policy
     \\  lookup, definition  Read live or exact historical Table metadata
     \\  list                Read one page; optionally continue a saved page
+    \\  query               Execute finite SQL through the configured Table service
     \\  compile             Bind SQL to a new private saved intent (CREATE is offline)
     \\  compile-authorization Resolve role/privilege/schema SQL to a reviewable plan
     \\  prepare-schema      Save a signed schema lifecycle plan for explicit submit
@@ -70,12 +71,17 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var session: B.Session = .{ .allocator = init.gpa };
     defer session.deinit();
     var client: c.TableClient = .{ .transport = undefined, .connection = connection, .key = undefined };
+    const query_request: ?@FieldType(q.TableService.Action, "query") = if (options.mode == .query) query_input: {
+        if (config.table_service_url == null) return diagnostic.invalidField("table_service_url", "is required for mediated catalog queries", null);
+        diagnostic.atFile(options.flags.file.?);
+        break :query_input .{ .sql = try std.Io.Dir.cwd().readFileAlloc(init.io, options.flags.file.?, alloc, .limited(4096)), .rows = options.rows, .reads = options.reads };
+    } else null;
     // Restore and validate local identity before credentials or network access.
-    const action = actionFromInput(init, options, diagnostic, &session, &client) catch |err| {
+    const selected: ?B.Action = if (query_request != null) null else actionFromInput(init, options, diagnostic, &session, &client) catch |err| {
         if (diagnostic.presentation == .general) diagnostic.envelope = c.TableAttempt.artifact(@tagName(options.mode), err) catch null;
         return err;
     };
-    if (offline(action)) {
+    if (selected) |action| if (offline(action)) {
         var location: c.fuze.Sql.Location = .{};
         const result = session.applyDiagnostic(init.arena, &client, action, &location) catch |err| {
             diagnostic.envelope = c.TableAttempt.attempt(&session, connection, action, err, location, false, null, null) catch null;
@@ -83,7 +89,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
             return err;
         };
         return publish(init, options, diagnostic, result);
-    }
+    };
     diagnostic.atFile(absolute);
     const url = config.url orelse return diagnostic.invalidField("url", "is required for remote catalog operations", null);
     const seed_file = config.seed_file orelse return diagnostic.invalidField("seed_file", "is required for remote catalog operations", null);
@@ -105,6 +111,8 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     client.transport = &transport;
     client.key = key;
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
+    if (query_request) |request| return mediatedQuery(init, &client, &service.?, config.table_service_limits, request, diagnostic);
+    const action = selected.?;
     const submitting = action == .submit;
     var identity: ?p.Diagnostic.Identity = null;
     if (submitting) {
@@ -139,6 +147,31 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         }
         return err;
     };
+}
+
+fn mediatedQuery(init: std.process.Init, client: *c.TableClient, service: *c.station.client.Client, limits: c.station.client.Client.OwnedLimits, request: @FieldType(q.TableService.Action, "query"), diagnostic: *Diagnostic) !void {
+    const mediated: q.MediatedTableClient = .{ .allocator = init.gpa, .authority = client.transport, .service = service, .connection = client.connection, .key = client.key, .limits = limits };
+    const deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + service.timeout_ms;
+    var attempts: u8 = 0;
+    const response = while (true) {
+        const result = mediated.call(.{ .query = request }) catch |err| {
+            const stale = (err == error.Rejected or err == error.Conflict) and (service.last_rejection == .StaleStateResource or service.last_rejection == .QueryExpired);
+            if (stale and attempts < 8 and std.Io.Clock.boot.now(init.io).toMilliseconds() < deadline) {
+                attempts += 1;
+                continue;
+            }
+            diagnostic.envelope = try q.ApiDiagnostic.attempt("catalog_query", .read, null, err, .{}, false, null);
+            return err;
+        };
+        break result;
+    };
+    defer response.deinit();
+    var buffer: [8192]u8 = undefined;
+    var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    var encoder: std.json.Stringify = .{ .writer = &writer.interface };
+    try p.Json.write(response.value, &encoder);
+    try writer.interface.writeByte('\n');
+    try writer.interface.flush();
 }
 fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.TableClient, service: ?*c.station.client.Client, limits: c.station.client.Client.OwnedLimits, action: B.Action, location: *c.fuze.Sql.Location) !B.Result {
     const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + client.transport.timeout_ms;

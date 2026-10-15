@@ -303,13 +303,13 @@
         "CatalogArtifactSyncFailed": 1,
         "CatalogArtifactTooLarge": 1,
         "CatalogOutcomeUnknown": 1,
-        "Conflict": 2,
+        "Conflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidCatalogPage": 6,
         "InvalidConfiguration": 1,
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
-        "Rejected": 2
+        "Rejected": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -318,6 +318,7 @@
         "apply()": "<inferred>",
         "artifact()": "<inferred>",
         "loadIntent()": "<inferred>",
+        "mediatedQuery()": "<inferred>",
         "output()": "<inferred>",
         "publish()": "<inferred>",
         "run()": "<inferred>",
@@ -326,8 +327,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
-        "catch": 21
+        "try": 58,
+        "catch": 22
       },
       "imports": [
         "CatalogOptions.zig",
@@ -348,6 +349,7 @@
           "lookup",
           "definition",
           "list",
+          "query",
           "compile",
           "@\"compile-authorization\"",
           "@\"prepare-schema\"",
@@ -376,7 +378,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 4,
-        "catch": 4
+        "catch": 5
       },
       "imports": [
         "Diagnostic.zig",
@@ -14250,7 +14252,8 @@
         "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidQueryBudget": 1,
-        "InvalidTableServiceLimits": 1
+        "InvalidTableServiceLimits": 2,
+        "TableServiceSpillRequired": 1
       },
       "outcomes": {
         "Action": [
@@ -14306,11 +14309,12 @@
         "Request.context()": "<inferred>",
         "Request.validate()": "<inferred>",
         "apply()": "<inferred>",
-        "execute()": "<inferred>"
+        "execute()": "<inferred>",
+        "relational()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 65,
+        "try": 77,
         "catch": 1
       },
       "imports": [

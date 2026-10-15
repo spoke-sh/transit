@@ -17732,7 +17732,10 @@
             "response_bytes",
             "resident_bytes",
             "rows",
-            "reads"
+            "reads",
+            "spill_bytes",
+            "work_steps",
+            "spill_operations"
           ],
           "properties": {
             "request_bytes": {
@@ -17749,6 +17752,15 @@
             },
             "reads": {
               "$ref": "#/$defs/Limits/$defs/T1"
+            },
+            "spill_bytes": {
+              "$ref": "#/$defs/Limits/$defs/T2"
+            },
+            "work_steps": {
+              "$ref": "#/$defs/Limits/$defs/T1"
+            },
+            "spill_operations": {
+              "$ref": "#/$defs/Limits/$defs/T1"
             }
           },
           "required": [],
@@ -17757,7 +17769,10 @@
             "response_bytes": 1048576,
             "resident_bytes": 33554432,
             "rows": 1024,
-            "reads": 4096
+            "reads": 4096,
+            "spill_bytes": 67108864,
+            "work_steps": 1048576,
+            "spill_operations": 1048576
           }
         },
         "T1": {
@@ -17765,6 +17780,13 @@
           "minimum": 0,
           "maximum": 4294967295,
           "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "T2": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
           "x-transit-signed": false
         }
       }

@@ -14,6 +14,7 @@ const Configuration = struct {
     owner: u64,
     port: u16,
     limits: Service.Limits = .{},
+    spill_directory: ?[]const u8 = null,
     http: http.Options = .{ .connections = 4, .requests = 2, .control_requests = 1, .request_timeout_ms = 30000 },
     upstream_timeout_ms: u32 = 5000,
     fn validate(self: Configuration) !void {
@@ -21,12 +22,14 @@ const Configuration = struct {
         if (self.realm != scope.realm or self.principal == 0 or self.principal > p.max_counter or self.owner == 0 or self.owner > p.max_counter or self.port == 0 or self.upstream_timeout_ms == 0 or self.upstream_timeout_ms > 30000) return error.InvalidTableServiceConfiguration;
         try self.limits.validate();
         try self.http.validate();
+        if (self.spill_directory) |path| if (path.len == 0 or path.len > 4096 or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidTableServiceConfiguration;
     }
 };
 const Shared = struct {
     config: Configuration,
     key: p.Ed25519.KeyPair,
     diagnostics: *telemetry.Runtime,
+    spill_directory: ?std.Io.Dir,
     pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
         if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"service\":\"transit-table-service\"}");
         if (request.head.method != .POST or !std.mem.eql(u8, request.head.target, "/table/v1")) return http.respond(request, .not_found, "{\"err\":\"InvalidRequest\"}");
@@ -67,7 +70,7 @@ const Shared = struct {
         defer wire.deinit();
         wire.timeout_ms = self.config.upstream_timeout_ms;
         wire.observer = self.diagnostics;
-        const service: Service = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .scope = try self.config.scope.native(), .owner = self.config.owner, .limits = self.config.limits };
+        const service: Service = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .scope = try self.config.scope.native(), .owner = self.config.owner, .limits = self.config.limits, .spill_directory = self.spill_directory };
         const output = try alloc.alloc(u8, self.config.limits.response_bytes);
         return service.execute(arena, parsed.value, output) catch |err| {
             if (err == error.Rejected or err == error.Conflict) {
@@ -87,7 +90,9 @@ pub fn main(init: std.process.Init) !void {
     var diagnostics = telemetry.Runtime.init(init.io, "transit-table-service", try telemetry.Config.environment(init.environ_map));
     diagnostics.start();
     defer diagnostics.stop();
-    var shared: Shared = .{ .config = configuration, .key = try q.wire.readKey(init.gpa, init.io, configuration.seed_file), .diagnostics = &diagnostics };
+    const spill_directory = if (configuration.spill_directory) |path| try std.Io.Dir.cwd().openDir(init.io, path, .{}) else null;
+    defer if (spill_directory) |directory| directory.close(init.io);
+    var shared: Shared = .{ .config = configuration, .key = try q.wire.readKey(init.gpa, init.io, configuration.seed_file), .diagnostics = &diagnostics, .spill_directory = spill_directory };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&shared.key));
     var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", configuration.port)).listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

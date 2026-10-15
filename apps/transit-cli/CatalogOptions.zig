@@ -2,9 +2,9 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Diagnostic = @import("Diagnostic.zig");
-pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, @"compile-authorization", @"prepare-schema", prepare, next, @"prepare-initialize", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, receipt, observe, disposition, progress, status };
-pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, namespace: ?[]const u8 = null, schema: ?[]const u8 = null, intent: ?[]const u8 = null, input: ?[]const u8 = null };
-pub const Options = struct { mode: Mode, flags: Flags = .{}, input: u64 = 0, help: bool = false };
+pub const Mode = enum { capabilities, describe, lookup, definition, list, query, compile, @"compile-authorization", @"prepare-schema", prepare, next, @"prepare-initialize", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, receipt, observe, disposition, progress, status };
+pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, namespace: ?[]const u8 = null, schema: ?[]const u8 = null, intent: ?[]const u8 = null, input: ?[]const u8 = null, rows: ?[]const u8 = null, reads: ?[]const u8 = null };
+pub const Options = struct { mode: Mode, flags: Flags = .{}, input: u64 = 0, rows: u32 = 1024, reads: u32 = 4096, help: bool = false };
 fn preparation(mode: Mode) bool {
     return mode == .@"prepare-initialize" or mode == .@"prepare-dependency" or mode == .@"prepare-resume" or mode == .@"prepare-schema" or mode == .next or mode == .cancel or mode == .cleanup or mode == .@"cancel-upload" or mode == .@"collect-upload";
 }
@@ -19,6 +19,7 @@ fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "revision")) return mode == .definition;
     if (std.mem.eql(u8, field, "name")) return mode == .lookup;
     if (std.mem.eql(u8, field, "input")) return mode == .observe or mode == .disposition or mode == .progress;
+    if (std.mem.eql(u8, field, "rows") or std.mem.eql(u8, field, "reads")) return mode == .query;
     if (std.mem.eql(u8, field, "intent")) return mode == .progress;
     return false;
 }
@@ -29,6 +30,7 @@ pub fn usage(mode: Mode) []const u8 {
         .lookup => "transit catalog lookup --config PATH --name NAME",
         .definition => "transit catalog definition --config PATH --object ID --revision ID",
         .list => "transit catalog list --config PATH [--file PREVIOUS_PAGE] [--output PAGE]",
+        .query => "transit catalog query --config PATH --file SQL [--rows COUNT] [--reads COUNT]",
         .compile => "transit catalog compile --config PATH --operation ID --namespace ID [--object NEW_OBJECT] --file SQL --output COMPILED",
         .@"compile-authorization" => "transit catalog compile-authorization --config PATH [--operation ID] [--schema NEW_ID] --file SQL --output PLAN",
         .@"prepare-schema" => "transit catalog prepare-schema --config PATH --file PLAN --output PREPARED",
@@ -90,6 +92,11 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
         if (std.mem.eql(u8, args[i], "--operation") or std.mem.eql(u8, args[i], "--object") or std.mem.eql(u8, args[i], "--revision") or std.mem.eql(u8, args[i], "--namespace") or std.mem.eql(u8, args[i], "--schema")) {
             const value = c.TableValues.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive uint64 integer");
             if (value == 0) return diagnostic.invalidOption("must be a canonical positive uint64 integer");
+        } else if (std.mem.eql(u8, args[i], "--rows") or std.mem.eql(u8, args[i], "--reads")) {
+            const value = c.TableValues.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive integer");
+            const rows = std.mem.eql(u8, args[i], "--rows");
+            if (value == 0 or value > @as(u64, if (rows) 65536 else 1048576)) return diagnostic.invalidOption("exceeds the query row or read budget");
+            if (rows) result.rows = @intCast(value) else result.reads = @intCast(value);
         } else if (std.mem.eql(u8, args[i], "--input")) {
             result.input = c.TableValues.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive native position");
             c.Model.nativeId(result.input) catch return diagnostic.invalidOption("must be a canonical positive native position");
@@ -99,7 +106,7 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
         i += 2;
     }
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        const optional = (mode == .list and (std.mem.eql(u8, field, "file") or std.mem.eql(u8, field, "output"))) or (mode == .compile and std.mem.eql(u8, field, "object")) or (mode == .@"compile-authorization" and (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "schema")));
+        const optional = (mode == .query and (std.mem.eql(u8, field, "rows") or std.mem.eql(u8, field, "reads"))) or (mode == .list and (std.mem.eql(u8, field, "file") or std.mem.eql(u8, field, "output"))) or (mode == .compile and std.mem.eql(u8, field, "object")) or (mode == .@"compile-authorization" and (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "schema")));
         if (!result.help and allowed(mode, field) and !optional and @field(result.flags, field) == null) {
             diagnostic.atArgument(null, "--" ++ field);
             diagnostic.usage = usage(mode);
@@ -115,7 +122,7 @@ pub fn help(io: std.Io, mode: Mode) !void {
     const out = &writer.interface;
     try out.print("Usage: {s}\n\nOptions:\n  --help  Show this help\n", .{usage(mode)});
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "revision")) "ID  Positive uint64 definition revision" else if (comptime std.mem.eql(u8, field, "name")) "NAME  Exact UTF-8 catalog name, at most 255 bytes" else if (comptime std.mem.eql(u8, field, "namespace")) "ID  Positive uint64 upload namespace" else if (comptime std.mem.eql(u8, field, "schema")) "ID  Fresh positive native schema identity for CREATE SCHEMA" else if (comptime std.mem.eql(u8, field, "intent")) "PATH  Original compiled intent" else "POSITION  Receipt position for this exact saved command") ++ "\n");
+        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "revision")) "ID  Positive uint64 definition revision" else if (comptime std.mem.eql(u8, field, "name")) "NAME  Exact UTF-8 catalog name, at most 255 bytes" else if (comptime std.mem.eql(u8, field, "namespace")) "ID  Positive uint64 upload namespace" else if (comptime std.mem.eql(u8, field, "schema")) "ID  Fresh positive native schema identity for CREATE SCHEMA" else if (comptime std.mem.eql(u8, field, "intent")) "PATH  Original compiled intent" else if (comptime std.mem.eql(u8, field, "rows")) "COUNT  Maximum complete query rows (default 1024)" else if (comptime std.mem.eql(u8, field, "reads")) "COUNT  Maximum native query reads (default 4096)" else "POSITION  Receipt position for this exact saved command") ++ "\n");
     }
     try out.writeAll("\nOnly submit sends a command. Save each prepared artifact before submitting.\nA receipt is admission; observe processing and read status or disposition.\nConfiguration and recovery: apps/transit-cli/docs/catalog.md\n");
     try out.flush();
