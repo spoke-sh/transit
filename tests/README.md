@@ -44,6 +44,23 @@ also pass. The report retains the exact source, observations and complete log
 hash. It replaces the failed preflight, while the final committed-source growth
 lane must independently run the entire task.
 
+The [native gateway recovery report](verification/results/authorization-native-gateway-registration-2026-10-15.json)
+passes the complete ledger/coordinator proof in **101.228 s** after migrating
+its manually driven Table host to the existing signed object-registration
+handshake. The clean attempt had stopped at `CatalogRegistrationRequired`;
+production hosts already handle that handshake. A subsequent stale assertion
+expected retransmission where the coordinator now recovers the exact receipt.
+
+The corrected proof verifies all 33 operations, three fenced replacements,
+exact write counts, history, cancellation and both SQL dialects. Lost control
+and detached-wait receipts require identical signed resubmissions. The lost
+Table receipt is recovered after node/store replacement by the original caller
+without redispatch; an authorized destination reader also verifies the same
+original request and receipt. Two observer-development attempts incorrectly
+excluded that permitted inspector; their failures remain recorded. No runtime
+behavior, task deadline or mutation/value bound changes. Complete clean lanes
+at the final committed revision remain required.
+
 The first clean core attempt found two simulation observers still reading the
 removed resource-grant record. They now project effective permissions from the
 current role graph; the independent model retains disabled-role denial.

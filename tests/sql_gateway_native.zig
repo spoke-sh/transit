@@ -6,6 +6,7 @@ const s = gateway.station;
 const p = c.protocol;
 const native = p.Growth;
 const support = @import("typed_table_native.zig");
+const authorization = @import("table_authorization_support.zig");
 const Admin = @import("growing_support.zig").Admin(46);
 const Config = struct { definition: native.Definition, writer: Admin.Provision, binding: gateway.Ledger.Binding, table_principal: u64 };
 fn tableSeed(config: Config) !u8 {
@@ -85,7 +86,11 @@ fn pump(init: std.process.Init, wire: *s.client.Client, directory: []const u8, c
             .progress => {},
             .ready => {
                 if (server.initializing) try handler.initialize.?(handler.context, &server.ready.?);
-                try handler.handle(handler.context, &server.ready.?, try s.Frame.decode(server.ready.?.delivery.input.value));
+                handler.handle(handler.context, &server.ready.?, try s.Frame.decode(server.ready.?.delivery.input.value)) catch |err| {
+                    if (!table_mode or err != error.CatalogRegistrationRequired) return err;
+                    try authorization.registration(c, &table_behavior, &server);
+                    continue;
+                };
                 try server.finish(null);
             },
         }

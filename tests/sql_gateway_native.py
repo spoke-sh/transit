@@ -26,6 +26,8 @@ def run(node, catalog, gateway):
         armed = None
         lost = {}
         replayed = set()
+        recovered = set()
+        receipt_inspectors = {}
         failures = []
         sends = 0
         turns = 0
@@ -43,6 +45,22 @@ def run(node, catalog, gateway):
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    if self.path == '/v1/query' and response.status == 200:
+                        query = json.loads(body)['query']
+                        kind = query['kind']
+                        authority = kind.get('authorization') if isinstance(kind, dict) else None
+                        if authority and isinstance(authority['kind'], dict) and 'receipt' in authority['kind']:
+                            original_request = authority['kind']['receipt']
+                            for name, (original, receipt) in lost.items():
+                                if original_request == json.loads(original)['request']:
+                                    observed = json.loads(data)['body']['authorization']['body']['receipt']
+                                    assert observed == json.loads(receipt), 'Receipt lookup changed exact acceptance'
+                                    receipt_inspectors.setdefault(name, set()).add(query['principal'])
+                                    # Current destination inspectors can also
+                                    # verify historical acceptance. Require the
+                                    # original caller's recovery separately.
+                                    if query['principal'] == original_request['principal']:
+                                        recovered.add(name)
                     if self.path == '/v1/command' and response.status == 200:
                         request = json.loads(body)['request']
                         command = request['command']
@@ -54,6 +72,9 @@ def run(node, catalog, gateway):
                             assert len(mutations) <= 4
                             assert all(len(bytes.fromhex(entry['value'])) <= 256 for entry in mutations if entry['value'])
                         for name, (original, receipt) in lost.items():
+                            original_request = json.loads(original)['request']
+                            if (request['principal'], request['sequence']) == (original_request['principal'], original_request['sequence']):
+                                assert body == original, 'Recovery replaced the original signed request'
                             if body == original:
                                 assert data == receipt
                                 replayed.add(name)
@@ -126,6 +147,7 @@ def run(node, catalog, gateway):
             assert call(gateway, 'replace')['stale_rejected']
             armed = 1234
             call(gateway, 'run', fail=True)
+            assert armed is None and '1234' in lost, 'Table receipt fault was not exercised'
             authority.kill()
             authority.wait(timeout=10)
             authority = None
@@ -134,7 +156,8 @@ def run(node, catalog, gateway):
             authority = start()
             call(gateway, 'replace')
             call(gateway, 'run')
-            assert '1234' in replayed
+            assert '1234' in recovered, 'Exact Table receipt was not recovered after restart'
+            assert '1234' not in replayed, 'An accepted Table send was unnecessarily redispatched'
             assert call(gateway, 'status', created['operation'])['summary'] == 'applied'
             assert call(catalog, 'inspect', 'wire_data')['count'] == 0
 
@@ -169,10 +192,14 @@ def run(node, catalog, gateway):
             assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
             assert not failures, failures
             print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
-                                  lost_receipts=sorted(replayed), fenced_replacements=3,
+                                  lost_receipts=sorted(replayed | recovered), exact_resubmissions=sorted(replayed),
+                                  recovered_receipts=sorted(recovered), fenced_replacements=3,
+                                  receipt_inspectors={name: sorted(principals) for name, principals in receipt_inspectors.items()},
                                   exact_counts=True, detached_replies=detached_replies, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
+            if sys.exc_info()[0] and failures:
+                print(json.dumps({'gateway_proxy_failures': failures}), file=sys.stderr, flush=True)
             if authority is not None:
                 authority.kill()
                 authority.wait(timeout=10)
