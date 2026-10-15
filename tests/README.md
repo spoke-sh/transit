@@ -36,6 +36,14 @@ to survive later policy changes. The focused real Board proof passes with the
 clean final-definition binaries, including private access, revocation, outages
 and bounded load; its maximum observed control latency is **0.103 s**.
 
+The disk storage proof passes all nine binaries through write, SIGKILL/recovery,
+checkpoint and trimmed recovery after migrating its remaining assumptions:
+resource collection first retires authorization, still blocks PID collection,
+and only then removes metadata; effect dispatch/closure retain the actual grant
+revision across disk replacement. No production collection gate or storage
+budget changes. The focused Board query proof also passes exact saved preparation
+and submission recovery, typed results and current grant/cut enforcement.
+
 The [Station recovery report](verification/results/authorization-station-recovery-2026-10-15.json)
 records a focused pass using final-definition ReleaseSafe binaries from the
 clean growth checkout. On one CPU, the one-page-cache recovery takes **85.483 s**,
