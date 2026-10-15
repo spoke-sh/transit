@@ -34,7 +34,8 @@ task totals justify execution headroom; they are not a full current-suite or
 hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
 
 The [bindings inventory split](verification/results/authorization-ci-bindings-split-2026-10-15.json)
-keeps all **86 ordinary tasks** and their deadlines. The clean Python task at
+keeps all **86 ordinary tasks**; the split itself changes no task deadline.
+The clean Python task at
 `f0227c7c` passes in **2,275.22 s**, compared with **1,300.78 s** in the earlier
 qualification record. That older complete bindings inventory totals 265.07
 minutes. These observations justify two independent jobs with finite 360-minute
@@ -49,6 +50,25 @@ selection, complete metadata, failure propagation, interrupted checkpoints,
 missing-lane rejection and one cache writer. The verification catalog passes
 with all task owners accounted for. Complete clean qualification requires all
 six ordinary lanes at the same final revision.
+
+The [SDK queue observer report](verification/results/authorization-sdk-queue-observer-2026-10-15.json)
+retains clean Ruby and Erlang queue failures at committed `d7298d22`, under the
+same final definition. Their tasks stop after **734.40 s** and **730.35 s** when
+the shared per-drain **600-second** observer expires. Separate instrumented
+schedules then verify all **46 exact terminal outcomes**, FIFO intervals and
+removed work records in **415 turns** each. Ruby's drains take **529.599 s** and
+**61.202 s**; Erlang's take **723.611 s** and **83.623 s**, with continued progress
+recorded across the old deadline. Both diagnostics use a 900-second observer and
+stop before later Station/SDK checks; neither qualifies a complete SDK task.
+
+The shared fixture now uses a finite **1,200-second** queue observer, with
+headroom above the measured Erlang drain, and emits bounded progress/timing
+records. This is a test observation budget, not a runtime latency contract.
+Every turn still checks queue metadata; the **4,096-turn** ceiling, four writes
+per callback, native/query deadlines and all outcome/FIFO/recovery assertions
+remain unchanged. Product code and the shared contract definition are unchanged.
+Full clean qualification at the new committed source remains required; the
+original failed attempts and diagnostic limits remain explicit.
 
 The [complete SQL wire preflight](verification/results/authorization-sql-wire-complete-2026-10-15.json)
 passes at committed `3d07caaf` with the same definition. The main suite takes
