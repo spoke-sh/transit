@@ -75,13 +75,20 @@ decoding and invalidate the candidate. No whole-result allocation or new source 
 ## Catalog ownership
 
 `CatalogQueryOwner` composes `TableBehavior` with the same durable query engine.
-Initialize the catalog using its exact administrator command, then install a
+Register the native database/schema/Table domains and stable database/schema
+objects, with an ordinary owner role and the catalog worker as registrar.
+Initialize the catalog using that exact configuration, then install a
 `PolicyChange` for each requester process. These are separate bounded decisions;
 initialization does not grant query delegation. One owner routes queries and DML
-for all authorized Tables in its namespace. Current catalog read and mutation
-rights remain independent.
+for all authorized Tables in its namespace. The caller additionally needs current
+CONNECT, USAGE and Table SELECT; DML privileges remain independent. Explicit
+creator/schema defaults cover future Tables only. Recoverable native object
+registration completes before a new Table becomes visible.
 
 A query policy maps a requester PID to an explicit catalog principal. Submitted
 SQL and source declarations cannot choose that principal. Cancellation uses the
 original requester's correlation index, and only native self inputs can advance
-jobs. See the [owner contract](../../../../contracts/CATALOG_QUERY_OWNER_V1.md).
+jobs. Authorize a new bundle with `UnifiedClient.authorizeBundle` before saving
+or fingerprinting it. The accepted bundle retains its original subject; result
+recovery prepares a fresh disclosure proof without replacing that attribution.
+See the [owner contract](../../../../contracts/CATALOG_QUERY_OWNER_V1.md).

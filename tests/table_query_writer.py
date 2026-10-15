@@ -231,7 +231,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
                     invoke('combined-delegate')
                 assert fault['seen'].wait(timeout=30), 'explicit initialization commit missing'
                 state = invoke('combined-state')
-                assert state['phase'] == 'ready' and state['mutation'] is None, state
+                assert state['phase'] == 'ready' and state['authorization_revision'] > 0, state
                 assert (state['query'] is None) == (phase == 1), state
                 frozen, receipt = fault['frozen'], fault['receipt']
                 source.kill(); source.wait(timeout=10)
@@ -251,13 +251,13 @@ def run(node, host, proof, library, cli, *, sdks=()):
                 counts['recovered_initialization_receipts'] += 1
                 source = replace('source')
             fault['prefix'] = None
-            # Initialization does not grant readers or writers. Policy is a third,
-            # separate public action, and an exact repeated initialization is safe.
-            for control in ('combined-grant', 'combined-initialize'):
-                position = invoke(control)['position']
-                until(lambda: processed(position))
+            # Native role grants publish separately from catalog initialization.
+            # Exact repeated catalog initialization remains safe.
+            granted = invoke('combined-grants')['authorization_revision']
+            position = invoke('combined-initialize')['position']
+            until(lambda: processed(position))
             state = invoke('combined-state')
-            assert state['query']['revision'] == state['mutation']['revision'] == 1
+            assert state['query']['revision'] == 1 and state['authorization_revision'] == granted
             catalog_connection = dict(scope=dict(realm=46, resource=connection['resource'], catalog='1'), owner=connection['source'], principal=1234)
             mutations = Catalog(library, endpoint, catalog_connection); clients.append(mutations)
             cli_mutations = Cli(cli, root, endpoint, catalog_connection); clients.append(cli_mutations)

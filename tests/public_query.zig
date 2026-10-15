@@ -7,6 +7,7 @@ const s = @import("transit_station");
 const catalog = q.catalog;
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(45);
+const authorization = @import("table_authorization_support.zig");
 const Connection = q.UnifiedClient.Connection;
 const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
 fn provision(admin: *Admin, principal: u64, key: p.Ed25519.KeyPair) !Admin.Provision {
@@ -19,7 +20,7 @@ fn provision(admin: *Admin, principal: u64, key: p.Ed25519.KeyPair) !Admin.Provi
 }
 // Run the production catalog handler behind signed ingress. Setup never writes
 // private Table records, invents metadata references or seeds a positional row.
-fn seedStatement(init: std.process.Init, admin: *Admin, server: *s.GenServer, handler: s.GenServer.Handler, caller: *catalog.TableClient, text: []const u8, operation: u64, object: ?u64) !void {
+fn seedStatement(init: std.process.Init, admin: *Admin, server: *s.GenServer, owner: *q.CatalogQueryOwner, caller: *catalog.TableClient, text: []const u8, operation: u64, object: ?u64) !void {
     var intent = try caller.compile(init.gpa, text, .{ .operation = operation, .namespace = operation, .create_object = object }, null);
     defer intent.deinit();
     for (0..4096) |_| {
@@ -38,17 +39,32 @@ fn seedStatement(init: std.process.Init, admin: *Admin, server: *s.GenServer, ha
             },
             .upload_cancelled => return error.CatalogSeedCancelled,
         }
-        try drive(init, server, handler);
+        try driveCatalog(init, server, owner);
     }
     return error.CatalogSeedBudgetExceeded;
 }
 fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
-    for (0..20) |_| switch (try server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
-        .committed => return,
-        .blocked => return server.handler_error orelse error.Blocked,
-        .idle => return error.NoInput,
-        .progress => {},
-    };
+    return driveRegistered(init, server, handler, null);
+}
+fn driveCatalog(init: std.process.Init, server: *s.GenServer, owner: *q.CatalogQueryOwner) !void {
+    return driveRegistered(init, server, owner.interface(), &owner.tables);
+}
+fn driveRegistered(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler, tables: ?*catalog.TableBehavior) !void {
+    var steps: usize = 0;
+    while (steps < 20) {
+        const step = server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000) catch |err| {
+            if (err != error.CatalogRegistrationRequired or tables == null) return err;
+            try authorization.registration(catalog, tables.?, server);
+            continue;
+        };
+        steps += 1;
+        switch (step) {
+            .committed => return,
+            .blocked => return server.handler_error orelse error.Blocked,
+            .idle => return error.NoInput,
+            .progress => {},
+        }
+    }
     return error.StepBudgetExceeded;
 }
 fn save(init: std.process.Init, directory: []const u8, name: []const u8, value: anytype) !void {
@@ -99,33 +115,33 @@ pub fn main(init: std.process.Init) !void {
         }
         writer.generation = 3;
         requester.generation = 3;
-        _ = try admin.submit(.{ .grant = .{ .subject = query_principal, .pid = if (flight) requester.pid else null, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        const query_role = try authorization.login(catalog, &admin, if (second_flight) "flight-second-reader" else "query-reader", query_principal, caller_key, if (flight) requester.pid else null);
         _ = try admin.submit(.{ .grant = .{ .subject = courier_principal, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
-        if (!second_flight) _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = p.permission(.inspect) } });
+        const inspector_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(12));
+        const inspector_role = if (!second_flight) try authorization.login(catalog, &admin, "query-inspector", 55, inspector_key, null) else try authorization.loginRole(catalog, &wire, 45, 55, inspector_key);
+        if (!second_flight) _ = try admin.authorization(.{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = inspector_role, .privileges = p.permission(.send), .behavior = .cascade } });
         for ([_]u64{ writer.resource, requester.resource }) |resource| for ([_]u64{ query_principal, 55 }) |principal| {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         };
         var server = try s.GenServer.init(.{ .client = &wire, .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         const catalog_principal: u64 = if (second_flight) 43 else 42;
         const catalog_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(14 + seed_offset));
-        _ = try admin.submit(.{ .grant = .{ .subject = catalog_principal, .pid = writer.pid, .public_key = catalog_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        const owner_role = try authorization.login(catalog, &admin, if (second_flight) "flight-second-owner" else "catalog-owner", catalog_principal, catalog_key, writer.pid);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = writer.resource, .subject = catalog_principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-        const configuration: catalog.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 45, .resource = writer.resource, .catalog = 1 }, .owner = writer.pid, .administrator = catalog_principal, .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
+        const scope: catalog.Model.Scope = .{ .realm = 45, .resource = writer.resource, .catalog = 1 };
+        const authority = try authorization.profile(catalog, &admin, scope, writer_principal, owner_role);
+        for ([_]u64{ query_role, inspector_role }) |role| try authorization.grantDefaults(catalog, &admin, authority, owner_role, role, catalog.TableAuthority.select);
+        const configuration: catalog.TableCatalogRecords.Configuration = .{ .scope = scope, .owner = writer.pid, .administrator = catalog_principal, .authority = authority, .database_name = try .init("transit"), .table_limits = .{ .record_bytes = q.fuze.TableRow.max_bytes, .staging_bytes = 2 * q.fuze.TableRow.max_bytes, .staging_records = 2 } };
         const adapter = try init.arena.allocator().alloc(u8, 1024 * 1024);
         const workspace_bytes = try init.arena.allocator().alloc(u8, q.fuze.LogicalArrow.working_bytes);
         var cancellation: q.fuze.execution.Cancellation = .init(false);
         var owner: q.CatalogQueryOwner = .{ .tables = .{ .allocator = init.gpa, .configuration = configuration }, .resources = .{ .wire = &wire, .realm = 45, .principal = writer_principal, .key = writer_key }, .adapter = adapter, .workspace = workspace_bytes, .cancellation = &cancellation };
         server.input_guard = owner.guard();
         server.failure_policy = .stop;
-        const handler = owner.interface();
         var caller: catalog.TableClient = .{ .transport = &wire, .connection = .{ .scope = configuration.scope, .owner = writer.pid, .principal = catalog_principal }, .key = catalog_key };
         _ = try caller.submit(try caller.prepareControl(.{ .initialize = configuration }));
-        try drive(init, &server, handler);
-        for ([_]u64{ query_principal, 55 }) |principal| {
-            _ = try caller.submit(try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = .{ .scope = configuration.scope, .principal = principal, .revision = 1, .inspect = true, .read = true, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false } } }));
-            try drive(init, &server, handler);
-        }
-        try seedStatement(init, &admin, &server, handler, &caller, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)", 1, 1);
+        try driveCatalog(init, &server, &owner);
+        try seedStatement(init, &admin, &server, &owner, &caller, "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)", 1, 1);
         var insert: [4096]u8 = undefined;
         var sql: std.Io.Writer = .fixed(&insert);
         try sql.writeAll("INSERT INTO items (id, value) VALUES ");
@@ -135,7 +151,7 @@ pub fn main(init: std.process.Init) !void {
             if (i % 5 == 0) try sql.writeAll("NULL") else try sql.print("{d}", .{if (overflow_flight and i == 1) std.math.maxInt(i64) else @as(i64, @intCast(9007199254740993 + i))});
             try sql.writeByte(')');
         }
-        try seedStatement(init, &admin, &server, handler, &caller, sql.buffered(), 2, null);
+        try seedStatement(init, &admin, &server, &owner, &caller, sql.buffered(), 2, null);
         var found = (try caller.lookup(init.gpa, try catalog.TableMetadata.Name.init("items"))) orelse return error.MissingSeededTable;
         defer found.deinit();
         var table_source = try q.TableSource.from(init.gpa, configuration, found);
@@ -144,7 +160,7 @@ pub fn main(init: std.process.Init) !void {
         const policy = try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = 0, .policy = .{ .peer = requester.pid, .requests = requester.resource, .revision = 1, .allow = true, .limits = limits, .target = .{ .catalog = .{ .scope = configuration.scope, .owner = writer.pid, .principal = query_principal } } } }).encode();
         const sequence = (try wire.query(.{ .realm = 45, .principal = catalog_principal, .kind = .capabilities }, catalog_key)).principal_sequence;
         _ = try wire.submit(try p.Growth.sign(.{ .realm = 45, .principal = catalog_principal, .sequence = sequence + 1, .command = .{ .send = .{ .pid = writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = policy }).encode() } } }, catalog_key));
-        try drive(init, &server, handler);
+        try driveCatalog(init, &server, &owner);
         var requests = try s.GenServer.init(.{ .client = &wire, .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
         var behavior: q.UnifiedBehavior.Requester = .{ .principal = query_principal, .source = writer.pid };
         _ = try wire.submit(try p.Growth.sign(.{ .realm = 45, .principal = query_principal, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } } }, caller_key));
@@ -288,11 +304,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .terminate = c.requester });
         _ = try admin.submit(.{ .retire_resource = c.requests });
     } else if (std.mem.eql(u8, args[2], "expand-inspector") or std.mem.eql(u8, args[2], "restore-inspector")) {
-        _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = if (std.mem.eql(u8, args[2], "expand-inspector")) p.all_permissions else p.permission(.inspect) } });
-        // Resource grants bind to the principal incarnation. Replacing its
-        // coarse grant never resurrects the previous incarnation's access.
-        if (std.mem.eql(u8, args[2], "restore-inspector")) for ([_]u64{ c.resource, c.requests }) |resource| {
-            _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 55, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-        };
+        const role = try authorization.loginRole(catalog, &wire, 45, 55, try p.Ed25519.KeyPair.generateDeterministic(@splat(12)));
+        _ = try admin.authorization(if (std.mem.eql(u8, args[2], "expand-inspector")) .{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.all_permissions } } else .{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.all_permissions & ~p.permission(.inspect), .behavior = .cascade } });
     } else return error.UnknownMode;
 }

@@ -188,7 +188,7 @@ pub fn main(init: std.process.Init) !void {
         var requester: Admin.Provision = if (expiring) .{ .pid = try admin.submit(.{ .spawn = .{} }), .resource = 0, .generation = 0 } else try admin.provision(65537, requester_key);
         if (expiring) _ = try admin.submit(.{ .grant = .{ .subject = 65537, .public_key = requester_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = requester.pid } });
         var writer = try admin.provisionReader(65536, writer_key, if (expiring) null else requester.resource);
-        _ = try admin.submit(.{ .grant = .{ .subject = 1234, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        _ = try Catalog.authorization.login(q.catalog, &admin, "query-caller", 1234, caller_key, null);
         _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
         for ([_]u64{ writer.resource, requester.resource }) |resource| {
             if (resource != 0) _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
@@ -196,16 +196,16 @@ pub fn main(init: std.process.Init) !void {
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         var seed: Seed = .{ .kind = kind, .rows = rows, .peer = requester.pid, .requests = requester.resource };
         const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
-        const table_config = Catalog.configuration(writer.resource, writer.pid);
+        const table_config: ?q.catalog.TableCatalogRecords.Configuration = if (kind == .table) try Catalog.provision(&admin, writer.resource, writer.pid) else null;
         var table_owner: ?*q.CatalogQueryOwner = null;
         var source_definition: q.SourceDefinition = undefined;
         if (kind == .table) {
-            try Catalog.grant(&admin, table_config);
-            table_owner = try Catalog.owner(init, &transport, table_config);
+            try Catalog.grant(&admin, table_config.?);
+            table_owner = try Catalog.owner(init, &transport, table_config.?);
             server.input_guard = table_owner.?.guard();
             server.failure_policy = .stop;
-            var catalog_client = try Catalog.caller(&transport, table_config);
-            source_definition = try Catalog.initialize(init, &admin, &server, table_owner.?.interface(), &catalog_client, table_config, rows);
+            var catalog_client = try Catalog.caller(&transport, table_config.?);
+            source_definition = try Catalog.initialize(init, &admin, &server, table_owner.?, &catalog_client, table_config.?, rows);
         } else {
             try admin.send(writer.pid, -1);
             try drive(init, &server, handler);
@@ -264,8 +264,8 @@ pub fn main(init: std.process.Init) !void {
         }
         if (table_owner) |catalog_owner| {
             server.input_guard = catalog_owner.guard();
-            _ = try Catalog.delegate(&transport, table_config, requester.pid, requester.resource, budgets, 1);
-            try drive(init, &server, catalog_owner.interface());
+            _ = try Catalog.delegate(&transport, table_config.?, requester.pid, requester.resource, budgets, 1);
+            try Catalog.driveCatalog(init, &server, catalog_owner);
         } else {
             try admin.send(writer.pid, -2);
             try drive(init, &server, handler);
@@ -281,9 +281,11 @@ pub fn main(init: std.process.Init) !void {
         try save(init, directory, "client.json", client_config);
         try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = client_config.source, .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
+        var query_client: q.UnifiedClient = .{ .wire = &transport, .connection = connection, .key = caller_key };
+        const authorized_bundle = try query_client.authorizeBundle(try bundle(client_config, init.arena.allocator()));
         var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
-        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try (try bundle(client_config, init.arena.allocator())).encode(&bundle_bytes) });
-        if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .catalog = table_config } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try authorized_bundle.encode(&bundle_bytes) });
+        if (kind == .table) try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .catalog = table_config.? } }) else try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
         try save(init, directory, "requester.json", .{ .url = url, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = try keyFile(init, directory, "requester.seed", 9), .activation_directory = directory, .role = .{ .unified_requester = behavior } });
         try save(init, directory, "courier.json", .{ .url = url, .realm = 46, .principal = 65538, .seed_file = try keyFile(init, directory, "courier.seed", 11), .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return print(init, connection);
@@ -299,7 +301,7 @@ pub fn main(init: std.process.Init) !void {
         const process = (try admin.query(.{ .process = config.connection.source })).body.process.process;
         var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = config.connection.source, .generation = process.generation, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
         if (config.kind == .table) {
-            const table_config = Catalog.configuration(config.connection.resource, config.connection.source);
+            const table_config = try Catalog.configuration(&transport, config.connection.resource, config.connection.source);
             const owner = try Catalog.owner(init, &transport, table_config);
             server.input_guard = owner.guard();
             server.failure_policy = .stop;

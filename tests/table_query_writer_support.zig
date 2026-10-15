@@ -33,12 +33,11 @@ pub fn provision(init: std.process.Init, url: []const u8, wire: *s.client.Client
     const courier_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
     const requester = try admin.provision(65537, requester_key);
     const writer = try admin.provisionReader(65536, writer_key, requester.resource);
-    _ = try admin.submit(.{ .grant = .{ .subject = 1234, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+    _ = try Catalog.authorization.login(c, admin, "query-caller", 1234, caller_key, null);
     _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
 
     for ([_]u64{ writer.resource, requester.resource }) |resource| _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-    const config = Catalog.configuration(writer.resource, writer.pid);
-    try Catalog.grant(admin, config);
+    const config = try Catalog.provision(admin, writer.resource, writer.pid);
     const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
     try save(init, directory, "combined.json", config);
     try save(init, directory, "combined-connection.json", connection);
@@ -92,9 +91,9 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
     }
     const encoded = try std.Io.Dir.cwd().readFileAlloc(init.io, try path(init, directory, "combined.json"), init.arena.allocator(), .limited(8192));
     const config = try std.json.parseFromSliceLeaky(c.TableCatalogRecords.Configuration, init.arena.allocator(), encoded, .{});
-    if (std.mem.eql(u8, command, "combined-grant")) {
-        var caller = try Catalog.caller(wire, config);
-        return print(init, try caller.submit(try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = .{ .scope = config.scope, .principal = connection.principal, .revision = 1, .inspect = true, .read = true, .create = true, .insert = true, .update = true, .delete = true, .alter = true, .drop = true } } })));
+    if (std.mem.eql(u8, command, "combined-grants")) {
+        try Catalog.grant(admin, config);
+        return print(init, .{ .authorization_revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
     }
     if (std.mem.eql(u8, command, "combined-delegate")) return print(init, try Catalog.delegate(wire, config, connection.requester, connection.requests, limits, 1));
     if (std.mem.eql(u8, command, "combined-source-export")) {
@@ -105,7 +104,8 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
         defer table.deinit();
         const definition: q.SourceDefinition = .{ .resource = config.scope.resource, .source = .{ .table = table.source } };
         const source_value = try q.Values.Source.fromNative(init.arena.allocator(), definition);
-        const bundle = try q.Bundle.fromSql(init.arena.allocator(), definition, "items", "SELECT * FROM items", limits);
+        var query_client: q.UnifiedClient = .{ .wire = wire, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+        const bundle = try query_client.authorizeBundle(try q.Bundle.fromSql(init.arena.allocator(), definition, "items", "SELECT * FROM items", limits));
         var bytes: [q.Bundle.max_bytes]u8 = undefined;
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try path(init, directory, "bundle.bin"), .data = try bundle.encode(&bytes) });
         try save(init, directory, "client.json", .{ .url = url, .connection = connection, .kind = "table", .source = source_value });
@@ -117,10 +117,9 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
     var reader = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 0, .key = admin.key }).open(connection.resource);
     if (std.mem.eql(u8, command, "combined-state")) {
         const process = (try admin.query(.{ .process = connection.source })).body.process;
-        const policy = try reader.read(c.Records.key(config.scope.catalog, 'p', connection.principal, 0));
         const initialized = try reader.read(c.Records.key(config.scope.catalog, 'c', 0, 0));
         if (initialized) |record| if (!std.meta.eql(try c.Records.decode(c.TableCatalogRecords.Configuration, 'C', record), config)) return error.CatalogConfigurationChanged;
-        return print(init, .{ .phase = if (initialized != null) "ready" else "uninitialized", .pending = if (process.input) |value| value.position else @as(?u64, null), .query = try q.UnifiedCapture.policy(&reader, connection.requester), .mutation = if (policy) |v| try c.Records.decode(c.TableCatalogRecords.Policy, 'P', v) else null });
+        return print(init, .{ .phase = if (initialized != null) "ready" else "uninitialized", .pending = if (process.input) |value| value.position else @as(?u64, null), .query = try q.UnifiedCapture.policy(&reader, connection.requester), .authorization_revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
     }
     if (std.mem.eql(u8, command, "combined-initialize")) {
         var caller = try Catalog.caller(wire, config);
@@ -134,16 +133,9 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
         return print(init, try send(wire, connection.source, try (q.CatalogQueryOwner.PolicyChange{ .expected_revision = expected, .policy = policy }).encode()));
     }
     if (std.mem.eql(u8, command, "combined-mutation-revoke") or std.mem.eql(u8, command, "combined-mutation-restore")) {
-        const encoded_policy = (try reader.read(c.Records.key(config.scope.catalog, 'p', connection.principal, 0))) orelse return error.MissingCatalogPolicy;
-        var policy = try c.Records.decode(c.TableCatalogRecords.Policy, 'P', encoded_policy);
-        const expected = policy.revision;
-        policy.revision += 1;
-        const allow = std.mem.eql(u8, command, "combined-mutation-restore");
-        policy.insert = allow;
-        policy.update = allow;
-        policy.delete = allow;
-        var caller = try Catalog.caller(wire, config);
-        return print(init, try caller.submit(try caller.prepareControl(.{ .policy = .{ .expected_revision = expected, .policy = policy } })));
+        const who = try Catalog.authorization.loginRole(c, wire, 46, connection.principal, try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
+        try Catalog.authorization.tablePrivileges(c, admin, config, 1, who, c.TableAuthority.insert | c.TableAuthority.update | c.TableAuthority.delete, std.mem.eql(u8, command, "combined-mutation-restore"));
+        return print(init, .{ .authorization_revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
     }
     return error.InvalidCombinedCommand;
 }

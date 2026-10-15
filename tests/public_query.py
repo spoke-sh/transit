@@ -107,7 +107,7 @@ def run(node, host, cli, proof):
             source = start("source", [host, str(fixture.root / "source.json")])
             courier = start("courier", [host, str(fixture.root / "courier.json")])
             inspector = subprocess.run([cli, "query", str(fixture.root / "inspector.json")], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
-            assert "QueryConfigurationChanged" in inspector.stdout, (inspector.stdout, inspector.stderr)
+            assert "QueryDenied" in inspector.stdout, (inspector.stdout, inspector.stderr)
             (fixture.root / "shell.json").write_text((fixture.root / "cli.json").read_text())
             shell = Shell(cli, fixture.root)
             processes.append(shell.process)
