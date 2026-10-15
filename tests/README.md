@@ -53,6 +53,15 @@ cache, original work identities and all assertions remain unchanged. Exact lost
 reply recovery, fencing, retained continuation and two disk restarts pass.
 This focused result does not complete the clean growth lane.
 
+The [installed relational caller report](verification/results/authorization-relational-sdks-2026-10-15.json)
+passes the native host and installed Python sync/async and Node callers after
+native SELECT revocation. SDKs preserve `AccessDenied` as the native code and
+`CatalogDenied` as the diagnostic cause, with owned native-cause evidence.
+Both same-resource and cross-resource layouts, duplicate pages, lost handles and
+ordered overflow retain their existing assertions. The first clean bindings
+attempt failed on the superseded SDK error-code expectation; this focused pass
+does not complete that lane.
+
 On 2026-10-14, `nix develop --command bash -euc 'cd
 packages/zig/transit-core; zig build test --summary all'` passes **80/80 tests**
 on the authorization implementation branch. The new

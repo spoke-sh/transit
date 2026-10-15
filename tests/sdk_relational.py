@@ -69,8 +69,13 @@ def exercise(languages, url, root, catalogs, policy, typed, sql):
                 ref = client.call(dict(open=dict(id=f'{103:032x}', statement=statement)))['reference']
                 client.call(dict(page=dict(reference=ref, ordinal='0')))
                 policy(False)
-                denied = failure(dict(page=dict(reference=ref, ordinal='0')), 'CatalogDenied')
+                # SDKs expose the native authority rejection as their code;
+                # the owned diagnostic preserves its catalog-level meaning.
+                denied = failure(dict(page=dict(reference=ref, ordinal='0')), 'AccessDenied')
                 assert denied['diagnostic']['category'] == 'access'
+                assert denied['diagnostic']['cause'] == 'CatalogDenied'
+                facts = {v['field']: v for v in denied['diagnostic']['facts'] if v}
+                assert facts['native_cause']['value'] == dict(text='AccessDenied')
                 client.call(dict(close_query=ref))
                 policy(True)
                 ref = client.call(dict(open=dict(id=f'{104:032x}', statement=statement)))['reference']
