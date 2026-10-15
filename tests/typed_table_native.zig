@@ -410,6 +410,9 @@ pub fn main(init: std.process.Init) !void {
         const login = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-login"), .login = true } })).?;
         const role = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-caller") } })).?;
         _ = try admin.authorization(.{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } });
+        // Independent schema tests explicitly select the SQL-created object's
+        // owner role. Catalog administration alone does not confer ownership.
+        _ = try admin.authorization(.{ .membership = .{ .member = config.owner_role, .role = role, .inherit = false, .set = true } });
         _ = try admin.authorization(.{ .bind_credential = .{ .principal = 1235, .role = login, .public_key = (try key(11)).public_key.toBytes() } });
         _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.send) } });
         _ = try admin.authorization(.{ .grant = .{ .object = c.TableAuthority.reference(config.authority.database), .grantee = role, .privileges = c.TableAuthority.connect } });
@@ -456,6 +459,8 @@ pub fn main(init: std.process.Init) !void {
         return print(init, .{ .write = allowed, .revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
     }
     if (std.mem.eql(u8, mode, "external-ddl") or std.mem.eql(u8, mode, "external-ddl-admin")) {
+        const operator: s.client.AuthorizationClient = .{ .transport = &wire, .realm = owner.scope.realm, .principal = 1234, .key = try key(10) };
+        caller.connection.role = (try operator.read(.{ .resolve = try p.Value.init("gateway-caller") })).body.authorization.body.resolve.id;
         if (std.mem.eql(u8, mode, "external-ddl")) {
             caller.connection.principal = 1235;
             caller.key = try key(11);
