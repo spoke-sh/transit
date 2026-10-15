@@ -2,6 +2,27 @@
 
 ## Declarative authorization evaluator
 
+The [repository check report](verification/results/authorization-check-2026-10-15.json)
+records `just check` passing with definition `67f02f8b…2a15e`: native unit and
+contract checks, 3,380 diagnostic projections across 29 surfaces, 590 CLI cases,
+5,705 local documentation links and frontend checks/builds. Some native tasks
+reuse current-source local outputs; clean committed-source qualification is
+separate. An earlier invocation was stopped after a compute-pool test stole the
+admission lock it was waiting to observe. Its synchronization now observes the
+lock without acquiring it, with bounded waiting and joined failure cleanup.
+
+The [SQL wire attempt report](verification/results/authorization-sql-wire-attempt-2026-10-15.json)
+retains a **failed** complete-suite attempt under the same definition. Pinned
+libpq and libmysqlclient workloads pass in **187.654 s** and **181.892 s**;
+selected-role revocation, prepared write denial, retained read availability,
+native/verifier credential rotation, detached writes and TLS certificate rotation
+also pass. The subsequent 40 KiB write remains active and unblocked when its
+1,800-second operator-observation budget expires. This run does not qualify the
+remaining completion/readback/schema/drain checks. The harness now allows
+3,600 seconds to observe that same operation, retaining the 270-second SQL wait
+and one SQL attempt. The complete replacement is part of `just ci-clean`'s
+ordinary growth lane; its result must be reported before submission.
+
 On 2026-10-14, `nix develop --command bash -euc 'cd
 packages/zig/transit-core; zig build test --summary all'` passes **80/80 tests**
 on the authorization implementation branch. The new

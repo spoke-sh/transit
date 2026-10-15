@@ -1,0 +1,202 @@
+{
+  "revision": "8aa6c8f1a7dc9a69d56b3ed442bd11de26c26ad7",
+  "dirty": true,
+  "binaries": {
+    "transit-node": "aeaecb8f27e9981d9b877da1406ec7bd0627665512b6dcd7c8aae929fcdb17b9",
+    "transit-query-host": "925145ea15d41a789257b4f9129862fee8f06fc7b548d4118324316d3f1be182",
+    "transit-sql-gateway": "7d12abbcfe8f21aa17b2b06ceb83a8c277316b92b678634b9190b9da84a6d96d"
+  },
+  "assertions": "failed",
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "command": "nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- all",
+  "failure": "The original 40 KiB write was active and unblocked when the 1800-second operator-observation deadline expired; no terminal outcome was observed.",
+  "log_sha256": "8ddcc241e8d98df7ce7b01e65939a1e3149cdf23f688aa3a3da4e5f7c2d5f0bb",
+  "observations": [
+    {
+      "profile": "database_wire_encoding",
+      "rows_per_sample": 10000,
+      "columns": 7,
+      "warmups": 1,
+      "repetitions": 5,
+      "optimize": "safe",
+      "samples": [
+        {
+          "path": "postgres_text",
+          "milliseconds": [
+            31.573374,
+            32.469238,
+            32.409944,
+            31.800261,
+            31.878501
+          ],
+          "framed_bytes": 5948890
+        },
+        {
+          "path": "postgres_binary",
+          "milliseconds": [
+            21.315336,
+            21.820528,
+            22.812519,
+            22.187395,
+            22.942099
+          ],
+          "framed_bytes": 3420000
+        },
+        {
+          "path": "mysql_text",
+          "milliseconds": [
+            11.449913,
+            11.143794,
+            11.379799,
+            11.31329,
+            11.575977
+          ],
+          "framed_bytes": 3148890
+        },
+        {
+          "path": "mysql_binary",
+          "milliseconds": [
+            9.044641,
+            9.750109,
+            9.431877,
+            9.396669,
+            9.119265
+          ],
+          "framed_bytes": 3080000
+        }
+      ],
+      "limits": "Six scalar types plus NULL; signed values vary by row, binary covers all 256 byte values. Includes scalar validation, formatting, framed-row construction and allocator work. Reuses each backend buffer; output escapes optimization. Excludes metadata, TLS, sockets, authority and storage. Framed bytes are database-protocol application bytes, not network traffic. Local observations, not a throughput or latency guarantee."
+    },
+    {
+      "profile": "database_wire_client",
+      "client": "libpq",
+      "seconds": 187.654,
+      "deadline_seconds": 600
+    },
+    {
+      "profile": "database_wire_client",
+      "client": "libmysqlclient",
+      "seconds": 181.892,
+      "deadline_seconds": 600
+    },
+    {
+      "profile": "database_wire_selected_role",
+      "set_only": true,
+      "revoked_sessions": true,
+      "revoked_logins": true,
+      "raw_reader_denied": true
+    },
+    {
+      "profile": "database_wire_valid_write_cycle",
+      "seconds": 23.0,
+      "client_wait_seconds": 300,
+      "sql_wait_seconds": 270
+    },
+    {
+      "profile": "database_wire_detached_write",
+      "seconds": 37.185,
+      "client_wait_seconds": 300
+    },
+    {
+      "profile": "database_wire_faults",
+      "deferred_write_cycles": true,
+      "suspended_cancel": true,
+      "detached_write": true,
+      "invalid_connections": 10,
+      "native_revocation": true,
+      "revoked_metadata_suppressed": true,
+      "revoked_terminal_suppressed": true,
+      "credential_rotation": true,
+      "credential_cli": true,
+      "native_identity_binding": true
+    },
+    {
+      "profile": "database_wire_authority",
+      "administrator": 1234,
+      "table_principal": 1235,
+      "prepared_revocation": true,
+      "read_only_writes_rejected_before_admission": true,
+      "reads_preserved": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_certificate_rotation",
+      "both_protocols": true,
+      "old_trust_rejected": true,
+      "new_trust_verified": true
+    },
+    {
+      "profile": "database_wire_measurement",
+      "source_revision": "24f2ba92324770c6660bc55b12e6de4f5144f9d3",
+      "tracked_changes": true,
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+      "available_cpus": 48,
+      "rows": 4,
+      "selected_rows": 1,
+      "warmups": 1,
+      "repetitions": 5,
+      "unit": "ms",
+      "samples": {
+        "native_process": [
+          506.601,
+          537.143,
+          470.814,
+          493.988,
+          511.035
+        ],
+        "postgres_literal": [
+          6053.559,
+          5886.735,
+          6272.824,
+          6010.663,
+          6112.586
+        ],
+        "postgres_prepared": [
+          5100.681,
+          5160.94,
+          5574.883,
+          5294.51,
+          5262.245
+        ],
+        "mysql_literal": [
+          4427.817,
+          4527.499,
+          4693.775,
+          4583.073,
+          4726.919
+        ],
+        "mysql_prepared": [
+          4739.744,
+          4907.282,
+          4669.809,
+          4855.271,
+          4786.15
+        ]
+      },
+      "median": {
+        "native_process": 506.601,
+        "postgres_literal": 6053.559,
+        "postgres_prepared": 5262.245,
+        "mysql_literal": 4583.073,
+        "mysql_prepared": 4786.15
+      },
+      "limits": "Native includes a fresh process and compilation; drivers retain a connection and prepared handles. Sequential local observations include authority and TLS costs; other proof/build tasks may compete for resources. No throughput, speedup or production latency claim."
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "begin",
+      "variable_bytes": 40960
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "wait_ended",
+      "seconds": 271.198
+    }
+  ],
+  "limits": [
+    "No successful completion, large-row readback, external schema lifecycle, final capacity/drain or CLI fixture is claimed for this invocation.",
+    "Subsequent code raises only the operator-observation deadline to 3600 seconds; complete replacement qualification is required."
+  ]
+}
