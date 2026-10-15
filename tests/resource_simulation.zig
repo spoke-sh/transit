@@ -201,7 +201,10 @@ fn observe(engine: *Engine, allocator: std.mem.Allocator) !Observation {
     var current = try engine.state();
     const data = try resource(engine);
     const entry = try current.get(g.Entry, try catalog.key(.entry, 3, 0, "value"));
-    const permission = try current.get(core.growing.ResourceGrant, try catalog.key(.grant, 3, 1, ""));
+    const identity = try engine.principal(1);
+    var policy = try engine.authorization();
+    var evaluator = try core.authorization.Evaluator(@TypeOf(policy)).init(&policy, policy.revision, engine.genesis.authorization_limits);
+    const resource_permissions: ?u8 = if (data == null) null else if (!identity.enabled) 0 else @intCast((try evaluator.evaluate(identity.role, .{ .kind = .resource, .id = 3 }, p.State.all_permissions)).allowed);
     const view = try activeView(engine);
     var views: std.ArrayList(View) = .empty;
     var after: ?core.pages.Key = null;
@@ -234,7 +237,7 @@ fn observe(engine: *Engine, allocator: std.mem.Allocator) !Observation {
         .sequence = (try engine.principal(1)).sequence,
         .resource_revision = if (data) |item| item.revision else null,
         .resource_value = if (entry) |item| try item.value.asInteger() else null,
-        .resource_permissions = if (permission) |item| (if (item.principal_epoch == (try engine.principal(1)).epoch) item.permissions else @as(u8, 0)) else null,
+        .resource_permissions = resource_permissions,
         .view = if (view) |item| item.id else null,
         .time_floor = engine.head.time_floor_ms,
         .history_floor = engine.head.history_floor,

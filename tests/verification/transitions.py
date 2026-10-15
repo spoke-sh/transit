@@ -191,7 +191,8 @@ class ResourceModel(Model):
         if kind == "clock":
             self.now = action.get("time", dict(unix_ms=10))
         elif kind == "resource_grant":
-            s["resource_permissions"] = action.get("resource_permissions", 7)
+            # Project effective access: grants to a disabled native role confer nothing.
+            s["resource_permissions"] = action.get("resource_permissions", 7) if s["permissions"] else 0
             receipt = s["position"]
             s["position"] += 1
         elif kind == "close_view":
