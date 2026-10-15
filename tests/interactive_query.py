@@ -20,12 +20,13 @@ from console_terminal import Terminal
 def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
     started = time.monotonic()
     request_regressions = []
-    # Explicitly accepted for #75's measured 41-row general Table fixture.
-    # Other sizes retain their prior checks until independently measured; this
-    # is not an extrapolated allowance for arbitrary schema/cardinality growth.
+    # Measured declarative-authorization profile for this exact fixture.
+    # Admission, bounded page acquisition and final disclosure check current
+    # native privileges. Other sizes retain their prior checks until measured;
+    # these bounds do not extrapolate to arbitrary schema/cardinality growth.
     accepted_table = kind == 'table' and rows == 41 and age == 0 and resident_pages == 64
-    metadata_budget = 11 if accepted_table else 5
-    parameter_overhead = 10 if accepted_table else 4
+    metadata_budget = 23 if accepted_table else 5
+    parameter_overhead = 23 if accepted_table else 4
 
     def request_bound(sql, actual, expected, exact=False):
         if actual != expected if exact else actual > expected:
@@ -42,7 +43,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
         node, proof, cli = frozen
         print(json.dumps({'source': kind, 'rows': 12 if kind == 'document' else rows,
                           'aged_operations': age, 'resident_pages': resident_pages,
-                          'request_budget_profile': 'general-table-41-accepted-2026-10-07' if accepted_table else 'prior-source-profile',
+                          'request_budget_profile': 'authorized-table-41-measured-2026-10-15' if accepted_table else 'prior-source-profile',
                           'executables': {Path(path).name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
                                           for path in frozen}}), flush=True)
         public = json.loads(subprocess.check_output([proof, 'public']))
@@ -148,13 +149,14 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                         assert plan['operators'] == ['scan', 'count']
                         assert plan['columns'] == [{'name': 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
                     print(json.dumps({'source': kind, 'inspection': sql, **measurements,
-                                      'native_attempts': counts['POST'], 'durable_updates': 0, 'snapshots': 0}), flush=True)
+                                      'native_attempts': counts['POST'], 'durable_updates': 0, 'snapshots': 0,
+                                      'native_operations': {key: value for key, value in counts.items() if key.startswith('read:')}}), flush=True)
                 scan_budget = 31 if kind == 'document' else 3 + max(1, (count + 7) // 8) + max(0, (count + 63) // 64 - 1)
                 if accepted_table:
-                    scan_budget = 75
+                    scan_budget = 188
                 # Capability discovery, snapshot acquisition, schema-disclosure
                 # revalidation, then the terminal page's current check/release.
-                small_budget = 23 if accepted_table else 30 if kind == 'document' else 4
+                small_budget = 60 if accepted_table else 30 if kind == 'document' else 4
                 first = query('SELECT * FROM items;', count, request_budget=scan_budget)
                 second = query('SELECT * FROM items;', count, request_budget=scan_budget)
                 assert first[0]['session'] != second[0]['session'], 'independent statements reused a session'
@@ -162,7 +164,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 aggregate = query('SELECT COUNT(*) FROM items;', 1, request_budget=scan_budget)
                 assert aggregate[-1]['cells'][0][0] == {'value': {'atom': {'unsigned': str(count)}}}
                 query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
-                query('SELECT * FROM items LIMIT 0;', 0, request_budget=13 if accepted_table else 4)
+                query('SELECT * FROM items LIMIT 0;', 0, request_budget=47 if accepted_table else 4)
                 query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
                 # Explicit bindings add the shared compiler's two current
                 # description checks, including general Table metadata reads.
@@ -195,12 +197,12 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     query('SELECT * FROM items WHERE id IS VALUE;', count, request_budget=scan_budget)
                     for state in ('MISSING', 'TYPE_ERROR', 'CONFLICT'):
                         query(f'SELECT * FROM items WHERE id IS {state};', 0, request_budget=scan_budget)
-                    point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=22 if accepted_table else 3)
+                    point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=59 if accepted_table else 3)
                     if count:
                         assert point[0]['cells'][0][0] == {'value': {'atom': {'signed': str(count - 1)}}}
                     query(f'SELECT * FROM items WHERE id >= {max(0, count - 3)};', min(3, count), request_budget=scan_budget if accepted_table else 3)
                     query('SELECT * FROM items WHERE id < 3;', min(3, count), request_budget=scan_budget if accepted_table else 3)
-                    total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1, request_budget=20 if accepted_table else 3)
+                    total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1, request_budget=57 if accepted_table else 3)
                     assert total[-1]['cells'][0][0] == {'value': {'atom': {'unsigned': str(min(1, count))}}}
                     query('SELECT * FROM items WHERE id > 9223372036854775807;', 0, request_budget=scan_budget if accepted_table else 3)
                 # A local execution budget reports its measured dimension and

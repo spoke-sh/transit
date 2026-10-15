@@ -79,6 +79,14 @@ missing keys are cached too. Read failures poison the acquisition, and a later
 call acquires current policy and resource evidence again. This cache neither
 retains a snapshot nor carries permission between calls.
 
+`TableAuthority.Context.wrapAcquisition` lets a bounded read coalesce repeated
+checks of its accumulated native privilege requirements. Its owner must call
+`finish` before disclosure, including empty results, and discard the handle.
+`finish` always checks the complete requirement set against current authority
+and clears the local result. Effects use ordinary current checks. Both wrappers
+forward supported batch prefetch and immutable-node caching without retaining
+permissions across calls.
+
 `TableTyped` lowers complete neutral schemas, assignments, predicates and
 lifecycle requests into the same immutable intent. `TableBridge.Session` owns
 one intent at a time; small content references identify it for progress calls.

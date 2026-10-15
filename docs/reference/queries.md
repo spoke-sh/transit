@@ -360,6 +360,14 @@ in the same request. Captured reads and current metadata have explicit separate
 bases; a write during data acquisition does not require recapturing the source.
 The client requires this capability and rejects incompatible authorities.
 
+Table reads check native database, schema and Table privileges separately from
+the source policy. Within one bounded metadata or page acquisition, repeated
+checks of the same accumulated privileges may share a verified result. The
+acquisition finishes with a fresh native check of all observed requirements;
+final disclosure also checks current authority after computation, including
+empty results. No authorization decision carries into a later page or statement.
+Authority decoration preserves batched immutable-chunk reads and bounded caches.
+
 Console output keeps bounded Arrow batches, a 64-entry point cache and at most
 64 prefetched range entries with a 32 KiB decoded-entry budget.
 Document index adapters fetch known immutable Publication chunk keys in groups

@@ -74,6 +74,24 @@ policy-raced input rejection and original cancellation also pass. The report
 retains four failed development attempts and their causes; it does not replace
 the complete committed-source growth lane.
 
+The [interactive authorization cost report](verification/results/authorization-interactive-cost-2026-10-15.json)
+passes the full Table, KV and Document console proof after preserving batch
+prefetch through authority decoration and coalescing duplicate checks within
+one bounded read. Every acquisition finishes with a fresh native check; final
+post-computation disclosure remains separate. The repeated 41-row Table scan
+uses **188 native requests**, including **81 authorization checks**, compared
+with 419 before these corrections and the earlier pre-authorization ceiling of
+75. The new fixture-specific ceilings are explicit; they do not claim the old
+cost profile is preserved. KV and Document retain their prior request bounds.
+
+The report records time to first output, total time, sampled client/node RSS,
+exact binary hashes and all three failed request-budget attempts. Timings were
+observed during concurrent qualification, not an isolated benchmark. The repeated
+combined Table proof passes in **162.405 s**, including SELECT revocation after
+computation, denied empty results, restored access, concurrent writes and exact
+recovery. No result or permission cache bypasses those checks. These focused
+passes do not replace the complete committed-source clean lanes.
+
 The [installed relational caller report](verification/results/authorization-relational-sdks-2026-10-15.json)
 passes the native host and installed Python sync/async and Node callers after
 native SELECT revocation. SDKs preserve `AccessDenied` as the native code and

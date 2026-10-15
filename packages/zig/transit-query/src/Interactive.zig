@@ -45,8 +45,8 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     result.basis = if (bundle.source.source == .table) table: {
         var cached = (try client.batchSupport()).cached(result.current.?);
         const authority = try tableAuthority(client, bundle.source);
-        var current = authority.wrap(&cached);
-        var retained = authority.wrap(&data);
+        var current = authority.wrapAcquisition(&cached);
+        var retained = authority.wrapAcquisition(&data);
         const basis = try (try bundle.source.source.table.capture(allocator, &retained, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
         try retained.finish();
         try current.finish();
@@ -91,8 +91,8 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     if (self.bundle.source.source == .table) {
         var cached = (try client.batchSupport()).cached(self.current.?);
         const authority = try tableAuthority(client, self.bundle.source);
-        var current = authority.wrap(&cached);
-        var retained = authority.wrap(&data);
+        var current = authority.wrapAcquisition(&cached);
+        var retained = authority.wrapAcquisition(&data);
         if (self.bundle.plan.limit == 0) {
             _ = try self.bundle.source.source.table.checkCurrent(&current, principal orelse return error.QueryDenied);
             batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };

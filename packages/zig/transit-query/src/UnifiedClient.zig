@@ -67,7 +67,7 @@ fn currentSource(self: *Self, data: q.wire.ResourceReader.Batch, definition: q.S
         var cached = (try self.batchSupport()).cached(data);
         const client = self.authorizationClient();
         const authority: q.catalog.TableAuthority.Context = .{ .client = client, .subject = try client.proof(self.connection.source, try definition.fingerprint()) };
-        var current = authority.wrap(&cached);
+        var current = authority.wrapAcquisition(&cached);
         _ = try definition.source.table.checkCurrent(&current, self.connection.principal);
         if (check_definition) try definition.source.table.checkDefinition(self.wire.http.allocator, &current, self.connection.principal);
         try current.finish();

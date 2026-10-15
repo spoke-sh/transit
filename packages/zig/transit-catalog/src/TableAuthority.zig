@@ -105,6 +105,12 @@ pub const Context = struct {
     pub fn wrap(self: Context, reader: anytype) Source(@TypeOf(reader)) {
         return .{ .data = reader, .view = reader.view, .authority = self };
     }
+    /// One bounded read may coalesce requirements already checked within that
+    /// acquisition. The owner MUST call finish before disclosure, even for an
+    /// empty result, and discard the handle afterwards. Never use for effects.
+    pub fn wrapAcquisition(self: Context, reader: anytype) Source(@TypeOf(reader)) {
+        return .{ .data = reader, .view = reader.view, .authority = self, .coalesce_checks = true };
+    }
 };
 /// One acquisition's bytes plus its independently verified original subject.
 /// Keep credentials in this reader handle, never in serializable Batch values.
@@ -115,6 +121,8 @@ pub fn Source(comptime Reader: type) type {
         view: @FieldType(@typeInfo(Reader).pointer.child, "view"),
         authority: Context,
         observed: ?a.Guard = null,
+        coalesce_checks: bool = false,
+        checked: ?a.Verified = null,
         pub fn read(self: *Self, key: p.Value) !?p.Value {
             try self.authority.consume();
             return self.data.read(key);
@@ -127,6 +135,14 @@ pub fn Source(comptime Reader: type) type {
             try self.authority.consume();
             return self.data.page(after);
         }
+        /// Keep bounded batch reads available through the authority wrapper.
+        /// Charge each requested key when a raw-reader allowance is present.
+        pub fn prefetch(self: *Self, keys: []const p.Value) !void {
+            if (comptime @hasDecl(@typeInfo(Reader).pointer.child, "prefetch")) {
+                for (keys) |_| try self.authority.consume();
+                try self.data.prefetch(keys);
+            }
+        }
         /// Preserve the caller's bounded immutable-node cache through authority
         /// decoration; readers without one retain the uncached profile.
         pub fn tableIndexCache(self: *Self) ?*c.station.ImmutableIndex.Cache {
@@ -137,11 +153,27 @@ pub fn Source(comptime Reader: type) type {
             return self.authority.authorizationSubject(who);
         }
         pub fn requireAuthorization(self: *Self, requested: a.Guard) !a.Verified {
+            if (self.coalesce_checks) {
+                const combined = if (self.observed) |previous| try previous.merge(requested) else requested;
+                if (self.checked) |checked| if (std.meta.eql(combined, self.observed.?)) return checked;
+                const result = try self.authority.requireAuthorization(combined);
+                self.observed = combined;
+                self.checked = result;
+                return result;
+            }
             const result = try self.authority.requireAuthorization(requested);
             self.observed = if (self.observed) |previous| try previous.merge(requested) else requested;
             return result;
         }
         pub fn finish(self: *Self) !void {
+            defer {
+                if (self.coalesce_checks) {
+                    self.observed = null;
+                    self.checked = null;
+                }
+            }
+            // This bypasses the acquisition's coalescing path: every observed
+            // requirement must hold now, including after entirely cached reads.
             _ = try self.authority.requireAuthorization(self.observed orelse return error.CatalogDenied);
         }
     };

@@ -3416,6 +3416,7 @@
         "Source().<return>.entry()": "<inferred>",
         "Source().<return>.finish()": "<inferred>",
         "Source().<return>.page()": "<inferred>",
+        "Source().<return>.prefetch()": "<inferred>",
         "Source().<return>.read()": "<inferred>",
         "Source().<return>.requireAuthorization()": "<inferred>",
         "binding()": "<inferred>",
@@ -3427,7 +3428,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 31,
         "catch": 3
       },
       "imports": [
