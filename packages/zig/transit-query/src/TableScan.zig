@@ -87,7 +87,10 @@ pub fn authorizationSubject(self: *Scan, who: u64) !p.Authorization.Subject {
 pub fn requireAuthorization(self: *Scan, requested: p.Authorization.Guard) !p.Authorization.Verified {
     var authority = self.authority;
     authority.budget = .{ .used = &self.requests, .limit = self.request_limit };
-    return authority.requireAuthorization(requested);
+    return authority.requireAuthorization(requested) catch |err| {
+        self.rejection = authority.client.transport.last_rejection;
+        return err;
+    };
 }
 pub fn checkRead(self: *Scan) !void {
     if (self.definition) |definition| {
@@ -158,7 +161,7 @@ pub fn request(self: *Scan, value: g.SnapshotRead.Query) !g.SnapshotRead.Result 
     if (self.requests == self.request_limit) return error.QueryPageBudget;
     self.requests += 1;
     return self.source.batch(value) catch |err| {
-        if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) self.rejection = self.source.client.wire.last_rejection;
+        self.rejection = self.source.client.wire.last_rejection;
         return err;
     };
 }

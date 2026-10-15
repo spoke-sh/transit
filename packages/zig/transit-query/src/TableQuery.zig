@@ -39,11 +39,7 @@ pub fn Query(comptime batched: bool) type {
             defer names.deinit();
             const name = try c.TableMetadata.Name.init(try f.TableSelect.targetDiagnostic(names.allocator(), text, location));
             var scan = try Scan.open(allocator, client, name, nonce, limits.requests, cancellation);
-            errdefer {
-                const native = scan.rejection;
-                scan.deinit();
-                client.transport.last_rejection = native;
-            }
+            errdefer scan.deinit();
             const definition = &scan.definition.?;
             var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
             var compiled = try f.TableSelect.compile(allocator, text, definition.metadata.name.slice(), try definition.schema.schema.rowType(&fields), try scan.fingerprint(), location);
@@ -57,11 +53,7 @@ pub fn Query(comptime batched: bool) type {
             try limits.validate();
             if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
             var scan = try Scan.open(allocator, client, template.binding.metadata.name, nonce, limits.requests, cancellation);
-            errdefer {
-                const native = scan.rejection;
-                scan.deinit();
-                client.transport.last_rejection = native;
-            }
+            errdefer scan.deinit();
             var compiled = try template.instantiate(allocator, client.connection, scan.definition.?, try scan.fingerprint(), values, detail);
             errdefer compiled.deinit();
             return start(&scan, &compiled, limits, compute);
