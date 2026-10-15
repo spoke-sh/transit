@@ -185,6 +185,13 @@ bound. The adapter exposes direct infrastructure reads and explicit mediated
 reads separately, through the same shared implementation. No installed Rust
 native workflow is claimed by this source-only run.
 
+Ruby's catalog value/transport suite also passes against the source libraries
+in the bindings shell on dirty `d7ff7ce5`. It covers the new native bindings,
+immutable subject context, foreign principal/audience/selected-role rejection,
+filtered schema namespaces, generated response validation, large frames and
+uncertain receipts. The installed-gem grant/use/revoke workflow is still a
+separate gate; these checks use injected replies and owned local child processes.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

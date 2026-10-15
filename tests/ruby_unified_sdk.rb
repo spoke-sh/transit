@@ -9,7 +9,7 @@ def scalar(type, value)
   Q::Scalar.new(kind: { int64: :signed, uint64: :unsigned }.fetch(type, type), value: value)
 end
 def table_source(columns)
-  metadata = C::Metadata.new(scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
+  metadata = C::Metadata.new(namespace: 1, scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
     object: 9, revision: 1, name: 'items', schema_fingerprint: "\x01".b*32, principal: 17, operation: 1, admitted_input: 1,
     commitment: C::MetadataCommitment.new(bytes: 200, digest: "\x01".b*32))
   Q::TableSource.new(owner: Transit::ProcessRef.new(realm: 1, pid: 3), metadata: metadata,

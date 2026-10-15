@@ -40,7 +40,7 @@ child, loads the supplied key and checks the exact definition and capabilities.
 Importing the module starts no worker and reads no credential.
 
 Resolved `Metadata` owns a `MetadataCommitment(bytes:, digest:)` for its immutable
-publication. The byte length is one to 436; the digest is a copied, frozen
+publication. The byte length is one to 444; the digest is a copied, frozen
 32-byte binary string. Query declarations consume this commitment with the
 metadata revision and schema. A commitment identifies the definition; it does
 not grant access or prove that the live name still resolves to it.
@@ -53,7 +53,7 @@ one to 128 `Column` values. Each column has a stable positive `id`, UTF-8 `name`
 and optional `max_characters`. Keys reference column IDs; empty keys allow
 unkeyed duplicate rows. Shared Zig validates schema semantics and supports single
 and composite primary keys. Object, column, operation, staging namespace and
-schema/policy revisions use exact positive uint64 `Integer` values. Native
+schema/metadata revisions use exact positive uint64 `Integer` values. Native
 resource/process/principal/input IDs keep their separate safe-integer bounds.
 Names are bounded to 255 UTF-8 bytes; SQL is bounded to 4096 bytes.
 
@@ -116,17 +116,22 @@ failure preserve uncertainty. Definite native rejections retain their category,
 status, code and diagnostic. Cancelling a waiting thread does not cancel accepted
 work. The SDK performs no automatic submission retry.
 
-## Policy, dependencies and metadata
+## Authority, dependencies and metadata
 
 `prepare_initialize(Configuration.new(scope:, owner:, administrator:,
-table_limits:))` prepares the immutable host configuration. `TableLimits` requires
-explicit `record_bytes`, `staging_bytes` and `staging_records` deployment quotas.
-`prepare_policy(PolicyChange.new(expected_revision:, policy:))` prepares a
-conditional administrator control. `Policy` owns `scope`, `principal`, `revision`
-and `Rights`, whose eight explicit boolean fields are `can_inspect`, `can_create`,
-`can_read`, `can_insert`, `can_update`, `can_delete`, `can_alter` and `can_drop`.
-Expected revision zero denotes an absent policy. Shared Zig and the host validate
-the successor revision and current authority.
+table_limits:, authority:, database_name:))` prepares the immutable host
+configuration. `TableLimits` requires explicit `record_bytes`, `staging_bytes`
+and `staging_records` quotas. `AuthorityProfile` requires the six registered
+native identities: `database_domain`, `schema_domain`, `table_domain`, `database`,
+`initial_schema` and `initial_schema_authority`. Provision these explicitly;
+worker startup does not invent objects or restore grants.
+
+`Connection.new(owner:, scope:, role: nil, namespace: 1)` selects an eligible
+active role and schema namespace. `Client.open` and `Client.new` accept an explicit
+`table_service_url:` for trusted mediation. The caller retains its own signing
+credential; the service holds its separate infrastructure identity. Restricted
+Table users receive no raw-resource access. Omitting the endpoint uses direct
+reads and requires separately granted infrastructure rights.
 
 `prepare_dependency(Dependency.new(scope:, object:, identity:, owner:, kind:),
 present)` registers or removes a dependency. Kinds are `:query_source`, `:writer`,
@@ -134,11 +139,18 @@ present)` registers or removes a dependency. Kinds are `:query_source`, `:writer
 DROP RESTRICT retains the exact blocking dependency in its original outcome.
 `input_disposition(prepared, position)` reads an administrator-control or rejected
 input result; absence establishes no outcome. `describe` returns current
-configuration and policy; `capabilities` returns typed generated limits.
+configuration, authenticated `Subject` and `authorization_revision`;
+`capabilities` returns typed generated limits. The subject records principal,
+login role, selected role, credential epoch, audience and an owned context digest.
+This observation is not a permission grant. Current checks apply on every
+protected disclosure and owner continuation; accepted write identities survive
+revocation.
 
-`lookup(name)` returns a `Definition(metadata:, head:, schema:)` or nil.
+`lookup(name)` returns a `Definition(authorization:, metadata:, head:, schema:)` or nil.
 `definition(object, revision)` reads an accepted immutable `HistoricalDefinition`
 with metadata and schema, including after retirement; it has no current head.
+Metadata includes the schema `namespace`; `authorization` identifies the stable
+native Table object. Current CONNECT, USAGE and SELECT still govern history.
 Unaccepted/missing definitions are absent. `list` returns a frozen `Page` with
 `resource_revision`, at most eight ordered `Entry(metadata:, head:)` values and an
 optional `next` cursor. Continue while the cursor exists, including an empty
