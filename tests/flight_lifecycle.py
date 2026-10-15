@@ -53,7 +53,7 @@ def qualify(env):
         rejected(grpc.StatusCode.ABORTED, 'GetFlightInfo', wire.FlightDescriptor(type=2, cmd=other.command), auth + [('x-transit-request-sequence', '2')])
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'DoAction', wire.Action(type='CreatePreparedStatement'), stream=True)
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'ListFlights', wire.Criteria(), stream=True)
-        bad_sql = env['descriptor'](env['sql'].CommandStatementQuery(query='DELETE FROM items'))
+        bad_sql = env['descriptor'](env['sql'].CommandStatementQuery(query='DELETE FROM'))
         rejected(grpc.StatusCode.INVALID_ARGUMENT, 'GetSchema', wire.FlightDescriptor(type=2, cmd=bad_sql.command))
         bad_sql = env['descriptor'](env['sql'].CommandStatementQuery(query='DELETE FROM items WHERE id = 1'))
         rejected(grpc.StatusCode.UNIMPLEMENTED, 'GetSchema', wire.FlightDescriptor(type=2, cmd=bad_sql.command))
@@ -65,10 +65,10 @@ def qualify(env):
         rejected(grpc.StatusCode.PERMISSION_DENIED, 'DoGet', wire.Ticket(ticket=bytes(damaged)), stream=True)
         # A correctly signed foreign scope still grants no authority.
         signer = Key(fixture.root, 'ticket-fixture', 42)
-        foreign = bytearray(handle[:-64]); struct.pack_into('<Q', foreign, 12, 999)
+        foreign = bytearray(handle[:-64]); struct.pack_into('<Q', foreign, 4 + 32 + 8, 999)
         foreign += bytes(signer.sign(hashlib.sha256(b'transit.flight.ticket.v1\0' + foreign).digest()))
         rejected(grpc.StatusCode.PERMISSION_DENIED, 'DoGet', wire.Ticket(ticket=bytes(foreign)), stream=True)
-        expired = bytearray(handle[:-64]); struct.pack_into('<Q', expired, 76, 1)
+        expired = bytearray(handle[:-64]); struct.pack_into('<Q', expired, 4 + 32 + 8 * 8 + 9 + 32, 1)
         expired += bytes(signer.sign(hashlib.sha256(b'transit.flight.ticket.v1\0' + expired).digest()))
         rejected(grpc.StatusCode.FAILED_PRECONDITION, 'DoGet', wire.Ticket(ticket=bytes(expired)), stream=True)
         assert client.do_get(info.endpoints[0].ticket, options()).read_all().equals(table)
@@ -78,14 +78,14 @@ def qualify(env):
         assert 0 < first.num_rows < table.num_rows
         boundary.pause = True
         assert boundary.reached.wait(timeout=5), 'no bounded native read followed the returned prefix'
-        admin('revoke-read')  # Keep metadata inspection; remove only entry reads.
+        admin('revoke-select')  # Native resource reads remain; revoke only Table SELECT.
         boundary.pause = False; boundary.release.set()
         try: reader.read_all()
         except flight.FlightUnauthorizedError: pass
         else: raise AssertionError('revoked prefix was reported complete')
         rejected(grpc.StatusCode.PERMISSION_DENIED, 'GetSchema', descriptor)
         rejected(grpc.StatusCode.PERMISSION_DENIED, 'DoGet', wire.Ticket(ticket=handle), stream=True)
-        admin('restore')
+        admin('restore-select')
         assert client.do_get(info.endpoints[0].ticket, options()).read_all().equals(table)
         cancelled = client.do_get(info.endpoints[0].ticket, options())
         assert cancelled.read_chunk().data.num_rows > 0
@@ -108,7 +108,7 @@ def qualify(env):
         except pa.ArrowInvalid: pass
         else: raise AssertionError('retired request prefix was reported complete')
         rejected(grpc.StatusCode.FAILED_PRECONDITION, 'DoGet', wire.Ticket(ticket=other_info.endpoints[0].ticket.ticket), other_auth, stream=True)
-        print('Flight: pooled authentication, malformed/unsupported requests, sequence conflicts, foreign/tampered tickets, read-only revocation after a real batch and interrupted duplicate fetch passed.', flush=True)
+        print('Flight: pooled authentication, malformed/unsupported requests, sequence conflicts, foreign/tampered tickets, native SELECT revocation after a real batch and interrupted duplicate fetch passed.', flush=True)
 
         # Accepted evidence survives complete physical loss; no query reexecution.
         fresh = client.get_flight_info(statement, options(2))
@@ -128,9 +128,22 @@ def qualify(env):
             env['start'](name + '-restarted', [env['host'], str(fixture.root / (name + '.json'))])
         env['start']('gateway-restarted', [env['gateway'], str(env['gateway_config'])])
         client = flight.connect(env['uri'], tls_root_certs=env['certificate'])
-        assert client.do_get(fresh.endpoints[0].ticket, options()).read_all().equals(table)
-        same = client.get_flight_info(statement, options(2))
-        assert client.do_get(same.endpoints[0].ticket, options()).read_all().equals(table)
+        def recovered(operation):
+            # Restarted workers contend for the native listener's finite slots.
+            # Retry only UNAVAILABLE for this exact retained ticket/statement;
+            # discard a failed read in full and never accept a partial result.
+            deadline = time.monotonic() + 180
+            while True:
+                try:
+                    return operation()
+                except flight.FlightUnavailableError:
+                    assert time.monotonic() < deadline
+                    assert all(env['hosts'][name + '-restarted'].poll() is None
+                               for name in ('node', 'source', 'requester', 'courier', 'gateway'))
+                    time.sleep(.1)
+        assert recovered(lambda: client.do_get(fresh.endpoints[0].ticket, options()).read_all()).equals(table)
+        same = recovered(lambda: client.get_flight_info(statement, options(2)))
+        assert recovered(lambda: client.do_get(same.endpoints[0].ticket, options()).read_all()).equals(table)
         channel = grpc.secure_channel(f'127.0.0.1:{env["edge"].port}', grpc.ssl_channel_credentials(env['certificate']))
         admin('retire-source')
         rejected(grpc.StatusCode.FAILED_PRECONDITION, 'DoGet', wire.Ticket(ticket=same.endpoints[0].ticket.ticket), stream=True)

@@ -258,6 +258,19 @@ infrastructure-reader profile, with native source/request resource access;
 selected-role ticket mismatch is a unit check and the fault/load schedule remains
 separate. Executable hashes and source/definition are in the report.
 
+The [final-definition Flight fault report](verification/results/authorization-flight-faults-2026-10-15.json)
+records `just test::flight-faults` passing on dirty `24f2ba92` with definition
+`67f02f8b…2a15e`. Revoking native Table SELECT after a returned batch denies the
+remaining result while raw resource reads stay granted. Pooled authentication,
+ticket tamper/scope/expiry, concurrent admission, control reserve, slow HTTP/2
+output, malformed frames and Board metadata redaction pass. The same complete
+result remains readable after gateway/worker/node/store restart; exact retry and
+permanent source retirement also pass. The report retains executable hashes,
+finite-statement timing and the sampled gateway RSS. The first runs exposed an
+obsolete SQL syntax expectation and transient native capacity immediately after
+restart. Recovery now retries only UNAVAILABLE for the same retained reference,
+within 180 seconds, discarding any failed partial read.
+
 The [installed general Table report](verification/results/authorization-catalog-sdks-2026-10-14.json)
 records all ten SDKs plus Python async completing Table creation, nested typed
 mutation, schema change, deletion, name reuse and saved original-outcome recovery

@@ -212,6 +212,16 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(capability.principal_sequence + 1, .{}, &output.interface);
         return output.interface.flush();
     }
+    if (std.mem.eql(u8, args[2], "revoke-select") or std.mem.eql(u8, args[2], "restore-select")) {
+        const definition = try parsed.value.workspace.source.native(init.arena.allocator());
+        var inspector: catalog.TableClient = .{ .transport = &wire, .connection = .{ .scope = definition.source.table.scope, .owner = c.source, .principal = 55 }, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(12)) };
+        var table = (try inspector.lookup(init.gpa, try .init("items"))) orelse return error.TableNotFound;
+        defer table.deinit();
+        const role = try authorization.loginRole(catalog, &wire, 45, c.principal, try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
+        const object = catalog.TableAuthority.reference(table.authority.authorization);
+        _ = try admin.authorization(if (std.mem.eql(u8, args[2], "revoke-select")) .{ .revoke_privileges = .{ .object = object, .grantee = role, .privileges = catalog.TableAuthority.select, .behavior = .cascade } } else .{ .grant = .{ .object = object, .grantee = role, .privileges = catalog.TableAuthority.select } });
+        return;
+    }
     if (std.mem.eql(u8, args[2], "released-pins")) {
         var after: ?p.Growth.ReadVersionId = null;
         var count: usize = 0;

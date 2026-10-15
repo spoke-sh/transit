@@ -1,0 +1,39 @@
+{
+  "revision": "24f2ba92324770c6660bc55b12e6de4f5144f9d3",
+  "dirty": true,
+  "binaries": {
+    "transit-node": "aeaecb8f27e9981d9b877da1406ec7bd0627665512b6dcd7c8aae929fcdb17b9",
+    "transit-query-host": "925145ea15d41a789257b4f9129862fee8f06fc7b548d4118324316d3f1be182",
+    "transit-flight-gateway": "15426b2223eec4669806096b469bb668bd6a927c85c20fb362185bc9bb8282ff",
+    "transit-board": "d533b6fdb56d0bb9a6d09c0be31724797640070ef0d438fa0654b3b915133f3d"
+  },
+  "fixtures": {
+    "tests/flight_lifecycle.py": "77a23e2ddcec6cce467a124d92ff844d7a52b4e77f38329b77b36fff4ea435dd",
+    "tests/public_query.zig": "ed540c2cbc4811d558baaf9d6975c930fd0fc4d9939252588559e00fcda4d716"
+  },
+  "assertions": "passed",
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "command": "nix develop --command just test::flight-faults",
+  "observations": {
+    "finite_statement_seconds": 127.77,
+    "rows": 41,
+    "gateway_rss_sample_bytes": 74141696,
+    "native_select_revocation_after_batch": true,
+    "raw_resource_reads_preserved": true,
+    "pooled_authentication": true,
+    "ticket_scope_signature_expiry": true,
+    "capacity_and_control_reserve": true,
+    "slow_http2_writer_closed": true,
+    "worker_node_store_gateway_restart": true,
+    "retained_exact_retry": true,
+    "permanent_source_retirement": true,
+    "board_metadata_redaction": true
+  },
+  "log_sha256": "34d48b5be57c69738d306e15bf83241514d19c40004244ffd17275f84c6565b4",
+  "limits": [
+    "Infrastructure-reader Flight profile with original caller proofs; no claim of Table-only raw-resource isolation for this adapter.",
+    "The live caller uses its login role; selected-role ticket mismatch is a separate unit check.",
+    "Full elapsed time was not captured; finite-statement timing and RSS are scoped observations, not latency or memory guarantees.",
+    "Earlier attempts failed an obsolete malformed-SQL expectation and a transient native capacity conflict immediately after restart. The rerun retains bounded retries of the identical result/statement and rejects incomplete reads."
+  ]
+}
