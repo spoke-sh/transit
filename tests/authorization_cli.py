@@ -92,6 +92,91 @@ def run(node, signer, transit, library, host, report):
         assert system.native_query({'identity': {}}) == before
         print('Authorization CLI: private checkpoints, bounded apply, exact restart recovery and stale/foreign rejection passed.', flush=True)
 
+        realm_object = {'kind': 'realm', 'id': 0}
+        group = query({'resolve': b'cli-budgeted'.hex()})['body']['resolve']['id']
+        grant = {'object': realm_object, 'grantee': role, 'privileges': 16, 'grant_options': 0}
+        membership = {'member': role, 'role': group, 'admin': False, 'inherit': True, 'set': True}
+
+        def set_document(intents):
+            return dict(definition=definition, realm=72, base_revision=query({'identity': {}})['revision'],
+                managed_scope=dict(objects=[realm_object], memberships=[dict(member=role, role=group)], defaults=[]),
+                intents=intents)
+
+        def prepare_set(name, document):
+            source = system.root / f'{name}-document.json'
+            target = system.root / f'{name}-saved.json'
+            source.write_text(json.dumps(document))
+            before = system.native_query({'identity': {}})
+            result = invoke('prepare-set', source, '--output', target)
+            assert result['changeset']['prepared']['preview']['complete']
+            assert system.native_query({'identity': {}}) == before
+            assert target.stat().st_mode & 0o777 == 0o600
+            return source, target
+
+        before_grants = query({'grants': {'object': realm_object, 'grantee': 0, 'cursor': None}})['body']['grants']['records']
+        document = set_document([{'grant': grant}, {'membership': membership}])
+        set_source, set_saved = prepare_set('scoped', document)
+        tampered = json.loads(set_saved.read_text())
+        content = json.loads(tampered['record'])
+        content['seal']['document']['intents'][1]['membership']['admin'] = True
+        tampered['record'] = json.dumps(content)
+        invalid.write_text(json.dumps(tampered))
+        before = system.native_query({'identity': {}})
+        invoke('apply', invalid, ok=False)
+        assert system.native_query({'identity': {}}) == before
+        out_of_scope = dict(document, managed_scope=dict(objects=[], memberships=[], defaults=[]))
+        invalid.write_text(json.dumps(out_of_scope))
+        invoke('prepare-set', invalid, '--output', system.root / 'denied-set.json', ok=False)
+        assert system.native_query({'identity': {}}) == before
+        pending = invoke('apply', set_saved, '--steps', '2')
+        assert pending['pending'] and pending['completed'] == 1 and pending['total'] == 2
+        retained = set_saved.read_bytes()
+        # Lose the second begin reply from the recovery file, then restart disk.
+        receipt = invoke('submit', set_saved)['changeset']['receipt']
+        assert set_saved.read_bytes() == retained
+        system.authority.kill()
+        system.authority.wait(timeout=10)
+        system.store.stop()
+        system.store.start()
+        system.authority = system.start(node, system.config)
+        wait_ready(system.store.http, system.authority, system.url + '/health')
+        assert invoke('submit', set_saved)['changeset']['receipt'] == receipt
+        summary = invoke('apply', set_saved)['terminal']
+        assert summary['status'] == 'published' and summary['completed'] == summary['total'] == 2
+        assert invoke('observe', set_saved)['changeset']['observation'] == summary
+        assert invoke('apply', set_saved)['terminal'] == summary
+        after_grants = query({'grants': {'object': realm_object, 'grantee': 0, 'cursor': None}})['body']['grants']['records']
+        assert all(before in after_grants for before in before_grants if before is not None)
+
+        # A later policy change cannot rebase the remaining explicit removal.
+        _, interrupted = prepare_set('interrupted', set_document([{'grant': grant},
+            {'revoke_membership': dict(member=role, role=group, option=None, behavior='restrict')}]))
+        invoke('submit', interrupted)
+        recovered = system.root / 'set-first-received.json'
+        invoke('recover', interrupted, '--output', recovered)
+        publish = system.root / 'set-first-publish.json'
+        invoke('next', recovered, '--output', publish)
+        invoke('submit', publish)
+        received = system.root / 'set-published.json'
+        invoke('recover', publish, '--output', received)
+        checkpoint = system.root / 'set-checkpoint.json'
+        invoke('next', received, '--output', checkpoint)
+        partial = json.loads(json.loads(checkpoint.read_text())['record'])
+        assert len(partial['completed']) == 1 and partial['current'] is None
+        _, interloper = prepare('set-intervening-role')
+        invoke('apply', interloper)
+        retained = checkpoint.read_bytes()
+        before = system.native_query({'identity': {}})
+        invoke('apply', checkpoint, ok=False)
+        assert checkpoint.read_bytes() == retained and system.native_query({'identity': {}}) == before
+        assert invoke('observe', checkpoint)['changeset']['observation']['completed'] == 1
+        _, removal = prepare_set('explicit-removal', set_document([
+            {'revoke_membership': dict(member=role, role=group, option=None, behavior='restrict')}]))
+        assert invoke('apply', removal)['terminal']['status'] == 'published'
+        assert all(edge is None or edge['role'] != group for edge in query({'memberships': {'member': role, 'cursor': None}})['body']['memberships']['records'])
+        assert any(edge and edge['grantee'] == role and edge['privileges'] & 16 for edge in query({'grants': {'object': realm_object, 'grantee': role, 'cursor': None}})['body']['grants']['records'])
+        print('Authorization changesets: sealed scope, explicit removal, partial publication, lost replies, disk restart and stale-basis refusal passed.', flush=True)
+
         api = ctypes.CDLL(str(library))
         pointer = ctypes.c_void_p
         api.transit_client_create.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_uint32, ctypes.POINTER(pointer)]
@@ -154,6 +239,15 @@ def run(node, signer, transit, library, host, report):
             assert denied['diagnostic']['outcome'] == 'not_submitted'
             assert abi({'restore': completed})['record'] == completed
             assert query({'resolve': b'abi-role'.hex()})['body']['resolve']['id'] == terminal['created_id']
+            change_set = abi({'changeset': {'prepare': set_document([{'grant': grant}])}})['changeset']['prepared']['record']
+            assert port({'changeset': {'next': change_set}})['changeset']['next']['record'] == change_set
+            first = abi({'changeset': {'submit': change_set}})['changeset']['receipt']
+            recovered = port({'changeset': {'recover_pending': change_set}})['changeset']['recovered']
+            publication = abi({'changeset': {'next': recovered}})['changeset']['next']['record']
+            receipt = port({'changeset': {'submit': publication}})['changeset']['receipt']
+            received_set = abi({'changeset': {'received': dict(record=publication, receipt=receipt)}})['changeset']['record']
+            done = port({'changeset': {'next': received_set}})['changeset']['next']['record']
+            assert abi({'changeset': {'next': done}})['changeset']['next']['terminal']['status'] == 'published'
         finally:
             api.transit_client_destroy(client)
             process.stdin.write('{"shutdown":{}}\n')
@@ -164,9 +258,10 @@ def run(node, signer, transit, library, host, report):
             process.stdout.close()
             process.stderr.close()
         print('Authorization ABI/host: shared saved bytes, explicit submit, receipt recovery and current identity validation passed.', flush=True)
-        observations = dict(restarts=1, cli_reader=role, abi_role=terminal['created_id'],
+        observations = dict(restarts=2, cli_reader=role, abi_role=terminal['created_id'],
                             bounded_apply=True, foreign_missing_definition_rejected=True,
-                            stale_record_preserved=True, cli_abi_host=True)
+                            stale_record_preserved=True, cli_abi_host=True, scoped_changesets=True,
+                            changeset_partial_recovery=True, changeset_explicit_removal=True)
     result = dict(revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
         definition=definition, elapsed_seconds=time.monotonic() - started,

@@ -115,7 +115,7 @@ bypass work or authorize data.
 Names are at most 63 UTF-8 bytes. An inspection response contains at most eight
 records and a scope/revision-bound cursor. Grants and memberships retain their
 grantor for bounded provenance inspection. Individual administrative commands contain bounded actions;
-large cascades and change sets stage paged candidates with explicit byte/work
+large cascades stage paged candidates with explicit byte/work
 quotas. Only a complete candidate can publish one new authorization revision.
 Abandoned candidates supply no authority. No retained-state expiry is implicit.
 
@@ -139,6 +139,32 @@ returns `complete: false`: it does not establish that remaining dependencies
 permit publication. The retained begin/advance workflow validates larger changes
 under deployment quotas. A stale revision rejects; a preview never reserves its
 principal sequence or permits bypassing validation during apply.
+
+The neutral client also accepts a scoped grant changeset: a mandatory current
+definition, realm, base revision, explicit managed scope and 1–32 grant,
+membership or default-grant intents. Scope contains at most 32 object references,
+membership pairs or creator/schema/domain targets. An intent outside the scope,
+or overlapping intents for the same target and grantee, rejects before I/O.
+Omitted entries have no effect. Removal and option/dependency behavior must be
+explicit. Scope itself supplies no permission.
+
+Preparation seals the complete document, principal and selected role with an
+Ed25519 signature over SHA-256 of `transit.authorization.changeset.v1\0` followed
+by the shared JSON encoding of those fields and the public key. It prepares and
+previews only the first native change. Subsequent intents are validated against
+the preceding publication's revision. Each native change publishes separately;
+the changeset has ordered partial outcomes and is not an atomic transaction.
+An intervening revision stops progress without rebasing, rollback or compensation.
+
+The saved record contains the seal, completed native records/outcomes and at
+most one current change. Its maximum encoded size is 128 KiB. Observation and
+submission verify completed outcomes against the retained native operation
+ledger; a local completion flag never proves acceptance. A completed step is
+checkpointed before preparation of its successor. Pending sends retain exact
+bytes and use current-credential receipt recovery. Abandonment closes only a
+resolved unpublished candidate; it cannot undo the published prefix. Mixed
+credential, provisioning, schema and data work uses its owning explicit
+lifecycles; this grant document does not create or infer those operations.
 
 Repeated grants by the same effective grantor union the requested privilege and
 grant-option bits into an existing active edge. Repeated membership grants

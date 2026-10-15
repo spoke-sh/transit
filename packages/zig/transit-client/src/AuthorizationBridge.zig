@@ -5,6 +5,7 @@ const wire = @import("root.zig");
 const p = wire.protocol;
 const a = p.Authorization;
 const Change = wire.AuthorizationChange;
+const Set = wire.AuthorizationSet;
 pub const codes = @import("AuthorizationCodes.zig");
 pub const max_input_bytes = 256 * 1024;
 pub const Connection = struct {
@@ -22,6 +23,9 @@ pub const Capabilities = struct {
     max_input_bytes: u32 = max_input_bytes,
     max_record_bytes: u32 = Change.Record.max_bytes,
     explicit_submit: bool = true,
+    changeset_max_intents: u8 = Set.max_intents,
+    changeset_max_bytes: u32 = Set.max_bytes,
+    changeset_atomic: bool = false,
 };
 const NativeRead = @FieldType(a.Query, "kind");
 /// Administration inspection only. Subject proofs and full native request
@@ -69,6 +73,7 @@ pub const Action = union(enum) {
     received: struct { record: []const u8, receipt: p.Receipt },
     recover_pending: []const u8,
     abandon: []const u8,
+    changeset: Set.Action,
 };
 pub const Result = union(enum) {
     capabilities: Capabilities,
@@ -78,6 +83,7 @@ pub const Result = union(enum) {
     next: union(enum) { pending: []const u8, terminal: a.Outcome },
     receipt: p.Receipt,
     recovered: ?[]const u8,
+    changeset: Set.Result,
 };
 
 pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Action) {
@@ -91,11 +97,28 @@ pub fn record(allocator: std.mem.Allocator, connection: Connection, bytes: []con
     if (request.realm != connection.realm or request.principal != connection.principal) return error.InvalidAuthorizationChange;
     return saved;
 }
+pub fn setRecord(allocator: std.mem.Allocator, connection: Connection, bytes: []const u8) !Set.Record {
+    try connection.validate();
+    const saved = try Set.Record.restore(allocator, bytes);
+    if (saved.seal.document.realm != connection.realm or saved.seal.principal != connection.principal) return error.InvalidAuthorizationSet;
+    return saved;
+}
 /// Local validation runs before transport dispatch. Recovery uses the retained
 /// selected role, so changing a session's selected role cannot replace it.
 pub fn validate(allocator: std.mem.Allocator, connection: Connection, action: Action) !void {
     try connection.validate();
     switch (action) {
+        .changeset => |intent| switch (intent) {
+            .prepare => |document| {
+                try document.validate();
+                if (document.realm != connection.realm) return error.InvalidAuthorizationSet;
+            },
+            .received => |value| _ = try (try setRecord(allocator, connection, value.record)).received(value.receipt),
+            inline else => |bytes| {
+                const saved = try setRecord(allocator, connection, bytes);
+                if ((intent == .submit or intent == .recover_pending) and (saved.current == null or saved.current.?.pending == null)) return error.AuthorizationChangeNotPending;
+            },
+        },
         .capabilities => {},
         .read => |kind| try a.validateQuery(.{ .role = connection.role, .kind = kind.native() }),
         .prepare => |value| try a.validateQuery(.{ .role = connection.role, .kind = .{ .preview = .{ .expected_revision = value.expected_revision, .action = value.action } } }),
@@ -113,6 +136,7 @@ pub fn apply(allocator: std.mem.Allocator, transport: anytype, key: p.Ed25519.Ke
     const Transport = @typeInfo(@TypeOf(transport)).pointer.child;
     const client: Change.WithTransport(Transport) = .{ .authority = .{ .transport = transport, .key = key, .realm = connection.realm, .principal = connection.principal, .role = connection.role } };
     return switch (action) {
+        .changeset => |intent| .{ .changeset = try applySet(allocator, client, connection, intent, dispatched) },
         .capabilities => .{ .capabilities = .{} },
         .read => |kind| .{ .observation = try Observation.from(try client.authority.read(kind.native())) },
         .prepare => |value| result: {
@@ -135,10 +159,41 @@ pub fn apply(allocator: std.mem.Allocator, transport: anytype, key: p.Ed25519.Ke
         .abandon => |bytes| .{ .record = try (try client.abandon(try record(allocator, connection, bytes))).save(allocator) },
     };
 }
+fn applySet(allocator: std.mem.Allocator, client: anytype, connection: Connection, action: Set.Action, dispatched: *bool) !Set.Result {
+    const Transport = @typeInfo(@TypeOf(client.authority.transport)).pointer.child;
+    const set: Set.WithTransport(Transport) = .{ .client = client, .allocator = allocator };
+    return switch (action) {
+        .prepare => |document| result: {
+            const prepared = try set.prepare(document);
+            break :result .{ .prepared = .{ .preview = prepared.preview, .record = try prepared.record.save(allocator) } };
+        },
+        .restore => |bytes| .{ .record = try (try setRecord(allocator, connection, bytes)).save(allocator) },
+        .next => |bytes| .{ .next = switch (try set.next(try setRecord(allocator, connection, bytes))) {
+            .record => |saved| .{ .record = try saved.save(allocator) },
+            .terminal => |outcome| .{ .terminal = outcome },
+        } },
+        .submit => |bytes| result: {
+            const saved = try setRecord(allocator, connection, bytes);
+            const signed = try set.submission(saved);
+            dispatched.* = true;
+            break :result .{ .receipt = try client.authority.transport.submit(signed) };
+        },
+        .observe => |bytes| .{ .observation = try set.observe(try setRecord(allocator, connection, bytes)) },
+        .received => |value| .{ .record = try (try (try setRecord(allocator, connection, value.record)).received(value.receipt)).save(allocator) },
+        .recover_pending => |bytes| .{ .recovered = if (try set.recoverPending(try setRecord(allocator, connection, bytes))) |saved| try saved.save(allocator) else null },
+        .abandon => |bytes| .{ .record = try (try set.abandon(try setRecord(allocator, connection, bytes))).save(allocator) },
+    };
+}
 
 /// Diagnostics describe this attempt only. A rejected retry does not change
 /// the outcome of a previously accepted command with the same saved identity.
 pub fn identity(allocator: std.mem.Allocator, connection: Connection, action: Action) !?p.Diagnostic.Identity {
+    if (action == .changeset) {
+        if (action.changeset != .submit) return null;
+        const current = (try setRecord(allocator, connection, action.changeset.submit)).current orelse return error.AuthorizationChangeNotPending;
+        const request = (current.pending orelse return error.AuthorizationChangeNotPending).signed.request;
+        return .{ .domain = .transport, .id = .init(request.sequence), .sequence = .init(request.sequence), .realm = .init(request.realm) };
+    }
     if (action != .submit) return null;
     const saved = try record(allocator, connection, action.submit);
     const request = (saved.pending orelse return error.AuthorizationChangeNotPending).signed.request;
@@ -147,7 +202,7 @@ pub fn identity(allocator: std.mem.Allocator, connection: Connection, action: Ac
 pub fn diagnostic(action: Action, cause: anyerror, dispatched: bool, target: ?p.Diagnostic.Identity, native: ?p.ErrorCode) !p.Diagnostic {
     const d = p.Diagnostic;
     const rejected = cause == error.AccessDenied or cause == error.Rejected or cause == error.Conflict;
-    const read = action == .read or action == .observe or action == .recover_pending;
+    const read = action == .read or action == .observe or action == .recover_pending or (action == .changeset and (action.changeset == .observe or action.changeset == .recover_pending));
     const category = codes.category(cause);
     var detail = if (dispatched and !rejected)
         try d.init("authorization.send_unknown", .unavailable, .submit, .unknown, .saved_intent, "The administration step's outcome is unknown. Retain the exact saved record and reconcile its receipt before preparing another step.")
@@ -157,7 +212,7 @@ pub fn diagnostic(action: Action, cause: anyerror, dispatched: bool, target: ?p.
         try d.init("authorization.operation_failed", category, if (read) .read else .prepare, if (read) .not_applicable else .not_submitted, if (read) .none else .local_before_dispatch, "The administration operation did not complete. No command was submitted by this attempt.");
     detail.cause = try d.Code.init(@errorName(cause));
     detail.identity = target;
-    try detail.text(.operation, .caller, @tagName(action));
+    try detail.text(.operation, .caller, if (action == .changeset) @tagName(action.changeset) else @tagName(action));
     if (native) |value| try detail.text(.native_cause, .authority, @tagName(value));
     if (dispatched) {
         try detail.action(.inspect_status);

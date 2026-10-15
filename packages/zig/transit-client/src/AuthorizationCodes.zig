@@ -9,6 +9,8 @@ pub const entries = [_]Entry{
     .{ .cause = error.IncompatibleDefinition, .code = "authorization.operation_failed", .category = .unsupported },
     .{ .cause = error.InvalidAuthorityResponse, .code = "authorization.operation_failed", .category = .integrity },
     .{ .cause = error.InvalidAuthorizationChange, .code = "authorization.operation_failed", .category = .binding },
+    .{ .cause = error.InvalidAuthorizationSet, .code = "authorization.operation_failed", .category = .binding },
+    .{ .cause = error.AuthorizationSetScope, .code = "authorization.operation_failed", .category = .access },
     .{ .cause = error.InvalidAuthorizationInput, .code = "authorization.operation_failed", .category = .binding },
     .{ .cause = error.InvalidAuthorizationObject, .code = "authorization.operation_failed", .category = .binding },
     .{ .cause = error.AuthorizationChangeNotPending, .code = "authorization.operation_failed", .category = .lifecycle },

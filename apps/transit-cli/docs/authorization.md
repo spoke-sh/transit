@@ -46,7 +46,7 @@ transit auth prepare --config admin.json --file change.json --output change.save
 ```
 
 This performs a read-only preview and signs a begin request without sending it.
-The new file contains the mandatory definition, an opaque `record` and preview
+The new file contains the mandatory definition, a `kind`, an opaque `record` and preview
 evidence. It is created with mode 0600, synced before publication, and refuses an
 existing path. Review `preview.complete`, changed-record count and work counts.
 An incomplete preview has exhausted its bounded scratch allowance; it does not
@@ -109,6 +109,28 @@ writes a new record only when the authority proves acceptance. `next` preserves
 an existing pending request, prepares one new step, or reports a terminal result.
 An admitted change with no uncertain step can be closed with `abandon`, which
 prepares a closure step for explicit submit/apply. It cannot undo publication.
+
+## Scoped grant changesets
+
+`prepare-set` accepts a document containing `definition`, `realm`,
+`base_revision`, `managed_scope` and `intents`. The [shared client
+reference](../../../packages/zig/transit-client/docs/authorization.md#scoped-changesets)
+defines the six grant/membership/default intent tags and their explicit scopes.
+
+```sh
+transit auth prepare-set --config admin.json --file grants.json --output grants.saved.json
+transit auth apply --config admin.json --file grants.saved.json --steps 4
+transit auth observe --config admin.json --file grants.saved.json
+```
+
+The same recovery commands recognize the saved `changeset` kind. The complete
+document and selected role are signed during preparation; each native change
+publishes separately. The first preview does not certify later intents. Apply
+checkpoints completed outcomes before moving on, and reports completed/total
+counts when its submit budget is exhausted. An interrupted apply can therefore
+have already published a prefix. A stale remaining basis requires a separately
+reviewed document, and omitted grants remain unchanged. Documents contain at
+most 32 intents and 32 managed targets; saved records are limited to 128 KiB.
 
 ## Schema operations
 

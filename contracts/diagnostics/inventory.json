@@ -221,11 +221,16 @@
         "StaleAuthorizationRevision": 1
       },
       "outcomes": {
+        "Kind": [
+          "change",
+          "changeset"
+        ],
         "Mode": [
           "capabilities",
           "read",
           "prepare",
           "@\"prepare-plan\"",
+          "@\"prepare-set\"",
           "next",
           "submit",
           "observe",
@@ -237,8 +242,10 @@
       "error_sets": {},
       "error_returns": {
         "apply()": "<inferred>",
+        "applySet()": "<inferred>",
         "attempt()": "<inferred>",
         "checkpoint()": "<inferred>",
+        "checkpointSet()": "<inferred>",
         "output()": "<inferred>",
         "parse()": "<inferred>",
         "read()": "<inferred>",
@@ -247,8 +254,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
-        "catch": 10
+        "try": 56,
+        "catch": 12
       },
       "imports": [
         "Diagnostic.zig",
@@ -4677,12 +4684,13 @@
     "packages/zig/transit-client/src/AuthorizationBridge.zig": {
       "errors": {
         "AccessDenied": 1,
-        "AuthorizationChangeNotPending": 2,
+        "AuthorizationChangeNotPending": 5,
         "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidAuthorizationChange": 1,
         "InvalidAuthorizationInput": 1,
+        "InvalidAuthorizationSet": 2,
         "Rejected": 1
       },
       "outcomes": {
@@ -4696,7 +4704,8 @@
           "observe",
           "received",
           "recover_pending",
-          "abandon"
+          "abandon",
+          "changeset"
         ],
         "Read": [
           "identity",
@@ -4721,7 +4730,8 @@
           "record",
           "next",
           "receipt",
-          "recovered"
+          "recovered",
+          "changeset"
         ],
         "Result.next": [
           "pending",
@@ -4733,15 +4743,17 @@
         "Connection.validate()": "<inferred>",
         "Observation.from()": "<inferred>",
         "apply()": "<inferred>",
+        "applySet()": "<inferred>",
         "diagnostic()": "<inferred>",
         "identity()": "<inferred>",
         "parse()": "<inferred>",
         "record()": "<inferred>",
+        "setRecord()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 44,
+        "try": 73,
         "catch": 0
       },
       "imports": [
@@ -4827,12 +4839,14 @@
         "AuthorizationChangeNotAdmitted": 1,
         "AuthorizationChangeNotPending": 1,
         "AuthorizationChangePending": 1,
+        "AuthorizationSetScope": 1,
         "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidAuthorizationChange": 1,
         "InvalidAuthorizationInput": 1,
         "InvalidAuthorizationObject": 1,
+        "InvalidAuthorizationSet": 1,
         "OutOfMemory": 1,
         "Rejected": 1,
         "SignatureVerificationFailed": 1,
@@ -4848,6 +4862,87 @@
       },
       "imports": [
         "root.zig"
+      ]
+    },
+    "packages/zig/transit-client/src/AuthorizationSet.zig": {
+      "errors": {
+        "AuthorizationChangeNotAdmitted": 1,
+        "AuthorizationChangeNotPending": 4,
+        "AuthorizationSetScope": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorizationSet": 20,
+        "StaleAuthorizationRevision": 1
+      },
+      "outcomes": {
+        "Action": [
+          "prepare",
+          "restore",
+          "next",
+          "submit",
+          "observe",
+          "received",
+          "recover_pending",
+          "abandon"
+        ],
+        "Intent": [
+          "grant",
+          "revoke",
+          "membership",
+          "revoke_membership",
+          "default_grant",
+          "revoke_default"
+        ],
+        "Result": [
+          "prepared",
+          "record",
+          "next",
+          "receipt",
+          "observation",
+          "recovered"
+        ],
+        "Result.next": [
+          "record",
+          "terminal"
+        ],
+        "Summary.status": [
+          "pending",
+          "published",
+          "abandoned"
+        ],
+        "WithTransport().<return>.Next": [
+          "record",
+          "terminal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Document.validate()": "<inferred>",
+        "Record.received()": "<inferred>",
+        "Record.restore()": "<inferred>",
+        "Record.save()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "Record.validateChange()": "<inferred>",
+        "Scope.validate()": "<inferred>",
+        "Seal.digest()": "<inferred>",
+        "Seal.validate()": "<inferred>",
+        "WithTransport().<return>.abandon()": "<inferred>",
+        "WithTransport().<return>.check()": "<inferred>",
+        "WithTransport().<return>.completed()": "<inferred>",
+        "WithTransport().<return>.next()": "<inferred>",
+        "WithTransport().<return>.observe()": "<inferred>",
+        "WithTransport().<return>.prepare()": "<inferred>",
+        "WithTransport().<return>.recoverPending()": "<inferred>",
+        "WithTransport().<return>.submission()": "<inferred>",
+        "WithTransport().<return>.submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-client/src/Host.zig": {
@@ -5226,6 +5321,7 @@
         "AuthorizationBridge.zig",
         "AuthorizationChange.zig",
         "AuthorizationClient.zig",
+        "AuthorizationSet.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
@@ -11455,7 +11551,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a\""
+          "@\"3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3\""
         ],
         "Effect.phase": [
           "pending",

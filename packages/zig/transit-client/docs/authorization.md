@@ -57,3 +57,41 @@ Post-dispatch allocation failure remains an uncertain outcome.
 
 Neutral input is bounded to 256 KiB. The [CLI guide](../../../../apps/transit-cli/docs/authorization.md)
 describes private durable files and explicit bounded application of these steps.
+
+## Scoped changesets
+
+`AuthorizationSet` reconciles explicit grant, membership and default-grant
+intents. A document requires the current definition, realm, base policy revision,
+managed scope and 1–32 intents. Scope lists protected objects, membership pairs
+or creator/schema/domain default targets. Up to 32 scope entries are allowed.
+Each intent must fall within that scope; duplicate targets for the same grantee
+or membership pair reject. Names are already resolved to stable IDs.
+
+The six intent tags are `grant`, `revoke`, `membership`, `revoke_membership`,
+`default_grant` and `revoke_default`. They use the corresponding native action
+fields (`revoke_privileges`, `revoke_role` and `revoke_defaults` for the removal
+forms). Adds merge privileges under the original grantor; option removal and
+RESTRICT/CASCADE remain explicit. Omitted entries never revoke permission.
+Scope limits what the document can express; it grants no authority to its signer.
+
+Preparation signs the complete document, principal and selected role, and
+previews/prepares its first native change without dispatch. The preview describes
+that first change only. Later intents are validated in order against the previous
+published policy revision. Each change has a separate atomic publication; the
+whole document is **not atomic**. An intervening policy revision rejects the
+remaining work. No rebase, rollback or compensating mutation occurs implicitly.
+
+The record retains every completed native outcome and one exact current change.
+`next` first checkpoints a completed change, then prepares the next intent on a
+subsequent invocation. `observe` and submission verify recorded completions
+against the native ledger. Unknown sends use the same receipt recovery as an
+individual change; changing the connection's selected role cannot replace the
+document's sealed role. Key rotation can recover earlier receipts and sign later
+steps using the principal's new credential. Saved documents are limited to
+128 KiB. `Record.restore` requires an arena whose lifetime contains the record.
+
+The neutral bridge's `changeset` action wraps the same prepare/restore/next/
+submit/received/recover_pending/observe/abandon operations. A resolved current
+candidate can be abandoned; earlier publications remain applied. Role creation,
+credential changes, object provisioning and data changes have their own explicit
+lifecycles and are not inferred from this grant document.

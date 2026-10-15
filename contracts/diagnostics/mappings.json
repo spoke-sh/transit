@@ -4611,6 +4611,14 @@
         "OutOfMemory": {
           "code": "authorization.operation_failed",
           "category": "unavailable"
+        },
+        "InvalidAuthorizationSet": {
+          "code": "authorization.operation_failed",
+          "category": "binding"
+        },
+        "AuthorizationSetScope": {
+          "code": "authorization.operation_failed",
+          "category": "access"
         }
       },
       "exceptions": [],

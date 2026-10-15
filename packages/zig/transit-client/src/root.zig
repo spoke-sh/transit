@@ -5,6 +5,7 @@ pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const WorkerHandoff = @import("WorkerHandoff.zig");
 pub const AuthorizationClient = @import("AuthorizationClient.zig").Client;
 pub const AuthorizationChange = @import("AuthorizationChange.zig");
+pub const AuthorizationSet = @import("AuthorizationSet.zig");
 pub const AuthorizationBridge = @import("AuthorizationBridge.zig");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
@@ -326,6 +327,7 @@ test "a full metadata view fits the bounded HTTP response" {
 test {
     _ = @import("AuthorizationClient.zig");
     _ = AuthorizationChange;
+    _ = AuthorizationSet;
     _ = AuthorizationBridge;
     _ = WaitHint;
     _ = @import("ConcurrencyTests.zig");

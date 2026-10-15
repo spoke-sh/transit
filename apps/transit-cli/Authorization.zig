@@ -6,12 +6,14 @@ const wire = q.wire;
 const p = wire.protocol;
 const B = wire.AuthorizationBridge;
 const Change = wire.AuthorizationChange;
+const Set = wire.AuthorizationSet;
 const Diagnostic = @import("Diagnostic.zig");
 const Recovery = @import("RecoveryFiles.zig");
 const Files = @import("server/Files.zig");
 pub const Config = struct { version: u8, connection: B.Connection, url: []const u8, seed_file: []const u8, request_timeout_ms: u32 = 5000 };
-pub const Saved = struct { definition: p.Growth.Definition, record: []const u8, preview: ?p.Authorization.Preview = null };
-pub const Mode = enum { capabilities, read, prepare, @"prepare-plan", next, submit, observe, recover, abandon, apply };
+pub const Kind = enum { change, changeset };
+pub const Saved = struct { definition: p.Growth.Definition, kind: Kind, record: []const u8, preview: ?p.Authorization.Preview = null };
+pub const Mode = enum { capabilities, read, prepare, @"prepare-plan", @"prepare-set", next, submit, observe, recover, abandon, apply };
 const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, steps: ?[]const u8 = null };
 pub const Options = struct { mode: Mode, flags: Flags = .{}, steps: u8 = 16, help: bool = false };
 pub const help =
@@ -23,6 +25,7 @@ pub const help =
     \\  read           Read one native authorization query from INPUT
     \\  prepare        Preview {expected_revision, action}; save a signed begin
     \\  prepare-plan   Prepare an authorization plan compiled by catalog SQL
+    \\  prepare-set    Seal scoped grant intents and prepare their first change
     \\  next           Save the next exact step or report a terminal outcome
     \\  submit         Submit the exact pending step in a saved file once
     \\  observe        Read the original admitted change's status and action
@@ -30,7 +33,7 @@ pub const help =
     \\  abandon        Prepare closure of a resolved, unpublished candidate
     \\  apply          Advance the saved file in place, checkpointing every step
     \\
-    \\prepare, prepare-plan, next, recover and abandon require --output NEW_FILE.
+    \\prepare, prepare-plan, prepare-set, next, recover and abandon require --output NEW_FILE.
     \\Existing output files are refused. Read/submit/observe print JSON.
     \\apply accepts --steps 1..64 (default 16), reports pending at its budget,
     \\and locks its saved file. Only submit and apply send commands.
@@ -40,7 +43,7 @@ pub const help =
     \\
 ;
 fn writes(mode: Mode) bool {
-    return mode == .prepare or mode == .@"prepare-plan" or mode == .next or mode == .recover or mode == .abandon;
+    return mode == .prepare or mode == .@"prepare-plan" or mode == .@"prepare-set" or mode == .next or mode == .recover or mode == .abandon;
 }
 fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "output")) return writes(mode);
@@ -98,11 +101,14 @@ fn read(comptime T: type, init: std.process.Init, path: []const u8, report: *Dia
 fn saved(init: std.process.Init, config: Config, path: []const u8, report: *Diagnostic) !Saved {
     const value = try read(Saved, init, path, report);
     if (value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-    _ = try B.record(init.arena.allocator(), config.connection, value.record);
+    switch (value.kind) {
+        .change => _ = try B.record(init.arena.allocator(), config.connection, value.record),
+        .changeset => _ = try B.setRecord(init.arena.allocator(), config.connection, value.record),
+    }
     return value;
 }
 fn checkpoint(init: std.process.Init, path: []const u8, record: Change.Record, preview: ?p.Authorization.Preview) !void {
-    const value: Saved = .{ .definition = p.Growth.current_definition, .record = try record.save(init.arena.allocator()), .preview = preview };
+    const value: Saved = .{ .definition = p.Growth.current_definition, .kind = .change, .record = try record.save(init.arena.allocator()), .preview = preview };
     try Files.jsonBounded(init.io, init.arena.allocator(), path, value, B.max_input_bytes);
 }
 fn attempt(init: std.process.Init, transport: *wire.Client, key: p.Ed25519.KeyPair, connection: B.Connection, action: B.Action, report: *Diagnostic) !B.Result {
@@ -143,10 +149,15 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
     }
     // Parse and authenticate retained material before loading a key or doing I/O.
     var plan: ?q.catalog.AuthorizationSql.Plan = null;
+    var kind: Kind = .change;
     const action: B.Action = switch (options.mode) {
         .capabilities => unreachable,
         .read => .{ .read = try read(B.Read, init, path, report) },
         .prepare => .{ .prepare = try read(@FieldType(B.Action, "prepare"), init, path, report) },
+        .@"prepare-set" => value: {
+            kind = .changeset;
+            break :value .{ .changeset = .{ .prepare = try read(Set.Document, init, path, report) } };
+        },
         .@"prepare-plan" => value: {
             const artifact = try read(struct { authorization_plan: q.catalog.TableValues.AuthorizationPlan }, init, path, report);
             plan = try artifact.authorization_plan.native();
@@ -154,7 +165,18 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
             break :value .{ .prepare = .{ .expected_revision = plan.?.expected_revision, .action = plan.?.action.authorization } };
         },
         else => value: {
-            const record = (try saved(init, config, path, report)).record;
+            const artifact = try saved(init, config, path, report);
+            kind = artifact.kind;
+            const record = artifact.record;
+            if (kind == .changeset) break :value .{ .changeset = switch (options.mode) {
+                .next => .{ .next = record },
+                .submit => .{ .submit = record },
+                .observe => .{ .observe = record },
+                .recover => .{ .recover_pending = record },
+                .abandon => .{ .abandon = record },
+                .apply => .{ .restore = record },
+                else => unreachable,
+            } };
             break :value switch (options.mode) {
                 .next => .{ .next = record },
                 .submit => .{ .submit = record },
@@ -181,20 +203,30 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         const identity = (try attempt(init, &transport, key, config.connection, .{ .read = .identity }, report)).observation.body.authorization;
         if (identity.role != compiled.role or identity.revision != compiled.expected_revision) return error.StaleAuthorizationRevision;
     }
-    if (options.mode == .apply) return apply(init, &transport, key, config.connection, path, try B.record(alloc, config.connection, action.restore), options.steps, report);
+    if (options.mode == .apply) return switch (kind) {
+        .change => apply(init, &transport, key, config.connection, path, try B.record(alloc, config.connection, action.restore), options.steps, report),
+        .changeset => applySet(init, &transport, key, config.connection, path, try B.setRecord(alloc, config.connection, action.changeset.restore), options.steps, report),
+    };
     const result = try attempt(init, &transport, key, config.connection, action, report);
     if (options.flags.output) |destination| {
         const value: ?Saved = switch (result) {
-            .prepared => |prepared| .{ .definition = p.Growth.current_definition, .record = prepared.record, .preview = prepared.preview },
-            .record => |record| .{ .definition = p.Growth.current_definition, .record = record },
-            .next => |next| if (next == .pending) .{ .definition = p.Growth.current_definition, .record = next.pending } else null,
-            .recovered => |recovered| if (recovered) |record| .{ .definition = p.Growth.current_definition, .record = record } else null,
+            .prepared => |prepared| .{ .definition = p.Growth.current_definition, .kind = kind, .record = prepared.record, .preview = prepared.preview },
+            .record => |record| .{ .definition = p.Growth.current_definition, .kind = kind, .record = record },
+            .next => |next| if (next == .pending) .{ .definition = p.Growth.current_definition, .kind = kind, .record = next.pending } else null,
+            .recovered => |recovered| if (recovered) |record| .{ .definition = p.Growth.current_definition, .kind = kind, .record = record } else null,
+            .changeset => |set| switch (set) {
+                .prepared => |prepared| .{ .definition = p.Growth.current_definition, .kind = kind, .record = prepared.record, .preview = prepared.preview },
+                .record => |record| .{ .definition = p.Growth.current_definition, .kind = kind, .record = record },
+                .next => |next| if (next == .record) .{ .definition = p.Growth.current_definition, .kind = kind, .record = next.record } else null,
+                .recovered => |recovered| if (recovered) |record| .{ .definition = p.Growth.current_definition, .kind = kind, .record = record } else null,
+                else => null,
+            },
             else => null,
         };
         if (value) |artifact| try Recovery.createBounded(init, destination, artifact, B.max_input_bytes);
     }
     output(init, result) catch |err| {
-        if (action == .submit) report.envelope = B.diagnostic(action, err, true, try B.identity(alloc, config.connection, action), null) catch null;
+        if (action == .submit or (action == .changeset and action.changeset == .submit)) report.envelope = B.diagnostic(action, err, true, try B.identity(alloc, config.connection, action), null) catch null;
         return err;
     };
 }
@@ -227,6 +259,40 @@ fn apply(init: std.process.Init, transport: *wire.Client, key: p.Ed25519.KeyPair
             record = try B.record(alloc, connection, next.pending);
             // Durable save precedes every new dispatch, including publication.
             try checkpoint(init, path, record, null);
+        }
+    }
+}
+fn checkpointSet(init: std.process.Init, path: []const u8, record: Set.Record) !void {
+    const artifact: Saved = .{ .definition = p.Growth.current_definition, .kind = .changeset, .record = try record.save(init.arena.allocator()) };
+    try Files.jsonBounded(init.io, init.arena.allocator(), path, artifact, B.max_input_bytes);
+}
+fn applySet(init: std.process.Init, transport: *wire.Client, key: p.Ed25519.KeyPair, connection: B.Connection, path: []const u8, initial: Set.Record, limit: u8, report: *Diagnostic) !void {
+    const alloc = init.arena.allocator();
+    var record = initial;
+    var steps: u8 = 0;
+    while (true) {
+        const bytes = try record.save(alloc);
+        if (record.current != null and record.current.?.pending != null) {
+            const recovered = (try attempt(init, transport, key, connection, .{ .changeset = .{ .recover_pending = bytes } }, report)).changeset.recovered;
+            if (recovered) |value| {
+                record = try B.setRecord(alloc, connection, value);
+                try checkpointSet(init, path, record);
+                continue;
+            }
+            if (steps == limit) return output(init, .{ .pending = true, .steps = steps, .completed = record.completed.len, .total = record.seal.document.intents.len });
+            const send: B.Action = .{ .changeset = .{ .submit = bytes } };
+            const receipt = (try attempt(init, transport, key, connection, send, report)).changeset.receipt;
+            record = try record.received(receipt);
+            checkpointSet(init, path, record) catch |err| {
+                report.envelope = B.diagnostic(send, err, true, try B.identity(alloc, connection, send), null) catch null;
+                return err;
+            };
+            steps += 1;
+        } else {
+            const next = (try attempt(init, transport, key, connection, .{ .changeset = .{ .next = bytes } }, report)).changeset.next;
+            if (next == .terminal) return output(init, .{ .terminal = next.terminal, .steps = steps });
+            record = try B.setRecord(alloc, connection, next.record);
+            try checkpointSet(init, path, record);
         }
     }
 }

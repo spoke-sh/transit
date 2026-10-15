@@ -80,6 +80,28 @@ remaining query transports, SQL adapters or installed workflow qualification.
 
 ## Table authorization service isolation
 
+The scoped changeset cutover uses definition
+`3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3`.
+Its [CLI/ABI/host report](verification/results/authorization-changesets-2026-10-14.json)
+records **10.941 s** on dirty `6ab83ad0`. The expanded administration proof adds
+two-intent partial publication, an unread second-begin reply recovered after a
+node/store restart, repeated terminal observation, signed-document tamper
+rejection, out-of-scope rejection, explicit membership removal and preservation
+of unrelated grants. A policy change between completed and unprepared intents
+rejects the remainder while keeping the earlier outcome visible and the recovery
+file unchanged. The proof includes two node/store restarts in total and exercises
+changesets through both the C ABI and host port. It does not establish atomic
+multi-action publication or mixed data/provisioning transactions.
+
+The focused client run passes **26/26 tests**, including scope/overlap validation
+and owned restoration of signed documents. The repository unit task also passes
+after the cutover. Semantic mappings pass all 11 declared
+boundaries, with 16 authorization caller classifications. The first generation
+attempt rejected missing sequence bounds on the new host collections; explicit
+32-entry field bounds were added and regeneration passes. The first expanded
+integration invocation used an incomplete grant-inspection query; after adding
+its required grantee, both the rerun and current-definition run pass.
+
 The schema and administration cutover uses definition
 `3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a`.
 The [CLI/ABI/host report](verification/results/authorization-cli-schema-2026-10-14.json)
