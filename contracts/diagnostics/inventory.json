@@ -2337,7 +2337,7 @@
         "GatewayControlPending": 1,
         "GatewayControlSyncFailed": 1,
         "GatewayDeadline": 1,
-        "GatewayIdentityConflict": 2,
+        "GatewayIdentityConflict": 1,
         "GatewayOperationNotTerminal": 1,
         "IncompatibleDefinition": 1,
         "InvalidGatewayConfiguration": 1,
@@ -2362,7 +2362,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
+        "try": 63,
         "catch": 2
       },
       "imports": [
@@ -2393,7 +2393,7 @@
         "GatewayMutationRejected": 2,
         "GatewayOwnerUnavailable": 3,
         "GatewayWaitCancelled": 1,
-        "InvalidAuthentication": 1,
+        "InvalidAuthentication": 2,
         "InvalidAuthorityResponse": 1,
         "InvalidSqlSyntax": 1,
         "InvalidWireValue": 1,
@@ -2443,7 +2443,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 38,
+        "try": 41,
         "catch": 4
       },
       "imports": [
@@ -11578,7 +11578,7 @@
           "deadline"
         ],
         "Definition": [
-          "d70f7dc070a57a2da55ff74f938297ae6c48404d2b648aa3fdd7b214c481939b"
+          "c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd"
         ],
         "Effect.phase": [
           "pending",
@@ -12645,6 +12645,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/ExchangeAuthorization.zig": {
+      "errors": {
+        "InvalidRelationalExchange": 1,
+        "QueryDenied": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Assignment.context()": "<inferred>",
+        "bind()": "<inferred>",
+        "original()": "<inferred>",
+        "prepare()": "<inferred>",
+        "subject()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/ExecutionDiagnostic.zig": {
       "errors": {
         "InvalidExecutionDiagnostic": 6,
@@ -12756,12 +12780,13 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidQueryAuthorization": 5,
-        "QueryDenied": 2,
+        "QueryDenied": 3,
         "UnsupportedAuthorization": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "caller()": "<inferred>",
         "checkTable()": "<inferred>",
         "context()": "<inferred>",
         "prepare()": "<inferred>",
@@ -12772,7 +12797,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 3
       },
       "imports": [
@@ -14549,7 +14574,7 @@
         "InvalidQueryUpload": 1,
         "InvalidResourceRead": 2,
         "QueryBudgetExceeded": 3,
-        "QueryDenied": 8,
+        "QueryDenied": 7,
         "QueryDraftClosed": 1,
         "QueryDraftConflict": 2,
         "QueryDraftExhausted": 1,
@@ -14604,7 +14629,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 71,
+        "try": 72,
         "catch": 4
       },
       "imports": [
@@ -15045,6 +15070,7 @@
         "Decoder.zig",
         "Draft.zig",
         "Editor.zig",
+        "ExchangeAuthorization.zig",
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
         "MediatedTableBridge.zig",
@@ -16657,6 +16683,7 @@
     },
     "packages/zig/transit-sql-gateway/src/Configuration.zig": {
       "errors": {
+        "GatewayCredentialChanged": 1,
         "GatewayDatabaseDenied": 1,
         "IncompatibleDefinition": 2,
         "InvalidAuthentication": 3,
@@ -16666,6 +16693,7 @@
       "error_sets": {},
       "error_returns": {
         "Account.database()": "<inferred>",
+        "Credential.checkIdentity()": "<inferred>",
         "Credential.validate()": "<inferred>",
         "account()": "<inferred>",
         "path()": "<inferred>",
@@ -16796,7 +16824,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 47,
         "catch": 0
       },
       "imports": [
@@ -16905,7 +16933,7 @@
         "InvalidGatewayIntent": 4,
         "InvalidGatewayNonce": 1,
         "InvalidGatewayObservation": 1,
-        "InvalidGatewayOperation": 11,
+        "InvalidGatewayOperation": 12,
         "InvalidGatewayRecord": 3,
         "InvalidGatewayReservation": 1
       },

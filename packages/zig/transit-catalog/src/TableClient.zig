@@ -168,7 +168,14 @@ pub fn authorizationContext(self: *Self) !c.TableAuthority.Context {
         return value;
     }
     const native: wire.AuthorizationClient = .{ .transport = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
-    return .{ .client = native, .subject = try native.proof(self.connection.owner, try c.TableAuthority.binding(self.connection.scope, .database, 0)) };
+    // The caller signs its own subject; the trusted reader verifies that
+    // subject through its scoped inspection identity. Storage access never
+    // substitutes the reader's role for the caller's object privileges.
+    const inspector: wire.AuthorizationClient = if (self.reader) |reader|
+        .{ .transport = reader.wire, .realm = reader.realm, .principal = reader.principal, .key = reader.key }
+    else
+        native;
+    return .{ .client = inspector, .subject = try native.proof(self.connection.owner, try c.TableAuthority.binding(self.connection.scope, .database, 0)) };
 }
 fn address(self: *Self, tag: u8, id: u64, revision: u64) p.Value {
     return c.Records.key(self.connection.scope.catalog, tag, id, revision);

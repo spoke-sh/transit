@@ -40,6 +40,9 @@ pub const Operation = struct {
     resource: u64,
     catalog: u64,
     owner: u64,
+    namespace: u64 = 1,
+    role_present: u8 = 0,
+    role: u64 = 0,
     phase: Phase = .reserved,
     intent_length: u32 = 0,
     intent_digest: [32]u8 = @splat(0),
@@ -59,7 +62,11 @@ pub const Operation = struct {
     summary: Summary = .none,
     matched: u64 = 0,
     changed: u64 = 0,
+    pub fn selectedRole(self: Operation) ?u64 {
+        return if (self.role_present == 1) self.role else null;
+    }
     pub fn validate(self: Operation) !void {
+        if (self.namespace == 0 or self.namespace > p.max_counter or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0)) return error.InvalidGatewayOperation;
         if (self.id == 0 or self.id > p.max_counter or self.resource == 0 or self.resource > p.max_counter or self.owner == 0 or self.owner > p.max_counter or self.catalog == 0 or self.cancel > 2 or self.reconcile > 1 or self.blocked > 1 or self.published > self.records or self.changed > self.matched or self.intent_length > g.catalog.TableIntent.max_bytes or self.staging > self.records or self.pending > self.records or self.pending_sequence > p.max_counter or self.input > p.max_counter) return error.InvalidGatewayOperation;
         if ((self.pending == 0) != (self.pending_sequence == 0) or (self.pending == 0 and self.input != 0) or (self.pending != 0 and (self.pending == 1 or self.staging != 0 or self.phase != .active))) return error.InvalidGatewayOperation;
         if (self.phase == .reserved) {

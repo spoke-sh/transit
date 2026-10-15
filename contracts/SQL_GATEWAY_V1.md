@@ -88,6 +88,21 @@ caller owns TLS admission, secure randomness, credential revision/rotation,
 authentication concurrency and erasure of the received password buffer. No fast
 authentication cache or unencrypted RSA-password exchange is implemented here.
 
+SQL account verifier files additionally bind their account fingerprint, native
+principal, login role and credential epoch. A valid password alone supplies no
+privileges. Session establishment and protected disclosure validate that binding
+against native authority and require current database CONNECT. Database mappings
+fix a schema namespace and eligible selected role; the operation ledger retains
+both, independently of the connection lifetime.
+
+The private reader identity supplies catalog storage bytes and exact admission
+inspection. The Table caller supplies the signed subject used by the common
+catalog/query evaluator; the reader's raw-resource grants cannot satisfy that
+subject's missing Table privileges. SQL users need no raw-resource grants.
+Immutable signed steps retain their own signing key. Credential rotation does
+not change the ledger's identity or replace those signatures; exact receipt
+recovery precedes any retry under the original request bytes.
+
 ## PostgreSQL frame and cycle ownership
 
 Startup frames carry a four-byte big-endian total length of at least eight bytes,

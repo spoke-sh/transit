@@ -407,16 +407,38 @@ pub fn main(init: std.process.Init) !void {
         // The wire fixture uses 1235 for SQL and retains 1234 for administration.
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
-        const role = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-caller"), .login = true } })).?;
-        _ = try admin.authorization(.{ .bind_credential = .{ .principal = 1235, .role = role, .public_key = (try key(11)).public_key.toBytes() } });
-        _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.inspect) | p.permission(.send) } });
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1235, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        const login = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-login"), .login = true } })).?;
+        const role = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-caller") } })).?;
+        _ = try admin.authorization(.{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } });
+        _ = try admin.authorization(.{ .bind_credential = .{ .principal = 1235, .role = login, .public_key = (try key(11)).public_key.toBytes() } });
+        _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.send) } });
         _ = try admin.authorization(.{ .grant = .{ .object = c.TableAuthority.reference(config.authority.database), .grantee = role, .privileges = c.TableAuthority.connect } });
         _ = try admin.authorization(.{ .grant = .{ .object = c.TableAuthority.reference(config.authority.initial_schema_authority), .grantee = role, .privileges = c.TableAuthority.usage | c.TableAuthority.create } });
         _ = try admin.authorization(.{ .default_grant = .{ .creator = config.owner_role, .schema = c.TableAuthority.reference(config.authority.initial_schema_authority), .domain = config.authority.table_domain, .grantee = role, .privileges = c.TableAuthority.table_actions } });
         _ = try admin.authorization(.{ .default_grant = .{ .creator = role, .schema = c.TableAuthority.reference(config.authority.initial_schema_authority), .domain = config.authority.table_domain, .grantee = config.owner_role, .privileges = c.TableAuthority.table_actions } });
         try tablePrivileges(init, &admin, &caller, config, role, c.TableAuthority.table_actions, true);
         return print(init, .{ .principal = @as(u64, 1235), .role = role });
+    }
+    if (std.mem.eql(u8, mode, "external-role")) {
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try p.Value.init("gateway-caller") } } })).body.authorization.body.resolve.id;
+        const login = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try p.Value.init("gateway-login") } } })).body.authorization.body.resolve.id;
+        const allowed = std.mem.eql(u8, args[4], "allow");
+        if (allowed) {
+            _ = try admin.authorization(.{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } });
+        } else {
+            const page = (try admin.query(.{ .authorization = .{ .kind = .{ .memberships = .{ .member = login } } } })).body.authorization.body.memberships;
+            if (page.next != null) return error.UnexpectedProofMemberships;
+            var found = false;
+            for (page.records) |slot| if (slot) |membership| {
+                if (membership.role != role or !membership.set) continue;
+                _ = try admin.authorization(.{ .revoke_membership = .{ .id = membership.id, .option = .set, .behavior = .cascade } });
+                found = true;
+            };
+            if (!found) return error.MissingProofMembership;
+        }
+        return print(init, .{ .selected = allowed });
     }
     if (std.mem.eql(u8, mode, "external-write-grants")) {
         // Principal 1234 administers the catalog; 1235 belongs exclusively to

@@ -100,7 +100,7 @@ def cancel(options, key):
 
 def run(root, postgres, mysql_options, controls, native_access):
     def count(connection):
-        deadline = time.monotonic()+10
+        deadline = time.monotonic()+30
         while True:
             try:
                 return connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone()[0]
@@ -147,10 +147,14 @@ def run(root, postgres, mysql_options, controls, native_access):
             wire.sock.sendall(frame(b'Q', b'INSERT INTO wire_rows (id) VALUES (103)\0'))
         finally:
             wire.close()
-        deadline = time.monotonic()+30
+        # Losing the socket does not reduce the admitted write's 270-second
+        # allowance. Only fresh reads are retried; the write is never resent.
+        detached_started = time.monotonic()
+        deadline = detached_started+300
         while count(witness) != baseline+3:
             assert time.monotonic() < deadline, 'Detached write did not complete'
             time.sleep(.05)
+        print(json.dumps(dict(profile='database_wire_detached_write',seconds=round(time.monotonic()-detached_started,3),client_wait_seconds=300)),flush=True)
         page = controls('list')
         assert page['entries'] and all('matched' not in entry for entry in page['entries'])
         committed_operation = page['entries'][0]['operation']
@@ -194,6 +198,10 @@ def run(root, postgres, mysql_options, controls, native_access):
         try:
             held.sock.sendall(frame(b'P',b'hold\0SELECT id FROM wire_rows\0\0\0')+frame(b'B',b'portal\0hold\0\0\0\0\0\0\0')+frame(b'E',b'portal\0'+struct.pack('!I',1))+frame(b'H'))
             assert held.until(b's',b'E')[-1][0] == b's'
+            metadata = PostgreSQL(postgres)
+            # mysql.connector.cursor() first pings the server. Acquire the
+            # handle before revocation so this exercises PREPARE itself.
+            metadata_cursor = my.cursor(prepared=True)
             native_access(False)
             try:
                 controls('status',committed_operation)
@@ -201,7 +209,6 @@ def run(root, postgres, mysql_options, controls, native_access):
                 assert 'AccessDenied' in str(error), str(error)
             else:
                 raise AssertionError('Operator disclosed a committed outcome after native read revocation')
-            metadata = PostgreSQL(postgres)
             try:
                 metadata.sock.sendall(frame(b'P',b'denied\0SELECT id FROM wire_rows\0\0\0')+frame(b'D',b'Sdenied\0')+frame(b'S'))
                 replies = metadata.until(b'Z')
@@ -209,7 +216,6 @@ def run(root, postgres, mysql_options, controls, native_access):
                 assert not any(tag in (b'T',b't',b'D') for tag,_ in replies)
             finally:
                 metadata.close()
-            metadata_cursor = my.cursor(prepared=True)
             try:
                 metadata_cursor.execute('SELECT n FROM wire_rows')
             except mysql.connector.Error as error:
@@ -269,4 +275,20 @@ def run(root, postgres, mysql_options, controls, native_access):
                     raise AssertionError('Disabled credential authenticated')
         finally:
             replace(original | {'revision':original['revision']+3})
-    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,credential_rotation=True, credential_cli=True)), flush=True)
+    # A password verifier is bound to a native identity, not an independent
+    # source of role grants. Altering any binding fails new authentication.
+    current = json.loads(credential_file.read_text())
+    for field in ('principal', 'login_role', 'credential_epoch'):
+        replace(current | {field: current[field] + 1})
+        try:
+            for connect, error in ((lambda: psycopg.connect(**postgres), psycopg.Error),
+                                   (lambda: mysql.connector.connect(**mysql_options), mysql.connector.Error)):
+                try:
+                    connect().close()
+                except error:
+                    pass
+                else:
+                    raise AssertionError(f'Forged native {field} authenticated')
+        finally:
+            replace(current)
+    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,credential_rotation=True, credential_cli=True,native_identity_binding=True)), flush=True)

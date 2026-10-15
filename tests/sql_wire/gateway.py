@@ -79,6 +79,7 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             # Catalog administration and external DDL retain principal 1234;
             # this gateway alone sequences Table principal 1235.
             call(ledger, 'provision-empty', 1235)
+            assert call(ledger, 'raw-denied')['raw_denied']
             call(catalog, 'host')
             configure()
             certificate()
@@ -111,6 +112,28 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            # Both adapters select the NOLOGIN data role through SET-only
+            # membership. Neither the verifier nor the private reader can
+            # preserve that authority after membership revocation.
+            with psycopg.connect(**options) as pg, mysql.connector.connect(**mysql_options) as my:
+                assert pg.execute('SELECT 1').fetchone() == (1,)
+                cursor = my.cursor()
+                cursor.execute('SELECT 1'); assert cursor.fetchone() == (1,)
+                assert call(catalog, 'external-role', 'deny')['selected'] is False
+                try:
+                    for execute, error in ((lambda: pg.execute('SELECT 1'), psycopg.Error),
+                                           (lambda: cursor.execute('SELECT 1'), mysql.connector.Error)):
+                        try: execute()
+                        except error: pass
+                        else: raise AssertionError('Retained SQL session survived selected-role revocation')
+                    for connect, error in ((lambda: psycopg.connect(**options), psycopg.Error),
+                                           (lambda: mysql.connector.connect(**mysql_options), mysql.connector.Error)):
+                        try: connect().close()
+                        except error: pass
+                        else: raise AssertionError('SQL login substituted private reader authority')
+                finally:
+                    assert call(catalog, 'external-role', 'allow')['selected']
+            print(json.dumps(dict(profile='database_wire_selected_role',set_only=True,revoked_sessions=True,revoked_logins=True,raw_reader_denied=True)),flush=True)
             from faults import run as faults
             faults(root, options, mysql_options, controls, lambda allowed:call(ledger,'native-read-allow' if allowed else 'native-read-deny'))
             from authority import run as authority_checks

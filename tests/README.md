@@ -222,6 +222,18 @@ The native catalog query tests also verify recovery under a separately authorize
 reader without changing the original bundle. These checks do not establish the
 disk-backed physical exchange schedule; that integration gate remains separate.
 
+The SQL gateway package passes **20/20 tests** after retaining schema and selected
+role in account bindings and operations, separating private readers from SQL
+callers, and binding verifiers to native login identity/epoch. The ledger test
+rejects a correctly signed step that changes the accepted role, and retains the
+same pending bytes across coordinator fencing. Regenerated contracts and all ten
+SDK package builds pass for definition
+`c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd`.
+Earlier TLS integration attempts exposed missing service inspection, a short
+detached-write observation window and a driver ping before the intended revoked
+PREPARE check. Those attempts remain failed; the complete rerun is a separate
+gate from these package checks.
+
 The TypeScript catalog migration passes `just bindings::node-check` on dirty
 `48b25956`: formatting, lint, both package type checks, four client-port tests
 and **67/67 Station tests**. Public catalog values now carry native bindings,

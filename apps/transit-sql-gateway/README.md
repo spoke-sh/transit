@@ -3,7 +3,9 @@
 An opt-in PostgreSQL and MySQL TLS endpoint over explicit Transit Table catalogs.
 The gateway composes the public Query, Catalog and Station clients; it has no
 storage-provider access. Each SQL account owns a native operation ledger and one
-Table principal independently of its network connections.
+Table principal independently of its network connections. A separate private
+reader supplies backing-resource access; SQL callers use current native
+database/schema/Table grants and retain their selected role through recovery.
 
 Build from the repository with `nix develop --command zig build
 transit-sql-gateway`. Run `transit-sql-gateway /private/sql-gateway.json` with an

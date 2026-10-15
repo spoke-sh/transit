@@ -23,25 +23,31 @@ compatible build.
 
 Each account supplies `name`, `verifier_file`, `ledger`, `generation`, optional
 state `association` (default `state`), `keys` and `databases`. Key references are
-`worker`, `ingress`, `coordinator` and `table`; key files contain the native seed
+`worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.
 
-`ledger` defines the realm, private resource, owner process, five distinct
-principals, Table public key, account fingerprint, admitted catalog bindings and
-durable quotas. Its five roles are worker, ingress, control, coordinator and
-Table principal. Give the worker execution and private resource write access;
-give each control role its scoped send/read rights. Give the Table principal
-only the explicit catalog/resource permissions required for the selected
-database operations. Associations and local configuration grant no rights.
-Database bindings must exactly match the ledger's immutable ordered bindings.
+`ledger` defines the realm, private resource, owner process, six distinct
+principals, account fingerprint, admitted catalog bindings and
+durable quotas. The identities are worker, ingress, control, coordinator, Table caller and
+private reader. Give the worker execution and private resource write access;
+give each control role its scoped send/read rights. Give the Table caller scoped SEND and explicit database/schema/Table grants.
+Give the private reader scoped process inspection and raw-resource read rights
+for the admitted catalogs. SQL callers receive no backing-resource access. The
+reader supplies bytes; every catalog and query operation checks the separately
+authenticated Table caller and its selected role. Associations and local configuration grant no rights.
+Each database binding includes its catalog resource/owner, schema `namespace`
+and optional selected `role` (the login role when omitted). It must exactly match
+the ledger's immutable ordered binding. Role selection requires current SET
+membership; configuration itself never establishes that eligibility.
 Sequenced principals and private owner/resources cannot be shared across SQL
 accounts.
 
 Provision through the public native/application operations: create the private
 resource and process, assign its state association and scoped grants, establish
-the worker's ownership generation, and grant the Table principal access through
-the catalog owner. Native lifecycle and catalog controls remain their public
+the worker's ownership generation, and grant the Table caller access through the native authorization graph.
+The catalog owner registers stable objects; it does not maintain another grant
+store. Native lifecycle and catalog controls remain their public
 owners; the gateway never acquires an administrator key or provisions implicitly.
 
 To initialize a new private ledger, run a separate eligible activation with
@@ -95,9 +101,10 @@ activation marker or repeatedly restarting the same generation.
 
 Use `transit-sql-gateway control /private/sql-control.json ACTION`. The private
 operator configuration contains `version`, `definition`, `native_url`, the same
-`ledger`, `control_key_file`, `table_key_file`, `pending_file` and optional
-`timeout_ms` (default 30000, maximum 270000). The Table key is used for current
-terminal disclosure and initial sequence inspection, not a second write lane.
+`ledger`, `control_key_file`, `table_key_file`, `reader_key_file`, `pending_file` and optional
+`timeout_ms` (default 30000, maximum 270000). The Table key supplies the current subject for terminal disclosure and initial
+sequence inspection. The reader key supplies private storage access. Neither
+inspection path dispatches Table writes.
 Dedicate one pending file and exclusive operator owner to each control principal.
 
 | Action | Behavior |
@@ -141,7 +148,18 @@ The credential command reads 1–128 printable ASCII bytes exactly, without
 stripping a newline, uses secure random salt and 65536 PBKDF2 iterations, and
 requires a nonzero revision. Increment the revision on rotation. To disable an
 account, atomically replace the credential with `enabled: false` while preserving
-its current definition/account identity. Sessions recheck the complete credential
-and current native rights before new work and each result disclosure. Certificate
+its current definition/account identity. The generated verifier records the native principal, stable login role and
+credential epoch observed using the configured Table key. Sessions recheck the
+complete credential, that native binding, selected-role eligibility, database
+CONNECT and current native rights before new work and each result disclosure. Certificate
 changes require a fenced service replacement. Passwords, SQL values and private
 keys do not belong in command arguments, Git or logs.
+
+Native key rotation preserves the login role and its grants. Replace the key
+reference, generate a verifier for the new epoch, and establish a fresh fenced
+gateway activation. Existing sessions cannot adopt the new epoch. A pending
+Table request retains its original signature and public key. Recovery first
+looks up the exact accepted request using the current credential; if no receipt
+exists it can only submit the original bytes. It never re-signs an uncertain
+request. Policy revocation can prevent further progress or disclosure without
+erasing the operation or undoing a committed mutation.

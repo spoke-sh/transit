@@ -158,7 +158,7 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Tab
         .create => |value| blk: {
             if (values.len != 0) return error.WireParameterCountMismatch;
             const create = value.statement.create;
-            const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .object = operation, .expected_revision = 0, .name = try c.TableMetadata.Name.init(create.name), .action = .{ .create = .{ .schema = try create.bind(operation), .if_not_exists = create.if_not_exists } } };
+            const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .namespace = client.connection.namespace, .object = operation, .expected_revision = 0, .name = try c.TableMetadata.Name.init(create.name), .action = .{ .create = .{ .schema = try create.bind(operation), .if_not_exists = create.if_not_exists } } };
             break :blk c.TableIntent.create(allocator, try c.TableCommand.fromDdl(client.connection.scope, client.connection.owner, request, null), operation);
         },
         else => error.ExpectedGatewayWrite,

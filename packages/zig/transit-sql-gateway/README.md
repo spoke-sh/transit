@@ -64,7 +64,12 @@ absent. The application keeps SQL listeners closed during that activation.
 
 `Configuration` validates explicit SQL account/database mappings, disjoint native
 sequence owners, TLS/key references and connection budgets. `Credential` binds a
-versioned verifier to an account identity and credential revision. File loading,
+versioned verifier to an account identity, revision, native principal, stable
+login role and credential epoch. Database mappings retain an explicit schema
+namespace and optional selected role. A separate private reader supplies storage
+access while the Table caller supplies current object authority. Signed saved
+steps retain their signing key across rotation; exact receipt recovery precedes
+retry of the original bytes. File loading,
 atomic credential replacement and session revocation are host responsibilities;
 these types do not themselves supply a listener or credential-watching service.
 

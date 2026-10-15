@@ -21,7 +21,7 @@ ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
-pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair };
+pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair, reader: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return (err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource;
 }
@@ -52,7 +52,7 @@ fn create(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.L
     const config = ledger.configuration;
     self.ingress = .{ .transport = &self.ingress_wire, .ledger = ledger, .principal = config.ingress, .key = keys.ingress };
     self.private = .{ .transport = &self.background, .ledger = ledger, .principal = config.coordinator, .key = keys.coordinator };
-    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .generation = generation };
+    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .reader_key = keys.reader, .generation = generation };
     self.server = try s.GenServer.init(.{ .client = &self.background, .realm = config.realm, .principal = config.worker, .pid = config.owner, .generation = generation, .key = keys.worker }, association);
     self.server.input_guard = self.behavior.guard();
     self.server.failure_policy = .stop;
@@ -185,7 +185,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const connection = table.connection;
-    try self.control(.{ .begin = .{ .nonce = nonce, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner } } }, deadline);
+    try self.control(.{ .begin = .{ .nonce = nonce, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .namespace = connection.namespace, .role = connection.role } } }, deadline);
     const item = while (true) {
         try deadline.check(self.io);
         break self.discover(observer, nonce) catch |err| {
