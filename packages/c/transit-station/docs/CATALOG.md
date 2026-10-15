@@ -23,7 +23,7 @@ still apply: the serializer stops at the aggregate bound before dispatch.
 ADD COLUMN uses a column specification; native admission assigns the new stable
 ID. ALTER also represents DROP/RENAME COLUMN, SET/DROP DEFAULT, nullability and
 qualified type changes. Type conversions and key restrictions remain native
-Table semantics, not C casts. `rights.remove` is the SQL DELETE permission.
+Table semantics, not C casts.
 
 `compiled_get` copies the intent summary and borrows its saved-intent owner.
 Persist the saved definition and exact bytes before requesting progress.
@@ -36,10 +36,10 @@ progress; `input_disposition` reports controls/rejections; `progress_read` and
 `status_read` carry the original operation result. Only a terminal applied result
 establishes a committed change. DML counts distinguish matched and changed rows.
 
-Initialize, policy, dependency, resume and cancellation/cleanup controls use
+Initialize, dependency, resume and cancellation/cleanup controls use
 their explicit preparation functions. Closing a client does not dispatch a
-durable cancellation. Current native grants and independent inspect/create/read/
-insert/update/delete/alter/drop rights govern operations and disclosures.
+durable cancellation. Current native roles and object grants govern operations and disclosures.
+CONNECT and schema USAGE precede Table privilege checks.
 
 `lookup` returns an owned live definition or NULL. It includes metadata, head and
 the exact typed schema. `definition_read` returns a separate owned historical
@@ -77,3 +77,17 @@ Metadata retains the immutable publication commitment: its byte length and
 32-byte digest. Lookup, listing and history reject missing or malformed
 commitments. C metadata copies this evidence inline; C++ metadata retains it
 in `MetadataCommitment` independently of its client lifetime.
+
+Connections select an optional native role and a positive schema namespace.
+C sets `has_role`, `role` and `namespace_id` explicitly; C++ defaults to the login
+role and namespace 1. `open` takes an optional Table-service URL (NULL in C,
+absent optional in C++ for direct infrastructure access). Mediation retains the
+caller's signing identity; the service's private resource identity is separate.
+
+Initialization requires the six-ID native authority profile and database name.
+Descriptions return the authenticated subject, credential epoch, selected role,
+audience, owned context digest and observed authorization revision. Returned
+subjects must match the connection. Live definitions include the native object
+identity; metadata includes its schema namespace and a commitment bounded to
+444 bytes. Lookup/list reject foreign namespaces. Historical definitions retain
+original object attribution and require its current disclosure privileges.

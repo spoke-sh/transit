@@ -38,7 +38,7 @@ std::string table_wire(const transit_station_unified_source &source) {
     process(t.owner);counter(scope.resource.realm);counter(scope.resource.resource);
     require(t.owner.realm==scope.resource.realm && source.resource.realm==scope.resource.realm && source.resource.resource==scope.resource.resource && scope.catalog && m.object && m.revision && s.object==m.object,"query-table-identity");
     require(s.columns && s.column_count>0 && s.column_count<=128,"query-table-columns");
-    require(m.commitment.bytes>0 && m.commitment.bytes<=436,"query-table-metadata");
+    require(m.commitment.bytes>0 && m.commitment.bytes<=444,"query-table-metadata");
     std::vector<transit_logical_field> fields;fields.reserve(s.column_count);
     for(size_t i=0;i<s.column_count;++i){const auto &c=s.columns[i];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false});}
     transit_logical_type_view row{};row.kind=TRANSIT_LOGICAL_STRUCTURE;row.as.fields={fields.data(),fields.size()};

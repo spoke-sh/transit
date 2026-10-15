@@ -53,7 +53,7 @@ struct SourceView {
                 value.source.kv = {bytes_view(v.prefix), {v.key.version, static_cast<transit_station_unified_decoder_type>(v.key.type)}, {v.value.version, static_cast<transit_station_unified_decoder_type>(v.value.type)}};
             } else if constexpr (std::is_same_v<T, TableSource>) {
                 value.kind = TRANSIT_UNIFIED_TABLE; value.resource = v.metadata.scope.resource.native();
-                const auto &m=v.metadata;metadata.scope=catalog::detail::native(m.scope);metadata.object=m.object;metadata.revision=m.revision;
+                const auto &m=v.metadata;metadata.scope=catalog::detail::native(m.scope);metadata.namespace_id=m.namespace_id;metadata.object=m.object;metadata.revision=m.revision;
                 catalog::detail::text(m.name,metadata.name);std::copy(m.schema_fingerprint.begin(),m.schema_fingerprint.end(),metadata.schema_fingerprint);
                 metadata.principal=m.principal;metadata.operation=m.operation;metadata.admitted_input=m.admitted_input;metadata.commitment.bytes=m.commitment.bytes;
                 std::copy(m.commitment.digest.begin(),m.commitment.digest.end(),metadata.commitment.digest);

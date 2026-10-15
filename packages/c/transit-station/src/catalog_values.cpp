@@ -10,12 +10,6 @@ template<class T> void array(const T *data, size_t size, size_t maximum) { requi
 std::string choice(uint32_t value, std::initializer_list<const char *> names) {
     require(value < names.size(), "catalog-tag"); return *(names.begin() + value);
 }
-Json rights(const transit_station_catalog_rights &v) {
-    return Json::object({{"inspect", Json::boolean(v.inspect)}, {"create", Json::boolean(v.create)}, {"read", Json::boolean(v.read)}, {"insert", Json::boolean(v.insert)}, {"update", Json::boolean(v.update)}, {"delete", Json::boolean(v.remove)}, {"alter", Json::boolean(v.alter)}, {"drop", Json::boolean(v.drop)}});
-}
-Json policy_wire(const Policy &v) {
-    auto out = rights(v.rights); out.members.emplace_back("scope", scope_wire(v.scope)); out.members.emplace_back("principal", small(v.principal, true)); out.members.emplace_back("revision", wide(v.revision)); return out;
-}
 Json basis_wire(const Basis &v) { return Json::object({{"object", wide(v.object)}, {"revision", wide(v.revision)}, {"schema_fingerprint", digest(v.schema_fingerprint)}}); }
 Json characters(uint32_t value) { return value ? Json::integer(value) : Json{}; }
 Json descriptor(const transit_logical_type_view *value) { require(value, "catalog-type"); return logical_detail::type_json(*value); }
@@ -118,15 +112,15 @@ std::string control_name(transit_station_catalog_control value) { return choice(
 Json scope_wire(Scope v) { return Json::object({{"realm", small(v.resource.realm)}, {"resource", small(v.resource.resource)}, {"catalog", wide(v.catalog)}}); }
 Json connection_wire(Connection c, uint64_t principal) {
     process(c.owner); require(c.owner.realm == c.scope.resource.realm, "catalog-realm");
-    return Json::object({{"scope", scope_wire(c.scope)}, {"owner", small(c.owner.pid)}, {"principal", small(principal, true)}});
+    return Json::object({{"scope", scope_wire(c.scope)}, {"owner", small(c.owner.pid)}, {"principal", small(principal, true)}, {"role", c.has_role ? small(c.role, true) : Json{}}, {"namespace", small(c.namespace_id)}});
 }
 Json configuration_wire(const Configuration &v) {
     process(v.owner); require(v.owner.realm == v.scope.resource.realm && v.table_limits.record_bytes && v.table_limits.staging_records && v.table_limits.staging_bytes >= v.table_limits.record_bytes, "catalog-configuration");
-    return Json::object({{"scope", scope_wire(v.scope)}, {"owner", small(v.owner.pid)}, {"administrator", small(v.administrator)}, {"table_limits", Json::object({{"record_bytes", Json::integer(v.table_limits.record_bytes)}, {"staging_bytes", wide(v.table_limits.staging_bytes)}, {"staging_records", Json::integer(v.table_limits.staging_records)}})}});
-}
-Json policy_change_wire(const transit_station_catalog_policy_change &v) {
-    require(v.expected_revision < UINT64_MAX && v.policy.revision == v.expected_revision + 1, "catalog-policy-revision");
-    return Json::object({{"expected_revision", wide(v.expected_revision, true)}, {"policy", policy_wire(v.policy)}});
+    const auto &a = v.authority;
+    require(a.database_domain != a.schema_domain && a.database_domain != a.table_domain && a.schema_domain != a.table_domain && a.database != a.initial_schema_authority, "catalog-authority");
+    const auto database = text(v.database_name, 63); require(!database.empty(), "catalog-database-name"); logical_detail::utf8(database);
+    const auto authority = Json::object({{"database_domain", small(a.database_domain)}, {"schema_domain", small(a.schema_domain)}, {"table_domain", small(a.table_domain)}, {"database", small(a.database)}, {"initial_schema_authority", small(a.initial_schema_authority)}, {"initial_schema", small(a.initial_schema)}});
+    return Json::object({{"authority", authority}, {"database_name", Json::string(database)}, {"scope", scope_wire(v.scope)}, {"owner", small(v.owner.pid)}, {"administrator", small(v.administrator, true)}, {"table_limits", Json::object({{"record_bytes", Json::integer(v.table_limits.record_bytes)}, {"staging_bytes", wide(v.table_limits.staging_bytes)}, {"staging_records", Json::integer(v.table_limits.staging_records)}})}});
 }
 Json dependency_wire(const transit_station_catalog_dependency &v, bool present) {
     process(v.owner); require(v.owner.realm == v.scope.resource.realm, "catalog-realm");

@@ -231,6 +231,15 @@ Existing owned-value, large-frame, uncertain-receipt and joined-cancellation
 checks pass with the matching native host. Live role/grant and mediated Table
 use through installed Java remains separately unexecuted.
 
+The C/C++ catalog migration builds fresh pkg-config artifacts and passes the
+isolated C11/C++17 consumer checks on dirty `791f6216`. The forwarding native
+boundary covers **56 cases**, including authenticated-subject mismatch,
+credential epoch, explicit native profile validation, schema filtering, the
+444-byte metadata bound, historical identity and retained uncertain receipts.
+The package checks also pass handler Table ownership and saved-recovery checks.
+These injected-reply and local ownership checks do not qualify installed live
+role/grant workflows.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

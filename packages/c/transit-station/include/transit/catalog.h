@@ -10,16 +10,21 @@ extern "C" {
  * operation, namespace and application revision identities are full uint64.
  * All tags have integer carriers so unknown foreign values fail normally. */
 typedef struct transit_station_catalog_scope { transit_sdk_resource resource; uint64_t catalog; } transit_station_catalog_scope;
-typedef struct transit_station_catalog_connection { transit_sdk_process owner; transit_station_catalog_scope scope; } transit_station_catalog_connection;
+typedef struct transit_station_catalog_connection {
+    transit_sdk_process owner; transit_station_catalog_scope scope;
+    bool has_role; uint64_t role, namespace_id;
+} transit_station_catalog_connection;
+typedef struct transit_station_catalog_authority {
+    uint64_t database_domain, schema_domain, table_domain, database, initial_schema_authority, initial_schema;
+} transit_station_catalog_authority;
+typedef struct transit_station_catalog_subject {
+    uint64_t principal, login_role, role, credential_epoch, audience; uint8_t context[32];
+} transit_station_catalog_subject;
 typedef struct transit_station_catalog_limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_records; } transit_station_catalog_limits;
 typedef struct transit_station_catalog_configuration {
     transit_station_catalog_scope scope; transit_sdk_process owner; uint64_t administrator; transit_station_catalog_limits table_limits;
+    transit_station_catalog_authority authority; char database_name[64];
 } transit_station_catalog_configuration;
-typedef struct transit_station_catalog_rights { bool inspect, create, read, insert, update, remove, alter, drop; } transit_station_catalog_rights;
-typedef struct transit_station_catalog_policy {
-    transit_station_catalog_scope scope; uint64_t principal, revision; transit_station_catalog_rights rights;
-} transit_station_catalog_policy;
-typedef struct transit_station_catalog_policy_change { uint64_t expected_revision; transit_station_catalog_policy policy; } transit_station_catalog_policy_change;
 typedef struct transit_station_catalog_identity { uint64_t operation, namespace_id; } transit_station_catalog_identity;
 typedef struct transit_station_catalog_basis { uint64_t object, revision; uint8_t schema_fingerprint[32]; } transit_station_catalog_basis;
 /* Construction views borrow their trees during the call. max_characters == 0
@@ -84,13 +89,13 @@ typedef struct transit_station_catalog_dependency {
 } transit_station_catalog_dependency;
 typedef struct transit_station_catalog_metadata_commitment { uint32_t bytes; uint8_t digest[32]; } transit_station_catalog_metadata_commitment;
 typedef struct transit_station_catalog_metadata {
-    transit_station_catalog_scope scope; uint64_t object, revision; char name[256]; uint8_t schema_fingerprint[32];
+    transit_station_catalog_scope scope; uint64_t namespace_id, object, revision; char name[256]; uint8_t schema_fingerprint[32];
     uint64_t principal, operation, admitted_input; transit_station_catalog_metadata_commitment commitment;
 } transit_station_catalog_metadata;
 typedef struct transit_station_catalog_head { uint64_t revision, rows, pending; } transit_station_catalog_head;
 typedef struct transit_station_catalog_entry { transit_station_catalog_metadata metadata; transit_station_catalog_head head; } transit_station_catalog_entry;
 typedef struct transit_station_catalog_definition_view {
-    transit_station_catalog_metadata metadata; transit_station_catalog_head head; transit_station_catalog_schema schema;
+    transit_station_catalog_metadata metadata; transit_station_catalog_head head; transit_station_catalog_schema schema; uint64_t authorization;
 } transit_station_catalog_definition_view;
 typedef struct transit_station_catalog_historical_view { transit_station_catalog_metadata metadata; transit_station_catalog_schema schema; } transit_station_catalog_historical_view;
 /* Mandatory definition and original cut; never default these when restoring. */
@@ -131,7 +136,7 @@ typedef struct transit_station_catalog_capabilities {
     uint8_t version; char definition[65]; uint16_t max_columns, max_rows, max_sql_bytes;
     uint32_t max_intent_bytes, max_action_bytes; uint16_t max_prepared_bytes; uint8_t resident_intents;
 } transit_station_catalog_capabilities;
-typedef struct transit_station_catalog_description { transit_station_catalog_configuration configuration; transit_station_catalog_policy policy; uint64_t resource_revision; } transit_station_catalog_description;
+typedef struct transit_station_catalog_description { transit_station_catalog_configuration configuration; transit_station_catalog_subject subject; uint64_t authorization_revision, resource_revision; } transit_station_catalog_description;
 typedef struct transit_station_catalog_client transit_station_catalog_client;
 typedef struct transit_station_catalog_saved_intent transit_station_catalog_saved_intent;
 typedef struct transit_station_catalog_compiled transit_station_catalog_compiled;
@@ -166,7 +171,7 @@ void transit_station_catalog_next_destroy(transit_station_catalog_next *);
 /* One active call per client. Close joins owned work; deferred POSIX cancellation
  * stays masked through output publication. Join users before destroying handles.
  * Lookup/history return NULL when absent. All failures clear their outputs. */
-transit_sdk_error transit_station_catalog_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_catalog_connection, transit_station_catalog_client **out);
+transit_sdk_error transit_station_catalog_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_catalog_connection, const char *table_service_url, transit_station_catalog_client **out);
 transit_sdk_error transit_station_catalog_close(transit_station_catalog_client *);
 void transit_station_catalog_client_destroy(transit_station_catalog_client *);
 transit_sdk_error transit_station_catalog_capabilities_read(transit_station_catalog_client *, transit_station_catalog_capabilities *out);
@@ -183,7 +188,6 @@ transit_sdk_error transit_station_catalog_status_read(transit_station_catalog_cl
 transit_sdk_error transit_station_catalog_prepare_resume(transit_station_catalog_client *, const transit_station_catalog_reference *, transit_station_catalog_prepared **out);
 transit_sdk_error transit_station_catalog_prepare_control(transit_station_catalog_client *, const transit_station_catalog_reference *, transit_station_catalog_control, transit_station_catalog_prepared **out);
 transit_sdk_error transit_station_catalog_prepare_initialize(transit_station_catalog_client *, const transit_station_catalog_configuration *, transit_station_catalog_prepared **out);
-transit_sdk_error transit_station_catalog_prepare_policy(transit_station_catalog_client *, const transit_station_catalog_policy_change *, transit_station_catalog_prepared **out);
 transit_sdk_error transit_station_catalog_prepare_dependency(transit_station_catalog_client *, const transit_station_catalog_dependency *, bool present, transit_station_catalog_prepared **out);
 /* UNKNOWN_OUTCOME preserves the original prepared owner. Do not regenerate SQL.
  * An input position proves admission; applied outcome/counts remain separate. */

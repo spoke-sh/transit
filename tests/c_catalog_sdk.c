@@ -41,7 +41,7 @@ static void scenario(transit_station_catalog_client *client, const transit_sdk_c
     snprintf(name, sizeof(name), "sdk_people_%llu", (unsigned long long)index);
     snprintf(sql, sizeof(sql), "CREATE TABLE %s (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", name);
     transit_station_catalog_capabilities caps; checked(transit_station_catalog_capabilities_read(client, &caps)); assert(caps.max_columns == 128 && caps.max_rows == 1024);
-    transit_station_catalog_description description; checked(transit_station_catalog_describe(client, &description)); assert(description.policy.principal == credential->principal);
+    transit_station_catalog_description description; checked(transit_station_catalog_describe(client, &description)); assert(description.subject.principal == credential->principal);
     transit_station_catalog_compiled *create = NULL; checked(transit_station_catalog_compile_sql(client, sql, identity(base, 0), &object, &create)); assert(finish(client, create, root).phase == TRANSIT_CATALOG_APPLIED); transit_station_catalog_compiled_destroy(create);
     transit_station_catalog_definition *original = NULL; checked(transit_station_catalog_lookup(client, name, &original)); assert(original);
     const transit_station_catalog_definition_view *original_view; checked(transit_station_catalog_definition_get(original, &original_view));
@@ -81,7 +81,7 @@ static void scenario(transit_station_catalog_client *client, const transit_sdk_c
     transit_station_catalog_schema new_schema = {replacement, 1, 2, &column, 1, NULL, 0};
     assert(execute(client, root, name, identity(base, 7), (transit_station_catalog_action){.kind = TRANSIT_CATALOG_CREATE, .as.create = {&new_schema, false}}).phase == TRANSIT_CATALOG_APPLIED);
     checked(transit_station_catalog_close(client));
-    transit_station_catalog_client *fresh = NULL; checked(transit_station_catalog_open(config, credential, connection, &fresh));
+    transit_station_catalog_client *fresh = NULL; checked(transit_station_catalog_open(config, credential, connection, NULL, &fresh));
     transit_station_catalog_intent intent; const transit_station_catalog_saved_intent *saved = NULL; checked(transit_station_catalog_compiled_get(insert, &intent, &saved));
     transit_station_catalog_intent loaded; checked(transit_station_catalog_load(fresh, saved, &loaded)); assert(loaded.object == object && !memcmp(loaded.reference.digest, intent.reference.digest, 32));
     transit_station_catalog_state state; checked(transit_station_catalog_status_read(fresh, &loaded.reference, &state)); assert(state.has_outcome && outcome_equal(&applied, &state.outcome));
@@ -101,10 +101,10 @@ static void scenario(transit_station_catalog_client *client, const transit_sdk_c
 }
 int main(int argc, char **argv) {
     assert(argc == 9); setvbuf(stdout, NULL, _IOLBF, 0); values();
-    uint64_t realm = number(argv[3]); transit_station_catalog_connection connection = {{realm, number(argv[5])}, {{realm, number(argv[6])}, number(argv[7])}};
+    uint64_t realm = number(argv[3]); transit_station_catalog_connection connection = {{realm, number(argv[5])}, {{realm, number(argv[6])}, number(argv[7])}, false, 0, 1};
     transit_sdk_config config = transit_sdk_growing_config(argv[1]); config.timeout_ms = 10000;
     transit_sdk_credential credential = {realm, number(argv[4]), argv[2]}; transit_station_catalog_client *client = NULL;
-    checked(transit_station_catalog_open(&config, &credential, connection, &client)); puts("{\"ready\":true}");
+    checked(transit_station_catalog_open(&config, &credential, connection, NULL, &client)); puts("{\"ready\":true}");
     while (read_command() && strcmp(args[0], "close")) { assert(!strcmp(args[0], "scenario")); scenario(client, &config, &credential, connection, argv[8], number(args[1])); }
     checked(transit_station_catalog_close(client)); transit_station_catalog_client_destroy(client); puts("{\"closed\":true}"); return 0;
 }

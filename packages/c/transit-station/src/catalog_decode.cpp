@@ -21,22 +21,26 @@ Bytes bytes(const Json &v, size_t max, std::optional<size_t> exact = {}) {
 void digest(const Json &v, uint8_t (&out)[32]) { const auto data = bytes(v, 32, 32); std::copy(data.begin(), data.end(), out); }
 Scope scope(const Json &v) { v.fields({"realm", "resource", "catalog"}); return {{small(v.at("realm")), small(v.at("resource"))}, full(v.at("catalog"))}; }
 Configuration configuration(const Json &v) {
-    v.fields({"scope", "owner", "administrator", "table_limits"}); const auto s = scope(v.at("scope")); const auto &limits = v.at("table_limits"); limits.fields({"record_bytes", "staging_bytes", "staging_records"});
-    Configuration out{s, {s.resource.realm, small(v.at("owner"))}, small(v.at("administrator")), {static_cast<uint32_t>(limits.at("record_bytes").number(UINT32_MAX, false)), full(limits.at("staging_bytes")), static_cast<uint32_t>(limits.at("staging_records").number(UINT32_MAX, false))}};
-    (void)configuration_wire(out); return out;
+    v.fields({"scope", "owner", "administrator", "table_limits", "authority", "database_name"});
+    Configuration out{}; out.scope = scope(v.at("scope")); out.owner = {out.scope.resource.realm, small(v.at("owner"))}; out.administrator = small(v.at("administrator"), true);
+    const auto &limits = v.at("table_limits"); limits.fields({"record_bytes", "staging_bytes", "staging_records"});
+    out.table_limits = {static_cast<uint32_t>(limits.at("record_bytes").number(UINT32_MAX, false)), full(limits.at("staging_bytes")), static_cast<uint32_t>(limits.at("staging_records").number(UINT32_MAX, false))};
+    const auto &a = v.at("authority"); a.fields({"database_domain", "schema_domain", "table_domain", "database", "initial_schema_authority", "initial_schema"});
+    out.authority = {small(a.at("database_domain")), small(a.at("schema_domain")), small(a.at("table_domain")), small(a.at("database")), small(a.at("initial_schema_authority")), small(a.at("initial_schema"))};
+    string(v.at("database_name"), out.database_name); (void)configuration_wire(out); return out;
 }
-Policy policy(const Json &v) {
-    v.fields({"scope", "principal", "revision", "inspect", "create", "read", "insert", "update", "delete", "alter", "drop"});
-    return {scope(v.at("scope")), small(v.at("principal"), true), full(v.at("revision")),
-        {v.at("inspect").boolean(), v.at("create").boolean(), v.at("read").boolean(), v.at("insert").boolean(), v.at("update").boolean(), v.at("delete").boolean(), v.at("alter").boolean(), v.at("drop").boolean()}};
+Subject subject(const Json &v) {
+    v.fields({"principal", "login_role", "role", "credential_epoch", "audience", "context"});
+    Subject out{small(v.at("principal"), true), small(v.at("login_role"), true), small(v.at("role"), true), small(v.at("credential_epoch")), small(v.at("audience")), {}};
+    digest(v.at("context"), out.context); return out;
 }
 Metadata metadata(const Json &v) {
-    v.fields({"scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment"}); Metadata out{};
-    out.scope = scope(v.at("scope")); out.object = full(v.at("object")); out.revision = full(v.at("revision")); string(v.at("name"), out.name);
+    v.fields({"scope", "namespace", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment"}); Metadata out{};
+    out.scope = scope(v.at("scope")); out.namespace_id = small(v.at("namespace")); out.object = full(v.at("object")); out.revision = full(v.at("revision")); string(v.at("name"), out.name);
     digest(v.at("schema_fingerprint"), out.schema_fingerprint); out.principal = small(v.at("principal"), true); out.operation = full(v.at("operation")); out.admitted_input = small(v.at("admitted_input"));
     const auto &c = v.at("commitment"); c.fields({"format", "length", "digest"});
     require(c.at("format").number(UINT32_MAX) == 0x54434d01, "catalog-metadata-format");
-    out.commitment.bytes = static_cast<uint32_t>(c.at("length").number(436, false));
+    out.commitment.bytes = static_cast<uint32_t>(c.at("length").number(444, false));
     const auto &bytes = c.at("digest").array(32); require(bytes.size() == 32, "catalog-metadata-digest");
     for (size_t i = 0; i < bytes.size(); ++i) out.commitment.digest[i] = static_cast<uint8_t>(bytes[i].number(255));
     return out;
@@ -103,24 +107,26 @@ Capabilities capabilities(const Json &v) {
     require(out.version == 1 && out.max_columns == 128 && out.max_rows == 1024 && out.max_sql_bytes == 4096 && out.max_intent_bytes == max_intent && out.max_action_bytes == max_action && out.max_prepared_bytes == max_prepared && out.resident_intents == 1, "catalog-capabilities"); return out;
 }
 Description description(const Json &v, Connection c, uint64_t principal) {
-    v.fields({"configuration", "policy", "resource_revision"}); Description out{configuration(v.at("configuration")), policy(v.at("policy")), small(v.at("resource_revision"), true)};
-    require(same_scope(out.configuration.scope, c.scope) && out.configuration.owner.realm == c.owner.realm && out.configuration.owner.pid == c.owner.pid && same_scope(out.policy.scope, c.scope) && out.policy.principal == principal, "catalog-description-identity"); return out;
+    v.fields({"configuration", "subject", "authorization_revision", "resource_revision"});
+    Description out{configuration(v.at("configuration")), subject(v.at("subject")), small(v.at("authorization_revision")), small(v.at("resource_revision"), true)};
+    require(same_scope(out.configuration.scope, c.scope) && out.configuration.owner.realm == c.owner.realm && out.configuration.owner.pid == c.owner.pid && out.subject.principal == principal && out.subject.audience == c.owner.pid && out.subject.role == (c.has_role ? c.role : out.subject.login_role), "catalog-description-identity"); return out;
 }
-std::unique_ptr<Definition> definition(const Json &v, Scope s, const std::string &name) {
-    if (v.is_null()) return {}; v.fields({"metadata", "head", "schema"}); auto out = std::make_unique<Definition>();
-    out->value.metadata = metadata(v.at("metadata")); out->value.head = head(v.at("head")); out->value.schema = schema(v.at("schema"), out->arena);
-    require(same_scope(out->value.metadata.scope, s) && name == out->value.metadata.name && out->value.metadata.object == out->value.schema.object, "catalog-lookup-identity"); return out;
+std::unique_ptr<Definition> definition(const Json &v, Connection c, const std::string &name) {
+    if (v.is_null()) return {}; v.fields({"metadata", "head", "schema", "authorization"}); auto out = std::make_unique<Definition>();
+    out->value.authorization = small(v.at("authorization")); out->value.metadata = metadata(v.at("metadata")); out->value.head = head(v.at("head")); out->value.schema = schema(v.at("schema"), out->arena);
+    require(same_scope(out->value.metadata.scope, c.scope) && out->value.metadata.namespace_id == c.namespace_id && name == out->value.metadata.name && out->value.metadata.object == out->value.schema.object, "catalog-lookup-identity"); return out;
 }
 std::unique_ptr<Historical> historical(const Json &v, Scope s, uint64_t object, uint64_t revision) {
     if (v.is_null()) return {}; v.fields({"metadata", "schema"}); auto out = std::make_unique<Historical>(); out->value.metadata = metadata(v.at("metadata")); out->value.schema = schema(v.at("schema"), out->arena);
     require(same_scope(out->value.metadata.scope, s) && out->value.metadata.object == object && out->value.metadata.revision == revision && out->value.schema.object == object, "catalog-history-identity"); return out;
 }
-Page page(const Json &v, Scope s, const Cursor *previous) {
+Page page(const Json &v, Connection c, const Cursor *previous) {
+    const auto s = c.scope;
     v.fields({"resource_revision", "entries", "next"}); Page out{}; out.resource_revision = small(v.at("resource_revision"), true); const auto &entries = v.at("entries").array(8); require(entries.size() == 8, "catalog-page-size");
     bool ended = false;
     for (const auto &e : entries) {
         if (e.is_null()) { ended = true; continue; } require(!ended, "catalog-page-density"); e.fields({"metadata", "head"}); const auto m = metadata(e.at("metadata"));
-        require(same_scope(m.scope, s) && (!out.count || out.entries[out.count - 1].metadata.object < m.object), "catalog-page-order");
+        require(same_scope(m.scope, s) && m.namespace_id == c.namespace_id && (!out.count || out.entries[out.count - 1].metadata.object < m.object), "catalog-page-order");
         out.entries[out.count++] = {m, head(e.at("head"))};
     }
     if (!v.at("next").is_null()) {

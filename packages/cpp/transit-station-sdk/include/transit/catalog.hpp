@@ -11,22 +11,22 @@ class Client {
 public:
     Client(Client &&) noexcept = default;
     Client &operator=(Client &&) noexcept = default;
-    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection) {
+    static Client open(const ClientConfig &config, const Credential &credential, const Connection &connection, const std::optional<std::string> &table_service_url = {}) {
         const auto settings = config.native(); const auto identity = credential.native(); transit_station_catalog_client *out = nullptr;
-        check(transit_station_catalog_open(&settings, &identity, {connection.owner.native(), detail::native(connection.scope)}, &out)); return Client(out);
+        check(transit_station_catalog_open(&settings, &identity, {connection.owner.native(), detail::native(connection.scope), connection.role.has_value(), connection.role.value_or(0), connection.namespace_id}, table_service_url ? detail::text(*table_service_url) : nullptr, &out)); return Client(out);
     }
     Capabilities capabilities() {
         transit_station_catalog_capabilities v{}; check(transit_station_catalog_capabilities_read(value_.get(), &v));
         return {v.version, v.definition, v.max_columns, v.max_rows, v.max_sql_bytes, v.max_intent_bytes, v.max_action_bytes, v.max_prepared_bytes, v.resident_intents};
     }
     Description describe() {
-        transit_station_catalog_description v{}; check(transit_station_catalog_describe(value_.get(), &v)); return {detail::from(v.configuration), detail::from(v.policy), v.resource_revision};
+        transit_station_catalog_description v{}; check(transit_station_catalog_describe(value_.get(), &v)); return {detail::from(v.configuration), detail::from(v.subject), v.authorization_revision, v.resource_revision};
     }
     std::optional<Definition> lookup(const std::string &name) {
         transit_station_catalog_definition *out = nullptr; check(transit_station_catalog_lookup(value_.get(), detail::text(name), &out));
         std::unique_ptr<transit_station_catalog_definition, decltype(&transit_station_catalog_definition_destroy)> owner(out, transit_station_catalog_definition_destroy);
         if (!out) return {}; const transit_station_catalog_definition_view *v = nullptr; check(transit_station_catalog_definition_get(out, &v));
-        return Definition{detail::from(v->metadata), detail::from(v->head), detail::from(v->schema)};
+        return Definition{detail::from(v->metadata), detail::from(v->head), detail::from(v->schema), v->authorization};
     }
     std::optional<HistoricalDefinition> definition(uint64_t object, uint64_t revision) {
         transit_station_catalog_historical *out = nullptr; check(transit_station_catalog_definition_read(value_.get(), object, revision, &out));
@@ -67,10 +67,6 @@ public:
     }
     Prepared prepare_initialize(const Configuration &configuration) {
         const auto v = detail::native(configuration); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_initialize(value_.get(), &v, out); });
-    }
-    Prepared prepare_policy(const PolicyChange &change) {
-        const transit_station_catalog_policy_change v{change.expected_revision, detail::native(change.policy)};
-        return prepare_command([&](auto **out) { return transit_station_catalog_prepare_policy(value_.get(), &v, out); });
     }
     Prepared prepare_dependency(const Dependency &dependency, bool present) {
         const auto v = detail::native(dependency); return prepare_command([&](auto **out) { return transit_station_catalog_prepare_dependency(value_.get(), &v, present, out); });
