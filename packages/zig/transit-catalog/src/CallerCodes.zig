@@ -2,6 +2,10 @@
 const d = @import("root.zig").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidTableServiceResponse, .code = "catalog.invalid_service_response", .category = .integrity, .message = "The Table service response does not match the requested action, scope or complete result. Preserve saved work; no trustworthy outcome was established." },
+    .{ .cause = error.UnsupportedTableServiceAction, .code = "catalog.unsupported_service_action", .category = .unsupported, .message = "This operation requires the explicit native operator profile. The Table service does not provision resources or grant authority." },
+    .{ .cause = error.InvalidHttpBudget, .code = "catalog.invalid_http_budget", .category = .binding, .message = "HTTP request and response limits must each be between 1 byte and 16 MiB." },
+    .{ .cause = error.HttpRequestBudget, .code = "catalog.http_request_budget", .category = .limit, .message = "The encoded service request exceeds its configured byte limit. No request was sent." },
     .{ .cause = error.InvalidCatalogObject, .code = "catalog.invalid_record", .category = .integrity, .message = "A retained catalog object is inconsistent with its stable identity or lifecycle. Preserve it for owner inspection; do not reinterpret or reset it." },
     .{ .cause = error.StaleAuthorizationRevision, .code = "catalog.authorization_changed", .category = .conflict, .message = "The authorization revision changed. Review current policy and prepare a new proposal; retain any accepted work separately." },
     .{ .cause = error.InvalidAuthorizationPlan, .code = "catalog.invalid_authorization_plan", .category = .binding, .message = "The plan definition, scope, original principal or schema action is inconsistent. Use the complete original compiled plan." },

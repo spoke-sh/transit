@@ -179,6 +179,15 @@ The local server initializes the catalog and requester, installs query delegatio
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
+`TableService` mediates Table metadata, finite single-Table queries and original
+operation recovery with a private scoped resource reader. Every request binds
+the original caller's current credential, selected role, connection and action.
+`MediatedTableClient.call` returns an owned response; release it with `deinit`.
+`MediatedTableBridge` shares the catalog CLI/ABI lifecycle, keeping pending
+mutation bytes with the caller. The caller signs and explicitly submits native
+mutations. See the [service guide](../../../apps/transit-table-service/README.md)
+for configuration, limits, trust and recovery.
+
 `TablePrepared.prepare` resolves an authorized catalog Table and owns SELECT
 parameter/result metadata. `TableQuery.openPrepared` opens a new cut and checks
 that immutable identity for every execution. `LogicalPrepared.instantiate`

@@ -59,6 +59,10 @@ pub const Connection = struct {
     principal: u64,
     role: ?u64 = null,
     namespace: u64 = 1,
+    pub fn foreign(allocator: Allocator, value: c.TableClient.Connection) !Connection {
+        try value.validate();
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .owner = value.owner, .principal = value.principal, .role = value.role, .namespace = value.namespace };
+    }
     pub fn native(self: Connection) !c.TableClient.Connection {
         const value: c.TableClient.Connection = .{ .scope = try self.scope.native(), .owner = self.owner, .principal = self.principal, .role = self.role, .namespace = self.namespace };
         try value.validate();

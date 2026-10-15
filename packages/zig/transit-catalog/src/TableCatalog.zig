@@ -105,6 +105,12 @@ pub fn authorizeObject(self: Self, source: anytype, who: u64, id: u64, right: m.
     };
     return self.require(source, who, try self.namespaceRecord(source, value.namespace), .{ .id = id, .schema = value.namespace, .authorization = value.authorization }, access);
 }
+pub fn authorizeCreationInspection(self: Self, source: anytype, who: u64, id: u64) !p.Authorization.Verified {
+    _ = try self.authorizeDatabase(source, who);
+    const value = try self.object(source, id);
+    if (value == null or value.?.authorization == 0) return self.authorize(source, who, .create);
+    return self.authorizeObject(source, who, id, .inspect);
+}
 fn canRead(self: Self, source: anytype, who: u64, id: u64) !bool {
     _ = self.authorizeObject(source, who, id, .read) catch |err| return if (err == error.CatalogDenied) false else err;
     return true;

@@ -38,6 +38,10 @@ pub const Action = union(enum) {
     compile: @FieldType(b.Action, "compile"),
     prepare: c.TableTyped.Request,
     next: struct { saved: b.Saved, sequence: u64 },
+    prepare_resume: struct { saved: b.Saved, sequence: u64 },
+    observe: struct { prepared: Client.Prepared, input: u64 },
+    disposition: struct { prepared: Client.Prepared, input: u64 },
+    progress: struct { saved: b.Saved, prepared: Client.Prepared, input: u64 },
     status: b.Saved,
     control: struct { saved: b.Saved, kind: b.Control, sequence: u64 },
     query: struct { sql: []const u8, rows: u32, reads: u32 },
@@ -80,9 +84,12 @@ pub const Result = union(enum) {
     next: Next,
     state: @FieldType(b.Result, "state"),
     candidate: Client.Candidate,
+    observation: Client.Observation,
+    disposition: ?v.Disposition,
+    progress: b.Progress,
     query: struct { columns: []const q.Values.Column, rows: []const []const q.Values.Cell, complete: bool },
 };
-pub const Response = struct { definition: p.Growth.Definition = p.Growth.current_definition, policy_revision: u64, result: Result };
+pub const Response = struct { definition: p.Growth.Definition, policy_revision: u64, result: Result };
 
 /// The caller supplies a bounded request arena and output buffer. No data is
 /// released until serialization and the final current-authority check succeed.
@@ -107,7 +114,7 @@ pub fn execute(self: Self, arena: *std.heap.ArenaAllocator, request: Request, ou
     const before = try authority.read(.{ .check = guard });
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, self.limits.response_bytes)]);
     var encoder: std.json.Stringify = .{ .writer = &writer };
-    try p.Json.write(Response{ .policy_revision = before.body.authorization.revision, .result = result }, &encoder);
+    try p.Json.write(Response{ .definition = p.Growth.current_definition, .policy_revision = before.body.authorization.revision, .result = result }, &encoder);
     // Repeat all source requirements, including empty and noncontributing inputs.
     const after = try authority.read(.{ .check = guard });
     if (after.body.authorization.revision != before.body.authorization.revision) return error.AuthorizationChanged;
@@ -117,6 +124,8 @@ pub fn execute(self: Self, arena: *std.heap.ArenaAllocator, request: Request, ou
 fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: Action, nonce: [16]u8) !Result {
     const alloc = arena.allocator();
     switch (action) {
+        .observe => |value| return .{ .observation = try client.observe(value.prepared, value.input) },
+        .disposition => |value| return .{ .disposition = if (try client.inputDisposition(value.prepared, value.input)) |found| try v.Disposition.foreign(found) else null },
         .schemas => |cursor| return .{ .schemas = try v.Schemas.foreign(alloc, try client.schemas(if (cursor) |value| try value.native() else null)) },
         .schema_lookup => |name| return .{ .schema = if (try client.schema(try .init(name))) |value| try v.Namespace.foreign(alloc, value) else null },
         .schema_status => |value| return .{ .schema_outcome = if (try client.schemaStatus(try value.native())) |outcome| try v.SchemaOutcome.foreign(alloc, outcome) else null },
@@ -150,11 +159,13 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             _ = try client.requireObject(intent.header.object, intent.header.right());
             return .{ .compiled = prepared.compiled };
         },
-        .next, .status, .control => {
+        .next, .prepare_resume, .status, .control, .progress => {
             var session: b.Session = .{ .allocator = alloc };
             defer session.deinit();
             const saved = switch (action) {
                 .next => |value| value.saved,
+                .prepare_resume => |value| value.saved,
+                .progress => |value| value.saved,
                 .status => |value| value,
                 .control => |value| value.saved,
                 else => unreachable,
@@ -162,6 +173,15 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             const loaded = (try session.apply(arena, client, .{ .load = saved })).loaded;
             const intent = try session.get(loaded.reference, client.connection);
             if (action == .status) return .{ .state = (try session.apply(arena, client, .{ .status = loaded.reference })).state };
+            if (action == .prepare_resume) return .{ .candidate = try client.resumeCandidate(intent, action.prepare_resume.sequence) };
+            if (action == .progress) return .{ .progress = switch (try client.progress(intent, action.progress.prepared, action.progress.input)) {
+                .pending => .pending,
+                .processed => |value| .{ .processed = .{
+                    .disposition = if (value.disposition) |item| try v.Disposition.foreign(item) else null,
+                    .outcome = if (value.outcome) |item| try v.Outcome.foreign(alloc, intent, item) else null,
+                    .upload = if (value.upload) |item| try v.Upload.foreign(item) else null,
+                } },
+            } };
             if (action == .control) {
                 const control = action.control;
                 const command: c.TableControl.Command = switch (control.kind) {

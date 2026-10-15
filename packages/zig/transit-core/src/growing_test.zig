@@ -405,6 +405,30 @@ test "current credentials recover an exact authorization receipt after key rotat
     try t.expectEqual(a.Status.abandoned, (try f.query(65536, .{ .authorization = .{ .kind = .{ .change = accepted } } })).body.authorization.body.change.status);
 }
 
+test "process inspectors verify exact send receipts without inspecting another process or administration" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const other = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try f.engine.principal(0)).sequence + 1, .command = .{ .send = .{ .pid = pid, .value = core.Value.integer(73) } } };
+    try t.expect((try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = request } } })).body.authorization.body.receipt == null);
+    const accepted = try f.engine.submit(try g.sign(request, f.root_key));
+    f.root_sequence += 1;
+    const receipt = (try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = request } } })).body.authorization.body.receipt.?;
+    try t.expectEqual(accepted, receipt.position);
+    var changed = request;
+    changed.command.send.value = core.Value.integer(74);
+    try t.expectError(error.ConflictingRetry, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = changed } } }));
+    changed.command.send.pid = other;
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = changed } } }));
+    changed.command = .{ .spawn = .{} };
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = changed } } }));
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.send), .pid = pid } });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = request } } }));
+}
+
 test "simulation: provider schedules fence old activations and retain accepted backlog" {
     var random = std.Random.DefaultPrng.init(t.random_seed);
     var f: Fixture = .{};

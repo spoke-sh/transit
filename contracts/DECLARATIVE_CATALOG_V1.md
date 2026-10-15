@@ -469,7 +469,13 @@ ready upload after a pause. It refuses an incomplete or cancelled upload.
 Initialization/dependency and exact cancellation/cleanup controls use the
 same signed transport and current scoped owner checks.
 
-`observe` checks the exact admitted input and owner mailbox progress. `progress`
+Prepared retains its original public signing key. Restoring it verifies the
+exact signature independently of the currently configured credential; current
+native authority still decides whether submission is accepted. Receipt recovery
+uses the current credential and the retained original request without re-signing.
+
+`observe` verifies that the native receipt for the complete retained request
+matches the supplied input, then checks owner mailbox progress. `progress`
 then acquires its input disposition, original application outcome and upload
 status at one current authorized resource cut. A terminal SQL result by itself
 does not prove that a particular native send was processed. `waitObserve` and
@@ -478,6 +484,11 @@ use bounded change notification, and fall back to a fresh read after bounded
 capacity backoff. They cache no permission or completion claim. Metadata lookup
 returns an owned schema requiring explicit release. Object-ordered listing
 returns an inline page of metadata/head entries without acquiring schema or rows.
+All recovery disclosure requires current object visibility. Restricted callers
+use the Table service; its private process inspector verifies exact admission
+without giving callers process inspection or raw resource access. A terminal
+outcome cannot validate a fabricated input position, including after that input
+has left the mailbox.
 
 ## General neutral session values
 

@@ -45,6 +45,7 @@ const Shared = struct {
             return switch (err) {
                 error.CatalogDenied, error.AccessDenied => http.respond(request, .forbidden, "{\"err\":\"AccessDenied\"}"),
                 error.StaleStateResource => http.respond(request, .conflict, "{\"err\":\"StaleStateResource\"}"),
+                error.QueryExpired => http.respond(request, .conflict, "{\"err\":\"QueryExpired\"}"),
                 error.AuthorizationChanged, error.Conflict => http.respond(request, .conflict, "{\"err\":\"StaleAuthorizationRevision\"}"),
                 error.OutOfMemory, error.WriteFailed, error.QueryResultBudget, error.QueryPageBudget => http.respond(request, .unprocessable_entity, "{\"err\":\"QueryBudgetExceeded\"}"),
                 else => if (q.wire.Client.unavailable(err)) http.respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}") else http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}"),
@@ -69,7 +70,10 @@ const Shared = struct {
         const service: Service = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .scope = try self.config.scope.native(), .owner = self.config.owner, .limits = self.config.limits };
         const output = try alloc.alloc(u8, self.config.limits.response_bytes);
         return service.execute(arena, parsed.value, output) catch |err| {
-            if (err == error.Rejected and wire.last_rejection == .StaleStateResource) return error.StaleStateResource;
+            if (err == error.Rejected or err == error.Conflict) {
+                if (wire.last_rejection == .StaleStateResource) return error.StaleStateResource;
+                if (wire.last_rejection == .QueryExpired) return error.QueryExpired;
+            }
             return err;
         };
     }

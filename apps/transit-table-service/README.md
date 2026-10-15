@@ -27,13 +27,17 @@ inspection/read of its resource. A caller with only Table privileges receives
 neither raw resource permission nor service credentials.
 
 `describe`, `list`, `lookup`, historical `definition`, SQL `compile`, typed
-`prepare`, `next`, `status`, `control` and finite single-Table `query` use the
+`prepare`, `next`, `prepare_resume`, `status`, `observe`, `disposition`, `progress`,
+`control` and finite single-Table `query` use the
 shared Catalog and Fuze implementations. The reflected Zig types in
 [`TableService.zig`](../../packages/zig/transit-query/src/TableService.zig) own
 the request and result shapes. List pages filter Tables through current
 visibility. Query results contain typed columns and cells, with `complete: true`
 only after the complete query and its final authorization checks succeed.
 There is no partial successful result when a query exceeds its budget.
+The [generated service schema](../../contracts/table-service-v1.schema.json)
+reflects those same public types. `just contract::table-service-check` verifies
+that the published schema matches the implementation.
 
 Mutations remain native, durable catalog commands. `next` returns a reviewable
 unsigned candidate with the caller-supplied next sequence. The caller validates
@@ -41,6 +45,21 @@ it against the saved intent, signs it with its own key, persists the exact bytes
 and submits to native authority. After an uncertain send it retries those same
 bytes; it does not ask for a replacement sequence. Service restart does not
 erase accepted native work or its catalog outcome.
+
+`MediatedTableClient` and `MediatedTableBridge` provide the shared Zig caller and
+neutral catalog lifecycle. The catalog CLI selects this boundary with
+`table_service_url`. It authenticates each action using the caller's current
+credential and retains owned response strings/rows until the response is freed.
+Status and recovery use current object visibility and the original saved bytes.
+Callers need no native process inspection or raw-resource reads. Writers require
+an explicit native send capability to the catalog PID in addition to their Table
+privileges. `transit catalog receipt` recovers exact native admission with the
+current credential, including after rotation; an absent receipt leaves the
+pending command unchanged. The service does not expose initialization or raw
+dependency provisioning to restricted callers.
+Recovery verifies the complete retained send against its native receipt before
+reporting processing. A supplied position alone cannot establish admission or
+completion, even when the mailbox has already advanced beyond it.
 
 Default limits per request are 1 MiB input, 1 MiB output, 32 MiB resident
 workspace, 1,024 result rows and 4,096 native scan reads. HTTP defaults admit two

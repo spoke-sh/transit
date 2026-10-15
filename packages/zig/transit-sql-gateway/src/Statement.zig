@@ -82,7 +82,6 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
             if (token.tag == .integer and token.text.len != 0 and (token.text[0] == '$' or token.text[0] == '?')) parameterized = true;
         }
         if (!parameterized and try f.RelationalSql.requiredDialect(text, dialect)) {
-            if (!(try client.describe()).policy.permits(.read)) return error.CatalogDenied;
             var syntax = try f.RelationalSql.parseDialect(allocator, text, null, dialect);
             defer syntax.deinit();
             var clients: [f.Relational.max_sources]*c.TableClient = @splat(client);
@@ -96,7 +95,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
         var ddl = try f.TableDdl.compileDialect(allocator, text, null, null, dialect);
         errdefer ddl.deinit();
         if (ddl.statement != .create) return error.UnsupportedGatewayStatement;
-        if (!(try client.describe()).policy.permits(.create)) return error.CatalogDenied;
+        _ = try client.requireObject(0, .create);
         plan = .{ .create = ddl };
     } else return error.UnsupportedGatewayStatement;
     errdefer switch (plan) {
@@ -129,12 +128,20 @@ pub fn validate(self: *const Self, client: *c.TableClient) !void {
         .delete => .delete,
         .create => .create,
     };
-    if (!before.policy.permits(right)) return error.CatalogDenied;
     switch (self.plan) {
-        .select => |value| try checkBinding(self.allocator, client, value.binding),
-        .dml => |value| try checkBinding(self.allocator, client, value.binding),
-        .relational => |value| for (value.definitions[0..value.syntax.targets.len]) |definition| try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.?.metadata)),
-        .create => {},
+        .select => |value| {
+            _ = try client.requireObject(value.binding.metadata.object, right);
+            try checkBinding(self.allocator, client, value.binding);
+        },
+        .dml => |value| {
+            _ = try client.requireObject(value.binding.metadata.object, right);
+            try checkBinding(self.allocator, client, value.binding);
+        },
+        .relational => |value| for (value.definitions[0..value.syntax.targets.len]) |definition| {
+            _ = try client.requireObject(definition.?.metadata.object, .read);
+            try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.?.metadata));
+        },
+        .create => _ = try client.requireObject(0, .create),
     }
     if (!std.meta.eql(before, try client.describe())) return error.CatalogDefinitionChanged;
 }

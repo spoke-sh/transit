@@ -77,7 +77,7 @@ test "ledger reserves identity and capacity before staged intent; only committed
     try store.commit(turn);
     const payload = if (saved.body.len <= g.station.Frame.max_payload) try c.protocol.Value.init(saved.body) else try (c.TableControl.Command{ .begin = .{ .header = try saved.header.encode(), .namespace = saved.namespace, .spec = saved.spec } }).encode();
     const native = c.protocol.Growth;
-    const step: c.TableClient.Prepared = .{ .version = 1, .definition = native.current_definition, .connection = .{ .scope = saved.header.scope, .owner = saved.header.owner, .principal = saved.header.principal }, .signed = try native.sign(.{ .realm = 1, .principal = configuration.table_principal, .sequence = 1, .command = .{ .send = .{ .pid = binding.owner, .value = try (g.station.Frame{ .kind = .cast, .payload = payload }).encode() } } }, signing_key) };
+    const step: c.TableClient.Prepared = .{ .version = 1, .definition = native.current_definition, .connection = .{ .scope = saved.header.scope, .owner = saved.header.owner, .principal = saved.header.principal }, .public_key = signing_key.public_key.toBytes(), .signed = try native.sign(.{ .realm = 1, .principal = configuration.table_principal, .sequence = 1, .command = .{ .send = .{ .pid = binding.owner, .value = try (g.station.Frame{ .kind = .cast, .payload = payload }).encode() } } }, signing_key) };
     // A valid signature at a foreign sequence remains unpublished. Its abandoned
     // attempt can be collected without ever changing/reusing its identity.
     var foreign = step;

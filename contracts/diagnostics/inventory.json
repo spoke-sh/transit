@@ -326,7 +326,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 52,
+        "try": 53,
         "catch": 21
       },
       "imports": [
@@ -335,7 +335,8 @@
         "RecoveryFiles.zig",
         "Settings.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_query"
       ]
     },
     "apps/transit-cli/CatalogOptions.zig": {
@@ -360,6 +361,7 @@
           "@\"cancel-upload\"",
           "@\"collect-upload\"",
           "submit",
+          "receipt",
           "observe",
           "disposition",
           "progress",
@@ -3143,6 +3145,7 @@
         "EndOfStream": 1,
         "HostUnreachable": 1,
         "HttpConnectionClosing": 1,
+        "HttpRequestBudget": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorityResponse": 1,
         "InvalidAuthorizationPlan": 1,
@@ -3160,6 +3163,7 @@
         "InvalidCatalogRecord": 1,
         "InvalidColumnName": 1,
         "InvalidFrame": 1,
+        "InvalidHttpBudget": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 1,
         "InvalidResourceRead": 1,
@@ -3168,6 +3172,7 @@
         "InvalidTableHead": 1,
         "InvalidTableId": 1,
         "InvalidTableIntent": 1,
+        "InvalidTableServiceResponse": 1,
         "InvalidTableStatus": 1,
         "MessageTooLarge": 1,
         "MutationBatchTooLarge": 1,
@@ -3190,6 +3195,7 @@
         "Timeout": 1,
         "Unavailable": 1,
         "UnsupportedStatement": 1,
+        "UnsupportedTableServiceAction": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -3539,6 +3545,7 @@
           "prepare_initialize",
           "prepare_dependency",
           "submit",
+          "receipt",
           "observe",
           "wait_observe",
           "input_disposition",
@@ -3578,6 +3585,7 @@
           "state",
           "prepared",
           "receipt",
+          "receipt_status",
           "observation",
           "disposition",
           "progress"
@@ -3595,7 +3603,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 90,
         "catch": 1
       },
       "imports": [
@@ -3659,6 +3667,7 @@
         "advanceMutation()": "<inferred>",
         "alterStep()": "<inferred>",
         "authorize()": "<inferred>",
+        "authorizeCreationInspection()": "<inferred>",
         "authorizeDatabase()": "<inferred>",
         "authorizeObject()": "<inferred>",
         "bindCommand()": "<inferred>",
@@ -3716,7 +3725,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 310,
+        "try": 312,
         "catch": 4
       },
       "imports": [
@@ -3807,9 +3816,10 @@
     "packages/zig/transit-catalog/src/TableClient.zig": {
       "errors": {
         "CatalogConfigurationChanged": 2,
-        "CatalogIdentityConflict": 16,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 17,
         "CatalogNotInitialized": 1,
-        "CatalogOperationNotFound": 1,
+        "CatalogOperationNotFound": 2,
         "CatalogOwnerChanged": 1,
         "CatalogOwnerUnavailable": 1,
         "CatalogScopeChanged": 1,
@@ -3819,7 +3829,7 @@
         "InvalidAuthorizationPlan": 1,
         "InvalidCatalogIdentity": 7,
         "InvalidCatalogPage": 1,
-        "InvalidCatalogPrepared": 10,
+        "InvalidCatalogPrepared": 11,
         "MessageTooLarge": 1,
         "OutOfMemory": 1,
         "StaleAuthorizationRevision": 2,
@@ -3827,7 +3837,7 @@
         "TableUploadClosed": 1,
         "TableUploadNotFound": 2,
         "TableUploadNotReady": 1,
-        "TableWriteNotFound": 1,
+        "TableWriteNotFound": 2,
         "UnsupportedStatement": 1
       },
       "outcomes": {
@@ -3877,6 +3887,7 @@
         "Prepared.matches()": "<inferred>",
         "Prepared.restore()": "<inferred>",
         "Prepared.save()": "<inferred>",
+        "Prepared.verify()": "<inferred>",
         "Source.authorizationSubject()": "<inferred>",
         "Source.finish()": "<inferred>",
         "Source.page()": "<inferred>",
@@ -3895,7 +3906,9 @@
         "describeDatabase()": "<inferred>",
         "dispositionFrom()": "<inferred>",
         "inputDisposition()": "<inferred>",
+        "inspectHeader()": "<inferred>",
         "inspectIntent()": "<inferred>",
+        "inspectPrepared()": "<inferred>",
         "intentSource()": "<inferred>",
         "list()": "<inferred>",
         "lookup()": "<inferred>",
@@ -3905,6 +3918,7 @@
         "nextValue()": "<inferred>",
         "observe()": "<inferred>",
         "observeBounded()": "<inferred>",
+        "observeNative()": "<inferred>",
         "outcome()": "<inferred>",
         "payload()": "<inferred>",
         "prepareAt()": "<inferred>",
@@ -3913,7 +3927,10 @@
         "prepareSchemaPlan()": "<inferred>",
         "processed()": "<inferred>",
         "progress()": "<inferred>",
+        "receipt()": "<inferred>",
         "requireObject()": "<inferred>",
+        "resumeCandidate()": "<inferred>",
+        "resumeValue()": "<inferred>",
         "schema()": "<inferred>",
         "schemaPlanCandidate()": "<inferred>",
         "schemaPlanValue()": "<inferred>",
@@ -3925,13 +3942,14 @@
         "submit()": "<inferred>",
         "uploadStatus()": "<inferred>",
         "validate()": "<inferred>",
+        "verifyAdmission()": "<inferred>",
         "waitForChange()": "<inferred>",
         "waitObserve()": "<inferred>",
         "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 203,
+        "try": 234,
         "catch": 7
       },
       "imports": [
@@ -4466,6 +4484,7 @@
         "Configuration.Limits.native()": "<inferred>",
         "Configuration.foreign()": "<inferred>",
         "Configuration.native()": "<inferred>",
+        "Connection.foreign()": "<inferred>",
         "Connection.native()": "<inferred>",
         "Cursor.foreign()": "<inferred>",
         "Cursor.native()": "<inferred>",
@@ -4496,7 +4515,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 96,
         "catch": 3
       },
       "imports": [
@@ -5282,7 +5301,9 @@
         "EndOfStream": 1,
         "HostUnreachable": 1,
         "HttpConnectionClosing": 1,
+        "HttpRequestBudget": 1,
         "InvalidAuthorityResponse": 4,
+        "InvalidHttpBudget": 1,
         "InvalidSeed": 1,
         "InvalidWaitHint": 1,
         "NameServerFailure": 1,
@@ -5290,7 +5311,7 @@
         "OutOfMemory": 1,
         "ReadFailed": 1,
         "Rejected": 2,
-        "WriteFailed": 1
+        "WriteFailed": 2
       },
       "outcomes": {
         "Client.boundedCall().Result": [
@@ -5300,10 +5321,13 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Client.OwnedLimits.validate()": "<inferred>",
         "Client.boundedCall()": "<inferred>",
         "Client.boundedCall().Task.run()": "anyerror",
         "Client.call()": "<inferred>",
+        "Client.callOwned()": "<inferred>",
         "Client.concurrentBefore()": "<inferred>",
+        "Client.exchange()": "<inferred>",
         "Client.perform()": "anyerror",
         "Client.query()": "<inferred>",
         "Client.submit()": "<inferred>",
@@ -5313,8 +5337,8 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 13,
-        "catch": 8
+        "try": 16,
+        "catch": 9
       },
       "imports": [
         "Application.zig",
@@ -11063,7 +11087,7 @@
       "errors": {
         "AuthorizationBudgetExceeded": 2,
         "InvalidAuthorizationBudget": 1,
-        "InvalidAuthorizationChange": 2,
+        "InvalidAuthorizationChange": 1,
         "InvalidAuthorizationCredential": 4,
         "InvalidAuthorizationCursor": 1,
         "InvalidAuthorizationDomain": 2,
@@ -11551,7 +11575,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3\""
+          "@\"84cad99694b96f29d0b8bff1529036006166000d56bc5889b19f6760ef0a6373\""
         ],
         "Effect.phase": [
           "pending",
@@ -12667,6 +12691,58 @@
       "propagation": {
         "try": 35,
         "catch": 10
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/MediatedTableBridge.zig": {
+      "errors": {
+        "InvalidTableServiceResponse": 2,
+        "UnsupportedTableServiceAction": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "retain()": "<inferred>",
+        "saved()": "<inferred>",
+        "sequence()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 31,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/MediatedTableClient.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "IncompatibleDefinition": 2,
+        "InvalidTableServiceResponse": 12
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "call()": "<inferred>",
+        "candidateCheck()": "<inferred>",
+        "intentCandidate()": "<inferred>",
+        "receipt()": "<inferred>",
+        "signCandidate()": "<inferred>",
+        "signed()": "<inferred>",
+        "submit()": "<inferred>",
+        "validatePrepared()": "<inferred>",
+        "validateResponse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -14068,7 +14144,6 @@
     "packages/zig/transit-query/src/TablePrepared.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
-        "CatalogDenied": 1,
         "TableNotFound": 1
       },
       "outcomes": {},
@@ -14079,7 +14154,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -14192,6 +14267,10 @@
           "compile",
           "prepare",
           "next",
+          "prepare_resume",
+          "observe",
+          "disposition",
+          "progress",
           "status",
           "control",
           "query"
@@ -14215,6 +14294,9 @@
           "next",
           "state",
           "candidate",
+          "observation",
+          "disposition",
+          "progress",
           "query"
         ]
       },
@@ -14228,7 +14310,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 65,
         "catch": 1
       },
       "imports": [
@@ -14928,6 +15010,8 @@
         "Editor.zig",
         "ExecutionDiagnostic.zig",
         "Interactive.zig",
+        "MediatedTableBridge.zig",
+        "MediatedTableClient.zig",
         "QueryAuthorization.zig",
         "QueryFailure.zig",
         "QueryMemory.zig",
@@ -14977,6 +15061,23 @@
         "transit_catalog",
         "transit_station",
         "transit_station_document"
+      ]
+    },
+    "packages/zig/transit-query/src/service_export.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_query"
       ]
     },
     "packages/zig/transit-serving-http/src/PrivateClient.zig": {
@@ -16795,6 +16896,7 @@
       "error_returns": {
         "Head.validate()": "<inferred>",
         "IntentBinding.binding()": "<inferred>",
+        "IntentBinding.commandHeader()": "<inferred>",
         "IntentBinding.from()": "<inferred>",
         "IntentBinding.validate()": "<inferred>",
         "Nonce.validate()": "<inferred>",
@@ -16870,9 +16972,9 @@
     },
     "packages/zig/transit-sql-gateway/src/SavedStep.zig": {
       "errors": {
-        "GatewayStepIdentityConflict": 1,
+        "GatewayStepIdentityConflict": 2,
         "IncompatibleDefinition": 2,
-        "InvalidSavedGatewayStep": 3
+        "InvalidSavedGatewayStep": 4
       },
       "outcomes": {},
       "error_sets": {},
@@ -16884,7 +16986,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 35,
         "catch": 1
       },
       "imports": [
@@ -16896,7 +16998,6 @@
     "packages/zig/transit-sql-gateway/src/Statement.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
-        "CatalogDenied": 3,
         "CatalogIdentityConflict": 2,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
@@ -16934,7 +17035,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -18156,12 +18257,13 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 18
+        "catch": 21
       },
       "imports": [
         "Abi.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_query"
       ]
     },
     "packages/zig/transit-station-bindings/src/DocumentBridge.zig": {

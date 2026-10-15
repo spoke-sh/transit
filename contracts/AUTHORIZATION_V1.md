@@ -184,12 +184,17 @@ role-name resolution is public within the authenticated realm; private native
 roles and general role enumeration retain their inspection restrictions. Names
 and role attributes contain no credentials.
 
-`receipt` inspection accepts the exact original native authorization request
-body. The current credential of the same principal, or root, can recover its
+`receipt` inspection accepts the exact original native request body. The
+current credential of the same principal, or root, can recover its
 receipt after key rotation without re-signing the old request. The retained
 request digest must match; a different body at that sequence conflicts. Missing
 receipt evidence for an already-consumed sequence is an error, not absence.
 This observation neither executes the request nor confers data access.
+For a send, a current native inspector of its destination process may also
+verify that exact request's receipt. This permits a private mediation service
+to validate historical admission after caller credential rotation. It grants
+no access to other destinations or to the sender's administrative requests;
+the domain service separately checks current original-subject disclosure rights.
 
 Credential changes and role-name changes preserve stable role identities.
 Role retirement checks owned objects and administrative role ownership before

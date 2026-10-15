@@ -211,7 +211,7 @@ const testing = struct {
         return c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(caller.connection.scope, caller.connection.owner, request, null), operation);
     }
     fn prepared(caller: *c.TableClient, work: *const c.TableIntent) !c.TableClient.Prepared {
-        return .{ .version = 1, .definition = g.current_definition, .connection = caller.connection, .signed = try g.sign(.{ .realm = caller.connection.scope.realm, .principal = caller.connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = caller.connection.owner, .value = try (c.station.Frame{ .kind = .cast, .payload = try (c.TableControl.Command{ .begin = .{ .header = try work.header.encode(), .namespace = work.namespace, .spec = work.spec } }).encode() }).encode() } } }, caller.key) };
+        return .{ .version = 1, .definition = g.current_definition, .connection = caller.connection, .public_key = caller.key.public_key.toBytes(), .signed = try g.sign(.{ .realm = caller.connection.scope.realm, .principal = caller.connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = caller.connection.owner, .value = try (c.station.Frame{ .kind = .cast, .payload = try (c.TableControl.Command{ .begin = .{ .header = try work.header.encode(), .namespace = work.namespace, .spec = work.spec } }).encode() }).encode() } } }, caller.key) };
     }
 };
 test "general Table recovery retains large intent and exact uncertain upload across close" {

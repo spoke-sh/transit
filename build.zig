@@ -117,6 +117,7 @@ pub fn build(b: *std.Build) void {
     diagnostic_errors_test.stdio = .inherit;
     b.step("test-diagnostic-errors", "Check compiler-inferred error sets and open-boundary fallbacks").dependOn(&diagnostic_errors_test.step);
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
+    b.step("table-service-contract", "Export reflected Table mediation envelopes").dependOn(&b.addRunArtifact(query.artifact("transit-table-service-contract")).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);

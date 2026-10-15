@@ -2,7 +2,7 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Diagnostic = @import("Diagnostic.zig");
-pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, @"compile-authorization", @"prepare-schema", prepare, next, @"prepare-initialize", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, observe, disposition, progress, status };
+pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, @"compile-authorization", @"prepare-schema", prepare, next, @"prepare-initialize", @"prepare-dependency", @"prepare-resume", cancel, cleanup, @"cancel-upload", @"collect-upload", submit, receipt, observe, disposition, progress, status };
 pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, namespace: ?[]const u8 = null, schema: ?[]const u8 = null, intent: ?[]const u8 = null, input: ?[]const u8 = null };
 pub const Options = struct { mode: Mode, flags: Flags = .{}, input: u64 = 0, help: bool = false };
 fn preparation(mode: Mode) bool {
@@ -43,6 +43,7 @@ pub fn usage(mode: Mode) []const u8 {
         .@"prepare-dependency" => "transit catalog prepare-dependency --config PATH --file DEPENDENCY_CHANGE --output PREPARED",
         .progress => "transit catalog progress --config PATH --intent COMPILED --file PREPARED --input POSITION",
         .submit => "transit catalog submit --config PATH --file PREPARED",
+        .receipt => "transit catalog receipt --config PATH --file PREPARED",
         .observe => "transit catalog observe --config PATH --file PREPARED --input POSITION",
         .disposition => "transit catalog disposition --config PATH --file PREPARED --input POSITION",
         .status => "transit catalog status --config PATH --file COMPILED",

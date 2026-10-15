@@ -316,7 +316,13 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
     const observer = caller.role == a.root_role or (identity.grant.pid == null and identity.grant.permissions & p.permission(.inspect) != 0);
     const body: @FieldType(a.Result, "body") = switch (query.kind) {
         .receipt => |request| result: {
-            if (request.realm != engine.genesis.realm or (request.principal != identity.grant.subject and caller.role != a.root_role)) return error.Forbidden;
+            if (request.realm != engine.genesis.realm) return error.Forbidden;
+            // A process inspector may verify a known send's exact admission.
+            // This reveals no request bytes and does not extend inspection to
+            // another process or to the sender's administrative operations.
+            if (request.principal != identity.grant.subject and caller.role != a.root_role) {
+                if (request.command != .send or !try nativeHas(engine, identity, request.command.send.pid, .inspect)) return error.Forbidden;
+            }
             var state = try engine.state();
             const receipt = (try state.get(growth.Receipt, try c.key(.receipt, request.principal, request.sequence, ""))) orelse {
                 if (request.sequence <= (try engine.principal(request.principal)).sequence) return error.MissingReceipt;

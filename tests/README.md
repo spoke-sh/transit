@@ -133,6 +133,26 @@ The repository `just test::unit` task and the current-definition
 also pass. Changesets, remaining subject transports, adapters, SDK workflows and
 clean CI remain separate delivery gates.
 
+The [mediated recovery report](verification/results/authorization-tables-mediated-recovery-2026-10-14.json)
+records `just test::authorization-tables` passing in **288.766 s** on dirty
+`7ab3475c`, with the current-definition identifier and all five executable hashes.
+Restricted CLI callers have no native process inspection or raw-resource reads.
+They compile, sign, submit and recover INSERT/DELETE through the private service;
+exact receipt lookup survives key rotation, fabricated input positions fail,
+and subsequent SELECT revocation denies saved progress disclosure. Two service
+restarts and one authority/store restart preserve the boundary. This extends
+the earlier schema/defaults proof; it does not qualify SQL gateway sessions or
+the ergonomic language SDKs.
+
+The associated root run passes **1,138/1,138 tests**; focused client, catalog,
+query, Station ABI and gateway runs pass **29/29**, **83/83**, **130/130**,
+**21/21** and **20/20** respectively. Owned HTTP tests cover nested response
+lifetime, bounded serialization before dispatch, response overflow and timeout
+cleanup. Native tests verify exact send receipts under scoped process inspection
+and deny other destinations and administrative requests. Regenerated service
+schema and 11 declared diagnostic mapping boundaries pass. These are focused
+checks, not complete installed-workflow or clean-source CI evidence.
+
 `just test::authorization-tables` runs the actual node, signing CLI, catalog
 worker, courier and Table service over disk-backed Ursula. The
 [retained report](verification/results/authorization-tables-2026-10-14.json)

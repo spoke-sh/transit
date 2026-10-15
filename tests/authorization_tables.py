@@ -55,8 +55,8 @@ def run(node, cli, host, service, transit, report=None):
             system.command({'grant': {'subject': principal, 'public_key': public, 'permissions': permissions, 'pid': scope}})
         for principal, permissions in ((20, 7), (101, 3), (102, 3)):
             system.command({'grant_resource': {'resource': resource, 'subject': principal, 'permissions': permissions}})
-        for role in (owner_role, reader_role):
-            apply({'grant': {'object': {'kind': 'process', 'id': pid}, 'grantee': role, 'privileges': 20, 'grant_options': 0}})
+        for role, rights in ((owner_role, 20), (reader_role, 4)):
+            apply({'grant': {'object': {'kind': 'process', 'id': pid}, 'grantee': role, 'privileges': rights, 'grant_options': 0}})
         # The direct catalog CLI is a privileged native reader. Its explicit
         # realm inspection grant remains separate from raw resource permission;
         # the restricted reader uses only the mediated service and receives neither.
@@ -266,7 +266,7 @@ def run(node, cli, host, service, transit, report=None):
                               sql='CREATE TABLE denied (id INTEGER)')}, 104, reader_key, 403)
         call({'query': dict(sql='SELECT * FROM private_data', rows=8, reads=100)}, 104, reader_key, 400)
         revision = system.native_query({'resource': resource})['body']['resource']['revision']
-        for raw in ({'resource': resource}, {'read_access': resource}, {'entries': {'resource': resource, 'revision': revision}},
+        for raw in ({'process': pid}, {'resource': resource}, {'read_access': resource}, {'entries': {'resource': resource, 'revision': revision}},
                     {'open_snapshot': {'resource': resource, 'nonce': list(range(16))}},
                     {'read_entries': {'resource': resource, 'keys': ['0000'] + [None] * 7}}):
             assert system.native_query(raw, 104, reader_key, 403)['err'] == 'AccessDenied'
@@ -276,12 +276,75 @@ def run(node, cli, host, service, transit, report=None):
         forged = signed({'lookup': 'readable'}, 104, reader_key)
         forged['connection']['principal'] = 101
         post(forged, 403)
+
+        mediated_config = system.root / 'mediated-caller.json'
+        def configure_reader():
+            mediated_config.write_text(json.dumps(dict(version=1, url=system.url,
+                table_service_url=f'http://127.0.0.1:{port}', seed_file=str(reader_key), request_timeout_ms=30000,
+                connection=dict(scope=dict(scope, catalog='1'), owner=pid, principal=104, role=None, namespace=1))))
+        configure_reader()
+
+        def mediated(mode, *args, ok=True):
+            result = subprocess.run([str(transit), '--diagnostics=json', 'catalog', mode,
+                '--config', str(mediated_config), *map(str, args)], capture_output=True, text=True, timeout=90)
+            assert (result.returncode == 0) == ok, (mode, result.returncode, result.stdout, result.stderr)
+            return json.loads(result.stdout) if ok else result
+
+        assert mediated('lookup', '--name', 'readable')['definition'] is not None
+        assert mediated('lookup', '--name', 'private_data')['definition'] is None
+        # These object writes use an original caller with no process inspection
+        # or raw-resource access, including every progress and disposition read.
+        write_grant = apply({'grant': {'object': {'kind': 'domain', 'id': readable},
+            'grantee': reader_role, 'privileges': 10, 'grant_options': 0}})
+
+        def mediated_write(operation, text):
+            sql = system.root / f'mediated-{operation}.sql'
+            sql.write_text(text)
+            intent = system.root / f'mediated-{operation}-intent.json'
+            mediated('compile', '--file', sql, '--operation', operation, '--namespace', operation, '--output', intent)
+            deadline = time.monotonic() + 90
+            latest = None
+            for index in range(256):
+                assert time.monotonic() < deadline, 'mediated write deadline'
+                step = system.root / f'mediated-{operation}-step-{index}.json'
+                result = mediated('next', '--file', intent, '--output', step)
+                if 'next' in result and 'terminal' in result['next']:
+                    assert result['next']['terminal']['phase'] == 'applied', result
+                    assert latest is not None
+                    return intent, latest[0], latest[1]
+                if 'prepared' not in result:
+                    time.sleep(.02)
+                    continue
+                receipt = mediated('submit', '--file', step)['receipt']
+                latest = step, receipt
+                assert mediated('receipt', '--file', step)['receipt_status'] == receipt
+                while True:
+                    progress = mediated('progress', '--file', step, '--intent', intent, '--input', receipt['position'])['progress']
+                    if 'processed' in progress:
+                        assert progress['processed']['disposition'] is None, progress
+                        break
+                    assert time.monotonic() < deadline
+                    time.sleep(.02)
+                assert mediated('observe', '--file', step, '--input', receipt['position'])['observation'] == 'processed'
+                assert mediated('disposition', '--file', step, '--input', receipt['position'])['disposition'] is None
+                for mode in ('observe', 'disposition'):
+                    mediated(mode, '--file', step, '--input', receipt['position'] + 1, ok=False)
+            raise AssertionError('mediated write step budget')
+
+        saved_intent, old_step, old_receipt = mediated_write(70, "INSERT INTO readable VALUES (2, 'mediated')")
+        rows = call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key)['result']['query']['rows']
+        assert len(rows) == 2
+        mediated_write(71, 'DELETE FROM readable WHERE id = 2')
+        apply({'revoke': {'id': write_grant, 'privileges': 10, 'grant_option_only': False, 'behavior': 'restrict'}})
         # A signed proof cannot survive replacement of its credential epoch.
         previous = signed({'lookup': 'readable'}, 104, reader_key)
         replacement_key, replacement_public = system.key('reader-replacement')
         apply({'rotate_credential': {'principal': 104, 'expected_epoch': previous['proof']['claim']['credential_epoch'], 'public_key': replacement_public}})
         post(previous, 403)
         reader_key = replacement_key
+        configure_reader()
+        assert mediated('receipt', '--file', old_step)['receipt_status'] == old_receipt
+        assert mediated('progress', '--file', old_step, '--intent', saved_intent, '--input', old_receipt['position'])['progress']['processed']['outcome']['phase'] == 'applied'
         assert call({'lookup': 'readable'}, 104, reader_key)['result']['lookup'] is not None
         # The mediation service carries no durable grants or operation authority.
         serving.kill()
@@ -290,6 +353,7 @@ def run(node, cli, host, service, transit, report=None):
         wait_ready(system.store.http, serving, f'http://127.0.0.1:{port}/health')
         assert call({'lookup': 'readable'}, 104, reader_key)['result']['lookup'] is not None
         apply({'revoke': {'id': grant, 'privileges': 1, 'grant_option_only': False, 'behavior': 'cascade'}})
+        mediated('progress', '--file', old_step, '--intent', saved_intent, '--input', old_receipt['position'], ok=False)
         call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key, 400)
         assert not any(call({'list': None}, 104, reader_key)['result']['list']['entries'])
         # Restart authority and disk store after revocation, without reprovisioning.
@@ -312,7 +376,8 @@ def run(node, cli, host, service, transit, report=None):
         assert 'visible' in json.dumps(call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}))
         observations = dict(shared_resource=resource, tables=[100, 101, 200, 201], restricted_reader=104,
                             service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1,
-                            schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True)
+                            schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True,
+                            mediated_cli_write_recovery=True, no_native_process_inspection=True)
     result = dict(assertions='passed', definition=definition, observations=observations,
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),

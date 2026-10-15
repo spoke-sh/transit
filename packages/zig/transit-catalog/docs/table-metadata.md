@@ -358,6 +358,13 @@ the intent belongs to the session allocator. Failed preparation, validation or
 result allocation leaves the previous intent loaded. Replacing, forgetting or
 destroying a handle has no remote cancellation effect.
 
+Prepared records retain the original public key as well as the signature,
+selected role and schema namespace. Signature validation is independent of the
+caller's current credential; native authority separately proves acceptance and
+enforces current rights. A current credential can recover the exact old native
+request receipt without re-signing it. Processing/disposition inspection checks
+current object visibility before and after reading native progress.
+
 Persist the saved intent before any submission. `next` returns a prepared signed
 step, running state, the original terminal outcome or a cancelled-upload state.
 Persist each prepared step before `submit`; an uncertain step is reconciled by

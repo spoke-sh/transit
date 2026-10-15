@@ -2,18 +2,22 @@
 const std = @import("std");
 const base = @import("Abi.zig");
 const catalog = @import("transit_catalog");
+const query = @import("transit_query");
 const p = catalog.protocol;
 const wire = catalog.station.client;
 pub const bridge = catalog.TableBridge;
 const allocator = std.heap.page_allocator;
 pub const Client = opaque {};
-pub const Config = struct { connection: bridge.Connection, timeout_ms: u32 = 5000 };
+pub const Config = struct { connection: bridge.Connection, timeout_ms: u32 = 5000, table_service_url: ?[]const u8 = null, table_service_limits: wire.Client.OwnedLimits = .{} };
 const Impl = struct {
     threaded: std.Io.Threaded,
     transport: wire.Client,
     client: catalog.TableClient,
     session: bridge.Session,
     url: []u8,
+    service_url: ?[]u8,
+    service: ?wire.Client,
+    service_limits: wire.Client.OwnedLimits,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
@@ -30,14 +34,29 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     const options = parsed.value;
     const connection = options.connection.native() catch return .invalid_argument;
     if (options.timeout_ms == 0 or options.timeout_ms > 60000) return .invalid_argument;
+    options.table_service_limits.validate() catch return .invalid_argument;
+    if (options.table_service_url) |endpoint| {
+        if (endpoint.len == 0 or endpoint.len > 2048) return .invalid_argument;
+        const target = std.Uri.parse(endpoint) catch return .invalid_argument;
+        if (!(std.mem.eql(u8, target.scheme, "http") or std.mem.eql(u8, target.scheme, "https")) or target.host == null or target.user != null or target.password != null or target.query != null or target.fragment != null) return .invalid_argument;
+    }
     const client = allocator.create(Impl) catch return .out_of_memory;
     const endpoint = allocator.dupe(u8, url[0..url_len]) catch {
         allocator.destroy(client);
         return .out_of_memory;
     };
-    client.* = .{ .url = endpoint, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .transport = undefined, .client = undefined, .session = .{ .allocator = allocator } };
+    const service_endpoint = if (options.table_service_url) |value| allocator.dupe(u8, value) catch {
+        allocator.free(endpoint);
+        allocator.destroy(client);
+        return .out_of_memory;
+    } else null;
+    client.* = .{ .url = endpoint, .service_url = service_endpoint, .service = null, .service_limits = options.table_service_limits, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .transport = undefined, .client = undefined, .session = .{ .allocator = allocator } };
     client.transport = wire.Client.init(allocator, client.threaded.io(), endpoint);
     client.transport.timeout_ms = options.timeout_ms;
+    if (service_endpoint) |value| {
+        client.service = wire.Client.init(allocator, client.threaded.io(), value);
+        client.service.?.timeout_ms = options.timeout_ms;
+    }
     client.client = .{ .transport = &client.transport, .connection = connection, .key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
     out.* = @ptrCast(client);
     return .ok;
@@ -47,12 +66,15 @@ pub fn destroy(pointer: ?*Client) callconv(.c) void {
     client.session.deinit();
     std.crypto.secureZero(u8, std.mem.asBytes(&client.client.key));
     client.transport.deinit();
+    if (client.service) |*service| service.deinit();
     client.threaded.deinit();
     allocator.free(client.url);
+    if (client.service_url) |value| allocator.free(value);
     allocator.destroy(client);
 }
 pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime) void {
     cast(pointer).transport.observer = observer;
+    if (cast(pointer).service) |*service| service.observer = observer;
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
@@ -109,8 +131,13 @@ fn apply(client: *Impl, arena: *std.heap.ArenaAllocator, action: bridge.Action, 
     var attempts: u8 = 0;
     while (true) {
         client.transport.last_rejection = null;
-        return client.session.applyDiagnostic(arena, &client.client, action, location) catch |err| {
-            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or client.transport.last_rejection != .StaleStateResource or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
+        if (client.service) |*service| service.last_rejection = null;
+        return (if (client.service) |*service| query.MediatedTableBridge.apply(arena, &client.session, &client.client, service, client.service_limits, action) else client.session.applyDiagnostic(arena, &client.client, action, location)) catch |err| {
+            if (client.service) |service| if (service.last_rejection) |rejection| {
+                client.transport.last_rejection = rejection;
+            };
+            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired;
+            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or !stale or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
             attempts += 1;
             _ = arena.reset(.free_all);
             continue;
@@ -190,7 +217,7 @@ test "catalog ABI owns outputs and validates before its uncertain dispatch bound
     defer base.Api.station_buffer_destroy(rejected);
     const local = try p.Json.parseFromSlice(struct { err: []const u8, diagnostic: p.Diagnostic }, alloc, base.Api.station_buffer_data(rejected.?)[0..base.Api.station_buffer_size(rejected.?)]);
     try t.expectEqual(.not_submitted, local.value.diagnostic.outcome);
-    const signed: catalog.TableClient.Prepared = .{ .version = 1, .definition = p.Growth.current_definition, .connection = cast(pointer.?).client.connection, .signed = try p.Growth.sign(.{ .realm = 46, .principal = 17, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try (catalog.station.Frame{ .kind = .cast, .payload = try (catalog.TableControl.Command{ .cancel_upload = (try cast(pointer.?).session.get(original.intent.reference, cast(pointer.?).client.connection)).upload() }).encode() }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(seed)) };
+    const signed: catalog.TableClient.Prepared = .{ .version = 1, .definition = p.Growth.current_definition, .connection = cast(pointer.?).client.connection, .public_key = cast(pointer.?).client.key.public_key.toBytes(), .signed = try p.Growth.sign(.{ .realm = 46, .principal = 17, .sequence = 1, .command = .{ .send = .{ .pid = 3, .value = try (catalog.station.Frame{ .kind = .cast, .payload = try (catalog.TableControl.Command{ .cancel_upload = (try cast(pointer.?).session.get(original.intent.reference, cast(pointer.?).client.connection)).upload() }).encode() }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(seed)) };
     const token = try signed.save(alloc);
     const action = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = token });
     var failure: ?*base.Buffer = null;
@@ -202,7 +229,7 @@ test "catalog ABI owns outputs and validates before its uncertain dispatch bound
     try t.expectEqual(@as(u64, 1), try remote.value.diagnostic.identity.?.sequence.?.value());
     var forged = signed;
     forged.signed.signature[0] ^= 1;
-    const tampered = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = try forged.save(alloc) });
+    const tampered = try p.Json.valueAlloc(alloc, bridge.Action{ .submit = try std.json.Stringify.valueAlloc(alloc, forged, .{}) });
     var signature: ?*base.Buffer = null;
     try t.expectEqual(.invalid_argument, call(pointer.?, tampered.ptr, tampered.len, &signature));
     defer base.Api.station_buffer_destroy(signature);

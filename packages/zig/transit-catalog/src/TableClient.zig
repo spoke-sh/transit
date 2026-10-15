@@ -86,13 +86,14 @@ pub const Candidate = struct {
     }
     pub fn sign(self: Candidate, key: p.Ed25519.KeyPair) !Prepared {
         _ = try self.command();
-        return .{ .version = 1, .definition = self.definition, .connection = self.connection, .signed = try g.sign(self.request, key) };
+        return .{ .version = 1, .definition = self.definition, .connection = self.connection, .public_key = key.public_key.toBytes(), .signed = try g.sign(self.request, key) };
     }
 };
 pub const Prepared = struct {
     version: u8,
     definition: g.Definition,
     connection: Connection,
+    public_key: [32]u8,
     signed: g.SignedRequest,
     pub const max_saved_bytes = 8192;
     pub fn command(self: Prepared) !Payload {
@@ -112,15 +113,19 @@ pub const Prepared = struct {
         try self.connection.header(intent.header);
         return intent.matches((try s.Frame.decode(self.signed.request.command.send.value)).payload);
     }
-    pub fn save(self: Prepared, allocator: std.mem.Allocator) ![]u8 {
+    pub fn verify(self: Prepared) !void {
         _ = try self.command();
+        try p.Ed25519.Signature.fromBytes(self.signed.signature).verify(&try g.digest(self.signed.request), try p.Ed25519.PublicKey.fromBytes(self.public_key));
+    }
+    pub fn save(self: Prepared, allocator: std.mem.Allocator) ![]u8 {
+        try self.verify();
         return std.json.Stringify.valueAlloc(allocator, self, .{});
     }
     pub fn restore(allocator: std.mem.Allocator, bytes: []const u8) !Prepared {
         if (bytes.len == 0 or bytes.len > max_saved_bytes) return error.InvalidCatalogPrepared;
         const parsed = std.json.parseFromSlice(Prepared, allocator, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidCatalogPrepared;
         defer parsed.deinit();
-        _ = parsed.value.command() catch return error.InvalidCatalogPrepared;
+        parsed.value.verify() catch return error.InvalidCatalogPrepared;
         const canonical = try parsed.value.save(allocator);
         defer allocator.free(canonical);
         if (!std.mem.eql(u8, bytes, canonical)) return error.InvalidCatalogPrepared;
@@ -550,25 +555,41 @@ pub fn waitForChange(self: *Self, intent: *const Intent) !void {
 }
 /// Explicitly resume the same accepted intent after a paused continuation.
 pub fn prepareResume(self: *Self, intent: *const Intent) !Prepared {
+    return self.sign(try self.resumeValue(intent));
+}
+pub fn resumeCandidate(self: *Self, intent: *const Intent, sequence: u64) !Candidate {
+    return self.candidate(try self.resumeValue(intent), sequence);
+}
+fn resumeValue(self: *Self, intent: *const Intent) !p.Value {
     try self.connection.header(intent.header);
     var current = try self.intentSource(intent, null);
     if (try self.uploadStatus(&current, intent)) |upload_value| {
         if (upload_value.phase == .cancelled) return error.TableUploadClosed;
         if (upload_value.phase == .uploading) return error.TableUploadNotReady;
-        return self.sign(try self.prepareAt(&current, try (Control.Command{ .drive = intent.upload() }).encode()));
+        const value = try self.prepareAt(&current, try (Control.Command{ .drive = intent.upload() }).encode());
+        try current.finish();
+        return value;
     }
     if (intent.body.len > s.Frame.max_payload) return error.TableUploadNotFound;
-    return self.sign(try self.prepareAt(&current, try p.Value.init(intent.body)));
+    const value = try self.prepareAt(&current, try p.Value.init(intent.body));
+    try current.finish();
+    return value;
 }
 pub fn validate(self: *Self, prepared: Prepared) !void {
     if (!std.meta.eql(self.connection, prepared.connection)) return error.CatalogIdentityConflict;
-    _ = try prepared.command();
-    try p.Ed25519.Signature.fromBytes(prepared.signed.signature).verify(&try g.digest(prepared.signed.request), self.key.public_key);
+    try prepared.verify();
 }
 /// Exactly one attempt with original signed bytes; no metadata query or retry.
 pub fn submit(self: *Self, prepared: Prepared) !p.Receipt {
     try self.validate(prepared);
     return self.transport.submit(prepared.signed);
+}
+/// Receipt recovery authenticates the current credential but addresses the old
+/// exact request. Absence never authorizes replacing its sequence or signature.
+pub fn receipt(self: *Self, prepared: Prepared) !?p.Receipt {
+    try self.validate(prepared);
+    const authority: wire.AuthorizationClient = .{ .transport = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key };
+    return (try authority.read(.{ .receipt = prepared.signed.request })).body.authorization.body.receipt;
 }
 pub fn observe(self: *Self, prepared: Prepared, input: u64) !Observation {
     return self.observeBounded(prepared, input, null);
@@ -577,23 +598,73 @@ pub fn waitObserve(self: *Self, prepared: Prepared, input: u64) !Observation {
     return self.observeBounded(prepared, input, completion_wait_ms);
 }
 fn observeBounded(self: *Self, prepared: Prepared, input: u64, milliseconds: ?u32) !Observation {
+    try c.Model.nativeId(input);
+    try self.inspectPrepared(prepared);
+    const result = try self.observeNative(prepared, input, milliseconds);
+    try self.inspectPrepared(prepared);
+    return result;
+}
+/// Verify retained signing bytes independently from a current credential. The
+/// current subject still needs disclosure rights; only native evidence proves
+/// that a saved request was accepted, including after rotation.
+pub fn inspectPrepared(self: *Self, prepared: Prepared) !void {
+    try self.validate(prepared);
+    const command = try prepared.command();
+    if (command == .control and command.control == .initialize) {
+        // Provisioning uses the direct native operator profile. The mediated
+        // caller surface cannot use an uninstalled configuration as authority.
+        if (self.authority != null or self.reader != null) return error.CatalogDenied;
+        return;
+    }
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    if (command == .inline_command) {
+        try self.inspectHeader(&current, owner, command.inline_command);
+    } else switch (command.control) {
+        .initialize => unreachable,
+        .schema => |request| _ = try (c.SchemaCatalog{ .configuration = owner.configuration }).status(&current, self.connection.principal, request),
+        .dependency => |change| _ = try owner.authorizeObject(&current, self.connection.principal, change.dependency.object, .inspect),
+        .begin => |begin| try self.inspectHeader(&current, owner, try c.TableCommand.inspect(&begin.header)),
+        .part, .seal, .drive, .cancel_upload, .collect_upload => {
+            const namespace = switch (command.control) {
+                .part => |part| part.upload.namespace,
+                .seal, .drive, .cancel_upload, .collect_upload => |upload_value| upload_value.namespace,
+                else => unreachable,
+            };
+            _ = try (c.TableUpload{ .catalog = owner }).status(&current, self.connection.principal, namespace);
+        },
+        .cancel_ddl, .cleanup_ddl => |ref| _ = (try owner.status(&current, ref.principal, ref.operation, ref.digest)) orelse return error.CatalogOperationNotFound,
+        .cancel_dml, .cleanup_dml => |ref| _ = (try owner.mutationReceipt(&current, self.connection.principal, ref.reference)) orelse return error.TableWriteNotFound,
+    }
+    try current.finish();
+}
+fn inspectHeader(self: *Self, current: *Source, owner: c.TableCatalog, header: c.TableCommand.Header) !void {
+    if (header.right() == .create) {
+        _ = try owner.authorizeCreationInspection(current, self.connection.principal, header.object);
+        return;
+    }
+    _ = try owner.authorizeObject(current, self.connection.principal, header.object, .inspect);
+}
+fn observeNative(self: *Self, prepared: Prepared, input: u64, milliseconds: ?u32) !Observation {
     try self.validate(prepared);
     try c.Model.nativeId(input);
+    try self.verifyAdmission(prepared, input);
     errdefer self.pending_observation = null;
     const previous = self.pending_observation;
     self.pending_observation = null;
-    const query: g.Query = .{ .realm = self.connection.scope.realm, .principal = self.connection.principal, .kind = .{ .process = self.connection.owner } };
+    const resources_value = self.resources();
+    const query: g.Query = .{ .realm = self.connection.scope.realm, .principal = resources_value.principal, .kind = .{ .process = self.connection.owner } };
     const response = response: {
         if (milliseconds) |duration| if (previous) |cursor| {
             if (cursor.input == input and std.mem.eql(u8, &cursor.signature, &prepared.signed.signature)) {
-                break :response self.transport.waitForChange(query, self.key, .{ .after = cursor.position, .milliseconds = duration }) catch |err| {
+                break :response resources_value.wire.waitForChange(query, resources_value.key, .{ .after = cursor.position, .milliseconds = duration }) catch |err| {
                     if (!wire.Client.unavailable(err) or self.transport.last_rejection != .HttpCapacity) return err;
                     try self.transport.http.io.sleep(.fromMilliseconds(duration), .awake);
-                    break :response try self.transport.query(query, self.key);
+                    break :response try resources_value.wire.query(query, resources_value.key);
                 };
             }
         };
-        break :response try self.transport.query(query, self.key);
+        break :response try resources_value.wire.query(query, resources_value.key);
     };
     if (input > response.position) return error.InvalidCatalogPrepared;
     if (response.body != .process) return error.InvalidAuthorityResponse;
@@ -609,13 +680,21 @@ fn observeBounded(self: *Self, prepared: Prepared, input: u64, milliseconds: ?u3
     return .processed;
 }
 pub fn inputDisposition(self: *Self, prepared: Prepared, input: u64) !?Control.Disposition {
-    try self.validate(prepared);
     try c.Model.nativeId(input);
+    try self.inspectPrepared(prepared);
+    try self.verifyAdmission(prepared, input);
     const target = self.address('e', input, 0);
     var current = try self.source(&.{target});
     const result = try self.dispositionFrom(&current, prepared, input);
     try current.finish();
+    try self.inspectPrepared(prepared);
     return result;
+}
+fn verifyAdmission(self: *Self, prepared: Prepared, input: u64) !void {
+    const resources_value = self.resources();
+    const authority: wire.AuthorizationClient = .{ .transport = resources_value.wire, .realm = self.connection.scope.realm, .principal = resources_value.principal, .key = resources_value.key };
+    const accepted = (try authority.read(.{ .receipt = prepared.signed.request })).body.authorization.body.receipt orelse return error.InvalidCatalogPrepared;
+    if (accepted.position != input) return error.CatalogIdentityConflict;
 }
 fn dispositionFrom(self: *Self, current: *Source, prepared: Prepared, input: u64) !?Control.Disposition {
     const target = self.address('e', input, 0);

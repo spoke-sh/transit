@@ -31,6 +31,24 @@ file. Other paths resolve from the working directory. Configuration is at most
 credentials, a query or a fragment. There is no configuration discovery or
 environment overlay for these commands.
 
+Set `table_service_url` to an explicitly deployed Table service for a restricted
+caller. `url` remains the native authority used for caller authentication and
+exact mutation submission. Metadata, compilation requiring live metadata,
+processing/disposition/status and resume preparation then use the service's
+private reader. The caller receives no raw-resource or process-inspection rights.
+`table_service_limits.request_bytes` and `response_bytes` default to 1 MiB each
+and accept 1 byte through 16 MiB; the deployed service may impose lower limits.
+Both URLs require a trusted transport boundary. The service binary listens on
+loopback; remote access requires the deployment's authenticated TLS ingress.
+
+Saved commands retain their original public key, signature, sequence, selected
+role and schema namespace. After credential rotation, recover admission with
+`transit catalog receipt --config catalog.yaml --file prepared.json`. It returns
+`receipt_status`, which is null if the exact request has no retained receipt.
+This read neither signs nor submits a replacement. Observing Table outcomes still
+requires current object rights. Initialization and dependency provisioning use
+the direct operator connection.
+
 ```sh
 transit catalog capabilities
 transit catalog compile --config catalog.yaml --operation 71 --namespace 71 --object 81 --file create.sql --output compiled.json

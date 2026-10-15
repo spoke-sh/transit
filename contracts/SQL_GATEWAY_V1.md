@@ -248,15 +248,20 @@ input until the session clones/binds them.
 
 ## Saved native steps and record upload
 
-`SavedStep` stores one exact `TableClient.Prepared` in at most 406 bytes. The
+`SavedStep` stores one exact `TableClient.Prepared` in at most 455 bytes. The
 layout is `GSS1`, mandatory current native definition:32, realm/resource/catalog/
-owner/principal/sequence as six little-endian u64 values, Station frame length:u16,
+owner/principal/sequence as six little-endian u64 values, schema namespace:u64,
+selected-role presence:u8 (0 or 1), selected role:u64 (zero when absent), original
+signing public key:32, Station frame length:u16,
 exact frame bytes (at most 256) and signature:64. The redundant native envelope
 identities are reconstructed only after validating this explicit definition and
 the Table command's connection. No signature is generated or replaced. Encoding
 requires a current Table send; decoding rejects missing/foreign definitions,
 invalid framing, unsupported command identities and trailing bytes. `verify`
-checks the saved signature and its match to the original complete Table intent.
+checks the saved public key against the configured original signer, the signature
+and its match to the original complete Table intent. The reconstructed native
+send retains the selected role; schema namespace and null-role presence are not
+inferred from a current session.
 The coordinator remains responsible for current grants and principal sequence
 ownership. A decoded record is not evidence that its send was accepted.
 
@@ -291,7 +296,7 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, current quotas, active operation and known accepted principal sequence |
 | GSN1 | Immutable nonce-to-operation identity |
 | GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
-| GSB1 | Original 141-byte Table command header, body offset/length, command/domain digests and DML route; exactly 250 bytes including prefix |
+| GSB1 | Original Table command header fields with nested TCQ1 magic/definition omitted, body offset/length, command/domain digests and DML route; exactly 222 bytes including the checked GSB1 definition prefix |
 | GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
 | GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |

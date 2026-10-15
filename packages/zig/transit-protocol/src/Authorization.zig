@@ -436,7 +436,6 @@ pub fn validateQuery(query: Query) !void {
         .preview => |value| try revision(value.expected_revision),
         .receipt => |value| {
             try p.Growth.validate(value);
-            if (value.command != .authorization) return error.InvalidAuthorizationChange;
         },
         .authenticate => |value| try value.validate(),
         .check => |value| try value.validate(),

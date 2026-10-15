@@ -6,7 +6,7 @@ const p = catalog.protocol;
 const g = p.Growth;
 const Prepared = catalog.TableClient.Prepared;
 const Reader = @import("Bytes.zig");
-pub const fixed_bytes = 150;
+pub const fixed_bytes = 199;
 pub const max_bytes = fixed_bytes + 256;
 pub const format: u32 = 0x47535301;
 pub fn definitionBytes() [32]u8 {
@@ -22,6 +22,10 @@ pub fn encode(step: Prepared, storage: *[max_bytes]u8) ![]const u8 {
     try writer.writeAll("GSS1");
     try writer.writeAll(&definitionBytes());
     inline for (.{ step.connection.scope.realm, step.connection.scope.resource, step.connection.scope.catalog, step.connection.owner, step.connection.principal, request.sequence }) |value| try writer.writeInt(u64, value, .little);
+    try writer.writeInt(u64, step.connection.namespace, .little);
+    try writer.writeByte(if (step.connection.role == null) 0 else 1);
+    try writer.writeInt(u64, step.connection.role orelse 0, .little);
+    try writer.writeAll(&step.public_key);
     const frame = request.command.send.value;
     try writer.writeInt(u16, frame.len, .little);
     try writer.writeAll(frame.slice());
@@ -33,14 +37,20 @@ pub fn decode(bytes: []const u8) !Prepared {
     var reader: Reader = .{ .bytes = bytes };
     if (!std.mem.eql(u8, try reader.take(4), "GSS1")) return error.InvalidSavedGatewayStep;
     if (!std.mem.eql(u8, try reader.take(32), &definitionBytes())) return error.IncompatibleDefinition;
-    const connection: catalog.TableClient.Connection = .{ .scope = .{ .realm = try reader.int(u64, .little), .resource = try reader.int(u64, .little), .catalog = try reader.int(u64, .little) }, .owner = try reader.int(u64, .little), .principal = try reader.int(u64, .little) };
+    var connection: catalog.TableClient.Connection = .{ .scope = .{ .realm = try reader.int(u64, .little), .resource = try reader.int(u64, .little), .catalog = try reader.int(u64, .little) }, .owner = try reader.int(u64, .little), .principal = try reader.int(u64, .little) };
     const sequence = try reader.int(u64, .little);
+    connection.namespace = try reader.int(u64, .little);
+    const role_present = try reader.int(u8, .little);
+    const role = try reader.int(u64, .little);
+    if (role_present > 1 or (role_present == 0 and role != 0)) return error.InvalidSavedGatewayStep;
+    connection.role = if (role_present == 0) null else role;
+    const public_key = (try reader.take(32))[0..32].*;
     const count = try reader.int(u16, .little);
     if (count > 256) return error.InvalidSavedGatewayStep;
     const frame = try p.Value.init(try reader.take(count));
     const signature = (try reader.take(64))[0..64].*;
     try reader.finish();
-    const result: Prepared = .{ .version = 1, .definition = g.current_definition, .connection = connection, .signed = .{ .request = .{ .version = 1, .definition = g.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = connection.owner, .value = frame } } }, .signature = signature } };
+    const result: Prepared = .{ .version = 1, .definition = g.current_definition, .connection = connection, .public_key = public_key, .signed = .{ .request = .{ .version = 1, .definition = g.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = connection.owner, .role = connection.role, .value = frame } } }, .signature = signature } };
     _ = try result.command();
     return result;
 }
@@ -49,6 +59,7 @@ pub fn verify(step: Prepared, intent: *const catalog.TableIntent, public_key: p.
 }
 pub fn verifyBinding(step: Prepared, binding: catalog.TableIntent.Binding, bytes: anytype, public_key: p.Ed25519.PublicKey) !void {
     _ = try step.command();
+    if (!std.mem.eql(u8, &step.public_key, &public_key.toBytes())) return error.GatewayStepIdentityConflict;
     try step.connection.header(binding.header);
     const payload = (try @import("root.zig").station.Frame.decode(step.signed.request.command.send.value)).payload;
     if (!try binding.matches(payload, bytes)) return error.GatewayStepIdentityConflict;
@@ -56,12 +67,12 @@ pub fn verifyBinding(step: Prepared, binding: catalog.TableIntent.Binding, bytes
 }
 test "compact gateway steps retain canonical signed JSON and reject incompatible or altered bytes" {
     const t = std.testing;
-    const connection: catalog.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 8 }, .owner = 3, .principal = 1234 };
+    const connection: catalog.TableClient.Connection = .{ .scope = .{ .realm = 46, .resource = 7, .catalog = 8 }, .owner = 3, .principal = 1234, .role = 0 };
     const request: catalog.TableDdlRequest = .{ .principal = connection.principal, .operation = 9, .object = 0, .expected_revision = 0, .name = try catalog.TableMetadata.Name.init("people"), .action = .{ .drop = .{ .if_exists = true } } };
     var intent = try catalog.TableIntent.create(t.allocator, try catalog.TableCommand.fromDdl(connection.scope, connection.owner, request, null), 9);
     defer intent.deinit();
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
-    const step: Prepared = .{ .version = 1, .definition = g.current_definition, .connection = connection, .signed = try g.sign(.{ .realm = connection.scope.realm, .principal = connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = connection.owner, .value = try (@import("root.zig").station.Frame{ .kind = .cast, .payload = try p.Value.init(intent.body) }).encode() } } }, key) };
+    const step: Prepared = .{ .version = 1, .definition = g.current_definition, .connection = connection, .public_key = key.public_key.toBytes(), .signed = try g.sign(.{ .realm = connection.scope.realm, .principal = connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = connection.owner, .role = connection.role, .value = try (@import("root.zig").station.Frame{ .kind = .cast, .payload = try p.Value.init(intent.body) }).encode() } } }, key) };
     const original = try step.save(t.allocator);
     defer t.allocator.free(original);
     var storage: [max_bytes]u8 = undefined;

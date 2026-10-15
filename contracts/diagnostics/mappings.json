@@ -2442,6 +2442,22 @@
         "CatalogDefinitionMissing": {
           "code": "catalog.definition_missing",
           "category": "integrity"
+        },
+        "InvalidTableServiceResponse": {
+          "code": "catalog.invalid_service_response",
+          "category": "integrity"
+        },
+        "UnsupportedTableServiceAction": {
+          "code": "catalog.unsupported_service_action",
+          "category": "unsupported"
+        },
+        "InvalidHttpBudget": {
+          "code": "catalog.invalid_http_budget",
+          "category": "binding"
+        },
+        "HttpRequestBudget": {
+          "code": "catalog.http_request_budget",
+          "category": "limit"
         }
       },
       "exceptions": [],
