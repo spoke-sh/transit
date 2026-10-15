@@ -157,6 +157,7 @@ fn finishControl(self: *Self, deadline: Deadline) !?g.Control.Disposition {
             continue;
         }) {
             .idle => return null,
+            .admitted => return null,
             .processed => |rejected| return rejected,
             .pending => try self.io.sleep(.fromMilliseconds(5), .awake),
         }
@@ -165,6 +166,10 @@ fn finishControl(self: *Self, deadline: Deadline) !?g.Control.Disposition {
 /// A deadline/cancellation leaves any prepared request in account-owned memory.
 /// The background tick takes over after this function releases the lane lock.
 pub fn control(self: *Self, command: g.Control.Command, deadline: Deadline) !void {
+    return self.handoff(command, deadline, .processed);
+}
+fn handoff(self: *Self, command: g.Control.Command, deadline: Deadline, completion: enum { processed, admitted }) !void {
+    if (completion == .admitted and command != .intent_part) return error.InvalidGatewayCommand;
     while (!self.ingress_mutex.tryLock()) {
         try deadline.check(self.io);
         try self.io.sleep(.fromMilliseconds(5), .awake);
@@ -173,7 +178,10 @@ pub fn control(self: *Self, command: g.Control.Command, deadline: Deadline) !voi
     _ = try self.finishControl(deadline); // Prior caller's detached observation.
     try deadline.check(self.io);
     if (!self.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
-    try self.ingress_lane.start(&self.ingress, command);
+    switch (completion) {
+        .processed => try self.ingress_lane.start(&self.ingress, command),
+        .admitted => try self.ingress_lane.startPart(&self.ingress, command.intent_part),
+    }
     if (try self.finishControl(deadline) != null) return error.GatewayControlRejected;
 }
 /// observer and table borrow the connection's own native transport; no HTTP
@@ -210,7 +218,10 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var offset: usize = 0;
     while (offset < intent.bytes.len) {
         const count = @min(g.Upload.part_bytes, intent.bytes.len - offset);
-        try self.control(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), intent.bytes[offset..][0..count]) } }, deadline);
+        // Admission retains the exact bytes in the ordered native mailbox.
+        // Keep only one uncertain send resident; let the ledger consume parts
+        // independently, then require the seal's domain result below.
+        try self.handoff(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), intent.bytes[offset..][0..count]) } }, deadline, .admitted);
         offset += count;
     }
     try self.control(.{ .seal_intent = item.id }, deadline);

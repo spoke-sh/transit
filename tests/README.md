@@ -61,6 +61,27 @@ also pass. The report retains the exact source, observations and complete log
 hash. It replaces the failed preflight, while the final committed-source growth
 lane must independently run the entire task.
 
+The [ingress pipeline proof](verification/results/authorization-gateway-ingress-pipeline-2026-10-15.json)
+passes the gateway unit suite and complete native gateway schedule in **99.730 s**
+on modified `41e2db79`. The preceding clean wire attempt reaches its SQL deadline
+with the large operation still `uploading`, no Table input and no terminal
+outcome. It is intentionally stopped after preserving observations through
+**1,754.099 s**. This is incomplete qualification. An uploading phase alone does
+not establish whether accepted parts or a seal can still finish; the earlier
+preflight's active write is a different observed state.
+
+Immutable ingress parts now advance after a valid native receipt. The ledger
+consumes the ordered durable mailbox, and the seal still waits for processing
+and complete publication validation. Unit checks retain exact identity after
+transport loss or an invalid receipt and preserve seal rejection. The disk-backed
+proof withholds the first part's processing until the second part is admitted:
+inputs **653/654**. It loses the first part's receipt and requires an identical
+retry, then verifies all 33 operations, three fenced replacements and exact write
+counts. Only one uncertain ingress request remains resident. Existing deadlines,
+part sizes, turn bounds and stored/wire definitions are unchanged. The entire
+large-row wire proof and all ordinary clean lanes remain required at the next
+committed revision.
+
 The [native gateway recovery report](verification/results/authorization-native-gateway-registration-2026-10-15.json)
 passes the complete ledger/coordinator proof in **101.228 s** after migrating
 its manually driven Table host to the existing signed object-registration

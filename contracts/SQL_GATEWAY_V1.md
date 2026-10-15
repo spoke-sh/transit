@@ -422,12 +422,24 @@ on an unreceipted private coordinator proposal permits clearing that proposal,
 after checking the actual current native fence. This exception never applies to
 a published Table step or ingress/operator control.
 
+Immutable `intent_part` controls advance after a valid native admission receipt.
+The ordered durable mailbox holds accepted bytes while the ledger processes
+them; the runtime retains at most one uncertain ingress request, independently
+of the durable backlog. A missing or invalid receipt keeps that exact signed
+request pending and prevents allocating its successor. Begin and seal controls
+still wait for their domain processing result. The seal validates the complete
+publication before admission; accepted parts alone establish neither a complete
+intent nor a successful SQL write. Existing per-intent size, native admission
+quotas and turn mutation/value bounds apply unchanged.
+
 Execution reserves a nonce/operation, binds an immutable Table intent, uploads it
 and waits for original terminal evidence. Cancellation/deadline releases the
 wait; it does not roll back, discard or authorize expiry of accepted work. A
 partial upload remains discoverable with its received parts, but missing intent
-bytes are not reconstructed after the originating task ends. It cannot dispatch
-until the complete intent is sealed and admitted; qualified unsent cancellation
+bytes are not reconstructed after the originating task ends. Already admitted
+parts and a queued seal continue processing after the wait ends. An uploading
+phase observation alone does not establish that no later admission can occur.
+It cannot dispatch until the complete intent is sealed and admitted; qualified unsent cancellation
 can close it. The returned terminal record must equal a
 fresh authorized observation from the Table owner; a cached ledger count alone
 cannot establish disclosure authority. The host joins workers and connections

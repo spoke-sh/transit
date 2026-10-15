@@ -140,7 +140,11 @@ operation instead of sending the SQL again.
 
 If the wait ends before the complete intent is sealed, the operation remains
 reserved or uploading. Its received parts remain durable, but the gateway cannot
-reconstruct missing bytes. Qualified cancellation can close that unsent operation;
+reconstruct missing bytes. Upload parts advance after native admission and are
+processed in mailbox order. Accepted parts and a queued seal can still complete
+after the wait ends; an uploading phase alone is not proof of a permanently
+unsent operation. The complete seal and original Table outcome remain required.
+Qualified cancellation can close an unsent operation;
 it does not establish cancellation of a dispatched Table operation. Inspect the
 phase and original outcome before deciding whether to submit new SQL.
 
