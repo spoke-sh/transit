@@ -1,7 +1,7 @@
 %% Internal host boundary; the shared Zig implementation owns durable transitions.
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
--export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2, catalog/3, catalog_call/3,
+-export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2, catalog/4, catalog_call/3,
          pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/3, unified_codec/2, unified_query/3]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = native_v1, timeout_ms = Timeout, native_host = Override},
@@ -30,10 +30,11 @@ query(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=O
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
         <<"query_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
 catalog(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=Override},
-        #transit_credential{seed_file=Seed},Connection) ->
+        #transit_credential{seed_file=Seed},Connection,TableServiceUrl) ->
     {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
+    Service=case TableServiceUrl of undefined->null; _->{ok,_}=transit_client:config(TableServiceUrl,native_v1,#{}),transit_sdk_value:text(TableServiceUrl,2048) end,
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
-        <<"catalog_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
+        <<"catalog_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout,<<"table_service_url">>=>Service}},Override).
 create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
     case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,

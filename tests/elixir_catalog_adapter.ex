@@ -28,8 +28,6 @@ defmodule ElixirCatalogAdapter do
   def prepare_initialize(c, configuration),
     do: result(C.prepare_initialize(c, C.convert(configuration)))
 
-  def prepare_policy(c, change), do: result(C.prepare_policy(c, C.convert(change)))
-
   def prepare_dependency(c, dependency, present),
     do: result(C.prepare_dependency(c, C.convert(dependency), present))
 

@@ -1,3 +1,29 @@
+defmodule Transit.Station.Sdk.Catalog.Subject do
+  @enforce_keys [:principal, :login_role, :role, :credential_epoch, :audience, :context]
+  @derive {Inspect, only: []}
+  defstruct [:principal, :login_role, :role, :credential_epoch, :audience, :context]
+end
+
+defmodule Transit.Station.Sdk.Catalog.Authority do
+  @enforce_keys [
+    :database_domain,
+    :schema_domain,
+    :table_domain,
+    :database,
+    :initial_schema_authority,
+    :initial_schema
+  ]
+  @derive {Inspect, only: []}
+  defstruct [
+    :database_domain,
+    :schema_domain,
+    :table_domain,
+    :database,
+    :initial_schema_authority,
+    :initial_schema
+  ]
+end
+
 defmodule Transit.Station.Sdk.Catalog.Scope do
   @enforce_keys [:resource, :catalog]
   @derive {Inspect, only: []}
@@ -7,7 +33,7 @@ end
 defmodule Transit.Station.Sdk.Catalog.Connection do
   @enforce_keys [:owner, :scope]
   @derive {Inspect, only: []}
-  defstruct [:owner, :scope]
+  defstruct [:owner, :scope, role: nil, namespace: 1]
 end
 
 defmodule Transit.Station.Sdk.Catalog.TableLimits do
@@ -17,34 +43,9 @@ defmodule Transit.Station.Sdk.Catalog.TableLimits do
 end
 
 defmodule Transit.Station.Sdk.Catalog.Configuration do
-  @enforce_keys [:scope, :owner, :administrator, :table_limits]
+  @enforce_keys [:scope, :owner, :administrator, :table_limits, :authority, :database_name]
   @derive {Inspect, only: []}
-  defstruct [:scope, :owner, :administrator, :table_limits]
-end
-
-defmodule Transit.Station.Sdk.Catalog.Rights do
-  @enforce_keys []
-  @derive {Inspect, only: []}
-  defstruct inspect: false,
-            create: false,
-            read: false,
-            insert: false,
-            update: false,
-            delete: false,
-            alter: false,
-            drop: false
-end
-
-defmodule Transit.Station.Sdk.Catalog.Policy do
-  @enforce_keys [:scope, :principal, :revision, :rights]
-  @derive {Inspect, only: []}
-  defstruct [:scope, :principal, :revision, :rights]
-end
-
-defmodule Transit.Station.Sdk.Catalog.PolicyChange do
-  @enforce_keys [:expected_revision, :policy]
-  @derive {Inspect, only: []}
-  defstruct [:expected_revision, :policy]
+  defstruct [:scope, :owner, :administrator, :table_limits, :authority, :database_name]
 end
 
 defmodule Transit.Station.Sdk.Catalog.Column do
@@ -80,6 +81,7 @@ end
 defmodule Transit.Station.Sdk.Catalog.Metadata do
   @enforce_keys [
     :scope,
+    :namespace,
     :object,
     :revision,
     :name,
@@ -92,6 +94,7 @@ defmodule Transit.Station.Sdk.Catalog.Metadata do
   @derive {Inspect, only: []}
   defstruct [
     :scope,
+    :namespace,
     :object,
     :revision,
     :name,
@@ -116,9 +119,9 @@ defmodule Transit.Station.Sdk.Catalog.Entry do
 end
 
 defmodule Transit.Station.Sdk.Catalog.Definition do
-  @enforce_keys [:metadata, :head, :schema]
+  @enforce_keys [:metadata, :head, :schema, :authorization]
   @derive {Inspect, only: []}
-  defstruct [:metadata, :head, :schema]
+  defstruct [:metadata, :head, :schema, :authorization]
 end
 
 defmodule Transit.Station.Sdk.Catalog.HistoricalDefinition do
@@ -249,9 +252,9 @@ defmodule Transit.Station.Sdk.Catalog.Capabilities do
 end
 
 defmodule Transit.Station.Sdk.Catalog.Description do
-  @enforce_keys [:configuration, :policy, :resource_revision]
+  @enforce_keys [:configuration, :subject, :authorization_revision, :resource_revision]
   @derive {Inspect, only: []}
-  defstruct [:configuration, :policy, :resource_revision]
+  defstruct [:configuration, :subject, :authorization_revision, :resource_revision]
 end
 
 defmodule Transit.Station.Sdk.Catalog.Assignment do
@@ -280,9 +283,8 @@ defmodule Transit.Station.Sdk.Catalog do
     Connection,
     TableLimits,
     Configuration,
-    Rights,
-    Policy,
-    PolicyChange,
+    Authority,
+    Subject,
     Column,
     Schema,
     Identity,
@@ -316,7 +318,8 @@ defmodule Transit.Station.Sdk.Catalog do
   def open(
         %Client.Config{} = config,
         %Client.Credential{} = credential,
-        %Connection{} = connection
+        %Connection{} = connection,
+        table_service_url \\ nil
       ) do
     with :ok <- Runner.compatible(),
          do:
@@ -324,7 +327,8 @@ defmodule Transit.Station.Sdk.Catalog do
              :transit_catalog.open(
                Client.native(config),
                Client.native(credential),
-               native(connection)
+               native(connection),
+               native(table_service_url)
              )
            end)
   end
@@ -371,9 +375,6 @@ defmodule Transit.Station.Sdk.Catalog do
 
   def prepare_initialize(client, configuration),
     do: request(fn -> :transit_catalog.prepare_initialize(client, native(configuration)) end)
-
-  def prepare_policy(client, change),
-    do: request(fn -> :transit_catalog.prepare_policy(client, native(change)) end)
 
   def prepare_dependency(client, dependency, present),
     do:
@@ -426,8 +427,42 @@ defmodule Transit.Station.Sdk.Catalog do
   defp walk(%Scope{} = v, :native, depth, left),
     do: tagged(:transit_catalog_scope, [v.resource, v.catalog], :native, depth, left)
 
+  defp walk(%Authority{} = v, :native, depth, left),
+    do:
+      tagged(
+        :transit_catalog_authority,
+        [
+          v.database_domain,
+          v.schema_domain,
+          v.table_domain,
+          v.database,
+          v.initial_schema_authority,
+          v.initial_schema
+        ],
+        :native,
+        depth,
+        left
+      )
+
+  defp walk(%Subject{} = v, :native, depth, left),
+    do:
+      tagged(
+        :transit_catalog_subject,
+        [v.principal, v.login_role, v.role, v.credential_epoch, v.audience, v.context],
+        :native,
+        depth,
+        left
+      )
+
   defp walk(%Connection{} = v, :native, depth, left),
-    do: tagged(:transit_catalog_connection, [v.owner, v.scope], :native, depth, left)
+    do:
+      tagged(
+        :transit_catalog_connection,
+        [v.owner, v.scope, v.role, v.namespace],
+        :native,
+        depth,
+        left
+      )
 
   defp walk(%TableLimits{} = v, :native, depth, left),
     do:
@@ -443,37 +478,7 @@ defmodule Transit.Station.Sdk.Catalog do
     do:
       tagged(
         :transit_catalog_configuration,
-        [v.scope, v.owner, v.administrator, v.table_limits],
-        :native,
-        depth,
-        left
-      )
-
-  defp walk(%Rights{} = v, :native, depth, left),
-    do:
-      tagged(
-        :transit_catalog_rights,
-        [v.inspect, v.create, v.read, v.insert, v.update, v.delete, v.alter, v.drop],
-        :native,
-        depth,
-        left
-      )
-
-  defp walk(%Policy{} = v, :native, depth, left),
-    do:
-      tagged(
-        :transit_catalog_policy,
-        [v.scope, v.principal, v.revision, v.rights],
-        :native,
-        depth,
-        left
-      )
-
-  defp walk(%PolicyChange{} = v, :native, depth, left),
-    do:
-      tagged(
-        :transit_catalog_policy_change,
-        [v.expected_revision, v.policy],
+        [v.scope, v.owner, v.administrator, v.table_limits, v.authority, v.database_name],
         :native,
         depth,
         left
@@ -521,6 +526,7 @@ defmodule Transit.Station.Sdk.Catalog do
         :transit_catalog_metadata,
         [
           v.scope,
+          v.namespace,
           v.object,
           v.revision,
           v.name,
@@ -542,7 +548,14 @@ defmodule Transit.Station.Sdk.Catalog do
     do: tagged(:transit_catalog_entry, [v.metadata, v.head], :native, depth, left)
 
   defp walk(%Definition{} = v, :native, depth, left),
-    do: tagged(:transit_catalog_definition, [v.metadata, v.head, v.schema], :native, depth, left)
+    do:
+      tagged(
+        :transit_catalog_definition,
+        [v.metadata, v.head, v.schema, v.authorization],
+        :native,
+        depth,
+        left
+      )
 
   defp walk(%HistoricalDefinition{} = v, :native, depth, left),
     do:
@@ -667,7 +680,7 @@ defmodule Transit.Station.Sdk.Catalog do
     do:
       tagged(
         :transit_catalog_description,
-        [v.configuration, v.policy, v.resource_revision],
+        [v.configuration, v.subject, v.authorization_revision, v.resource_revision],
         :native,
         depth,
         left
@@ -691,9 +704,35 @@ defmodule Transit.Station.Sdk.Catalog do
     {%Scope{resource: o0, catalog: o1}, next}
   end
 
-  defp walk({:transit_catalog_connection, v0, v1}, :public, depth, left) do
-    {[o0, o1], next} = children([v0, v1], :public, depth, left)
-    {%Connection{owner: o0, scope: o1}, next}
+  defp walk({:transit_catalog_authority, v0, v1, v2, v3, v4, v5}, :public, depth, left) do
+    {[o0, o1, o2, o3, o4, o5], next} = children([v0, v1, v2, v3, v4, v5], :public, depth, left)
+
+    {%Authority{
+       database_domain: o0,
+       schema_domain: o1,
+       table_domain: o2,
+       database: o3,
+       initial_schema_authority: o4,
+       initial_schema: o5
+     }, next}
+  end
+
+  defp walk({:transit_catalog_subject, v0, v1, v2, v3, v4, v5}, :public, depth, left) do
+    {[o0, o1, o2, o3, o4, o5], next} = children([v0, v1, v2, v3, v4, v5], :public, depth, left)
+
+    {%Subject{
+       principal: o0,
+       login_role: o1,
+       role: o2,
+       credential_epoch: o3,
+       audience: o4,
+       context: o5
+     }, next}
+  end
+
+  defp walk({:transit_catalog_connection, v0, v1, v2, v3}, :public, depth, left) do
+    {[o0, o1, o2, o3], next} = children([v0, v1, v2, v3], :public, depth, left)
+    {%Connection{owner: o0, scope: o1, role: o2, namespace: o3}, next}
   end
 
   defp walk({:transit_catalog_limits, v0, v1, v2}, :public, depth, left) do
@@ -701,35 +740,17 @@ defmodule Transit.Station.Sdk.Catalog do
     {%TableLimits{record_bytes: o0, staging_bytes: o1, staging_records: o2}, next}
   end
 
-  defp walk({:transit_catalog_configuration, v0, v1, v2, v3}, :public, depth, left) do
-    {[o0, o1, o2, o3], next} = children([v0, v1, v2, v3], :public, depth, left)
-    {%Configuration{scope: o0, owner: o1, administrator: o2, table_limits: o3}, next}
-  end
+  defp walk({:transit_catalog_configuration, v0, v1, v2, v3, v4, v5}, :public, depth, left) do
+    {[o0, o1, o2, o3, o4, o5], next} = children([v0, v1, v2, v3, v4, v5], :public, depth, left)
 
-  defp walk({:transit_catalog_rights, v0, v1, v2, v3, v4, v5, v6, v7}, :public, depth, left) do
-    {[o0, o1, o2, o3, o4, o5, o6, o7], next} =
-      children([v0, v1, v2, v3, v4, v5, v6, v7], :public, depth, left)
-
-    {%Rights{
-       inspect: o0,
-       create: o1,
-       read: o2,
-       insert: o3,
-       update: o4,
-       delete: o5,
-       alter: o6,
-       drop: o7
+    {%Configuration{
+       scope: o0,
+       owner: o1,
+       administrator: o2,
+       table_limits: o3,
+       authority: o4,
+       database_name: o5
      }, next}
-  end
-
-  defp walk({:transit_catalog_policy, v0, v1, v2, v3}, :public, depth, left) do
-    {[o0, o1, o2, o3], next} = children([v0, v1, v2, v3], :public, depth, left)
-    {%Policy{scope: o0, principal: o1, revision: o2, rights: o3}, next}
-  end
-
-  defp walk({:transit_catalog_policy_change, v0, v1}, :public, depth, left) do
-    {[o0, o1], next} = children([v0, v1], :public, depth, left)
-    {%PolicyChange{expected_revision: o0, policy: o1}, next}
   end
 
   defp walk({:transit_catalog_column, v0, v1, v2, v3, v4, v5}, :public, depth, left) do
@@ -757,20 +778,26 @@ defmodule Transit.Station.Sdk.Catalog do
     {%MetadataCommitment{bytes: bytes, digest: digest}, next}
   end
 
-  defp walk({:transit_catalog_metadata, v0, v1, v2, v3, v4, v5, v6, v7, v8}, :public, depth, left) do
-    {[o0, o1, o2, o3, o4, o5, o6, o7, o8], next} =
-      children([v0, v1, v2, v3, v4, v5, v6, v7, v8], :public, depth, left)
+  defp walk(
+         {:transit_catalog_metadata, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9},
+         :public,
+         depth,
+         left
+       ) do
+    {[o0, o1, o2, o3, o4, o5, o6, o7, o8, o9], next} =
+      children([v0, v1, v2, v3, v4, v5, v6, v7, v8, v9], :public, depth, left)
 
     {%Metadata{
        scope: o0,
-       object: o1,
-       revision: o2,
-       name: o3,
-       schema_fingerprint: o4,
-       principal: o5,
-       operation: o6,
-       admitted_input: o7,
-       commitment: o8
+       namespace: o1,
+       object: o2,
+       revision: o3,
+       name: o4,
+       schema_fingerprint: o5,
+       principal: o6,
+       operation: o7,
+       admitted_input: o8,
+       commitment: o9
      }, next}
   end
 
@@ -784,9 +811,9 @@ defmodule Transit.Station.Sdk.Catalog do
     {%Entry{metadata: o0, head: o1}, next}
   end
 
-  defp walk({:transit_catalog_definition, v0, v1, v2}, :public, depth, left) do
-    {[o0, o1, o2], next} = children([v0, v1, v2], :public, depth, left)
-    {%Definition{metadata: o0, head: o1, schema: o2}, next}
+  defp walk({:transit_catalog_definition, v0, v1, v2, v3}, :public, depth, left) do
+    {[o0, o1, o2, o3], next} = children([v0, v1, v2, v3], :public, depth, left)
+    {%Definition{metadata: o0, head: o1, schema: o2, authorization: o3}, next}
   end
 
   defp walk({:transit_catalog_historical_definition, v0, v1}, :public, depth, left) do
@@ -914,9 +941,15 @@ defmodule Transit.Station.Sdk.Catalog do
      }, next}
   end
 
-  defp walk({:transit_catalog_description, v0, v1, v2}, :public, depth, left) do
-    {[o0, o1, o2], next} = children([v0, v1, v2], :public, depth, left)
-    {%Description{configuration: o0, policy: o1, resource_revision: o2}, next}
+  defp walk({:transit_catalog_description, v0, v1, v2, v3}, :public, depth, left) do
+    {[o0, o1, o2, o3], next} = children([v0, v1, v2, v3], :public, depth, left)
+
+    {%Description{
+       configuration: o0,
+       subject: o1,
+       authorization_revision: o2,
+       resource_revision: o3
+     }, next}
   end
 
   defp walk({:transit_catalog_assignment, v0, v1}, :public, depth, left) do

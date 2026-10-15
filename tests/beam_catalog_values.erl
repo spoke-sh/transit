@@ -18,11 +18,21 @@ response(A,Root,Value,Action) -> C=open(A,Root,#{status=>0,value=>Value}),try Ac
 invalid({error,#transit_error{kind=Kind}}) -> true=lists:member(Kind,[incompatible_native,read_failed]),ok.
 definition_id() -> maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)).
 scope_json() -> #{realm=>46,resource=>7,catalog=>integer_to_binary(max())}.
-metadata() -> #{scope=>scope_json(),object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9,commitment=>#{format=>16#54434d01,length=>200,digest=>lists:duplicate(32,171)}}.
+metadata() -> #{scope=>scope_json(),namespace=>1,object=>integer_to_binary(max()),revision=>integer_to_binary(max()),name=><<"items">>,schema_fingerprint=>binary:copy(<<"ab">>,32),principal=>17,operation=>integer_to_binary(max()),admitted_input=>9,commitment=>#{format=>16#54434d01,length=>200,digest=>lists:duplicate(32,171)}}.
 schema() -> #{definition=>definition_id(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null}],primary_key=>[]}.
 entry() -> #{metadata=>metadata(),head=>#{revision=><<"1">>,rows=><<"0">>,pending=><<"0">>}}.
-metadata_definition() -> (entry())#{schema=>schema()}.
+metadata_definition() -> (entry())#{schema=>schema(),authorization=>101}.
 metadata_page() -> #{resource_revision=>9,entries=>[entry()|lists:duplicate(7,null)],next=>#{definition=>definition_id(),scope=>scope_json(),resource_revision=>9,after_object=>integer_to_binary(max())}}.
+description_values(A,Root) ->
+    Authority=#{database_domain=>1,schema_domain=>2,table_domain=>3,database=>4,initial_schema_authority=>5,initial_schema=>1},
+    Subject=#{principal=>17,login_role=>23,role=>23,credential_epoch=>1,audience=>3,context=>lists:duplicate(32,171)},
+    Configuration=#{scope=>scope_json(),owner=>3,administrator=>0,table_limits=>#{record_bytes=>4096,staging_bytes=><<"8192">>,staging_records=>64},authority=>Authority,database_name=><<"fixture">>},
+    Description=#{configuration=>Configuration,subject=>Subject,authorization_revision=>9,resource_revision=>2},
+    response(A,Root,#{description=>Description},fun(C)->
+        {ok,#transit_catalog_description{subject=#transit_catalog_subject{principal=17,login_role=23,role=23,credential_epoch=1,audience=3,context=Context},configuration=#transit_catalog_configuration{authority=#transit_catalog_authority{table_domain=3},administrator=0},authorization_revision=9}}=A:describe(C),true=Context=:=binary:copy(<<171>>,32)
+    end),
+    lists:foreach(fun(Bad)->response(A,Root,#{description=>Bad},fun(C)->invalid(A:describe(C)) end) end,
+        [Description#{subject=>Subject#{principal=>18}},Description#{subject=>Subject#{role=>24}},Description#{subject=>Subject#{audience=>4}},Description#{subject=>Subject#{credential_epoch=>0}},Description#{subject=>Subject#{context=>lists:duplicate(31,171)}},Description#{configuration=>Configuration#{authority=>Authority#{table_domain=>2}}},Description#{configuration=>maps:remove(authority,Configuration)}]).
 metadata_values(A,Root) ->
     Max=max(),
     response(A,Root,#{definition=>metadata_definition()},fun(C)->
@@ -51,7 +61,7 @@ metadata_values(A,Root) ->
     D=metadata(),Commitment=maps:get(commitment,D),
     lists:foreach(fun(Bad)->
         response(A,Root,#{definition=>(metadata_definition())#{metadata=>Bad}},fun(C)->invalid(A:lookup(C,<<"items">>)) end)
-    end,[maps:remove(commitment,D),D#{commitment=>Commitment#{format=>0}},D#{commitment=>Commitment#{length=>0}},D#{commitment=>Commitment#{length=>437}},D#{commitment=>Commitment#{digest=>lists:duplicate(31,171)}}]),
+    end,[maps:remove(namespace,D),D#{namespace=>2},maps:remove(commitment,D),D#{commitment=>Commitment#{format=>0}},D#{commitment=>Commitment#{length=>0}},D#{commitment=>Commitment#{length=>445}},D#{commitment=>Commitment#{digest=>lists:duplicate(31,171)}}]),
     E=entry(),
     Invalid=[Page#{entries=>lists:duplicate(7,null)},Page#{entries=>[null,E|lists:duplicate(6,null)]},Page#{entries=>[E,E|lists:duplicate(6,null)]},
         Page#{entries=>[E#{metadata=>D#{scope=>(scope_json())#{catalog=><<"1">>}}}|lists:duplicate(7,null)]},
@@ -95,7 +105,7 @@ main(A,[Root]) ->
         lists:foreach(fun(Bytes)->{error,#transit_error{kind=invalid_argument}}=A:submit(Native,#transit_catalog_prepared{bytes=Bytes}) end,[<<>>,binary:copy(<<0>>,8193),<<255>>]),
         {error,#transit_error{kind=invalid_argument}}=A:load(Native,#transit_catalog_saved_intent{definition=binary:copy(<<"0">>,64),bytes= <<1>>})
     after {ok,_}=A:close(Native) end,
-    metadata_values(A,Root),large_values(A,Root),
+    description_values(A,Root),metadata_values(A,Root),large_values(A,Root),
     Prepared=#transit_catalog_prepared{bytes= <<"opaque fixture command">>},
     Modes=[<<"loss">>,#{status=>0,value=>#{receipt=>#{position=><<"1">>}}},#{status=>0,value=>#{receipt=>#{position=>7},extra=>true}}],
     lists:foreach(fun(Mode)->C=open(A,Root,Mode),try {uncertain,Prepared,#transit_error{kind=unknown_outcome,status=6}}=A:submit(C,Prepared) after close(A,C) end,joined(Root) end,Modes),

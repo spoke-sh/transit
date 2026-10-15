@@ -1,9 +1,9 @@
 %% General Table values and exact recovery over the owned native worker.
 -module(transit_catalog).
 -include("transit_catalog.hrl").
--export([open/3,close/1,capabilities/1,describe/1,lookup/2,definition/3,list/1,list/2,
+-export([open/3,open/4,close/1,capabilities/1,describe/1,lookup/2,definition/3,list/1,list/2,
          compile_sql/3,compile_sql/4,prepare/4,load/2,forget/2,next/2,status/2,
-         prepare_resume/2,prepare_control/3,prepare_initialize/2,prepare_policy/2,prepare_dependency/3,
+         prepare_resume/2,prepare_control/3,prepare_initialize/2,prepare_dependency/3,
          submit/2,observe/3,observe/4,input_disposition/3,progress/4,progress/5,basis/1]).
 %% Internal bounded-worker callbacks.
 -export([open/2,execute/2,evidence/1]).
@@ -23,14 +23,15 @@
     {compare,pos_integer(),eq | ne | lt | le | gt | ge,transit_logical:atom_value()}.
 -record(state,{bridge,connection,principal,context}).
 
-open(Config,Credential,Connection) ->
+open(Config,Credential,Connection) -> open(Config,Credential,Connection,undefined).
+open(Config,Credential,Connection,TableServiceUrl) ->
     case transit_sdk_value:protect(fun transit_catalog_value:context/0) of
-        {ok,Context}->case transit_sdk_worker:open(?MODULE,{Config,Credential,Connection,Context},false) of
+        {ok,Context}->case transit_sdk_worker:open(?MODULE,{Config,Credential,Connection,TableServiceUrl,Context},false) of
             {ok,Worker}->{ok,{transit_catalog_client,Worker,Context}}; Error->Error end;
         Error->Error
     end.
-open({Config,Credential,Connection,Context},_) ->
-    Bridge=transit_station_bridge:catalog(Config,Credential,transit_catalog_value:connection(Connection,Credential)),
+open({Config,Credential,Connection,TableServiceUrl,Context},_) ->
+    Bridge=transit_station_bridge:catalog(Config,Credential,transit_catalog_value:connection(Connection,Credential),TableServiceUrl),
     try transit_catalog_value:with_context(Context,fun()->
         State=#state{bridge=Bridge,connection=Connection,principal=Credential#transit_credential.principal,context=Context},
         Caps=execute_value(transit_catalog_value:action(capabilities),State),
@@ -64,7 +65,6 @@ status(C,Reference) -> call(C,{status,Reference}).
 prepare_resume(C,Reference) -> call(C,{prepare_resume,Reference}).
 prepare_control(C,Reference,Control) -> call(C,{prepare_control,Reference,Control}).
 prepare_initialize(C,Configuration) -> call(C,{prepare_initialize,Configuration}).
-prepare_policy(C,Change) -> call(C,{prepare_policy,Change}).
 prepare_dependency(C,Dependency,Present) -> call(C,{prepare_dependency,Dependency,Present}).
 submit(C,Prepared) -> case call(C,{submit,Prepared}) of
     {error,#transit_error{kind=unknown_outcome}=E}->{uncertain,Prepared,E}; Other->Other end.

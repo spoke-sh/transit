@@ -120,19 +120,18 @@ retry. A waiting process's death does not request durable cancellation.
 
 ## Controls and discovery
 
-`prepare_initialize` takes a configuration with scope, owner, administrator and
-explicit `#transit_catalog_limits{record_bytes, staging_bytes, staging_records}`.
-`prepare_policy` takes `#transit_catalog_policy_change{expected_revision, policy}`;
-expected revision zero means absent policy. Policies contain scope, principal,
-successor revision and `#transit_catalog_rights{}` with eight independent flags:
-inspect, create, read, insert, update, delete, alter and drop. Rights default false.
+`prepare_initialize` takes a configuration with scope, owner, administrator,
+explicit Table limits, a native authority profile and a database name. The
+profile binds three distinct domains, database/schema objects and the initial
+schema namespace. It does not grant privileges. Administration uses native roles
+and object grants, with CONNECT and USAGE preceding Table privileges.
 
 `prepare_dependency(Client, Dependency, Present)` registers/removes
 `#transit_catalog_dependency{scope, object, identity, owner, kind}`. Kinds are
 `query_source`, `writer`, `watch`, `maintained_relation` and `history`. Registration
 grants no access; DROP RESTRICT retains original blocker evidence.
 `input_disposition(Client, Prepared, Position)` reads control/rejection evidence.
-`describe` returns current configuration and policy; `capabilities` exposes native
+`describe` returns current configuration, authenticated subject and authorization revision; `capabilities` exposes native
 limits. Undefined evidence proves no outcome.
 
 `lookup(Client, Name)` returns a definition with metadata, current head and schema,
@@ -159,3 +158,15 @@ installed-package and recovery evidence and its limits.
 Catalog metadata retains the immutable metadata publication commitment: its
 byte length and 32-byte digest. Missing or malformed commitments are rejected;
 query sources use this evidence with the catalog owner and resolved schema.
+
+Connections select `role` (default `undefined`, the login role) and `namespace`
+(default 1). `open/4` accepts an explicit Table-service URL for mediated reads;
+`open/3` uses direct infrastructure reads. Mediation preserves caller signing
+and keeps private service resource credentials separate.
+
+`#transit_catalog_subject{}` contains principal, login role, selected role,
+credential epoch, audience and an owned 32-byte context. Descriptions check that
+the subject matches the selected connection. Metadata includes its positive
+schema namespace and a commitment bounded to 444 bytes. Lookup/list reject
+foreign namespaces; live definitions also carry the native authorization object.
+Historical definitions require the original object's current disclosure rights.

@@ -256,6 +256,15 @@ byte array representation, including UTF-8-shaped bytes; authorization revision
 zero remains valid. This corrects the adapter decoder and strengthens the earlier
 injected-reply evidence without claiming live grant qualification.
 
+The Erlang/Elixir catalog migration builds eight fresh BEAM archives and passes
+both isolated installed catalog consumers on dirty `a96989f7`. The checks cover
+native authority profiles, selected role/schema, authenticated subject matching,
+metadata/history, full-width operation identities, large frames, uncertain
+receipts and joined waiter loss. Schema namespaces use native integers while
+operation namespaces retain their full-width decimal encoding. The removed local
+policy API is absent. These injected-reply and owned-port checks complete the
+catalog adapter migration matrix; live SDK grant/use/revoke remains a separate gate.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful
