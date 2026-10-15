@@ -167,7 +167,10 @@ def run(node, host, cli, proof):
             provision("restore")
             assert send(".resume 1")["status"]["phase"] == "admitted"
             source = start("source-recovered", [host, str(path)])
-            deadline = time.monotonic() + 120
+            # Current role/object checks add native reads to each private turn.
+            # This bounds proof observation; it does not extend a source lease
+            # or treat a still-admitted query as a successful result.
+            deadline = time.monotonic() + 300
             while True:
                 status = send(".status")["status"]
                 if status["phase"] == "complete": break

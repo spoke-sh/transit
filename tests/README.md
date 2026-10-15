@@ -193,6 +193,15 @@ remain authorization-bound. Cancellation accepts either durable cancellation
 or a write already committed before cancellation. Installed SDKs, maintained
 relations, physical exchange and SQL wire gateways are not exercised by this run.
 
+The public-query restart proof passes on dirty `a96989f7` with
+`just test::public-query` using ReleaseSafe. It exercises actual CLI/source
+hosts, 41 exact INT64/NULL rows, frozen retry, fenced crash recovery, busy
+admission, schema rejection, incomplete-result refusal, cancellation and current
+read denial. The preceding Debug run reached its 300-second observation deadline
+while the worker was progressing; that run remains failed. The proof now uses
+the same optimized checked profile as the other native disk schedules and still
+requires complete results before success.
+
 The TypeScript catalog migration passes `just bindings::node-check` on dirty
 `48b25956`: formatting, lint, both package type checks, four client-port tests
 and **67/67 Station tests**. Public catalog values now carry native bindings,

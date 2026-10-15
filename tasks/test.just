@@ -414,7 +414,7 @@ declarative-benchmark *args:
 
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
-    zig build test-public-query
+    zig build test-public-query -Doptimize=ReleaseSafe
 
 # Signed v1 upload, all source adapters, nested results and disk recovery.
 unified-query *args="-Doptimize=ReleaseSafe":
