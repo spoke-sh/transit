@@ -29,6 +29,13 @@ current role graph; the independent model retains disabled-role denial.
 The corrected drivers pass **40 traces / 1,687 transitions** and the saved
 resource-fault smoke schedule (**6 traces / 112 events**).
 
+The clean Board API attempt also exposed a zero-revision assumption in its
+effect fixture. The test now captures the native authorization revision before
+dispatch and requires the original dispatch, observation and closure revisions
+to survive later policy changes. The focused real Board proof passes with the
+clean final-definition binaries, including private access, revocation, outages
+and bounded load; its maximum observed control latency is **0.103 s**.
+
 The [Station recovery report](verification/results/authorization-station-recovery-2026-10-15.json)
 records a focused pass using final-definition ReleaseSafe binaries from the
 clean growth checkout. On one CPU, the one-page-cache recovery takes **85.483 s**,

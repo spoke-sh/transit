@@ -27,6 +27,10 @@ def run(node, cli, board, browser=False):
                                   "outputs": [{"pid": pids[1], "value": b"7".hex()}, None, None, None]}})
         output = next(item for item in s.native_query({"outputs": {}})["body"]["outputs"]["entries"] if item)
         delivered = s.command({"deliver": output["id"]})
+        dispatch_policy = s.native_query({"authorization": {
+            "role": None, "kind": {"identity": {}}
+        }})["body"]["authorization"]["revision"]
+        assert dispatch_policy > 0
         attempt = s.command({"dispatch": {"pid": pids[0], "effect": turn}})
         s.command({"observe": {"pid": pids[0], "effect": turn, "attempt": attempt, "result": None}})
         closure_input = s.command({"close_effect": {"pid": pids[0], "effect": turn, "attempt": attempt}})
@@ -166,7 +170,13 @@ def run(node, cli, board, browser=False):
         effect = effect_page["observation"]["effects"][0]
         effect_diagnostic = effect_page["effect_diagnostics"][0]
         assert effect["phase"] == "closed_unknown" and effect["closure"]["reason"] == "abandoned", effect
-        assert effect["closed_at"] == closure_input and effect["authorization_policy"] == 0
+        assert effect["closed_at"] == closure_input and effect["authorization_policy"] == dispatch_policy, effect
+        assert effect["last_observation"]["policy_revision"] == dispatch_policy, effect
+        assert effect["closure"]["policy_revision"] == dispatch_policy, effect
+        current_policy = s.native_query({"authorization": {
+            "role": None, "kind": {"identity": {}}
+        }})["body"]["authorization"]["revision"]
+        assert current_policy > dispatch_policy, "Later grants must not rewrite original effect authority"
         assert effect_diagnostic["code"] == "effect.reconciliation_abandoned" and effect_diagnostic["outcome"] == "closed_unknown"
         assert effect_diagnostic["identity"] == {"domain":"effect","id":str(turn),"realm":"72","resource":None,"sequence":None}
         assert [item["kind"] for item in effect_diagnostic["actions"] if item] == ["inspect_status"]
