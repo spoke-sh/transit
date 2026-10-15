@@ -23,6 +23,21 @@ remaining completion/readback/schema/drain checks. The harness now allows
 and one SQL attempt. The complete replacement is part of `just ci-clean`'s
 ordinary growth lane; its result must be reported before submission.
 
+The first clean core attempt found two simulation observers still reading the
+removed resource-grant record. They now project effective permissions from the
+current role graph; the independent model retains disabled-role denial.
+The corrected drivers pass **40 traces / 1,687 transitions** and the saved
+resource-fault smoke schedule (**6 traces / 112 events**).
+
+The [Station recovery report](verification/results/authorization-station-recovery-2026-10-15.json)
+records a focused pass using final-definition ReleaseSafe binaries from the
+clean growth checkout. On one CPU, the one-page-cache recovery takes **85.483 s**,
+exceeding the previous 60-second whole-phase observation budget. Recovery and
+resume now allow 240 seconds; the native 10-second request deadline, one-page
+cache, original work identities and all assertions remain unchanged. Exact lost
+reply recovery, fencing, retained continuation and two disk restarts pass.
+This focused result does not complete the clean growth lane.
+
 On 2026-10-14, `nix develop --command bash -euc 'cd
 packages/zig/transit-core; zig build test --summary all'` passes **80/80 tests**
 on the authorization implementation branch. The new
