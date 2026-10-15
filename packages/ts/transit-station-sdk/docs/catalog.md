@@ -141,9 +141,11 @@ all still require persistence and separate submission.
 
 ## Metadata and administration
 
-`lookup(name)` returns current `metadata`, complete `schema` and `head`, or
+`lookup(name)` returns current `metadata`, complete `schema`, `head` and the
+stable native `authorization` object, or
 `undefined`. Metadata includes a reusable frozen `basis`; schema revision and
-catalog metadata revision remain distinct. `metadata.commitment` carries the
+catalog metadata revision remain distinct. `metadata.namespace` identifies its
+schema namespace. `metadata.commitment` carries the
 immutable catalog record's encoded byte count and digest. Query sources use
 this returned commitment with the owning process and schema; callers do not
 reconstruct the catalog's physical schema reference or hash. A commitment grants
@@ -156,16 +158,28 @@ on revision conflict rather than combining different cuts.
 `definition(objectId, revision)` returns accepted historical metadata and schema,
 or `undefined` for absent revisions and known unaccepted candidates. The owned
 `HistoricalDefinition` has no live head. Reads survive DROP and name reuse but
-still require current native grants and catalog inspection rights. Missing
+still require current database CONNECT, schema USAGE and Table SELECT. Missing
 original acceptance evidence or incompatible/corrupt retained records fails;
 private publication alone does not establish an accepted definition.
 
-`Configuration` requires explicit record/staging byte and staging-record limits.
-`Policy` requires every independent boolean right: inspect, create, read, insert,
-update, delete, alter and drop. `PolicyChange` requires the exact expected and
-successor revisions. `prepareInitialize`, `preparePolicy` and `prepareDependency`
-return commands without dispatch; `describe` reads current configuration/policy.
-The native owner rechecks authority and conditions when applying inputs.
+`Configuration` requires explicit record/staging byte and staging-record limits,
+a database name and an `AuthorityProfile` containing the six registered native
+bindings. These identities come from explicit provisioning; startup never invents
+objects or restores grants. `prepareInitialize` and `prepareDependency` return
+commands without dispatch. `describe` returns configuration, the authenticated
+`Subject` and the observed `authorizationRevision`. The subject records the login
+role, selected role, credential epoch, audience and an owned context digest; it
+is an observation, not a reusable permission grant. Roles and privileges belong
+to the shared native authorization model.
+
+`Connection(owner, scope, role?, namespace = 1)` selects an eligible active role
+and schema namespace. `Client.open` accepts `tableServiceUrl` for trusted Table
+mediation. The caller retains its own credential for signing commands; the service
+holds its separate infrastructure credential. Table-restricted callers need this
+boundary and receive no raw-resource privilege. Omitting the endpoint selects
+direct reads and requires independently granted infrastructure access. Every
+protected read and owner continuation rechecks current original-subject rights;
+saved intents and accepted write identities remain unchanged after revocation.
 
 Generated schemas validate both port directions. The SDK uses the catalog's
 larger generated framing bound only for this profile and grows response storage

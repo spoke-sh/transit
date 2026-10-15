@@ -20,6 +20,7 @@ const source: q.Source = {
   kind: "table",
   owner,
   metadata: new Metadata({
+    namespace: 1,
     scope: new Scope(resource, 9n),
     objectId: 17n,
     revision: 3n,

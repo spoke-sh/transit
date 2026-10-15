@@ -75,9 +75,13 @@ export class Scope {
 export class Connection {
   readonly owner: ProcessRef;
   readonly scope: Scope;
-  constructor(owner: ProcessRef, scope: Scope) {
+  readonly role: number | undefined;
+  readonly namespace: number;
+  constructor(owner: ProcessRef, scope: Scope, role?: number, namespace = 1) {
     this.owner = owner;
     this.scope = scope;
+    this.role = role === undefined ? undefined : integer(role, "selected role", 0);
+    this.namespace = integer(namespace, "schema namespace");
     if (
       !(owner instanceof ProcessRef) ||
       !(scope instanceof Scope) ||
@@ -108,11 +112,25 @@ export class Configuration {
   readonly tableLimits: TableLimits;
   readonly scope: Scope;
   readonly owner: ProcessRef;
-  constructor(scope: Scope, owner: ProcessRef, administrator: number, limits: TableLimits) {
+  readonly authority: AuthorityProfile;
+  readonly databaseName: string;
+  constructor(
+    scope: Scope,
+    owner: ProcessRef,
+    administrator: number,
+    limits: TableLimits,
+    authority: AuthorityProfile,
+    databaseName: string,
+  ) {
     this.scope = scope;
     this.owner = owner;
     new Connection(owner, scope);
-    this.administrator = integer(administrator, "administrator");
+    this.administrator = integer(administrator, "administrator", 0);
+    if (!(authority instanceof AuthorityProfile))
+      throw new TypeError("Expected native authorization bindings");
+    this.authority = authority;
+    this.databaseName = name(databaseName);
+    text(databaseName, 63);
     this.tableLimits = Object.freeze({
       recordBytes: integer(limits.recordBytes, "record bytes", 1, 0xffffffff),
       stagingBytes: positive(limits.stagingBytes),
@@ -123,61 +141,75 @@ export class Configuration {
     Object.freeze(this);
   }
 }
-export interface Rights {
-  readonly inspect: boolean;
-  readonly create: boolean;
-  readonly read: boolean;
-  readonly insert: boolean;
-  readonly update: boolean;
-  readonly delete: boolean;
-  readonly alter: boolean;
-  readonly drop: boolean;
-}
-export class Policy {
-  readonly principal: number;
-  readonly revision: bigint;
-  readonly rights: Rights;
-  readonly scope: Scope;
-  constructor(scope: Scope, principal: number, revision: bigint, rights: Rights) {
-    this.scope = scope;
-    if (!(scope instanceof Scope)) throw new TypeError("Expected catalog scope");
-    for (const key of [
-      "inspect",
-      "create",
-      "read",
-      "insert",
-      "update",
-      "delete",
-      "alter",
-      "drop",
-    ] as const)
-      if (typeof rights[key] !== "boolean")
-        throw new TypeError("Specify every independent catalog right");
-    this.principal = integer(principal, "principal", 0);
-    this.revision = positive(revision);
-    this.rights = Object.freeze({
-      inspect: rights.inspect,
-      create: rights.create,
-      read: rights.read,
-      insert: rights.insert,
-      update: rights.update,
-      delete: rights.delete,
-      alter: rights.alter,
-      drop: rights.drop,
-    });
+/** Stable bindings allocated by the native authority, never inferred from names. */
+export class AuthorityProfile {
+  readonly databaseDomain: number;
+  readonly schemaDomain: number;
+  readonly tableDomain: number;
+  readonly database: number;
+  readonly initialSchema: number;
+  readonly initialSchemaAuthority: number;
+  constructor(
+    databaseDomain: number,
+    schemaDomain: number,
+    tableDomain: number,
+    database: number,
+    initialSchema: number,
+    initialSchemaAuthority: number,
+  ) {
+    this.databaseDomain = integer(databaseDomain, "database domain");
+    this.schemaDomain = integer(schemaDomain, "schema domain");
+    this.tableDomain = integer(tableDomain, "Table domain");
+    this.database = integer(database, "database object");
+    this.initialSchema = integer(initialSchema, "initial schema");
+    this.initialSchemaAuthority = integer(initialSchemaAuthority, "initial schema authority");
+    if (
+      new Set([databaseDomain, schemaDomain, tableDomain]).size !== 3 ||
+      database === initialSchemaAuthority
+    )
+      throw new TypeError("Distinct native authorization bindings are required");
     Object.freeze(this);
   }
 }
-export class PolicyChange {
-  readonly expectedRevision: bigint;
-  readonly policy: Policy;
-  constructor(expectedRevision: bigint, policy: Policy) {
-    this.policy = policy;
-    if (!(policy instanceof Policy)) throw new TypeError("Expected catalog policy");
-    this.expectedRevision = wide(expectedRevision);
-    if (policy.revision !== this.expectedRevision + 1n)
-      throw new TypeError("Policy revision must be the expected successor");
+function authority(value: AuthorityProfile): Action<"prepare_initialize">["authority"] {
+  if (!(value instanceof AuthorityProfile))
+    throw new TypeError("Expected native authorization bindings");
+  return {
+    database_domain: value.databaseDomain,
+    schema_domain: value.schemaDomain,
+    table_domain: value.tableDomain,
+    database: value.database,
+    initial_schema: value.initialSchema,
+    initial_schema_authority: value.initialSchemaAuthority,
+  };
+}
+/** Observed authenticated identity; this value itself grants no authority. */
+export class Subject {
+  readonly principal: number;
+  readonly loginRole: number;
+  readonly role: number;
+  readonly credentialEpoch: number;
+  readonly audience: number;
+  readonly #context: string;
+  constructor(
+    principal: number,
+    loginRole: number,
+    role: number,
+    credentialEpoch: number,
+    audience: number,
+    context: Uint8Array,
+  ) {
+    this.principal = integer(principal, "principal", 0);
+    this.loginRole = integer(loginRole, "login role", 0);
+    this.role = integer(role, "selected role", 0);
+    this.credentialEpoch = integer(credentialEpoch, "credential epoch");
+    this.audience = integer(audience, "audience");
+    this.#context = hex(context, 32);
+    if (this.#context.length !== 64) throw new TypeError("Expected subject context digest");
     Object.freeze(this);
+  }
+  get context(): Uint8Array {
+    return unhex(this.#context, 32);
   }
 }
 export interface Column {
@@ -315,12 +347,13 @@ export class MetadataCommitment {
   readonly bytes: number;
   readonly digest: string;
   constructor(bytes: number, hash: string) {
-    this.bytes = integer(bytes, "metadata bytes", 1, 436);
+    this.bytes = integer(bytes, "metadata bytes", 1, 444);
     this.digest = digest(hash);
     Object.freeze(this);
   }
 }
 export class Metadata {
+  readonly namespace: number;
   readonly commitment: MetadataCommitment;
   readonly scope: Scope;
   readonly objectId: bigint;
@@ -331,6 +364,7 @@ export class Metadata {
   readonly operation: bigint;
   readonly admittedInput: number;
   constructor(value: {
+    namespace: number;
     commitment: MetadataCommitment;
     scope: Scope;
     objectId: bigint;
@@ -344,6 +378,7 @@ export class Metadata {
     if (!(value.scope instanceof Scope)) throw new TypeError("Expected catalog scope");
     if (!(value.commitment instanceof MetadataCommitment))
       throw new TypeError("Expected metadata commitment");
+    this.namespace = integer(value.namespace, "schema namespace");
     this.commitment = value.commitment;
     this.scope = value.scope;
     this.objectId = positive(value.objectId);
@@ -363,6 +398,7 @@ function fromMetadata(value: NativeMetadata): Metadata {
   if (value.commitment.format !== 0x54434d01 || value.commitment.digest.length !== 32)
     throw new TypeError("Invalid metadata commitment");
   return new Metadata({
+    namespace: value.namespace,
     commitment: new MetadataCommitment(
       value.commitment.length,
       hex(new Uint8Array(value.commitment.digest), 32),
@@ -394,6 +430,7 @@ export interface Entry {
   readonly head: Head;
 }
 export interface Definition extends Entry {
+  readonly authorization: number;
   readonly schema: Schema;
 }
 export interface HistoricalDefinition {
@@ -739,7 +776,8 @@ export interface Capabilities {
 }
 export interface Description {
   readonly configuration: Configuration;
-  readonly policy: Policy;
+  readonly subject: Subject;
+  readonly authorizationRevision: number;
   readonly resourceRevision: number;
 }
 export type Control = "cancel_operation" | "cleanup_operation" | "cancel_upload" | "collect_upload";
@@ -749,6 +787,9 @@ export interface Dependency {
   readonly identity: bigint;
   readonly owner: ProcessRef;
   readonly kind: "query_source" | "writer" | "watch" | "maintained_relation" | "history";
+}
+export interface CatalogClientConfig extends ClientConfig {
+  readonly tableServiceUrl?: string;
 }
 /** One owned native port. Persist immutable intent and every exact signed step separately. */
 export class Client {
@@ -762,11 +803,15 @@ export class Client {
     Object.freeze(this);
   }
   static async open(
-    input: ClientConfig,
+    input: CatalogClientConfig,
     credential: Credential,
     connection: Connection,
   ): Promise<Client> {
     const config = configuration(input);
+    const serviceUrl =
+      input.tableServiceUrl === undefined
+        ? null
+        : text(configuration({ ...input, url: input.tableServiceUrl }).url, 2048);
     if (
       !(credential instanceof Credential) ||
       !(connection instanceof Connection) ||
@@ -784,8 +829,11 @@ export class Client {
             scope: scope(connection.scope),
             owner: connection.owner.pid,
             principal: credential.principal,
+            role: connection.role ?? null,
+            namespace: connection.namespace,
           },
           timeout_ms: config.timeoutMs,
+          table_service_url: serviceUrl,
         },
         config.nativeHost,
       ),
@@ -809,12 +857,13 @@ export class Client {
     const v = field(await this.#bridge.call({ describe: {} }), "description");
     return decoded(() => {
       const conf = v.configuration,
-        rights = v.policy;
+        subject = v.subject;
       if (
         !sameScope(fromScope(conf.scope), this.connection.scope) ||
-        !sameScope(fromScope(rights.scope), this.connection.scope) ||
         conf.owner !== this.connection.owner.pid ||
-        rights.principal !== this.#principal
+        subject.principal !== this.#principal ||
+        subject.audience !== this.connection.owner.pid ||
+        (this.connection.role !== undefined && subject.role !== this.connection.role)
       )
         throw new TypeError("Foreign catalog description");
       return Object.freeze({
@@ -827,13 +876,25 @@ export class Client {
             stagingBytes: nativeWide(conf.table_limits.staging_bytes),
             stagingRecords: conf.table_limits.staging_records,
           },
+          new AuthorityProfile(
+            conf.authority.database_domain,
+            conf.authority.schema_domain,
+            conf.authority.table_domain,
+            conf.authority.database,
+            conf.authority.initial_schema,
+            conf.authority.initial_schema_authority,
+          ),
+          conf.database_name,
         ),
-        policy: new Policy(
-          fromScope(rights.scope),
-          rights.principal,
-          nativeWide(rights.revision),
-          rights,
+        subject: new Subject(
+          subject.principal,
+          subject.login_role,
+          subject.role,
+          subject.credential_epoch,
+          subject.audience,
+          new Uint8Array(subject.context),
         ),
+        authorizationRevision: integer(v.authorization_revision, "authorization revision", 0),
         resourceRevision: integer(v.resource_revision, "resource revision", 0),
       });
     });
@@ -846,11 +907,17 @@ export class Client {
         schema = schemaValue(v.schema);
       if (
         !sameScope(metadata.scope, this.connection.scope) ||
+        metadata.namespace !== this.connection.namespace ||
         metadata.name !== requestedName ||
         metadata.objectId !== schema.objectId
       )
         throw new TypeError("Definition does not match its request");
-      return Object.freeze({ metadata, schema, head: fromHead(v.head) });
+      return Object.freeze({
+        authorization: integer(v.authorization, "Table authorization"),
+        metadata,
+        schema,
+        head: fromHead(v.head),
+      });
     });
   }
   async definition(objectId: bigint, revision: bigint): Promise<HistoricalDefinition | undefined> {
@@ -891,7 +958,11 @@ export class Client {
         if (slot === null) ended = true;
         else {
           const metadata = fromMetadata(slot.metadata);
-          if (ended || !sameScope(metadata.scope, this.connection.scope))
+          if (
+            ended ||
+            !sameScope(metadata.scope, this.connection.scope) ||
+            metadata.namespace !== this.connection.namespace
+          )
             throw new TypeError("Page has a hole or foreign scope");
           entries.push({ metadata, head: fromHead(slot.head) });
         }
@@ -1044,29 +1115,12 @@ export class Client {
             scope: scope(value.scope),
             owner: value.owner.pid,
             administrator: value.administrator,
+            authority: authority(value.authority),
+            database_name: value.databaseName,
             table_limits: {
               record_bytes: value.tableLimits.recordBytes,
               staging_bytes: value.tableLimits.stagingBytes.toString(),
               staging_records: value.tableLimits.stagingRecords,
-            },
-          },
-        }),
-        "prepared",
-      ),
-    );
-  }
-  async preparePolicy(value: PolicyChange): Promise<Prepared> {
-    if (!(value instanceof PolicyChange)) throw new TypeError("Expected conditional policy");
-    return new Prepared(
-      field(
-        await this.#bridge.call({
-          prepare_policy: {
-            expected_revision: value.expectedRevision.toString(),
-            policy: {
-              scope: scope(value.policy.scope),
-              principal: value.policy.principal,
-              revision: value.policy.revision.toString(),
-              ...value.policy.rights,
             },
           },
         }),

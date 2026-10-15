@@ -3,8 +3,8 @@ export {
   Scope,
   Connection,
   Configuration,
-  Policy,
-  PolicyChange,
+  AuthorityProfile,
+  Subject,
   Schema,
   Identity,
   Basis,
@@ -20,7 +20,7 @@ export {
 } from "./catalog.ts";
 export type {
   TableLimits,
-  Rights,
+  CatalogClientConfig,
   Column,
   Head,
   Entry,

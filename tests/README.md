@@ -169,6 +169,14 @@ SELECT privilege. The first ReleaseSafe disk run exposed that missing check;
 its rerun and maintained-query qualification remain separate from these unit
 results.
 
+The TypeScript catalog migration passes `just bindings::node-check` on dirty
+`48b25956`: formatting, lint, both package type checks, four client-port tests
+and **67/67 Station tests**. Public catalog values now carry native bindings,
+selected role/schema and authenticated-subject observations; the removed local
+policy API is absent. Boundary tests reject foreign callers, audiences, selected
+roles and schema namespaces, and preserve owned context bytes. This is Node
+adapter validation, not an installed Node or all-language authorization proof.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

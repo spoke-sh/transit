@@ -19,8 +19,9 @@ import {
   Identity,
   SavedIntent,
   Prepared,
-  Policy,
-  PolicyChange,
+  AuthorityProfile,
+  Subject,
+  Configuration,
   Cursor,
   Page,
   Uncertain,
@@ -56,17 +57,37 @@ const scope = new Scope(new ResourceRef(1, 3), maximum);
 const connection = new Connection(new ProcessRef(1, 2), scope);
 const ids = new Identity(maximum, maximum - 1n);
 const nativeScope = { realm: 1, resource: 3, catalog: maximum.toString() };
-const rights = {
-  inspect: true,
-  create: true,
-  read: false,
-  insert: false,
-  update: false,
-  delete: false,
-  alter: false,
-  drop: false,
+const nativeAuthority = {
+  database_domain: 10,
+  schema_domain: 11,
+  table_domain: 12,
+  database: 20,
+  initial_schema: 1,
+  initial_schema_authority: 21,
+};
+const subject = {
+  principal: 9,
+  login_role: 8,
+  role: 8,
+  credential_epoch: 1,
+  audience: 2,
+  context: Array(32).fill(1),
+};
+const description = {
+  configuration: {
+    scope: nativeScope,
+    owner: 2,
+    administrator: 9,
+    authority: nativeAuthority,
+    database_name: "test",
+    table_limits: { record_bytes: 2097152, staging_bytes: "4194304", staging_records: 196 },
+  },
+  subject,
+  authorization_revision: 2,
+  resource_revision: 2,
 };
 const metadata = {
+  namespace: 1,
   commitment: { format: 0x54434d01, length: 200, digest: Array(32).fill(1) },
   scope: nativeScope,
   object: "17",
@@ -128,7 +149,7 @@ const compiled = {
   saved: { definition: contract.definition, bytes: "010203" },
 };
 
-test("catalog values own schemas, bytes and every independent right", () => {
+test("catalog values own schemas, bytes and authenticated context", () => {
   const bytes = new Uint8Array([1, 2]);
   const column = {
     id: 2n,
@@ -157,12 +178,24 @@ test("catalog values own schemas, bytes and every independent right", () => {
   const saved = new SavedIntent(contract.definition, new Uint8Array([1, 2]));
   saved.bytes.fill(0);
   assert.deepEqual(saved.bytes, new Uint8Array([1, 2]));
-  const policy = new Policy(scope, 0, maximum, rights);
-  rights.read = true;
-  assert.equal(policy.rights.read, false);
-  rights.read = false;
-  assert.equal(new PolicyChange(maximum - 1n, policy).expectedRevision, maximum - 1n);
-  assert.throws(() => new PolicyChange(maximum, policy));
+  const context = new Uint8Array(32).fill(1);
+  const current = new Subject(9, 8, 8, 1, 2, context);
+  context.fill(0);
+  current.context.fill(0);
+  assert.deepEqual(current.context, new Uint8Array(32).fill(1));
+  assert.throws(() => new Subject(9, 8, 8, 0, 2, context));
+  assert.throws(() => new Subject(9, 8, 8, 1, 2, new Uint8Array(31)));
+  assert.throws(() => new AuthorityProfile(10, 10, 12, 20, 1, 21));
+  assert.throws(() => new AuthorityProfile(10, 11, 12, 20, 1, 20));
+  const authority = new AuthorityProfile(10, 11, 12, 20, 1, 21);
+  const limits = { recordBytes: 1024, stagingBytes: 2048n, stagingRecords: 10 };
+  assert.equal(
+    new Configuration(scope, connection.owner, 0, limits, authority, "test").administrator,
+    0,
+  );
+  assert.throws(
+    () => new Configuration(scope, connection.owner, 0, limits, authority, "a".repeat(64)),
+  );
   assert.throws(() => new Scope(scope.resource, 1 as unknown as bigint));
   assert.throws(() => new Scope(scope.resource, 1n << 64n));
   assert.throws(() => new Connection(new ProcessRef(2, 2), scope));
@@ -401,27 +434,63 @@ test("generated schema rejects an invented observation", async () => {
     await assert.rejects(client.observe(new Prepared("saved"), 1), ReadFailed);
   });
 });
-for (const revision of ["01", "+1", "18446744073709551616"]) {
-  test(`response rejects noncanonical revision ${revision}`, async () => {
-    await withHost(
-      {
-        description: {
-          configuration: {
-            scope: nativeScope,
-            owner: 2,
-            administrator: 9,
-            table_limits: { record_bytes: 2097152, staging_bytes: "4194304", staging_records: 196 },
-          },
-          policy: { scope: nativeScope, principal: 9, revision, ...rights },
-          resource_revision: 2,
-        },
+test("description preserves native bindings and current subject", async () => {
+  await withHost({ description }, async (client) => {
+    const value = await client.describe();
+    assert.equal(value.authorizationRevision, 2);
+    assert.equal(value.subject.principal, 9);
+    assert.equal(value.configuration.authority.database, 20);
+    assert.equal(value.configuration.databaseName, "test");
+  });
+});
+for (const bad of [
+  { ...description, authorization_revision: -1 },
+  { ...description, authorization_revision: Number.MAX_SAFE_INTEGER + 1 },
+  { ...description, subject: { ...subject, principal: 10 } },
+  { ...description, subject: { ...subject, audience: 3 } },
+  { ...description, subject: { ...subject, credential_epoch: 0 } },
+  {
+    ...description,
+    configuration: {
+      ...description.configuration,
+      authority: {
+        ...nativeAuthority,
+        table_domain: nativeAuthority.schema_domain,
       },
-      async (client) => {
-        await assert.rejects(client.describe(), IncompatibleNative);
-      },
-    );
+    },
+  },
+]) {
+  test(`rejects malformed or foreign description ${JSON.stringify(bad)}`, async () => {
+    await withHost({ description: bad }, async (client) => {
+      await assert.rejects(
+        client.describe(),
+        (error: unknown) => error instanceof IncompatibleNative || error instanceof ReadFailed,
+      );
+    });
   });
 }
+test("a description cannot replace the caller's explicitly selected role", async () => {
+  await withHost(
+    { description },
+    async (client) => {
+      await assert.rejects(client.describe(), IncompatibleNative);
+    },
+    contract.definition,
+    false,
+    new Connection(connection.owner, scope, 7),
+  );
+});
+test("metadata cannot escape the selected schema namespace", async () => {
+  await withHost(
+    { definition: { ...entry, authorization: 30, schema: wireSchema } },
+    async (client) => {
+      await assert.rejects(client.lookup(metadata.name), IncompatibleNative);
+    },
+    contract.definition,
+    false,
+    new Connection(connection.owner, scope, undefined, 2),
+  );
+});
 for (const definition of [null, "0".repeat(64)]) {
   test(`rejects missing or foreign native definition ${definition}`, async () => {
     await assert.rejects(
@@ -431,17 +500,22 @@ for (const definition of [null, "0".repeat(64)]) {
   });
 }
 test("metadata owns general schema and validates the requested identity", async () => {
-  await withHost({ definition: { ...entry, schema: wireSchema } }, async (client) => {
-    const value = await client.lookup(metadata.name);
-    assert.ok(value);
-    assert.equal(value.metadata.objectId, 17n);
-    assert.equal(value.schema.revision, 2n);
-    assert.equal(value.head.rows, maximum);
-    assert.deepEqual(value.schema.primaryKey, [1n]);
-    assert.equal(value.schema.columns[1]?.type.kind, "list");
-    assert.equal(value.metadata.basis.schemaFingerprint, metadata.schema_fingerprint);
-    await assert.rejects(client.lookup("other"), IncompatibleNative);
-  });
+  await withHost(
+    { definition: { ...entry, authorization: 30, schema: wireSchema } },
+    async (client) => {
+      const value = await client.lookup(metadata.name);
+      assert.ok(value);
+      assert.equal(value.authorization, 30);
+      assert.equal(value.metadata.namespace, 1);
+      assert.equal(value.metadata.objectId, 17n);
+      assert.equal(value.schema.revision, 2n);
+      assert.equal(value.head.rows, maximum);
+      assert.deepEqual(value.schema.primaryKey, [1n]);
+      assert.equal(value.schema.columns[1]?.type.kind, "list");
+      assert.equal(value.metadata.basis.schemaFingerprint, metadata.schema_fingerprint);
+      await assert.rejects(client.lookup("other"), IncompatibleNative);
+    },
+  );
   await withHost({ definition: null }, async (client) =>
     assert.equal(await client.lookup("absent"), undefined),
   );
@@ -628,6 +702,7 @@ async function withHost(
   run: (client: Client, requests: () => Promise<unknown[]>) => Promise<void>,
   definition: string | null = contract.definition,
   fragment = false,
+  selected: Connection = connection,
 ): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "transit-catalog-boundary-"));
   const host = join(directory, "host.mjs"),
@@ -655,7 +730,7 @@ for await (const line of createInterface({input:process.stdin})) {
     const client = await Client.open(
       { url: "http://127.0.0.1:1", profile: "native_v1", nativeHost: host },
       new Credential(1, 9, "unused.seed"),
-      connection,
+      selected,
     );
     try {
       await run(client, async () =>

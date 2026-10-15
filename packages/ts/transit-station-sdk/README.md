@@ -64,7 +64,7 @@ The [relational query guide](docs/relational.md) covers explicit catalog routes,
 interactive joins and groups, exact page retries and full-width integer results.
 
 The [catalog guide](docs/catalog.md) covers general typed Table schemas, DDL/DML,
-metadata, conditional policy and exact saved-intent recovery, with `bigint`
+metadata, native role/object authority and exact saved-intent recovery, with `bigint`
 identities and generated runtime validation through the native port.
 
 The [handler Table guide](docs/tables.md) covers general typed rows, captured
