@@ -78,6 +78,7 @@ pub const Command = union(enum(u8)) {
     drive: Upload = 'V',
     cancel_upload: Upload = 'K',
     collect_upload: Upload = 'G',
+    schema: c.SchemaCatalog.Request = 'H',
     pub fn scope(self: Command) !m.Scope {
         return switch (self) {
             .initialize => |value| value.scope,
@@ -87,6 +88,7 @@ pub const Command = union(enum(u8)) {
             .begin => |value| (try c.TableCommand.inspect(&value.header)).scope,
             .part => |value| value.upload.scope,
             .seal, .drive, .cancel_upload, .collect_upload => |value| value.scope,
+            .schema => |value| value.scope,
         };
     }
     pub fn encode(self: Command) !p.Value {

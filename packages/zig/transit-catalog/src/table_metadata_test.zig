@@ -76,7 +76,7 @@ test "general catalog metadata matches independent Python layouts" {
     try expectHex(expected.manifest_hex, (try turn.read(Records.key(record.object, 'd', 0))).?.slice());
     const m = c.TableCatalogRecords;
     const reference: Records.Reference = .{ .id = 3, .spec = .{ .format = Meta.format, .length = 195, .digest = @splat(51) } };
-    const configuration: m.Configuration = .{ .scope = scope, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 8192, .staging_records = 2 } };
+    const configuration: m.Configuration = .{ .scope = scope, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 8192, .staging_records = 2 } };
     const object: m.Object = .{ .scope = scope, .object = record.object, .namespace = 1, .authorization = 100, .state = .live, .metadata = reference, .next_revision = 4 };
     const operation: m.Operation = .{ .scope = scope, .principal = 17, .operation = std.math.maxInt(u64), .object = record.object, .actual_object = record.object, .digest = @splat(68), .kind = .rename, .state = .applied, .metadata = reference, .admitted_input = 5, .completed_input = 7 };
     var restricted = operation;

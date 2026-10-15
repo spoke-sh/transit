@@ -103,12 +103,19 @@ pub const Requirement = struct {
 pub const Guard = struct {
     subject: Subject,
     requirements: [max_requirements]?Requirement,
+    /// A domain operation may assign one new owner only if the original login
+    /// can select it. This is independent of inherited data/owner privileges.
+    selectable: ?Id = null,
     /// Conjunction of current requirements. Different predicates remain distinct.
     pub fn merge(self: Guard, other: Guard) !Guard {
         try self.validate();
         try other.validate();
         if (!std.meta.eql(self.subject, other.subject)) return error.InvalidAuthorizationCredential;
         var combined = self;
+        if (other.selectable) |role| {
+            if (combined.selectable) |previous| if (previous != role) return error.AuthorizationBudgetExceeded;
+            combined.selectable = role;
+        }
         for (other.requirements) |slot| {
             const requirement = slot orelse break;
             for (&combined.requirements) |*entry| {
@@ -128,6 +135,7 @@ pub const Guard = struct {
     }
     pub fn validate(self: Guard) !void {
         try self.subject.validate();
+        if (self.selectable) |role| try roleId(role);
         if (self.requirements[0] == null) return error.InvalidAuthorizationPrivilege;
         var ended = false;
         for (self.requirements) |slot| {

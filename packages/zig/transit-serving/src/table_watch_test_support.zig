@@ -9,7 +9,7 @@ const s = root.station;
 const p = root.protocol;
 pub const Store = q.testing.Store;
 pub const principal = 65536;
-pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
+pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
 pub const catalog: c.TableCatalog = .{ .configuration = configuration };
 fn turn(store: *Store) !s.Turn {
     var next = try store.capture();

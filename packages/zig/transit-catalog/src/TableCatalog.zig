@@ -438,6 +438,7 @@ fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcom
             try c.TableAuthority.validateObject(profile, pending.scope, .table, request.object, c.TableAuthority.reference(namespace.authorization), native);
             const verified = try self.authorize(turn, request.principal, .create);
             if (native.owner != verified.role) return error.CatalogIdentityConflict;
+            try (c.SchemaCatalog{ .configuration = self.configuration }).admitTable(turn, namespace.id);
             const fresh: m.Object = .{ .scope = pending.scope, .object = request.object, .namespace = namespace.id, .authorization = native.reference.id, .state = .initializing, .next_revision = 2, .pending_principal = pending.principal, .pending_operation = pending.operation, .pending_revision = 1, .pending_digest = digest };
             try self.saveObject(turn, fresh);
             var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;

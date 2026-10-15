@@ -4,9 +4,11 @@ The native `declarative_authorization` capability provides roles, credential
 bindings, generic objects, grants, staged administration and current policy
 inspection. [Authorization.zig](../packages/zig/transit-protocol/src/Authorization.zig)
 owns the types; the native schema reflects them. The catalog and explicit Table
-service enforce database/schema/Table privileges. SQL administration and the
-remaining adapter integrations are under implementation; the native capability
-alone does not advertise restricted Table access.
+service enforce database/schema/Table privileges. The dedicated SQL compiler
+lowers selected administration to native policy and catalog schema operations;
+the neutral client and `transit auth` provide preview and explicit apply/recovery.
+The native capability alone does not advertise a Table service or establish an
+adapter's original-subject profile.
 
 ## Authority and identity
 
@@ -88,6 +90,13 @@ candidate with a new reserved identity; retirement never permits binding reuse.
 The SQL profile maps CONNECT to databases, USAGE/CREATE to schemas and
 SELECT/INSERT/UPDATE/DELETE to Tables. Lifecycle control follows logical ownership.
 Catalogs map explicitly to databases; schemas are catalog metadata namespaces.
+Configuration includes the database name and stable native database identity.
+The catalog owns bounded schema name lookup, rename and DROP RESTRICT. Every
+Table CREATE admission increments its schema revision; a schema drop scans
+eight durable Table records per turn and refuses publication if that revision
+changes or a live/initializing Table exists. Retired schema IDs remain reserved;
+name reuse registers a different native identity. Native schema objects remain
+available for authorized historical inspection after namespace retirement.
 Creator/schema-scoped default grants apply to newly published objects. Updating
 a default never silently edits grants on existing objects.
 
@@ -213,6 +222,11 @@ A guard contains at most 16 requirements, all of which must succeed, sharing one
 4096-charge object-evaluation budget. Requirements distinguish all requested
 privileges, any requested privilege, ownership and metadata visibility (ownership
 or any requested privilege). The latter never authorizes an ordinary data read.
+An optional `selectable` role additionally requires SET eligibility from the
+verified subject's login role. It authorizes owner assignment independently of
+INHERIT; the executor's role cannot satisfy it for a different subject. Merging
+guards with two different assignment targets fails closed. Root's explicit
+administrative exception remains separate from service execution permission.
 The native turn's optional `authorization` guard checks the original subject
 again at publication and receipt disclosure. A domain worker is responsible for
 declaring every actual dependency; the kernel does not prove its computation.

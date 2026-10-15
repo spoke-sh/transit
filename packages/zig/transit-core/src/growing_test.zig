@@ -576,7 +576,18 @@ test "original subject proofs bind context and current guards fence every source
     guard.requirements[0] = .{ .object = first, .privileges = 1 };
     const checked = try f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } });
     try t.expectEqual(reader, checked.body.authorization.body.check.role);
+    try t.expectEqual(reader, checked.body.authorization.body.check.login_role);
     try t.expectEqualSlices(u8, &proof.claim.context, &checked.body.authorization.body.check.context);
+    const assigned = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("assigned-owner") } })).?;
+    guard.selectable = assigned;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    const membership = (try f.authorization(.{ .membership = .{ .member = reader, .role = assigned, .inherit = true, .set = false } })).?;
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    _ = try f.authorization(.{ .membership = .{ .member = reader, .role = assigned, .set = true } });
+    _ = try f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    _ = try f.authorization(.{ .revoke_membership = .{ .id = membership, .option = .set } });
+    try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    guard.selectable = null;
     // Neither an otherwise valid service signature nor caller-chosen role/context
     // can replace the separately signed original subject.
     guard.subject.signed.claim.context[0] ^= 1;

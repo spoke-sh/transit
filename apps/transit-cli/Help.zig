@@ -12,6 +12,7 @@ pub const root =
     \\  console   Open an SQL console
     \\  app       Manage installed applications
     \\  catalog   Compile, prepare, submit and inspect catalog operations
+    \\  auth      Preview, apply and recover declarative authorization changes
     \\  file-query  Query captured CSV or JSONL files with a frozen schema
     \\
     \\Options:

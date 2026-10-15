@@ -142,7 +142,7 @@ pub const Binding = struct {
         if (std.mem.startsWith(u8, payload.slice(), "TCQ1")) return payload.len == self.spec.length and try bytes.matchBytes(0, payload.slice());
         const control = try c.TableControl.Command.decode(payload);
         return switch (control) {
-            .initialize, .dependency => false,
+            .initialize, .dependency, .schema => false,
             .begin => |value| value.namespace == self.namespace and std.mem.eql(u8, &value.header, &try self.header.encode()) and std.meta.eql(value.spec, self.spec),
             .part => |value| blk: {
                 if (!std.meta.eql(value.upload, self.upload()) or value.offset >= self.spec.length or value.length != @min(c.TableUpload.part_bytes, self.spec.length - value.offset)) break :blk false;

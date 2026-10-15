@@ -15,6 +15,7 @@ transit server [--config FILE] [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
 transit catalog COMMAND [OPTIONS]
+transit auth COMMAND [OPTIONS]
 transit app install --config FILE --file DECLARATION --operation ID
 transit app replace --config FILE --file REPLACEMENT --operation ID
 transit app retry --config FILE --operation ID
@@ -28,6 +29,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |
+| `auth` | [Preview, save, explicitly apply and recover native authorization changes](../../apps/transit-cli/docs/authorization.md) |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
 | `app retry` | Retry the original frozen management request after uncertainty |

@@ -4,7 +4,7 @@ const t = std.testing;
 const c = @import("root.zig");
 const m = c.TableCatalogRecords;
 const Store = @import("TestStore.zig");
-const owner: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 32768, .staging_records = 8 } } };
+const owner: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 32768, .staging_records = 8 } } };
 const caller = 19;
 const Accepted = struct { request: c.TableDdlRequest, outcome: c.TableCatalog.Outcome };
 

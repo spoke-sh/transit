@@ -8,7 +8,7 @@ const f = q.fuze;
 const r = root.NamedRelationalRecords;
 const Store = q.testing.Store;
 const owner: root.NamedRelational = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .owner = 3, .namespace = 55 }, .administrator = 17, .records = 4096, .bytes = 32 * 1024 * 1024 } };
-const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } } };
+const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } } };
 fn turn(store: *Store) !s.Turn {
     var result = try store.capture();
     result.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };

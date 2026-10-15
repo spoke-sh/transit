@@ -60,7 +60,7 @@ pub const Cursor = struct {
 const Active = struct { table: u32, writes: bool };
 const active_table = p.Value.init("work-items.active-table") catch unreachable;
 pub fn catalog(self: Self) c.TableCatalog {
-    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .authority = self.configuration.authority, .table_limits = Table.limits } };
+    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .database_name = c.TableAuthority.Name.init("work_items") catch unreachable, .authority = self.configuration.authority, .table_limits = Table.limits } };
 }
 pub const Source = struct {
     owned: query.TableSource.Owned,

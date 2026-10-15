@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.authorization-administration.2026-10-14.
+/// SHA-256 of transit.native.v1.declarative-schema-administration.2026-10-14.
 pub const Definition = enum {
-    ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d,
+    @"3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -811,6 +811,7 @@ test "native responses require the current contract definition even with a v1 la
         "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
         "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
         // Original-subject queries before recoverable administration semantics.
+        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d",
         "38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727",
         "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9",
     }) |definition| {

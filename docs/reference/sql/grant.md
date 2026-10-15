@@ -1,41 +1,38 @@
 # GRANT
 
-**Grammar only.** This statement describes granting privileges on a named object
-to a named subject. It does not execute Transit's typed grant commands or change
-query/source policy. The query console, Board query workspace and Flight SQL
-reject it.
-
-## Syntax
+The dedicated [authorization interface](authorization.md) compiles GRANT into
+the shared native action. Review and explicitly apply its revision-bound plan;
+the query console, Board query worksheet and Flight SQL do not apply grants.
 
 ```text
-GRANT privilege [, privilege ...] ON object_name TO subject_name;
+GRANT privilege [, privilege ...] ON [TABLE] [schema.]name TO role [WITH GRANT OPTION];
+GRANT CONNECT ON DATABASE name TO role;
+GRANT USAGE, CREATE ON SCHEMA name TO role;
+GRANT granted_role TO member [WITH ADMIN OPTION, INHERIT TRUE, SET TRUE];
 ```
 
-Privileges, object and subject names are identifiers; at least one privilege is
-required. The grammar does not enumerate valid privileges or resolve names to
-realm-qualified resources and principals. It defines no validity interval,
-policy revision, delegation clause or `WITH GRANT OPTION`.
-
-## Example
-
-This example illustrates syntax only; `read` and `inspect` are illustrative
-identifiers, not an executable SQL privilege vocabulary:
+Table privileges are SELECT, INSERT, UPDATE and DELETE. ALL [PRIVILEGES] expands
+to the supported privileges for that object kind. One statement names one object
+and one recipient. PUBLIC can receive object privileges but no grant option or
+role membership. CURRENT_USER/CURRENT_ROLE select the active role; SESSION_USER
+selects the login role.
 
 ```sql
-GRANT read, inspect ON items TO analyst;
+GRANT SELECT ON TABLE public.items TO reader;
+GRANT INSERT, UPDATE ON TABLE public.items TO writer WITH GRANT OPTION;
+GRANT reader TO analyst WITH INHERIT TRUE, SET TRUE;
 ```
 
-## Meaning and current interface
+Repeated grants by the same effective grantor add to that grant's privilege and
+option masks; they do not create duplicate effective edges. Other grantors retain
+independent provenance. Membership ADMIN, INHERIT and SET options are independent;
+omitted options on an existing edge remain unchanged. A new membership defaults
+to ADMIN false, INHERIT true and SET true.
 
-The form is intended to spell typed grant operations. Actual authority depends
-on an authenticated principal, exact actions/resources and current policy.
-PID ownership and resource permissions are separate; a grant does not establish
-writer ownership. A name, association or connection cannot supply a grant.
+CREATE/ownership and grant options determine delegation. Native process and raw
+resource rights remain separate typed capabilities; SQL SELECT cannot expose
+raw backing pages. Names, associations and PID ownership confer no SQL grant.
+See [REVOKE](revoke.md), [security](../security.md) and the
+[authorization contract](../../../contracts/AUTHORIZATION_V1.md).
 
-Use the public [native protocol](../native.md) and
-[security contract](../../../contracts/SERVICE_V1.md) for implemented operations.
-Query-source policy has its own owner and must be configured explicitly.
-[Security](../security.md) explains scope, current checks and delegation limits.
-
-Source: [`grantStatement`, `privilege`](../../../contracts/sql/TransitExtensions.g4).
-See also [REVOKE](revoke.md).
+Source: [`grantStatement`](../../../contracts/sql/TransitExtensions.g4).

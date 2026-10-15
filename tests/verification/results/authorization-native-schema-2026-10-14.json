@@ -1,0 +1,20 @@
+{
+  "revision": "56dec28ced7fc51fce9cae281c070765733a8f11",
+  "dirty": true,
+  "node_sha256": "b539166f409300601810bcf1771fe91c27e2811ddc6b36660d7f77f17d6768b4",
+  "elapsed_seconds": 9.311394643038511,
+  "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a",
+  "observations": {
+    "policy_revision": 54,
+    "root_sequence": 52,
+    "analyst": 2,
+    "domain_object": 4,
+    "abandoned_identity": 20,
+    "restarts": 5,
+    "resident_pages": 16,
+    "preview_without_publication": true,
+    "reconciled_grant": 6,
+    "recovered_rotation_receipt": 55
+  },
+  "assertions": "passed"
+}

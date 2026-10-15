@@ -13,6 +13,7 @@ pub const Configuration = struct {
     administrator: u64,
     table_limits: Pub.Limits,
     authority: c.TableAuthority.Profile,
+    database_name: c.TableAuthority.Name,
     pub fn validate(self: Configuration) !void {
         try self.scope.validate();
         try c.Model.nativeId(self.owner);
@@ -21,6 +22,7 @@ pub const Configuration = struct {
         if (self.administrator > p.max_counter) return error.InvalidCatalogIdentity;
         try self.table_limits.validate();
         try self.authority.validate();
+        try self.database_name.validate();
         if (self.table_limits.record_bytes > c.fuze.TableRow.max_bytes) return error.InvalidCatalogLimits;
     }
 };

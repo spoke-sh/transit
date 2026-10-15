@@ -80,6 +80,37 @@ remaining query transports, SQL adapters or installed workflow qualification.
 
 ## Table authorization service isolation
 
+The schema and administration cutover uses definition
+`3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a`.
+The [CLI/ABI/host report](verification/results/authorization-cli-schema-2026-10-14.json)
+records `just test::authorization-cli` passing in **4.094 s** on dirty `56dec28c`.
+It checks read-only preparation, private non-replacing artifacts, exact retries
+across one node/store restart, bounded checkpointed apply, receipt recovery,
+stale proposal preservation, foreign/missing definition rejection and the same
+saved record across the installed CLI, C ABI and host port. This establishes
+the shared administration boundary, not ergonomic language SDK support.
+
+The [schema Table report](verification/results/authorization-tables-schema-2026-10-14.json)
+records the expanded `just test::authorization-tables` passing in **253.639 s**
+on the same dirty revision. In addition to restricted-reader isolation and the
+existing restart/revocation schedule, it checks CLI/service agreement on SQL
+plans, schema creation/rename/drop/name reuse, rejection of nonempty DROP and
+default SELECT grants affecting only subsequently created Tables. The direct
+catalog CLI fixture receives an explicit native inspection grant; the restricted
+reader receives neither that grant nor raw-resource rights. These timings
+include setup and do not measure query latency.
+
+The selected authorization syntax also passes the SQL grammar task with **99
+documentation examples**, 174 SELECT ASTs, 33 relational ASTs, 32 syntax
+exclusions, 14 extensions and no ANTLR diagnostics. The diagnostic grammar task
+passes **410 public cases** and **594 grammar obligations**, and the mapping
+check covers 11 public boundaries. The focused client run passes **24/24 tests**,
+including post-submit ABI allocation failure preserving an unknown outcome.
+The repository `just test::unit` task and the current-definition
+[native restart proof](verification/results/authorization-native-schema-2026-10-14.json)
+also pass. Changesets, remaining subject transports, adapters, SDK workflows and
+clean CI remain separate delivery gates.
+
 `just test::authorization-tables` runs the actual node, signing CLI, catalog
 worker, courier and Table service over disk-backed Ursula. The
 [retained report](verification/results/authorization-tables-2026-10-14.json)

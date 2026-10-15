@@ -26,6 +26,12 @@ pub const Limits = struct {
 };
 pub const Action = union(enum) {
     describe,
+    schemas: ?v.SchemaCursor,
+    schema_lookup: []const u8,
+    schema_status: v.SchemaRequest,
+    schema_prepare: struct { request: v.SchemaRequest, sequence: u64 },
+    schema_plan_prepare: struct { plan: v.AuthorizationPlan, sequence: u64 },
+    compile_authorization: @FieldType(b.Action, "compile_authorization"),
     list: ?v.Cursor,
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
@@ -63,6 +69,10 @@ pub const Request = struct {
 pub const Next = union(enum) { send: Client.Candidate, running, terminal: v.Outcome, upload_cancelled };
 pub const Result = union(enum) {
     description: v.Description,
+    schemas: v.Schemas,
+    schema: ?v.Namespace,
+    schema_outcome: ?v.SchemaOutcome,
+    authorization_plan: v.AuthorizationPlan,
     list: v.Page,
     lookup: ?v.Definition,
     definition: ?v.HistoricalDefinition,
@@ -107,6 +117,12 @@ pub fn execute(self: Self, arena: *std.heap.ArenaAllocator, request: Request, ou
 fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: Action, nonce: [16]u8) !Result {
     const alloc = arena.allocator();
     switch (action) {
+        .schemas => |cursor| return .{ .schemas = try v.Schemas.foreign(alloc, try client.schemas(if (cursor) |value| try value.native() else null)) },
+        .schema_lookup => |name| return .{ .schema = if (try client.schema(try .init(name))) |value| try v.Namespace.foreign(alloc, value) else null },
+        .schema_status => |value| return .{ .schema_outcome = if (try client.schemaStatus(try value.native())) |outcome| try v.SchemaOutcome.foreign(alloc, outcome) else null },
+        .schema_prepare => |value| return .{ .candidate = try client.controlCandidate(.{ .schema = try value.request.native() }, value.sequence) },
+        .schema_plan_prepare => |value| return .{ .candidate = try client.schemaPlanCandidate(try value.plan.native(), value.sequence) },
+        .compile_authorization => |value| return .{ .authorization_plan = try v.AuthorizationPlan.foreign(alloc, try c.AuthorizationSql.compile(client, alloc, value.sql, value.identity, null)) },
         .describe => {
             const value = try client.describe();
             return .{ .description = .{ .configuration = try v.Configuration.foreign(alloc, value.configuration), .subject = value.subject, .authorization_revision = value.authorization_revision, .resource_revision = value.resource_revision } };

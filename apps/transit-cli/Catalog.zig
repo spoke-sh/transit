@@ -21,6 +21,8 @@ pub const help =
     \\  lookup, definition  Read live or exact historical Table metadata
     \\  list                Read one page; optionally continue a saved page
     \\  compile             Bind SQL to a new private saved intent (CREATE is offline)
+    \\  compile-authorization Resolve role/privilege/schema SQL to a reviewable plan
+    \\  prepare-schema      Save a signed schema lifecycle plan for explicit submit
     \\  prepare             Bind a typed request to a new private saved intent
     \\  next                Save the next signed step, or report running/terminal state
     \\  prepare-initialize  Save an explicit initialization command
@@ -113,7 +115,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     const result = apply(init.io, &response_arena, &session, &client, action, &location) catch |err| {
         const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
         diagnostic.envelope = c.TableAttempt.attempt(&session, connection, action, err, location, submitting, identity, transport.last_rejection) catch null;
-        if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*where| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(where);
+        if ((action == .compile or action == .compile_authorization) and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*where| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(where);
         return failure;
     };
     publish(init, options, diagnostic, result) catch |err| {
@@ -191,6 +193,16 @@ fn actionFromInput(init: std.process.Init, options: Options.Options, diagnostic:
     }
     const path = options.flags.file.?;
     switch (options.mode) {
+        .@"compile-authorization" => {
+            diagnostic.atFile(path);
+            const sql = try std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(4096));
+            return .{ .compile_authorization = .{ .sql = sql, .identity = .{ .operation = if (options.flags.operation) |value| try V.unsigned(value) else 0, .schema = if (options.flags.schema) |value| try V.unsigned(value) else null } } };
+        },
+        .@"prepare-schema" => {
+            const plan = (try artifact(struct { authorization_plan: V.AuthorizationPlan }, init, path, B.max_input_bytes, diagnostic)).authorization_plan;
+            _ = try plan.native();
+            return .{ .prepare_schema_plan = plan };
+        },
         .compile => {
             diagnostic.atFile(path);
             const sql = std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(4096)) catch |err| {

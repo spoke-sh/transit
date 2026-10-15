@@ -214,6 +214,7 @@ pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {
     const subject = try authenticate(engine, value.subject, audience);
     var store = try engine.authorization();
     var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
+    if (value.selectable) |role| if (subject.role != a.root_role and !try check.canSet(subject.login_role, role)) return error.Forbidden;
     for (value.requirements) |slot| {
         const required = slot orelse break;
         if (required.access == .ownership) {
@@ -348,7 +349,7 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
             const selected = (if (comptime tag == .role) try store.role(value) else try store.named(value)) orelse return error.Forbidden;
             // Named logical roles are the public realm-local role directory.
             // Private native adapters remain undiscoverable to ordinary users.
-            if (!observer and selected.id != caller.role and selected.owner != caller.role and (tag == .role or selected.native)) return error.Forbidden;
+            if (!observer and selected.id != caller.role and selected.owner != caller.role and (tag == .role or (selected.native and selected.id != a.root_role))) return error.Forbidden;
             break :result @unionInit(@FieldType(a.Result, "body"), @tagName(tag), selected);
         },
         .roles => |value| result: {

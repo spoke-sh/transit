@@ -1,5 +1,12 @@
 # transit-table-service
 
+Schema lookup/list/status and schema preparation use the same original-subject
+boundary as Table operations. `compile_authorization` resolves selected SQL to
+a neutral typed plan. `schema_plan_prepare` checks its policy basis and returns
+an unsigned candidate; the original caller signs and explicitly submits it.
+Native role/grant plans use the separate shared authorization administration
+client. The service neither signs user commands nor applies policy on startup.
+
 `transit-table-service CONFIG.json` exposes authenticated Table operations at
 `POST /table/v1`. Build it with `zig build transit-table-service`. It listens on
 IPv4 loopback; a configured TLS ingress can proxy this private hop. This binary

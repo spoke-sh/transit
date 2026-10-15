@@ -22,6 +22,10 @@ Table cardinality remain independent of resident page size.
 
 `TableCatalogRecords.Configuration` fixes the worker PID, bootstrap principal,
 scope, publication quotas and native database/schema/Table domains. Stable native
+database naming is explicit. `SchemaCatalog` provides CREATE, stable-identity
+rename, bounded DROP RESTRICT and current authorized namespace inspection.
+`AuthorizationSql` lowers role/privilege/schema SQL to reviewable native or
+catalog actions with a policy revision precondition. Stable native
 role ownership is separate from the worker PID. Every Table operation requires
 CONNECT on its database and USAGE on its schema. CREATE additionally requires
 schema CREATE; data operations require their Table privilege; ALTER and DROP

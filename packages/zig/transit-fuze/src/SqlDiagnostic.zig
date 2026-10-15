@@ -221,7 +221,11 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         const hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console for supported types, nullability, catalog configuration and recovery." else "SQL publication of KV and Document definitions is unavailable. Use .help SQL in the console for supported statements.";
         _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
-    } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK")))) {
+    } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or ((word(text, first, "CREATE") or word(text, first, "ALTER") or word(text, first, "DROP")) and (word(text, second, "ROLE") or word(text, second, "SCHEMA") or word(text, second, "DATABASE") or word(text, second, "DEFAULT"))) or ((word(text, first, "SET") or word(text, first, "RESET")) and word(text, second, "ROLE"))) {
+        var parsed = @import("AuthorizationSql.zig").compile(std.heap.page_allocator, text, &location) catch |err| return authorization(text, err, location);
+        parsed.deinit();
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "This query interface does not apply authorization changes", .hint = "Compile a reviewable plan with transit catalog compile-authorization, then use the explicit native or schema administration lifecycle." };
+    } else if (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK"))) {
         result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution; its submitted syntax has not been validated", .hint = grammar_hint };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {
         const parsed = (sql.parseInspectionLocated(text, &location) catch |err| return parseFailure(text, err, location, read_hint, .query)).?;
@@ -267,6 +271,20 @@ pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self
     }
     result.route = .declaration;
     result.source(text, location);
+    return result;
+}
+
+pub fn authorization(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    var result = tableDdl(text, cause, location) orelse return null;
+    result.summary = "Authorization SQL cannot be compiled";
+    result.hint = "Use the selected role/schema/privilege profile through explicit authorization administration. Compilation never applies a change.";
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
     return result;
 }
 

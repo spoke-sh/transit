@@ -114,6 +114,25 @@ fn validate(signed: Signed) !void {
 /// This declaration is also the source of generated C prototypes. All integer
 /// tags enter as integers so malformed foreign enum values are checked safely.
 pub const Api = struct {
+    /// Shared explicit administration lifecycle. The returned JSON buffer owns
+    /// all strings. Only action.submit dispatches; failures include a bounded
+    /// diagnostic and never replace an uncertain saved record.
+    pub fn transit_authorization_apply(client: *Client, seed: *const [32]u8, connection: [*]const u8, connection_len: usize, action: [*]const u8, action_len: usize, out: *?*Buffer) callconv(.c) Status {
+        out.* = null;
+        if (connection_len == 0 or connection_len > 4096 or action_len == 0 or action_len > wire.AuthorizationBridge.max_input_bytes) return .invalid_argument;
+        const handle = cast(ClientImpl, client);
+        if (handle.busy.swap(true, .acquire)) return .busy;
+        defer handle.busy.store(false, .release);
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const config = p.Json.parseFromSlice(wire.AuthorizationBridge.Connection, arena.allocator(), connection[0..connection_len]) catch |err| return fail(err);
+        defer config.deinit();
+        const input = wire.AuthorizationBridge.parse(arena.allocator(), action[0..action_len]) catch |err| return fail(err);
+        defer input.deinit();
+        var key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch |err| return fail(err);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        return authorizationExchange(allocator, arena.allocator(), &handle.client, key, config.value, input.value, out);
+    }
     /// Validate owned diagnostic JSON using the shared contract, including
     /// cross-field outcome/action rules. No handle, authority read or dispatch.
     pub fn transit_diagnostic_validate(json: [*]const u8, len: usize) callconv(.c) u32 {
@@ -279,6 +298,40 @@ pub const Api = struct {
     }
 };
 
+fn authorizationBuffer(alloc: std.mem.Allocator, value: anytype, out: *?*Buffer) !void {
+    const result = try alloc.create(BufferImpl);
+    errdefer alloc.destroy(result);
+    result.bytes = try p.Json.valueAlloc(alloc, value);
+    out.* = @ptrCast(result);
+}
+fn authorizationExchange(alloc: std.mem.Allocator, scratch: std.mem.Allocator, client: anytype, key: p.Ed25519.KeyPair, connection: wire.AuthorizationBridge.Connection, action: wire.AuthorizationBridge.Action, out: *?*Buffer) Status {
+    const bridge = wire.AuthorizationBridge;
+    client.last_rejection = null;
+    const identity = bridge.identity(scratch, connection, action) catch null;
+    var dispatched = false;
+    const result = bridge.apply(scratch, client, key, connection, action, &dispatched) catch |err| {
+        const detail = bridge.diagnostic(action, err, dispatched, identity, client.last_rejection) catch return if (dispatched) .uncertain else fail(err);
+        authorizationBuffer(alloc, .{ .diagnostic = detail }, out) catch {};
+        if (err == error.AccessDenied) return .denied;
+        if (err == error.Rejected) return .rejected;
+        if (err == error.Conflict or err == error.StaleAuthorizationRevision) return .conflict;
+        if (dispatched) return .uncertain;
+        if (wire.Client.unavailable(err)) return .unavailable;
+        return fail(err);
+    };
+    authorizationBuffer(alloc, result, out) catch |err| {
+        // A receipt can be lost while allocating its foreign representation.
+        // Retrying uses the same saved command; no new step was prepared here.
+        if (dispatched) {
+            const detail = bridge.diagnostic(action, err, true, identity, null) catch return .uncertain;
+            authorizationBuffer(alloc, .{ .diagnostic = detail }, out) catch {};
+            return .uncertain;
+        }
+        return fail(err);
+    };
+    return .ok;
+}
+
 fn exchange(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffer) Status {
     call(alloc, client, signed, out) catch |err| {
         // Allocation failure while exposing an accepted receipt cannot turn
@@ -393,6 +446,53 @@ test "every post-commit response allocation failure remains uncertain and releas
         }
         try t.expect(completed);
     }
+}
+
+test "administration receipt allocation failures preserve uncertain saved identity" {
+    const t = std.testing;
+    const Accepted = struct {
+        last_rejection: ?p.ErrorCode = null,
+        calls: usize = 0,
+        pub fn submit(self: *@This(), _: p.Growth.SignedRequest) !p.Receipt {
+            self.calls += 1;
+            return .{ .position = 37 };
+        }
+        pub fn query(_: *@This(), _: p.Growth.Query, _: p.Ed25519.KeyPair) !p.Growth.Response {
+            return error.UnexpectedRead;
+        }
+    };
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const envelope: wire.AuthorizationChange.Envelope = .{ .public_key = key.public_key.toBytes(), .signed = try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .authorization = .{ .begin = .{ .expected_revision = 0, .role = null, .action = .{ .create_role = .{ .name = try p.Value.init("reader") } } } } } }, key) };
+    const saved = try (wire.AuthorizationChange.Record{ .definition = p.Growth.current_definition, .begin = envelope, .change = null, .pending = envelope }).save(t.allocator);
+    defer t.allocator.free(saved);
+    const connection: wire.AuthorizationBridge.Connection = .{ .definition = p.Growth.current_definition, .realm = 42, .principal = 0 };
+    var failures: usize = 0;
+    var complete = false;
+    for (0..64) |index| {
+        var scratch = std.heap.ArenaAllocator.init(t.allocator);
+        defer scratch.deinit();
+        var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = index });
+        var accepted: Accepted = .{};
+        var out: ?*Buffer = null;
+        const status = authorizationExchange(failing.allocator(), scratch.allocator(), &accepted, key, connection, .{ .submit = saved }, &out);
+        defer if (out) |pointer| {
+            const owned = cast(BufferImpl, pointer);
+            failing.allocator().free(owned.bytes);
+            failing.allocator().destroy(owned);
+        };
+        try t.expectEqual(@as(usize, 1), accepted.calls);
+        if (failing.has_induced_failure) {
+            failures += 1;
+            try t.expectEqual(.uncertain, status);
+        } else {
+            try t.expectEqual(.ok, status);
+            try t.expect(out != null);
+            complete = true;
+            break;
+        }
+        try t.expect(std.meta.eql(envelope, (try wire.AuthorizationChange.Record.restore(scratch.allocator(), saved)).pending.?));
+    }
+    try t.expect(complete and failures > 0);
 }
 
 test "diagnostic validation is bounded and rejects unsafe outcome substitutions" {

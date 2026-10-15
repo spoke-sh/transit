@@ -157,7 +157,16 @@ or administrative execution checks. General Table execution uses the configured,
 authorized catalog owner; CREATE does not provision a resource or grant access.
 Query-only transports continue to reject writes and administration.
 
-`CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, connector listing forms,
+`authorizationStatement` is the dedicated role/schema/privilege compiler root.
+It includes selected GRANT/REVOKE, membership options, creator/schema defaults,
+ownership and explicit SET/RESET ROLE. Production `AuthorizationSql` validates
+name/statement bounds, option duplication, privilege applicability and PUBLIC
+restrictions. Catalog lowering resolves stable IDs at one policy basis; native
+and catalog owners perform explicit preparation/publication. The
+[authorization reference](../../docs/reference/sql/authorization.md) identifies
+executable interfaces and limits. Query-only roots do not apply policy changes.
+
+`CREATE CONNECTION`/`SOURCE`/`SINK`, connector listing forms,
 and KV/Document publication remain grammar-only. No offline declaration resolves
 credentials, provisions resources or authorizes external effects.
 

@@ -57,6 +57,7 @@ fn payload(connection: Connection, value: p.Value) !Payload {
         .begin => |value_begin| try connection.header(try c.TableCommand.inspect(&value_begin.header)),
         .cancel_ddl, .cleanup_ddl => |ref| if (ref.principal != connection.principal) return error.CatalogIdentityConflict,
         .cancel_dml, .cleanup_dml => |ref| if (ref.reference.principal != connection.principal) return error.CatalogIdentityConflict,
+        .schema => |request| if (request.principal != connection.principal) return error.CatalogIdentityConflict,
         else => {},
     }
     return .{ .control = command };
@@ -241,6 +242,34 @@ pub fn describe(self: *Self) !Description {
     try current.finish();
     return .{ .configuration = owner.configuration, .subject = subject, .authorization_revision = current.authorization_revision, .resource_revision = current.view.revision };
 }
+pub fn describeDatabase(self: *Self) !Description {
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const subject = try owner.authorizeDatabase(&current, self.connection.principal);
+    try current.finish();
+    return .{ .configuration = owner.configuration, .subject = subject, .authorization_revision = current.authorization_revision, .resource_revision = current.view.revision };
+}
+pub fn schema(self: *Self, name: c.TableAuthority.Name) !?c.TableAuthority.Schema {
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const result = try (c.SchemaCatalog{ .configuration = owner.configuration }).lookup(&current, self.connection.principal, name);
+    try current.finish();
+    return result;
+}
+pub fn schemas(self: *Self, cursor: ?c.SchemaCatalog.Cursor) !c.SchemaCatalog.Page {
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const result = try (c.SchemaCatalog{ .configuration = owner.configuration }).list(&current, self.connection.principal, cursor);
+    try current.finish();
+    return result;
+}
+pub fn schemaStatus(self: *Self, request: c.SchemaCatalog.Request) !?c.SchemaCatalog.Outcome {
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const result = try (c.SchemaCatalog{ .configuration = owner.configuration }).status(&current, self.connection.principal, request);
+    try current.finish();
+    return result;
+}
 /// Every acquisition checks current native/scoped rights and one exact cut.
 /// No current metadata observation becomes a retained query snapshot.
 pub fn requireObject(self: *Self, id: u64, right: m.Right) !p.Authorization.Verified {
@@ -394,6 +423,7 @@ fn prepareAt(self: *Self, current: *Source, value: p.Value) !p.Value {
     }
     switch (command.control) {
         .initialize => unreachable,
+        .schema => |request| try (c.SchemaCatalog{ .configuration = owner.configuration }).prepare(current, request),
         .dependency => |change| _ = try owner.authorizeObject(current, self.connection.principal, change.dependency.object, .alter),
         .begin => |begin| {
             _ = try owner.authorize(current, self.connection.principal, .inspect);
@@ -420,6 +450,24 @@ pub fn prepareControl(self: *Self, command: Control.Command) !Prepared {
     const prepared = try self.prepareAt(&current, value);
     try current.finish();
     return self.sign(prepared);
+}
+fn schemaPlanValue(self: *Self, plan: c.AuthorizationSql.Plan) !p.Value {
+    try plan.validate();
+    if (plan.action != .schema or plan.principal != self.connection.principal or !std.meta.eql(plan.scope, self.connection.scope)) return error.InvalidAuthorizationPlan;
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const subject = try owner.authorizeDatabase(&current, self.connection.principal);
+    if (subject.role != plan.role or current.authorization_revision != plan.expected_revision) return error.StaleAuthorizationRevision;
+    const prepared = try self.prepareAt(&current, try (Control.Command{ .schema = plan.action.schema }).encode());
+    try current.finish();
+    if (current.authorization_revision != plan.expected_revision) return error.StaleAuthorizationRevision;
+    return prepared;
+}
+pub fn prepareSchemaPlan(self: *Self, plan: c.AuthorizationSql.Plan) !Prepared {
+    return self.sign(try self.schemaPlanValue(plan));
+}
+pub fn schemaPlanCandidate(self: *Self, plan: c.AuthorizationSql.Plan, sequence: u64) !Candidate {
+    return self.candidate(try self.schemaPlanValue(plan), sequence);
 }
 /// Prepare one next upload/send only when no automatic execution is in flight.
 /// Persist the returned Prepared before submit. An uncertain prior send must

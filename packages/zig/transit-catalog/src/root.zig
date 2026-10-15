@@ -7,6 +7,8 @@ pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
+pub const SchemaCatalog = @import("SchemaCatalog.zig");
+pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableMetadataStore = @import("TableMetadataStore.zig");
 pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
 pub const TableCatalog = @import("TableCatalog.zig");
@@ -26,6 +28,7 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = AuthorizationSql;
     _ = TableAuthority;
     _ = TableAttempt;
     _ = @import("table_bridge_test.zig");

@@ -71,6 +71,7 @@ pub const Configuration = struct {
     administrator: u64,
     table_limits: Limits,
     authority: c.TableAuthority.Profile,
+    database_name: []const u8,
     pub const Limits = struct {
         record_bytes: u32,
         staging_bytes: []const u8,
@@ -82,13 +83,13 @@ pub const Configuration = struct {
         }
     };
     pub fn native(self: Configuration) !m.Configuration {
-        const value: m.Configuration = .{ .scope = try self.scope.native(), .owner = self.owner, .administrator = self.administrator, .authority = self.authority, .table_limits = try self.table_limits.native() };
+        const value: m.Configuration = .{ .scope = try self.scope.native(), .owner = self.owner, .administrator = self.administrator, .authority = self.authority, .database_name = try .init(self.database_name), .table_limits = try self.table_limits.native() };
         try value.validate();
         return value;
     }
     pub fn foreign(allocator: Allocator, value: m.Configuration) !Configuration {
         try value.validate();
-        return .{ .scope = try Scope.foreign(allocator, value.scope), .owner = value.owner, .administrator = value.administrator, .authority = value.authority, .table_limits = .{ .record_bytes = value.table_limits.record_bytes, .staging_bytes = try decimal(allocator, value.table_limits.staging_bytes), .staging_records = value.table_limits.staging_records } };
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .owner = value.owner, .administrator = value.administrator, .authority = value.authority, .database_name = try allocator.dupe(u8, value.database_name.slice()), .table_limits = .{ .record_bytes = value.table_limits.record_bytes, .staging_bytes = try decimal(allocator, value.table_limits.staging_bytes), .staging_records = value.table_limits.staging_records } };
     }
 };
 pub const DependencyChange = struct {
@@ -105,6 +106,106 @@ pub const DependencyChange = struct {
     }
 };
 pub const Description = struct { configuration: Configuration, subject: c.protocol.Authorization.Verified, authorization_revision: u64, resource_revision: u64 };
+pub const Namespace = struct {
+    scope: Scope,
+    id: u64,
+    authorization: u64,
+    name: []const u8,
+    revision: u64,
+    retired: bool,
+    pub fn foreign(allocator: Allocator, value: c.TableAuthority.Schema) !Namespace {
+        try value.validate();
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .id = value.id, .authorization = value.authorization, .name = try allocator.dupe(u8, value.name.slice()), .revision = value.revision, .retired = value.retired };
+    }
+};
+pub const SchemaCursor = struct {
+    scope: Scope,
+    revision: u64,
+    after: u64,
+    pub fn native(self: SchemaCursor) !c.SchemaCatalog.Cursor {
+        try c.Model.nativeId(self.revision);
+        try c.Model.nativeId(self.after);
+        return .{ .scope = try self.scope.native(), .revision = self.revision, .after = self.after };
+    }
+};
+pub const Schemas = struct {
+    schemas: [c.protocol.Growth.page_size]?Namespace = @splat(null),
+    next: ?SchemaCursor,
+    revision: u64,
+    pub fn foreign(allocator: Allocator, value: c.SchemaCatalog.Page) !Schemas {
+        var result: Schemas = .{ .revision = value.revision, .next = if (value.next) |cursor| .{ .scope = try Scope.foreign(allocator, cursor.scope), .revision = cursor.revision, .after = cursor.after } else null };
+        for (value.schemas, &result.schemas) |input, *output| if (input) |schema| {
+            output.* = try Namespace.foreign(allocator, schema);
+        };
+        return result;
+    }
+};
+pub const SchemaRequest = struct {
+    scope: Scope,
+    principal: u64,
+    operation: u64,
+    schema: u64,
+    expected_revision: u64,
+    action: union(enum) { create: struct { name: []const u8, owner: u64 }, rename: []const u8, drop },
+    pub fn native(self: SchemaRequest) !c.SchemaCatalog.Request {
+        const value: c.SchemaCatalog.Request = .{ .scope = try self.scope.native(), .principal = self.principal, .operation = self.operation, .schema = self.schema, .expected_revision = self.expected_revision, .action = switch (self.action) {
+            .create => |creation| .{ .create = .{ .name = try .init(creation.name), .owner = creation.owner } },
+            .rename => |name| .{ .rename = try .init(name) },
+            .drop => .drop,
+        } };
+        try value.validate();
+        return value;
+    }
+    pub fn foreign(allocator: Allocator, value: c.SchemaCatalog.Request) !SchemaRequest {
+        try value.validate();
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .operation = value.operation, .schema = value.schema, .expected_revision = value.expected_revision, .action = switch (value.action) {
+            .create => |creation| .{ .create = .{ .name = try allocator.dupe(u8, creation.name.slice()), .owner = creation.owner } },
+            .rename => |name| .{ .rename = try allocator.dupe(u8, name.slice()) },
+            .drop => .drop,
+        } };
+    }
+};
+pub const SchemaOutcome = struct {
+    scope: Scope,
+    principal: u64,
+    operation: u64,
+    schema: u64,
+    digest: []const u8,
+    admitted_input: u64,
+    completed_input: u64,
+    state: @FieldType(c.SchemaCatalog.Outcome, "state"),
+    reason: @FieldType(c.SchemaCatalog.Outcome, "reason"),
+    after_object: []const u8,
+    pub fn foreign(allocator: Allocator, value: c.SchemaCatalog.Outcome) !SchemaOutcome {
+        try value.validate();
+        return .{ .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .operation = value.operation, .schema = value.schema, .digest = try hex(allocator, &value.digest), .admitted_input = value.admitted_input, .completed_input = value.completed_input, .state = value.state, .reason = value.reason, .after_object = try decimal(allocator, value.after_object) };
+    }
+};
+pub const AuthorizationPlan = struct {
+    definition: c.protocol.Growth.Definition,
+    scope: Scope,
+    principal: u64,
+    role: u64,
+    expected_revision: u64,
+    action: union(enum) { authorization: c.protocol.Authorization.Action, schema: SchemaRequest, set_role: ?u64 },
+    pub fn native(self: AuthorizationPlan) !c.AuthorizationSql.Plan {
+        const plan: c.AuthorizationSql.Plan = .{ .definition = self.definition, .scope = try self.scope.native(), .principal = self.principal, .role = self.role, .expected_revision = self.expected_revision, .action = switch (self.action) {
+            .authorization => |value| .{ .authorization = value },
+            .schema => |value| .{ .schema = try value.native() },
+            .set_role => |value| .{ .set_role = value },
+        } };
+        try plan.validate();
+        return plan;
+    }
+    pub fn foreign(allocator: Allocator, value: c.AuthorizationSql.Plan) !AuthorizationPlan {
+        try value.validate();
+        return .{ .definition = value.definition, .scope = try Scope.foreign(allocator, value.scope), .principal = value.principal, .role = value.role, .expected_revision = value.expected_revision, .action = switch (value.action) {
+            .authorization => |action| .{ .authorization = action },
+            .schema => |action| .{ .schema = try SchemaRequest.foreign(allocator, action) },
+            .set_role => |action| .{ .set_role = action },
+        } };
+    }
+};
 pub const Metadata = struct {
     scope: Scope,
     namespace: u64,

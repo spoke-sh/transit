@@ -20,7 +20,7 @@ def canonical(value):
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, cli, host, service, report=None):
+def run(node, cli, host, service, transit, report=None):
     started = time.monotonic()
     with System(node, cli, clock_error_ms=10000, request_timeout_ms=30000) as system:
         definition = system.native_query({'capabilities': {}})['definition']
@@ -57,6 +57,10 @@ def run(node, cli, host, service, report=None):
             system.command({'grant_resource': {'resource': resource, 'subject': principal, 'permissions': permissions}})
         for role in (owner_role, reader_role):
             apply({'grant': {'object': {'kind': 'process', 'id': pid}, 'grantee': role, 'privileges': 20, 'grant_options': 0}})
+        # The direct catalog CLI is a privileged native reader. Its explicit
+        # realm inspection grant remains separate from raw resource permission;
+        # the restricted reader uses only the mediated service and receives neither.
+        apply({'grant': {'object': {'kind': 'realm', 'id': 0}, 'grantee': owner_role, 'privileges': 16, 'grant_options': 0}})
         generation = system.native_query({'process': pid})['body']['process']['process']['generation']
         system.command({'own': {'pid': pid, 'expected_generation': generation, 'worker': 20}})
         generation += 1
@@ -67,7 +71,7 @@ def run(node, cli, host, service, report=None):
         database = apply({'register_object': {'domain': domains[0], 'owner': owner_role, 'schema': None, 'binding': binding(1, 0)}})
         schema = apply({'register_object': {'domain': domains[1], 'owner': owner_role, 'schema': {'kind': 'domain', 'id': database}, 'binding': binding(2, 1)}})
         profile = dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2], database=database, initial_schema=1, initial_schema_authority=schema)
-        configuration = dict(scope=scope, owner=pid, administrator=101, table_limits=dict(record_bytes=2097152, staging_bytes=4194304, staging_records=2), authority=profile)
+        configuration = dict(scope=scope, owner=pid, administrator=101, table_limits=dict(record_bytes=2097152, staging_bytes=4194304, staging_records=2), authority=profile, database_name=dict(len=7, bytes=list(b'transit') + [0]*56))
         activation = system.root / 'activation'
         activation.mkdir()
         host_config = system.root / 'catalog.json'
@@ -77,7 +81,7 @@ def run(node, cli, host, service, report=None):
         courier_config.write_text(json.dumps(dict(url=system.url, realm=72, principal=103, seed_file=str(courier_key), request_timeout_ms=30000, role=dict(courier=dict(destinations=[pid])))))
         courier = system.start(host, courier_config)
         # Independent public control encoding; no private record edits.
-        control = b'TCA1I' + bytes.fromhex(definition) + struct.pack('<QQQQQIQI', 72, resource, 1, pid, 101, 2097152, 4194304, 2) + struct.pack('<QQQQQQ', *profile.values())
+        control = b'TCA1I' + bytes.fromhex(definition) + struct.pack('<QQQQQIQI', 72, resource, 1, pid, 101, 2097152, 4194304, 2) + struct.pack('<QQQQQQ', *profile.values()) + bytes([7]) + b'transit' + bytes(56)
         frame = b'STN1\1' + bytes(8) + control
         system.available_post('/v1/command', system.signed({'send': {'pid': pid, 'value': frame.hex()}}, 1, 101, owner_key))
         port = free_port()
@@ -86,8 +90,8 @@ def run(node, cli, host, service, report=None):
         serving = system.start(service, service_config)
         wait_ready(system.store.http, serving, f'http://127.0.0.1:{port}/health')
 
-        def signed(action, principal=101, key=owner_key):
-            connection = dict(scope=dict(scope, catalog='1'), owner=pid, principal=principal, role=None, namespace=1)
+        def signed(action, principal=101, key=owner_key, namespace=1):
+            connection = dict(scope=dict(scope, catalog='1'), owner=pid, principal=principal, role=None, namespace=namespace)
             request = dict(definition=definition, connection=connection, nonce=list(os.urandom(16)), action=action)
             epoch = query({'identity': {}}, principal, key)['body']['identity']['credential_epoch']
             claim = dict(definition=definition, realm=72, principal=principal, credential_epoch=epoch, role=None, audience=pid,
@@ -119,11 +123,11 @@ def run(node, cli, host, service, report=None):
             finally:
                 connection.close()
 
-        def call(action, principal=101, key=owner_key, expected=200):
+        def call(action, principal=101, key=owner_key, expected=200, namespace=1):
             deadline = time.monotonic() + 30
             while True:
                 try:
-                    return post(signed(action, principal, key), expected)
+                    return post(signed(action, principal, key, namespace), expected)
                 except Changed:
                     assert time.monotonic() < deadline, "read acquisition stayed stale"
 
@@ -137,13 +141,84 @@ def run(node, cli, host, service, report=None):
             time.sleep(.02)
         call({'describe': {}})
 
-        def execute(sql, operation, object_id=None):
-            saved = call({'compile': dict(identity=dict(operation=str(operation), namespace=str(operation + 1000)), create_object=str(object_id) if object_id else None, sql=sql)})['result']['compiled']['saved']
+        def owner_sequence():
+            return system.native_query({'authorization': {'role': None, 'kind': {'identity': {}}}}, 101, owner_key)['principal_sequence'] + 1
+
+        def sql_plan(sql, operation=0, namespace=None):
+            return call({'compile_authorization': dict(sql=sql, identity=dict(operation=operation, schema=namespace))})['result']['authorization_plan']
+
+        def schema_outcome(plan):
+            request = plan['action']['schema']
+            deadline = time.monotonic() + 60
+            while True:
+                result = call({'schema_status': request})['result']['schema_outcome']
+                if result and result['state'] != 'scanning':
+                    return result
+                assert time.monotonic() < deadline, 'schema operation did not complete'
+                time.sleep(.02)
+
+        def execute_schema(sql, operation, namespace=None):
+            plan = sql_plan(sql, operation, namespace)
+            candidate = call({'schema_plan_prepare': dict(plan=plan, sequence=owner_sequence())})['result']['candidate']['request']
+            system.available_post('/v1/command', system.signed(candidate['command'], candidate['sequence'], 101, owner_key))
+            return plan, schema_outcome(plan)
+
+        # CLI and service resolve the same SQL to the same stable typed plan.
+        catalog_config = system.root / 'catalog-caller.json'
+        catalog_config.write_text(json.dumps(dict(version=1, url=system.url, seed_file=str(owner_key),
+            request_timeout_ms=30000, connection=dict(scope=dict(scope, catalog='1'), owner=pid, principal=101, role=None, namespace=1))))
+        schema_sql = system.root / 'schema.sql'
+        schema_sql.write_text('CREATE SCHEMA reporting AUTHORIZATION CURRENT_USER')
+        schema_plan_file = system.root / 'schema-plan.json'
+        compilation = subprocess.run([str(transit), 'catalog', 'compile-authorization', '--config', str(catalog_config),
+            '--file', str(schema_sql), '--output', str(schema_plan_file), '--operation', '50', '--schema', '2'],
+            capture_output=True, text=True, timeout=30)
+        assert compilation.returncode == 0, (compilation.returncode, compilation.stdout, compilation.stderr)
+        plan = json.loads(schema_plan_file.read_text())['authorization_plan']
+        assert plan == sql_plan(schema_sql.read_text(), 50, 2)
+        step_file = system.root / 'schema-step.json'
+        prepared = subprocess.run([str(transit), 'catalog', 'prepare-schema', '--config', str(catalog_config),
+            '--file', str(schema_plan_file), '--output', str(step_file)], capture_output=True, text=True, timeout=30)
+        assert prepared.returncode == 0, (prepared.returncode, prepared.stdout, prepared.stderr)
+        saved_schema = json.loads(json.loads(prepared.stdout)['prepared'])
+        candidate = call({'schema_plan_prepare': dict(plan=plan, sequence=owner_sequence())})['result']['candidate']['request']
+        assert saved_schema['signed']['request'] == candidate
+        subprocess.run([str(transit), 'catalog', 'submit', '--config', str(catalog_config), '--file', str(step_file)],
+                       capture_output=True, text=True, check=True, timeout=30)
+        assert schema_outcome(plan)['state'] == 'applied'
+        first_schema = call({'schema_lookup': 'reporting'})['result']['schema']
+        assert first_schema['id'] == 2
+        _, renamed = execute_schema('ALTER SCHEMA reporting RENAME TO reports', 51)
+        assert renamed['state'] == 'applied'
+        assert call({'schema_lookup': 'reporting'})['result']['schema'] is None
+        assert call({'schema_lookup': 'reports'})['result']['schema']['authorization'] == first_schema['authorization']
+        _, dropped = execute_schema('DROP SCHEMA reports RESTRICT', 52)
+        assert dropped['state'] == 'applied'
+        assert call({'schema_lookup': 'reports'})['result']['schema'] is None
+        _, reused = execute_schema('CREATE SCHEMA reporting', 53, 3)
+        assert reused['state'] == 'applied'
+        reporting = call({'schema_lookup': 'reporting'})['result']['schema']
+        assert reporting['id'] == 3 and reporting['authorization'] != first_schema['authorization']
+
+        def owner_apply(plan):
+            action = plan['action']['authorization']
+            command = {'authorization': {'begin': dict(expected_revision=plan['expected_revision'], role=owner_role, action=action)}}
+            position = system.available_post('/v1/command', system.signed(command, owner_sequence(), 101, owner_key))['position']
+            for _ in range(128):
+                status = query({'change': position}, 101, owner_key)['body']['change']
+                if status['status'] == 'published':
+                    return status['created_id']
+                command = {'authorization': {('publish' if status['status'] == 'ready' else 'advance'): position}}
+                system.available_post('/v1/command', system.signed(command, owner_sequence(), 101, owner_key))
+            raise AssertionError('owner authorization staging budget exceeded')
+
+        def execute(sql, operation, object_id=None, namespace=1):
+            saved = call({'compile': dict(identity=dict(operation=str(operation), namespace=str(operation + 1000)), create_object=str(object_id) if object_id else None, sql=sql)}, namespace=namespace)['result']['compiled']['saved']
             deadline = time.monotonic() + 180
             while True:
                 assert worker.poll() is None and courier.poll() is None
-                sequence = system.native_query({'authorization': {'role': None, 'kind': {'identity': {}}}}, 101, owner_key)['principal_sequence'] + 1
-                step = call({'next': dict(saved=saved, sequence=sequence)})['result']['next']
+                sequence = owner_sequence()
+                step = call({'next': dict(saved=saved, sequence=sequence)}, namespace=namespace)['result']['next']
                 if 'terminal' in step:
                     assert step['terminal']['phase'] == 'applied', step
                     return
@@ -160,12 +235,25 @@ def run(node, cli, host, service, report=None):
         execute('CREATE TABLE private_data (id INTEGER PRIMARY KEY, value TEXT)', 2, 101)
         execute("INSERT INTO readable VALUES (1, 'visible')", 3)
         execute("INSERT INTO private_data VALUES (1, 'never-disclose')", 4)
+        _, nonempty = execute_schema('DROP SCHEMA public RESTRICT', 54)
+        assert nonempty['state'] == 'rejected' and nonempty['reason'] == 'not_empty'
         readable = call({'lookup': 'readable'})['result']['lookup']['authorization']
         private_object = call({'lookup': 'private_data'})['result']['lookup']['authorization']
         assert readable != private_object
         for object_id in (database, schema):
             apply({'grant': {'object': {'kind': 'domain', 'id': object_id}, 'grantee': reader_role, 'privileges': 1, 'grant_options': 0}})
-        grant = apply({'grant': {'object': {'kind': 'domain', 'id': readable}, 'grantee': reader_role, 'privileges': 1, 'grant_options': 0}})
+        select_plan = sql_plan('GRANT SELECT ON TABLE public.readable TO reader')
+        assert select_plan['action']['authorization'] == {'grant': {'object': {'kind': 'domain', 'id': readable}, 'grantee': reader_role, 'privileges': 1, 'grant_options': 0}}
+        grant = owner_apply(select_plan)
+        assert call({'schema_lookup': 'reporting'}, 104, reader_key)['result']['schema'] is None
+        owner_apply(sql_plan('GRANT USAGE ON SCHEMA reporting TO reader'))
+        assert call({'schema_lookup': 'reporting'}, 104, reader_key)['result']['schema']['id'] == 3
+        execute('CREATE TABLE before_default (id INTEGER)', 60, 200, namespace=3)
+        owner_apply(sql_plan('ALTER DEFAULT PRIVILEGES IN SCHEMA reporting GRANT SELECT ON TABLES TO reader'))
+        execute('CREATE TABLE after_default (id INTEGER)', 61, 201, namespace=3)
+        assert call({'lookup': 'before_default'}, 104, reader_key, namespace=3)['result']['lookup'] is None
+        assert call({'lookup': 'after_default'}, 104, reader_key, namespace=3)['result']['lookup'] is not None
+        print('Table authorization: CLI/service SQL agreement, schema rename/reuse, nonempty DROP and future-only default grants passed.', flush=True)
         result = call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key)['result']['query']
         assert result['complete'] and 'visible' in json.dumps(result) and 'never-disclose' not in json.dumps(result), result
         entries = call({'list': None}, 104, reader_key)['result']['list']['entries']
@@ -222,13 +310,14 @@ def run(node, cli, host, service, report=None):
         assert not any(call({'list': None}, 104, reader_key)['result']['list']['entries'])
         call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}, 104, reader_key, 400)
         assert 'visible' in json.dumps(call({'query': dict(sql='SELECT * FROM readable', rows=8, reads=100)}))
-        observations = dict(shared_resource=resource, tables=[100, 101], restricted_reader=104,
-                            service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1)
+        observations = dict(shared_resource=resource, tables=[100, 101, 200, 201], restricted_reader=104,
+                            service_restarts=2, authority_and_disk_restarts=1, credential_rotations=1,
+                            schema_lifecycle=True, sql_cli_service_agreement=True, future_only_defaults=True)
     result = dict(assertions='passed', definition=definition, observations=observations,
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
                   binaries={name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in
-                            [('node', node), ('cli', cli), ('host', host), ('service', service)]},
+                            [('node', node), ('cli', cli), ('host', host), ('service', service), ('transit', transit)]},
                   elapsed_seconds=time.monotonic() - started)
     if report:
         report.parent.mkdir(parents=True, exist_ok=True)
@@ -238,8 +327,8 @@ def run(node, cli, host, service, report=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    for binary in ('node', 'cli', 'host', 'service'):
+    for binary in ('node', 'cli', 'host', 'service', 'transit'):
         parser.add_argument(binary, type=lambda value: Path(value).resolve(strict=True))
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
-    run(args.node, args.cli, args.host, args.service, args.report)
+    run(args.node, args.cli, args.host, args.service, args.transit, args.report)

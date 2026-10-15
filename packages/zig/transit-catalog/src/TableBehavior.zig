@@ -90,7 +90,7 @@ fn rejectInput(raw: ?*anyopaque, turn: *s.Turn) !bool {
         return false;
     }
     if (!std.meta.eql(try command.scope(), self.configuration.scope)) return self.disposition(turn, .identity_conflict);
-    if (turn.delivery.input.origin != .external and !(command == .drive and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == self.configuration.owner)) return self.disposition(turn, .denied);
+    if (turn.delivery.input.origin != .external and !((command == .drive or command == .schema) and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == self.configuration.owner)) return self.disposition(turn, .denied);
     if ((command == .initialize) and !self.administrator(turn)) return self.disposition(turn, .denied);
     return false;
 }
@@ -108,7 +108,8 @@ fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
             error.CatalogDenied => .denied,
             error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.PublicationIdentityConflict => .identity_conflict,
             error.CatalogPolicyConflict => .stale_policy,
-            error.InvalidCatalogCommand, error.InvalidTableCommand, error.InvalidTableUploadPart => .invalid_command,
+            error.InvalidCatalogCommand, error.InvalidTableCommand, error.InvalidTableUploadPart, error.InvalidSchemaCommand => .invalid_command,
+            error.CatalogSchemaMissing => .blocked,
             error.CatalogDefinitionChanged, error.CatalogSourceChanged, error.TableRetired, error.TableBusy, error.TableNotFound, error.CatalogOperationNotFound, error.TableWriteNotFound, error.TableUploadNotFound, error.TableUploadNotSealed, error.TableUploadNotReady, error.TableUploadClosed, error.TableUploadGap, error.IncompletePublication, error.TableUploadStillActive, error.CatalogCleanupNotClosed, error.PublicationQuotaExceeded, error.PublicationTooLarge, error.CatalogAlreadyPopulated, error.CatalogDependencyConflict, error.CatalogDefinitionMissing => .blocked,
             else => return err,
         };
@@ -154,6 +155,10 @@ fn apply(self: *Self, turn: *s.Turn, payload: p.Value) !void {
         },
         .cancel_upload => |value| _ = try self.uploads().cancel(turn, value.namespace),
         .collect_upload => |value| _ = try self.uploads().collect(turn, value.namespace),
+        .schema => |value| {
+            const result = try (c.SchemaCatalog{ .configuration = self.configuration, .registration = &self.registration }).apply(turn, value);
+            if (result.state == .scanning) try turn.cast(self.configuration.owner, try command.encode());
+        },
     }
 }
 fn inlineCommand(self: *Self, turn: *s.Turn, payload: p.Value) !void {

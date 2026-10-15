@@ -7,13 +7,39 @@ atomically updates its live object/name bindings and original operation outcome.
 
 `TableCatalog` supplies the general namespace's captured-source policy and
 resolution helpers. Configuration binds realm/resource/catalog, worker PID,
-bootstrap principal, Table Publication limits and mandatory native authorization
+bootstrap principal, database name, Table Publication limits and mandatory native authorization
 identities. Database, schema and Table action domains have an explicit registrar.
 Initialization requires database ownership and matching native database/schema
 bindings; it writes the initial `public` schema. It refuses orphan state and
 cannot restore grants when repeated. Native role ownership governs DDL, while
 CONNECT, USAGE, CREATE and Table SELECT/INSERT/UPDATE/DELETE govern their respective
 operations. No catalog-local policy record or policy control exists.
+
+`SchemaCatalog` owns schema names and lifecycle. Its request fixes the original
+principal, operation, stable schema ID, expected schema revision and action.
+CREATE reserves a never-reused native-sized schema ID; RENAME preserves that ID
+and the native authorization object. DROP supports RESTRICT, retains a tombstone
+and scans eight Table records per turn. Every Table CREATE admission increments
+the schema revision alongside its pending object, so a concurrent admission
+invalidates an in-progress drop before publication. Live and initializing Tables
+block dropping their schema; retired Tables do not. No namespace lock survives a
+revoked caller. Native registration uses the original subject's selected role
+and checks SET eligibility when assigning another owner.
+
+Schema listings return at most eight entries per durable page at a qualified
+resource revision; current visibility filters each result. Name hash collisions
+are verified against complete names and bounded to 4096 page acquisitions.
+The initialized public schema and subsequently indexed schemas share the same
+namespace. Names are reusable after retirement; IDs and native bindings are not.
+Retained schema outcomes distinguish scanning, applied and rejected, including
+name/identity conflict, stale schema and nonempty namespace. Status disclosure
+requires current ownership; it never grants permission to resume an old subject.
+
+`AuthorizationSql` resolves selected administration at a current policy basis.
+`TableValues.AuthorizationPlan` keeps the mandatory definition, scope, principal,
+selected role and typed action. Schema preparation rechecks the basis before and
+after collecting its guard. The Table service returns an unsigned exact candidate
+for the original caller to sign. Compilation and preparation submit nothing.
 
 Read helpers receive an authenticated original subject from their enclosing
 caller. A bare principal number is insufficient. An external native delivery

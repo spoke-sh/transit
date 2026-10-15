@@ -45,3 +45,15 @@ private keys. Prepared sequence numbers are not reservations: unrelated writes
 by the same native principal can conflict, so the host serializes its submissions.
 Multi-operation scripts have ordered, independent outcomes; this API does not
 claim a transaction spanning multiple policy changes or domain owners.
+
+`AuthorizationBridge` exposes the lifecycle as neutral `Connection`, `Action`
+and `Result` values. Its connection requires the current definition. The shared
+C ABI `transit_authorization_apply` returns an owned JSON buffer; the client host
+accepts an `authorization` request containing the connection, action and private
+seed-file reference. Only `submit` dispatches a command. `received` incorporates
+a receipt; `restore`, `next`, `recover_pending`, `observe` and `abandon` preserve
+the retained identity. Returned strings belong to the result arena/buffer.
+Post-dispatch allocation failure remains an uncertain outcome.
+
+Neutral input is bounded to 256 KiB. The [CLI guide](../../../../apps/transit-cli/docs/authorization.md)
+describes private durable files and explicit bounded application of these steps.

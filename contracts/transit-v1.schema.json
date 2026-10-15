@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d",
+    "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -57,7 +57,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+            "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
           ]
         },
         "realm": {
@@ -1971,7 +1971,8 @@
                           "additionalProperties": false,
                           "x-transit-field-order": [
                             "subject",
-                            "requirements"
+                            "requirements",
+                            "selectable"
                           ],
                           "properties": {
                             "subject": {
@@ -2007,7 +2008,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                               ]
                                             },
                                             "realm": {
@@ -2222,13 +2223,29 @@
                                   }
                                 ]
                               }
+                            },
+                            "selectable": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "required": [
                             "subject",
                             "requirements"
                           ],
-                          "x-transit-defaults": {}
+                          "x-transit-defaults": {
+                            "selectable": null
+                          }
                         },
                         {
                           "type": "null"
@@ -3148,7 +3165,8 @@
                               "additionalProperties": false,
                               "x-transit-field-order": [
                                 "subject",
-                                "requirements"
+                                "requirements",
+                                "selectable"
                               ],
                               "properties": {
                                 "subject": {
@@ -3184,7 +3202,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                    "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                   ]
                                                 },
                                                 "realm": {
@@ -3399,13 +3417,29 @@
                                       }
                                     ]
                                   }
+                                },
+                                "selectable": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
                                 "subject",
                                 "requirements"
                               ],
-                              "x-transit-defaults": {}
+                              "x-transit-defaults": {
+                                "selectable": null
+                              }
                             },
                             {
                               "type": "null"
@@ -4567,7 +4601,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+        "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
       }
     },
     "SignedRequest": {
@@ -4600,7 +4634,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
               ]
             },
             "realm": {
@@ -6514,7 +6548,8 @@
                               "additionalProperties": false,
                               "x-transit-field-order": [
                                 "subject",
-                                "requirements"
+                                "requirements",
+                                "selectable"
                               ],
                               "properties": {
                                 "subject": {
@@ -6550,7 +6585,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                    "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                   ]
                                                 },
                                                 "realm": {
@@ -6765,13 +6800,29 @@
                                       }
                                     ]
                                   }
+                                },
+                                "selectable": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
                                 "subject",
                                 "requirements"
                               ],
-                              "x-transit-defaults": {}
+                              "x-transit-defaults": {
+                                "selectable": null
+                              }
                             },
                             {
                               "type": "null"
@@ -7691,7 +7742,8 @@
                                   "additionalProperties": false,
                                   "x-transit-field-order": [
                                     "subject",
-                                    "requirements"
+                                    "requirements",
+                                    "selectable"
                                   ],
                                   "properties": {
                                     "subject": {
@@ -7727,7 +7779,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                        "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                       ]
                                                     },
                                                     "realm": {
@@ -7942,13 +7994,29 @@
                                           }
                                         ]
                                       }
+                                    },
+                                    "selectable": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
                                     }
                                   },
                                   "required": [
                                     "subject",
                                     "requirements"
                                   ],
-                                  "x-transit-defaults": {}
+                                  "x-transit-defaults": {
+                                    "selectable": null
+                                  }
                                 },
                                 {
                                   "type": "null"
@@ -9153,7 +9221,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+            "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
           ]
         },
         "realm": {
@@ -10491,7 +10559,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                               ]
                                             },
                                             "realm": {
@@ -10644,7 +10712,8 @@
                               "additionalProperties": false,
                               "x-transit-field-order": [
                                 "subject",
-                                "requirements"
+                                "requirements",
+                                "selectable"
                               ],
                               "properties": {
                                 "subject": {
@@ -10680,7 +10749,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                    "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                   ]
                                                 },
                                                 "realm": {
@@ -10895,13 +10964,29 @@
                                       }
                                     ]
                                   }
+                                },
+                                "selectable": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
                                 "subject",
                                 "requirements"
                               ],
-                              "x-transit-defaults": {}
+                              "x-transit-defaults": {
+                                "selectable": null
+                              }
                             }
                           }
                         },
@@ -11523,7 +11608,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                    "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                   ]
                                 },
                                 "realm": {
@@ -13437,7 +13522,8 @@
                                                   "additionalProperties": false,
                                                   "x-transit-field-order": [
                                                     "subject",
-                                                    "requirements"
+                                                    "requirements",
+                                                    "selectable"
                                                   ],
                                                   "properties": {
                                                     "subject": {
@@ -13473,7 +13559,7 @@
                                                                     "definition": {
                                                                       "type": "string",
                                                                       "enum": [
-                                                                        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                                        "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                                       ]
                                                                     },
                                                                     "realm": {
@@ -13688,13 +13774,29 @@
                                                           }
                                                         ]
                                                       }
+                                                    },
+                                                    "selectable": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "integer",
+                                                          "minimum": 0,
+                                                          "maximum": 9007199254740991,
+                                                          "x-transit-bits": 64,
+                                                          "x-transit-signed": false
+                                                        },
+                                                        {
+                                                          "type": "null"
+                                                        }
+                                                      ]
                                                     }
                                                   },
                                                   "required": [
                                                     "subject",
                                                     "requirements"
                                                   ],
-                                                  "x-transit-defaults": {}
+                                                  "x-transit-defaults": {
+                                                    "selectable": null
+                                                  }
                                                 },
                                                 {
                                                   "type": "null"
@@ -14614,7 +14716,8 @@
                                                       "additionalProperties": false,
                                                       "x-transit-field-order": [
                                                         "subject",
-                                                        "requirements"
+                                                        "requirements",
+                                                        "selectable"
                                                       ],
                                                       "properties": {
                                                         "subject": {
@@ -14650,7 +14753,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                                            "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -14865,13 +14968,29 @@
                                                               }
                                                             ]
                                                           }
+                                                        },
+                                                        "selectable": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 9007199254740991,
+                                                              "x-transit-bits": 64,
+                                                              "x-transit-signed": false
+                                                            },
+                                                            {
+                                                              "type": "null"
+                                                            }
+                                                          ]
                                                         }
                                                       },
                                                       "required": [
                                                         "subject",
                                                         "requirements"
                                                       ],
-                                                      "x-transit-defaults": {}
+                                                      "x-transit-defaults": {
+                                                        "selectable": null
+                                                      }
                                                     },
                                                     {
                                                       "type": "null"
@@ -16033,7 +16152,7 @@
                               ],
                               "x-transit-defaults": {
                                 "version": 1,
-                                "definition": "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                               }
                             }
                           }
@@ -17452,7 +17571,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+        "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
       }
     },
     "SignedQuery": {
@@ -17484,7 +17603,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
               ]
             },
             "realm": {
@@ -18822,7 +18941,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                    "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                   ]
                                                 },
                                                 "realm": {
@@ -18975,7 +19094,8 @@
                                   "additionalProperties": false,
                                   "x-transit-field-order": [
                                     "subject",
-                                    "requirements"
+                                    "requirements",
+                                    "selectable"
                                   ],
                                   "properties": {
                                     "subject": {
@@ -19011,7 +19131,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                        "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                       ]
                                                     },
                                                     "realm": {
@@ -19226,13 +19346,29 @@
                                           }
                                         ]
                                       }
+                                    },
+                                    "selectable": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
                                     }
                                   },
                                   "required": [
                                     "subject",
                                     "requirements"
                                   ],
-                                  "x-transit-defaults": {}
+                                  "x-transit-defaults": {
+                                    "selectable": null
+                                  }
                                 }
                               }
                             },
@@ -19854,7 +19990,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                        "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                       ]
                                     },
                                     "realm": {
@@ -21768,7 +21904,8 @@
                                                       "additionalProperties": false,
                                                       "x-transit-field-order": [
                                                         "subject",
-                                                        "requirements"
+                                                        "requirements",
+                                                        "selectable"
                                                       ],
                                                       "properties": {
                                                         "subject": {
@@ -21804,7 +21941,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                                            "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -22019,13 +22156,29 @@
                                                               }
                                                             ]
                                                           }
+                                                        },
+                                                        "selectable": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "integer",
+                                                              "minimum": 0,
+                                                              "maximum": 9007199254740991,
+                                                              "x-transit-bits": 64,
+                                                              "x-transit-signed": false
+                                                            },
+                                                            {
+                                                              "type": "null"
+                                                            }
+                                                          ]
                                                         }
                                                       },
                                                       "required": [
                                                         "subject",
                                                         "requirements"
                                                       ],
-                                                      "x-transit-defaults": {}
+                                                      "x-transit-defaults": {
+                                                        "selectable": null
+                                                      }
                                                     },
                                                     {
                                                       "type": "null"
@@ -22945,7 +23098,8 @@
                                                           "additionalProperties": false,
                                                           "x-transit-field-order": [
                                                             "subject",
-                                                            "requirements"
+                                                            "requirements",
+                                                            "selectable"
                                                           ],
                                                           "properties": {
                                                             "subject": {
@@ -22981,7 +23135,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                                                                "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -23196,13 +23350,29 @@
                                                                   }
                                                                 ]
                                                               }
+                                                            },
+                                                            "selectable": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "integer",
+                                                                  "minimum": 0,
+                                                                  "maximum": 9007199254740991,
+                                                                  "x-transit-bits": 64,
+                                                                  "x-transit-signed": false
+                                                                },
+                                                                {
+                                                                  "type": "null"
+                                                                }
+                                                              ]
                                                             }
                                                           },
                                                           "required": [
                                                             "subject",
                                                             "requirements"
                                                           ],
-                                                          "x-transit-defaults": {}
+                                                          "x-transit-defaults": {
+                                                            "selectable": null
+                                                          }
                                                         },
                                                         {
                                                           "type": "null"
@@ -24364,7 +24534,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "version": 1,
-                                    "definition": "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+                                    "definition": "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
                                   }
                                 }
                               }
@@ -25827,7 +25997,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d"
+            "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a"
           ]
         },
         "realm": {

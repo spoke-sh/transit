@@ -29,7 +29,7 @@ test "neutral general catalog identities rights names and pages preserve full wi
     try t.expectEqualDeep(connection.scope, try scope.native());
     try t.expectEqualDeep(connection, try (v.Connection{ .scope = scope, .owner = 3, .principal = 17 }).native());
     for ([_][]const u8{ "", "01", "-1", "+1", "18446744073709551616", "123456789012345678901" }) |invalid| try t.expectError(error.InvalidCatalogInteger, v.unsigned(invalid));
-    const config: c.TableCatalogRecords.Configuration = .{ .scope = connection.scope, .owner = 3, .administrator = 17, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = std.math.maxInt(u64), .staging_records = 1000 } };
+    const config: c.TableCatalogRecords.Configuration = .{ .scope = connection.scope, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = std.math.maxInt(u64), .staging_records = 1000 } };
     try t.expectEqualDeep(config, try (try v.Configuration.foreign(allocator, config)).native());
     const dependency = try (v.DependencyChange{ .scope = scope, .object = "18446744073709551615", .identity = "18446744073709551615", .owner = 3, .kind = .history, .present = true }).native();
     try t.expect(!dependency.dependency.restricts());

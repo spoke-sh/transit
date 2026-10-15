@@ -18,14 +18,17 @@ preserves identity. Dropping and recreating a name never rebinds an accepted
 operation, prepared plan or retained schema reference to the replacement.
 
 The configured owner has a native PID, resource association and current execution
-grant. CREATE allocates Table records within that resource; it creates no native
-resource, process or grant. Durable collection sizes are independent of resident
+grant. CREATE allocates Table records within that resource and registers a
+separate native authorization object owned by the original role. Applicable
+default grants are copied at registration; CREATE does not provision a native
+resource or process. Durable collection sizes are independent of resident
 pages and per-operation limits. All accepted histories and receipts have unlimited
 retention unless an owning contract explicitly permits collection.
 
 ## Initialization and authorization
 
-Configuration binds scope, worker PID, bootstrap principal, explicit Publication
+Configuration binds scope, worker PID, bootstrap principal, an explicit database
+name, Publication
 limits and six native authorization identities: database/schema/Table domains,
 database object, initial schema ID and its authorization object. Initialization
 requires database ownership and exact native bindings. It rejects orphan state
@@ -59,6 +62,40 @@ cancelled candidate never becomes a partial live Table.
 or verify equality with the existing schema. Name and object conflicts retain
 the original outcome. ALTER, RENAME and DROP use the same coordinator and exact
 saved identity; their bounded publication rules appear below.
+
+## Schema namespaces and administration
+
+Schema names have 1–63 bytes in the shared authorization name representation.
+`CREATE SCHEMA` requires database ownership and SET eligibility for its requested
+owner. It registers a native schema object under the database and publishes the
+schema, name and original outcome together. `ALTER SCHEMA … RENAME` and
+`DROP SCHEMA … RESTRICT` require current schema ownership. Rename preserves the
+schema and authorization identities. Drop leaves both identities retained; a
+later creation using the same name requires a new identity.
+
+Each request binds scope, original principal, positive operation/schema IDs,
+expected schema revision and exact action. Creation requires revision zero;
+rename/drop require the current positive revision. Status verifies the original
+request digest and current ownership. Schema listing returns at most eight
+visible records and binds its cursor to scope and the native resource revision.
+Database CONNECT is required; schema ownership, USAGE or CREATE establishes
+metadata visibility. No Table or schema association itself grants access.
+
+RESTRICT scans at most eight Table records per continuation. A live or
+initializing Table prevents deletion. Table CREATE admission increments the
+schema revision in the same decision that reserves the Table. A concurrent
+creation or rename therefore rejects an older DROP continuation as stale before
+publication. The scan holds no resource-wide lock. Schema deletion does not
+delete Table data, native authorization history or accepted work.
+
+The catalog authorization SQL compiler resolves database, schema, Table and role
+names to stable IDs at a specific native policy revision. Its typed plan selects
+a native policy action, a schema request, or a session role. Native policy plans
+use the shared authorization prepare/preview/submit/observe lifecycle; schema
+plans use the catalog's prepare/submit/status lifecycle. Compilation and
+preparation do not dispatch. An explicit role change is subject to current SET
+eligibility. Saved plans reject foreign definitions, changed identities and stale
+policy bases instead of silently resolving newer objects.
 
 ## Signed Zig caller
 
@@ -189,13 +226,21 @@ defines ownership and the current integration boundary.
 The general namespace's fixed control records use the same mandatory-definition
 `TCA1` envelope and little-endian reflected field order. They have these tags:
 `C` configuration (scope, owner, bootstrap principal, Table Publication limits,
-authorization profile); `S` schema (scope, ID, authorization ID, length-prefixed
+authorization profile, database name); `S` schema (scope, ID, authorization ID, length-prefixed
 63-byte name storage, revision, retired flag); `O` current object, including
 schema namespace and native authorization ID; `R` DDL operation;
 `N` name binding (scope, object); and `B` dependency (scope, object, dependency ID,
 owner PID, kind). Fixed records remain within native 256-byte values: configuration
-141 bytes, object 198 and dependency 86. Operations occupy 233 bytes without a blocker
+205 bytes, schema 150, object 198 and dependency 86. Operations occupy 233 bytes without a blocker
 or 250 bytes with an attributed RESTRICT blocker.
+
+Schema controls use tag `H`; retained outcomes use `h` and a key qualified by
+original principal and operation. Outcomes retain the request digest, original
+admission/completion inputs, scan position, state and rejection reason. Schema
+name-index keys use tag `n`, a 13-byte SHA-256 prefix and the schema ID. Resolution
+checks the complete stored name and binding; digest equality never establishes
+name equality. The initial schema is included directly from its explicit `S`
+record until an ordinary rename/drop updates its name index.
 
 Object state distinguishes initializing, live and retired. It retains the current
 metadata reference, monotonic next revision and exact pending principal/operation/

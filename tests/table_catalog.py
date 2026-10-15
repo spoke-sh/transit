@@ -28,7 +28,7 @@ def fixture():
     def control(tag, body):
         return (b'TCA1' + tag + contract + body).hex()
     reference = struct.pack('<QII', 3, 0x54434d01, len(record)) + bytes([51]) * 32
-    configuration = control(b'C', scope + struct.pack('<QQIQI', 3, 17, 4096, 8192, 2) + struct.pack('<QQQQQQ', 1, 2, 3, 4, 1, 5))
+    configuration = control(b'C', scope + struct.pack('<QQIQI', 3, 17, 4096, 8192, 2) + struct.pack('<QQQQQQ', 1, 2, 3, 4, 1, 5) + bytes([4]) + b'test' + bytes(59))
     obj = control(b'O', scope + struct.pack('<QQQB', maximum, 1, 100, 2) + reference + struct.pack('<QQQQ', 4, 0, 0, 0) + bytes(32))
     operation = control(b'R', scope + struct.pack('<QQQQQ', 17, maximum, maximum, maximum, 1) + bytes([68]) * 32 + bytes([3, 3, 0]) + reference + bytes(32) + struct.pack('<QQB', 5, 7, 0))
     restricted = control(b'R', scope + struct.pack('<QQQQQ', 17, maximum, maximum, maximum, 1) + bytes([68]) * 32 + bytes([4, 5, 4]) + bytes(48) + bytes(32) + struct.pack('<QQBQQB', 5, 7, 1, maximum, 4, 2))
@@ -51,7 +51,7 @@ def fixture():
     assert len(upload) == 247
     intent = b'TCI1' + contract + struct.pack('<QHII', maximum, len(record), 0, len(rename_command)) + record + rename_command
     assert len(intent) == 54 + len(record) + len(rename_command)
-    assert len(bytes.fromhex(configuration)) == 141
+    assert len(bytes.fromhex(configuration)) == 205
     assert len(bytes.fromhex(obj)) == 198
     assert len(bytes.fromhex(operation)) == 233
     assert len(bytes.fromhex(restricted)) == 250

@@ -54,6 +54,7 @@ pub fn authorize(raw: *anyopaque, guard: p.Authorization.Guard) !?p.Authorizatio
         if (proof.claim.realm != 1 or proof.claim.credential_epoch != 1 or proof.claim.role != who) return null;
     }
     const rights = self.rights.get(who) orelse if (who == 17 or who == 0) Rights{ .principal = who } else return null;
+    if (guard.selectable) |role| if (role != who and who != 0 and who != 17) return null;
     if (!self.rights.contains(who)) {
         var registered = self.bindings.valueIterator();
         while (registered.next()) |object| if (object.domain == profile.database_domain and object.owner != who) return null;
