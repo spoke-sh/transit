@@ -221,7 +221,7 @@ test "one catalog query policy admits multiple general Tables and retains exact 
     const recovered = try q.UnifiedResult.open(reference, recovery, access, alloc);
     try e.expectEqual(@as(u64, 17), recovered.bundle.authorization.?.proof.claim.principal);
     try e.expectEqualDeep(first_job.request, recovered.manifest.job.request);
-    try e.expectEqualDeep(try original.fingerprint(), try recovered.bundle.fingerprint());
+    try e.expectEqualDeep(try original.reference(first_job.request.resource, first_job.request.namespace), try recovered.bundle.reference(first_job.request.resource, first_job.request.namespace));
     var misrouted = recovery;
     misrouted.disclosure.?.signed.claim.context[0] ^= 1;
     try e.expectError(error.QueryDenied, q.UnifiedResult.open(reference, misrouted, access, alloc));
@@ -408,7 +408,7 @@ test "bounded query memory exhaustion closes exact work without masking external
     const ExternalFailure = struct {
         access: Access,
         opens: *usize,
-        pub fn open(self: @This(), resource: u64) !s.Turn {
+        pub fn open(self: @This(), resource: u64) !Store.Reader {
             self.opens.* += 1;
             // The publication has been decoded locally before this publisher
             // check fails. A broad catch around the whole operation is unsafe.

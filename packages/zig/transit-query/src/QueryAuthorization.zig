@@ -15,6 +15,12 @@ pub fn validate(self: Self) !void {
     q.UnifiedRecords.identity(self.requests) catch return error.InvalidQueryAuthorization;
     self.proof.claim.validate() catch |err| return if (err == error.IncompatibleDefinition) err else error.InvalidQueryAuthorization;
 }
+/// A saved query cannot switch its execution role when a caller restores it.
+/// Current disclosure/recovery under another role is a separate operation.
+pub fn caller(self: Self, principal: u64, role: ?u64) !void {
+    try self.validate();
+    if (self.proof.claim.principal != principal or self.proof.claim.role != role) return error.QueryDenied;
+}
 pub fn context(requester: u64, requests: u64, body: []const u8) ![32]u8 {
     try q.UnifiedRecords.identity(requester);
     try q.UnifiedRecords.identity(requests);
@@ -112,6 +118,10 @@ test "query proof binds recipient, request resource, owner and immutable body" {
         .context = try context(11, 12, "immutable query"),
     }, key) };
     const bound = try original.subject(13, 11, 12, "immutable query");
+    try original.caller(17, 19);
+    try t.expectError(error.QueryDenied, original.caller(18, 19));
+    try t.expectError(error.QueryDenied, original.caller(17, null));
+    try t.expectError(error.QueryDenied, original.caller(17, 20));
     try bound.signed.verify(key.public_key.toBytes());
     try t.expectError(error.QueryDenied, original.subject(14, 11, 12, "immutable query"));
     try t.expectError(error.QueryDenied, original.subject(13, 14, 12, "immutable query"));

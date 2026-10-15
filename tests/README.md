@@ -214,6 +214,14 @@ codec suites also pass. This is the explicit infrastructure-reader query profile
 restricted-user SDK mediation and the full installed administration workflow
 remain separate gates. The report preserves executable and log hashes.
 
+The query package's full `zig build test --summary all` passes **134/134 tests**
+after the original-role and exchange-assignment changes. The new injected test
+rejects altered caller/epoch/role, worker PID, layout, quota, query and source
+basis, and distinguishes local context checks from signature verification.
+The native catalog query tests also verify recovery under a separately authorized
+reader without changing the original bundle. These checks do not establish the
+disk-backed physical exchange schedule; that integration gate remains separate.
+
 The TypeScript catalog migration passes `just bindings::node-check` on dirty
 `48b25956`: formatting, lint, both package type checks, four client-port tests
 and **67/67 Station tests**. Public catalog values now carry native bindings,

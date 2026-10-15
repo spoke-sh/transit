@@ -28,6 +28,7 @@ pub const RelationalState = @import("RelationalState.zig");
 pub const RelationalExchangeRecords = @import("RelationalExchangeRecords.zig");
 pub const RelationalExchange = @import("RelationalExchange.zig");
 pub const RelationalExchangeProducer = @import("RelationalExchangeProducer.zig");
+pub const ExchangeAuthorization = @import("ExchangeAuthorization.zig");
 pub const RelationalSpill = @import("RelationalSpill.zig");
 pub const RelationalTables = @import("RelationalTables.zig");
 pub const RelationalCompilation = @import("RelationalCompilation.zig");

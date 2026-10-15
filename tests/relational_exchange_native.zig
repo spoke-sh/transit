@@ -10,7 +10,7 @@ const r = q.RelationalExchangeRecords;
 const Producer = q.RelationalExchangeProducer;
 const Captured = @import("relational_captured_native.zig");
 const Admin = @import("growing_support.zig").Admin(46);
-const Worker = struct { process: Admin.Provision, principal: u64, fresh_key: bool };
+const Worker = struct { process: Admin.Provision, principal: u64, fresh_key: bool, authorization: q.ExchangeAuthorization };
 const Metadata = struct {
     definition: g.Definition,
     id: u64,
@@ -75,6 +75,13 @@ const Handler = struct {
             return handler.handle(handler.context, turn, frame);
         }
         var fixed: std.heap.FixedBufferAllocator = .init(self.workspace);
+        if (self.worker) |index| {
+            const worker = self.metadata.workers[index];
+            try worker.authorization.bind(turn, assignment(self.metadata, index), self.bundle, self.basis);
+        } else {
+            const original = self.bundle.authorization orelse return error.QueryDenied;
+            try self.bundle.bindSubject(turn, original.requester, original.requests, original.proof.claim.principal);
+        }
         var history = try q.RelationalHistory.open(turn, fixed.allocator(), self.bundle, 1234, self.basis, Producer.scan_rows);
         if (std.mem.startsWith(u8, payload, "x:")) {
             try rootControl(turn);
@@ -127,6 +134,9 @@ const Handler = struct {
         }
     }
 };
+fn assignment(metadata: Metadata, index: usize) q.ExchangeAuthorization.Assignment {
+    return .{ .exchange = metadata.id, .producer = metadata.workers[index].process.pid, .options = .{ .partitions = metadata.partitions, .workers = metadata.workers.len, .worker = index, .batch = metadata.batch, .epoch = 1, .quota = 4 * 1024 * 1024 } };
+}
 fn addRead(admin: *Admin, pid: u64, principal: u64, resource: u64, name: p.Value) !void {
     _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
     _ = try admin.submit(.{ .associate = .{ .pid = pid, .name = name, .resource = resource, .required = false } });
@@ -169,7 +179,7 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             }
             const observed = (try admin.query(.{ .process = pid })).body.process.process;
             _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = observed.generation, .worker = principal } });
-            worker.* = .{ .principal = principal, .process = .{ .pid = pid, .resource = resource, .generation = observed.generation + 1 }, .fresh_key = false };
+            worker.* = .{ .principal = principal, .process = .{ .pid = pid, .resource = resource, .generation = observed.generation + 1 }, .fresh_key = false, .authorization = undefined };
         }
         // Optional producer links are established while the receiver is fenced.
         _ = try admin.submit(.{ .@"suspend" = .{ .pid = config.writer.pid, .expected_generation = config.writer.generation, .resume_before_ms = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 60000) } });
@@ -185,6 +195,9 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
         fresh.writer.generation = observed.generation + 2;
         try Test.save(init, directory, "catalog.json", fresh);
         const metadata: Metadata = .{ .definition = g.current_definition, .id = authority.position + 1, .identity = identity, .revision = try stored.successor(), .partitions = partitions, .batch = try std.fmt.parseInt(u8, args[6], 10), .workers = workers };
+        const original = bundle.authorization orelse return error.QueryDenied;
+        const caller: s.client.AuthorizationClient = .{ .transport = wire, .realm = 46, .principal = 1234, .key = try Test.key(10), .role = original.proof.claim.role };
+        for (workers, 0..) |*worker, index| worker.authorization = try q.ExchangeAuthorization.prepare(caller, assignment(metadata, index), bundle, basis);
         try Test.save(init, directory, "exchange-native.json", metadata);
         for (workers) |worker| _ = try admin.submit(.{ .send = .{ .pid = worker.process.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("x:init") }).encode() } });
         _ = try admin.submit(.{ .send = .{ .pid = config.writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("x:init") }).encode() } });

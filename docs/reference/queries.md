@@ -16,6 +16,13 @@ current rights. An explicitly authorized recovery operator can read the original
 result without changing its request or execution attribution. Result completion
 is also an authorization boundary.
 
+Explicit physical exchange placement requires the original caller to authorize
+each logical worker assignment for the frozen query and complete source basis.
+The retained proof fixes the worker PID, layout and budgets. Worker replacement
+keeps that proof; fresh worker credentials cannot renew the caller's authority.
+The [exchange contract](../../contracts/RELATIONAL_EXCHANGE_V1.md) defines the
+assignment and current-check boundaries.
+
 Invalid editor cursor offsets identify the byte-offset/UTF-8 boundary requirement
 separately from invalid saved-result cursors. Invalid typed predicate programs
 identify instruction, literal-storage or stack bounds as a plan-construction

@@ -257,7 +257,7 @@ pub fn prepareNextWithDraft(self: *Self, namespace: u64, bundle: q.Bundle, gener
 fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
     try bundle.validate();
     if (try bundle.subject(self.connection.source, self.connection.requester, self.connection.requests)) |original| {
-        if (original.principal() != self.connection.principal) return error.QueryDenied;
+        try bundle.authorization.?.caller(self.connection.principal, self.connection.role);
         _ = try self.authorizationClient().authenticate(original);
     }
     const description = try self.authorize(bundle.source);
