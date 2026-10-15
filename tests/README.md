@@ -248,6 +248,15 @@ Table SELECT denies refresh and new admission. Retained denial diagnostics stay
 stable after restoration, and pause/close controls remain available. Executable
 hashes and overall build time were not captured.
 
+The [installed general Table report](verification/results/authorization-catalog-sdks-2026-10-14.json)
+records all ten SDKs plus Python async completing Table creation, nested typed
+mutation, schema change, deletion, name reuse and saved original-outcome recovery
+in the native cold-storage schedule. It passes in **1,359.385 s**, with 1,190 turns,
+359 sends, at most four mutations and 256-byte values. The enclosing CLI, prepared
+parameter and captured-query restart checks also pass. This run uses the explicit
+infrastructure-reader profile and the source/definition recorded in the report;
+restricted mediation remains a separate schedule.
+
 The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation
