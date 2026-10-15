@@ -5970,7 +5970,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 94,
+        "try": 95,
         "catch": 18
       },
       "imports": [
@@ -6118,7 +6118,7 @@
         "FlightTicketExpired": 1,
         "FlightTicketScope": 1,
         "IncompatibleDefinition": 1,
-        "InvalidFlightTicket": 11
+        "InvalidFlightTicket": 13
       },
       "outcomes": {
         "Reference": [
@@ -6134,7 +6134,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 33,
         "catch": 0
       },
       "imports": [
@@ -14253,18 +14253,15 @@
     },
     "packages/zig/transit-query/src/TableScan.zig": {
       "errors": {
-        "AccessDenied": 1,
         "Cancelled": 1,
         "CatalogConfigurationChanged": 2,
         "CatalogNotInitialized": 1,
         "CatalogOwnerChanged": 2,
-        "Conflict": 1,
         "InvalidQueryBudget": 1,
         "InvalidRelationalSourceOrder": 1,
         "InvalidResourceRead": 3,
         "InvalidTableIndex": 2,
         "QueryPageBudget": 1,
-        "Rejected": 1,
         "RelationalSourceChanged": 1,
         "TableNotFound": 2
       },
@@ -14293,7 +14290,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 40,
-        "catch": 3
+        "catch": 4
       },
       "imports": [
         "root.zig",

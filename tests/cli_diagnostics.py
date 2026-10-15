@@ -120,7 +120,8 @@ invoke(['catalog', '--help'], 0, ('transit catalog COMMAND',))
 capabilities = json.loads(invoke(['catalog', 'capabilities'], 0).stdout)['capabilities']
 assert capabilities['max_columns'] == 128 and capabilities['max_rows'] == 1024 and capabilities['max_prepared_bytes'] == 8192
 invoke(['catalog', 'private-must-not-appear'], contains=('unknown catalog subcommand', 'argument 2'))
-for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare', 'next', 'prepare-initialize', 'prepare-policy', 'prepare-dependency', 'prepare-resume', 'cancel', 'cleanup', 'cancel-upload', 'collect-upload', 'submit', 'observe', 'disposition', 'progress', 'status'):
+invoke(['catalog', 'prepare-policy'], contains=('unknown catalog subcommand', 'argument 2'))
+for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare', 'next', 'prepare-initialize', 'prepare-dependency', 'prepare-resume', 'cancel', 'cleanup', 'cancel-upload', 'collect-upload', 'submit', 'observe', 'disposition', 'progress', 'status'):
     invoke(['catalog', mode], contains=(f'Usage: transit catalog {mode}', '--config is required'))
     invoke(['catalog', mode, '--help'], 0, (f'Usage: transit catalog {mode}', 'Only submit sends a command'))
     invoke(['catalog', mode, '--config', 'private-must-not-appear', '--help'], 0)
@@ -219,7 +220,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     # A complete current-format neutral page, with independently selected IDs.
     page_scope = dict(realm=46, resource=2, catalog='42')
     page = dict(resource_revision=20, entries=[dict(
-        metadata=dict(scope=page_scope, object='81', revision='1', name='東京 people',
+        metadata=dict(scope=page_scope, namespace=1, object='81', revision='1', name='東京 people',
             schema_fingerprint='11'*32, principal=1234, operation='71', admitted_input=17,
             commitment=dict(format=0x54434d01, length=200, digest=[2]*32)),
         head=dict(revision='1', rows='0', pending='0'))] + [None]*7,

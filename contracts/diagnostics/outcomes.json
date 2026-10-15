@@ -5845,6 +5845,27 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "InvalidQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "UnsupportedQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "QueryAlreadyAuthorized": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ]
         }
       }
     },
@@ -8119,6 +8140,30 @@
             "correct_input"
           ],
           "transport_status": 400
+        },
+        "InvalidQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "UnsupportedQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
+        },
+        "QueryAlreadyAuthorized": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9534,6 +9579,30 @@
             "correct_input"
           ],
           "transport_status": 8
+        },
+        "InvalidQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 3
+        },
+        "UnsupportedQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 3
+        },
+        "QueryAlreadyAuthorized": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "transport_status": 3
         }
       }
     },
@@ -10083,6 +10152,125 @@
         "PredicateTooLarge": {
           "code": "table.predicate_too_large",
           "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidTableServiceResponse": {
+          "code": "catalog.invalid_service_response",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "UnsupportedTableServiceAction": {
+          "code": "catalog.unsupported_service_action",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidHttpBudget": {
+          "code": "catalog.invalid_http_budget",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "HttpRequestBudget": {
+          "code": "catalog.http_request_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidCatalogObject": {
+          "code": "catalog.invalid_record",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "StaleAuthorizationRevision": {
+          "code": "catalog.authorization_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidAuthorizationPlan": {
+          "code": "catalog.invalid_authorization_plan",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogDatabaseMismatch": {
+          "code": "catalog.database_mismatch",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "SchemaIdentityRequired": {
+          "code": "catalog.schema_identity_required",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogSchemaMissing": {
+          "code": "catalog.schema_missing",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogSchemaNameExists": {
+          "code": "catalog.schema_name_exists",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidSchemaCommand": {
+          "code": "catalog.invalid_schema_command",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidSchemaOutcome": {
+          "code": "catalog.invalid_schema_outcome",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "AuthorizationBudgetExceeded": {
+          "code": "catalog.authorization_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogCapacity": {
+          "code": "catalog.capacity",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogRegistrationRequired": {
+          "code": "catalog.registration_pending",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "CatalogSigningUnavailable": {
+          "code": "catalog.signing_unavailable",
+          "category": "unsupported",
           "actions": [
             "correct_input"
           ]
@@ -12692,6 +12880,63 @@
           "category": "limit",
           "actions": [
             "correct_input"
+          ]
+        },
+        "InvalidQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "UnsupportedQueryAuthorization": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
+          ]
+        },
+        "QueryAlreadyAuthorized": {
+          "code": "query.invalid_bundle",
+          "category": "binding",
+          "actions": [
+            "inspect_status"
+          ],
+          "facts": [
+            [
+              "operation",
+              "caller",
+              "provided"
+            ],
+            [
+              "completion",
+              "execution",
+              "provided"
+            ]
           ]
         }
       }
@@ -15843,6 +16088,42 @@
               "transport_status": 403,
               "actions": [
                 "inspect_scope"
+              ]
+            }
+          }
+        },
+        "StaleAuthorizationCredential": {
+          "code": "serving.credential_changed",
+          "category": "access",
+          "actions": [
+            "inspect_scope"
+          ],
+          "scenarios": {
+            "input": {
+              "transport_status": 403
+            },
+            "read": {
+              "transport_status": 403,
+              "actions": [
+                "inspect_scope"
+              ]
+            }
+          }
+        },
+        "InvalidAuthorizationCredential": {
+          "code": "serving.invalid_subject",
+          "category": "syntax",
+          "actions": [
+            "correct_input"
+          ],
+          "scenarios": {
+            "input": {
+              "transport_status": 400
+            },
+            "read": {
+              "transport_status": 400,
+              "actions": [
+                "correct_input"
               ]
             }
           }
