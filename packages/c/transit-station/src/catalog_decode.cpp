@@ -32,7 +32,8 @@ Configuration configuration(const Json &v) {
 Subject subject(const Json &v) {
     v.fields({"principal", "login_role", "role", "credential_epoch", "audience", "context"});
     Subject out{small(v.at("principal"), true), small(v.at("login_role"), true), small(v.at("role"), true), small(v.at("credential_epoch")), small(v.at("audience")), {}};
-    digest(v.at("context"), out.context); return out;
+    const auto &context = v.at("context").array(32); require(context.size() == 32, "catalog-subject-context");
+    for (size_t i = 0; i < 32; ++i) out.context[i] = static_cast<uint8_t>(context[i].number(255)); return out;
 }
 Metadata metadata(const Json &v) {
     v.fields({"scope", "namespace", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment"}); Metadata out{};
@@ -108,7 +109,7 @@ Capabilities capabilities(const Json &v) {
 }
 Description description(const Json &v, Connection c, uint64_t principal) {
     v.fields({"configuration", "subject", "authorization_revision", "resource_revision"});
-    Description out{configuration(v.at("configuration")), subject(v.at("subject")), small(v.at("authorization_revision")), small(v.at("resource_revision"), true)};
+    Description out{configuration(v.at("configuration")), subject(v.at("subject")), small(v.at("authorization_revision"), true), small(v.at("resource_revision"), true)};
     require(same_scope(out.configuration.scope, c.scope) && out.configuration.owner.realm == c.owner.realm && out.configuration.owner.pid == c.owner.pid && out.subject.principal == principal && out.subject.audience == c.owner.pid && out.subject.role == (c.has_role ? c.role : out.subject.login_role), "catalog-description-identity"); return out;
 }
 std::unique_ptr<Definition> definition(const Json &v, Connection c, const std::string &name) {

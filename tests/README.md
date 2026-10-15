@@ -240,6 +240,13 @@ The package checks also pass handler Table ownership and saved-recovery checks.
 These injected-reply and local ownership checks do not qualify installed live
 role/grant workflows.
 
+The C boundary rerun on dirty `a96989f7` passes the same **56 cases** with
+positive description/definition fixtures independently validated against the
+generated catalog-result JSON Schema. Subject context uses the native fixed
+byte array representation, including UTF-8-shaped bytes; authorization revision
+zero remains valid. This corrects the adapter decoder and strengthens the earlier
+injected-reply evidence without claiming live grant qualification.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

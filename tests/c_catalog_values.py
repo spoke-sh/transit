@@ -5,6 +5,7 @@ admission/replay is separately qualified by typed_table_native.py.
 """
 import copy
 import json
+import jsonschema
 import os
 from pathlib import Path
 import select
@@ -105,11 +106,13 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
     current = dict(entry, schema=schema, authorization=101)
     page = dict(resource_revision=9, entries=[entry]+[None]*7, next=dict(definition=definition, scope=scope, resource_revision=9, after_object=str(2**64-1)))
     profile = dict(database_domain=1, schema_domain=2, table_domain=3, database=4, initial_schema_authority=5, initial_schema=1)
-    subject = dict(principal=17, login_role=23, role=23, credential_epoch=1, audience=3, context='ab'*32)
+    subject = dict(principal=17, login_role=23, role=23, credential_epoch=1, audience=3, context=[171]*32)
     description = dict(configuration=dict(scope=scope, owner=3, administrator=0, table_limits=dict(record_bytes=4096, staging_bytes="8192", staging_records=64), authority=profile, database_name="fixture"), subject=subject, authorization_revision=9, resource_revision=2)
+    jsonschema.Draft202012Validator(contract['schemas']['CatalogResult']).validate(dict(description=description))
+    jsonschema.Draft202012Validator(contract['schemas']['CatalogResult']).validate(dict(definition=current))
     try:
         check('describe', dict(description=description))
-        for change in [lambda v: v['subject'].update(principal=18), lambda v: v['subject'].update(role=24), lambda v: v['subject'].update(audience=4), lambda v: v['subject'].update(credential_epoch=0), lambda v: v['subject'].update(context='ab'*31), lambda v: v['configuration']['authority'].update(table_domain=2), lambda v: v['configuration'].pop('authority')]:
+        for change in [lambda v: v['subject'].update(principal=18), lambda v: v['subject'].update(role=24), lambda v: v['subject'].update(audience=4), lambda v: v['subject'].update(credential_epoch=0), lambda v: v['subject'].update(context=[171]*31), lambda v: v['configuration']['authority'].update(table_domain=2), lambda v: v['configuration'].pop('authority')]:
             bad = copy.deepcopy(description); change(bad); check('describe', dict(description=bad), 4)
         check('lookup', dict(definition=current))
         check('cpp_lookup', dict(definition=current))
