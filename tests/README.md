@@ -78,9 +78,23 @@ proof withholds the first part's processing until the second part is admitted:
 inputs **653/654**. It loses the first part's receipt and requires an identical
 retry, then verifies all 33 operations, three fenced replacements and exact write
 counts. Only one uncertain ingress request remains resident. Existing deadlines,
-part sizes, turn bounds and stored/wire definitions are unchanged. The entire
-large-row wire proof and all ordinary clean lanes remain required at the next
-committed revision.
+part sizes, turn bounds and stored/wire definitions are unchanged. This focused
+proof does not by itself qualify the complete wire task.
+
+The subsequent [complete pipeline wire report](verification/results/authorization-sql-wire-pipeline-2026-10-15.json)
+passes the entire clean-source SQL wire task at committed `d7298d22` in
+**6,353.31 s**, with definition `67f02f8b…2a15e`. The main schedule takes
+**5,954.455 s** and the separate fresh `psql`/MySQL CLI fixture takes
+**264.773 s**. The original 40 KiB operation becomes active after full upload
+and sealing at **271.838 s**, completes at **3,296.390 s**, and verifies exactly
+one applied row and all ten cells through both protocols, with one SQL attempt.
+Real client libraries, role/session/login revocation, prepared-write denial,
+credential/TLS rotation, schema/name-reuse invalidation, capacity and joined
+shutdown also pass. The report retains complete task identity and a transcript
+hash; repeated observing checkpoints are reduced to their first and last values.
+These local concurrent timings are not latency guarantees. The containing growth
+lane and other ordinary lanes remain separately qualified; this is one complete
+task, not a complete-lane claim.
 
 The [C/C++ native lifetime report](verification/results/authorization-c-native-lifetime-2026-10-15.json)
 records a clean installed C client **SIGSEGV** during asynchronous close at
