@@ -16532,12 +16532,18 @@
         "GatewayOperationBlocked": 1,
         "GatewayOwnerUnavailable": 2,
         "GatewayWaitCancelled": 1,
+        "InvalidGatewayCommand": 1,
         "InvalidGatewayConfiguration": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "Rejected": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "handoff().completion": [
+          "processed",
+          "admitted"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Deadline.check()": "<inferred>",
@@ -16548,13 +16554,14 @@
         "discover()": "<inferred>",
         "execute()": "<inferred>",
         "finishControl()": "<inferred>",
+        "handoff()": "<inferred>",
         "init()": "<inferred>",
         "observe()": "<inferred>",
         "tick()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 10
       },
       "imports": [
@@ -16769,12 +16776,14 @@
       "errors": {
         "GatewayControlBusy": 1,
         "GatewayControlNotPending": 1,
-        "GatewayUnresolvedStep": 1
+        "GatewayUnresolvedStep": 1,
+        "InvalidGatewayReceipt": 1
       },
       "outcomes": {
         "Result": [
           "idle",
           "pending",
+          "admitted",
           "processed"
         ]
       },
@@ -16782,11 +16791,12 @@
       "error_returns": {
         "discardConflictingProposal()": "<inferred>",
         "poll()": "<inferred>",
-        "start()": "<inferred>"
+        "start()": "<inferred>",
+        "startPart()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
+        "try": 6,
         "catch": 0
       },
       "imports": [
