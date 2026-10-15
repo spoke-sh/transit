@@ -76,7 +76,7 @@
       "test::build",
       "launchers::local::test"
     ],
-    "bindings": [
+    "bindings-1": [
       "bindings::check",
       "bindings::native",
       "bindings::python-test",
@@ -84,10 +84,6 @@
       "bindings::logical-test",
       "bindings::rust-sdk-test",
       "bindings::ruby-sdk-test",
-      "bindings::c-sdk-test",
-      "bindings::java-sdk-test",
-      "bindings::dotnet-sdk-test",
-      "bindings::beam-sdk-test",
       "bindings::sdk-interop",
       "bindings::authorization",
       "test::model",
@@ -96,6 +92,12 @@
       "test::sql",
       "bindings::grpc-faults",
       "bindings::connector-preparation"
+    ],
+    "bindings-2": [
+      "bindings::c-sdk-test",
+      "bindings::java-sdk-test",
+      "bindings::dotnet-sdk-test",
+      "bindings::beam-sdk-test"
     ],
     "browser": [
       "transit-board::browser",
@@ -113,15 +115,21 @@
       "growth",
       "experience",
       "launchers",
-      "bindings"
+      "bindings-1",
+      "bindings-2"
     ],
     "complete": [
       "core",
       "growth",
       "experience",
       "launchers",
-      "bindings",
+      "bindings-1",
+      "bindings-2",
       "browser"
+    ],
+    "bindings": [
+      "bindings-1",
+      "bindings-2"
     ]
   },
   "external_tasks": {

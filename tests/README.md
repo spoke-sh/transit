@@ -33,6 +33,23 @@ are still pending at this checkpoint. These measured phases and the older clean
 task totals justify execution headroom; they are not a full current-suite or
 hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
 
+The [bindings inventory split](verification/results/authorization-ci-bindings-split-2026-10-15.json)
+keeps all **86 ordinary tasks** and their deadlines. The clean Python task at
+`f0227c7c` passes in **2,275.22 s**, compared with **1,300.78 s** in the earlier
+qualification record. That older complete bindings inventory totals 265.07
+minutes. These observations justify two independent jobs with finite 360-minute
+caps, the [hosted job maximum](https://docs.github.com/en/actions/reference/limits);
+they do not measure the current complete lane or predict hosted duration.
+
+`bindings-1` owns Python, Node, Rust, Ruby and the shared/cross-language proofs;
+`bindings-2` owns C/C++, Java, .NET and Erlang/Elixir. Both build independently
+and are required by the existing aggregate gate. `just ci::bindings` still runs
+the entire bindings inventory. Executed runner tests verify exact full/partial
+selection, complete metadata, failure propagation, interrupted checkpoints,
+missing-lane rejection and one cache writer. The verification catalog passes
+with all task owners accounted for. Complete clean qualification requires all
+six ordinary lanes at the same final revision.
+
 The [complete SQL wire preflight](verification/results/authorization-sql-wire-complete-2026-10-15.json)
 passes at committed `3d07caaf` with the same definition. The main suite takes
 **6,063.8 s** and the separate fresh-fixture `psql`/MySQL CLI workflow takes
