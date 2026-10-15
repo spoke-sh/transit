@@ -193,6 +193,19 @@ remain authorization-bound. Cancellation accepts either durable cancellation
 or a write already committed before cancellation. Installed SDKs, maintained
 relations, physical exchange and SQL wire gateways are not exercised by this run.
 
+The subsequent [maintained Table report](verification/results/authorization-maintained-2026-10-14.json)
+records `just test::typed-tables --cold --maintained` passing in **3,448.170 s**
+on dirty `791f6216` with the earlier definition retained in the report. Its
+maintained schedule takes **2,686.078 s**, publishes **26 revisions** (eight
+changing and 17 no-op successors), executes **1,739 maintained turns** and retains
+**183,707 bytes** of relation state. Ongoing input reaches a nine-head-revision
+backlog and drains it; observed publication lags are **335.591–899.007 s**, with
+**900.060 s** catch-up after the final input. These local costs are not latency
+guarantees. Exact delta retry, delayed backfill, disk restart, current denial,
+schema failure and drop/name-reuse failure all pass. The surrounding Table suite
+also completes, totaling 2,505 turns while retaining the four-write/256-byte
+native bounds. Installed callers and physical exchanges remain separate checks.
+
 The public-query restart proof passes on dirty `a96989f7` with
 `just test::public-query` using ReleaseSafe. It exercises actual CLI/source
 hosts, 41 exact INT64/NULL rows, frozen retry, fenced crash recovery, busy

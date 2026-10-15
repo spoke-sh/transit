@@ -1,0 +1,450 @@
+{
+  "assertions": "passed",
+  "definition": "d70f7dc070a57a2da55ff74f938297ae6c48404d2b648aa3fdd7b214c481939b",
+  "revision": "791f6216",
+  "dirty": true,
+  "command": "nix develop --command just test::typed-tables --cold --maintained",
+  "log_sha256": "6f9221f7373bba9b0a5f913e395a24005c481ff5357a0fc6ccb4b7aacb113d51",
+  "observations": [
+    {
+      "profile": "maintained-relational-native",
+      "revisions": 26,
+      "changing_revisions": 8,
+      "no_op_revisions": 17,
+      "seconds": 2686.078,
+      "turns": 1739,
+      "retained_state_bytes": 183707,
+      "exact_delta_retry": true,
+      "delayed_backfill": true,
+      "disk_restart": true,
+      "current_denial": true,
+      "ongoing_input": {
+        "arrivals": [
+          {
+            "source_revision": 24,
+            "value": 4,
+            "accepted_seconds": 2.876,
+            "mutation_seconds": 2.876,
+            "mutation_turns": 4,
+            "backlog_head_revisions": 3
+          },
+          {
+            "source_revision": 27,
+            "value": 5,
+            "accepted_seconds": 21.422,
+            "mutation_seconds": 2.906,
+            "mutation_turns": 4,
+            "backlog_head_revisions": 6
+          },
+          {
+            "source_revision": 30,
+            "value": 6,
+            "accepted_seconds": 43.766,
+            "mutation_seconds": 3.132,
+            "mutation_turns": 4,
+            "backlog_head_revisions": 9
+          }
+        ],
+        "publications": [
+          {
+            "source_revision": 24,
+            "relation_revision": 18,
+            "lag_seconds": 335.591
+          },
+          {
+            "source_revision": 27,
+            "relation_revision": 21,
+            "lag_seconds": 621.155
+          },
+          {
+            "source_revision": 30,
+            "relation_revision": 24,
+            "lag_seconds": 899.007
+          }
+        ],
+        "backlog_highwater_head_revisions": 9,
+        "final_backlog": 0,
+        "seconds": 943.826,
+        "catch_up_after_last_input_seconds": 900.06,
+        "retained_state_before": 104216,
+        "retained_state_after": 169451
+      },
+      "schema_successor_rejected": true,
+      "schema_failure": {
+        "cause": "TableSchemaChanged",
+        "witness": null,
+        "last_revision": 26,
+        "failed_revision": 27,
+        "phase": "unstarted"
+      },
+      "schema_no_op_revisions": 2,
+      "drop_successor_rejected": true,
+      "drop_name_reuse_preserves_failure": true,
+      "drop_failure": {
+        "cause": "TableRetired",
+        "witness": null,
+        "last_revision": 1,
+        "failed_revision": 2,
+        "phase": "unstarted"
+      }
+    },
+    {
+      "profile": "table-history-native",
+      "mutation_seconds": 8.162,
+      "mutation_turns": 16,
+      "added_history_records": 10,
+      "tail_seconds": 1.18,
+      "transactions": 10,
+      "retained_records": 220,
+      "retained_value_bytes": 47966,
+      "maximum_record_bytes": 241,
+      "paired_changes": 3,
+      "restart": true,
+      "current_denial": true
+    },
+    {
+      "profile": "typed-table-native",
+      "seconds": 3448.17,
+      "held_snapshot_renewals": 4,
+      "lost_reply_replays": [
+        "send",
+        "turn"
+      ],
+      "supplied_host_lost_receipt": true,
+      "measurements": {
+        "turns": 2505,
+        "sends": 282,
+        "max_mutations": 4,
+        "max_value_bytes": 256,
+        "dispositions": [
+          1,
+          1,
+          3,
+          3
+        ],
+        "client_disconnects": 4
+      },
+      "bridge": {
+        "max_step_bytes": 1586,
+        "original_object": "9001",
+        "replacement_object": "9002"
+      },
+      "catalog_cli": {
+        "original_object": "22001",
+        "replacement_object": "22002",
+        "large_artifact_bytes": 142039,
+        "recovered_input": 8952
+      },
+      "installed": [],
+      "logical_types": {
+        "descriptors": 28,
+        "rows": 2,
+        "defaults": true,
+        "nulls": true,
+        "typed_update": true,
+        "node_store_restart": true
+      },
+      "prepared_parameters": {
+        "metadata_only": true,
+        "owned_dml": true,
+        "fresh_cuts": true,
+        "null_truth": true,
+        "full_width": true,
+        "mysql_parameters": true,
+        "current_denial": true,
+        "alter_invalidates": true,
+        "replacement_invalidates": true
+      },
+      "growth": null,
+      "maintained": {
+        "profile": "maintained-relational-native",
+        "revisions": 26,
+        "changing_revisions": 8,
+        "no_op_revisions": 17,
+        "seconds": 2686.078,
+        "turns": 1739,
+        "retained_state_bytes": 183707,
+        "exact_delta_retry": true,
+        "delayed_backfill": true,
+        "disk_restart": true,
+        "current_denial": true,
+        "ongoing_input": {
+          "arrivals": [
+            {
+              "source_revision": 24,
+              "value": 4,
+              "accepted_seconds": 2.876,
+              "mutation_seconds": 2.876,
+              "mutation_turns": 4,
+              "backlog_head_revisions": 3
+            },
+            {
+              "source_revision": 27,
+              "value": 5,
+              "accepted_seconds": 21.422,
+              "mutation_seconds": 2.906,
+              "mutation_turns": 4,
+              "backlog_head_revisions": 6
+            },
+            {
+              "source_revision": 30,
+              "value": 6,
+              "accepted_seconds": 43.766,
+              "mutation_seconds": 3.132,
+              "mutation_turns": 4,
+              "backlog_head_revisions": 9
+            }
+          ],
+          "publications": [
+            {
+              "source_revision": 24,
+              "relation_revision": 18,
+              "lag_seconds": 335.591
+            },
+            {
+              "source_revision": 27,
+              "relation_revision": 21,
+              "lag_seconds": 621.155
+            },
+            {
+              "source_revision": 30,
+              "relation_revision": 24,
+              "lag_seconds": 899.007
+            }
+          ],
+          "backlog_highwater_head_revisions": 9,
+          "final_backlog": 0,
+          "seconds": 943.826,
+          "catch_up_after_last_input_seconds": 900.06,
+          "retained_state_before": 104216,
+          "retained_state_after": 169451
+        },
+        "schema_successor_rejected": true,
+        "schema_failure": {
+          "cause": "TableSchemaChanged",
+          "witness": null,
+          "last_revision": 26,
+          "failed_revision": 27,
+          "phase": "unstarted"
+        },
+        "schema_no_op_revisions": 2,
+        "drop_successor_rejected": true,
+        "drop_name_reuse_preserves_failure": true,
+        "drop_failure": {
+          "cause": "TableRetired",
+          "witness": null,
+          "last_revision": 1,
+          "failed_revision": 2,
+          "phase": "unstarted"
+        },
+        "cold_objects": 1013,
+        "cold_bytes": 265966117
+      },
+      "vectorization": {
+        "paired_native_samples": [
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 241870957
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 223584230
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 231744800
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 206761053
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 195285828
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k >= 7",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 196612283
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 170612889
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 175484523
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 178789250
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 156381024
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 171882394
+          },
+          {
+            "sql": "SELECT COUNT(*) FROM rel_left",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 180752682
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 185815154
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 153891308
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 178821172
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 182922963
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 159032581
+          },
+          {
+            "sql": "SELECT COUNT(k) FROM rel_left",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 192645982
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 158926077
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 162701810
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 167811463
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 155988558
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 154053070
+          },
+          {
+            "sql": "SELECT v FROM rel_left LIMIT 0",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 161356207
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 0,
+            "elapsed_ns": 168565786
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 0,
+            "elapsed_ns": 168505860
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 1,
+            "elapsed_ns": 162341626
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 1,
+            "elapsed_ns": 164938889
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select-batch",
+            "repetition": 2,
+            "elapsed_ns": 153124420
+          },
+          {
+            "sql": "SELECT v FROM rel_left WHERE k = 999",
+            "engine": "select",
+            "repetition": 2,
+            "elapsed_ns": 157858590
+          }
+        ],
+        "buffered_denial": true
+      },
+      "relational": {
+        "join_rows": 6,
+        "grouped_rows": 3,
+        "shared_cut": true,
+        "retained_update": true,
+        "current_denial": true,
+        "console": true,
+        "requests": 97,
+        "spill_bytes": 474,
+        "heap_peak": 4613,
+        "captured": {
+          "checkpoint_restart": true,
+          "exact_receipt_retry": true,
+          "fresh_owner": true,
+          "retained_source_change": true,
+          "current_result_denial": true,
+          "denied_source_cleanup": true
+        }
+      }
+    }
+  ],
+  "limits": "Explicit trusted native Table/query profile. No installed SDKs, SQL wire adapters or physical exchanges in this run. Executable hashes were not captured for this invocation. Observed timings are local measurements, not throughput or latency guarantees."
+}
