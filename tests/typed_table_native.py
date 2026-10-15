@@ -40,9 +40,11 @@ def run(node, proof, host, cli, station_host, *arguments):
             port=port, resident_pages=8, request_timeout_ms=10000)))
         faults, replays, failures = {}, set(), []
         armed = None
+        forwarding_changed = threading.Condition()
+        forwarding = dict(active=0, paused=False)
         host_committed = threading.Event()
         release_host_reply = threading.Event()
-        measurements = dict(turns=0, sends=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0)
+        measurements = dict(turns=0, sends=0, max_mutations=0, max_value_bytes=0, dispositions=[], client_disconnects=0, proxy_drains=0, proxy_drained_requests=0, restart_refusals=0)
         archived_heads = {}
 
         observed_commands = []
@@ -55,6 +57,22 @@ def run(node, proof, host, cli, station_host, *arguments):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', port, timeout=15)
                 abandoned_host = False
+                with forwarding_changed:
+                    paused = forwarding['paused']
+                    if paused:
+                        measurements['restart_refusals'] += 1
+                    else:
+                        forwarding['active'] += 1
+                if paused:
+                    # No request may cross the fixture's authority replacement
+                    # barrier. The original caller retains uncertain work.
+                    self.close_connection = True
+                    try:
+                        self.send_error(503, 'Fixture authority replacement')
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    connection.close()
+                    return
                 try:
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
@@ -111,7 +129,12 @@ def run(node, proof, host, cli, station_host, *arguments):
                     failures.append(repr(error))
                     raise
                 finally:
-                    connection.close()
+                    try:
+                        connection.close()
+                    finally:
+                        with forwarding_changed:
+                            forwarding['active'] -= 1
+                            forwarding_changed.notify_all()
 
         proxy = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
@@ -134,6 +157,31 @@ def run(node, proof, host, cli, station_host, *arguments):
                 process = subprocess.Popen([node, str(config)], stdout=log, stderr=subprocess.STDOUT)
                 wait_ready(fixture.http, process, direct + '/health')
                 return process
+
+            def quiesce_proxy():
+                # Stop new upstream work, then let existing bounded waits finish
+                # while the authority is alive. Upstream errors remain failures.
+                with forwarding_changed:
+                    forwarding['paused'] = True
+                    measurements['proxy_drains'] += 1
+                    measurements['proxy_drained_requests'] += forwarding['active']
+                    assert forwarding_changed.wait_for(lambda: forwarding['active'] == 0, timeout=20), {
+                        'proxy_drain_timeout': forwarding['active']}
+
+            def restart_authority():
+                nonlocal authority
+                assert all(worker.poll() is not None for worker in workers), 'Stop owners before replacing authority'
+                quiesce_proxy()
+                try:
+                    authority.kill()
+                    authority.wait(timeout=10)
+                    authority = None
+                    fixture.stop()
+                    fixture.start()
+                    authority = start()
+                finally:
+                    with forwarding_changed:
+                        forwarding['paused'] = False
 
             def call(mode, *args, fail=False, expected_error=None, directory=None):
                 nonlocal snapshot_renewals
@@ -220,12 +268,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             armed = 'turn'
             call('pump', fail=True)
             assert (root / 'worker.json').exists()
-            authority.kill()
-            authority.wait(timeout=10)
-            authority = None
-            fixture.stop()
-            fixture.start()
-            authority = start()
+            restart_authority()
             call('pump')
             result = finish()
             assert result['outcome'] == 'applied', result
@@ -402,12 +445,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             armed = 'turn'
             call('captured-pump', 1, fail=True, expected_error='InvalidAuthorityResponse')
             assert (root / 'relational-worker.json').exists()
-            authority.kill()
-            authority.wait(timeout=10)
-            authority = None
-            fixture.stop()
-            fixture.start()
-            authority = start()
+            restart_authority()
             call('captured-rotate')
             assert call('history-tail') == retired_tail, 'Table history changed after authority and disk restart'
             call('captured-pump')
@@ -430,13 +468,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert call('captured-status')['collected']
 
             def restart_maintenance():
-                nonlocal authority
-                authority.kill()
-                authority.wait(timeout=10)
-                authority = None
-                fixture.stop()
-                fixture.start()
-                authority = start()
+                restart_authority()
 
             def arm_maintenance():
                 nonlocal armed
@@ -492,12 +524,7 @@ def run(node, proof, host, cli, station_host, *arguments):
             assert call('status') == rejected_insert
             assert call('inspect', 'people')['object'] == 101
             expired = hold('SELECT * FROM people')
-            authority.kill()
-            authority.wait(timeout=10)
-            authority = None
-            fixture.stop()
-            fixture.start()
-            authority = start()
+            restart_authority()
             release(expired, 'QueryExpired')
             assert len(call('select', 'SELECT * FROM people')['rows']) == 2
             assert call('status') == rejected_insert
@@ -710,18 +737,12 @@ def run(node, proof, host, cli, station_host, *arguments):
                         consumer.close()
 
             def restart_owners():
-                nonlocal authority
                 for worker in workers:
                     if worker.poll() is None:
                         worker.kill()
                     worker.wait(timeout=10)
                 workers.clear()
-                authority.kill()
-                authority.wait(timeout=10)
-                authority = None
-                fixture.stop()
-                fixture.start()
-                authority = start()
+                restart_authority()
                 call('host')
                 launch('host.json')
                 launch('courier-config.json')
@@ -745,6 +766,14 @@ def run(node, proof, host, cli, station_host, *arguments):
                     growth['cold_objects'] = cold_store.data_objects()
                     growth['cold_bytes'] = cold_store.file_bytes()
 
+            # Complete proxy forwarding before the final failure assertion as
+            # well: cleanup must not hide an upstream failure after a pass.
+            for worker in workers:
+                if worker.poll() is None:
+                    worker.kill()
+                worker.wait(timeout=10)
+            workers.clear()
+            quiesce_proxy()
             assert not failures, failures
             assert measurements['max_mutations'] <= 4 and measurements['max_value_bytes'] <= 256, measurements
             history_measurements.update(retained_records=len(archived_heads),

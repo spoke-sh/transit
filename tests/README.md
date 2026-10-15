@@ -84,6 +84,19 @@ an 8 MiB hot limit and an 8 MiB cold cache. No resident limit increases, retenti
 changes or history discard are used. This focused result does not qualify the
 remaining clean growth tasks.
 
+The [Table restart-drain report](verification/results/authorization-table-restart-drain-2026-10-15.json)
+records a complete focused lifecycle pass in **647.760 s** after a clean run
+exposed a fixture restart race. A stopped worker can leave a native notification
+wait in flight through the HTTP proxy. The fixture now pauses new forwarding
+and waits at most 20 seconds for existing requests before killing the authority;
+upstream failures still fail the proof. Final cleanup uses the same barrier
+before asserting the failure collector is empty. The run observes five barriers
+and drains one active request, preserving all 28 logical-type restart checks,
+exact lost receipts, and the four-write/256-byte limits. Its original invocation
+exit status was not retained; the complete proof output and error-free process
+exit were observed separately. This focused result does not replace the required
+committed-source catalog, Table and installed SDK tasks.
+
 The [interactive Table authorization report](verification/results/authorization-interactive-tables-2026-10-15.json)
 passes the combined Table/query/console proof in **168.618 s** with eight resident
 pages. Authorized retained readers preserve old rows across an interleaved write;
