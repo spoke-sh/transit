@@ -4,6 +4,7 @@ import secrets
 import struct
 
 from common import Installation, ROOT, lock, run, write
+from authorization import Changes, station
 
 
 def frame(payload):
@@ -50,6 +51,14 @@ class StationInstallation(Installation):
             self.command("initialize-" + role, {'initialize': {"pid": record["pid"], "expected_generation": generation}})
         write(self.path / "station.json", records)
         write(self.path / "pid.json", records["ledger"]["pid"])
+        changes = Changes(self.path / 'authorization', self.command, self.native_query)
+        workers = {role: {**records[role], 'public_key': self.key(role + '/initial.key')}
+                   for role in ('ledger', 'requester')}
+        authorization = station(changes, self.load()['realm'], workers)
+        for role, peer in (('ledger', 'requester'), ('requester', 'ledger')):
+            self.command('initial-query-read-' + role, {'grant_resource': {
+                'resource': records[peer]['resource'], 'subject': records[role]['principal'], 'permissions': 3}})
+        write(self.path / 'station-authorization.json', authorization)
         for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 132),
                                               (10, "station-observer", 20), (11, "station-lifecycle", 17)):
             grant = {"subject": principal, "public_key": self.key(label + "/seed.key"), "permissions": permissions}
@@ -85,7 +94,9 @@ class StationInstallation(Installation):
         return {"role": role, "association": "data", "observer": 10, "registry": records["coordinator"]["pid"],
                 "destination": records["requester" if role == "ledger" else "ledger"]["pid"],
                 "source_resource": records["ledger"]["resource"] if role == "requester" else None,
-                "peer_resource": records["requester"]["resource"] if role == "ledger" else None}
+                "peer_resource": records["requester"]["resource"] if role == "ledger" else None,
+                "peer_principal": records['requester']['principal'] if role == 'ledger' else None,
+                "authorization": json.loads((self.path / 'station-authorization.json').read_text()) if role in ('ledger', 'requester') else None}
 
     def process(self, role):
         return self.native_query({"process": self.records()[role]["pid"]})["body"]["process"]["process"]
@@ -98,19 +109,37 @@ class StationInstallation(Installation):
                 if process["lifecycle"] != "running" or process["failure"] or process["binding"]:
                     raise RuntimeError(f"{role} is retired, blocked or provider-bound; no automatic replacement")
                 record = self.records()[role]
-                identity = secrets.token_hex(12)
-                write(self.path / role / "seed.key", secrets.token_hex(32))
-                self.command("worker-grant-" + identity, {"grant": {"subject": record["principal"],
-                    "public_key": self.key(role + "/seed.key"), "permissions": 88, "pid": record["pid"]}})
-                self.command("worker-state-" + identity, {'grant_resource': {"resource": record["resource"], "subject": record["principal"], "permissions": 7}})
                 if role in ('ledger', 'requester'):
-                    peer = self.records()['requester' if role == 'ledger' else 'ledger']
-                    self.command('worker-query-read-' + identity, {'grant_resource': {
-                        'resource': peer['resource'], 'subject': record['principal'], 'permissions': 3}})
-                self.command("worker-own-" + identity, {"own": {"pid": record["pid"], "worker": record["principal"], "expected_generation": process["generation"]}})
+                    pending_path = self.path / role / 'activation.json'
+                    if pending_path.exists():
+                        pending = json.loads(pending_path.read_text())
+                    else:
+                        seed = self.path / role / 'seed.key'
+                        if not seed.exists(): seed = self.path / role / 'initial.key'
+                        read = self.path / role / 'identity-query.json'
+                        write(read, dict(realm=self.load()['realm'], principal=record['principal'],
+                            kind={'authorization': {'role': None, 'kind': {'identity': {}}}}))
+                        identity = json.loads(run([self.cli, 'query', seed, read, self.url], capture=True))['body']['authorization']['body']['identity']
+                        token = secrets.token_hex(12)
+                        write(self.path / role / 'next.key', secrets.token_hex(32))
+                        pending = dict(token=token, generation=process['generation'], action={'rotate_credential': dict(
+                            principal=record['principal'], expected_epoch=identity['credential_epoch'], public_key=self.key(role + '/next.key'))})
+                        write(pending_path, pending)
+                    changes = Changes(self.path / 'authorization', self.command, self.native_query)
+                    changes.apply('rotate-' + pending['token'], pending['action'])
+                    write(self.path / role / 'seed.key', (self.path / role / 'next.key').read_text())
+                    identity, generation = pending['token'], pending['generation']
+                else:
+                    identity, generation = secrets.token_hex(12), process['generation']
+                    write(self.path / role / "seed.key", secrets.token_hex(32))
+                    self.command("worker-grant-" + identity, {"grant": {"subject": record["principal"],
+                        "public_key": self.key(role + "/seed.key"), "permissions": 88, "pid": record["pid"]}})
+                    self.command("worker-state-" + identity, {'grant_resource': {"resource": record["resource"], "subject": record["principal"], "permissions": 7}})
+                self.command("worker-own-" + identity, {"own": {"pid": record["pid"], "worker": record["principal"], "expected_generation": generation}})
                 write(self.path / role / "config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
-                    "realm": self.load()["realm"], "principal": record["principal"], "pid": record["pid"], "generation": process["generation"] + 1,
+                    "realm": self.load()["realm"], "principal": record["principal"], "pid": record["pid"], "generation": generation + 1,
                     "seed_file": f"/{role}/seed.key" if self.profile == "compose" else str(self.path / role / "seed.key"), **self.worker_config(role)})
+                if role in ('ledger', 'requester'): pending_path.unlink()
 
     def validate_workload_update(self, name):
         process = self.process(name)

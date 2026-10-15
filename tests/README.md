@@ -226,6 +226,19 @@ while the worker was progressing; that run remains failed. The proof now uses
 the same optimized checked profile as the other native disk schedules and still
 requires complete results before success.
 
+The [Station authorization report](verification/results/authorization-station-2026-10-14.json)
+records the ReleaseSafe Station integration suite and actual local launcher
+passing on dirty `ca76ae7a`, definition `c7446846…34cccd`. The ledger uses explicit
+LOGIN roles, SET-only data-role membership and native database/schema/Table
+grants. SELECT revocation between capture and publication denies the saved
+query while raw worker reads remain granted. Table/audit/reply publication,
+exact receipt retry, worker/store recovery, registry, supervision and lifetime
+checks pass. The local launcher also passes three-worker upgrades, credential
+rotation, Board inspection and stop/start; its courier recovery observes a
+30.294 s replacement and 19.010 s query completion. These are local observations,
+not latency guarantees. Compose/reference execution and the final clean-source
+check remain separate; executable hashes and total elapsed times were not captured.
+
 The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation

@@ -1,0 +1,59 @@
+{
+  "assertions": "passed",
+  "revision": "ca76ae7a",
+  "dirty": true,
+  "definition": "c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd",
+  "commands": [
+    "nix develop --command zig build test-station -Doptimize=ReleaseSafe",
+    "nix develop --command python3 -B tests/station_launchers.py local"
+  ],
+  "logs": [
+    {
+      "path": "/tmp/rey-auth-station3.log",
+      "sha256": "4c0f2e71a52aaf0d23c8cdb691bc774f5a51e41491505679828436e3f2d9480b"
+    },
+    {
+      "path": "/tmp/rey-auth-station-launcher1.log",
+      "sha256": "38125931b62c0c83cc7b5298c8a60b91d579dc1410df6111dafc9b135278c3fc"
+    }
+  ],
+  "observations": [
+    {
+      "version": 1,
+      "profile": "local",
+      "installation": "station-0fc077",
+      "artifact_provenance": {
+        "commit": "ca76ae7a35bc7685f20489c57a768894e5ddabf1",
+        "dirty": true,
+        "zig": "0.17.0-dev.2267+48abf1a34",
+        "flake_lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+        "optimize": "ReleaseSafe"
+      },
+      "replacement_deadline_seconds": 60,
+      "completion_deadline_seconds": 60,
+      "query_submitted": true,
+      "reply_seconds": 47.93047420610674,
+      "passed_before_cleanup": true,
+      "recovery": {
+        "refused_reads": 292,
+        "restarts": 1,
+        "replacement_seconds": 30.294,
+        "query_completion_seconds": 19.01
+      },
+      "refused_reads": 292,
+      "forwarded_commands": 19,
+      "cleanup_restart_started": true,
+      "cleanup_restart_completed": true
+    }
+  ],
+  "checks": [
+    "Native SELECT revoked between Table capture and publication denies the original selected data role while raw worker access remains.",
+    "Exact lost-receipt retry, Table/audit/reply atomic publication, worker/store recovery, registry, supervision and permanent lifetime expiry pass.",
+    "Actual local launcher provisions roles, rotates credentials, restarts and upgrades all three workers, preserves query state and serves Board inspection."
+  ],
+  "limits": [
+    "Compose and Substrate launchers were migrated but are not executed by these invocations.",
+    "Overall elapsed times and executable hashes were not captured.",
+    "Credential rotation does not renew unfinished original proofs; current denial preserves durable input/staging."
+  ]
+}
