@@ -1,0 +1,46 @@
+{
+  "assertions": "passed",
+  "definition": "d70f7dc070a57a2da55ff74f938297ae6c48404d2b648aa3fdd7b214c481939b",
+  "revision": "d1b3aff0",
+  "dirty": true,
+  "command": "nix develop .#bindings --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir -Dunified-source=table",
+  "log_sha256": "ef590c4b8c210a06afb5e31588431e8134d5910c03fcec89b31b96ee7f02135d",
+  "observations": {
+    "seconds": 699.08,
+    "rows": 41,
+    "segments": 6,
+    "arrow_bytes": 15120,
+    "authority_resident_pages": 8,
+    "hot_store_bytes": 8388608,
+    "cold_objects": 71,
+    "cold_bytes": 18658971,
+    "callers": 13,
+    "sdks": [
+      "python",
+      "node",
+      "ruby",
+      "rust",
+      "c",
+      "cpp",
+      "java",
+      "dotnet",
+      "erlang",
+      "elixir"
+    ],
+    "boolean_and_sql_inspection": true,
+    "parameter_compilation": true,
+    "original_signed_bundle": true,
+    "frozen_upload_retry": true,
+    "worker_node_store_restart": true,
+    "current_result_denial": true,
+    "released_source_pin": true
+  },
+  "binaries": {
+    "transit-node": "cb50b31e875ea60423a3efd52f599e947504298471040c77e97483142003dec0",
+    "transit-query-host": "088ce7b026953fa46351dbecde1dd448f8fd0fc9750a6cf5ca2ff1d195a4d68e",
+    "transit-unified-query-proof": "19d64f21cd5e49bf1f748c26746a65c9bfc02c8864cdce391a94606da62875ba",
+    "transit-station-host": "7b794304852f7d9742127a68fb2c3726485b27543079a4f38a14ed4de8930e22",
+    "libtransit_station.so": "78c21710a82f222dd5c6119516bac0376f2269eef9ac2b7b99159844224bf584"
+  },
+  "limits": "Explicit native infrastructure-reader query profile. Does not qualify restricted-user mediation through every SDK, SQL wire gateways, physical exchanges or a complete installed administrator/writer/reader workflow."
+}

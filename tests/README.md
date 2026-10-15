@@ -202,6 +202,18 @@ while the worker was progressing; that run remains failed. The proof now uses
 the same optimized checked profile as the other native disk schedules and still
 requires complete results before success.
 
+The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
+records all ten SDKs plus native ABI, local port and Python async callers passing
+the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation
+with uncommitted integration changes and the definition recorded in the report.
+All thirteen callers agree on Boolean/SQL inspection and parameter compilation.
+The schedule retains the original signed bundle through exact upload retry and
+worker/node/disk-store restart, then verifies **41 rows, six segments and 15,120
+Arrow bytes**, current result denial and released source pins. All ten installed
+codec suites also pass. This is the explicit infrastructure-reader query profile;
+restricted-user SDK mediation and the full installed administration workflow
+remain separate gates. The report preserves executable and log hashes.
+
 The TypeScript catalog migration passes `just bindings::node-check` on dirty
 `48b25956`: formatting, lint, both package type checks, four client-port tests
 and **67/67 Station tests**. Public catalog values now carry native bindings,
