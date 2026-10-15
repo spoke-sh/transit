@@ -24,12 +24,13 @@ contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes(
 definition = contract['definition']
 scope = m.Scope(ResourceRef(46, 7), (1 << 64) - 1)
 connection = m.Connection(ProcessRef(46, 3), scope)
-rights = m.Rights(True, False, True, True, True, True, True, True)
+authority = m.AuthorityProfile(21, 22, 23, 24, 1, 25)
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), True))
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), 1 << 64))
 rejects(ValueError, lambda: m.Connection(ProcessRef(47, 3), scope))
-rejects(ValueError, lambda: m.Rights(1, True, True, True, True, True, True, True))
-rejects(ValueError, lambda: m.PolicyChange(1, m.Policy(scope, 17, 3, rights)))
+rejects(ValueError, lambda: m.Connection(ProcessRef(46, 3), scope, role=True))
+rejects(ValueError, lambda: m.Connection(ProcessRef(46, 3), scope, namespace=0))
+rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 24, 1, 25))
 rejects(ValueError, lambda: m.Prepared(bytes(8193)))
 rejects(ValueError, lambda: m.SavedIntent('0' * 64, b'nonempty'))
 source = bytearray(b'opaque saved bytes')
@@ -162,21 +163,26 @@ try:
     owner._api.response = {'receipt': {'position': 1}}
     assert owner.submit(prepared) == 1
     s = dict(realm=46, resource=7, catalog=str(scope.catalog))
-    description = dict(configuration=dict(scope=s, owner=3, administrator=17, table_limits=dict(record_bytes=2097216, staging_bytes='16777216', staging_records=65536)),
-        policy=dict(scope=s, principal=17, revision=str((1 << 64) - 1), **rights._wire()), resource_revision=2)
-    for revision in (18446744073709551615, '01', '+1', '18446744073709551616'):
-        bad = copy.deepcopy(description); bad['policy']['revision'] = revision
+    description = dict(configuration=dict(scope=s, owner=3, administrator=17, table_limits=dict(record_bytes=2097216, staging_bytes='16777216', staging_records=65536), authority=authority._wire(), database_name='transit'),
+        subject=dict(principal=17, login_role=19, role=19, credential_epoch=3, audience=3, context=[1]*32), authorization_revision=4, resource_revision=2)
+    for revision in ((1 << 64) - 1, '01', '+1', -1, True):
+        bad = copy.deepcopy(description); bad['authorization_revision'] = revision
         owner._api.response = {'description': bad}
         rejects(IncompatibleNative, owner.describe)
     owner._api.response = {'description': copy.deepcopy(description)}
     retained = owner.describe()
-    owner._api.response['description']['policy']['revision'] = '1'
-    assert retained.policy.revision == (1 << 64) - 1
-    owner._api.response['description']['policy']['principal'] = 18
+    owner._api.response['description']['subject']['context'][0] = 2
+    assert retained.subject.context == bytes([1]*32) and retained.authorization_revision == 4
+    for field, value in (('principal', 18), ('role', 29), ('audience', 4), ('credential_epoch', 0), ('context', [True]*32)):
+        bad = copy.deepcopy(description); bad['subject'][field] = value
+        owner._api.response = {'description': bad}
+        rejects(IncompatibleNative, owner.describe)
+    bad = copy.deepcopy(description); del bad['configuration']['authority']
+    owner._api.response = {'description': bad}
     rejects(IncompatibleNative, owner.describe)
     owner._api.response = {'observation': 'cancelled'}
     rejects(IncompatibleNative, lambda: owner.observe(prepared, 1))
-    metadata = dict(scope=s, object=str((1 << 64) - 1), revision='1', name='items', schema_fingerprint='1' * 64, principal=17, operation='1', admitted_input=2, commitment=dict(format=0x54434d01, length=200, digest=[1]*32))
+    metadata = dict(scope=s, namespace=1, object=str((1 << 64) - 1), revision='1', name='items', schema_fingerprint='1' * 64, principal=17, operation='1', admitted_input=2, commitment=dict(format=0x54434d01, length=200, digest=[1]*32))
     entry = dict(metadata=metadata, head=dict(revision='2', rows='3', pending='0'))
     token = dict(definition=definition, scope=s, resource_revision=3, after_object=metadata['object'])
     page = dict(resource_revision=3, entries=[entry] + [None] * 7, next=token)
@@ -189,7 +195,7 @@ try:
     rejects(FrozenInstanceError, lambda: setattr(retained.next, 'after_object', 1))
     values = list(retained.entries); public_page = m.Page(3, values, retained.next); values.clear()
     assert public_page.entries == retained.entries
-    owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire()))
+    owner._api.response = dict(definition=dict(**copy.deepcopy(entry), schema=schema._wire(), authorization=29))
     assert owner.lookup('items').schema == schema
     rejects(IncompatibleNative, lambda: owner.lookup('other'))
     historical = dict(metadata=copy.deepcopy(metadata), schema=schema._wire())
@@ -217,7 +223,7 @@ try:
         elif malformed == 'unknown_head': bad['entries'][0]['head']['unknown'] = 1
         elif malformed == 'missing_commitment': del bad['entries'][0]['metadata']['commitment']
         elif malformed == 'foreign_commitment': bad['entries'][0]['metadata']['commitment']['format'] = 0
-        elif malformed == 'long_commitment': bad['entries'][0]['metadata']['commitment']['length'] = 437
+        elif malformed == 'long_commitment': bad['entries'][0]['metadata']['commitment']['length'] = 445
         else: bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
         owner._api.response = dict(page=bad)
         rejects(IncompatibleNative, owner.list)

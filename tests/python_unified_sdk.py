@@ -15,7 +15,7 @@ def atom_value(datatype, value):
 def table_source(columns):
     from transit_client import ResourceRef, ProcessRef
     from transit_station import unified as q, catalog
-    metadata = catalog.Metadata(catalog.Scope(ResourceRef(1, 7), 9), 9, 1, 'items', '01'*32, 17, 1, 1, catalog.MetadataCommitment(200, '01'*32))
+    metadata = catalog.Metadata(catalog.Scope(ResourceRef(1, 7), 9), 9, 1, 'items', '01'*32, 17, 1, 1, catalog.MetadataCommitment(200, '01'*32), namespace=1)
     return q.TableSource(ProcessRef(1, 3), metadata, catalog.Schema(9, 1, len(columns)+1, tuple(columns)))
 
 

@@ -99,11 +99,15 @@ class Scope:
 class Connection:
     owner: ProcessRef
     scope: Scope
+    role: int | None = None
+    namespace: int = 1
     def __post_init__(self) -> None:
         if not isinstance(self.owner, ProcessRef) or not isinstance(self.scope, Scope): raise TypeError('Expected catalog connection')
         if self.owner.realm != self.scope.resource.realm: raise ValueError('Catalog connection must use one realm')
+        if self.role is not None: integer(self.role, 'selected role', minimum=0)
+        integer(self.namespace, 'schema namespace')
     def _wire(self, principal: int) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, principal=integer(principal, 'principal', minimum=0))
+        return dict(scope=self.scope._wire(), owner=self.owner.pid, principal=integer(principal, 'principal', minimum=0), role=self.role, namespace=self.namespace)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,58 +125,56 @@ class TableLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class AuthorityProfile:
+    database_domain: int
+    schema_domain: int
+    table_domain: int
+    database: int
+    initial_schema: int
+    initial_schema_authority: int
+    def __post_init__(self) -> None:
+        for name, value in self._wire().items(): integer(value, name)
+        if len({self.database_domain, self.schema_domain, self.table_domain}) != 3 or self.database == self.initial_schema_authority:
+            raise ValueError('Distinct native authorization bindings are required')
+    def _wire(self) -> dict[str, int]:
+        return {name: getattr(self, name) for name in ('database_domain', 'schema_domain', 'table_domain', 'database', 'initial_schema', 'initial_schema_authority')}
+
+
+@dataclass(frozen=True, slots=True)
+class Subject:
+    principal: int
+    login_role: int
+    role: int
+    credential_epoch: int
+    audience: int
+    context: bytes
+    def __post_init__(self) -> None:
+        integer(self.principal, 'principal', minimum=0)
+        integer(self.login_role, 'login role', minimum=0)
+        integer(self.role, 'role', minimum=0)
+        integer(self.credential_epoch, 'credential epoch')
+        integer(self.audience, 'audience')
+        object.__setattr__(self, 'context', owned_bytes(self.context, 32))
+        if len(self.context) != 32: raise ValueError('Expected subject context digest')
+
+
+@dataclass(frozen=True, slots=True)
 class Configuration:
     scope: Scope
     owner: ProcessRef
     administrator: int
     table_limits: TableLimits
+    authority: AuthorityProfile
+    database_name: str
     def __post_init__(self) -> None:
         Connection(self.owner, self.scope)
-        integer(self.administrator, 'administrator')
+        integer(self.administrator, 'administrator', minimum=0)
         if not isinstance(self.table_limits, TableLimits): raise TypeError('Specify deployment Table limits')
+        if not isinstance(self.authority, AuthorityProfile): raise TypeError('Specify native authorization bindings')
+        _text(self.database_name, 63)
+        if '\0' in self.database_name: raise ValueError('NUL in database name')
     def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), owner=self.owner.pid, administrator=self.administrator, table_limits=self.table_limits._wire())
-
-
-@dataclass(frozen=True, slots=True)
-class Rights:
-    inspect: bool
-    create: bool
-    read: bool
-    insert: bool
-    update: bool
-    delete: bool
-    alter: bool
-    drop: bool
-    def __post_init__(self) -> None:
-        for value in self._wire().values(): _boolean(value)
-    def _wire(self) -> dict[str, bool]:
-        return {name: getattr(self, name) for name in ('inspect', 'create', 'read', 'insert', 'update', 'delete', 'alter', 'drop')}
-
-
-@dataclass(frozen=True, slots=True)
-class Policy:
-    scope: Scope
-    principal: int
-    revision: int
-    rights: Rights
-    def __post_init__(self) -> None:
-        if not isinstance(self.scope, Scope) or not isinstance(self.rights, Rights): raise TypeError('Expected scoped rights')
-        integer(self.principal, 'principal', minimum=0); _wide(self.revision)
-    def _wire(self) -> object:
-        return dict(scope=self.scope._wire(), principal=self.principal, revision=str(self.revision), **self.rights._wire())
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyChange:
-    expected_revision: int
-    policy: Policy
-    def __post_init__(self) -> None:
-        _wide(self.expected_revision, minimum=0)
-        if not isinstance(self.policy, Policy): raise TypeError('Expected policy')
-        if self.policy.revision != self.expected_revision + 1: raise ValueError('Policy revision must be the expected successor')
-    def _wire(self) -> object:
-        return dict(expected_revision=str(self.expected_revision), policy=self.policy._wire())
+        return dict(scope=self.scope._wire(), owner=self.owner.pid, administrator=self.administrator, table_limits=self.table_limits._wire(), authority=self.authority._wire(), database_name=self.database_name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,7 +234,7 @@ class MetadataCommitment:
     bytes: int
     digest: str
     def __post_init__(self) -> None:
-        integer(self.bytes, 'metadata bytes', maximum=436)
+        integer(self.bytes, 'metadata bytes', maximum=444)
         _digest(self.digest)
 
 
@@ -247,9 +249,11 @@ class Metadata:
     operation: int
     admitted_input: int
     commitment: MetadataCommitment
+    namespace: int
     def __post_init__(self) -> None:
         if not isinstance(self.scope, Scope): raise TypeError('Expected scope')
         if not isinstance(self.commitment, MetadataCommitment): raise TypeError('Expected metadata commitment')
+        integer(self.namespace, 'schema namespace')
         _wide(self.object_id); _wide(self.revision); _name(self.name); _digest(self.schema_fingerprint)
         integer(self.principal, 'principal', minimum=0); _wide(self.operation); integer(self.admitted_input, 'admitted input')
     @property
@@ -273,6 +277,8 @@ class Entry:
 @dataclass(frozen=True, slots=True)
 class Definition(Entry):
     schema: Schema
+    authorization: int
+    def __post_init__(self) -> None: integer(self.authorization, 'Table authorization object')
 
 
 @dataclass(frozen=True, slots=True)
@@ -660,7 +666,8 @@ class Capabilities:
 @dataclass(frozen=True, slots=True)
 class Description:
     configuration: Configuration
-    policy: Policy
+    subject: Subject
+    authorization_revision: int
     resource_revision: int
 
 
@@ -687,10 +694,10 @@ def _schema(value: object) -> Schema:
 
 
 def _metadata(value: object) -> Metadata:
-    v = _object(value, 'scope object revision name schema_fingerprint principal operation admitted_input commitment')
+    v = _object(value, 'scope namespace object revision name schema_fingerprint principal operation admitted_input commitment')
     spec = _object(v['commitment'], 'format length digest')
     if spec['format'] != 0x54434d01 or not isinstance(spec['digest'], list) or len(spec['digest']) != 32: raise ValueError('Invalid metadata commitment')
-    return Metadata(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), _name(v['name']), _digest(v['schema_fingerprint']), v['principal'], _decimal(v['operation']), v['admitted_input'], MetadataCommitment(spec['length'], bytes(spec['digest']).hex()))
+    return Metadata(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), _name(v['name']), _digest(v['schema_fingerprint']), v['principal'], _decimal(v['operation']), v['admitted_input'], MetadataCommitment(spec['length'], bytes(spec['digest']).hex()), v['namespace'])
 
 
 def _head(value: object) -> Head:
@@ -700,8 +707,8 @@ def _head(value: object) -> Head:
 
 def _resolved(value: object, scope: Scope, name: str) -> Definition | None:
     if value is None: return None
-    v = _object(value, 'metadata head schema')
-    result = Definition(_metadata(v['metadata']), _head(v['head']), _schema(v['schema']))
+    v = _object(value, 'authorization metadata head schema')
+    result = Definition(_metadata(v['metadata']), _head(v['head']), _schema(v['schema']), v['authorization'])
     if result.metadata.scope != scope or result.metadata.name != name or result.metadata.object_id != result.schema.object_id: raise ValueError('Foreign Table definition')
     return result
 
@@ -824,14 +831,19 @@ def _capabilities(value: object) -> Capabilities:
 
 
 def _description(value: object, connection: Connection, principal: int) -> Description:
-    v = _object(value, 'configuration policy resource_revision'); c = _object(v['configuration'], 'scope owner administrator table_limits')
+    v = _object(value, 'configuration subject authorization_revision resource_revision')
+    c = _object(v['configuration'], 'scope owner administrator table_limits authority database_name')
     limits = _object(c['table_limits'], 'record_bytes staging_bytes staging_records'); scope = _scope(c['scope'])
-    config = Configuration(scope, ProcessRef(scope.resource.realm, c['owner']), c['administrator'], TableLimits(limits['record_bytes'], _decimal(limits['staging_bytes']), limits['staging_records']))
-    p = _object(v['policy'], 'scope principal revision inspect create read insert update delete alter drop')
-    rights = Rights(**{key: p[key] for key in ('inspect', 'create', 'read', 'insert', 'update', 'delete', 'alter', 'drop')})
-    policy = Policy(_scope(p['scope']), p['principal'], _decimal(p['revision']), rights)
-    if config.scope != connection.scope or config.owner != connection.owner or policy.scope != connection.scope or policy.principal != principal: raise ValueError('Foreign catalog description')
-    return Description(config, policy, integer(v['resource_revision'], 'resource revision', minimum=0))
+    authority = AuthorityProfile(**_object(c['authority'], 'database_domain schema_domain table_domain database initial_schema initial_schema_authority'))
+    config = Configuration(scope, ProcessRef(scope.resource.realm, c['owner']), c['administrator'], TableLimits(limits['record_bytes'], _decimal(limits['staging_bytes']), limits['staging_records']), authority, c['database_name'])
+    raw = _object(v['subject'], 'principal login_role role credential_epoch audience context')
+    if not isinstance(raw['context'], list) or len(raw['context']) != 32: raise ValueError('Invalid subject context')
+    context = bytes(integer(byte, 'context byte', minimum=0, maximum=255) for byte in raw['context'])
+    subject = Subject(raw['principal'], raw['login_role'], raw['role'], raw['credential_epoch'], raw['audience'], context)
+    if config.scope != connection.scope or config.owner != connection.owner or subject.principal != principal or subject.audience != connection.owner.pid:
+        raise ValueError('Foreign catalog description')
+    if subject.role != (connection.role if connection.role is not None else subject.login_role): raise ValueError('Foreign selected role')
+    return Description(config, subject, integer(v['authorization_revision'], 'authorization revision', minimum=0), integer(v['resource_revision'], 'resource revision', minimum=0))
 
 
 def _assignments(values: tuple[Assignment, ...], budget: _WireBudget) -> object:

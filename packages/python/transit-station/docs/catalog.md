@@ -38,6 +38,13 @@ grant no execution authority. URLs contain at most 2048 UTF-8 bytes. Request
 timeout is 1–60000 milliseconds, default 5000. Native discovery and
 `native_directory` follow the [installation guide](../README.md).
 
+`Connection` accepts an optional selected `role` and a schema `namespace`
+(default 1). Native authority validates SET eligibility and current privileges.
+Pass `table_service_url` to `Client` or `AsyncClient` for restricted Table access
+through the trusted Table service. Without that endpoint the caller requires
+explicit native raw-resource grants; this profile is not Table-isolated.
+The service keeps storage credentials private and checks the original caller.
+
 ## Types and typed operations
 
 `Schema(object_id, revision, next_column, columns, primary_key=())` owns an immutable
@@ -121,10 +128,11 @@ their status and semantic diagnostic. `prepare_resume(reference)` and
 operation cancellation/cleanup or upload cancellation/collection. Deleting local
 files and closing a client do not cancel accepted work.
 
-## Metadata, policy and ownership
+## Metadata, authorization and ownership
 
-`describe()` returns the current configuration, caller policy and resource
-revision. `lookup(name)` returns a `Definition` with committed metadata, live head
+`describe()` returns the current configuration, authenticated `Subject`,
+authorization revision and resource revision. The subject records the principal,
+login role, selected role, credential epoch and request binding. `lookup(name)` returns a `Definition` with committed metadata, live head
 and owned schema, or `None`. `list()` returns at most eight entries containing
 metadata and heads, ordered by object ID. `Metadata.commitment` owns the immutable
 catalog record's byte count and digest as `MetadataCommitment`. Query sources
@@ -142,12 +150,13 @@ evidence and incompatible/corrupt records fail. Publishing private metadata alon
 does not make it an accepted definition.
 
 `Configuration` requires explicit `TableLimits(record_bytes, staging_bytes,
-staging_records)`. `prepare_initialize`, `prepare_policy` and `prepare_dependency`
-produce exact administrator commands. `Rights` explicitly separates inspect,
-create, read, insert, update, delete, alter and drop. `PolicyChange` requires the
-next revision after its expected revision. `Dependency` names object, identity,
-owner and kind; registering or removing one is an explicit control. The native
-owner rechecks authority and publication conditions when processing commands.
+staging_records)`, a database name and `AuthorityProfile` with the native
+database/schema/Table domain IDs and initial database/schema bindings.
+`prepare_initialize` and `prepare_dependency` produce exact administrator
+commands. Table privileges come from the native role and grant model.
+`Dependency` names object, identity, owner and kind; registering or removing one
+is an explicit control. The native owner rechecks authority and publication
+conditions when processing commands.
 
 Each client admits one operation at a time and rejects overlap with `Busy`.
 Returned bytes and nested values outlive the handle. Response decoding validates
