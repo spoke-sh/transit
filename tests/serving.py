@@ -16,7 +16,7 @@ import time
 
 from storage import Fixture, free_port, wait_ready
 from cold_storage import ColdStore
-from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter
+from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter, provision_catalog
 
 REALM = 49
 TLS = {}
@@ -273,7 +273,10 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                 for pid, foreign, worker in ((ingress, application_resource, 77), (application, ingress_resource, 78)):
                     send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
                     send({'own': dict(pid=pid, expected_generation=2, worker=worker)})
-            for principal in (33, 34): grant(principal, 20)
+            grant(34, 20)
+            for principal in (65536, 65537): grant(principal, 20, ingress)
+            catalog_authority = provision_catalog(REALM, application_resource, keys[33], send, query,
+                readers=(65536, 65537) if reactive else ())
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
@@ -281,7 +284,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             grant(80, 148)
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
-            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS)})
+            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS, **catalog_authority)})
             if live_profile:
                 ingress_config['generation'] = application_config['generation'] = 3
                 ingress_config['role'] = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)}
@@ -302,8 +305,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             cast(ingress, publication(1, application, deadline_ms))
             for principal in (65536, 65537): cast(ingress, policy(principal))
             drained(ingress)
-            # Initialize privately before exposing any untrusted native ingress.
-            for principal in (65536, 65537): grant(principal, 20, ingress)
+            # Publish listeners only after private initialization has completed.
             if live_profile:
                 resource_grant(application_resource, 65536, 3)
                 resource_grant(ingress_resource, 65536, 3)

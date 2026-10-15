@@ -239,6 +239,15 @@ rotation, Board inspection and stop/start; its courier recovery observes a
 not latency guarantees. Compose/reference execution and the final clean-source
 check remain separate; executable hashes and total elapsed times were not captured.
 
+The [reactive authorization report](verification/results/authorization-reactive-2026-10-14.json)
+records the TLS/reactive refresh schedule passing in **162.64 s** on dirty
+`ca76ae7a`, definition `c7446846…34cccd`. It exercises two same-principal views,
+exact lost-follow retry, fair bounded admission, worker replacement and full-width
+identities. Removing raw resource READ preserves mediated refresh; removing native
+Table SELECT denies refresh and new admission. Retained denial diagnostics stay
+stable after restoration, and pause/close controls remain available. Executable
+hashes and overall build time were not captured.
+
 The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation

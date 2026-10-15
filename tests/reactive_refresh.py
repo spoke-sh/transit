@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 import struct
 import time
-from serving_table import watch as table_watch, query_bytes, query_policy
+from serving_table import watch as table_watch, query_bytes, query_policy, authorize
 from reactive import reactive
-from serving import post, submit
+from serving import post, submit, subject_proof
 
 
 def run(env, _tls):
@@ -96,7 +96,10 @@ def run(env, _tls):
     drained(ingress)
     # Independent schema-bound Table declaration and FQP1 plan.
     limits = struct.pack('<QQQ', 100, 100, 1048576)
-    source, declaration, bundle = query_bytes(env['counter_definition'], application, limits)
+    epoch = query(principal, {'authorization': {'role': None, 'kind': {'identity': {}}}})['body']['authorization']['body']['identity']['credential_epoch']
+    source, declaration, bundle = query_bytes(env['counter_definition'], application, limits,
+        requester=ingress, requests=requests,
+        proof=lambda context: subject_proof(env['keys'][principal], principal, application, context, credential_epoch=epoch))
     cast(application, query_policy(env['counter_definition'], application, ingress, requests, principal, limits, revision=1, allow=True))
     drained(application)
     mutate(1)
@@ -165,26 +168,34 @@ def run(env, _tls):
         command({'acknowledged': dict(selection=selection, namespace=ready['namespace'])}, refresh=True)
         current = view(selection)
         assert current['covered'] >= current['dirty'] and current['starts'] == 1
-    # New data under revoked resource permission must not turn retained proofs
-    # into authority. Recovery controls can still release the accepted view.
+    # Raw caller reads and SQL SELECT are independent. The private service
+    # reader continues after raw-read revocation, then current SELECT denial
+    # blocks retained proofs. Control can still release the accepted view.
     mutate(3)
     env['resource_grant'](resource, principal, 1)
     assert query(principal, {'resource': resource})['body']['resource']['id'] == resource
+    client({'refresh_status': selections[0]})
+    role = query(principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+    target = dict(kind='domain', id=int(env['counter_definition']['authorization']))
+    grants = query(0, {'authorization': dict(role=None, kind={'grants': dict(object=target, grantee=role, cursor=None)})})['body']['authorization']['body']['grants']
+    selected = [grant for grant in grants['records'] if grant and grant['privileges'] & 1]
+    assert grants['next'] is None and len(selected) == 1, grants
+    authorize(env['send'], query, {'revoke': dict(id=selected[0]['id'], privileges=1, grant_option_only=False, behavior='restrict')})
     client({'refresh_status': selections[0]}, 403)
     prepared = client({'refresh_prepare': {'invalidate': selections[0]}})['prepared']
     env['sequences'][principal] = prepared['request']['sequence']
     receipt = client({'submit': prepared})['receipt']['receipt']
     drained(ingress)
     rejected = client({'observe': prepared}, control=True)['observation']
-    assert rejected['rejected']['record']['reason'] in ('ServingDenied', 'AccessDenied'), rejected
-    assert rejected['rejected']['record']['reason'] == 'AccessDenied', rejected
+    assert rejected['rejected']['record']['reason'] == 'CatalogDenied', rejected
     denial = rejected['rejected']['diagnostic']
-    assert denial['cause'] == 'AccessDenied', denial
+    assert denial['cause'] == 'CatalogDenied', denial
     original_facts = {fact['field']: fact['value'] for fact in denial['facts'] if fact}
     assert original_facts['operation'] == {'text': 'source'}, denial
     assert original_facts['actual_resource'] == {'unsigned': str(resource)}, denial
     assert original_facts['principal'] == {'unsigned': str(principal)}, denial
-    assert original_facts['native_cause'] == {'text': 'AccessDenied'}, denial
+    assert original_facts['native_cause'] == {'text': 'CatalogDenied'}, denial
+    authorize(env['send'], query, {'grant': dict(object=target, grantee=role, privileges=1, grant_options=0)})
     env['resource_grant'](resource, principal, 3)
     assert client({'observe': prepared}, control=True)['observation'] == rejected
     for selection in selections:
@@ -231,4 +242,4 @@ def run(env, _tls):
     assert restored['query_diagnostic'] == failed['query_diagnostic'], restored
     command({'close': identity}, control=True)
     Path('.cache/verification/m21-refresh-trace.json').write_text(json.dumps(trace))
-    print(f'Reactive durable refresh: two shared-principal views, exact lost follow receipt, one admitted query, fair successor, worker replacement, full-width identities and current entry-read denial with metadata still permitted passed in {time.monotonic() - started:.2f}s', flush=True)
+    print(f'Reactive durable refresh: two shared-principal views, exact lost follow receipt, one admitted query, fair successor, worker replacement, full-width identities, raw-read separation and current native SELECT denial passed in {time.monotonic() - started:.2f}s', flush=True)
