@@ -175,13 +175,16 @@ export class DraftSession {
       !fields(input.connection, [
         "realm",
         "principal",
+        "role",
         "source",
         "resource",
         "requester",
         "requests",
       ]) ||
-      !Object.values(input.connection).every(
-        (value) => typeof value === "number" && Number.isSafeInteger(value) && value > 0,
+      !Object.entries(input.connection).every(
+        ([name, value]) =>
+          (name === "role" && value === null) ||
+          (typeof value === "number" && Number.isSafeInteger(value) && value > 0),
       ) ||
       !validateUnifiedQuery({ draft: input.budget }) ||
       ![input.closeWanted, input.cancelWanted, input.cancelling].every(

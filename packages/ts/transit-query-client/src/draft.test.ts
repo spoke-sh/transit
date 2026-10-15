@@ -76,7 +76,7 @@ const page: ResultPage = {
 };
 // Scheduling fixture only: native decoding, authority, budgets and result bytes
 // are qualified separately by the actual Table host/browser proof.
-function fixture() {
+function fixture(role: number | null = null) {
   let budget: Draft | null = null;
   let sequence = 0;
   let input = 100;
@@ -98,7 +98,15 @@ function fixture() {
     if ("describe" in request)
       return {
         description: {
-          connection: { realm: 1, principal: 2, source: 3, resource: 4, requester: 5, requests: 6 },
+          connection: {
+            realm: 1,
+            principal: 2,
+            role,
+            source: 3,
+            resource: 4,
+            requester: 5,
+            requests: 6,
+          },
           name: "items",
           budgets: limits,
           source: {
@@ -257,12 +265,21 @@ test("edits are inert until opt-in and only the newest complete draft consumes t
 
 test("saved unknown controls restore exact tokens and cannot import changed plan identities", async () => {
   vi.useFakeTimers();
-  const f = fixture();
+  const f = fixture(19);
   f.faults.lose = true;
   await f.session.open(2);
   await advance();
   const saved = f.session.exportRecovery();
   const restored = new DraftSession(f.transport, async () => () => {});
+  expect(JSON.parse(saved).connection.role).toBe(19);
+  const legacy = JSON.parse(saved);
+  delete legacy.connection.role;
+  expect(() => restored.restoreRecovery(JSON.stringify(legacy))).toThrow("InvalidDraftRecovery");
+  const invalidRole = JSON.parse(saved);
+  invalidRole.connection.role = 0;
+  expect(() => restored.restoreRecovery(JSON.stringify(invalidRole))).toThrow(
+    "InvalidDraftRecovery",
+  );
   const changed = JSON.parse(saved);
   changed.intent.generation = "2";
   expect(() => restored.restoreRecovery(JSON.stringify(changed))).toThrow("InvalidDraftRecovery");
