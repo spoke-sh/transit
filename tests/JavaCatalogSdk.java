@@ -22,8 +22,8 @@ public final class JavaCatalogSdk {
     }
     private static Catalog.Client connect(JsonObject config) {
         JsonObject c = config.getAsJsonObject("connection"), s = c.getAsJsonObject("scope"); long realm = s.get("realm").getAsLong();
-        Connection connection = new Connection(new ProcessRef(realm, c.get("owner").getAsLong()), new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())));
-        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection);
+        Connection connection = new Connection(new ProcessRef(realm, c.get("owner").getAsLong()), new Scope(new ResourceRef(realm, s.get("resource").getAsLong()), new BigInteger(s.get("catalog").getAsString())), c.has("role") && !c.get("role").isJsonNull() ? Optional.of(c.get("role").getAsLong()) : Optional.empty(), c.has("namespace") ? c.get("namespace").getAsLong() : 1);
+        return Catalog.Client.open(new ClientConfig(java.net.URI.create(config.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 10000, null), new Credential(realm, c.get("principal").getAsLong(), Path.of(config.get("seed_file").getAsString())), connection, config.has("table_service_url") && !config.get("table_service_url").isJsonNull() ? config.get("table_service_url").getAsString() : null);
     }
     private static void persist(Path path, byte[] bytes) throws java.io.IOException {
         try (FileChannel file = FileChannel.open(path, Set.of(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE), PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
@@ -55,7 +55,7 @@ public final class JavaCatalogSdk {
     private static JsonObject scenario(Catalog.Client client, JsonObject config, Path root, int index) throws java.io.IOException {
         long base = 1100 + index * 100L, object = 12001 + index * 10L; String name = "sdk_people_" + index;
         java.util.function.IntFunction<Identity> id = offset -> new Identity(n(base + offset), n(base + offset + 100000));
-        Description description = await(client.describe()); check(description.configuration().scope().equals(client.connection().scope())); check(description.policy().principal() == config.getAsJsonObject("connection").get("principal").getAsLong());
+        Description description = await(client.describe()); check(description.configuration().scope().equals(client.connection().scope())); check(description.subject().principal() == config.getAsJsonObject("connection").get("principal").getAsLong());
         Compiled create = await(client.compileSql("CREATE TABLE " + name + " (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", id.apply(0), Optional.of(n(object))));
         check(finish(client, create, root).phase() == Phase.APPLIED);
         Definition original = await(client.lookup(name)).orElseThrow(); check(original.schema().columns().size() == 3 && original.schema().columns().get(1).type() instanceof Logical.Structure);

@@ -199,6 +199,14 @@ on dirty `8e9de56f`. Subject decoding checks principal, selected role, audience
 and epoch; namespace mismatch rejects returned metadata. This validates the
 installed adapter boundary, not a live grant/use/revoke database workflow.
 
+The Java catalog migration builds four fresh JARs with `javac --release 21
+-Xlint:all -Werror` and passes the isolated installed schema/value/port suite
+on dirty `363ea976`. The added checks bind descriptions to the selected role,
+principal, audience and credential epoch, and reject a foreign metadata namespace.
+Existing owned-value, large-frame, uncertain-receipt and joined-cancellation
+checks pass with the matching native host. Live role/grant and mediated Table
+use through installed Java remains separately unexecuted.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

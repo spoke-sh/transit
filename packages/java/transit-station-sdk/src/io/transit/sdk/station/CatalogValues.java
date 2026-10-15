@@ -33,12 +33,18 @@ final class CatalogValues {
         JsonObject v = fields(value, "realm", "resource", "catalog"); return new Scope(new ResourceRef(number(v.get("realm"), 1), number(v.get("resource"), 1)), wide(v.get("catalog")));
     }
     static Configuration configuration(JsonElement value) {
-        JsonObject v = fields(value, "scope", "owner", "administrator", "table_limits"), limits = fields(v.get("table_limits"), "record_bytes", "staging_bytes", "staging_records"); Scope scope = scope(v.get("scope"));
-        return new Configuration(scope, new ProcessRef(scope.resource().realm(), number(v.get("owner"), 1)), number(v.get("administrator"), 1), new TableLimits(number(limits.get("record_bytes"), 1), wide(limits.get("staging_bytes")), number(limits.get("staging_records"), 1)));
+        JsonObject v = fields(value, "scope", "owner", "administrator", "table_limits", "authority", "database_name"), limits = fields(v.get("table_limits"), "record_bytes", "staging_bytes", "staging_records"); Scope scope = scope(v.get("scope"));
+        return new Configuration(scope, new ProcessRef(scope.resource().realm(), number(v.get("owner"), 1)), number(v.get("administrator"), 0), new TableLimits(number(limits.get("record_bytes"), 1), wide(limits.get("staging_bytes")), number(limits.get("staging_records"), 1)), authority(v.get("authority")), string(v.get("database_name")));
     }
-    static Policy policy(JsonElement value) {
-        JsonObject v = fields(value, "scope", "principal", "revision", "inspect", "create", "read", "insert", "update", "delete", "alter", "drop");
-        return new Policy(scope(v.get("scope")), number(v.get("principal"), 0), wide(v.get("revision")), new Rights(bool(v.get("inspect")), bool(v.get("create")), bool(v.get("read")), bool(v.get("insert")), bool(v.get("update")), bool(v.get("delete")), bool(v.get("alter")), bool(v.get("drop"))));
+    static AuthorityProfile authority(JsonElement value) {
+        JsonObject v = fields(value, "database_domain", "schema_domain", "table_domain", "database", "initial_schema", "initial_schema_authority");
+        return new AuthorityProfile(number(v.get("database_domain"), 1), number(v.get("schema_domain"), 1), number(v.get("table_domain"), 1),
+            number(v.get("database"), 1), number(v.get("initial_schema"), 1), number(v.get("initial_schema_authority"), 1));
+    }
+    static Subject subject(JsonElement value) {
+        JsonObject v = fields(value, "principal", "login_role", "role", "credential_epoch", "audience", "context");
+        return new Subject(number(v.get("principal"), 0), number(v.get("login_role"), 0), number(v.get("role"), 0),
+            number(v.get("credential_epoch"), 1), number(v.get("audience"), 1), NativeValues.digest(v.get("context")));
     }
     static Schema schema(JsonElement value) {
         JsonObject v = fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
@@ -102,14 +108,14 @@ final class CatalogValues {
         return new MetadataCommitment(Math.toIntExact(number(v.get("length"),1)),NativeValues.digest(v.get("digest")));
     }
     static Metadata metadata(JsonElement value) {
-        JsonObject v = fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
-        return new Metadata(scope(v.get("scope")), wide(v.get("object")), wide(v.get("revision")), string(v.get("name")), new Bytes(unhex(v.get("schema_fingerprint"), 32)), number(v.get("principal"), 0), wide(v.get("operation")), number(v.get("admitted_input"), 1),commitment(v.get("commitment")));
+        JsonObject v = fields(value, "namespace", "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
+        return new Metadata(scope(v.get("scope")), number(v.get("namespace"), 1), wide(v.get("object")), wide(v.get("revision")), string(v.get("name")), new Bytes(unhex(v.get("schema_fingerprint"), 32)), number(v.get("principal"), 0), wide(v.get("operation")), number(v.get("admitted_input"), 1),commitment(v.get("commitment")));
     }
     static Head head(JsonElement value) { JsonObject v = fields(value, "revision", "rows", "pending"); return new Head(wide(v.get("revision")), zero(v.get("rows")), zero(v.get("pending"))); }
-    static Optional<Definition> resolved(JsonElement value, Scope scope, String name) {
+    static Optional<Definition> resolved(JsonElement value, Scope scope, long namespace, String name) {
         return optional(value, item -> {
-            JsonObject v = fields(item, "metadata", "head", "schema"); Definition out = new Definition(metadata(v.get("metadata")), head(v.get("head")), schema(v.get("schema")));
-            if (!out.metadata().scope().equals(scope) || !out.metadata().name().equals(name) || !out.schema().object().equals(out.metadata().object())) throw incompatible("catalog-definition-identity"); return out;
+            JsonObject v = fields(item, "authorization", "metadata", "head", "schema"); Definition out = new Definition(number(v.get("authorization"), 1), metadata(v.get("metadata")), head(v.get("head")), schema(v.get("schema")));
+            if (!out.metadata().scope().equals(scope) || out.metadata().namespace() != namespace || !out.metadata().name().equals(name) || !out.schema().object().equals(out.metadata().object())) throw incompatible("catalog-definition-identity"); return out;
         });
     }
     static Optional<HistoricalDefinition> historical(JsonElement value, Scope scope, BigInteger object, BigInteger revision) {
@@ -197,7 +203,7 @@ final class CatalogValues {
         return c.version() == 1 && c.maxColumns() == 128 && c.maxRows() == 1024 && c.maxSqlBytes() == 4096 && c.maxIntentBytes() == limit("catalog_intent_bytes") && c.maxActionBytes() == limit("catalog_action_bytes") && c.maxPreparedBytes() == limit("catalog_prepared_bytes") && c.residentIntents() == 1;
     }
     static Description description(JsonElement value, Connection connection, long principal) {
-        JsonObject v = fields(value, "configuration", "policy", "resource_revision"); Description out = new Description(configuration(v.get("configuration")), policy(v.get("policy")), number(v.get("resource_revision"), 0));
-        if (!out.configuration().scope().equals(connection.scope()) || !out.configuration().owner().equals(connection.owner()) || !out.policy().scope().equals(connection.scope()) || out.policy().principal() != principal) throw incompatible("catalog-description"); return out;
+        JsonObject v = fields(value, "configuration", "subject", "authorization_revision", "resource_revision"); Description out = new Description(configuration(v.get("configuration")), subject(v.get("subject")), number(v.get("authorization_revision"), 0), number(v.get("resource_revision"), 0));
+        if (!out.configuration().scope().equals(connection.scope()) || !out.configuration().owner().equals(connection.owner()) || out.subject().principal() != principal || out.subject().audience() != connection.owner().pid() || connection.role().filter(role -> role != out.subject().role()).isPresent()) throw incompatible("catalog-description"); return out;
     }
 }

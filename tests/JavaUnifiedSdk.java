@@ -34,7 +34,7 @@ public final class JavaUnifiedSdk {
     private static Projection projection(String name,DecoderType type,List<String> path,boolean relative,ProjectionMode mode) { return new Projection(new DecoderColumn(name,type),path,relative,mode,4096,4096); }
     private static TableSource tableSource(List<Catalog.Column> columns) {
         byte[] hash=new byte[32];Arrays.fill(hash,(byte)1);
-        var metadata=new Catalog.Metadata(new Catalog.Scope(new ResourceRef(1,7),n(9)),n(9),n(1),"items",new Bytes(hash),17,n(1),1,new Catalog.MetadataCommitment(200,new Bytes(hash)));
+        var metadata=new Catalog.Metadata(new Catalog.Scope(new ResourceRef(1,7),n(9)),1,n(9),n(1),"items",new Bytes(hash),17,n(1),1,new Catalog.MetadataCommitment(200,new Bytes(hash)));
         return new TableSource(new ProcessRef(1,3),metadata,new Catalog.Schema(n(9),n(1),n(columns.size()+1),columns));
     }
     private static TableSource goldenTable() {

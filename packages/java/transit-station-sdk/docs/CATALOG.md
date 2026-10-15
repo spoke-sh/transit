@@ -38,7 +38,7 @@ default. Opening owns a port, worker and completion publisher and checks the exa
 shared definition and capabilities.
 
 Resolved `Metadata` carries a `MetadataCommitment(bytes, digest)` identifying its
-immutable publication. The length is one to 436 bytes and the digest is an
+immutable publication. The length is one to 444 bytes and the digest is an
 immutable 32-byte `Bytes` value. Query declarations use it with the metadata
 revision and schema. It does not grant access or prove current name resolution.
 
@@ -116,27 +116,39 @@ preserve uncertainty. Definite native rejections retain their category, status,
 code and diagnostic. The client performs no automatic submission retry; durable
 recovery material belongs to the application, independently of a future or JVM.
 
-## Policy, dependencies and metadata
+## Authority, dependencies and metadata
 
-`prepareInitialize(Configuration(scope, owner, administrator, tableLimits))`
-prepares immutable host configuration. `TableLimits(recordBytes, stagingBytes,
-stagingRecords)` requires explicit deployment quotas. `preparePolicy(PolicyChange(
-expectedRevision, policy))` prepares conditional administrator control. A `Policy`
-owns scope/principal/revision and eight independent boolean `Rights`: inspect,
-create, read, insert, update, delete, alter and drop. Expected revision zero means
-an absent policy. The caller and host validate successor revision and authority.
+`prepareInitialize(Configuration(scope, owner, administrator, tableLimits,
+authority, databaseName))` prepares immutable host configuration. `TableLimits`
+requires explicit deployment quotas. `AuthorityProfile(databaseDomain,
+schemaDomain, tableDomain, database, initialSchema, initialSchemaAuthority)`
+contains the six registered native bindings. Provision them explicitly; startup
+does not invent objects or restore grants.
+
+`Connection(owner, scope, role, namespace)` selects an optional eligible active
+role and a schema namespace. The two-argument constructor selects the login role
+and namespace 1. `Client.open` accepts a fourth `tableServiceUrl` argument for
+trusted Table mediation. The caller keeps its own signing credential; the service
+holds its separate infrastructure identity. Table-restricted users receive no
+raw-resource access. The three-argument form uses direct reads and requires
+separately granted infrastructure rights.
 
 `prepareDependency(Dependency(scope, object, identity, owner, kind), present)`
 registers/removes a dependency. Kinds are `QUERY_SOURCE`, `WRITER`, `WATCH`,
 `MAINTAINED_RELATION` and `HISTORY`; registration grants no access. DROP RESTRICT
 retains the original blocking dependency evidence. `inputDisposition` reads an
 administrator-control or rejected-input result. Absence proves no outcome.
-`describe` returns current configuration/policy; `capabilities` returns typed
-native limits.
+`describe` returns current configuration, authenticated `Subject` and
+`authorizationRevision`; `capabilities` returns typed native limits. The subject
+carries principal, login role, selected role, credential epoch, audience and an
+owned context digest. It grants no authority. Protected disclosures and owner
+continuations check current rights; accepted write identities survive revocation.
 
-`lookup(name)` returns optional `Definition(metadata, head, schema)`.
+`lookup(name)` returns optional `Definition(authorization, metadata, head, schema)`.
 `definition(object, revision)` returns optional accepted `HistoricalDefinition`
 with metadata and schema, including after retirement; it has no current head.
+Metadata includes its schema `namespace`, and `authorization` identifies the
+stable native Table object. Current CONNECT, USAGE and SELECT govern history.
 Missing/unaccepted definitions are absent. `list` returns a `Page` with a resource
 revision, at most eight ordered `Entry(metadata, head)` values and optional `next`.
 Continue while the cursor exists, including empty pages with continuation. Restore
