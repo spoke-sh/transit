@@ -26,6 +26,11 @@ directory. Recipes work from repository subdirectories after entering the dev
 shell. `just ci` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
+`just test::catalog` and `just test::typed-tables` use disk-backed cold storage
+with bounded hot storage and caches. Their retained authorization and Table
+histories can exceed a hot-only store's finite capacity; the proof does not
+raise that capacity or discard history to complete.
+
 | Command | What it does today |
 | --- | --- |
 | `just` | Lists available recipes |

@@ -363,7 +363,7 @@ table-dml-sql:
 [positional-arguments]
 catalog *args:
     python3 -B tests/catalog_fixture.py
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
 
 # General typed metadata and rows beyond resident pages, cold reads and restart.
 catalog-growth:
@@ -394,7 +394,7 @@ named-relational:
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
 typed-tables *args:
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]

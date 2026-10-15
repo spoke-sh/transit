@@ -53,6 +53,16 @@ cache, original work identities and all assertions remain unchanged. Exact lost
 reply recovery, fencing, retained continuation and two disk restarts pass.
 This focused result does not complete the clean growth lane.
 
+The [cold catalog report](verification/results/authorization-catalog-cold-2026-10-15.json)
+records the full catalog proof passing in **661.754 s**, including the 28-type
+lifecycle, native authorization, retained queries, lost receipts and node/store
+restart. The earlier clean invocation exhausted its unconfigured hot-only
+store's 64 MiB capacity during that lifecycle. `catalog` and `typed-tables` now
+select the existing disk cold-store fixture by default: eight native cache pages,
+an 8 MiB hot limit and an 8 MiB cold cache. No resident limit increases, retention
+changes or history discard are used. This focused result does not qualify the
+remaining clean growth tasks.
+
 The [interactive Table authorization report](verification/results/authorization-interactive-tables-2026-10-15.json)
 passes the combined Table/query/console proof in **168.618 s** with eight resident
 pages. Authorized retained readers preserve old rows across an interleaved write;
