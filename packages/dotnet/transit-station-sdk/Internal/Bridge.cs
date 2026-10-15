@@ -88,12 +88,12 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_unified_query_codec(bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "query-codec", schema: "UnifiedQueryCodecResult");
     }
-    internal static Bridge OpenCatalog(ClientConfig config, Credential identity, Catalog.Connection connection)
+    internal static Bridge OpenCatalog(ClientConfig config, Credential identity, Catalog.Connection connection, string? tableServiceUrl)
     {
         Bridge bridge = new(config.NativeDirectory);
         try {
             byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
-            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis), ("table_service_url", tableServiceUrl)));
             byte[] seed = RawBridge.Seed(identity.SeedFile);
             try {
                 uint status = bridge.Api.station_catalog_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.catalogClient);

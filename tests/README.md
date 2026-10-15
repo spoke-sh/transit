@@ -192,6 +192,13 @@ filtered schema namespaces, generated response validation, large frames and
 uncertain receipts. The installed-gem grant/use/revoke workflow is still a
 separate gate; these checks use injected replies and owned local child processes.
 
+The .NET catalog migration builds four fresh NuGet packages and passes the
+isolated installed consumer's value, generated-schema, metadata/history,
+recursive-budget, uncertain-receipt and native read cancellation/join checks
+on dirty `8e9de56f`. Subject decoding checks principal, selected role, audience
+and epoch; namespace mismatch rejects returned metadata. This validates the
+installed adapter boundary, not a live grant/use/revoke database workflow.
+
 The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful

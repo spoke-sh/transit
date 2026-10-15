@@ -26,9 +26,13 @@ public static partial class Catalog
         private readonly ulong principal;
         public Connection Connection { get; }
         private Client(Worker<StationBridge, object?> worker, Connection connection, ulong principal) { this.worker = worker; Connection = connection; this.principal = principal; }
-        public static async Task<Client> OpenAsync(ClientConfig config, Credential identity, Connection connection) {
+        public static async Task<Client> OpenAsync(ClientConfig config, Credential identity, Connection connection, string? tableServiceUrl = null) {
             connection.Wire(identity);
-            return new(await Worker<StationBridge, object?>.OpenAsync(() => StationBridge.OpenCatalog(config, identity, connection), StationApi.MinimumStackBytes).ConfigureAwait(false), connection, identity.Principal);
+            if (tableServiceUrl is not null) {
+                V.Text(tableServiceUrl, 2048);
+                _ = new ClientConfig(new Uri(tableServiceUrl, UriKind.Absolute), Profile.NativeV1);
+            }
+            return new(await Worker<StationBridge, object?>.OpenAsync(() => StationBridge.OpenCatalog(config, identity, connection, tableServiceUrl), StationApi.MinimumStackBytes).ConfigureAwait(false), connection, identity.Principal);
         }
         private Task<T> Read<T>(JsonObject action, string field, Func<JsonNode?, T> decode, CancellationToken cancellation) {
             // Own the encoded action before queuing native work or releasing a local wait.
@@ -38,7 +42,7 @@ public static partial class Catalog
         public Task<Capabilities> CapabilitiesAsync(CancellationToken cancellation = default) => Read(V.Obj(("capabilities", V.Obj())), "capabilities", ParseCapabilities, cancellation);
         public Task<Description> DescribeAsync(CancellationToken cancellation = default) => Read(V.Obj(("describe", V.Obj())), "description", v => ParseDescription(v, Connection, principal), cancellation);
         public Task<Definition?> LookupAsync(string name, CancellationToken cancellation = default) {
-            string requested = Identifier(name); return Read(V.Obj(("lookup", requested)), "definition", v => Resolved(v, Connection.Scope, requested), cancellation);
+            string requested = Identifier(name); return Read(V.Obj(("lookup", requested)), "definition", v => Resolved(v, Connection.Scope, Connection.Namespace, requested), cancellation);
         }
         public Task<HistoricalDefinition?> DefinitionAsync(ulong objectId, ulong revision, CancellationToken cancellation = default) {
             var action = V.Obj(("definition", V.Obj(("object", Turn.Decimal(Positive(objectId))), ("revision", Turn.Decimal(Positive(revision))))));
@@ -46,7 +50,11 @@ public static partial class Catalog
         }
         public Task<Page> ListAsync(Cursor? cursor = null, CancellationToken cancellation = default) {
             if (cursor is not null && cursor.Scope != Connection.Scope) throw new ArgumentException("Foreign Table cursor");
-            return Read(V.Obj(("list", cursor?.Wire())), "page", v => ParsePage(v, Connection.Scope, cursor), cancellation);
+            return Read(V.Obj(("list", cursor?.Wire())), "page", v => {
+                var page = ParsePage(v, Connection.Scope, cursor);
+                if (page.Entries.Any(entry => entry.Metadata.Namespace != Connection.Namespace)) throw V.Incompatible("catalog-page-namespace");
+                return page;
+            }, cancellation);
         }
         public Task<Compiled> CompileSqlAsync(string sql, Identity identity, ulong? createObject = null, CancellationToken cancellation = default) {
             if (V.Text(sql, 4096).Length == 0) throw new ArgumentException("Empty Table SQL");
@@ -67,7 +75,6 @@ public static partial class Catalog
         public Task<Prepared> PrepareResumeAsync(Reference reference, CancellationToken cancellation = default) => PrepareCommand("prepare_resume", reference.Wire(), cancellation);
         public Task<Prepared> PrepareControlAsync(Reference reference, Control control, CancellationToken cancellation = default) => PrepareCommand("prepare_control", V.Obj(("intent", reference.Wire()), ("control", Logical.EnumName(control))), cancellation);
         public Task<Prepared> PrepareInitializeAsync(Configuration value, CancellationToken cancellation = default) => PrepareCommand("prepare_initialize", value.Wire(), cancellation);
-        public Task<Prepared> PreparePolicyAsync(PolicyChange value, CancellationToken cancellation = default) => PrepareCommand("prepare_policy", value.Wire(), cancellation);
         public Task<Prepared> PrepareDependencyAsync(Dependency value, bool present, CancellationToken cancellation = default) => PrepareCommand("prepare_dependency", value.Wire(present), cancellation);
         public Task<AdmissionReceipt> SubmitAsync(Prepared prepared, CancellationToken cancellation = default) {
             byte[] bytes = ActionBytes(V.Obj(("submit", prepared.Wire())));

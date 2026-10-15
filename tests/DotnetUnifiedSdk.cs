@@ -24,7 +24,7 @@ static class Program
     }
     static Q.TableSource TableSource(IReadOnlyList<C.Column> columns) {
         byte[] hash=Enumerable.Repeat((byte)1,32).ToArray();
-        var metadata=new C.Metadata(new C.Scope(new ResourceRef(1,7),9),9,1,"items",new Bytes(hash),17,1,1,new C.MetadataCommitment(200,new Bytes(hash)));
+        var metadata=new C.Metadata(new C.Scope(new ResourceRef(1,7),9),1,9,1,"items",new Bytes(hash),17,1,1,new C.MetadataCommitment(200,new Bytes(hash)));
         return new Q.TableSource(new ProcessRef(1,3),metadata,new C.Schema(9,1,(ulong)columns.Count+1,columns));
     }
     static async Task<Q.Source> Source(ResourceRef r,string kind,bool golden) {

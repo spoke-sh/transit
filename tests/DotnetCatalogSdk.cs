@@ -22,8 +22,8 @@ static class Program
     }
     static Task<C.Client> Connect(JsonNode config) {
         var c = config["connection"]!; var s = c["scope"]!; ulong realm = Number(s,"realm");
-        C.Connection connection = new(new ProcessRef(realm, Number(c,"owner")), new C.Scope(new ResourceRef(realm, Number(s,"resource")), Wide(s,"catalog")));
-        return C.Client.OpenAsync(new ClientConfig(new Uri(Text(config,"url")), Profile.NativeV1, timeoutMillis: 10000), new Credential(realm, Number(c,"principal"), Text(config,"seed_file")), connection);
+        C.Connection connection = new(new ProcessRef(realm, Number(c,"owner")), new C.Scope(new ResourceRef(realm, Number(s,"resource")), Wide(s,"catalog")), c["role"]?.GetValue<ulong>(), c["namespace"]?.GetValue<ulong>() ?? 1);
+        return C.Client.OpenAsync(new ClientConfig(new Uri(Text(config,"url")), Profile.NativeV1, timeoutMillis: 10000), new Credential(realm, Number(c,"principal"), Text(config,"seed_file")), connection, config["table_service_url"]?.GetValue<string>());
     }
     static void Persist(string path, byte[] bytes) {
         FileStreamOptions options = new() { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
@@ -54,7 +54,7 @@ static class Program
     static async Task<JsonObject> Scenario(C.Client client, JsonNode config, string root, ulong index) {
         ulong start = 1100 + index * 100, objectId = 12001 + index * 10; string name = $"sdk_people_{index}";
         C.Identity Id(ulong offset) => new(start + offset, start + offset + 100000);
-        var description = await client.DescribeAsync(); Check(description.Configuration.Scope == client.Connection.Scope && description.Policy.Principal == Number(config["connection"]!, "principal"));
+        var description = await client.DescribeAsync(); Check(description.Configuration.Scope == client.Connection.Scope && description.Subject.Principal == Number(config["connection"]!, "principal"));
         var create = await client.CompileSqlAsync($"CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", Id(0), objectId);
         Check((await Finish(client, create, root)).Phase == C.Phase.Applied);
         var original = (await client.LookupAsync(name))!; Check(original.Schema.Columns.Count == 3 && original.Schema.Columns[1].Type is L.Structure);
