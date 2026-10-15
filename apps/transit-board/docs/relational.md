@@ -37,7 +37,9 @@ Use the realm, resources, catalog IDs, owners and principal provisioned by your
 installation. All connections use Board's configured upstream and realm, one
 principal and the same signing key. The query principal differs from the
 inspection principal and application operators. Provision its native resource
-read grants and catalog inspect/read policy through the public owners.
+read grants and native database CONNECT, schema USAGE and Table SELECT through
+the public authorization operations. Each catalog connection can explicitly
+select its `role`; that role requires a current SET path from the login role.
 Configuration does not grant access. The spill directory must exist; the query
 owner creates a private file and immediately unlinks its name.
 

@@ -132,7 +132,7 @@ an explicitly configured KV decoder:
   "query": {
     "seed_file": "/run/board/query-seed",
     "connection": {
-      "realm": 71, "principal": 1234, "source": 1, "resource": 3,
+      "realm": 71, "principal": 1234, "role": null, "source": 1, "resource": 3,
       "requester": 8, "requests": 10
     },
     "workspace": {
@@ -159,6 +159,12 @@ and independent resource inspect/read grants, requester binding and source polic
 through the [query contract](../../../contracts/UNIFIED_QUERY_V1.md) and
 [query host](../../transit-query-host/README.md). Run source, requester and courier
 outside Board. Board does not acquire ownership or execute their handlers.
+For Tables, also grant CONNECT on the database, USAGE on its schema and SELECT
+on the source Table to the current login or explicitly selected `connection.role`.
+Submitted Table queries freeze that principal, role and credential epoch;
+restoring a worksheet cannot substitute a different role for accepted work.
+This configured query identity uses the privileged infrastructure-reader profile;
+its native resource grants expose more than a restricted Table-only user.
 
 Everyone admitted by the private deployment boundary shares this query identity.
 Separate instances and principals provide separate scopes. Removing `query`
