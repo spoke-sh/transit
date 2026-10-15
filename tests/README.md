@@ -289,6 +289,13 @@ packaging. `just bindings::authorization` builds the packages and runs this
 schedule in the ordinary bindings lane; native CLI/ABI/host administration also
 runs in the ordinary core lane.
 
+The [final-definition administration report](verification/results/authorization-administration-2026-10-15.json)
+records `just test::authorization-cli` passing in **10.965 s** on dirty
+`c740b001`, definition `67f02f8b…2a15e`. CLI, C ABI and host-port preparation,
+bounded apply, scoped changeset partial recovery and explicit removal pass across
+two authority/store restarts. Foreign/missing definitions reject, and stale saved
+records remain unchanged. The report retains the four executable/library hashes.
+
 The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation
