@@ -82,6 +82,24 @@ part sizes, turn bounds and stored/wire definitions are unchanged. The entire
 large-row wire proof and all ordinary clean lanes remain required at the next
 committed revision.
 
+The [C/C++ native lifetime report](verification/results/authorization-c-native-lifetime-2026-10-15.json)
+records a clean installed C client **SIGSEGV** during asynchronous close at
+`d9ead5cd`, followed by ordinary-close reproductions. A captured C++ crash has
+an unmapped instruction pointer after `libtransit_client.so` was unloaded while
+the controller is joining its SDK worker. The pinned I/O pool drains work before
+its detached threads finish returning through native code; the C/C++ loader now
+retains up to sixteen code images, matching the existing Rust/.NET policy.
+Native handles and I/O resources retain their normal close lifecycle.
+
+The new lifetime fixture fails deterministically against the old installed SDK
+when `RTLD_NOLOAD` observes no image after close. Against the corrected SDK,
+**ten repetitions** of both complete real-authority raw-client schedules pass
+in **75.928 s**, along with ten lifetime cases covering 64 closes, exact image
+reuse, bounded incompatible overrides and changed-file rejection. The C/C++
+artifact build also passes. These focused checks use modified source; the full
+Station SDK task and all final ordinary clean lanes remain required. Wire,
+stored and ABI definitions and task deadlines are unchanged.
+
 The [native gateway recovery report](verification/results/authorization-native-gateway-registration-2026-10-15.json)
 passes the complete ledger/coordinator proof in **101.228 s** after migrating
 its manually driven Table host to the existing signed object-registration

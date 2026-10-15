@@ -15,6 +15,9 @@ library beside itself. No library-path environment variable is needed.
 `native_directory` explicitly overrides native discovery. Missing symbols or
 incompatible versions produce `TRANSIT_SDK_INCOMPATIBLE_NATIVE` with a bounded
 phase. Loading a library neither discovers credentials nor starts a client.
+The shared loader retains at most sixteen native code images until process exit;
+closing a client releases its handles and I/O resources. See
+[ownership and image lifetime](docs/USAGE.md) for reuse and replacement rules.
 
 Public C SDK symbols include the current shared contract definition. Generated
 headers preserve readable source names while binding linkage to that definition;

@@ -1,9 +1,62 @@
 #include <transit/internal/support.hpp>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
 #include <dlfcn.h>
+#include <sys/stat.h>
 
 namespace transit::sdk::internal {
+namespace {
+// Threaded drains work before its detached workers return through native code.
+// Client destruction therefore cannot authorize unloading that code. Bound
+// retained images independently of client handles, as the Rust/.NET loaders do.
+constexpr size_t maximum_images = 16;
+struct LoadedImage {
+    std::string path;
+    struct stat identity{};
+    void *handle = nullptr;
+    bool stable = false;
+};
+struct Images {
+    std::mutex mutex;
+    std::array<LoadedImage, maximum_images> entries;
+    size_t count = 0;
+};
+bool same_file(const struct stat &a, const struct stat &b) {
+    return a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_size == b.st_size &&
+        a.st_mtim.tv_sec == b.st_mtim.tv_sec && a.st_mtim.tv_nsec == b.st_mtim.tv_nsec &&
+        a.st_ctim.tv_sec == b.st_ctim.tv_sec && a.st_ctim.tv_nsec == b.st_ctim.tv_nsec;
+}
+struct stat file_identity(const char *path) {
+    struct stat identity{};
+    if (stat(path, &identity) || !S_ISREG(identity.st_mode)) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-file");
+    return identity;
+}
+void *retain_image(const std::string &source) {
+    static Images images;
+    std::unique_ptr<char, decltype(&free)> resolved(realpath(source.c_str(), nullptr), free);
+    if (!resolved) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-file");
+    const std::string path(resolved.get());
+    std::lock_guard<std::mutex> lock(images.mutex);
+    const auto identity = file_identity(path.c_str());
+    for (size_t i = 0; i < images.count; ++i) {
+        const auto &entry = images.entries[i];
+        if (entry.path != path) continue;
+        if (!entry.stable || !same_file(entry.identity, identity)) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-file-changed");
+        return entry.handle;
+    }
+    if (images.count == maximum_images) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-library-capacity");
+    auto &entry = images.entries[images.count];
+    entry.path = path; // Allocate before dlopen; every loaded handle is retained.
+    entry.identity = identity;
+    entry.handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!entry.handle) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-library");
+    ++images.count;
+    entry.stable = same_file(identity, file_identity(path.c_str()));
+    if (!entry.stable) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-file-changed");
+    return entry.handle;
+}
+}
 Library::Library(const char *directory, const char *name) {
     std::string base;
     if (directory) base = text(directory, 4096);
@@ -17,10 +70,9 @@ Library::Library(const char *directory, const char *name) {
         base = file.substr(0, separator);
     }
     require(!base.empty(), "native-directory");
-    handle = dlopen((base + "/" + name).c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (!handle) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-library");
+    handle = retain_image(base + "/" + name);
 }
-Library::~Library() { if (handle) dlclose(handle); }
+Library::~Library() = default;
 void *Library::symbol(const char *name) const {
     auto *address = dlsym(handle, name);
     if (!address) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-symbols");

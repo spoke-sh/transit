@@ -48,6 +48,18 @@ def run(node, cli, library, artifacts):
             subprocess.run(['zig', 'cc', '-shared', '-fPIC', f'-I{prefix / "include"}', fake, '-o', wrong / 'libtransit_client.so'], env=environment, cwd=target, check=True)
             fake.unlink()
             assert not (prefix / 'lib/libtransit_station.so').exists()
+            if language == 'C':
+                lifetime = target / 'native-lifetime'
+                source_path = target / 'c_native_lifetime.c'
+                shutil.copyfile(root / 'tests/c_native_lifetime.c', source_path)
+                subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', source_path,
+                                *flags, '-lpthread', '-ldl', '-o', lifetime], env=environment, cwd=target, check=True)
+                source_path.unlink()
+                images = target / 'images'
+                for index in range(16):
+                    directory = images / str(index); directory.mkdir(parents=True)
+                    shutil.copyfile(wrong / 'libtransit_client.so', directory / 'libtransit_client.so')
+                subprocess.run([lifetime, prefix / 'lib', images], env=environment, cwd=target, check=True, timeout=30)
             def invoke(mode, config):
                 value = json.loads(Path(config).read_bytes())
                 return subprocess.check_output([binary, mode, value['url'], value['seed'], str(value['pid']), value['pending'], value['spawn'], value['accepted'], wrong], env=environment, cwd=target, timeout=30)

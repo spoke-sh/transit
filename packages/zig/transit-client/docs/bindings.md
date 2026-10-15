@@ -59,6 +59,13 @@ a host await does not cancel a native call, commit or remote operation. Deadline
 handling joins native I/O before returning. A future asynchronous adapter must
 preserve these ownership and uncertainty rules.
 
+Keep a loaded native library mapped until process exit. The pinned I/O pool
+drains work before its detached threads finish returning through native code;
+destroying all handles does not make `dlclose` safe. Host loaders must bound and
+reuse retained images separately from handle ownership. Installed C/C++, Rust
+and .NET loaders enforce a sixteen-image limit; native handles and buffers still
+have their ordinary explicit release lifecycle.
+
 Each native handle retains its bounded two-worker I/O pool. Sequential calls can
 observe completed workers before the scheduler releases their slots; acquisition
 waits within the same request deadline instead of expanding the pool or retrying

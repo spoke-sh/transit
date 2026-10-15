@@ -23,6 +23,20 @@ It is idempotent and leaves the handle valid for repeated close observations.
 `client_destroy` requires exclusive ownership, closes and releases the handle.
 Use-after-destroy is a C memory error, not a recoverable SDK error.
 
+Native code images remain mapped until process exit. The shared loader reuses
+each canonical library path and admits at most sixteen distinct images,
+including Station and incompatible overrides. Further images fail with
+`TRANSIT_SDK_INCOMPATIBLE_NATIVE` at `native-library-capacity`; this does not
+limit client handles. Changes to a loaded file's identity, size or timestamps
+fail at `native-file-changed`. Native artifacts are immutable for a process;
+replace the process to use replacement artifacts, and keep its SDK loaded for
+that lifetime.
+
+Close still drains owned I/O, stops the SDK worker and releases native handles
+and buffers. Code retention covers the pinned Zig pool's detached-thread exit
+instructions after it reports drained work; that report does not make unloading
+its library safe. It grants no execution rights and retains no client credential.
+
 Preparation copies payload bytes. A pending handle owns exact signed retry bytes
 and native-validated metadata, independently of its client or credential file.
 Export returns another owned copy; release it with `transit_sdk_buffer_release`.
