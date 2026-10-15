@@ -33,6 +33,17 @@ are still pending at this checkpoint. These measured phases and the older clean
 task totals justify execution headroom; they are not a full current-suite or
 hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
 
+The [complete SQL wire preflight](verification/results/authorization-sql-wire-complete-2026-10-15.json)
+passes at committed `3d07caaf` with the same definition. The main suite takes
+**6,063.8 s** and the separate fresh-fixture `psql`/MySQL CLI workflow takes
+**297.559 s**. The original 40 KiB write completes after **3,396.781 s** with one
+SQL attempt, exactly one applied row and all ten cells verified in both protocols;
+the SQL wait has already ended. Selected-role revocation, prepared-write denial,
+credential/TLS rotation, schema/name-reuse invalidation, capacity and joined drain
+also pass. The report retains the exact source, observations and complete log
+hash. It replaces the failed preflight, while the final committed-source growth
+lane must independently run the entire task.
+
 The first clean core attempt found two simulation observers still reading the
 removed resource-grant record. They now project effective permissions from the
 current role graph; the independent model retains disabled-role denial.
