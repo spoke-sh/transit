@@ -1,0 +1,19 @@
+.{
+    .name = .transit_sdk,
+    .fingerprint = 0xb9b8eff3bb16d7b3,
+    .version = "0.2.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_client = .{ .path = "../../packages/zig/transit-client" },
+        .transit_protocol = .{ .path = "../../packages/zig/transit-protocol" },
+        .transit_station = .{ .path = "../../packages/zig/transit-station" },
+        .transit_station_document = .{ .path = "../../packages/zig/transit-station-document" },
+        .transit_station_http = .{ .path = "../../packages/zig/transit-station-http" },
+        .transit_station_grpc = .{ .path = "../../packages/zig/transit-station-grpc" },
+        .transit_query = .{ .path = "../../packages/zig/transit-query" },
+        .transit_catalog = .{ .path = "../../packages/zig/transit-catalog" },
+        .transit_fuze = .{ .path = "../../packages/zig/transit-fuze" },
+        .transit_station_app = .{ .path = "../../packages/zig/transit-station-app" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "README.md", "tests" },
+}

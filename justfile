@@ -72,6 +72,7 @@ check-core:
     python3 -B tests/relational.py
     python3 -B tests/table_storage.py
     python3 -B tests/table_catalog.py
+    python3 -B tests/sdk_layout.py
     python3 -B tests/ci_runner.py
     python3 -B tests/reference_launcher_state.py
     python3 -B tests/verification/check.py
@@ -81,7 +82,7 @@ check-core:
     just test::diagnostic-outcomes
     just test::diagnostic-grammar
     nix flake check
-    zig fmt --check build.zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
+    zig fmt --check build.zig sdks/zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
     just contract::check
     just test::unit
     just test::cli-diagnostics
@@ -96,5 +97,5 @@ ci-clean *args:
 # Format Nix, Zig and frontend source/documentation without regenerating contracts.
 fmt:
     nixfmt flake.nix nix/*.nix
-    zig fmt build.zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
+    zig fmt build.zig sdks/zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
     just transit-board::fmt

@@ -390,3 +390,12 @@ catalog-dotnet: dotnet-build
 catalog-beam: beam-build
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
     just test::typed-tables --cold --sdk erlang --sdk elixir
+
+# Compile and run the public Zig SDK and a separately built application.
+zig-test:
+    cd sdks/zig && zig build test
+    python3 -B tests/sdk_zig.py
+
+# Build the runtime in an isolated source tree that contains no SDKs.
+runtime-boundary:
+    python3 -B tests/sdk_runtime.py

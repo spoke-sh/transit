@@ -137,6 +137,10 @@ established behavior, limits and reasoning into the public owner with the change
   Telemetry loss or failure must not change authority or stall control progress.
 - Keep Kubernetes/Substrate as the reference runtime and AX excluded. Providers
   handle physical lifecycle; durable Transit history remains execution authority.
+- Put consumer language SDKs and native distribution packages in `sdks/<language>/`.
+  Keep runtime apps and shared implementation in `apps/` and `packages/`; they
+  must not depend on SDKs. Board and its browser libraries stay with the runtime.
+  SDKs may depend on shared packages. Use the public Zig SDK for consumer examples.
 - Give real libraries their own manifests, direct dependencies, modules, and
   checks; use package interfaces rather than sibling source imports. Entry points
   compose them. Add directories only for real work. Test the real example binaries.

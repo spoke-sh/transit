@@ -4,6 +4,7 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_sdk = .{ .path = "sdks/zig", .lazy = true },
         .transit_station_app = .{ .path = "packages/zig/transit-station-app" },
         .transit_http_server = .{ .path = "packages/zig/transit-http-server" },
         .transit_serving_http = .{ .path = "packages/zig/transit-serving-http" },
@@ -36,5 +37,5 @@
         .transit_client = .{ .path = "packages/zig/transit-client" },
         .transit_runtime_substrate = .{ .path = "packages/zig/transit-runtime-substrate" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "packages", "third_party", "apps", "tests", "examples" },
+    .paths = .{ "build.zig", "build.zig.zon", "packages", "sdks", "third_party", "apps", "tests", "examples" },
 }
