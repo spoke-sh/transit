@@ -503,6 +503,19 @@ the unchanged fresh lifecycle passing in **1,237.070 s**. That successful rerun
 does not establish the earlier unavailable response's cause. Final committed
 clean-source qualification remains separate.
 
+The [serving lease-maintenance report](verification/results/authorization-serving-lease-2026-10-15.json)
+retains a clean `6ecf24fa` attempt whose post-revocation snapshot returns
+`reactive.session_expired` instead of the expected access denial. The fixture now
+renews its unchanged **28-second** lease around credential, membership and SELECT
+revocation, including an independent renewal after SELECT is removed. The
+complete serving proof passes in **499.140 s** on that source plus the recorded
+fixture correction. Its eight renewals retain **22,461–24,315 ms** of lease time
+on return; snapshots, SSE/WebSocket denial and gateway recovery pass. The complete
+TLS refresh task also passes in **398.894 s**, with a **159.12 s** runtime schedule
+and one actual native-capacity response recovered through an exact command retry.
+These fixture measurements do not establish latency guarantees. Expiry remains
+an independent lifecycle outcome, and final committed-source checks are separate.
+
 The [Flight authorization report](verification/results/authorization-flight-2026-10-14.json)
 records the real TLS PyArrow and ADBC C/Python suite passing with original-subject
 query bundles and role-bound tickets. Its 41-row finite statement/retry schedule

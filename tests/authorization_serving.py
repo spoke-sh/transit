@@ -114,12 +114,18 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
                  generation=generation, subscription=1, subscription_generation=subscription_generation)
     read = dict(scope=scope, kind='snapshot', attachment=1, nonce=nonce, cursor=None)
 
-    def maintain():
+    lease_renewals = []
+
+    def maintain(stage):
         nonlocal lease
+        started = time.monotonic()
         now = int(time.time()*1000)
         cast(b'SV1c\5\1'+struct.pack('<Q', now))
         previous, lease = lease, now+28000
         control({'renew': dict(identity=identity, expected=previous, lease_before_ms=lease)})
+        remaining = lease-int(time.time()*1000)
+        assert remaining > 0, ('lease elapsed during renewal', stage, remaining)
+        lease_renewals.append(dict(stage=stage, seconds=round(time.monotonic()-started, 3), remaining_ms=remaining))
 
     def signed_read():
         return client({'sign_read': read})['signed_read']
@@ -164,6 +170,7 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
     missing = copy.deepcopy(current)
     del missing['proof']['claim']['definition']
     snapshot(missing, 400)
+    maintain('before_credential_rotation')
     replacement_key, replacement_public = system.key('watch-replacement')
     apply({'rotate_credential': dict(principal=principal,
         expected_epoch=current['proof']['claim']['credential_epoch'], public_key=replacement_public)})
@@ -172,12 +179,13 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
     config['role']['gateway']['callers'][0]['public_key'] = replacement_public
     config['role']['gateway']['viewer']['seed_file'] = str(replacement_key)
     gateway = start_gateway()
-    maintain()
+    maintain('after_credential_rotation')
     assert client({'observe': opened})['observation'] == {'committed': {}}
     snapshot(signed_read())
-    maintain()
+    maintain('before_sse')
     stream = open_stream()
     retained = signed_read()
+    maintain('before_membership_revocation')
     apply({'revoke_membership': dict(id=membership, option='set', behavior='restrict')})
     terminal = stream.until('terminal')
     assert terminal['reason'] == 'denied', terminal
@@ -185,17 +193,21 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
     snapshot(retained, 403)
     client({'sign_read': read}, 403)
     apply({'membership': dict(member=role, role=selected, admin=False, inherit=False, set=True)})
-    maintain()
+    maintain('after_membership_restoration')
     snapshot(signed_read())
     stream = open_stream(websocket=True)
+    maintain('before_select_revocation')
     apply({'revoke': dict(id=select, privileges=1, grant_option_only=False, behavior='cascade')})
     terminal = stream.until('terminal')
     assert terminal['reason'] == 'denied', terminal
     stream.close()
+    # Renewal is an independent control. Keep the session live so the next
+    # assertion distinguishes current SELECT denial from lease expiry.
+    maintain('before_revoked_snapshot')
     snapshot(signed_read(), 403)
     gateway.kill(); gateway.wait(timeout=10)
     gateway = start_gateway()
-    maintain()
+    maintain('after_gateway_restart')
     snapshot(signed_read(), 403)
     # Session inspection remains an independent service-policy operation.
     session_read = dict(read, kind='session', attachment=0, nonce=[0]*16)
@@ -207,4 +219,5 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
     print('Serving authorization: private snapshots, no native inspection, proof tampering, credential rotation, exact control recovery, revoke and gateway restart passed.', flush=True)
     return dict(principal=principal, raw_access_denied=True, credential_rotation=True,
                 exact_control_recovery=True, source_revocation=True, sse_revocation=True, websocket_revocation=True, selected_role=selected, membership_revocation=True,
-                snapshot_seconds=snapshot_seconds, gateway_resident_bytes=resident_bytes, gateway_restarts=2)
+                snapshot_seconds=snapshot_seconds, gateway_resident_bytes=resident_bytes, gateway_restarts=2,
+                lease_renewals=lease_renewals)

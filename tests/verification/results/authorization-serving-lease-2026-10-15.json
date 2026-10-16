@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "source_revision": "6ecf24fad2c3313fb2a0dbcf7bb4683b4a3ce4c5",
+  "tracked_changes": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "correction": "Renew the existing 28-second session lease around credential, membership and SELECT-revocation phases. Verify positive remaining lease time after each committed renewal. No product or lease-limit change.",
+  "prior_attempt": {
+    "source_revision": "6ecf24fad2c3313fb2a0dbcf7bb4683b4a3ce4c5",
+    "tracked_changes": false,
+    "task": "test::authorization-serving",
+    "exit_code": 1,
+    "seconds": 431.913,
+    "log_sha256": "166273afa224b0e0908905268c6fa5ec55b4d9b96ca8dc4605fe0671edc440ba",
+    "expected_http_status": 403,
+    "actual_http_status": 410,
+    "diagnostic": "reactive.session_expired",
+    "location": "Snapshot after WebSocket SELECT-revocation denial; session lease expired before the snapshot assertion."
+  },
+  "preflight": {
+    "source_revision": "6ecf24fad2c3313fb2a0dbcf7bb4683b4a3ce4c5",
+    "tracked_changes": true,
+    "modified_fixture_files": {
+      "tests/authorization_serving.py": "871c6dc488150aff6130a53ceb35bcdf1dc45b2d9648931a9b277d8d60365d26"
+    },
+    "completed": true,
+    "results": [
+      {
+        "task": "test::authorization-serving",
+        "exit_code": 0,
+        "seconds": 499.14,
+        "log": "/tmp/rey-auth-lease-test-authorization-serving.log",
+        "log_sha256": "092cae4743d409b4ab3672d2f7def3a8dd3b99d62f73269a688d7d7bf99b5e93"
+      },
+      {
+        "task": "test::reactive-refresh",
+        "exit_code": 0,
+        "seconds": 398.894,
+        "log": "/tmp/rey-auth-lease-test-reactive-refresh.log",
+        "log_sha256": "50095d245da741228116ac5a69426692acd0dc02b2b9ff946888e2affe9783f1"
+      }
+    ],
+    "scope": "Focused lease-maintenance fixture preflight on unchanged product code and current definition; not committed clean-source qualification."
+  },
+  "serving": {
+    "principal": 107,
+    "raw_access_denied": true,
+    "credential_rotation": true,
+    "exact_control_recovery": true,
+    "source_revocation": true,
+    "sse_revocation": true,
+    "websocket_revocation": true,
+    "selected_role": 46,
+    "membership_revocation": true,
+    "snapshot_seconds": 4.717897505033761,
+    "gateway_resident_bytes": 46620672,
+    "gateway_restarts": 2,
+    "lease_renewals": [
+      {
+        "stage": "before_credential_rotation",
+        "seconds": 3.685,
+        "remaining_ms": 24315
+      },
+      {
+        "stage": "after_credential_rotation",
+        "seconds": 3.684,
+        "remaining_ms": 24315
+      },
+      {
+        "stage": "before_sse",
+        "seconds": 4.146,
+        "remaining_ms": 23854
+      },
+      {
+        "stage": "before_membership_revocation",
+        "seconds": 5.432,
+        "remaining_ms": 22568
+      },
+      {
+        "stage": "after_membership_restoration",
+        "seconds": 4.063,
+        "remaining_ms": 23937
+      },
+      {
+        "stage": "before_select_revocation",
+        "seconds": 5.538,
+        "remaining_ms": 22461
+      },
+      {
+        "stage": "before_revoked_snapshot",
+        "seconds": 3.975,
+        "remaining_ms": 24025
+      },
+      {
+        "stage": "after_gateway_restart",
+        "seconds": 3.793,
+        "remaining_ms": 24207
+      }
+    ]
+  },
+  "binaries": {
+    "node": "edae43d6f64aaf52c8ae0aea501e9c9e2bf8ad7227b8af3526494513434c990b",
+    "cli": "a8b7e77ad261067369e26370ad370cae046e57eb220f1f9039c30c5cbfdb6c3a",
+    "host": "a4cff4b7662d527b0dd57d3d2ebce6361a9ca2ab9c1f70aa72026fbf6c54cf63",
+    "service": "c3ff291c0114136f0ce7ea95d4d42f6c1a2a0cee550ffb32dab75288f85f346f",
+    "transit": "242b981a07991412c6e3728b163cb2c1b529e6c34ee265c41884b8bcbe2e5001",
+    "serving_example": "0077cb570060ae68e951efbbdf1cf481baeef47148d88486d0d1a6cfca6889e8"
+  },
+  "reactive_refresh": {
+    "runtime_seconds": 159.12,
+    "actual_native_capacity_retries": 1,
+    "scope": "Complete TLS refresh schedule. One runtime native-capacity response retries the exact command using the previously committed fixture correction; separate unit-test retry output is excluded."
+  },
+  "limits": [
+    "Source includes one uncommitted fixture correction; final committed-source qualification is separate.",
+    "Lease observations are local fixture measurements, not latency guarantees.",
+    "Session expiry remains a valid lifecycle outcome; the fixture maintains a live session to isolate current authorization denial."
+  ]
+}
