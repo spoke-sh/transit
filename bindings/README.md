@@ -30,6 +30,13 @@ ownership. See [caller semantics](../docs/reference/callers.md).
 exports. `just bindings::check` detects drift. No legacy generic handler package,
 compatibility alias or alternative protocol profile is installed.
 
+## Source ownership
+
+Language APIs and native distribution manifests live in [sdks/](../sdks/README.md).
+Shared Zig implementation and generated ABI owners stay in `packages/zig/`;
+this directory owns generation and packaging tools. The Zig SDK exports those
+shared modules directly. No runtime package imports the SDK tree.
+
 ## Build and verification
 
 Enter `nix develop .#bindings` for the locked language tools. These packages target
@@ -45,6 +52,8 @@ definition and build. Omitting the option uses this checkout's `zig-out/`.
 
 | Task | Work |
 | --- | --- |
+| `just bindings::zig-test` | Shared module identity and isolated real Zig application build |
+| `just bindings::runtime-boundary` | Nix runtime and gateway build without SDK source |
 | `just bindings::build` | Shared client/Station libraries and native hosts |
 | `just bindings::native` | Native/port parity, scoped turns, exact recovery, query capture and checkpoint/tail materialization |
 | `just bindings::python-test` | Strict Python APIs and clean installed wheel consumers |

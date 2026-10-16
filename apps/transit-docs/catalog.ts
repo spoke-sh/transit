@@ -1,3 +1,4 @@
+import { sdkSections } from "./sdk-catalog";
 import { internalsSections } from "./internals-catalog";
 
 // Usage documentation and Internals share sources, routes and search.
@@ -92,14 +93,6 @@ export const sections: Section[] = [
         "reference/query-compatibility",
         "Query compatibility",
       ),
-    ],
-  },
-  {
-    label: "SDKs",
-    pages: [
-      reference("sdks", "Language SDKs"),
-      reference("callers", "Caller and SDK semantics"),
-      reference("station", "Behaviors and supervision"),
     ],
   },
   {
@@ -203,7 +196,8 @@ export const sections: Section[] = [
     ],
   },
 ];
-export const handbookPages = sections.flatMap((section) => section.pages);
+export const sdkPages = sdkSections.flatMap((section) => section.pages);
+export const handbookPages = [...sections.flatMap((section) => section.pages), ...sdkPages];
 export const internalsPages = internalsSections.flatMap((section) => section.pages);
 export const pages = [...handbookPages, ...internalsPages];
 export const docId = (entry: Page): string => entry.source.replace(/\.md$/, "");

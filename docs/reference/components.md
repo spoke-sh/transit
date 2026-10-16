@@ -4,6 +4,13 @@ Use these package interfaces to find APIs, configuration and implementation
 ownership. Libraries do not imply separate processes; entry points compose them.
 The [architecture](architecture.md) explains dependency direction and authority.
 
+## Consumer SDKs
+
+Language APIs and native distribution packages live in [sdks/](../../sdks/README.md).
+The [SDK handbook](sdks.md) groups installation and client/framework guides by
+language. Zig consumers use the [SDK entry package](../../sdks/zig/README.md);
+the implementations listed below remain shared runtime libraries.
+
 ## Libraries
 
 | Package / module | Owns | Direct package dependencies |

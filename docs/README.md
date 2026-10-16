@@ -9,7 +9,7 @@ users, contributors and agents. Start with [What is Transit?](guides/introductio
 
 The site navigation starts with the interfaces: CLI, SQL, SDKs, HTTP APIs/OpenAPI,
 reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol. Internals sits
-alongside these entry points for architecture, mechanisms and technical evidence. Each
+alongside these entry points for architecture, mechanisms and technical evidence. SDKs has its own sidebar with shared caller semantics and language installation pages. Each
 interface section groups its usage guides and exact contracts. Core concepts, application state
 and operations remain shared references below those entry points.
 
@@ -74,6 +74,7 @@ preserve the actual support boundary.
 | --- | --- |
 | `docs/guides/` | Runnable user and contributor workflows |
 | `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled grammar targets, workload priorities and performance improvement plans |
+| `sdks/<language>/` READMEs and guides | Consumer language installation and API documentation; the handbook SDK sidebar reads these owners directly |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |

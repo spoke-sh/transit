@@ -5,6 +5,10 @@ operations, read capabilities and preserve exact recovery. Station adds typed
 messages, private turns, Tables and handler runners. Shared protocol and framework
 semantics stay in Zig; host packages own language types, codecs and scheduling.
 
+Choose a language below for installation and its client/framework guides.
+The handbook SDK section has its own sidebar and shares search with the other
+interfaces. Source ownership is described in the [SDK directory](../../sdks/README.md).
+
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../examples/station-sdk/README.md).
 Packages are not distributed through public registries.
@@ -15,17 +19,17 @@ in Rust, and Document/effect workflows in Zig, with complete source and run comm
 
 | Language | Raw client | Framework |
 | --- | --- | --- |
-| Zig | [transit-client](../../packages/zig/transit-client/README.md) | [transit-station](../../packages/zig/transit-station/README.md) |
-| Python | [transit-client](../../sdks/python/transit-client/README.md) | [transit-station](../../sdks/python/transit-station/README.md) |
-| TypeScript / Node.js | [transit-client](../../sdks/ts/transit-client/README.md) | [transit-station](../../sdks/ts/transit-station-sdk/README.md) |
-| Rust | [transit-client](../../sdks/rust/transit-client/README.md) | [transit-station](../../sdks/rust/transit-station-sdk/README.md) |
-| Ruby | [transit-client](../../sdks/ruby/transit-client/README.md) | [transit-station](../../sdks/ruby/transit-station/README.md) |
-| C | [transit-client](../../sdks/c/transit-client/README.md) | [transit-station](../../sdks/c/transit-station/README.md) |
-| C++ | [transit-client](../../sdks/cpp/transit-client/README.md) | [transit-station](../../sdks/cpp/transit-station-sdk/README.md) |
-| Java | [transit-client](../../sdks/java/transit-client/README.md) | [transit-station](../../sdks/java/transit-station-sdk/README.md) |
-| .NET | [transit-client](../../sdks/dotnet/transit-client/README.md) | [transit-station](../../sdks/dotnet/transit-station-sdk/README.md) |
-| Erlang | [transit-client](../../sdks/beam/transit-client/README.md) | [transit-station](../../sdks/beam/transit-station-sdk/README.md) |
-| Elixir | [transit-client](../../sdks/beam/transit-client-elixir/README.md) | [transit-station](../../sdks/beam/transit-station-elixir/README.md) |
+| [Zig](../../sdks/zig/README.md) | [transit_client](../../sdks/zig/README.md) | [transit_station](../../sdks/zig/README.md) |
+| [Python](../../sdks/python/README.md) | [transit-client](../../sdks/python/transit-client/README.md) | [transit-station](../../sdks/python/transit-station/README.md) |
+| [TypeScript / Node.js](../../sdks/ts/README.md) | [transit-client](../../sdks/ts/transit-client/README.md) | [transit-station](../../sdks/ts/transit-station-sdk/README.md) |
+| [Rust](../../sdks/rust/README.md) | [transit-client](../../sdks/rust/transit-client/README.md) | [transit-station](../../sdks/rust/transit-station-sdk/README.md) |
+| [Ruby](../../sdks/ruby/README.md) | [transit-client](../../sdks/ruby/transit-client/README.md) | [transit-station](../../sdks/ruby/transit-station/README.md) |
+| [C](../../sdks/c/README.md) | [transit-client](../../sdks/c/transit-client/README.md) | [transit-station](../../sdks/c/transit-station/README.md) |
+| [C++](../../sdks/cpp/README.md) | [transit-client](../../sdks/cpp/transit-client/README.md) | [transit-station](../../sdks/cpp/transit-station-sdk/README.md) |
+| [Java](../../sdks/java/README.md) | [transit-client](../../sdks/java/transit-client/README.md) | [transit-station](../../sdks/java/transit-station-sdk/README.md) |
+| [.NET](../../sdks/dotnet/README.md) | [transit-client](../../sdks/dotnet/transit-client/README.md) | [transit-station](../../sdks/dotnet/transit-station-sdk/README.md) |
+| [Erlang](../../sdks/beam/README.md) | [transit-client](../../sdks/beam/transit-client/README.md) | [transit-station](../../sdks/beam/transit-station-sdk/README.md) |
+| [Elixir](../../sdks/beam/README.md) | [transit-client](../../sdks/beam/transit-client-elixir/README.md) | [transit-station](../../sdks/beam/transit-station-elixir/README.md) |
 
 The ten non-Zig language targets use the shared native boundary. Browser clients
 use separate generated, runtime-validated [query](../../packages/ts/transit-query-client/README.md),

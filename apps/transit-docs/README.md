@@ -23,14 +23,16 @@ There is no dependency on Board's runtime or a running Transit installation.
 
 ## Sources and navigation
 
-`catalog.ts` and `internals-catalog.ts` map each owned Markdown file to a readable route and sidebar label.
+`catalog.ts`, `sdk-catalog.ts` and `internals-catalog.ts` map each owned Markdown file to a readable route and sidebar label.
 Top-level sections follow the homepage's interface entry points: CLI, SQL, SDKs,
 HTTP APIs/OpenAPI, reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol.
 Usage guides and wire contracts sit with their interface; shared concepts,
 application state and operation have their own sections. Existing page routes
 stay stable when their navigation location changes. Internals has a navbar entry
 beside CLI, SQL and SDKs and its own compact sidebar for nine scientific
-accounts, the overview, standard and template. All sections share the same site and search index.
+accounts, the overview, standard and template. SDKs has its own sidebar with foundations and installation guides for each language,
+read directly from `sdks/<language>/README.md`. Detailed API links retain their
+component owners. All sections share the same site and search index.
 
 The [SQL reference](../../docs/reference/sql.md) indexes every statement in the
 checked query/extension grammar, its historical-read fragment and the separate

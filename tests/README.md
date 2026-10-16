@@ -1,5 +1,34 @@
 # Validation and milestone evidence
 
+## SDK source and runtime boundary
+
+The [SDK directory](../sdks/README.md) owns consumer APIs; shared runtime
+implementation remains under `apps/` and `packages/`. These gates cover the
+source split without changing the protocol definition:
+
+- `python3 -B tests/sdk_layout.py` rejects runtime manifest/import dependencies
+  on SDKs, with negative controls for Zig paths, TypeScript imports, package
+  dependencies and compiler aliases. It does not parse arbitrary build scripts.
+- `just bindings::zig-test` checks exact shared module identity, then copies
+  tracked SDK/shared/example source into an isolated directory, builds the real
+  work-items worker/operator through its SDK dependency and runs its manifest
+  command. It does not simulate a separately published Zig archive.
+- `just bindings::runtime-boundary` asserts the actual Nix source has no SDK or
+  language SDK example tree, builds the native runtime and SQL gateway offline
+  from their pinned dependencies and runs the installed public CLI help paths.
+- Existing binding lanes build and exercise installed language packages after
+  relocation; native generation still compares against shared Zig contracts.
+- Handbook browser proofs exercise SDK navigation and search alongside mobile,
+  diagram and interface pages. Run with both root and prefixed hosting.
+
+The source/consumer preflight, unchanged binding generation, `just doctor` and
+`just check` passed during the October 16 layout work. These workspace runs are
+not clean-checkout evidence. The committed-source gate includes all 88 ordinary
+tasks across six lanes, including the two new SDK checks in core; lane timings
+and completion are retained under `.cache/ci/clean/` and reported in the PR.
+A failed or incomplete lane does not qualify the complete inventory.
+
+
 ## Declarative authorization evaluator
 
 The [admission-bound recovery report](verification/results/authorization-admission-recovery-2026-10-15.json)
