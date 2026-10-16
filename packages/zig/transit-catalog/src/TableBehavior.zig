@@ -9,6 +9,8 @@ const Command = c.TableCommand;
 const Self = @This();
 allocator: std.mem.Allocator,
 configuration: c.TableCatalogRecords.Configuration,
+registration: ?p.Authorization.Action = null,
+namespace: ?u64 = null,
 pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
@@ -16,7 +18,7 @@ pub fn guard(self: *Self) s.GenServer.InputGuard {
     return .{ .context = self, .reject = rejectInput };
 }
 fn catalog(self: *Self) c.TableCatalog {
-    return .{ .configuration = self.configuration };
+    return .{ .configuration = self.configuration, .registration = &self.registration, .namespace = self.namespace };
 }
 fn uploads(self: *Self) c.TableUpload {
     return .{ .catalog = self.catalog() };
@@ -88,8 +90,8 @@ fn rejectInput(raw: ?*anyopaque, turn: *s.Turn) !bool {
         return false;
     }
     if (!std.meta.eql(try command.scope(), self.configuration.scope)) return self.disposition(turn, .identity_conflict);
-    if (turn.delivery.input.origin != .external and !(command == .drive and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == self.configuration.owner)) return self.disposition(turn, .denied);
-    if ((command == .initialize or command == .policy or command == .dependency) and !self.administrator(turn)) return self.disposition(turn, .denied);
+    if (turn.delivery.input.origin != .external and !((command == .drive or command == .schema) and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == self.configuration.owner)) return self.disposition(turn, .denied);
+    if ((command == .initialize) and !self.administrator(turn)) return self.disposition(turn, .denied);
     return false;
 }
 fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
@@ -97,6 +99,8 @@ fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
     if (!try self.check(turn)) return error.UninitializedCatalog;
     if (frame.kind != .cast) return error.InvalidCatalogCommand;
     const before = turn.decision;
+    self.registration = null;
+    self.namespace = null;
     self.apply(turn, frame.payload) catch |err| {
         turn.decision = before;
         if (turn.read_error != null) return err;
@@ -104,7 +108,8 @@ fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
             error.CatalogDenied => .denied,
             error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.PublicationIdentityConflict => .identity_conflict,
             error.CatalogPolicyConflict => .stale_policy,
-            error.InvalidCatalogCommand, error.InvalidTableCommand, error.InvalidTableUploadPart => .invalid_command,
+            error.InvalidCatalogCommand, error.InvalidTableCommand, error.InvalidTableUploadPart, error.InvalidSchemaCommand => .invalid_command,
+            error.CatalogSchemaMissing => .blocked,
             error.CatalogDefinitionChanged, error.CatalogSourceChanged, error.TableRetired, error.TableBusy, error.TableNotFound, error.CatalogOperationNotFound, error.TableWriteNotFound, error.TableUploadNotFound, error.TableUploadNotSealed, error.TableUploadNotReady, error.TableUploadClosed, error.TableUploadGap, error.IncompletePublication, error.TableUploadStillActive, error.CatalogCleanupNotClosed, error.PublicationQuotaExceeded, error.PublicationTooLarge, error.CatalogAlreadyPopulated, error.CatalogDependencyConflict, error.CatalogDefinitionMissing => .blocked,
             else => return err,
         };
@@ -123,10 +128,6 @@ fn apply(self: *Self, turn: *s.Turn, payload: p.Value) !void {
             if (!self.initializer(turn, command)) return error.CatalogDenied;
             if (try turn.read(self.catalog().key('e', turn.delivery.input.position, 0)) == null) try self.catalog().initialize(turn);
             _ = try self.disposition(turn, .initialized);
-        },
-        .policy => |change| {
-            try self.catalog().setPolicy(turn, change.expected_revision, change.policy);
-            _ = try self.disposition(turn, .policy_applied);
         },
         .dependency => |change| {
             try self.catalog().setDependency(turn, change.dependency, change.present);
@@ -154,14 +155,20 @@ fn apply(self: *Self, turn: *s.Turn, payload: p.Value) !void {
         },
         .cancel_upload => |value| _ = try self.uploads().cancel(turn, value.namespace),
         .collect_upload => |value| _ = try self.uploads().collect(turn, value.namespace),
+        .schema => |value| {
+            const result = try (c.SchemaCatalog{ .configuration = self.configuration, .registration = &self.registration }).apply(turn, value);
+            if (result.state == .scanning) try turn.cast(self.configuration.owner, try command.encode());
+        },
     }
 }
 fn inlineCommand(self: *Self, turn: *s.Turn, payload: p.Value) !void {
     const header = try Command.inspect(payload.slice());
+    self.namespace = header.namespace;
     const continuation = turn.delivery.input.origin == .process;
     if (continuation) {
         if (turn.delivery.input.origin.process.pid != self.configuration.owner) return error.CatalogDenied;
     } else if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != header.principal) return error.CatalogDenied;
+    try self.catalog().bindCommand(turn, header);
     var basis = try self.catalog().commandBasis(self.allocator, turn, header.principal, header, .execute);
     defer if (basis) |*value| value.deinit();
     var command = Command.decode(self.allocator, payload.slice(), if (basis) |*value| value.borrow() else null) catch |err| switch (err) {

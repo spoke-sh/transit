@@ -4,7 +4,7 @@ const t = std.testing;
 const c = @import("root.zig");
 const m = c.TableCatalogRecords;
 const Store = @import("TestStore.zig");
-const owner: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 32768, .staging_records = 8 } } };
+const owner: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = 4096, .staging_bytes = 32768, .staging_records = 8 } } };
 const caller = 19;
 const Accepted = struct { request: c.TableDdlRequest, outcome: c.TableCatalog.Outcome };
 
@@ -14,12 +14,12 @@ fn writes(turn: *const c.station.Turn) usize {
     return result;
 }
 fn rights(store: *Store, revision: *u64, inspect_allowed: bool, create_allowed: bool) !void {
-    var turn = try store.capture(17);
-    var policy = try m.Policy.administrator(owner.configuration.scope, caller);
+    const turn = try store.capture(17);
+    var policy = try Store.Rights.administrator(owner.configuration.scope, caller);
     policy.revision = revision.* + 1;
     policy.inspect = inspect_allowed;
     policy.create = create_allowed;
-    try owner.setPolicy(&turn, revision.*, policy);
+    try store.setRights(policy);
     try store.commit(turn);
     revision.* += 1;
 }
@@ -37,6 +37,7 @@ fn inspect(store: *Store, accepted: []const Accepted) !void {
     var turn = try store.capture(caller);
     var created: usize = 0;
     for (accepted) |record| {
+        turn = try store.capture(caller);
         const request = record.request;
         try t.expectEqualDeep(record.outcome, (try owner.status(&turn, caller, request.operation, try request.digest(owner.configuration.scope))).?);
         if (record.outcome.operation.state != .applied) continue;
@@ -53,6 +54,7 @@ fn inspect(store: *Store, accepted: []const Accepted) !void {
     var previous: u64 = 0;
     var listed: usize = 0;
     while (true) {
+        turn = try store.capture(caller);
         const page = try owner.list(&turn, caller, cursor);
         try t.expectEqual(store.revision, page.resource_revision);
         for (page.entries) |slot| if (slot) |entry| {

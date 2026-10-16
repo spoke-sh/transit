@@ -5,6 +5,24 @@ to the same typed plans. Source adapters acquire authorized data; query executio
 does not acquire kernel authority or raw storage credentials. Neither DataFusion
 nor Acero is a runtime dependency.
 
+Durable Table queries bind the original caller, credential epoch and selected
+role to the immutable query and intended requester. Admission policies constrain
+that identity and work budgets; they do not authenticate a user. Every source
+requires current CONNECT, schema USAGE and Table SELECT, including join sources
+that contribute no rows. Continuations retain the original proof after restart;
+credential rotation does not silently resign an accepted query. Completed results
+from captured queries use a fresh proof for the requested result and page under the reader's
+current rights. An explicitly authorized recovery operator can read the original
+result without changing its request or execution attribution. Result completion
+is also an authorization boundary.
+
+Explicit physical exchange placement requires the original caller to authorize
+each logical worker assignment for the frozen query and complete source basis.
+The retained proof fixes the worker PID, layout and budgets. Worker replacement
+keeps that proof; fresh worker credentials cannot renew the caller's authority.
+The [exchange contract](../../contracts/RELATIONAL_EXCHANGE_V1.md) defines the
+assignment and current-check boundaries.
+
 Invalid editor cursor offsets identify the byte-offset/UTF-8 boundary requirement
 separately from invalid saved-result cursors. Invalid typed predicate programs
 identify instruction, literal-storage or stack bounds as a plan-construction
@@ -288,7 +306,10 @@ resource revision. Repeated metadata lookups share a bounded 64-entry scratch
 cache for that observation; eviction fetches the record again. This cache does
 not retain permissions across operations. Current authorization is interpreted
 using the exact keys requested for that observation, and a fresh check precedes
-schema or result disclosure.
+schema or result disclosure. Table capture and page reads carry the caller's
+signed identity and selected role through both the retained data reader and the
+current metadata reader. Native SELECT remains required for empty results and
+`LIMIT 0`; raw-resource read permission does not replace that Table check.
 
 Interactive execution failures identify the first failing scan row, source column
 and operation. Predicate failures include the zero-based postfix instruction;
@@ -338,6 +359,14 @@ the fresh cut and initial data. Final current validation can release the snapsho
 in the same request. Captured reads and current metadata have explicit separate
 bases; a write during data acquisition does not require recapturing the source.
 The client requires this capability and rejects incompatible authorities.
+
+Table reads check native database, schema and Table privileges separately from
+the source policy. Within one bounded metadata or page acquisition, repeated
+checks of the same accumulated privileges may share a verified result. The
+acquisition finishes with a fresh native check of all observed requirements;
+final disclosure also checks current authority after computation, including
+empty results. No authorization decision carries into a later page or statement.
+Authority decoration preserves batched immutable-chunk reads and bounded caches.
 
 Console output keeps bounded Arrow batches, a 64-entry point cache and at most
 64 prefetched range entries with a 32 KiB decoded-entry budget.

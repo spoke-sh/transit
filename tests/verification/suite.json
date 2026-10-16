@@ -21,6 +21,9 @@
       "test::station",
       "test::storage",
       "test::service",
+      "test::authorization",
+      "test::authorization-cli",
+      "test::authorization-tables",
       "test::runtime-upgrade",
       "test::callers",
       "test::inspection",
@@ -73,7 +76,7 @@
       "test::build",
       "launchers::local::test"
     ],
-    "bindings": [
+    "bindings-1": [
       "bindings::check",
       "bindings::native",
       "bindings::python-test",
@@ -81,17 +84,20 @@
       "bindings::logical-test",
       "bindings::rust-sdk-test",
       "bindings::ruby-sdk-test",
-      "bindings::c-sdk-test",
-      "bindings::java-sdk-test",
-      "bindings::dotnet-sdk-test",
-      "bindings::beam-sdk-test",
       "bindings::sdk-interop",
+      "bindings::authorization",
       "test::model",
       "test::model-delivery",
       "test::sql-rewrites",
       "test::sql",
       "bindings::grpc-faults",
       "bindings::connector-preparation"
+    ],
+    "bindings-2": [
+      "bindings::c-sdk-test",
+      "bindings::java-sdk-test",
+      "bindings::dotnet-sdk-test",
+      "bindings::beam-sdk-test"
     ],
     "browser": [
       "transit-board::browser",
@@ -109,15 +115,21 @@
       "growth",
       "experience",
       "launchers",
-      "bindings"
+      "bindings-1",
+      "bindings-2"
     ],
     "complete": [
       "core",
       "growth",
       "experience",
       "launchers",
-      "bindings",
+      "bindings-1",
+      "bindings-2",
       "browser"
+    ],
+    "bindings": [
+      "bindings-1",
+      "bindings-2"
     ]
   },
   "external_tasks": {
@@ -158,6 +170,7 @@
       "test::domain-simulation-mutations"
     ],
     "focused": [
+      "test::authorization-serving",
       "test::packages",
       "test::growing-service-release",
       "test::growing-station",

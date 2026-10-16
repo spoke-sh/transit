@@ -62,6 +62,7 @@ pub const Read = struct {
     emitted: bool = false,
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
         try self.host.deadline.check(self.host.io);
+        try self.host.current();
         if (self.row) |*row| row.deinit();
         self.row = null;
         return switch (self.value) {
@@ -89,6 +90,7 @@ pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const 
     const parsed = try std.json.parseFromSlice(g.Configuration.Credential, allocator, bytes, .{});
     defer parsed.deinit();
     try parsed.value.validate(account.ledger.account);
+    if (parsed.value.principal != account.ledger.table_principal) return error.InvalidAuthentication;
     return parsed.value;
 }
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.AccountRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool)) !*Self {
@@ -106,7 +108,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         break;
     };
     self.wire.timeout_ms = config.request_timeout_ms;
-    self.table = .{ .transport = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .owner = binding.owner, .principal = account.ledger.table_principal }, .key = runtime.coordinator.table_key };
+    self.table = .{ .transport = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .owner = binding.owner, .principal = account.ledger.table_principal, .namespace = binding.namespace, .role = binding.role }, .key = runtime.coordinator.table_key, .reader = .{ .wire = &self.wire, .realm = account.ledger.realm, .principal = account.ledger.reader, .key = runtime.coordinator.reader_key } };
     self.observer = .{ .transport = &self.wire, .ledger = runtime.ledger, .principal = account.ledger.ingress, .key = runtime.ingress.key };
     try self.current();
     return self;
@@ -123,6 +125,10 @@ fn current(self: *Self) !void {
     if (!self.runtime.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
     const credential = try loadCredential(self.allocator, self.io, self.account);
     if (!std.meta.eql(credential, self.credential)) return error.GatewayCredentialChanged;
+    const native: g.station.client.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.ledger.realm, .principal = self.account.ledger.table_principal, .key = self.table.key, .role = self.table.connection.role };
+    const identity = (try native.read(.identity)).body.authorization.body.identity;
+    try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
+    _ = try self.fresh(c.TableClient.describeDatabase, .{&self.table});
     const state = try self.observer.reader().query(.{ .process = self.account.ledger.owner });
     if (state.body != .process) return error.InvalidAuthorityResponse;
     const process = state.body.process.process;
@@ -168,7 +174,9 @@ pub fn selectDatabase(self: *Self, name: []const u8) !void {
     candidate.connection.scope.resource = binding.resource;
     candidate.connection.scope.catalog = binding.catalog;
     candidate.connection.owner = binding.owner;
-    _ = try candidate.describe();
+    candidate.connection.namespace = binding.namespace;
+    candidate.connection.role = binding.role;
+    _ = try candidate.describeDatabase();
     self.table = candidate;
     for (self.account.databases) |selected| if (std.mem.eql(u8, selected.name, name)) {
         self.database = selected.name;
@@ -191,9 +199,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
     switch (prepared.*) {
         .native => |*statement| try self.fresh(g.Statement.validate, .{ statement, &self.table }),
-        .probe => {
-            _ = try self.wire.query(.{ .realm = self.account.ledger.realm, .principal = self.account.ledger.table_principal, .kind = .capabilities }, self.table.key);
-        },
+        .probe => {}, // current() already validates the login and database.
     }
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {

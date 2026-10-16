@@ -14,6 +14,7 @@ pub const Failure = @import("WorkItemFailure.zig");
 allocator: std.mem.Allocator,
 configuration: Configuration,
 failure: ?*Failure.Context = null,
+registration: ?*?p.Authorization.Action = null,
 fn remember(self: Self, witness: Failure.Witness) void {
     if (self.failure) |failure| failure.domain = witness;
 }
@@ -28,9 +29,8 @@ pub const Command = union(enum(u8)) {
     step: M.Step = 4,
     abandon: Wide = 5,
     release_writes: struct { epoch: Wide, contract: [32]u8 } = 6,
-    catalog_initialize: void = 7,
+    catalog_initialize: c.TableAuthority.Profile = 7,
     prepare_table: u32 = 8,
-    read_policy: struct { principal: u64, expected: u64, revision: u64, allow: bool } = 9,
     pub fn encode(self: Command) !p.Value {
         var value = try app.Records.encode('i', self);
         value.data[0..3].* = "WI1".*;
@@ -60,8 +60,17 @@ pub const Cursor = struct {
 };
 const Active = struct { table: u32, writes: bool };
 const active_table = p.Value.init("work-items.active-table") catch unreachable;
-pub fn catalog(self: Self) c.TableCatalog {
-    return .{ .configuration = .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .table_limits = Table.limits } };
+/// Installation allocates native identities before catalog authorization exists.
+/// The administrator explicitly initializes the catalog with registered objects;
+/// subsequent activations read that retained configuration without reprovisioning.
+pub fn catalogConfiguration(self: Self, authority: c.TableAuthority.Profile) c.TableCatalogRecords.Configuration {
+    return .{ .scope = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .catalog = 1 }, .owner = self.configuration.owner, .administrator = self.configuration.administrator, .database_name = c.TableAuthority.Name.init("work_items") catch unreachable, .authority = authority, .table_limits = Table.limits };
+}
+pub fn catalog(self: Self, reader: anytype) !c.TableCatalog {
+    const stored = try c.Records.decode(c.TableCatalogRecords.Configuration, 'C', (try reader.read(c.Records.key(1, 'c', 0, 0))) orelse return error.WorkItemInitializationRequired);
+    try stored.validate();
+    if (!std.meta.eql(stored, self.catalogConfiguration(stored.authority))) return error.CatalogConfigurationChanged;
+    return .{ .configuration = stored, .registration = self.registration };
 }
 pub const Source = struct {
     owned: query.TableSource.Owned,
@@ -72,10 +81,12 @@ pub const Source = struct {
     }
 };
 pub fn source(self: Self, reader: anytype, principal: u64, table: u32) !Source {
-    var definition = (try self.catalog().lookup(self.allocator, reader, principal, try Table.name(table))) orelse return error.WorkItemInitializationRequired;
+    const catalog_value = try self.catalog(reader);
+    var definition = (try catalog_value.lookup(self.allocator, reader, principal, try Table.name(table))) orelse return error.WorkItemInitializationRequired;
     defer definition.deinit();
     if (!std.mem.eql(u8, &try definition.schema.schema.fingerprint(), &try Table.schema(table).fingerprint())) return error.WorkItemEpochChanged;
-    const owned = try query.TableSource.from(self.allocator, self.catalog().configuration, definition);
+    _ = try catalog_value.authorizeObject(reader, principal, definition.metadata.object, .read);
+    const owned = try query.TableSource.from(self.allocator, catalog_value.configuration, definition);
     return .{ .owned = owned, .definition = .{ .resource = self.configuration.resource, .source = .{ .table = owned.source } } };
 }
 /// The application contract binds its owner, resource, layout and state encoding.
@@ -110,7 +121,8 @@ fn scope(self: Self, turn: *s.Turn) !void {
 fn create(self: Self, turn: *s.Turn, table: u32, continuing: bool) !void {
     if (table == 0) return error.InvalidWorkItemPlan;
     const request: c.TableDdlRequest = .{ .principal = self.configuration.administrator, .operation = table, .object = table, .expected_revision = 0, .name = try Table.name(table), .action = .{ .create = .{ .schema = Table.schema(table) } } };
-    const outcome = if (continuing) try self.catalog().continueDdl(self.allocator, turn, request) else try self.catalog().step(self.allocator, turn, request);
+    const catalog_value = try self.catalog(turn);
+    const outcome = if (continuing) try catalog_value.continueDdl(self.allocator, turn, request) else try catalog_value.step(self.allocator, turn, request);
     if (outcome.terminal()) {
         if (outcome.operation.state != .applied) return error.WorkItemInitializationRequired;
     } else {
@@ -131,7 +143,7 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
     try self.scope(turn);
     if (turn.delivery.input.origin != .external) return error.WorkItemDenied;
     switch (command) {
-        .initialize, .catalog_initialize, .prepare_table, .read_policy => if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied,
+        .initialize, .catalog_initialize, .prepare_table => if (turn.delivery.input.origin.external.principal != self.configuration.administrator) return error.WorkItemDenied,
         else => {},
     }
     const owner = try self.ledger();
@@ -139,12 +151,11 @@ pub fn execute(self: Self, turn: *s.Turn, command: Command) !void {
     errdefer turn.decision = before;
     switch (command) {
         .initialize => try self.initialize(turn),
-        .catalog_initialize => {
+        .catalog_initialize => |authority| {
             _ = try owner.head(turn);
-            try self.catalog().initialize(turn);
+            try (c.TableCatalog{ .configuration = self.catalogConfiguration(authority) }).initialize(turn);
         },
         .prepare_table => |table| try self.create(turn, table, false),
-        .read_policy => |policy| try self.catalog().setPolicy(turn, policy.expected, .{ .scope = self.catalog().configuration.scope, .principal = policy.principal, .revision = policy.revision, .inspect = policy.allow, .read = policy.allow, .create = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false }),
         .policy => |value| try owner.setPolicy(turn, value.principal, value.expected, value.next),
         .put => |value| {
             if (turn.delivery.input.origin.external.principal != self.configuration.writer) return error.WorkItemDenied;
@@ -241,6 +252,11 @@ fn migrate(self: Self, turn: *s.Turn, step: M.Step, continuing: bool) !void {
 pub fn stage(self: Self, turn: *s.Turn, plan: M.Plan, progress: M.Progress, pending: M.Pending) !?M.Transition {
     var cursor = try self.validateStep(progress, pending.step);
     const target: u32 = @intCast(plan.proposal.plan.value);
+    try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.configuration.owner, .input = pending.input, .principal = plan.principal } });
+    const tables = try self.catalog(turn);
+    _ = try tables.authorizeObject(turn, plan.principal, 1, .read);
+    _ = try tables.authorizeObject(turn, plan.principal, target, .read);
+    _ = try tables.authorizeObject(turn, plan.principal, target, .insert);
     if (pending.step.operation == 2) {
         try turn.write(active_table, try app.Records.encode('a', Active{ .table = target, .writes = false }));
         return .{ .activate = {} };
@@ -305,13 +321,18 @@ fn firstPut(turn: *s.Turn) !?Put {
 fn put(self: Self, turn: *s.Turn) !void {
     var pending = (try firstPut(turn)) orelse return;
     if (pending.principal != self.configuration.writer) return error.WorkItemDenied;
+    try turn.bindAuthorizationSubject(.{ .accepted = .{ .pid = self.configuration.owner, .input = pending.input, .principal = pending.principal } });
+    const tables = try self.catalog(turn);
+    _ = try tables.authorizeObject(turn, pending.principal, pending.table, .read);
     if (!pending.prepared) {
         const previous = try Table.get(self.allocator, turn, pending.table, pending.key);
         pending.identity = if (previous) |value| value.identity else .{ .origin = pending.principal + 1, .operation = pending.input, .ordinal = 0 };
         pending.insert = previous == null;
         pending.prepared = true;
+        _ = try tables.authorizeObject(turn, pending.principal, pending.table, if (pending.insert) .insert else .update);
         try turn.write(Put.keyFor(pending.input), try app.Records.encode('w', pending));
     } else {
+        _ = try tables.authorizeObject(turn, pending.principal, pending.table, if (pending.insert) .insert else .update);
         const result = try Table.write(self.allocator, turn, pending.table, pending.principal, pending.input, .{ .identity = pending.identity, .key = pending.key, .state = pending.state }, pending.insert, try self.contract(pending.table), 1);
         if (result.state != .building) {
             if (result.state != .applied or result.matched != 1) return error.WorkItemVerificationFailed;
@@ -366,6 +387,7 @@ pub fn witnessKey(application: u64, principal: u64, input: u64) p.Value {
 pub const Behavior = struct {
     owner: Self,
     capture: ?query.UnifiedBehavior.Source = null,
+    registration: ?p.Authorization.Action = null,
     pub fn interface(self: *@This()) s.GenServer.Handler {
         return .{ .context = self, .initialize = init, .handle = handle };
     }
@@ -432,6 +454,16 @@ pub const Behavior = struct {
     }
     fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
         const self = get(raw);
+        self.registration = null;
+        self.owner.registration = &self.registration;
+        self.dispatch(turn, frame) catch |err| {
+            // Registration precedes catalog publication. Leave the original
+            // input unresolved while the host completes the native handshake.
+            if (err == error.CatalogRegistrationRequired) turn.read_error = err;
+            return err;
+        };
+    }
+    fn dispatch(self: *Behavior, turn: *s.Turn, frame: s.Frame) anyerror!void {
         if (frame.kind == .cast and turn.delivery.input.origin == .process and turn.delivery.input.origin.process.pid == turn.delivery.pid) {
             const before = turn.decision;
             errdefer turn.decision = before;
@@ -460,7 +492,7 @@ pub const Behavior = struct {
                     var table_source = try self.owner.source(turn, self.owner.configuration.administrator, try self.owner.selected(turn));
                     defer table_source.deinit();
                     const expected = table_source.definition.source.table;
-                    if (policy.target != .catalog or !std.meta.eql(policy.target.catalog.scope, expected.scope) or policy.target.catalog.owner != expected.owner or policy.target.catalog.principal != self.owner.configuration.administrator) return self.disposition(turn, "WorkItemEpochChanged");
+                    if (policy.target != .catalog or !std.meta.eql(policy.target.catalog.scope, expected.scope) or policy.target.catalog.owner != expected.owner) return self.disposition(turn, "WorkItemEpochChanged");
                     if (try turn.read(query.UnifiedRecords.key('v', 0, 0)) == null) {
                         try handler.initialize.?(handler.context, turn);
                     } else {

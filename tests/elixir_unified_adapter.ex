@@ -26,6 +26,7 @@ defmodule ElixirUnifiedAdapter do
   def compile(c, s, n, sql, b, p),
     do: result(Q.compile_sql(c, Q.convert(s), n, sql, Q.convert(b), Q.convert(p)))
 
+  def authorize(c, b), do: result(Q.authorize_bundle(c, Q.convert(b)))
   def next(c, n, b), do: result(Q.prepare_next(c, n, Q.convert(b)))
   def submit(c, p), do: result(Q.submit(c, Q.convert(p)))
   def observe(c, p), do: result(Q.observe(c, p))

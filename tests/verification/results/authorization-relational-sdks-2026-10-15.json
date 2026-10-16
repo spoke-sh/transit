@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "source_revision": "8ed0aeea9397876e2025e96241e0cd768978a233",
+  "dirty": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "command": "nix develop .#bindings --command zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python --sdk node",
+  "result": "passed",
+  "proof": {
+    "profile": "relational-callers-native",
+    "seconds": 76.955,
+    "ordered_overflow_witness": true,
+    "layouts": [
+      {
+        "routes": [
+          0,
+          0
+        ],
+        "rows": 3,
+        "complete": true
+      },
+      {
+        "routes": [
+          0,
+          1
+        ],
+        "rows": 3,
+        "complete": true
+      }
+    ],
+    "calls": 72,
+    "max_response_bytes": 1603,
+    "repeat_open": true,
+    "repeat_page": true,
+    "repeat_close": true,
+    "source_denial_after_prefix": true,
+    "host_loss_expires_handle": true,
+    "budget_preserves_failure": true,
+    "installed": [
+      {
+        "language": "python-sync",
+        "layouts": [
+          {
+            "routes": [
+              0,
+              0
+            ],
+            "rows": 3,
+            "complete": true
+          },
+          {
+            "routes": [
+              0,
+              1
+            ],
+            "rows": 3,
+            "complete": true
+          }
+        ],
+        "current_denial": true,
+        "lost_host": true,
+        "ordered_overflow": true,
+        "artifacts": {
+          "transit_native_client-0.2.0-py3-none-linux_x86_64.whl": "b21bacece9a2fa3db3aa5709eb9559f3f5c3fe158fd0194f1dd3d823859f3bbc",
+          "transit_station-0.2.0-py3-none-any.whl": "f453040da1cafdddf0a309aed70b110c45275e744b13912d1fa442d06f221d67",
+          "transit_native_station-0.2.0-py3-none-linux_x86_64.whl": "648bef7de5f19c01d005475ecd7e48411c1346f0de65ced3f82a8c7244c40ed4",
+          "transit_client-0.2.0-py3-none-any.whl": "3398e613b251d9c2ab4217f993fed01a2fc9af3c46475982fd642360ff89aaae"
+        }
+      },
+      {
+        "language": "python-async",
+        "layouts": [
+          {
+            "routes": [
+              0,
+              0
+            ],
+            "rows": 3,
+            "complete": true
+          },
+          {
+            "routes": [
+              0,
+              1
+            ],
+            "rows": 3,
+            "complete": true
+          }
+        ],
+        "current_denial": true,
+        "lost_host": true,
+        "ordered_overflow": true,
+        "artifacts": {
+          "transit_native_client-0.2.0-py3-none-linux_x86_64.whl": "b21bacece9a2fa3db3aa5709eb9559f3f5c3fe158fd0194f1dd3d823859f3bbc",
+          "transit_station-0.2.0-py3-none-any.whl": "f453040da1cafdddf0a309aed70b110c45275e744b13912d1fa442d06f221d67",
+          "transit_native_station-0.2.0-py3-none-linux_x86_64.whl": "648bef7de5f19c01d005475ecd7e48411c1346f0de65ced3f82a8c7244c40ed4",
+          "transit_client-0.2.0-py3-none-any.whl": "3398e613b251d9c2ab4217f993fed01a2fc9af3c46475982fd642360ff89aaae"
+        }
+      },
+      {
+        "language": "node",
+        "layouts": [
+          {
+            "routes": [
+              0,
+              0
+            ],
+            "rows": 3,
+            "complete": true
+          },
+          {
+            "routes": [
+              0,
+              1
+            ],
+            "rows": 3,
+            "complete": true
+          }
+        ],
+        "current_denial": true,
+        "lost_host": true,
+        "ordered_overflow": true,
+        "artifacts": {
+          "transit-client-0.2.0.tgz": "b755eb70d7a797cbba57cc4fccd47e4845be07a6131f57f46c0b1cce398502b0",
+          "transit-native-client-0.2.0.tgz": "a9b31b4d08f3c23a8ecc446d6b6b87476fe696b2a72227866cacfc4801c1d7e9",
+          "transit-station-0.2.0.tgz": "1b4eafcee289668301df284828b0a119141ad89d18225a0c483787d6f29f584e",
+          "transit-native-station-0.2.0.tgz": "9b2516e062ba88fe14055c29367d34c7de5b90d93da87c28235be4531fc572ca"
+        }
+      }
+    ]
+  },
+  "log_sha256": "db6a90642a8f4812aae2c1ae7edea0b28c32abee950b78c0cc6a66ffaaf95551",
+  "limits": [
+    "Native host plus installed Python sync/async and Node relational callers; not the full clean bindings lane.",
+    "Native SELECT revocation preserves the public AccessDenied code, CatalogDenied diagnostic cause and owned native-cause evidence.",
+    "Retained rows, duplicate pages, current revocation, lost handles and ordered overflow assertions remain unchanged."
+  ]
+}

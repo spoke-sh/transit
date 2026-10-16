@@ -165,18 +165,17 @@ source rows for the original Fuze predicate. Full scans check the head's exact r
 count; source LIMIT completion belongs to the execution owner. Adapter pages are
 independent of execution-vector sizes and durable Table cardinality.
 
-Every page checks current inspect/read permission before and after reading its
-original captured schema/root. Continuations may finish after ALTER or DROP;
-new capture against a stale declaration rejects. The principal comes from an
-authenticated caller or explicit committed requester-policy mapping, never from
-the submitted declaration. `UnifiedRecords.Policy` supplies an explicit
-catalog target: requester PID, request resource, scope/owner, catalog principal,
-revision and budgets. The host selects it by authenticated requester, checks its
-revision/request resource and passes `tablePrincipal` to the adapter. The mapping
-alone never grants catalog rights. Native readers retain resource access/lifetime checks.
-The page's `deinit` releases every row; `engine` borrows those values until release.
-An error provides no page. This adapter does not itself install durable query
-routing, requester-to-principal policy, result publication or foreign SDK support.
+Every page checks current CONNECT, schema USAGE and Table SELECT before and
+after reading its original captured schema/root. Continuations may finish after
+ALTER or DROP; new capture against a stale declaration rejects. The principal
+must match the reader's independently authenticated original subject. A submitted
+declaration or committed requester-policy number cannot authenticate that user.
+`UnifiedRecords.Policy` constrains requester PID, request resource, scope/owner,
+expected original principal, revision and budgets. Durable Table bundles carry
+an original proof bound to their canonical bytes and intended reply route;
+continuation and recovery preserve that proof. Native readers independently
+retain resource access/lifetime checks. The page's `deinit` releases every row;
+`engine` borrows those values until release. An error provides no page.
 
 `transit-query.TableQuery` composes this compiler and executor with the general
 catalog's signed connection and native leased snapshots. It resolves the supplied

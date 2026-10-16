@@ -15,7 +15,7 @@ fn detailFor(action: b.Action, cause: anyerror) codes.Entry {
     return info(cause);
 }
 pub fn category(action: b.Action, cause: anyerror) d.Category {
-    if (action == .compile) if (c.fuze.SqlDiagnostic.category(cause)) |value| return value;
+    if (action == .compile or action == .compile_authorization) if (c.fuze.SqlDiagnostic.category(cause)) |value| return value;
     return detailFor(action, cause).category;
 }
 fn selected(session: *b.Session, connection: c.TableClient.Connection, action: b.Action) ?d.Identity {
@@ -32,6 +32,7 @@ fn selected(session: *b.Session, connection: c.TableClient.Connection, action: b
     return .{ .domain = if (intent.identity == .ddl) .catalog else .mutation, .id = .init(intent.header.operation), .realm = .init(intent.header.scope.realm), .resource = .init(intent.header.scope.resource) };
 }
 pub fn attempt(session: *b.Session, connection: c.TableClient.Connection, action: b.Action, cause: anyerror, location: c.fuze.Sql.Location, dispatched: bool, identity: ?d.Identity, native: ?c.protocol.ErrorCode) !d {
+    if (action == .compile_authorization) if (c.fuze.SqlDiagnostic.authorization(action.compile_authorization.sql, cause, location)) |value| return value.structured();
     if (action == .compile) {
         const text = action.compile.sql;
         var lexer: c.fuze.Sql.Lexer = .{ .text = text };
@@ -41,8 +42,8 @@ pub fn attempt(session: *b.Session, connection: c.TableClient.Connection, action
         if (diagnostic) |value| return value.structured();
     }
     const stage: d.Stage = switch (action) {
-        .compile => .compile,
-        .prepare, .load, .forget, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_policy, .prepare_dependency => .prepare,
+        .compile, .compile_authorization => .compile,
+        .prepare, .load, .forget, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_dependency, .prepare_schema, .prepare_schema_plan => .prepare,
         .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };

@@ -60,6 +60,7 @@ fn table_source(columns: Vec<c::Column>) -> transit_client::Result<q::Source> {
     Ok(q::Source::Table {
         owner: ProcessRef::new(1, 3)?,
         metadata: c::Metadata {
+            namespace: 1,
             scope: c::Scope::new(ResourceRef::new(1, 7)?, 9)?,
             object: 9,
             revision: 1,
@@ -675,16 +676,16 @@ fn serve(config: &Value) -> AnyResult<()> {
         },
         None,
     )?;
-    assert_eq!(bundle.data(), fs::read(text(config, "bundle"))?);
     let mut client = q::Client::open(
         ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
         Credential::new(realm, number(v, "principal"), text(config, "seed_file"))?,
         connection,
     )?;
+    assert_eq!(client.authorize_bundle(&bundle)?.data(), fs::read(text(config, "bundle"))?);
     let description = client.describe(&source)?;
     assert_eq!(
         (description.bundle_bytes, description.batch_rows),
-        (25069, 8)
+        (25255, 8)
     );
     println!("{}", json!({"ready":true}));
     io::stdout().flush()?;

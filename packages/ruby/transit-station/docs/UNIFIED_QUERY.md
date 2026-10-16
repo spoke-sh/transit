@@ -78,10 +78,22 @@ ordered assignment identities. Predicate byte literals are bounded to 4 KiB.
 Batches have at most eight rows and 128 result columns; KV has two source
 columns and Document projections remain bounded to eight. Source/output names
 are nonempty UTF-8 strings of at most 255 bytes without NUL. Bundles are bounded
-to 25,069 bytes and IPC segments to 64 KiB. Nested values and exact 128-bit
+to 25,255 bytes and IPC segments to 64 KiB. Nested values and exact 128-bit
 integers retain their shared logical representation. No optional Ruby Arrow dependency is selected; original
 owned IPC remains available to an application-selected consumer.
 
 `nix develop .#bindings --command just bindings::unified-ruby kv` builds fresh
 gems and tests shared codecs plus signed recovery. Other source selections are
 `table` and `document`; consult [completed evidence](../../../../tests/README.md).
+
+Connections accept an optional selected native role; omission uses the login role.
+Local bundle construction produces a description. Call `authorize_bundle` once on the
+query client before persisting a newly constructed Table bundle or its fingerprint.
+The returned bytes bind the authenticated caller, role, credential epoch, source
+owner and requester to the exact query and budget. SQL compilation already returns
+an authorized bundle. An already authorized Table bundle rejects resealing.
+
+Persist and recover the original bundle bytes unchanged, alongside each prepared
+command and receipt. Current authorization is checked again during progress and
+result disclosure. Credential or policy changes never justify replacing accepted
+work with a newly signed bundle. The complete bundle bound is 25,255 bytes.

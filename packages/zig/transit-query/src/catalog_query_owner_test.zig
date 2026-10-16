@@ -97,6 +97,7 @@ test "catalog delegation authenticates the administrator and isolates rights and
     defer store.deinit();
     var value = owner();
     try initialize(&store, &value);
+    try tables.create(&store, "CREATE TABLE items (id INTEGER)");
     var turn = try external(&store, 9, try change(9).encode());
     try dispatch(&value, &turn);
     try t.expectEqual(.denied, try outcome(&turn));
@@ -124,8 +125,8 @@ test "catalog delegation authenticates the administrator and isolates rights and
     try dispatch(&value, &turn);
     try t.expectEqual(.policy_applied, try outcome(&turn));
     const catalog: c.TableCatalog = .{ .configuration = value.tables.configuration };
-    _ = try catalog.authorize(&turn, 17, .insert);
-    _ = try catalog.authorize(&turn, 17, .read);
+    _ = try catalog.authorizeObject(&turn, 17, 100, .insert);
+    _ = try catalog.authorizeObject(&turn, 17, 100, .read);
     try t.expect(!(try q.UnifiedCapture.policy(&turn, 9)).?.allow);
 }
 test "catalog query calls require committed delegation before accessing request bodies" {

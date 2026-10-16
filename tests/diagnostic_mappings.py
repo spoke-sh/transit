@@ -37,7 +37,9 @@ def registry_entries(text, kind='error'):
         return ENTRY.findall(registry)
     if kind == 'query_failure':
         body = function_tokens(text, 'fromError')
-        entries = re.findall(r'error \. (\w+) = > \. (\w+)', ' '.join(body))
+        groups = re.findall(r'((?:error \. \w+ , )*error \. \w+) = > \. (\w+)', ' '.join(body))
+        entries = [(cause, code) for group, code in groups for cause in re.findall(r'error \. (\w+)', group)]
+        assert len(entries) == len({cause for cause, _ in entries}), 'duplicate query classification'
         assert {cause for cause, _ in entries} == {body[i + 2] for i in range(len(body) - 2) if body[i:i + 2] == ['error', '.']}
         # Categories are reviewed independently and exercised by the outcome
         # driver. This delegate checks the actual error-to-recorded-code path.

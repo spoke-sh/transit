@@ -1,0 +1,211 @@
+{
+  "assertions": "passed",
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "observations": {
+    "shared_resource": 10,
+    "tables": [
+      100,
+      101,
+      200,
+      201
+    ],
+    "restricted_reader": 104,
+    "service_restarts": 2,
+    "authority_and_disk_restarts": 1,
+    "credential_rotations": 1,
+    "schema_lifecycle": true,
+    "sql_cli_service_agreement": true,
+    "future_only_defaults": true,
+    "mediated_cli_write_recovery": true,
+    "no_native_process_inspection": true,
+    "multisource_queries": true,
+    "noncontributing_source_revocation": true,
+    "serving": null,
+    "installed": [
+      {
+        "language": "python-sync",
+        "result": {
+          "profile": "installed-python-general-table",
+          "original_object": "12001",
+          "replacement_object": "12002",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 41.885
+      },
+      {
+        "language": "python-async",
+        "result": {
+          "profile": "installed-python-general-table",
+          "original_object": "12011",
+          "replacement_object": "12012",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 42.384
+      },
+      {
+        "language": "node",
+        "result": {
+          "profile": "installed-node-general-table",
+          "original_object": "12021",
+          "replacement_object": "12022",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 44.45
+      },
+      {
+        "language": "ruby",
+        "result": {
+          "profile": "installed-ruby-general-table",
+          "original_object": "12031",
+          "replacement_object": "12032",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 45.256
+      },
+      {
+        "language": "rust",
+        "result": {
+          "counts": {
+            "changed": "1",
+            "matched": "1"
+          },
+          "original_object": "12041",
+          "profile": "installed-rust-general-table",
+          "replacement_object": "12042"
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 46.005
+      },
+      {
+        "language": "c",
+        "result": {
+          "profile": "installed-c-general-table",
+          "original_object": "12051",
+          "replacement_object": "12052",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 46.061
+      },
+      {
+        "language": "cpp",
+        "result": {
+          "profile": "installed-cpp-general-table",
+          "original_object": "12061",
+          "replacement_object": "12062",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 49.715
+      },
+      {
+        "language": "java",
+        "result": {
+          "profile": "installed-java-general-table",
+          "original_object": "12071",
+          "replacement_object": "12072",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 49.783
+      },
+      {
+        "language": "dotnet",
+        "result": {
+          "profile": "installed-dotnet-general-table",
+          "original_object": "12081",
+          "replacement_object": "12082",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          }
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 47.615
+      },
+      {
+        "language": "erlang",
+        "result": {
+          "profile": "installed-erlang-general-table",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          },
+          "original_object": "12091",
+          "replacement_object": "12092"
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 52.981
+      },
+      {
+        "language": "elixir",
+        "result": {
+          "profile": "installed-elixir-general-table",
+          "counts": {
+            "matched": "1",
+            "changed": "1"
+          },
+          "original_object": "12101",
+          "replacement_object": "12102"
+        },
+        "raw_read_denied": true,
+        "revoked_connect_denied": true,
+        "seconds": 47.948
+      }
+    ]
+  },
+  "revision": "24f2ba92324770c6660bc55b12e6de4f5144f9d3",
+  "dirty": true,
+  "binaries": {
+    "node": "aeaecb8f27e9981d9b877da1406ec7bd0627665512b6dcd7c8aae929fcdb17b9",
+    "cli": "68865adb41e247225ede8eea4b33488ce70730e010be5a1d70389c67fcb40c82",
+    "host": "925145ea15d41a789257b4f9129862fee8f06fc7b548d4118324316d3f1be182",
+    "service": "19a3f3a3b1fb06a989746a07c57ee522731adbca7b0ac3770513829a08f7c0c8",
+    "transit": "9237cf6dfa76efe870c5eb2a4ac293e2d8c39a7b58e29342fb776f81e6594c60"
+  },
+  "elapsed_seconds": 683.2484129541554,
+  "command": "nix develop .#bindings --command just bindings::authorization",
+  "executed_command": "nix develop .#bindings --command just test::authorization-tables --sdk python --sdk node --sdk ruby --sdk rust --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir",
+  "log_sha256": "4588d965ef444f8db7d417c965349b14d96b102ae540bd342b9bd7231e8151db",
+  "limits": [
+    "Installed local packages; explicit loopback Table service, not SQL listener packaging or a hosted deployment.",
+    "The scenario deadline is 600 seconds, each Table operation 120 seconds, and mediated caller timeout 30 seconds.",
+    "Initial attempts exposed a test-consumer uint mismatch and a policy-revision read race; this complete rerun follows both fixes.",
+    "Per-language elapsed times include grant revocation and denial; the full schedule also includes provisioning, consumer compilation, independent value checks and disk restart."
+  ]
+}

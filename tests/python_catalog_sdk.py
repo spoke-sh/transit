@@ -51,7 +51,8 @@ async def scenario(client, connect, path, index, principal):
 
     description = await resolve(client.describe())
     assert description.configuration.scope == client.connection.scope
-    assert description.policy.principal == principal
+    assert description.subject.principal == principal
+    assert description.subject.credential_epoch > 0
     compiled = await resolve(client.compile_sql(f'CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))', identity(0), original_object))
     created = await finish(compiled)
     assert created.phase == m.Phase.APPLIED, created
@@ -99,15 +100,24 @@ async def run(mode, path):
     assert 'site-packages' in str(Path(m.__file__).resolve()), m.__file__
     path = Path(path)
     config = json.loads(path.read_text()); c = config['connection']; s = c['scope']
-    connection = m.Connection(ProcessRef(s['realm'], c['owner']), m.Scope(ResourceRef(s['realm'], s['resource']), int(s['catalog'])))
+    connection = m.Connection(ProcessRef(s['realm'], c['owner']), m.Scope(ResourceRef(s['realm'], s['resource']), int(s['catalog'])), role=c.get('role'), namespace=c.get('namespace', 1))
     cls = m.Client if mode == 'sync' else m.AsyncClient
-    connect = lambda: cls(config['url'], c['principal'], Path(config['seed_file']), connection, timeout_ms=10000)
+    connect = lambda: cls(config['url'], c['principal'], Path(config['seed_file']), connection, timeout_ms=30000 if config.get('table_service_url') else 10000, table_service_url=config.get('table_service_url'))
     client = connect()
     try:
         print(json.dumps(dict(ready=True)), flush=True)
         while line := sys.stdin.readline():
             action = json.loads(line)
             if 'close' in action: break
+            if 'denied' in action:
+                fresh = connect()
+                try:
+                    try: await resolve(fresh.describe())
+                    except TransitError as error: assert error.status == 4, error
+                    else: raise AssertionError('Revoked CONNECT disclosed catalog')
+                finally: await resolve(fresh.close())
+                print(json.dumps(dict(status=0, value=dict(denied=True))), flush=True)
+                continue
             assert 'scenario' in action
             result = await scenario(client, connect, path.parent, action['scenario']['index'], c['principal'])
             print(json.dumps(dict(status=0, value=result)), flush=True)

@@ -43,13 +43,22 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
     // Table admission resolves the complete live schema at the authorization
     // batch's exact revision; that bounded batch alone is not a schema reader.
     result.basis = if (bundle.source.source == .table) table: {
-        var current = (try client.batchSupport()).cached(result.current.?);
-        break :table try (try bundle.source.source.table.capture(allocator, &data, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
+        var cached = (try client.batchSupport()).cached(result.current.?);
+        const authority = try tableAuthority(client, bundle.source);
+        var current = authority.wrapAcquisition(&cached);
+        var retained = authority.wrapAcquisition(&data);
+        const basis = try (try bundle.source.source.table.capture(allocator, &retained, &current, try grant.tablePrincipal(bundle.source.source.table))).record();
+        try retained.finish();
+        try current.finish();
+        break :table basis;
     } else try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
     result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
     const metadata = try client.interactiveMetadata(bundle.source);
     const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = metadata });
     _ = try client.interactiveDescription(bundle.source, metadata, refreshed);
+    // Carry the newly checked live observation into page reads. The retained
+    // reader and basis still name the opening cut, including across writes.
+    result.current = q.UnifiedClient.interactiveBatch(metadata[0].?, refreshed.current[0].?);
     return result;
 }
 pub fn close(self: *Self) !void {
@@ -73,17 +82,35 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     if (cancellation.load(.acquire)) return error.Cancelled;
     self.source.cancellation = cancellation;
     var batch: q.UnifiedSource.Batch = undefined;
+    var batch_initialized = false;
+    defer if (batch_initialized) batch.deinit();
     var data: CachedReader = .{ .session = self, .view = self.source.view };
     const bound = try self.bundle.bind(try self.basis.fingerprint());
     const grant = (try q.UnifiedCapture.policy(&self.current.?, client.connection.requester)) orelse return error.QueryDenied;
     const principal = try grant.principal(self.bundle.source);
-    if (self.bundle.plan.limit == 0) {
+    if (self.bundle.source.source == .table) {
+        var cached = (try client.batchSupport()).cached(self.current.?);
+        const authority = try tableAuthority(client, self.bundle.source);
+        var current = authority.wrapAcquisition(&cached);
+        var retained = authority.wrapAcquisition(&data);
+        if (self.bundle.plan.limit == 0) {
+            _ = try self.bundle.source.source.table.checkCurrent(&current, principal orelse return error.QueryDenied);
+            batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };
+            batch_initialized = true;
+        } else {
+            try q.UnifiedSource.tablePage(self.bundle.source, bound, self.basis, self.cursor, &retained, &current, principal orelse return error.QueryDenied, allocator, &batch);
+            batch_initialized = true;
+            try retained.finish();
+        }
+        try current.finish();
+    } else if (self.bundle.plan.limit == 0) {
         try q.UnifiedSource.checkCurrent(self.bundle.source, &self.current.?, principal);
         batch = .{ .basis = self.basis, .binding = bound.source_basis, .ordinal = self.cursor.ordinal, .next = .{ .ordinal = self.cursor.ordinal + 1, .done = true } };
+        batch_initialized = true;
     } else {
         try q.UnifiedSource.page(self.bundle.source, bound, self.basis, self.cursor, &data, &self.current.?, principal, allocator, &batch);
+        batch_initialized = true;
     }
-    defer batch.deinit();
     var failure: ?f.LogicalStream.Failure = null;
     const candidate = f.LogicalStream.step(bound, self.progress, batch.engine(), workspace, output, cancellation, &failure) catch |err| {
         if (failure) |evidence| {
@@ -117,6 +144,11 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     self.cursor = batch.next;
     self.bytes = bytes;
     return candidate.segment;
+}
+
+fn tableAuthority(client: *q.UnifiedClient, definition: q.SourceDefinition) !q.catalog.TableAuthority.Context {
+    const authorization = client.authorizationClient();
+    return .{ .client = authorization, .subject = try authorization.proof(client.connection.source, try definition.fingerprint()) };
 }
 
 fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {

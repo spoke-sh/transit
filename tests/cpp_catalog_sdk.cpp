@@ -31,7 +31,7 @@ static void values() {
     Bytes large(300000, 9); auto saved = cat::SavedIntent::recover(TRANSIT_SDK_STATION_DEFINITION, large); large.clear(); assert(saved.data().size() == 300000 && saved.data()[299999] == 9);
     rejected = false; try { cat::SavedIntent::recover(std::string(64, '0'), {1}); } catch (const Error &e) { rejected = e.detail().kind == TRANSIT_SDK_INVALID_ARGUMENT; } assert(rejected);
 }
-static void scenario(cat::Client &client, const ClientConfig &config, const Credential &credential, const cat::Connection &connection, const char *root, uint64_t index) {
+static void scenario(cat::Client &client, const ClientConfig &config, const Credential &credential, const cat::Connection &connection, const char *root, uint64_t index, const std::optional<std::string> &service) {
     const uint64_t base = 1100 + index * 100, object = 12001 + index * 10; const auto name = "sdk_people_" + std::to_string(index);
     assert(client.capabilities().max_columns == 128); assert(client.describe().configuration.scope.catalog == connection.scope.catalog);
     auto create = client.compile_sql("CREATE TABLE " + name + " (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))", id(base, 0), object);
@@ -56,7 +56,7 @@ static void scenario(cat::Client &client, const ClientConfig &config, const Cred
     cat::Schema schema{object + 1, 1, 2, {{1, "replacement", logical::Type::scalar(TRANSIT_LOGICAL_UTF8), true, {}, {}}}, {}};
     auto replacement = client.prepare(name, id(base, 7), cat::Create{schema, false}); schema.columns.clear(); assert(finish(client, replacement, root).phase == cat::Phase::Applied);
     auto saved = insert.saved(); const auto intent = insert.intent(); client.close();
-    auto fresh = cat::Client::open(config, credential, connection); const auto loaded = fresh.load(saved); assert(loaded.object == object && loaded.reference.digest == intent.reference.digest);
+    auto fresh = cat::Client::open(config, credential, connection, service); const auto loaded = fresh.load(saved); assert(loaded.object == object && loaded.reference.digest == intent.reference.digest);
     const auto state = fresh.status(loaded.reference); assert(state.outcome && equal(applied, *state.outcome)); assert(fresh.lookup(name)->metadata.object == object + 1);
     auto history = fresh.definition(object, original->metadata.revision); assert(history && history->metadata.object == object && history->metadata.revision == original->metadata.revision && history->metadata.schema_fingerprint == original->metadata.schema_fingerprint);
     assert(history->schema.columns.size() == original->schema.columns.size());
@@ -66,12 +66,21 @@ static void scenario(cat::Client &client, const ClientConfig &config, const Cred
     printf("{\"status\":0,\"value\":{\"profile\":\"installed-cpp-general-table\",\"original_object\":\"%llu\",\"replacement_object\":\"%llu\",\"counts\":{\"matched\":\"1\",\"changed\":\"1\"}}}\n", (unsigned long long)object, (unsigned long long)(object + 1));
 }
 int main(int argc, char **argv) {
-    assert(argc == 9); setvbuf(stdout, nullptr, _IOLBF, 0); values();
-    const auto realm = number(argv[3]); auto config = ClientConfig::growing(argv[1]).timeout(10000); Credential credential(realm, number(argv[4]), argv[2]);
+    assert(argc == 12); setvbuf(stdout, nullptr, _IOLBF, 0); values();
+    const auto realm = number(argv[3]); auto config = ClientConfig::growing(argv[1]).timeout(argv[9][0] ? 30000 : 10000); Credential credential(realm, number(argv[4]), argv[2]);
     cat::Connection connection{ProcessRef(realm, number(argv[5])), {ResourceRef(realm, number(argv[6])), number(argv[7])}};
+    const std::optional<std::string> service = argv[9][0] ? std::optional<std::string>(argv[9]) : std::nullopt;
+    if (number(argv[10])) connection.role = number(argv[10]);
+    connection.namespace_id = number(argv[11]);
     try {
-        auto client = cat::Client::open(config, credential, connection); puts("{\"ready\":true}");
-        while (read_command() && strcmp(args[0], "close")) { assert(!strcmp(args[0], "scenario")); scenario(client, config, credential, connection, argv[8], number(args[1])); }
+        auto client = cat::Client::open(config, credential, connection, service); puts("{\"ready\":true}");
+        while (read_command() && strcmp(args[0], "close")) {
+            if (!strcmp(args[0], "denied")) {
+                auto fresh = cat::Client::open(config, credential, connection, service);
+                bool denied = false; try { fresh.describe(); } catch (const Error &e) { assert(e.detail().kind == TRANSIT_SDK_ACCESS_DENIED); denied = true; }
+                assert(denied); fresh.close(); puts("{\"status\":0,\"value\":{\"denied\":true}}"); continue;
+            }
+            assert(!strcmp(args[0], "scenario")); scenario(client, config, credential, connection, argv[8], number(args[1]), service); }
         client.close(); puts("{\"closed\":true}");
     } catch (const Error &e) { checked(e.detail()); }
 }

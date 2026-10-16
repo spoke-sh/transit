@@ -8,6 +8,7 @@ pub const Schema = @import("Schema.zig");
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
+pub const Authorization = @import("Authorization.zig");
 pub const Growth = @import("Growth.zig");
 pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
@@ -52,10 +53,40 @@ test {
     _ = Value;
     _ = Diagnostic;
     _ = EffectDiagnostic;
+    _ = Authorization;
 }
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
 pub const ErrorCode = enum {
+    AuthorizationSubjectDenied,
+    AuthorizationBudgetExceeded,
+    AuthorizationChangeQuota,
+    AuthorizationIdentityExhausted,
+    AuthorizationNameExists,
+    AuthorizationCredentialExists,
+    AuthorizationDependencies,
+    InvalidAuthorizationBudget,
+    InvalidAuthorizationName,
+    InvalidAuthorizationRole,
+    InvalidAuthorizationObject,
+    InvalidAuthorizationDomain,
+    InvalidAuthorizationGrant,
+    InvalidAuthorizationPrivilege,
+    InvalidAuthorizationRevision,
+    InvalidAuthorizationCredential,
+    InvalidAuthorizationChange,
+    InvalidAuthorizationCursor,
+    InvalidRoleMembership,
+    RetiredAuthorizationRole,
+    RetiredAuthorizationObject,
+    RoleMembershipCycle,
+    StaleAuthorizationRevision,
+    StaleAuthorizationCredential,
+    UnknownAuthorizationRole,
+    UnknownAuthorizationObject,
+    UnknownAuthorizationGrant,
+    UnknownAuthorizationChange,
+    UnknownRoleMembership,
     HttpCapacity,
     InvalidLifecycle,
     MissingRequiredAssociation,

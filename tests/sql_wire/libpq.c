@@ -20,8 +20,10 @@ int main(void) {
     PGconn *c = PQconnectdb(""); /* Credentials/verified TLS via private environment. */
     assert(PQstatus(c) == CONNECTION_OK);
     assert(PQsslInUse(c));
+    fprintf(stderr, "libpq phase: connected\n");
     assert(PQlibVersion() == 180006);
     command(c, "CREATE TABLE c_pg_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)");
+    fprintf(stderr, "libpq phase: created\n");
     PGresult *r = expect(c, PQprepare(c, "insert", "INSERT INTO c_pg_rows (id,n,f,b,label,payload) VALUES ($1,$2,$3,$4,$5,$6)", 0, NULL), PGRES_COMMAND_OK);
     PQclear(r);
     r = expect(c, PQdescribePrepared(c, "insert"), PGRES_COMMAND_OK);
@@ -33,6 +35,7 @@ int main(void) {
     r = expect(c, PQexecPrepared(c, "insert", 6, values, NULL, NULL, 0), PGRES_COMMAND_OK);
     assert(strcmp(PQcmdTuples(r), "1") == 0);
     PQclear(r);
+    fprintf(stderr, "libpq phase: inserted\n");
     PQclear(expect(c, PQprepare(c, "read", "SELECT id,n,f,b,label,payload FROM c_pg_rows WHERE id=$1", 0, NULL), PGRES_COMMAND_OK));
     for (int binary = 0; binary < 2; binary++) {
         r = expect(c, PQexecPrepared(c, "read", 1, values, NULL, NULL, binary), PGRES_TUPLES_OK);
@@ -59,17 +62,21 @@ int main(void) {
         }
         PQclear(r);
     }
+    fprintf(stderr, "libpq phase: text and binary read complete\n");
     r = PQexecPrepared(c, "insert", 6, values, NULL, NULL, 0);
     assert(PQresultStatus(r) == PGRES_FATAL_ERROR);
     assert(strcmp(PQresultErrorField(r, PG_DIAG_SQLSTATE), "23505") == 0);
     PQclear(r);
+    fprintf(stderr, "libpq phase: duplicate rejected\n");
     values[0] = "2";
     for (int i=1; i<6; i++) values[i] = NULL;
     PQclear(expect(c, PQexecPrepared(c, "insert", 6, values, NULL, NULL, 0), PGRES_COMMAND_OK));
+    fprintf(stderr, "libpq phase: null row inserted\n");
     r = expect(c, PQexecPrepared(c, "read", 1, values, NULL, NULL, 1), PGRES_TUPLES_OK);
     assert(PQntuples(r) == 1);
     for (int i=1; i<6; i++) assert(PQgetisnull(r,0,i));
     PQclear(r);
+    fprintf(stderr, "libpq phase: null read complete\n");
     r = expect(c, PQexec(c, "DELETE FROM c_pg_rows"), PGRES_COMMAND_OK);
     assert(strcmp(PQcmdTuples(r), "2") == 0);
     PQclear(r);

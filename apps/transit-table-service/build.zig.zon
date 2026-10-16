@@ -1,0 +1,11 @@
+.{
+    .name = .transit_table_service,
+    .fingerprint = 0xfec51da97e8b5f6c,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_query = .{ .path = "../../packages/zig/transit-query" },
+        .transit_http_server = .{ .path = "../../packages/zig/transit-http-server" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

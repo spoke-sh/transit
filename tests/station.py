@@ -11,7 +11,7 @@ import time
 
 import pyarrow as pa
 
-from station_ledger import AUDIT, audit_total, query_key, query_result
+from station_ledger import AUDIT, audit_total, query_key, query_result, provision
 from inspection import System
 from storage import wait_ready
 
@@ -32,8 +32,7 @@ def run(node, cli, worker, courier):
             pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
             resource = s.command({"create_resource": {"writer": pid}})
             seed, public = s.key(role)
-            s.command({"grant": {"subject": principal, "public_key": public, "permissions": 88, "pid": pid}})
-            for subject in (0, principal):
+            for subject in (0,):
                 s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
             s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
             s.command({"send": {"pid": pid, "value": frame(b"init")}})
@@ -44,6 +43,7 @@ def run(node, cli, worker, courier):
         requester, requester_resource, requester_config = create(2, "requester", ledger)
         ledger_config.update(destination=requester, peer_resource=requester_resource)
         requester_config['source_resource'] = ledger_resource
+        changes = provision(s, [(ledger_resource, ledger_config), (requester_resource, requester_config)])
         for resource, subject, config in ((ledger_resource, 2, requester_config), (requester_resource, 1, ledger_config)):
             s.command({'grant_resource': dict(resource=resource, subject=subject, permissions=3)})
             s.command({'associate': dict(pid=config['pid'], name=b'query-peer'.hex(), resource=resource, required=False)})
@@ -210,6 +210,27 @@ def run(node, cli, worker, courier):
             assert value(requester_resource, b'last-query') == str(namespace).encode()
             result = query_result(value, requester, requester_resource, ledger, ledger_resource, namespace, [{'id': 1, 'amount': 10}])
             assert value(ledger_resource, query_key('j', result))[125] == 3
+            drain_ledger()
+
+            # Revoke native SELECT after capture while retaining raw worker
+            # reads and the application's sharing policy. Storage ownership
+            # cannot substitute for the original query's selected data role.
+            namespace = upload_query()
+            delivery_daemon.terminate(); delivery_daemon.wait(timeout=10)
+            once(current)
+            authority = ledger_config['authorization']
+            binding = list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(changes.definition)
+                + struct.pack('<QQQBQ', 72, ledger_resource, 1, 3, 1)).digest())
+            target = changes.read({'binding': dict(domain=authority['profile']['table_domain'], key=binding)})['body']['binding']['reference']
+            grants = changes.read({'grants': dict(object=target, grantee=authority['role'], cursor=None)})['body']['grants']
+            select = [grant for grant in grants['records'] if grant and grant['privileges'] & 1]
+            assert grants['next'] is None and len(select) == 1, grants
+            changes.apply('deny-query-select', {'revoke': dict(id=select[0]['id'], privileges=1,
+                grant_option_only=False, behavior='restrict')})
+            delivery_daemon = s.start(courier, delivery_config)
+            pump_until(lambda: phase(namespace) == 6, [current, requester_config])
+            assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
+            changes.apply('restore-query-select', {'grant': dict(object=target, grantee=authority['role'], privileges=1)})
             drain_ledger()
 
             # Revoke policy between retained capture and the next self-input.

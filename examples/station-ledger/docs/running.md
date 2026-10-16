@@ -35,6 +35,14 @@ Worker grants are execute/inspect/publish, scoped to their own PID; resource
 grants are separate. The observer does not have lifecycle authority, and the
 lifecycle controller does not have provider credentials.
 
+The ledger and requester have stable LOGIN roles and explicitly select a shared
+NOLOGIN data role. Its database CONNECT, schema USAGE and Table
+SELECT/INSERT/UPDATE grants are provisioned once through saved native
+authorization changes. The root owns the catalog/schema and admits Table
+creation; the ledger principal registers its stable object identity. Local,
+Compose and reference activation rotate credentials while retaining these
+roles. Starting or replacing a worker does not restore revoked grants.
+
 The printed `processes` mapping identifies actual durable PIDs and resource IDs;
 principal numbers are not PIDs. Durable resources, rows, audit entries and retained
 query results use paged storage, independently of resident cache size. Each native
@@ -55,7 +63,12 @@ The ledger needs current read access to the requester's upload resource; the
 requester needs current read access to the ledger's schema/result resource.
 Launchers grant these separately from ownership and configure the corresponding
 resource IDs. Root-origin query policy explicitly maps the configured peer to
-catalog principal zero and can revoke subsequent capture and disclosure.
+the requester principal and can revoke subsequent capture and disclosure.
+Both workers act as configured application services. A delta records the
+ledger's data-role proof; a query records the requester's proof, source binding
+and fixed query before upload. Later turns keep that exact proof. Current grant
+revocation or credential rotation can deny unfinished work; the host preserves
+its durable input and staging for inspection instead of signing it again.
 History and results retain unlimited lifetime by default. Storage quotas do not
 authorize silent eviction or expiry; a blocked handler remains inspectable.
 

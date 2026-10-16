@@ -16,12 +16,11 @@ enum class DependencyKind : uint32_t { QuerySource, Writer, Watch, MaintainedRel
 enum class CompareOp : uint32_t { Eq, Ne, Lt, Le, Gt, Ge };
 enum class NextKind : uint32_t { Send, Running, Terminal, UploadCancelled };
 struct Scope { ResourceRef resource; uint64_t catalog; };
-struct Connection { ProcessRef owner; Scope scope; };
+struct Connection { ProcessRef owner; Scope scope; std::optional<uint64_t> role = {}; uint64_t namespace_id = 1; };
+struct Authority { uint64_t database_domain, schema_domain, table_domain, database, initial_schema_authority, initial_schema; };
+struct Subject { uint64_t principal, login_role, role, credential_epoch, audience; std::array<uint8_t, 32> context; };
 struct Limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_records; };
-struct Configuration { Scope scope; ProcessRef owner; uint64_t administrator; Limits table_limits; };
-struct Rights { bool inspect = false, create = false, read = false, insert = false, update = false, remove = false, alter = false, drop = false; };
-struct Policy { Scope scope; uint64_t principal, revision; Rights rights; };
-struct PolicyChange { uint64_t expected_revision; Policy policy; };
+struct Configuration { Scope scope; ProcessRef owner; uint64_t administrator; Limits table_limits; Authority authority; std::string database_name; };
 struct Identity { uint64_t operation, namespace_id; };
 struct Basis { uint64_t object, revision; std::array<uint8_t, 32> schema_fingerprint; };
 struct Column { uint64_t id; std::string name; logical::Type type; bool nullable = true; std::optional<logical::Cell> default_value; std::optional<uint32_t> max_characters; };
@@ -52,11 +51,11 @@ struct Delete { Basis basis; std::optional<Predicate> predicate; };
 using Action = std::variant<Create, Alter, Rename, Drop, Insert, Update, Delete>;
 struct Dependency { Scope scope; uint64_t object, identity; ProcessRef owner; DependencyKind kind; };
 struct MetadataCommitment { uint32_t bytes; std::array<uint8_t, 32> digest; };
-struct Metadata { Scope scope; uint64_t object, revision; std::string name; std::array<uint8_t, 32> schema_fingerprint; uint64_t principal, operation, admitted_input; MetadataCommitment commitment; };
+struct Metadata { Scope scope; uint64_t namespace_id, object, revision; std::string name; std::array<uint8_t, 32> schema_fingerprint; uint64_t principal, operation, admitted_input; MetadataCommitment commitment; };
 inline Basis basis(const Metadata &v) { return {v.object, v.revision, v.schema_fingerprint}; }
 struct Head { uint64_t revision, rows, pending; };
 struct Entry { Metadata metadata; Head head; };
-struct Definition { Metadata metadata; Head head; Schema schema; };
+struct Definition { Metadata metadata; Head head; Schema schema; uint64_t authorization; };
 struct HistoricalDefinition { Metadata metadata; Schema schema; };
 struct Cursor { std::string definition; Scope scope; uint64_t resource_revision, after_object; };
 struct Page { uint64_t resource_revision; std::vector<Entry> entries; std::optional<Cursor> next; };
@@ -69,7 +68,7 @@ struct State { std::optional<Outcome> outcome; std::optional<Upload> upload; };
 struct Disposition { uint64_t input; DispositionKind outcome; std::string diagnostic; };
 struct Progress { Observation observation; std::optional<Disposition> disposition; State state; };
 struct Capabilities { uint8_t version; std::string definition; uint16_t max_columns, max_rows, max_sql_bytes; uint32_t max_intent_bytes, max_action_bytes; uint16_t max_prepared_bytes; uint8_t resident_intents; };
-struct Description { Configuration configuration; Policy policy; uint64_t resource_revision; };
+struct Description { Configuration configuration; Subject subject; uint64_t authorization_revision, resource_revision; };
 namespace detail {
 inline void require(bool yes) { if (!yes) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); } }
 inline Bytes copy(transit_sdk_bytes v) { return v.size ? Bytes(v.data, v.data + v.size) : Bytes{}; }
@@ -83,15 +82,15 @@ inline transit_station_catalog_identity native(Identity v) { return {v.operation
 inline transit_station_catalog_basis native(const Basis &v) { transit_station_catalog_basis out{v.object, v.revision, {}}; std::copy(v.schema_fingerprint.begin(), v.schema_fingerprint.end(), out.schema_fingerprint); return out; }
 inline transit_station_catalog_reference native(const Reference &v) { transit_station_catalog_reference out{}; text(v.definition, out.definition); std::copy(v.digest.begin(), v.digest.end(), out.digest); return out; }
 inline transit_station_catalog_cursor native(const Cursor &v) { transit_station_catalog_cursor out{}; text(v.definition, out.definition); out.scope = native(v.scope); out.resource_revision = v.resource_revision; out.after_object = v.after_object; return out; }
-inline transit_station_catalog_rights native(const Rights &v) { return {v.inspect, v.create, v.read, v.insert, v.update, v.remove, v.alter, v.drop}; }
-inline transit_station_catalog_policy native(const Policy &v) { return {native(v.scope), v.principal, v.revision, native(v.rights)}; }
-inline transit_station_catalog_configuration native(const Configuration &v) { return {native(v.scope), v.owner.native(), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}}; }
+inline transit_station_catalog_authority native(const Authority &v) { return {v.database_domain, v.schema_domain, v.table_domain, v.database, v.initial_schema_authority, v.initial_schema}; }
+inline Authority from(const transit_station_catalog_authority &v) { return {v.database_domain, v.schema_domain, v.table_domain, v.database, v.initial_schema_authority, v.initial_schema}; }
+inline Subject from(const transit_station_catalog_subject &v) { Subject out{v.principal, v.login_role, v.role, v.credential_epoch, v.audience, {}}; std::copy_n(v.context, 32, out.context.begin()); return out; }
+inline transit_station_catalog_configuration native(const Configuration &v) { transit_station_catalog_configuration out{native(v.scope), v.owner.native(), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}, native(v.authority), {}}; text(v.database_name, out.database_name); return out; }
 inline transit_station_catalog_dependency native(const Dependency &v) { return {native(v.scope), v.object, v.identity, v.owner.native(), static_cast<uint32_t>(v.kind)}; }
-inline Configuration from(const transit_station_catalog_configuration &v) { return {from(v.scope), ProcessRef(v.owner.realm, v.owner.pid), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}}; }
-inline Policy from(const transit_station_catalog_policy &v) { const auto &r = v.rights; return {from(v.scope), v.principal, v.revision, {r.inspect, r.create, r.read, r.insert, r.update, r.remove, r.alter, r.drop}}; }
+inline Configuration from(const transit_station_catalog_configuration &v) { return {from(v.scope), ProcessRef(v.owner.realm, v.owner.pid), v.administrator, {v.table_limits.record_bytes, v.table_limits.staging_bytes, v.table_limits.staging_records}, from(v.authority), v.database_name}; }
 inline Cursor from(const transit_station_catalog_cursor &v) { return {v.definition, from(v.scope), v.resource_revision, v.after_object}; }
 inline Metadata from(const transit_station_catalog_metadata &v) {
-    Metadata out{from(v.scope), v.object, v.revision, v.name, {}, v.principal, v.operation, v.admitted_input, {v.commitment.bytes, {}}}; std::copy_n(v.schema_fingerprint, 32, out.schema_fingerprint.begin()); std::copy_n(v.commitment.digest, 32, out.commitment.digest.begin()); return out;
+    Metadata out{from(v.scope), v.namespace_id, v.object, v.revision, v.name, {}, v.principal, v.operation, v.admitted_input, {v.commitment.bytes, {}}}; std::copy_n(v.schema_fingerprint, 32, out.schema_fingerprint.begin()); std::copy_n(v.commitment.digest, 32, out.commitment.digest.begin()); return out;
 }
 inline Head from(transit_station_catalog_head v) { return {v.revision, v.rows, v.pending}; }
 inline Schema from(const transit_station_catalog_schema &v) {

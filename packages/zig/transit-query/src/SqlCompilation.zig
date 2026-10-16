@@ -38,7 +38,7 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
 
     var bound: ?q.SqlTemplate.Bound = null;
     defer if (bound) |*owner| owner.deinit();
-    const bundle = if (request.parameters) |parameters| blk: {
+    const description = if (request.parameters) |parameters| blk: {
         var template = try q.SqlTemplate.initDiagnostic(temporary, definition, name, request.sql, detail);
         defer template.deinit();
         if (parameters.len != template.parameterTypes().len) {
@@ -66,10 +66,11 @@ pub fn applyDiagnostic(allocator: std.mem.Allocator, client: anytype, request: R
         break :blk bound.?.bundle;
     } else try q.Bundle.fromSqlDiagnostic(temporary, definition, name, request.sql, limits, detail);
 
-    var bytes: [q.Bundle.max_bytes]u8 = undefined;
-    const encoded = try bundle.encode(&bytes);
     const after = try client.describe(definition);
     if (!after.limits.permits(limits)) return error.QueryBudgetExceeded;
+    const bundle = try client.authorizeBundle(description);
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    const encoded = try bundle.encode(&bytes);
     var columns: [q.SourceDefinition.max_columns]q.fuze.Types.Field = undefined;
     return .{
         .bundle = try a.hex(allocator, encoded),

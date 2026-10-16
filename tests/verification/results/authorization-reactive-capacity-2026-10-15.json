@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "source_revision": "f7e5dc981410862caab990dd0c43efbb649a0a47",
+  "tracked_changes": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "correction": "Retry only exact serialized native commands receiving an explicit HttpCapacity response when success is expected, within the existing ten-second retry window. No runtime, admission-limit or deadline change.",
+  "regression": {
+    "command": "nix develop --command python3 -B tests/serving_submission.py",
+    "old_fixture_exit": 1,
+    "old_fixture_failed_cases": 2,
+    "corrected_fixture_exit": 0,
+    "corrected_cases": 5,
+    "before_log_sha256": "30e55349dbb066add688927cd53a216871f1b48ca5d6816bf9f2677d420ec516",
+    "after_log_sha256": "44a8b3089e140ce8d27c75c833d91185cd727d3ea951e101b89df5e028250164",
+    "assertions": [
+      "Exact method, route, headers and signed body survive repeated capacity responses.",
+      "Every attempted connection closes.",
+      "The existing retry window still terminates.",
+      "Explicit status=None and expected 503 remain observable without retries.",
+      "AccessDenied, Conflict, AuthorityUnavailable and unrelated routes do not retry.",
+      "Existing structured serving-capacity retries retain their behavior."
+    ]
+  },
+  "preflight": {
+    "source_revision": "f7e5dc981410862caab990dd0c43efbb649a0a47",
+    "tracked_changes": true,
+    "task": "test::reactive-refresh",
+    "exit_code": 0,
+    "seconds": 234.683,
+    "log_sha256": "957fb844434d6aa0f294d997a25057b31e9fcb6ca213d6ed603b667c63238dfb",
+    "modified_fixture_files": {
+      "tests/serving.py": "21b9adc7fc371f6600c338196cab4417ed9fca67a2db6cf9d203994925956be4",
+      "tests/serving_submission.py": "f712102e98a0bbab198b0c6677da9f08b2622a5be41cadba7ce1e7ff5012bc6e",
+      "tasks/test.just": "4a6cf0dcc3b920da81c49c05c62f6c6e7adc9b6445be83a408a93845eb0bb5a3"
+    },
+    "scope": "Focused preflight with exact-command capacity retries; unchanged product binaries and definition. Not final clean-source qualification."
+  },
+  "reactive_schedule_seconds": 210.62,
+  "prior_attempts": [
+    {
+      "source_revision": "f7e5dc981410862caab990dd0c43efbb649a0a47",
+      "tracked_changes": false,
+      "results": [
+        {
+          "task": "test::reactive-refresh",
+          "exit_code": 0,
+          "seconds": 392.102,
+          "log_sha256": "1c9ccf37c19f8664488d764a529ca876c872579de0894b436d56b2831c93ded0"
+        },
+        {
+          "task": "test::server-applications",
+          "exit_code": 1,
+          "seconds": 1197.651,
+          "log_sha256": "476951067af15353c81530df9ff47e3c40aafbdad60d49ecedb589a852e0b0aa"
+        }
+      ]
+    },
+    {
+      "source_revision": "f7e5dc981410862caab990dd0c43efbb649a0a47",
+      "tracked_changes": false,
+      "results": [
+        {
+          "task": "test::reactive-refresh",
+          "exit_code": 1,
+          "seconds": 357.093,
+          "log_sha256": "ae4bbc9af7df55141158b0c18ca0bfdc5db278acdcc5c3867521a34f4cab7811"
+        }
+      ]
+    },
+    {
+      "source_revision": "f7e5dc981410862caab990dd0c43efbb649a0a47",
+      "tracked_changes": false,
+      "results": [
+        {
+          "task": "test::server-applications",
+          "exit_code": 0,
+          "seconds": 1237.07,
+          "log_sha256": "bd1092d30f64f5ad61b7907d076df7f28a622c7d72513f2c026b913bc037530a"
+        },
+        {
+          "task": "test::reactive-refresh",
+          "exit_code": 1,
+          "seconds": 211.474,
+          "log_sha256": "82c32aa99f444bdc2fb0a40a01fe0207f43fc8a65151384ddd8214a439252b05"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "The full reactive preflight passes; it does not record a runtime capacity retry beyond the deterministic regression cases.",
+    "The first installed-application failure is AuthorityUnavailable after the existing retry window; its cause is not established. The unchanged complete fresh lifecycle later passes in 1237.070 seconds.",
+    "A separate restart-and-read diagnostic verifies epoch 2 and all 19 migrated rows but is not a substitute for that complete lifecycle proof.",
+    "Final committed-source qualification remains separate."
+  ]
+}

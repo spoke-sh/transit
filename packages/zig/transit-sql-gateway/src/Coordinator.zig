@@ -9,6 +9,7 @@ const Self = @This();
 allocator: std.mem.Allocator,
 client: *g.Client,
 table_key: p.Ed25519.KeyPair,
+reader_key: p.Ed25519.KeyPair,
 generation: u64,
 admission_after: u64 = 0,
 intent: ?c.TableIntent = null,
@@ -24,7 +25,7 @@ pub fn deinit(self: *Self) void {
 /// travels in each control and is checked inside the committing ledger turn.
 pub fn fence(self: *Self) !void {
     const config = self.client.ledger.configuration;
-    if (self.client.principal != config.coordinator or self.generation == 0 or !std.mem.eql(u8, &self.table_key.public_key.toBytes(), &config.table_public_key)) return error.GatewayIdentityConflict;
+    if (self.client.principal != config.coordinator or self.generation == 0) return error.GatewayIdentityConflict;
     const state = try self.client.reader().query(.{ .process = config.owner });
     if (state.body != .process) return error.InvalidAuthorityResponse;
     const process = state.body.process.process;
@@ -33,7 +34,7 @@ pub fn fence(self: *Self) !void {
 }
 pub fn table(self: *Self, item: r.Operation) c.TableClient {
     const config = self.client.ledger.configuration;
-    return .{ .transport = self.client.transport, .connection = .{ .scope = .{ .realm = config.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = config.table_principal }, .key = self.table_key };
+    return .{ .transport = self.client.transport, .connection = .{ .scope = .{ .realm = config.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = config.table_principal, .role = item.selectedRole(), .namespace = item.namespace }, .key = self.table_key, .reader = .{ .wire = self.client.transport, .realm = config.realm, .principal = config.reader, .key = self.reader_key } };
 }
 fn target(self: *Self, id: u64) g.Control.Qualified {
     return .{ .operation = id, .generation = self.generation };
@@ -129,12 +130,12 @@ pub fn next(self: *Self) !Action {
             .ddl => |identity| .{ .cancel_ddl = identity },
             .dml => |identity| .{ .cancel_dml = .{ .scope = intent.header.scope, .reference = identity.reference } },
         } else if (observed.upload != null) .{ .cancel_upload = intent.upload() } else return .{ .blocked = item.id };
-        return self.propose(item, try table_client.prepareControl(command));
+        return self.propose(item, try (try table_client.controlCandidate(command, try std.math.add(u64, head.sequence, 1))).sign(self.table_key));
     }
     if (item.cancel == 2) return .idle;
-    return switch (try table_client.next(intent)) {
-        .send => |step| try self.propose(item, step),
-        .running => if (item.reconcile != 0) try self.propose(item, try table_client.prepareResume(intent)) else .idle,
+    return switch (try table_client.nextCandidate(intent, try std.math.add(u64, head.sequence, 1))) {
+        .send => |step| try self.propose(item, try step.sign(self.table_key)),
+        .running => if (item.reconcile != 0) try self.propose(item, try (try table_client.resumeCandidate(intent, try std.math.add(u64, head.sequence, 1))).sign(self.table_key)) else .idle,
         .terminal => |outcome| .{ .control = .{ .complete = .{ .target = self.target(item.id), .outcome = try g.Terminal.fromOutcome(outcome) } } },
         .upload_cancelled => .idle, // A fresh pass records the attributed status.
     };
@@ -150,6 +151,9 @@ pub fn dispatch(self: *Self, action: Dispatch) !g.Control.Command {
     const saved = (try ledger.pendingStep(self.allocator, &source, item.id)) orelse return error.GatewayUnresolvedStep;
     if (!std.meta.eql(saved, action.prepared)) return error.GatewayStepIdentityConflict;
     var caller = self.table(item);
-    const receipt = try caller.submit(saved);
+    // Rotation can invalidate the old signer after admission but before a
+    // receipt was recorded. Recover exact acceptance with the current key first;
+    // absence permits only the original signed attempt, never re-signing.
+    const receipt = (try caller.receipt(saved)) orelse try caller.submit(saved);
     return .{ .receipt = .{ .target = self.record(item.id, item.pending), .input = receipt.position } };
 }

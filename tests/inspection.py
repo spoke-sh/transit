@@ -80,10 +80,10 @@ class System:
         path.chmod(0o600)
         return path, self.invoke("public-key", path)
 
-    def signed(self, command, sequence=0):
+    def signed(self, command, sequence=0, principal=0, seed=None):
         path = self.root / "command.json"
-        path.write_text(json.dumps({"realm": 72, "principal": 0, "sequence": sequence, "command": command}))
-        return self.invoke("sign", self.seed, path)
+        path.write_text(json.dumps({"realm": 72, "principal": principal, "sequence": sequence, "command": command}))
+        return self.invoke("sign", seed or self.seed, path)
 
     def post(self, path, value, status=200):
         request = urllib.request.Request(self.url + path, json.dumps(value).encode(), {"Content-Type": "application/json"})
@@ -175,7 +175,7 @@ def run(node, cli):
         page = s.inspect("mailbox", pids[0])
         assert all(e["mailbox_status"] == "pending" for e in page["events"] if e)
         assert len([e for e in page["events"] if e]) == 8
-        s.command({"revoke": 1})
+        revocation = s.command({"revoke": 1})
         s.inspect("processes", principal=1, seed=seed, cut=scoped["cut"], status=403)
         s.authority.kill()
         s.authority.wait(timeout=10)
@@ -183,7 +183,12 @@ def run(node, cli):
         s.store.start()
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
-        assert s.inspect("mailbox", pids[0]) == page | {"cut": s.inspect("mailbox", pids[0])["cut"]}
+        recovered = s.inspect("mailbox", pids[0])
+        assert page["reader"]["policy_revision"] < revocation
+        assert recovered["cut"]["policy_revision"] == revocation
+        # Current reader authority advances; admitted mailbox evidence does not.
+        assert recovered == page | {"cut": recovered["cut"],
+                                    "reader": page["reader"] | {"policy_revision": revocation}}, recovered
     print("Inspection: scoped discovery, signed queries, bounded pages, expired cuts, revocation and disk recovery passed.")
 
 

@@ -9,7 +9,13 @@ const Pub = s.Publication;
 const r = g.LedgerRecords;
 const Self = @This();
 configuration: Configuration,
-pub const Binding = struct { resource: u64, catalog: u64, owner: u64 };
+pub const Binding = struct {
+    resource: u64,
+    catalog: u64,
+    owner: u64,
+    namespace: u64 = 1,
+    role: ?u64 = null,
+};
 pub const Configuration = struct {
     realm: u64,
     resource: u64,
@@ -19,7 +25,7 @@ pub const Configuration = struct {
     control: u64,
     coordinator: u64,
     table_principal: u64,
-    table_public_key: [32]u8,
+    reader: u64,
     account: [32]u8,
     bindings: []const Binding,
     intent_bytes: u32 = c.TableIntent.max_bytes,
@@ -27,13 +33,13 @@ pub const Configuration = struct {
     byte_quota: u64,
     pending_quota: u32 = 16,
     pub fn validate(self: Configuration) !void {
-        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal }) |id| if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
-        const identities = [_]u64{ self.worker, self.ingress, self.control, self.coordinator, self.table_principal };
+        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader }) |id| if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
+        const identities = [_]u64{ self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader };
         for (identities, 0..) |id, i| for (identities[0..i]) |other| if (id == other) return error.InvalidGatewayConfiguration;
         if (self.bindings.len == 0 or self.bindings.len > 8 or self.intent_bytes < c.TableIntent.prefix_bytes or self.intent_bytes > c.TableIntent.max_bytes or self.operation_quota == 0 or self.byte_quota < self.reservation() or self.pending_quota == 0 or self.pending_quota > 1024) return error.InvalidGatewayConfiguration;
         for (self.bindings, 0..) |binding, i| {
-            if (binding.resource == self.resource or binding.resource == 0 or binding.resource > p.max_counter or binding.owner == 0 or binding.owner > p.max_counter or binding.catalog == 0) return error.InvalidGatewayConfiguration;
-            for (self.bindings[0..i]) |other| if (binding.resource == other.resource and binding.catalog == other.catalog) return error.InvalidGatewayConfiguration;
+            if (binding.resource == self.resource or binding.resource == 0 or binding.resource > p.max_counter or binding.owner == 0 or binding.owner > p.max_counter or binding.catalog == 0 or binding.namespace == 0 or binding.namespace > p.max_counter or (binding.role != null and binding.role.? > p.max_counter)) return error.InvalidGatewayConfiguration;
+            for (self.bindings[0..i]) |other| if (binding.resource == other.resource and binding.catalog == other.catalog and binding.namespace == other.namespace) return error.InvalidGatewayConfiguration;
         }
     }
     /// Enough logical content for the maximum intent's normal upload, plus
@@ -47,13 +53,12 @@ pub const Configuration = struct {
         hash.update("transit.sql-gateway.account.v1\x00");
         hash.update(&g.SavedStep.definitionBytes());
         hash.update(&self.account);
-        hash.update(&self.table_public_key);
         var number: [8]u8 = undefined;
-        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, @as(u64, self.intent_bytes), @as(u64, self.bindings.len) }) |id| {
+        inline for (.{ self.realm, self.resource, self.owner, self.worker, self.ingress, self.control, self.coordinator, self.table_principal, self.reader, @as(u64, self.intent_bytes), @as(u64, self.bindings.len) }) |id| {
             std.mem.writeInt(u64, &number, id, .little);
             hash.update(&number);
         }
-        for (self.bindings) |binding| inline for (.{ binding.resource, binding.catalog, binding.owner }) |id| {
+        for (self.bindings) |binding| inline for (.{ binding.resource, binding.catalog, binding.owner, binding.namespace, @as(u64, @intFromBool(binding.role != null)), binding.role orelse 0 }) |id| {
             std.mem.writeInt(u64, &number, id, .little);
             hash.update(&number);
         };
@@ -91,7 +96,7 @@ pub fn operation(self: Self, source: anytype, id: u64) !r.Operation {
     _ = try self.head(source);
     const result = try r.decode(r.Operation, (try source.read(r.key('o', id, 0))) orelse return error.GatewayOperationNotFound);
     if (result.id != id) return error.GatewayIdentityConflict;
-    try self.admittedBinding(.{ .resource = result.resource, .catalog = result.catalog, .owner = result.owner });
+    try self.admittedBinding(.{ .resource = result.resource, .catalog = result.catalog, .owner = result.owner, .namespace = result.namespace, .role = result.selectedRole() });
     return result;
 }
 pub fn initialize(self: Self, turn: *s.Turn, sequence: u64) !void {
@@ -122,12 +127,12 @@ pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding) !r.Oper
         const previous = try r.decode(r.Nonce, value);
         if (!std.mem.eql(u8, &previous.nonce, &nonce)) return error.GatewayIdentityConflict;
         const current = try self.operation(turn, previous.id);
-        if (!std.mem.eql(u8, &current.nonce, &nonce) or current.resource != binding.resource or current.catalog != binding.catalog or current.owner != binding.owner) return error.GatewayIdentityConflict;
+        if (!std.mem.eql(u8, &current.nonce, &nonce) or current.resource != binding.resource or current.catalog != binding.catalog or current.owner != binding.owner or current.namespace != binding.namespace or current.selectedRole() != binding.role) return error.GatewayIdentityConflict;
         return current;
     }
     const reserve = self.configuration.reservation();
     if (header.operations == header.operation_quota or header.unsettled == header.pending_quota or reserve > header.byte_quota - header.used_bytes - header.reserved_bytes) return error.GatewayAdmissionCapacity;
-    const result: r.Operation = .{ .id = turn.delivery.input.position, .nonce = nonce, .resource = binding.resource, .catalog = binding.catalog, .owner = binding.owner, .reservation = reserve };
+    const result: r.Operation = .{ .id = turn.delivery.input.position, .nonce = nonce, .resource = binding.resource, .catalog = binding.catalog, .owner = binding.owner, .namespace = binding.namespace, .role_present = @intFromBool(binding.role != null), .role = binding.role orelse 0, .reservation = reserve };
     if (try turn.read(r.key('o', result.id, 0)) != null) return error.GatewayIdentityConflict;
     header.operations += 1;
     header.unsettled += 1;
@@ -186,7 +191,7 @@ pub fn admitIntent(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, id: 
     defer allocator.free(bytes);
     var intent = try c.TableIntent.restore(allocator, bytes);
     defer intent.deinit();
-    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = self.configuration.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = self.configuration.table_principal };
+    const connection: c.TableClient.Connection = .{ .scope = .{ .realm = self.configuration.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = self.configuration.table_principal, .namespace = item.namespace, .role = item.selectedRole() };
     try connection.header(intent.header);
     if (intent.namespace != id or intent.header.operation != id or !std.meta.eql(try Pub.Digest.of(r.intent_format, bytes), item.spec())) return error.GatewayIdentityConflict;
     switch (intent.header.kind) {
@@ -240,7 +245,7 @@ pub fn list(self: Self, source: anytype, cursor: ?Cursor) !Page {
         if (entry.key.len != 20 or std.mem.readInt(u64, entry.key.data[12..20], .big) != 0) return error.InvalidGatewayInventory;
         const item = try r.decode(r.Operation, entry.value);
         if (item.id != std.mem.readInt(u64, entry.key.data[4..12], .big)) return error.GatewayIdentityConflict;
-        try self.admittedBinding(.{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner });
+        try self.admittedBinding(.{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() });
         result.entries[count] = item;
         count += 1;
     }
@@ -319,9 +324,12 @@ pub fn stepPart(self: Self, turn: *s.Turn, id: u64, generation: u64, record: u64
 fn validateStep(self: Self, source: anytype, item: r.Operation, step: c.TableClient.Prepared) !void {
     const binding = try r.decode(r.IntentBinding, (try source.read(r.key('b', item.id, 0))) orelse return error.InvalidGatewayIntent);
     const frozen = try binding.binding(item.id);
-    if (frozen.header.scope.realm != self.configuration.realm or frozen.header.scope.resource != item.resource or frozen.header.scope.catalog != item.catalog or frozen.header.owner != item.owner or frozen.header.principal != self.configuration.table_principal) return error.GatewayIdentityConflict;
+    if (frozen.header.scope.realm != self.configuration.realm or frozen.header.scope.resource != item.resource or frozen.header.scope.catalog != item.catalog or frozen.header.owner != item.owner or frozen.header.principal != self.configuration.table_principal or frozen.header.namespace != item.namespace or step.connection.role != item.selectedRole()) return error.GatewayIdentityConflict;
     const matcher: g.Upload.Matcher(@TypeOf(source)) = .{ .source = source, .publication = self.publication(item.id), .spec = item.spec(), .body_offset = binding.body_offset, .body_length = binding.body_length };
-    try g.SavedStep.verifyBinding(step, frozen, matcher, try p.Ed25519.PublicKey.fromBytes(self.configuration.table_public_key));
+    // The saved envelope retains its signing key across credential rotation.
+    // Native dispatch/receipt lookup authenticates that exact request. A local
+    // signature proves integrity, never current execution authority.
+    try g.SavedStep.verifyBinding(step, frozen, matcher, try p.Ed25519.PublicKey.fromBytes(step.public_key));
     // Retention cleanup cannot be manufactured as a gateway execution step.
     const payload = try step.command();
     if (payload == .control) switch (payload.control) {

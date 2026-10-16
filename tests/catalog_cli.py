@@ -75,7 +75,7 @@ class Cli:
         elif name == 'prepare_control':
             use('compiled', value['intent'])
             command = dict(cancel_operation='cancel', cleanup_operation='cleanup', cancel_upload='cancel-upload', collect_upload='collect-upload')[value['control']]
-        elif name in ('prepare', 'prepare_initialize', 'prepare_policy', 'prepare_dependency'):
+        elif name in ('prepare', 'prepare_initialize', 'prepare_dependency'):
             control = self.root / f'control-{uuid.uuid4().hex}.json'
             control.write_text(json.dumps(value))
             control.chmod(0o600)

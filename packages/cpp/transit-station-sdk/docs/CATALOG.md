@@ -27,8 +27,8 @@ checks them before transport. No operation silently rebinds saved work by name.
 exact reconciliation. `observe`, `input_disposition`, `progress` and `status`
 distinguish input processing from the original terminal operation outcome.
 Applied DML results contain committed matched/changed counts and owned diagnostic
-JSON. Explicit initialize/policy/dependency/resume/control methods return prepared
-commands. `Rights::remove` represents SQL DELETE. Close does not cancel durable
+JSON. Explicit initialize/dependency/resume/control methods return prepared
+commands. Close does not cancel durable
 work.
 
 `lookup(name)` returns an optional owned live `Definition` containing metadata,
@@ -63,3 +63,17 @@ Metadata retains the immutable publication commitment: its byte length and
 32-byte digest. Lookup, listing and history reject missing or malformed
 commitments. C metadata copies this evidence inline; C++ metadata retains it
 in `MetadataCommitment` independently of its client lifetime.
+
+Connections select an optional native role and a positive schema namespace.
+C sets `has_role`, `role` and `namespace_id` explicitly; C++ defaults to the login
+role and namespace 1. `open` takes an optional Table-service URL (NULL in C,
+absent optional in C++ for direct infrastructure access). Mediation retains the
+caller's signing identity; the service's private resource identity is separate.
+
+Initialization requires the six-ID native authority profile and database name.
+Descriptions return the authenticated subject, credential epoch, selected role,
+audience, owned context digest and observed authorization revision. Returned
+subjects must match the connection. Live definitions include the native object
+identity; metadata includes its schema namespace and a commitment bounded to
+444 bytes. Lookup/list reject foreign namespaces. Historical definitions retain
+original object attribution and require its current disclosure privileges.

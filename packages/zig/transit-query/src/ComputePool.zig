@@ -240,9 +240,21 @@ test "contending short work completes locally while admitted cancellation joins 
     var call: Call = .{ .pool = pool, .batch = &long };
     // Hold scheduling after admission but before publication to any worker.
     pool.mutex.lockUncancelable(t.io);
-    const thread = try std.Thread.spawn(.{}, Call.run, .{&call});
-    while (pool.admission.tryLock()) {
-        pool.admission.unlock(t.io);
+    const thread = std.Thread.spawn(.{}, Call.run, .{&call}) catch |err| {
+        pool.mutex.unlock(t.io);
+        return err;
+    };
+    var joined = false;
+    defer if (!joined) {
+        call.flag.store(true, .release);
+        pool.mutex.unlock(t.io);
+        thread.join();
+    };
+    const deadline = std.Io.Clock.awake.now(t.io).toMilliseconds() + 5000;
+    // Acquiring this lock while polling can divert the caller into its local
+    // fallback, after which admission never happens. Observe without competing.
+    while (pool.admission.state.load(.acquire) == .unlocked) {
+        try t.expect(std.Io.Clock.awake.now(t.io).toMilliseconds() < deadline);
         try std.Thread.yield();
     }
     // Concurrent callers share the reservation even when they compute locally.
@@ -255,6 +267,7 @@ test "contending short work completes locally while admitted cancellation joins 
     call.flag.store(true, .release);
     pool.mutex.unlock(t.io);
     thread.join();
+    joined = true;
     try t.expectEqual(error.Cancelled, call.failure.?);
     try t.expect(pool.work == null and pool.remaining == 0);
     try t.expectEqual(@as(usize, 0), pool.active_bytes.load(.acquire));

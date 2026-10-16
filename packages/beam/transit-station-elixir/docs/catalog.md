@@ -36,12 +36,12 @@ return `{:ok, value}` or `{:error, %Transit.Client.Error{}}`. Submission can ret
 bytes with the original connection and credential.
 
 Public structs correspond to the shared guide's records: `Scope`, `Connection`,
-`TableLimits`, `Configuration`, `Rights`, `Policy`, `PolicyChange`, `Column`,
+`TableLimits`, `Configuration`, `Authority`, `Subject`, `Column`,
 `Schema`, `Identity`, `Basis`, `Metadata`, `Head`, `Entry`, `Definition`,
 `HistoricalDefinition`, `Cursor`, `Page`, `Reference`, `SavedIntent`, `Prepared`,
 `Intent`, `Compiled`, `Counts`, `Outcome`, `Upload`, `State`, `Disposition`, `Next`,
 `Progress`, `Capabilities`, `Description`, `Assignment` and `Dependency`.
-Missing optional values are `nil`. Rights default false; columns default nullable
+Missing optional values are `nil`. Columns default nullable
 with no default or length bound, and schema primary keys default to an empty list.
 [Logical values](logical.md) retain recursive descriptors and separate cell states.
 
@@ -49,7 +49,7 @@ with no default or length bound, and schema primary keys default to an empty lis
 guide, using Elixir structs inside them and atoms for tags. Obtain a captured
 `Basis` with `C.basis(definition.metadata)`. `compile_sql` accepts an optional
 CREATE object ID. `load`, `forget`, `next`, `status`, `prepare_resume`,
-`prepare_control`, `prepare_initialize`, `prepare_policy`, `prepare_dependency`,
+`prepare_control`, `prepare_initialize`, `prepare_dependency`,
 `submit`, `observe`, `input_disposition` and `progress` preserve explicit staging,
 processing, publication and recovery distinctions. The optional final wait flag
 on `observe` and `progress` defaults false.
@@ -74,3 +74,11 @@ for executed qualification.
 Catalog metadata retains the immutable metadata publication commitment: its
 byte length and 32-byte digest. Missing or malformed commitments are rejected;
 query sources use this evidence with the catalog owner and resolved schema.
+
+`Connection` accepts an optional selected `role` and a schema `namespace`
+(default 1). `open` accepts a fourth optional Table-service URL, preserving the
+original caller's signing identity while the service owns its resource identity.
+`Configuration` requires `Authority` and `database_name`. `Description` retains
+an authenticated `Subject` and `authorization_revision`; subjects and namespaces
+are checked against the connection before returning owned values. Metadata's
+commitment permits at most 444 bytes; live definitions include `authorization`.

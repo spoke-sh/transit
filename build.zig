@@ -117,6 +117,7 @@ pub fn build(b: *std.Build) void {
     diagnostic_errors_test.stdio = .inherit;
     b.step("test-diagnostic-errors", "Check compiler-inferred error sets and open-boundary fallbacks").dependOn(&diagnostic_errors_test.step);
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
+    b.step("table-service-contract", "Export reflected Table mediation envelopes").dependOn(&b.addRunArtifact(query.artifact("transit-table-service-contract")).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);
@@ -834,6 +835,10 @@ pub fn build(b: *std.Build) void {
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     build_test_step.dependOn(&flight_gateway.step);
+    const table_service = b.dependency("transit_table_service", .{ .target = target, .optimize = optimize }).artifact("transit-table-service");
+    b.step("transit-table-service", "Install the authenticated Table service").dependOn(&b.addInstallArtifact(table_service, .{}).step);
+    build_test_step.dependOn(&table_service.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = table_service.root_module })).step);
     const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&b.addInstallArtifact(sql_gateway_app, .{}).step);
     build_test_step.dependOn(&sql_gateway_app.step);

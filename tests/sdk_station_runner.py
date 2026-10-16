@@ -254,18 +254,29 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
         table_steps = 0
         def drain_table(cfg, child, expected):
             nonlocal table_steps
-            # This is a finite fixture progress budget, not a latency promise or
-            # a resident/backlog limit. Every callback still has four writes.
-            deadline = time.monotonic() + 600
-            for _ in range(4096):
+            # Current authorization adds work to every native fixture read/turn.
+            # This finite observer budget is calibrated by the recorded Ruby and
+            # Erlang schedules, not a latency promise or resident/backlog limit.
+            # Every callback still has four writes; the turn ceiling is unchanged.
+            started = time.monotonic()
+            budget_seconds = 1200
+            for turns in range(4096):
                 meta = state_value(cfg, b'table.queue')
                 assert meta and len(meta) == 21 and meta[:4] == b'TQM\x01'
                 if meta[4:] == bytes(16) + b'\1': break
-                assert time.monotonic() < deadline, 'Queued Table work did not complete'
+                elapsed = time.monotonic() - started
+                if turns % 50 == 0:
+                    print(json.dumps(dict(profile='sdk_table_queue', language=label,
+                        phase='draining', seconds=round(elapsed, 3), turns=turns,
+                        budget_seconds=budget_seconds)), flush=True)
+                assert elapsed < budget_seconds, (
+                    label, 'Queued Table work did not complete',
+                    dict(seconds=elapsed, turns=turns, budget_seconds=budget_seconds))
                 deliver()
                 expect_one(child, 'Committed', 'Idle')
                 table_steps += 1
             else: raise AssertionError('Queued Table turn budget exhausted')
+            drained_seconds = time.monotonic() - started
             outcomes = []
             for operation, state, matched, changed, rejection in expected:
                 raw = state_value(cfg, f'table.done.{operation:016x}'.encode())
@@ -276,6 +287,10 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                 assert state_value(cfg, f'table.work.{operation:016x}'.encode()) is None
                 outcomes.append((admitted, completed))
             assert all(left[1] <= right[0] for left, right in zip(outcomes, outcomes[1:])), outcomes
+            print(json.dumps(dict(profile='sdk_table_queue', language=label,
+                phase='verified', drain_seconds=round(drained_seconds, 3),
+                total_seconds=round(time.monotonic() - started, 3), turns=turns,
+                outcomes=len(outcomes), budget_seconds=budget_seconds)), flush=True)
         def negative_queries():
             # The raw sender uses ordinary authorized native turns, exercising
             # typed SDK ingress independently of the native capture unit tests.

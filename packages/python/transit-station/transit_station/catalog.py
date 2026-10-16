@@ -15,9 +15,8 @@ from .catalog_values import (
     Connection as Connection,
     TableLimits as TableLimits,
     Configuration as Configuration,
-    Rights as Rights,
-    Policy as Policy,
-    PolicyChange as PolicyChange,
+    AuthorityProfile as AuthorityProfile,
+    Subject as Subject,
     Column as Column,
     Schema as Schema,
     Identity as Identity,
@@ -159,9 +158,6 @@ class _Queries:
     def prepare_initialize(self, configuration: Configuration) -> _Request[Prepared]:
         return _request({'prepare_initialize': configuration._wire()}, 'prepared', v._prepared)
 
-    def prepare_policy(self, change: PolicyChange) -> _Request[Prepared]:
-        return _request({'prepare_policy': change._wire()}, 'prepared', v._prepared)
-
     def prepare_dependency(self, dependency: Dependency, present: bool) -> _Request[Prepared]:
         return _request({'prepare_dependency': dependency._wire(present)}, 'prepared', v._prepared)
 
@@ -182,7 +178,7 @@ class _Queries:
 class Client:
     """One owned worker and one intent; persist intent and every exact step before send."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+                 timeout_ms: int = 5000, native_directory: Path | None = None, table_service_url: str | None = None) -> None:
         if not isinstance(connection, Connection): raise TypeError('Expected catalog connection')
         self._queries = _Queries(connection, integer(principal, 'principal', minimum=0))
         self._api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
@@ -190,7 +186,7 @@ class Client:
         self._worker = Worker(self._api.contract['minimum_stack_bytes'])
         def create() -> None:
             endpoint = v._text(url, 2048).encode()
-            config = encode(dict(connection=connection._wire(principal), timeout_ms=integer(timeout_ms, 'timeout', maximum=60000)))
+            config = encode(dict(connection=connection._wire(principal), timeout_ms=integer(timeout_ms, 'timeout', maximum=60000), table_service_url=None if table_service_url is None else v._text(table_service_url, 2048)))
             key = seed(seed_file)
             try:
                 status = self._api.lib.station_catalog_create(1, endpoint, len(endpoint), key, config, len(config), c.byref(self._handle))
@@ -276,9 +272,6 @@ class Client:
     def prepare_initialize(self, configuration: Configuration) -> Prepared:
         return self._call(self._queries.prepare_initialize(configuration))
 
-    def prepare_policy(self, change: PolicyChange) -> Prepared:
-        return self._call(self._queries.prepare_policy(change))
-
     def prepare_dependency(self, dependency: Dependency, present: bool) -> Prepared:
         return self._call(self._queries.prepare_dependency(dependency, present))
 
@@ -305,8 +298,8 @@ class Client:
 class AsyncClient:
     """Await cancellation does not cancel native work; close joins its owner."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
-                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
-        self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory)
+                 timeout_ms: int = 5000, native_directory: Path | None = None, table_service_url: str | None = None) -> None:
+        self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory, table_service_url=table_service_url)
     @property
     def connection(self) -> Connection: return self._owner.connection
     async def _call(self, request: _Request[T]) -> T:
@@ -353,9 +346,6 @@ class AsyncClient:
 
     async def prepare_initialize(self, configuration: Configuration) -> Prepared:
         return await self._call(self._owner._queries.prepare_initialize(configuration))
-
-    async def prepare_policy(self, change: PolicyChange) -> Prepared:
-        return await self._call(self._owner._queries.prepare_policy(change))
 
     async def prepare_dependency(self, dependency: Dependency, present: bool) -> Prepared:
         return await self._call(self._owner._queries.prepare_dependency(dependency, present))

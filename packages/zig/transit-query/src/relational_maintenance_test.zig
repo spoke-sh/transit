@@ -113,7 +113,7 @@ test "maintained revisions restart every bounded step and preserve last result a
     defer source.deinit();
     const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = definition.schema.schema }};
     const sources = [_]q.TableSource{source.source};
-    const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{ .{ .name = "n", .expression = .count_all }, .{ .name = "v", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } }, .lifetime = .maintained, .budgets = budgets } };
+    const bundle = try Store.signQuery(q.RelationalBundle{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{ .{ .name = "n", .expression = .count_all }, .{ .name = "v", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } }, .lifetime = .maintained, .budgets = budgets } }, 17, 3, 3, 7);
     const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
     defer t.allocator.free(workspace);
     const admitted = try admit(&store, bundle, workspace);
@@ -219,7 +219,7 @@ test "a retained history gap fails the successor and restoration cannot silently
     defer source.deinit();
     const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = definition.schema.schema }};
     const sources = [_]q.TableSource{source.source};
-    const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .maintained, .budgets = budgets } };
+    const bundle = try Store.signQuery(q.RelationalBundle{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .maintained, .budgets = budgets } }, 17, 3, 3, 7);
     const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
     defer t.allocator.free(workspace);
     const admitted = try admit(&store, bundle, workspace);
@@ -274,7 +274,7 @@ test "maintained exchange attachment waits for exact complete coverage and every
         defer source.deinit();
         const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = definition.schema.schema }};
         const sources = [_]q.TableSource{source.source};
-        const bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{ .{ .name = "n", .expression = .count_all }, .{ .name = "v", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } }, .lifetime = .maintained, .budgets = budgets } };
+        const bundle = try Store.signQuery(q.RelationalBundle{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{ .{ .name = "n", .expression = .count_all }, .{ .name = "v", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } }, .lifetime = .maintained, .budgets = budgets } }, 17, 3, 3, 7);
         const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
         defer t.allocator.free(workspace);
         const admitted = try admitPhysical(store, bundle, workspace, true);

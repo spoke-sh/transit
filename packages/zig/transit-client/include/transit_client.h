@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 #define TRANSIT_CLIENT_ABI_VERSION 1u
-#define TRANSIT_CLIENT_ABI_DEFINITION "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365"
+#define TRANSIT_CLIENT_ABI_DEFINITION "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
 #define TRANSIT_CLIENT_MINIMUM_STACK_BYTES 8388608u
 #define TRANSIT_CLIENT_MAX_COUNTER 9007199254740991ULL
 #define TRANSIT_CLIENT_VALUE_BYTES 256ULL
@@ -30,6 +30,7 @@ typedef struct transit_buffer transit_buffer;
 #define TRANSIT_STATUS_INCOMPATIBLE_VERSION 10u
 #define TRANSIT_KIND_GROWING_COMMAND 6u
 #define TRANSIT_KIND_GROWING_QUERY 7u
+uint32_t transit_authorization_apply(transit_client * arg0, const uint8_t * arg1, const uint8_t * arg2, size_t arg3, const uint8_t * arg4, size_t arg5, transit_buffer ** arg6);
 uint32_t transit_diagnostic_validate(const uint8_t * arg0, size_t arg1);
 uint32_t transit_client_abi_definition_matches(const uint8_t * arg0, size_t arg1);
 uint32_t transit_client_abi_version(void);

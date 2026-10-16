@@ -5,6 +5,7 @@ admission/replay is separately qualified by typed_table_native.py.
 """
 import copy
 import json
+import jsonschema
 import os
 from pathlib import Path
 import select
@@ -99,12 +100,20 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         cases += 1
 
     scope = dict(realm=46, resource=7, catalog=str(2**64-1))
-    metadata = dict(scope=scope, object=str(2**64-1), revision=str(2**64-1), name='items', schema_fingerprint='ab'*32, principal=17, operation=str(2**64-1), admitted_input=9, commitment=dict(format=0x54434d01, length=200, digest=[171]*32))
+    metadata = dict(scope=scope, namespace=1, object=str(2**64-1), revision=str(2**64-1), name='items', schema_fingerprint='ab'*32, principal=17, operation=str(2**64-1), admitted_input=9, commitment=dict(format=0x54434d01, length=200, digest=[171]*32))
     schema = dict(definition=definition, object=str(2**64-1), revision='1', next_column='2', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None)], primary_key=[])
     entry = dict(metadata=metadata, head=dict(revision='1', rows='0', pending='0'))
-    current = dict(entry, schema=schema)
+    current = dict(entry, schema=schema, authorization=101)
     page = dict(resource_revision=9, entries=[entry]+[None]*7, next=dict(definition=definition, scope=scope, resource_revision=9, after_object=str(2**64-1)))
+    profile = dict(database_domain=1, schema_domain=2, table_domain=3, database=4, initial_schema_authority=5, initial_schema=1)
+    subject = dict(principal=17, login_role=23, role=23, credential_epoch=1, audience=3, context=[171]*32)
+    description = dict(configuration=dict(scope=scope, owner=3, administrator=0, table_limits=dict(record_bytes=4096, staging_bytes="8192", staging_records=64), authority=profile, database_name="fixture"), subject=subject, authorization_revision=9, resource_revision=2)
+    jsonschema.Draft202012Validator(contract['schemas']['CatalogResult']).validate(dict(description=description))
+    jsonschema.Draft202012Validator(contract['schemas']['CatalogResult']).validate(dict(definition=current))
     try:
+        check('describe', dict(description=description))
+        for change in [lambda v: v['subject'].update(principal=18), lambda v: v['subject'].update(role=24), lambda v: v['subject'].update(audience=4), lambda v: v['subject'].update(credential_epoch=0), lambda v: v['subject'].update(context=[171]*31), lambda v: v['configuration']['authority'].update(table_domain=2), lambda v: v['configuration'].pop('authority')]:
+            bad = copy.deepcopy(description); change(bad); check('describe', dict(description=bad), 4)
         check('lookup', dict(definition=current))
         check('cpp_lookup', dict(definition=current))
         check('wrong_name', dict(definition=current), 4)
@@ -114,10 +123,12 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         check('history', dict(historical=None))
         for change in [lambda v: v['metadata'].update(scope=dict(scope, catalog='1')),
                        lambda v: v['metadata'].update(revision='01'),
+                       lambda v: v['metadata'].update(namespace=2),
+                       lambda v: v.pop('authorization'),
                        lambda v: v['metadata'].pop('commitment'),
                        lambda v: v['metadata']['commitment'].update(format=0),
                        lambda v: v['metadata']['commitment'].update(length=0),
-                       lambda v: v['metadata']['commitment'].update(length=437),
+                       lambda v: v['metadata']['commitment'].update(length=445),
                        lambda v: v['metadata']['commitment'].update(digest=[171]*31),
                        lambda v: v['schema'].update(definition='0'*64),
                        lambda v: v['schema'].pop('definition'),

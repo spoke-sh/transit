@@ -12,7 +12,8 @@ non-root `principal`, a private `seed_file` and a `role`. Ingress/application
 workers additionally require exact `pid`, `generation` and a preserved
 `activation_directory`. Restart requires fresh fenced ownership. The ingress
 role contains service/administrator/observer identities; the application role
-contains its trusted ingress PID, initializer principal and explicit `table_limits`
+contains its trusted ingress PID, initializer principal, native catalog `authority`
+binding, `database_name` and explicit `table_limits`
 (`record_bytes`, `staging_bytes`, `staging_records`). The gateway role
 contains service/ingress/resource identities, port, exact public host/HTTPS origin,
 and up to 32 explicitly provisioned caller public keys. Private seeds are files,
@@ -55,11 +56,14 @@ Table head; a head reservation can notify possible change before row publication
 The optional `live_ingress` role adds `query_principal` and `source` alongside
 the nested `service` configuration. It composes sessions and the v1 requester
 in one resource. Application `queries: true` enables existing v1 capture and
-initializer-only `UQA1` query policy publication. Initializer-only catalog policy
-controls grant explicit inspect/read rights to each query or watch caller; the
+initializer-only `UQA1` query policy publication. Native database CONNECT,
+schema USAGE and Table SELECT grants authorize each query or watch caller; the
 gateway identity does not substitute for those rights. The application retains
 ownership of its schema and counter writes. Cross-resource read grants must be
-provisioned for both workers and the query caller. PID-scoped workers also need
+provisioned for both workers. A query caller using the direct infrastructure
+profile also requires explicit raw-resource rights; mediated watch/refresh reads
+use the private service reader and the caller's independent Table authority.
+PID-scoped workers also need
 optional foreign-resource associations established
 before first activation; associations never replace those grants. The
 [refresh guide](../../packages/zig/transit-serving/docs/refresh.md) owns the bounds;

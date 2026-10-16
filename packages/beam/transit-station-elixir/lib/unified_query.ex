@@ -86,7 +86,7 @@ end
 defmodule Transit.Station.Sdk.UnifiedQuery.Connection do
   @enforce_keys [:source, :resource, :requester, :requests]
   @derive {Inspect, only: []}
-  defstruct [:source, :resource, :requester, :requests]
+  defstruct [:source, :resource, :requester, :requests, role: nil]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.Description do
@@ -335,6 +335,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
         )
       )
 
+  @doc "Seal new work before persistence; recover saved bundles unchanged."
+  def authorize_bundle(client, %Bundle{} = bundle),
+    do: result(:transit_unified_query.authorize_bundle(client, native(bundle)))
+
   def prepare_next(client, namespace, %Bundle{} = bundle),
     do: result(:transit_unified_query.prepare_next(client, namespace, native(bundle)))
 
@@ -399,7 +403,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def native(%Connection{} = v),
     do:
       {:transit_unified_connection, native(v.source), native(v.resource), native(v.requester),
-       native(v.requests)}
+       native(v.requests), native(v.role)}
 
   def native(%Description{} = v),
     do:
@@ -533,12 +537,13 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_unified_prepared, bytes}), do: %Prepared{bytes: convert(bytes)}
   def convert({:transit_unified_cursor, opaque}), do: %Cursor{opaque: convert(opaque)}
 
-  def convert({:transit_unified_connection, source, resource, requester, requests}),
+  def convert({:transit_unified_connection, source, resource, requester, requests, role}),
     do: %Connection{
       source: convert(source),
       resource: convert(resource),
       requester: convert(requester),
-      requests: convert(requests)
+      requests: convert(requests),
+      role: convert(role)
     }
 
   def convert(

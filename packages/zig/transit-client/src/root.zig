@@ -3,6 +3,10 @@ const std = @import("std");
 pub const ResourceReader = @import("ResourceReader.zig");
 pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const WorkerHandoff = @import("WorkerHandoff.zig");
+pub const AuthorizationClient = @import("AuthorizationClient.zig").Client;
+pub const AuthorizationChange = @import("AuthorizationChange.zig");
+pub const AuthorizationSet = @import("AuthorizationSet.zig");
+pub const AuthorizationBridge = @import("AuthorizationBridge.zig");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const SessionWithTransport = @import("Session.zig").WithTransport;
@@ -63,10 +67,30 @@ pub const Client = struct {
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
+        return self.exchange(T, path, signed, false, .{ .request_bytes = max_body, .response_bytes = max_body });
+    }
+    pub const OwnedLimits = struct {
+        request_bytes: u32 = 1024 * 1024,
+        response_bytes: u32 = 1024 * 1024,
+        pub fn validate(self: OwnedLimits) !void {
+            if (self.request_bytes == 0 or self.response_bytes == 0 or self.request_bytes > 16 * 1024 * 1024 or self.response_bytes > 16 * 1024 * 1024) return error.InvalidHttpBudget;
+        }
+    };
+    /// Domain responses can contain strings and sequences. The returned parsed
+    /// arena owns all of them independently from transport buffers and Client.
+    /// The caller must deinit it. A timeout drains and frees any raced response.
+    pub fn callOwned(self: *Client, comptime T: type, path: []const u8, signed: anytype, limits: OwnedLimits) !std.json.Parsed(T) {
+        try limits.validate();
+        return self.exchange(T, path, signed, true, limits);
+    }
+    fn ResponseType(comptime T: type, comptime owned: bool) type {
+        return if (owned) std.json.Parsed(T) else T;
+    }
+    fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) !ResponseType(T, owned) {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
-            inline for (.{ "/v1/command", "/v1/query" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
+            inline for (.{ "/v1/command", "/v1/query", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
@@ -76,7 +100,7 @@ pub const Client = struct {
         self.call_context = observation.span.context;
         defer self.call_context = null;
         self.last_status = null;
-        const value = self.boundedCall(T, path, signed) catch |err| {
+        const value = self.boundedCall(T, path, signed, owned, limits) catch |err| {
             observation.fail(err);
             if (self.last_status) |status| observation.event.status = @backingInt(status);
             if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
@@ -93,32 +117,37 @@ pub const Client = struct {
             observation.event.realm = signed.query.realm;
             if (@hasField(@TypeOf(signed.query), "pid")) observation.event.pid = signed.query.pid;
         }
-        if (T == Receipt) observation.event.position = value.position;
+        if (T == Receipt) observation.event.position = (if (owned) value.value else value).position;
         return value;
     }
 
-    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
+    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) !ResponseType(T, owned) {
         self.last_rejection = null;
         const io = self.http.io;
         const deadline = std.Io.Clock.Timestamp.fromNow(io, .{
             .raw = .fromMilliseconds(self.timeout_ms),
             .clock = .awake,
         });
-        const Result = union(enum) { response: anyerror!T, timeout: anyerror!void };
+        const Result = union(enum) { response: anyerror!ResponseType(T, owned), timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(io, &results);
-        defer select.cancelDiscard();
+        defer if (owned) {
+            while (select.cancel()) |result| switch (result) {
+                .response => |response| if (response) |parsed| parsed.deinit() else |_| {},
+                .timeout => {},
+            };
+        } else select.cancelDiscard();
         try concurrentBefore(&select, .timeout, timeout, .{ io, deadline }, deadline);
         const Task = struct {
-            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp) anyerror!T {
+            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits) anyerror!ResponseType(T, owned) {
                 if (until.durationFromNow(client.http.io).raw.nanoseconds <= 0) return error.AuthorityTimeout;
-                return client.perform(T, route, command);
+                return client.perform(T, route, command, owned, bounds);
             }
         };
         // async permits inline execution, which would defeat the timeout when
         // no async worker is available. Admission waits for real concurrency;
         // the transport itself is invoked at most once, with the same deadline.
-        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline }, deadline);
+        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline, limits }, deadline);
         return switch (try select.await()) {
             .response => |result| result,
             .timeout => error.AuthorityTimeout,
@@ -148,15 +177,28 @@ pub const Client = struct {
         try deadline.wait(io);
     }
 
-    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype) anyerror!T {
+    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) anyerror!ResponseType(T, owned) {
         self.beginExchange();
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
-        const body = try std.json.Stringify.valueAlloc(allocator, signed, .{});
-        defer allocator.free(body);
-        var buffer: [max_body]u8 = undefined;
-        var writer: std.Io.Writer = .fixed(&buffer);
+        const encoded: struct { storage: []u8, length: usize } = if (owned) bounded: {
+            const storage = try allocator.alloc(u8, limits.request_bytes);
+            errdefer allocator.free(storage);
+            var request_writer: std.Io.Writer = .fixed(storage);
+            var encoder: std.json.Stringify = .{ .writer = &request_writer };
+            protocol.Json.write(signed, &encoder) catch |err| return if (err == error.WriteFailed) error.HttpRequestBudget else err;
+            break :bounded .{ .storage = storage, .length = request_writer.buffered().len };
+        } else native: {
+            const storage = try std.json.Stringify.valueAlloc(allocator, signed, .{});
+            break :native .{ .storage = storage, .length = storage.len };
+        };
+        defer allocator.free(encoded.storage);
+        const body = encoded.storage[0..encoded.length];
+        var stack: [if (owned) 0 else max_body]u8 = undefined;
+        const buffer = if (owned) try allocator.alloc(u8, limits.response_bytes) else stack[0..];
+        defer if (owned) allocator.free(buffer);
+        var writer: std.Io.Writer = .fixed(buffer);
         const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
         var headers: [3]std.http.Header = undefined;
         var header_count: usize = 0;
@@ -207,15 +249,17 @@ pub const Client = struct {
             .bad_request, .unprocessable_entity => return error.Rejected,
             else => return error.AuthorityUnavailable,
         }
-        var parsed = std.json.parseFromSlice(T, allocator, writer.buffered(), .{}) catch |err| switch (err) {
+        var parsed = (if (owned) protocol.Json.parseFromSliceOwned(T, allocator, writer.buffered()) else std.json.parseFromSlice(T, allocator, writer.buffered(), .{})) catch |err| switch (err) {
             error.OutOfMemory => return err,
             else => return error.InvalidAuthorityResponse,
         };
-        defer parsed.deinit();
+        errdefer parsed.deinit();
         if (T == Receipt) {
             if (parsed.value.position == 0 or parsed.value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
         }
         if (T == protocol.Growth.Response) protocol.Growth.validateResponse(parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
+        if (owned) return parsed;
+        defer parsed.deinit();
         return parsed.value;
     }
 
@@ -321,8 +365,13 @@ test "a full metadata view fits the bounded HTTP response" {
 }
 
 test {
+    _ = @import("AuthorizationClient.zig");
+    _ = AuthorizationChange;
+    _ = AuthorizationSet;
+    _ = AuthorizationBridge;
     _ = WaitHint;
     _ = @import("ConcurrencyTests.zig");
+    _ = @import("OwnedHttpTests.zig");
     _ = SnapshotReader;
     _ = Session;
     _ = Application;

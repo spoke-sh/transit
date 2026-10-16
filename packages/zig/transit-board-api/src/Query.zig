@@ -58,7 +58,7 @@ test "current query evidence requires exact key and resource identity without ex
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const reference: current.station.PublicationReference = .{ .domain = .query_request, .resource = 7, .namespace = 9, .record = 1, .spec = .{ .format = current.Bundle.format, .length = 64, .digest = @splat(1) } };
+    const reference: current.station.PublicationReference = .{ .domain = .query_request, .resource = 7, .namespace = 9, .record = 1, .spec = .{ .format = current.Bundle.format, .length = current.Bundle.header_bytes, .digest = @splat(1) } };
     const job: current.UnifiedRecords.Job = .{ .id = 5, .source = .{ .pid = 2, .input = 5, .index = 0 }, .destination = 8, .correlation = 9, .policy_revision = 1, .request = reference, .continuation = 1 };
     const key = current.UnifiedRecords.key('j', 5, 0);
     const evidence = (try decode(alloc, 2, 6, key, try job.encode())).?.execution;
@@ -85,7 +85,7 @@ test "query publication namespaces retain full-width identity and old layouts ha
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const reference: current.station.PublicationReference = .{ .domain = .query_request, .resource = 7, .namespace = std.math.maxInt(u64), .record = 1, .spec = .{ .format = current.Bundle.format, .length = 64, .digest = @splat(1) } };
+    const reference: current.station.PublicationReference = .{ .domain = .query_request, .resource = 7, .namespace = std.math.maxInt(u64), .record = 1, .spec = .{ .format = current.Bundle.format, .length = current.Bundle.header_bytes, .digest = @splat(1) } };
     var status: current.UnifiedRequest.Status = .{ .reference = reference };
     const key = current.UnifiedRecords.key('u', reference.namespace, 0);
     const pending = (try decode(alloc, 8, 7, key, try status.encode())).?.request;

@@ -16,6 +16,9 @@ A durable session belongs to a caller/service scope. A subscription binds its
 source; an attachment generation fences a particular transport consumer. Signed
 cursors preserve integrity and progress, not permission. Every protected release
 rechecks current native/service/source rights, lease and generation.
+Session-status reads return session state under the current service policy and
+omit the Table declaration. Discovery, snapshots and events additionally require
+current database CONNECT, schema USAGE and Table SELECT privileges.
 
 The initial profile bounds active work to four live sessions per service, two per
 caller and one subscription per session. Lease advancement requires authenticated
@@ -41,8 +44,9 @@ pretends the stream remained continuous. A cursor does not extend a released
 query pin or the source's history lifetime. The watermark is the native revision
 of the published Table-head entry. Head reservations or no-op completions can
 signal possible change; staged rows remain invisible. Query bookkeeping and
-changes to other Tables do not advance this head. Current catalog inspect/read
-rights are checked for the authenticated caller on each observation. ALTER/DROP
+changes to other Tables do not advance this head. Database CONNECT, schema USAGE and Table SELECT are checked for the
+authenticated caller and selected role on each observation and again before
+release. A cursor or open attachment retains no permission. ALTER/DROP
 or a different metadata commitment requires an explicit new snapshot; a watch
 never follows a reused name.
 
@@ -53,8 +57,11 @@ new finite query identity and captures the actual available source basis; no
 arbitrary executable `AS OF` operation is implied. While it runs, retain one
 latest unsubmitted invalidation. Only proven coverage clears that dirty position.
 
-The refresh owner copies the original submitted bundle and verifies its
-commitment before execution. A result's bound plan fingerprint includes its
+The refresh owner retains Follow’s original native admission, including its
+credential epoch and selected role. Each continuation checks current source
+privileges and includes them in the native publication guard. Rotation or
+revocation cannot be bypassed by a self-message or restart. The owner copies the
+original submitted bundle and verifies its commitment before execution. A result's bound plan fingerprint includes its
 captured source basis and can change across refreshes. Compare source resource,
 contract and schema across the generation, and require the full manifest to
 remain identical across pages of each individual finite result.

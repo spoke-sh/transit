@@ -73,12 +73,13 @@ jobs:
             shell: default
             cache: core
             cache_writer: true
+            timeout: 60
           - lane: growth
             shell: default
             cache: core
             cache_writer: false
             # Includes the full database client/recovery proof and retained-state regressions.
-            timeout: 120
+            timeout: 300
           - lane: experience
             shell: ci-experience
             cache: experience
@@ -88,11 +89,16 @@ jobs:
             shell: ci-experience
             cache: experience
             cache_writer: false
-          - lane: bindings
+          - lane: bindings-1
             shell: ci-bindings
             cache: bindings
             cache_writer: true
-            timeout: 300
+            timeout: 360
+          - lane: bindings-2
+            shell: ci-bindings
+            cache: bindings
+            cache_writer: false
+            timeout: 360
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
     steps:
@@ -165,7 +171,7 @@ jobs:
         if: matrix.lane == 'experience' || matrix.lane == 'launchers'
         run: nix develop .#${{ matrix.shell }} --command just transit-board::install
       - name: Install locked Node binding dependencies
-        if: matrix.lane == 'bindings'
+        if: matrix.cache == 'bindings'
         run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter @rey/transit-station --filter '@transit/*'
       - name: Run ${{ matrix.lane }} checks
         run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
@@ -206,7 +212,7 @@ jobs:
       - name: Save Zig standard libraries and fetched packages
         # One writer, including Zig's costly C++ standard library build. Source
         # changes reuse this immutable compiler/dependency cache in every lane.
-        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.lane == 'bindings' && steps.zig-cache.outcome == 'success' && steps.zig-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache == 'bindings' && matrix.cache_writer && steps.zig-cache.outcome == 'success' && steps.zig-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |

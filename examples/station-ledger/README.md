@@ -43,19 +43,28 @@ The executable accepts a JSON configuration path, or `--once <path>` to stop
 after one committed turn. Configuration fields are `url`, `realm`, `principal`,
 `pid`, `generation`, `seed_file`, `association` (default `data`), `role`
 (`ledger`, `requester` or `coordinator`), optional `destination`, `registry`
-and trusted `observer` principal. A requester sets `source_resource` to the
-ledger's resource; a query-serving ledger sets `peer_resource` to the requester's
+and trusted `observer` principal. Ledger and requester also require `authorization`:
+the explicitly selected native `role` and the catalog's `profile` binding.
+A requester sets `source_resource` to the
+ledger's resource; a query-serving ledger sets `peer_principal` and `peer_resource` to the requester's
 resource. Each PID has an optional `query-peer` association to that foreign
 resource, and each worker needs a separate current native read grant. The
 association neither grants access nor makes the peer a lifetime dependency.
-The ledger's explicit query policy maps its configured requester to
-catalog principal zero; PID numbers never become principals by inference.
+The ledger's query policy names the configured requester principal. Each worker
+signs its own application work under the selected data role; PID ownership does
+not grant Table access. These are application service identities, rather than
+per-user delegation. Pending deltas and query uploads retain their original
+proofs across continuations; recovery cannot refresh a revoked or rotated proof.
 
 Provisioning sends root-origin `init`, then `prepare-table`, before application
 commands. Creation advances through authenticated self-messages; queued deltas
 wait for its complete publication. A courier must deliver those self-messages as
 well as calls and replies. Provisioning must establish a required association, resource permissions,
 execute/inspect/publish grants, and fresh ownership before starting a worker.
+The launcher creates stable LOGIN identities, SET-only membership in a NOLOGIN
+data role, database CONNECT, schema USAGE and default SELECT/INSERT/UPDATE for
+the root-created Table. The ledger principal is its explicit domain registrar.
+Restart reads this binding and rotates credentials without reapplying data grants.
 Never put root credentials in this configuration.
 
 The provider form, `--bootstrap-json '<configuration>'`, omits `seed_file` and

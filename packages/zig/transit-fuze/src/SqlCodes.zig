@@ -7,6 +7,12 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.DuplicateSqlPrivilege, .code = "sql.duplicate_privilege", .category = .binding, .summary = "The statement repeats a privilege", .hint = "List each requested privilege once; repeated separate grants reconcile through native authority." },
+    .{ .cause = error.UnsupportedAuthorizationSql, .code = "sql.unsupported_authorization", .category = .unsupported, .summary = "This authorization form is outside the supported profile", .hint = "Use one supported role, schema, privilege or ownership statement." },
+    .{ .cause = error.InvalidSqlPrivilege, .code = "sql.invalid_privilege", .category = .binding, .summary = "The privilege or delegation option is invalid for this target", .hint = "Use CONNECT for databases, USAGE/CREATE for schemas, and SELECT/INSERT/UPDATE/DELETE for Tables. PUBLIC cannot receive delegation options." },
+    .{ .cause = error.InvalidSqlRole, .code = "sql.invalid_role", .category = .binding, .summary = "The role is invalid in this authorization statement", .hint = "PUBLIC can receive object privileges but cannot be a role member or owner." },
+    .{ .cause = error.DuplicateRoleOption, .code = "sql.duplicate_role_option", .category = .binding, .summary = "The statement repeats a role or membership option", .hint = "Specify each LOGIN, CREATEROLE, ADMIN, INHERIT or SET option once." },
+    .{ .cause = error.InvalidSqlAuthorizationName, .code = "sql.authorization_name_too_large", .category = .limit, .summary = "The authorization name exceeds 63 UTF-8 bytes", .hint = "Use a shorter identifier; no authorization identity was changed." },
     .{ .cause = error.NullLimitParameter, .code = "sql.null_limit_parameter", .category = .binding, .summary = "LIMIT requires a non-NULL value", .hint = "Bind a nonnegative uint64 value to LIMIT." },
     .{ .cause = error.RelationalSourceChanged, .code = "sql.relational_source_changed", .category = .conflict, .summary = "The declared relational source differs from its binding", .hint = "Bind the exact ordered source aliases and immutable schemas before compiling new work." },
     .{ .cause = error.AmbiguousRelationalColumn, .code = "sql.ambiguous_relational_column", .category = .binding, .summary = "Column name is ambiguous across the declared Tables", .hint = "Qualify the column with its FROM or JOIN alias." },

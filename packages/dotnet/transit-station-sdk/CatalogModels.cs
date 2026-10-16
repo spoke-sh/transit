@@ -31,11 +31,13 @@ public static partial class Catalog
     public sealed record Connection {
         public ProcessRef Owner { get; }
         public Scope Scope { get; }
-        public Connection(ProcessRef owner, Scope scope) {
-            ArgumentNullException.ThrowIfNull(owner); ArgumentNullException.ThrowIfNull(scope); if (owner.Realm != scope.Resource.Realm) throw new ArgumentException("Catalog requires one realm"); Owner = owner; Scope = scope;
+        public ulong? Role { get; }
+        public ulong Namespace { get; }
+        public Connection(ProcessRef owner, Scope scope, ulong? role = null, ulong schemaNamespace = 1) {
+            ArgumentNullException.ThrowIfNull(owner); ArgumentNullException.ThrowIfNull(scope); if (owner.Realm != scope.Resource.Realm) throw new ArgumentException("Catalog requires one realm"); Owner = owner; Scope = scope; Role = role.HasValue ? V.Counter(role.Value, 0) : null; Namespace = V.Counter(schemaNamespace);
         }
         internal JsonObject Wire(Credential identity) {
-            if (identity.Realm != Owner.Realm) throw new ArgumentException("Different credential realm"); return V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("principal", identity.Principal));
+            if (identity.Realm != Owner.Realm) throw new ArgumentException("Different credential realm"); return V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("principal", identity.Principal), ("role", Role), ("namespace", Namespace));
         }
     }
     public sealed record TableLimits {
@@ -50,25 +52,44 @@ public static partial class Catalog
         public ProcessRef Owner { get; }
         public ulong Administrator { get; }
         public TableLimits TableLimits { get; }
-        public Configuration(Scope scope, ProcessRef owner, ulong administrator, TableLimits tableLimits) { _ = new Connection(owner, scope); ArgumentNullException.ThrowIfNull(tableLimits); Scope = scope; Owner = owner; Administrator = V.Counter(administrator); TableLimits = tableLimits; }
-        internal JsonObject Wire() => V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("administrator", Administrator), ("table_limits", TableLimits.Wire()));
+        public AuthorityProfile Authority { get; }
+        public string DatabaseName { get; }
+        public Configuration(Scope scope, ProcessRef owner, ulong administrator, TableLimits tableLimits, AuthorityProfile authority, string databaseName) {
+            _ = new Connection(owner, scope); ArgumentNullException.ThrowIfNull(tableLimits); ArgumentNullException.ThrowIfNull(authority);
+            Scope = scope; Owner = owner; Administrator = V.Counter(administrator, 0); TableLimits = tableLimits;
+            Authority = authority; DatabaseName = V.Text(Identifier(databaseName), 63);
+        }
+        internal JsonObject Wire() => V.Obj(("scope", Scope.Wire()), ("owner", Owner.Pid), ("administrator", Administrator), ("table_limits", TableLimits.Wire()), ("authority", Authority.Wire()), ("database_name", DatabaseName));
     }
-    public sealed record Rights(bool Inspect, bool Create, bool Read, bool Insert, bool Update, bool Delete, bool Alter, bool Drop) {
-        internal JsonObject Wire() => V.Obj(("inspect", Inspect), ("create", Create), ("read", Read), ("insert", Insert), ("update", Update), ("delete", Delete), ("alter", Alter), ("drop", Drop));
+    /// <summary>Stable bindings allocated by explicit native provisioning.</summary>
+    public sealed record AuthorityProfile {
+        public ulong DatabaseDomain { get; }
+        public ulong SchemaDomain { get; }
+        public ulong TableDomain { get; }
+        public ulong Database { get; }
+        public ulong InitialSchema { get; }
+        public ulong InitialSchemaAuthority { get; }
+        public AuthorityProfile(ulong databaseDomain, ulong schemaDomain, ulong tableDomain, ulong database, ulong initialSchema, ulong initialSchemaAuthority) {
+            DatabaseDomain = V.Counter(databaseDomain); SchemaDomain = V.Counter(schemaDomain); TableDomain = V.Counter(tableDomain);
+            Database = V.Counter(database); InitialSchema = V.Counter(initialSchema); InitialSchemaAuthority = V.Counter(initialSchemaAuthority);
+            if (databaseDomain == schemaDomain || databaseDomain == tableDomain || schemaDomain == tableDomain || database == initialSchemaAuthority)
+                throw new ArgumentException("Distinct native authorization bindings are required");
+        }
+        internal JsonObject Wire() => V.Obj(("database_domain", DatabaseDomain), ("schema_domain", SchemaDomain), ("table_domain", TableDomain),
+            ("database", Database), ("initial_schema", InitialSchema), ("initial_schema_authority", InitialSchemaAuthority));
     }
-    public sealed record Policy {
-        public Scope Scope { get; }
+    /// <summary>An observed authenticated subject; it grants no authority.</summary>
+    public sealed record Subject {
         public ulong Principal { get; }
-        public ulong Revision { get; }
-        public Rights Rights { get; }
-        public Policy(Scope scope, ulong principal, ulong revision, Rights rights) { ArgumentNullException.ThrowIfNull(scope); ArgumentNullException.ThrowIfNull(rights); Scope = scope; Principal = V.Counter(principal, 0); Revision = Positive(revision); Rights = rights; }
-        internal JsonObject Wire() { var value = Rights.Wire(); value.Add("scope", Scope.Wire()); value.Add("principal", Principal); value.Add("revision", Turn.Decimal(Revision)); return value; }
-    }
-    public sealed record PolicyChange {
-        public ulong ExpectedRevision { get; }
-        public Policy Policy { get; }
-        public PolicyChange(ulong expectedRevision, Policy policy) { ArgumentNullException.ThrowIfNull(policy); if (expectedRevision == ulong.MaxValue || policy.Revision != expectedRevision + 1) throw new ArgumentException("Expected successor policy revision"); ExpectedRevision = expectedRevision; Policy = policy; }
-        internal JsonObject Wire() => V.Obj(("expected_revision", Turn.Decimal(ExpectedRevision)), ("policy", Policy.Wire()));
+        public ulong LoginRole { get; }
+        public ulong Role { get; }
+        public ulong CredentialEpoch { get; }
+        public ulong Audience { get; }
+        public Bytes Context { get; }
+        public Subject(ulong principal, ulong loginRole, ulong role, ulong credentialEpoch, ulong audience, Bytes context) {
+            Principal = V.Counter(principal, 0); LoginRole = V.Counter(loginRole, 0); Role = V.Counter(role, 0);
+            CredentialEpoch = V.Counter(credentialEpoch); Audience = V.Counter(audience); Context = Digest(context);
+        }
     }
     public sealed record Column {
         public ulong Id { get; }
@@ -123,10 +144,11 @@ public static partial class Catalog
     }
     public sealed record MetadataCommitment {
         public int Bytes { get; } public Bytes Digest { get; }
-        public MetadataCommitment(int bytes,Bytes digest) { if(bytes<1 || bytes>436) throw new ArgumentException("Invalid Table metadata length"); Bytes=bytes; Digest=Catalog.Digest(digest); }
+        public MetadataCommitment(int bytes,Bytes digest) { if(bytes<1 || bytes>444) throw new ArgumentException("Invalid Table metadata length"); Bytes=bytes; Digest=Catalog.Digest(digest); }
         internal JsonObject Wire() => V.Obj(("format",0x54434d01),("length",Bytes),("digest",new JsonArray(Digest.Copy().Select(b=>(JsonNode?)JsonValue.Create((uint)b)).ToArray())));
     }
     public sealed record Metadata {
+        public ulong Namespace { get; }
         public Scope Scope { get; }
         public ulong ObjectId { get; }
         public ulong Revision { get; }
@@ -136,7 +158,7 @@ public static partial class Catalog
         public ulong Operation { get; }
         public ulong AdmittedInput { get; }
         public MetadataCommitment Commitment { get; }
-        public Metadata(Scope scope, ulong objectId, ulong revision, string name, Bytes schemaFingerprint, ulong principal, ulong operation, ulong admittedInput, MetadataCommitment commitment) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; ObjectId = Positive(objectId); Revision = Positive(revision); Name = Identifier(name); SchemaFingerprint = Digest(schemaFingerprint); Principal = V.Counter(principal, 0); Operation = Positive(operation); AdmittedInput = V.Counter(admittedInput); ArgumentNullException.ThrowIfNull(commitment); Commitment=commitment; }
+        public Metadata(Scope scope, ulong schemaNamespace, ulong objectId, ulong revision, string name, Bytes schemaFingerprint, ulong principal, ulong operation, ulong admittedInput, MetadataCommitment commitment) { ArgumentNullException.ThrowIfNull(scope); Scope = scope; Namespace = V.Counter(schemaNamespace); ObjectId = Positive(objectId); Revision = Positive(revision); Name = Identifier(name); SchemaFingerprint = Digest(schemaFingerprint); Principal = V.Counter(principal, 0); Operation = Positive(operation); AdmittedInput = V.Counter(admittedInput); ArgumentNullException.ThrowIfNull(commitment); Commitment=commitment; }
         public Basis Basis => new(ObjectId, Revision, SchemaFingerprint);
     }
     public sealed record Head {
@@ -146,7 +168,7 @@ public static partial class Catalog
         public Head(ulong revision, ulong rows, ulong pending) { Revision = Positive(revision); Rows = rows; Pending = pending; }
     }
     public sealed record Entry(Metadata Metadata, Head Head);
-    public sealed record Definition(Metadata Metadata, Head Head, Schema Schema);
+    public sealed record Definition(ulong Authorization, Metadata Metadata, Head Head, Schema Schema);
     public sealed record HistoricalDefinition(Metadata Metadata, Schema Schema);
     public sealed record Cursor {
         public string Definition { get; }
@@ -217,7 +239,7 @@ public static partial class Catalog
     public sealed record Next(NextKind Kind, Prepared? Prepared = null, Outcome? Outcome = null);
     public sealed record Progress(Observation Observation, Disposition? Disposition = null, Outcome? Outcome = null, Upload? Upload = null);
     public sealed record Capabilities(uint Version, string Definition, uint MaxColumns, uint MaxRows, uint MaxSqlBytes, uint MaxIntentBytes, uint MaxActionBytes, uint MaxPreparedBytes, uint ResidentIntents);
-    public sealed record Description(Configuration Configuration, Policy Policy, ulong ResourceRevision);
+    public sealed record Description(Configuration Configuration, Subject Subject, ulong AuthorizationRevision, ulong ResourceRevision);
     public abstract record AssignmentValue;
     public sealed record Default : AssignmentValue;
     public sealed record CellValue : AssignmentValue { public Logical.Cell Cell { get; } public CellValue(Logical.Cell cell) { ArgumentNullException.ThrowIfNull(cell); Cell = cell; } }

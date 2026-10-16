@@ -1,5 +1,805 @@
 # Validation and milestone evidence
 
+## Declarative authorization evaluator
+
+The [admission-bound recovery report](verification/results/authorization-admission-recovery-2026-10-15.json)
+records a signer-substitution defect in saved changesets and its correction.
+Against `3af13da3`, a new regression receives a signed continuation where it
+expects rejection: a substituted seal and begin key borrow a real completed
+operation to change an unsent intent. The native ledger now retains the original
+admission key and exact request digest. Recovery compares both before signing.
+Core/client tests pass for forged current and completed checkpoints, a different
+request sequence, authentic continuation with a rotated key, and retained
+admission identity after rotation and reopening the authority.
+
+The complete CLI/ABI/host preflight passes with definition `4af64397…98b50`.
+An independently re-signed forged artifact returns a binding diagnostic without
+changing authority; the original saved changeset then completes across disk
+restart. The report records dirty source and exact file/log hashes. These are
+focused preflight results; final committed-source root checks, all 86 ordinary
+tasks and focused adapter proofs remain separate gates. Earlier results below
+retain their actual source and definition and do not certify this cutover.
+
+
+The [repository check report](verification/results/authorization-check-2026-10-15.json)
+records `just check` passing with definition `67f02f8b…2a15e`: native unit and
+contract checks, 3,380 diagnostic projections across 29 surfaces, 590 CLI cases,
+5,705 local documentation links and frontend checks/builds. Some native tasks
+reuse current-source local outputs; clean committed-source qualification is
+separate. An earlier invocation was stopped after a compute-pool test stole the
+admission lock it was waiting to observe. Its synchronization now observes the
+lock without acquiring it, with bounded waiting and joined failure cleanup.
+
+The [SQL wire attempt report](verification/results/authorization-sql-wire-attempt-2026-10-15.json)
+retains a **failed** complete-suite attempt under the same definition. Pinned
+libpq and libmysqlclient workloads pass in **187.654 s** and **181.892 s**;
+selected-role revocation, prepared write denial, retained read availability,
+native/verifier credential rotation, detached writes and TLS certificate rotation
+also pass. The subsequent 40 KiB write remains active and unblocked when its
+1,800-second operator-observation budget expires. This run does not qualify the
+remaining completion/readback/schema/drain checks. The harness now allows
+3,600 seconds to observe that same operation, retaining the 270-second SQL wait
+and one SQL attempt. The complete replacement is part of `just ci-clean`'s
+ordinary growth lane; its result must be reported before submission.
+
+The [hosted execution budget record](verification/results/authorization-ci-budgets-2026-10-15.json)
+sets finite core/growth/bindings job caps of 60/300/360 minutes. The complete
+26-task core lane at `31319985` takes **1,674.66 s** before hosted setup. The
+separate SQL preflight completes the original 40 KiB write in **3,396.781 s**
+with one SQL attempt and verified applied counts, then passes both protocols'
+large-cell readback and schema invalidation. Its remaining complete-suite gates
+are still pending at this checkpoint. These measured phases and the older clean
+task totals justify execution headroom; they are not a full current-suite or
+hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
+
+The [bindings inventory split](verification/results/authorization-ci-bindings-split-2026-10-15.json)
+keeps all **86 ordinary tasks**; the split itself changes no task deadline.
+The clean Python task at
+`f0227c7c` passes in **2,275.22 s**, compared with **1,300.78 s** in the earlier
+qualification record. That older complete bindings inventory totals 265.07
+minutes. These observations justify two independent jobs with finite 360-minute
+caps, the [hosted job maximum](https://docs.github.com/en/actions/reference/limits);
+they do not measure the current complete lane or predict hosted duration.
+
+`bindings-1` owns Python, Node, Rust, Ruby and the shared/cross-language proofs;
+`bindings-2` owns C/C++, Java, .NET and Erlang/Elixir. Both build independently
+and are required by the existing aggregate gate. `just ci::bindings` still runs
+the entire bindings inventory. Executed runner tests verify exact full/partial
+selection, complete metadata, failure propagation, interrupted checkpoints,
+missing-lane rejection and one cache writer. The verification catalog passes
+with all task owners accounted for. Complete clean qualification requires all
+six ordinary lanes at the same final revision.
+
+The [SDK queue observer report](verification/results/authorization-sdk-queue-observer-2026-10-15.json)
+retains clean Ruby and Erlang queue failures at committed `d7298d22`, under the
+then-current definition. Their tasks stop after **734.40 s** and **730.35 s** when
+the shared per-drain **600-second** observer expires. Separate instrumented
+schedules then verify all **46 exact terminal outcomes**, FIFO intervals and
+removed work records in **415 turns** each. Ruby's drains take **529.599 s** and
+**61.202 s**; Erlang's take **723.611 s** and **83.623 s**, with continued progress
+recorded across the old deadline. Both diagnostics use a 900-second observer and
+stop before later Station/SDK checks; neither qualifies a complete SDK task.
+
+The shared fixture now uses a finite **1,200-second** queue observer, with
+headroom above the measured Erlang drain, and emits bounded progress/timing
+records. This is a test observation budget, not a runtime latency contract.
+Every turn still checks queue metadata; the **4,096-turn** ceiling, four writes
+per callback, native/query deadlines and all outcome/FIFO/recovery assertions
+remain unchanged. Product code and the shared contract definition are unchanged.
+Full clean qualification at the new committed source remains required; the
+original failed attempts and diagnostic limits remain explicit.
+
+The [complete SQL wire preflight](verification/results/authorization-sql-wire-complete-2026-10-15.json)
+passes at committed `3d07caaf` with the same definition. The main suite takes
+**6,063.8 s** and the separate fresh-fixture `psql`/MySQL CLI workflow takes
+**297.559 s**. The original 40 KiB write completes after **3,396.781 s** with one
+SQL attempt, exactly one applied row and all ten cells verified in both protocols;
+the SQL wait has already ended. Selected-role revocation, prepared-write denial,
+credential/TLS rotation, schema/name-reuse invalidation, capacity and joined drain
+also pass. The report retains the exact source, observations and complete log
+hash. It replaces the failed preflight, while the final committed-source growth
+lane must independently run the entire task.
+
+The [ingress pipeline proof](verification/results/authorization-gateway-ingress-pipeline-2026-10-15.json)
+passes the gateway unit suite and complete native gateway schedule in **99.730 s**
+on modified `41e2db79`. The preceding clean wire attempt reaches its SQL deadline
+with the large operation still `uploading`, no Table input and no terminal
+outcome. It is intentionally stopped after preserving observations through
+**1,754.099 s**. This is incomplete qualification. An uploading phase alone does
+not establish whether accepted parts or a seal can still finish; the earlier
+preflight's active write is a different observed state.
+
+Immutable ingress parts now advance after a valid native receipt. The ledger
+consumes the ordered durable mailbox, and the seal still waits for processing
+and complete publication validation. Unit checks retain exact identity after
+transport loss or an invalid receipt and preserve seal rejection. The disk-backed
+proof withholds the first part's processing until the second part is admitted:
+inputs **653/654**. It loses the first part's receipt and requires an identical
+retry, then verifies all 33 operations, three fenced replacements and exact write
+counts. Only one uncertain ingress request remains resident. Existing deadlines,
+part sizes, turn bounds and stored/wire definitions are unchanged. This focused
+proof does not by itself qualify the complete wire task.
+
+The subsequent [complete pipeline wire report](verification/results/authorization-sql-wire-pipeline-2026-10-15.json)
+passes the entire clean-source SQL wire task at committed `d7298d22` in
+**6,353.31 s**, with definition `67f02f8b…2a15e`. The main schedule takes
+**5,954.455 s** and the separate fresh `psql`/MySQL CLI fixture takes
+**264.773 s**. The original 40 KiB operation becomes active after full upload
+and sealing at **271.838 s**, completes at **3,296.390 s**, and verifies exactly
+one applied row and all ten cells through both protocols, with one SQL attempt.
+Real client libraries, role/session/login revocation, prepared-write denial,
+credential/TLS rotation, schema/name-reuse invalidation, capacity and joined
+shutdown also pass. The report retains complete task identity and a transcript
+hash; repeated observing checkpoints are reduced to their first and last values.
+These local concurrent timings are not latency guarantees. The containing growth
+lane and other ordinary lanes remain separately qualified; this is one complete
+task, not a complete-lane claim.
+
+The [C/C++ native lifetime report](verification/results/authorization-c-native-lifetime-2026-10-15.json)
+records a clean installed C client **SIGSEGV** during asynchronous close at
+`d9ead5cd`, followed by ordinary-close reproductions. A captured C++ crash has
+an unmapped instruction pointer after `libtransit_client.so` was unloaded while
+the controller is joining its SDK worker. The pinned I/O pool drains work before
+its detached threads finish returning through native code; the C/C++ loader now
+retains up to sixteen code images, matching the existing Rust/.NET policy.
+Native handles and I/O resources retain their normal close lifecycle.
+
+The new lifetime fixture fails deterministically against the old installed SDK
+when `RTLD_NOLOAD` observes no image after close. Against the corrected SDK,
+**ten repetitions** of both complete real-authority raw-client schedules pass
+in **75.928 s**, along with ten lifetime cases covering 64 closes, exact image
+reuse, bounded incompatible overrides and changed-file rejection. The C/C++
+artifact build also passes. These focused checks use modified source; the full
+Station SDK task and all final ordinary clean lanes remain required. Wire,
+stored and ABI definitions and task deadlines are unchanged.
+
+The [native gateway recovery report](verification/results/authorization-native-gateway-registration-2026-10-15.json)
+passes the complete ledger/coordinator proof in **101.228 s** after migrating
+its manually driven Table host to the existing signed object-registration
+handshake. The clean attempt had stopped at `CatalogRegistrationRequired`;
+production hosts already handle that handshake. A subsequent stale assertion
+expected retransmission where the coordinator now recovers the exact receipt.
+
+The corrected proof verifies all 33 operations, three fenced replacements,
+exact write counts, history, cancellation and both SQL dialects. Lost control
+and detached-wait receipts require identical signed resubmissions. The lost
+Table receipt is recovered after node/store replacement by the original caller
+without redispatch; an authorized destination reader also verifies the same
+original request and receipt. Two observer-development attempts incorrectly
+excluded that permitted inspector; their failures remain recorded. No runtime
+behavior, task deadline or mutation/value bound changes. Complete clean lanes
+at the final committed revision remain required.
+
+The first clean core attempt found two simulation observers still reading the
+removed resource-grant record. They now project effective permissions from the
+current role graph; the independent model retains disabled-role denial.
+The corrected drivers pass **40 traces / 1,687 transitions** and the saved
+resource-fault smoke schedule (**6 traces / 112 events**).
+
+The clean Board API attempt also exposed a zero-revision assumption in its
+effect fixture. The test now captures the native authorization revision before
+dispatch and requires the original dispatch, observation and closure revisions
+to survive later policy changes. The focused real Board proof passes with the
+clean final-definition binaries, including private access, revocation, outages
+and bounded load; its maximum observed control latency is **0.103 s**.
+
+The disk storage proof passes all nine binaries through write, SIGKILL/recovery,
+checkpoint and trimmed recovery after migrating its remaining assumptions:
+resource collection first retires authorization, still blocks PID collection,
+and only then removes metadata; effect dispatch/closure retain the actual grant
+revision across disk replacement. No production collection gate or storage
+budget changes. The focused Board query proof also passes exact saved preparation
+and submission recovery, typed results and current grant/cut enforcement.
+
+The [Station recovery report](verification/results/authorization-station-recovery-2026-10-15.json)
+records a focused pass using final-definition ReleaseSafe binaries from the
+clean growth checkout. On one CPU, the one-page-cache recovery takes **85.483 s**,
+exceeding the previous 60-second whole-phase observation budget. Recovery and
+resume now allow 240 seconds; the native 10-second request deadline, one-page
+cache, original work identities and all assertions remain unchanged. Exact lost
+reply recovery, fencing, retained continuation and two disk restarts pass.
+This focused result does not complete the clean growth lane.
+
+The [cold catalog report](verification/results/authorization-catalog-cold-2026-10-15.json)
+records the full catalog proof passing in **661.754 s**, including the 28-type
+lifecycle, native authorization, retained queries, lost receipts and node/store
+restart. The earlier clean invocation exhausted its unconfigured hot-only
+store's 64 MiB capacity during that lifecycle. `catalog` and `typed-tables` now
+select the existing disk cold-store fixture by default: eight native cache pages,
+an 8 MiB hot limit and an 8 MiB cold cache. No resident limit increases, retention
+changes or history discard are used. This focused result does not qualify the
+remaining clean growth tasks.
+
+The [Table restart-drain report](verification/results/authorization-table-restart-drain-2026-10-15.json)
+records a complete focused lifecycle pass in **647.760 s** after a clean run
+exposed a fixture restart race. A stopped worker can leave a native notification
+wait in flight through the HTTP proxy. The fixture now pauses new forwarding
+and waits at most 20 seconds for existing requests before killing the authority;
+upstream failures still fail the proof. Final cleanup uses the same barrier
+before asserting the failure collector is empty. The run observes five barriers
+and drains one active request, preserving all 28 logical-type restart checks,
+exact lost receipts, and the four-write/256-byte limits. Its original invocation
+exit status was not retained; the complete proof output and error-free process
+exit were observed separately. This focused result does not replace the required
+committed-source catalog, Table and installed SDK tasks.
+
+The [interactive Table authorization report](verification/results/authorization-interactive-tables-2026-10-15.json)
+passes the combined Table/query/console proof in **168.618 s** with eight resident
+pages. Authorized retained readers preserve old rows across an interleaved write;
+page reads carry the newly validated current metadata observation. Revoking native
+SELECT after computation but before final validation withholds all output while
+raw-resource access remains. Ordinary and `LIMIT 0` reads deny revoked SELECT and
+work again after restoration. Console lost replies, identity rejection, SIGINT,
+policy-raced input rejection and original cancellation also pass. The report
+retains four failed development attempts and their causes; it does not replace
+the complete committed-source growth lane.
+
+The [interactive authorization cost report](verification/results/authorization-interactive-cost-2026-10-15.json)
+passes the full Table, KV and Document console proof after preserving batch
+prefetch through authority decoration and coalescing duplicate checks within
+one bounded read. Every acquisition finishes with a fresh native check; final
+post-computation disclosure remains separate. The repeated 41-row Table scan
+uses **188 native requests**, including **81 authorization checks**, compared
+with 419 before these corrections and the earlier pre-authorization ceiling of
+75. The new fixture-specific ceilings are explicit; they do not claim the old
+cost profile is preserved. KV and Document retain their prior request bounds.
+
+The report records time to first output, total time, sampled client/node RSS,
+exact binary hashes and all three failed request-budget attempts. Timings were
+observed during concurrent qualification, not an isolated benchmark. The repeated
+combined Table proof passes in **162.405 s**, including SELECT revocation after
+computation, denied empty results, restored access, concurrent writes and exact
+recovery. No result or permission cache bypasses those checks. These focused
+passes do not replace the complete committed-source clean lanes.
+
+The [installed relational caller report](verification/results/authorization-relational-sdks-2026-10-15.json)
+passes the native host and installed Python sync/async and Node callers after
+native SELECT revocation. SDKs preserve `AccessDenied` as the native code and
+`CatalogDenied` as the diagnostic cause, with owned native-cause evidence.
+Both same-resource and cross-resource layouts, duplicate pages, lost handles and
+ordered overflow retain their existing assertions. The first clean bindings
+attempt failed on the superseded SDK error-code expectation; this focused pass
+does not complete that lane.
+
+On 2026-10-14, `nix develop --command bash -euc 'cd
+packages/zig/transit-core; zig build test --summary all'` passes **80/80 tests**
+on the authorization implementation branch. The new
+[evaluator fixtures](../packages/zig/transit-core/src/authorization_test.zig)
+compare all 64 directed grant graphs over three roles with an independent least
+fixed-point oracle, and all eight ordered three-role membership graphs with an
+independent transitive closure. Separate cases cover owner self-revocation,
+independent grant paths, unsupported delegation cycles, PUBLIC, disabled roles,
+retired objects, pagination, malformed records and explicit work/vertex/depth
+budget failures. Disabled intermediate roles cannot conceal membership cycles.
+
+This evidence covers the pure injected-store evaluator. It does not establish
+durable administration, adapter enforcement or restricted Table isolation. Those
+integration gates remain open in [the delivery plan](../docs/roadmap/M49.md).
+
+The subsequent paged-store and administrative-candidate run passes **92/92 core
+tests** using the same command. It adds reopen and page-boundary checks, private
+staging failure, role rename/retirement, RESTRICT/CASCADE with independent paths,
+ADMIN/INHERIT/SET revocation, owner transfer, paged default templates and
+credential-epoch checks. Each staged step reopens its immutable root in the
+fixtures. These use the in-memory injected page store; they are not disk restart,
+native signed administration or service-isolation evidence.
+
+The native integration run passes **99/99 core tests** and **39/39 protocol
+tests**. It covers signed revision-checked policy publication, unique identities
+reserved across competing candidates, exact retries after lost acknowledgement,
+current scoped process rights, credential disablement through control reserve,
+revision/scope-bound cursors and a revoke racing the final read check. Retained
+revoked records do not consume the active decision budget.
+
+`just test::authorization` runs the actual node and signing CLI against
+disk-backed Ursula with 16 resident pages. On 2026-10-14 it passes in **6.809 s**
+on the dirty implementation branch based on `be68ba06`, with four node/store
+SIGKILL/restart cycles. It verifies a lost begin reply, unpublished candidates,
+revocation publication, continued denial after restart, paginated inspection,
+stale/wrong-scope cursor refusal, competing identity reservations, abandonment
+and incompatible-definition rejection. The local report is
+`.cache/verification/authorization-native.json`; node SHA-256 is
+`2d7220e08a7c52935936120d7def1ecb741f5ad51b07f0004b25c48ce9c347b9`.
+This proves generic native policy recovery and denial of raw resource reads;
+it does **not** prove Table mediation, SQL adapters or the two-Tables isolation
+gate. The suite runs this proof in the core lane.
+
+The authenticated-domain run passes **102/102 core tests**, **40/40 protocol
+tests** and **20/20 client tests**; the repository Zig unit task also passes.
+It adds original-subject proofs, selected-role loss, credential epochs, native
+publication guards, immutable domain bindings and interrupted registration.
+The extended disk proof passes in **8.274 s** on dirty `fe806633`, including
+rejection of forged subjects and a revocation between admission and guarded
+publication. The rejected turn does not consume its input; granting access again
+permits that original operation. The node SHA-256 is
+`583dd1abd327e29759622765894f7068a1978891373856217f5fa178b8a4e878`.
+These are generic opaque-object checks, not Table-service isolation evidence.
+
+The administration run passes the repository unit task and **21/21 client
+tests** under definition
+`ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d`.
+Its native unit cases add read-only scratch previews, stable grant reconciliation,
+partial default revocation, independent grantors, SET-based ownership eligibility
+and receipt recovery after key rotation. The focused core run before adding the
+receipt case passes **108/108 tests**; the subsequent repository task includes
+that additional case. The SQL parser's **324-test** Fuze run covers admitted
+forms, explicit unsupported syntax and allocator failures; it does not establish
+SQL execution or gateway support.
+
+The [administration disk report](verification/results/authorization-administration-2026-10-14.json)
+records a passing **9.340 s** run on dirty `b57a5a69`, with five node/store restart
+cycles and 16 resident Ursula pages. In addition to the earlier native checks,
+it verifies preview without publication, repeated grants retaining their edge ID,
+exact action inspection, and a deliberately unread self-rotation publication
+reply. The old key cannot resubmit; the new key recovers that exact receipt before
+and after disk restart. A changed body reports `ConflictingRetry`. The initial
+run failed an assertion expecting HTTP 409 for that existing HTTP 422 diagnostic;
+the corrected rerun passes. This evidence does not close schema administration,
+remaining query transports, SQL adapters or installed workflow qualification.
+
+## Table authorization service isolation
+
+The scoped changeset cutover uses definition
+`3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3`.
+Its [CLI/ABI/host report](verification/results/authorization-changesets-2026-10-14.json)
+records **10.941 s** on dirty `6ab83ad0`. The expanded administration proof adds
+two-intent partial publication, an unread second-begin reply recovered after a
+node/store restart, repeated terminal observation, signed-document tamper
+rejection, out-of-scope rejection, explicit membership removal and preservation
+of unrelated grants. A policy change between completed and unprepared intents
+rejects the remainder while keeping the earlier outcome visible and the recovery
+file unchanged. The proof includes two node/store restarts in total and exercises
+changesets through both the C ABI and host port. It does not establish atomic
+multi-action publication or mixed data/provisioning transactions.
+
+The focused client run passes **26/26 tests**, including scope/overlap validation
+and owned restoration of signed documents. The repository unit task also passes
+after the cutover. Semantic mappings pass all 11 declared
+boundaries, with 16 authorization caller classifications. The first generation
+attempt rejected missing sequence bounds on the new host collections; explicit
+32-entry field bounds were added and regeneration passes. The first expanded
+integration invocation used an incomplete grant-inspection query; after adding
+its required grantee, both the rerun and current-definition run pass.
+
+The schema and administration cutover uses definition
+`3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a`.
+The [CLI/ABI/host report](verification/results/authorization-cli-schema-2026-10-14.json)
+records `just test::authorization-cli` passing in **4.094 s** on dirty `56dec28c`.
+It checks read-only preparation, private non-replacing artifacts, exact retries
+across one node/store restart, bounded checkpointed apply, receipt recovery,
+stale proposal preservation, foreign/missing definition rejection and the same
+saved record across the installed CLI, C ABI and host port. This establishes
+the shared administration boundary, not ergonomic language SDK support.
+
+The [schema Table report](verification/results/authorization-tables-schema-2026-10-14.json)
+records the expanded `just test::authorization-tables` passing in **253.639 s**
+on the same dirty revision. In addition to restricted-reader isolation and the
+existing restart/revocation schedule, it checks CLI/service agreement on SQL
+plans, schema creation/rename/drop/name reuse, rejection of nonempty DROP and
+default SELECT grants affecting only subsequently created Tables. The direct
+catalog CLI fixture receives an explicit native inspection grant; the restricted
+reader receives neither that grant nor raw-resource rights. These timings
+include setup and do not measure query latency.
+
+The selected authorization syntax also passes the SQL grammar task with **99
+documentation examples**, 174 SELECT ASTs, 33 relational ASTs, 32 syntax
+exclusions, 14 extensions and no ANTLR diagnostics. The diagnostic grammar task
+passes **410 public cases** and **594 grammar obligations**, and the mapping
+check covers 11 public boundaries. The focused client run passes **24/24 tests**,
+including post-submit ABI allocation failure preserving an unknown outcome.
+The repository `just test::unit` task and the current-definition
+[native restart proof](verification/results/authorization-native-schema-2026-10-14.json)
+also pass. Changesets, remaining subject transports, adapters, SDK workflows and
+clean CI remain separate delivery gates.
+
+The [serving authorization report](verification/results/authorization-serving-2026-10-14.json)
+records `just test::authorization-serving` passing in **445.170 s** on dirty
+`ff45edb6`, retaining the definition and six executable hashes. An ordinary LOGIN
+caller selects a NOLOGIN role through SET-only membership. It prepares and
+submits controls, reads a private snapshot, and cannot inspect native processes
+or backing resources. Tampered roles and missing definitions reject. Credential
+rotation invalidates the old read proof while the exact old control remains
+recoverable. Membership revocation terminates SSE with `denied`; Table SELECT
+revocation terminates WebSocket with `denied`. Restarts preserve denial, and
+session-status reads omit the Table declaration. The preceding Table schema,
+defaults, finite joins, CLI recovery and node/store restart checks also pass.
+This is the explicitly configured insecure-HTTP development profile, not TLS,
+installed-client or durable refresh qualification. One snapshot takes **5.012 s**;
+the gateway's resident size sampled afterward is **50,827,264 bytes**, not a peak
+or throughput guarantee.
+
+The associated core run passes **110/110**, and serving passes **50/50** tests.
+The repository test task passes all **85 steps**; its latest run executes
+**125 tests**, with remaining steps cached. Earlier executions in this group
+cover fresh captured-result disclosure by a separately authorized recovery
+caller, unchanged execution attribution, missing/misbound proof rejection and
+subsequent denial. These are injected-store result checks; native durable-query
+qualification remains open. The Flight gateway compiles, the reactive browser
+suite passes **36/36**, and the shared HTTP proof passes framing, capacity,
+deadlines and joined shutdown. Full checks, native proof-bootstrap migration,
+installed SDKs and committed-source clean CI remain separate gates.
+
+The subsequent retained-reader changes pass all **85 repository unit steps**,
+executing **326 tests** with remaining tasks cached on dirty `eab791f2`.
+The checks bind maintained-result disclosure to the requested revision, mode,
+predecessor, original bundle and budget, and reject mixed selected roles in a
+relational read. Resumed Table history now checks the original object's current
+SELECT privilege. The first ReleaseSafe disk run exposed that missing check;
+its rerun and maintained-query qualification remain separate from these unit
+results.
+
+The [application authorization report](verification/results/authorization-work-items-2026-10-14.json)
+records `just test::server-applications` passing in **937.687 s** on dirty
+`ea0a1ec6`, under definition `d70f7dc0…`. Explicit operator provisioning persists
+14 authorization changes before submission and verifies exact repeat recovery.
+Catalog initialization retains its native profile; application restarts do not
+regrant Table permissions. The installed workflow passes worker replacement,
+worker loss, installation restart and all **19 row migration steps**, with
+**21 receipts** and installation generation **9**. Sampled manager RSS peaks at
+**45,662,208 bytes** and checkpoints at **3,038 bytes** in this schedule. The
+report retains the five executable hashes. The root unit/build check passes
+**142/142 steps**; its latest run executes **11 tests**, with other steps cached.
+The added regression leaves registration-blocked input unresolved for the host
+handshake, instead of committing an application failure.
+
+The [native Table report](verification/results/authorization-native-tables-2026-10-14.json)
+records `just test::typed-tables --cold` passing in **698.059 s** on the same
+source/definition. It covers lost send/turn replies, exact CLI recovery, all
+**28 logical descriptors**, prepared parameters, held-snapshot renewal,
+current SELECT denial, retained history and captured relational results across
+checkpoint restart. Buffered vector results and noncontributing join sources
+remain authorization-bound. Cancellation accepts either durable cancellation
+or a write already committed before cancellation. Installed SDKs, maintained
+relations, physical exchange and SQL wire gateways are not exercised by this run.
+
+The subsequent [maintained Table report](verification/results/authorization-maintained-2026-10-14.json)
+records `just test::typed-tables --cold --maintained` passing in **3,448.170 s**
+on dirty `791f6216` with the earlier definition retained in the report. Its
+maintained schedule takes **2,686.078 s**, publishes **26 revisions** (eight
+changing and 17 no-op successors), executes **1,739 maintained turns** and retains
+**183,707 bytes** of relation state. Ongoing input reaches a nine-head-revision
+backlog and drains it; observed publication lags are **335.591–899.007 s**, with
+**900.060 s** catch-up after the final input. These local costs are not latency
+guarantees. Exact delta retry, delayed backfill, disk restart, current denial,
+schema failure and drop/name-reuse failure all pass. The surrounding Table suite
+also completes, totaling 2,505 turns while retaining the four-write/256-byte
+native bounds. Installed callers and physical exchanges remain separate checks.
+
+The [exchange authorization report](verification/results/authorization-exchanges-2026-10-14.json)
+records `just test::relational-exchanges` passing in **645.972 s** on dirty
+`65bd94f4`, definition `c7446846…34cccd`. Its one-worker/one-partition and
+three-worker/seven-partition layouts retain the original signed assignment
+through every handoff phase. Exact acceptance retry, producer loss, node/store
+restart, missing/corrupt checkpoints, unavailable/truncated/corrupt reads,
+current native-reader denial, stale credentials and source-owner expiry pass.
+The schedule commits 672 turns with at most four mutations and 256-byte values.
+This run does not claim a separate SELECT-revocation injection at every exchange
+phase; executable hashes were not captured for this invocation.
+
+The public-query restart proof passes on dirty `a96989f7` with
+`just test::public-query` using ReleaseSafe. It exercises actual CLI/source
+hosts, 41 exact INT64/NULL rows, frozen retry, fenced crash recovery, busy
+admission, schema rejection, incomplete-result refusal, cancellation and current
+read denial. The preceding Debug run reached its 300-second observation deadline
+while the worker was progressing; that run remains failed. The proof now uses
+the same optimized checked profile as the other native disk schedules and still
+requires complete results before success.
+
+The [Station authorization report](verification/results/authorization-station-2026-10-14.json)
+records the ReleaseSafe Station integration suite and actual local launcher
+passing on dirty `ca76ae7a`, definition `c7446846…34cccd`. The ledger uses explicit
+LOGIN roles, SET-only data-role membership and native database/schema/Table
+grants. SELECT revocation between capture and publication denies the saved
+query while raw worker reads remain granted. Table/audit/reply publication,
+exact receipt retry, worker/store recovery, registry, supervision and lifetime
+checks pass. The local launcher also passes three-worker upgrades, credential
+rotation, Board inspection and stop/start; its courier recovery observes a
+30.294 s replacement and 19.010 s query completion. These are local observations,
+not latency guarantees. Compose/reference execution and the final clean-source
+check remain separate; executable hashes and total elapsed times were not captured.
+
+The [reactive authorization report](verification/results/authorization-reactive-2026-10-14.json)
+records the TLS/reactive refresh schedule passing in **162.64 s** on dirty
+`ca76ae7a`, definition `c7446846…34cccd`. It exercises two same-principal views,
+exact lost-follow retry, fair bounded admission, worker replacement and full-width
+identities. Removing raw resource READ preserves mediated refresh; removing native
+Table SELECT denies refresh and new admission. Retained denial diagnostics stay
+stable after restoration, and pause/close controls remain available. Executable
+hashes and overall build time were not captured.
+
+The [final-definition capacity report](verification/results/authorization-reactive-capacity-2026-10-15.json)
+records two clean `f7e5dc98` refresh attempts failing at the same native
+maintenance send with explicit `HttpCapacity`. The fixture now retries the
+identical serialized command within its existing ten-second window. Explicit
+capacity assertions and other rejections remain visible; runtime admission,
+deadlines and protocol semantics do not change. Five regression cases pass,
+including two that fail against the old fixture. The complete corrected TLS
+refresh preflight passes in **234.683 s**, with a **210.62 s** runtime schedule,
+on `f7e5dc98` plus the recorded fixture changes. The deterministic cases exercise
+capacity retries; the full runtime run does not record an additional retry.
+The same report retains the first installed-application inspection failure and
+the unchanged fresh lifecycle passing in **1,237.070 s**. That successful rerun
+does not establish the earlier unavailable response's cause. Final committed
+clean-source qualification remains separate.
+
+The [serving lease-maintenance report](verification/results/authorization-serving-lease-2026-10-15.json)
+retains a clean `6ecf24fa` attempt whose post-revocation snapshot returns
+`reactive.session_expired` instead of the expected access denial. The fixture now
+renews its unchanged **28-second** lease around credential, membership and SELECT
+revocation, including an independent renewal after SELECT is removed. The
+complete serving proof passes in **499.140 s** on that source plus the recorded
+fixture correction. Its eight renewals retain **22,461–24,315 ms** of lease time
+on return; snapshots, SSE/WebSocket denial and gateway recovery pass. The complete
+TLS refresh task also passes in **398.894 s**, with a **159.12 s** runtime schedule
+and one actual native-capacity response recovered through an exact command retry.
+These fixture measurements do not establish latency guarantees. Expiry remains
+an independent lifecycle outcome, and final committed-source checks are separate.
+
+The [Flight authorization report](verification/results/authorization-flight-2026-10-14.json)
+records the real TLS PyArrow and ADBC C/Python suite passing with original-subject
+query bundles and role-bound tickets. Its 41-row finite statement/retry schedule
+takes **84.70 s**; schema, exact int64/null rows, empty results, counts, aliases,
+sum, compiler diagnostics and retained overflow diagnostics after gateway
+replacement pass. Current disclosure denial passes. This is the configured
+infrastructure-reader profile, with native source/request resource access;
+selected-role ticket mismatch is a unit check and the fault/load schedule remains
+separate. Executable hashes and source/definition are in the report.
+
+The [final-definition Flight fault report](verification/results/authorization-flight-faults-2026-10-15.json)
+records `just test::flight-faults` passing on dirty `24f2ba92` with definition
+`67f02f8b…2a15e`. Revoking native Table SELECT after a returned batch denies the
+remaining result while raw resource reads stay granted. Pooled authentication,
+ticket tamper/scope/expiry, concurrent admission, control reserve, slow HTTP/2
+output, malformed frames and Board metadata redaction pass. The same complete
+result remains readable after gateway/worker/node/store restart; exact retry and
+permanent source retirement also pass. The report retains executable hashes,
+finite-statement timing and the sampled gateway RSS. The first runs exposed an
+obsolete SQL syntax expectation and transient native capacity immediately after
+restart. Recovery now retries only UNAVAILABLE for the same retained reference,
+within 180 seconds, discarding any failed partial read.
+
+The [installed general Table report](verification/results/authorization-catalog-sdks-2026-10-14.json)
+records all ten SDKs plus Python async completing Table creation, nested typed
+mutation, schema change, deletion, name reuse and saved original-outcome recovery
+in the native cold-storage schedule. It passes in **1,359.385 s**, with 1,190 turns,
+359 sends, at most four mutations and 256-byte values. The enclosing CLI, prepared
+parameter and captured-query restart checks also pass. This run uses the explicit
+infrastructure-reader profile and the source/definition recorded in the report;
+restricted mediation remains a separate schedule.
+
+The subsequent [restricted SDK report](verification/results/authorization-restricted-sdks-2026-10-15.json)
+records all ten installed SDKs plus Python async passing in **683.248 s** on
+dirty `24f2ba92`, definition `67f02f8b…2a15e`. The caller selects a NOLOGIN data
+role through SET-only membership, has scoped native SEND and cannot read the
+backing resource. Each caller creates a Table, mutates nested typed values,
+changes its schema, deletes/drops, reuses the name and recovers the original
+saved outcome after handle replacement. Revoking database CONNECT then returns
+the SDK's access-denied category, not a generic failed transport. Per-caller
+schedules take **41.885–52.981 s**. The surrounding CLI/schema/defaults,
+credential rotation, two service restarts and authority/disk restart checks pass.
+
+The first attempts found a .NET test-consumer integer type mismatch and a
+policy-revision conflict while registering a replacement Table. The shared
+caller now retries only that mediated, unsubmitted read conflict within its
+existing bounded retry budget, repeating authorization without changing saved
+work or policy preconditions. The complete rerun passes with strict denial
+assertions in every language. Runtime executable and log hashes are in the
+report. This is the explicit loopback service profile, not optional SQL listener
+packaging. `just bindings::authorization` builds the packages and runs this
+schedule in the ordinary bindings lane; native CLI/ABI/host administration also
+runs in the ordinary core lane.
+
+The [final-definition administration report](verification/results/authorization-administration-2026-10-15.json)
+records `just test::authorization-cli` passing in **10.965 s** on dirty
+`c740b001`, definition `67f02f8b…2a15e`. CLI, C ABI and host-port preparation,
+bounded apply, scoped changeset partial recovery and explicit removal pass across
+two authority/store restarts. Foreign/missing definitions reject, and stale saved
+records remain unchanged. The report retains the four executable/library hashes.
+
+The [installed Unified Table report](verification/results/authorization-unified-sdks-2026-10-14.json)
+records all ten SDKs plus native ABI, local port and Python async callers passing
+the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation
+with uncommitted integration changes and the definition recorded in the report.
+All thirteen callers agree on Boolean/SQL inspection and parameter compilation.
+The schedule retains the original signed bundle through exact upload retry and
+worker/node/disk-store restart, then verifies **41 rows, six segments and 15,120
+Arrow bytes**, current result denial and released source pins. All ten installed
+codec suites also pass. This is the explicit infrastructure-reader query profile;
+restricted-user SDK mediation and the full installed administration workflow
+remain separate gates. The report preserves executable and log hashes.
+
+The query package's full `zig build test --summary all` passes **134/134 tests**
+after the original-role and exchange-assignment changes. The new injected test
+rejects altered caller/epoch/role, worker PID, layout, quota, query and source
+basis, and distinguishes local context checks from signature verification.
+The native catalog query tests also verify recovery under a separately authorized
+reader without changing the original bundle. These checks do not establish the
+disk-backed physical exchange schedule; that integration gate remains separate.
+
+The SQL gateway package passes **20/20 tests** after retaining schema and selected
+role in account bindings and operations, separating private readers from SQL
+callers, and binding verifiers to native login identity/epoch. The ledger test
+rejects a correctly signed step that changes the accepted role, and retains the
+same pending bytes across coordinator fencing. Regenerated contracts and all ten
+SDK package builds pass for definition
+`c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd`.
+Earlier TLS integration attempts exposed missing service inspection, a short
+detached-write observation window and a driver ping before the intended revoked
+PREPARE check. Those attempts remain failed; the complete rerun is a separate
+gate from these package checks.
+
+The TypeScript catalog migration passes `just bindings::node-check` on dirty
+`48b25956`: formatting, lint, both package type checks, four client-port tests
+and **67/67 Station tests**. Public catalog values now carry native bindings,
+selected role/schema and authenticated-subject observations; the removed local
+policy API is absent. Boundary tests reject foreign callers, audiences, selected
+roles and schema namespaces, and preserve owned context bytes. This is Node
+adapter validation, not an installed Node or all-language authorization proof.
+
+The corresponding Rust catalog migration passes locked source `cargo test`
+in the bindings shell with `TRANSIT_LIBRARY_DIR` pointing to the local native
+artifact directory: **15/15 tests**, on dirty `ea0a1ec6`. It checks current subject
+and selected-schema rejection, explicit native bindings and the 444-byte metadata
+bound. The adapter exposes direct infrastructure reads and explicit mediated
+reads separately, through the same shared implementation. No installed Rust
+native workflow is claimed by this source-only run.
+
+Ruby's catalog value/transport suite also passes against the source libraries
+in the bindings shell on dirty `d7ff7ce5`. It covers the new native bindings,
+immutable subject context, foreign principal/audience/selected-role rejection,
+filtered schema namespaces, generated response validation, large frames and
+uncertain receipts. The installed-gem grant/use/revoke workflow is still a
+separate gate; these checks use injected replies and owned local child processes.
+
+The .NET catalog migration builds four fresh NuGet packages and passes the
+isolated installed consumer's value, generated-schema, metadata/history,
+recursive-budget, uncertain-receipt and native read cancellation/join checks
+on dirty `8e9de56f`. Subject decoding checks principal, selected role, audience
+and epoch; namespace mismatch rejects returned metadata. This validates the
+installed adapter boundary, not a live grant/use/revoke database workflow.
+
+The Java catalog migration builds four fresh JARs with `javac --release 21
+-Xlint:all -Werror` and passes the isolated installed schema/value/port suite
+on dirty `363ea976`. The added checks bind descriptions to the selected role,
+principal, audience and credential epoch, and reject a foreign metadata namespace.
+Existing owned-value, large-frame, uncertain-receipt and joined-cancellation
+checks pass with the matching native host. Live role/grant and mediated Table
+use through installed Java remains separately unexecuted.
+
+The C/C++ catalog migration builds fresh pkg-config artifacts and passes the
+isolated C11/C++17 consumer checks on dirty `791f6216`. The forwarding native
+boundary covers **56 cases**, including authenticated-subject mismatch,
+credential epoch, explicit native profile validation, schema filtering, the
+444-byte metadata bound, historical identity and retained uncertain receipts.
+The package checks also pass handler Table ownership and saved-recovery checks.
+These injected-reply and local ownership checks do not qualify installed live
+role/grant workflows.
+
+The C boundary rerun on dirty `a96989f7` passes the same **56 cases** with
+positive description/definition fixtures independently validated against the
+generated catalog-result JSON Schema. Subject context uses the native fixed
+byte array representation, including UTF-8-shaped bytes; authorization revision
+zero remains valid. This corrects the adapter decoder and strengthens the earlier
+injected-reply evidence without claiming live grant qualification.
+
+The Erlang/Elixir catalog migration builds eight fresh BEAM archives and passes
+both isolated installed catalog consumers on dirty `a96989f7`. The checks cover
+native authority profiles, selected role/schema, authenticated subject matching,
+metadata/history, full-width operation identities, large frames, uncertain
+receipts and joined waiter loss. Schema namespaces use native integers while
+operation namespaces retain their full-width decimal encoding. The removed local
+policy API is absent. These injected-reply and owned-port checks complete the
+catalog adapter migration matrix; live SDK grant/use/revoke remains a separate gate.
+
+All ten freshly packaged query SDKs pass `python3 -B tests/sdk_unified.py`
+in the bindings shell on dirty `42592985`. Isolated installations check the
+three source encodings, nine Boolean programs, six scalar types, five cell
+states, 128-column bounds, nested values, full-width integers, malformed input
+and owned Arrow results. The initial Node attempts exposed a missing namespace
+in the consumer and a missing public export for the documented `decodeArrow`;
+the passing rerun includes both corrections.
+
+Each SDK now exposes explicit authorization of a locally prepared Table bundle,
+through the shared Zig signer, and optional selected roles on query connections.
+Sealing precedes persistence/fingerprinting; retained accepted bytes are never
+re-signed. SQL compilation already supplies a sealed bundle. The installed codec
+run validates values and compiled APIs, not live sealing or native recovery;
+the combined signed-authority schedule remains a separate gate. The bundle bound
+is 25,255 bytes, including its original-subject proof.
+
+The [relational service report](verification/results/authorization-tables-relational-service-2026-10-14.json)
+records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
+It uses explicit INT64 join keys, grants the second source, observes a successful
+join and complete empty join, then revokes that source and denies both queries.
+The private spill directory contains no surviving files. The actual catalog CLI
+returns a complete permitted query through mediation and rejects the forbidden
+empty join. The preceding write/recovery, key rotation and restart checks also
+pass. This proves the configured finite service profile, not durable-query,
+gateway-session or installed-SDK qualification.
+The root test task also passes (321 executed tests, with remaining tasks cached),
+as do the 130-test query package, service-schema drift check and declared
+diagnostic mappings.
+
+The [mediated recovery report](verification/results/authorization-tables-mediated-recovery-2026-10-14.json)
+records `just test::authorization-tables` passing in **288.766 s** on dirty
+`7ab3475c`, with the current-definition identifier and all five executable hashes.
+Restricted CLI callers have no native process inspection or raw-resource reads.
+They compile, sign, submit and recover INSERT/DELETE through the private service;
+exact receipt lookup survives key rotation, fabricated input positions fail,
+and subsequent SELECT revocation denies saved progress disclosure. Two service
+restarts and one authority/store restart preserve the boundary. This extends
+the earlier schema/defaults proof; it does not qualify SQL gateway sessions or
+the ergonomic language SDKs.
+
+The associated root run passes **1,138/1,138 tests**; focused client, catalog,
+query, Station ABI and gateway runs pass **29/29**, **83/83**, **130/130**,
+**21/21** and **20/20** respectively. Owned HTTP tests cover nested response
+lifetime, bounded serialization before dispatch, response overflow and timeout
+cleanup. Native tests verify exact send receipts under scoped process inspection
+and deny other destinations and administrative requests. Regenerated service
+schema and 11 declared diagnostic mapping boundaries pass. These are focused
+checks, not complete installed-workflow or clean-source CI evidence.
+
+`just test::authorization-tables` runs the actual node, signing CLI, catalog
+worker, courier and Table service over disk-backed Ursula. The
+[retained report](verification/results/authorization-tables-2026-10-14.json)
+records a passing 2026-10-14 run in **114.449 s**, on dirty `7eed560a`, under
+shared definition `3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51`.
+It records the four executable hashes. The fixture provisions roles, bindings,
+grants and data through public signed operations; it does not edit private state.
+
+Two real Tables share one resource. A restricted reader queries its granted
+Table, sees only that Table in metadata, and cannot read the other Table's schema
+or rows. Native resource, entry, batched-entry and snapshot acquisition are
+denied. INSERT and CREATE preparation are denied. Altered request actions and
+caller identities fail authentication. Credential rotation rejects the old proof
+while preserving role grants. Two service restarts and one node/store SIGKILL
+cycle preserve data and the final SELECT revocation without reprovisioning.
+
+The focused protocol/core run passes **40/40** and **103/103** tests after the
+cutover. The catalog run passes **80/80** tests, including per-object visibility
+and exact unsigned-candidate signing. Independent subject-signature vectors now
+include a context whose bytes are valid UTF-8, requiring JSON arrays throughout.
+
+This closes the initial shared-resource service-isolation gate. It does not
+qualify durable/maintained query propagation, all retained-result/recovery routes,
+SQL administration, database adapters or installed SDK workflows. Their migration
+is in progress; the broader repository unit run still has query-subject failures.
+The full check and committed-HEAD clean suite have not passed this slice. Durations
+include provisioning and are not query latency or throughput measurements.
+
+## Original caller proofs in durable Table queries
+
+On 2026-10-14, `nix develop -c zsh -c 'cd packages/zig/transit-query &&
+zig build test --summary all'` passes **129/129 tests** on dirty `e3abdf88`,
+under shared definition
+`38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727`.
+The proof binds canonical query bytes, coordinator, requester PID and request
+resource. Tests reject absent proofs, modified queries and routes, invalid
+signatures, changed credential epochs and changed roles before source retention.
+Captured and maintained transitions retain the original signed request across
+recomputation and release; current Table revocation still blocks result pages
+and empty completion. The shared in-memory authority now verifies fixture
+signatures instead of accepting a signed principal field alone.
+
+These are package tests with injected authorization/storage, not a new native
+disk or installed-service proof. The first repository unit run after the format
+change passes 1101/1116 tests and fails 15 old consumer fixtures in Board,
+Station applications and Serving. After migration, focused runs pass **13/13 Board API**, **45/45 Station
+application** and **48/48 Serving** tests. The Serving run also exposed an
+earlier Table-not-found failure boundary; its diagnostic now preserves the
+actual missing Table witness. The CLI, query host and Table service build. Protocol adapters, original-subject watch/refresh transport,
+installed workflows and the full check/clean-source run remain separate gates.
+
+After the fixture and witness corrections, `nix develop -c just test::unit`
+passes on the same dirty source. `just test::authorization-tables` also passes
+again in **120.834 s** with the new definition. Its
+[separate retained report](verification/results/authorization-tables-query-subject-2026-10-14.json)
+records the executable hashes and the same two-service/one-authority-store
+restart schedule. This rechecks the actual restricted Table boundary after the
+subject-reader refactor; it does not turn the injected durable-query cases into
+native durable-query or installed-adapter evidence.
+
 ## Database wire gateway
 
 The [retained report](verification/results/sql-wire-2026-10-14.json) records the

@@ -59,7 +59,7 @@ pub fn reclaim(engine: anytype, candidate: anytype, id: u64, sample: ?core.Time.
     resource.revision = engine.head.position;
     try candidate.put(address(.resource, id), resource);
 }
-pub fn apply(engine: anytype, candidate: anytype, request: g.Collection) !void {
+pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g.Collection) !void {
     const process = try engine.process(request.pid);
     if (!process.allow_collection) return error.RetentionNotEnabled;
     switch (request.kind) {
@@ -100,7 +100,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Collection) !void {
                 try detach(candidate, record.value);
             };
             if (associations.records[0] != null) return;
-            if (try removePage(candidate, growth.ResourceGrant, .grant, resource.id)) return;
+            if (try @import("growing_authorization.zig").retireObject(engine, next, .{ .kind = .resource, .id = resource.id })) return;
             try candidate.remove(address(.resource, resource.id));
             try candidate.remove(try c.key(.resources_by_writer, resource.writer, resource.id, ""));
             if (resource.owner) |owner| try candidate.remove(try c.key(.resources_by_owner, owner, resource.id, ""));
@@ -126,6 +126,8 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Collection) !void {
             for (associations.records) |slot| if (slot) |record| try detach(candidate, record.value);
             if (associations.records[0] != null) return;
             if (try removePage(candidate, g.Input, .mailbox, request.pid)) return;
+            if (try removePage(candidate, core.protocol.Authorization.Claim, .authorization_origin, request.pid)) return;
+            _ = try @import("growing_authorization.zig").retireObject(engine, next, .{ .kind = .process, .id = request.pid });
             try candidate.put(address(.retired_process, request.pid), growth.RetiredProcess{ .pid = request.pid, .lifecycle = process.lifecycle });
             try candidate.remove(address(.process, request.pid));
             // runtime_resource reservations are deliberately permanent.

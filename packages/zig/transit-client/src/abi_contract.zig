@@ -2,6 +2,7 @@
 const std = @import("std");
 const abi = @import("Abi.zig");
 const p = @import("transit_client").protocol;
+const authorization = @import("transit_client").AuthorizationBridge;
 
 fn cType(comptime T: type) []const u8 {
     if (T == void) return "void";
@@ -56,9 +57,9 @@ pub fn main(init: std.process.Init) !void {
     try json.endArray();
     try json.objectField("schemas");
     try json.beginObject();
-    inline for (.{ "OperationMetadata", "ClientHostConfig", "ClientHostRequest", "ClientCapabilities", "Diagnostic" }, .{ abi.Metadata, abi.host.Config, abi.host.Request, abi.host.Capabilities, p.Diagnostic }) |name, T| {
+    inline for (.{ "OperationMetadata", "ClientHostConfig", "ClientHostRequest", "ClientCapabilities", "Diagnostic", "AuthorizationConnection", "AuthorizationAction", "AuthorizationResult" }, .{ abi.Metadata, abi.host.Config, abi.host.Request, abi.host.Capabilities, p.Diagnostic, authorization.Connection, authorization.Action, authorization.Result }) |name, T| {
         try json.objectField(name);
-        try p.Schema.write(T, &json, .{ .safe_integers = true, .text_max_length = p.max_body * 2, .output = T == abi.Metadata or T == abi.host.Capabilities or T == p.Diagnostic });
+        try p.Schema.write(T, &json, .{ .safe_integers = true, .text_max_length = p.max_body * 2, .output = T == abi.Metadata or T == abi.host.Capabilities or T == p.Diagnostic or T == authorization.Result });
     }
     try json.endObject();
     try json.endObject();

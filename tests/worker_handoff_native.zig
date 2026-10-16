@@ -93,14 +93,18 @@ pub fn run(comptime Test: type, init: std.process.Init, wire: *s.client.Client, 
             if (record.phase == .quiesced) {
                 record = try record.capture(process, snapshot);
             } else {
+                const assignment: q.ExchangeAuthorization.Assignment = .{ .exchange = metadata.id, .producer = worker.process.pid, .options = .{ .partitions = metadata.partitions, .workers = metadata.workers.len, .worker = index, .batch = metadata.batch, .epoch = 1, .quota = 4 * 1024 * 1024 } };
+                const original = try worker.authorization.subject(assignment, bundle, basis);
                 for (bundle.sources, basis.entries[0..basis.count], 0..) |declared, entry, ordinal| {
-                    var current = try scoped.open(declared.scope.resource);
+                    var data = try scoped.open(declared.scope.resource);
+                    var current = q.QueryAuthorization.readerContext(scoped, original, null).wrap(&data);
                     _ = try declared.checkCurrent(&current, 1234);
                     const observed = try s.TableHistory.at(&current, try s.TableHistory.current(&current, declared.object), entry.position);
                     if (!(try observed.encode()).eql(try entry.record.encode())) return error.TableHistoryConflict;
                     var schema = try entry.record.head.readSchema(init.gpa, &current);
                     defer schema.deinit();
                     if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &try bundle.plan.sources[ordinal].schema.fingerprint())) return error.TableSchemaChanged;
+                    try current.finish();
                 }
                 record = try record.restored(process, snapshot, application);
             }

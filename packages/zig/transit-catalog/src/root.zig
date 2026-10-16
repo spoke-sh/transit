@@ -6,6 +6,9 @@ pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
+pub const TableAuthority = @import("TableAuthority.zig");
+pub const SchemaCatalog = @import("SchemaCatalog.zig");
+pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableMetadataStore = @import("TableMetadataStore.zig");
 pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
 pub const TableCatalog = @import("TableCatalog.zig");
@@ -25,6 +28,8 @@ pub const TableTyped = @import("TableTyped.zig");
 pub const TableBridge = @import("TableBridge.zig");
 pub const TableAttempt = @import("TableAttempt.zig");
 test {
+    _ = AuthorizationSql;
+    _ = TableAuthority;
     _ = TableAttempt;
     _ = @import("table_bridge_test.zig");
     _ = @import("table_values_test.zig");
@@ -37,3 +42,7 @@ test {
     _ = @import("table_catalog_test.zig");
     _ = @import("simulation_test.zig");
 }
+
+pub const testing = if (@import("builtin").is_test) struct {
+    pub const Authority = @import("TestAuthority.zig");
+} else struct {};

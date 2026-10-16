@@ -4,6 +4,7 @@ const std = @import("std");
 const query = @import("transit_query");
 const station = query.station;
 const handler = @import("handler.zig");
+const Authorization = @import("Authorization.zig");
 const wire = station.client;
 const telemetry = wire.observability.telemetry;
 const Config = struct {
@@ -20,6 +21,8 @@ const Config = struct {
     registry: ?u64 = null,
     source_resource: ?u64 = null,
     peer_resource: ?u64 = null,
+    peer_principal: ?u64 = null,
+    authorization: ?Authorization.Configuration = null,
 };
 
 pub fn main(init: std.process.Init) !void {
@@ -66,7 +69,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     }, config.association);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&behavior.session.key));
     const resources: wire.ResourceReader = .{ .wire = &client, .realm = config.realm, .principal = config.principal, .key = key };
-    var application: handler.Application = .{ .allocator = init.gpa, .resources = resources, .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry, .source_resource = config.source_resource, .peer_resource = config.peer_resource };
+    var application: handler.Application = .{ .allocator = init.gpa, .resources = resources, .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry, .source_resource = config.source_resource, .peer_resource = config.peer_resource, .peer_principal = config.peer_principal };
+    if (config.authorization) |authorization| {
+        if (authorization.role == 0 or authorization.role > wire.protocol.max_counter) return error.InvalidApplicationAuthorization;
+        try authorization.profile.validate();
+        application.authority = .{ .profile = authorization.profile, .client = .{ .transport = &client, .realm = config.realm, .principal = config.principal, .role = authorization.role, .key = key } };
+    } else if (config.role != .coordinator) return error.MissingApplicationAuthorization;
+    defer if (application.authority) |*authority| std.crypto.secureZero(u8, std.mem.asBytes(&authority.client.key));
     const enabled = config.role == .ledger and config.destination != null;
     const adapter: []u8 = if (enabled) try init.gpa.alloc(u8, query.UnifiedBehavior.adapter_bytes) else &.{};
     defer if (enabled) init.gpa.free(adapter);
@@ -77,6 +86,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {
+            error.CatalogRegistrationRequired => {
+                const action = application.registration orelse return err;
+                if (action != .register_object or behavior.pending != null) return err;
+                if (behavior.ready != null) try behavior.discard();
+                const registrar = (application.authority orelse return error.MissingApplicationAuthorization).client;
+                const next = try registrar.registration(action.register_object);
+                if (next == .submit) _ = try client.submit(next.submit);
+                continue;
+            },
             error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
             else => {
                 if (behavior.pending == null and (err == error.Rejected or err == error.Conflict)) {

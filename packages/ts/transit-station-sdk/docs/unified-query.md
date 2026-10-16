@@ -98,7 +98,7 @@ ordered conflict IDs, bigint values, binary, Unicode and negative zero. For the
 pinned optional Apache Arrow 21.2.0 integration, `unifiedToArrow(page)` from
 `@transit/station/arrow` returns the nested schema without flattening states into
 nullable values. Byte getters copy owned data; native temporary buffers cannot
-escape. Bundles contain at most 25069 bytes. Table results admit 128 columns and
+escape. Bundles contain at most 25255 bytes. Table results admit 128 columns and
 segments contain at most eight rows and 64 KiB. Comparison literals retain their
 4 KiB byte bound; descriptors and recursive cells retain the shared logical
 budgets. KV has two columns; Document projections admit eight scalar decoders.
@@ -131,3 +131,15 @@ reads separately check current rights while preserving the original schema and
 `just bindings::unified-node table` installs fresh package tarballs and runs the
 shared codec and signed recovery schedule. `kv` and `document` select the other
 sources. See [proof evidence](../../../../tests/README.md) for completed runs.
+
+Connections accept an optional selected native role; omission uses the login role.
+Local bundle construction produces a description. Call `authorizeBundle` once on the
+query client before persisting a newly constructed Table bundle or its fingerprint.
+The returned bytes bind the authenticated caller, role, credential epoch, source
+owner and requester to the exact query and budget. SQL compilation already returns
+an authorized bundle. An already authorized Table bundle rejects resealing.
+
+Persist and recover the original bundle bytes unchanged, alongside each prepared
+command and receipt. Current authorization is checked again during progress and
+result disclosure. Credential or policy changes never justify replacing accepted
+work with a newly signed bundle. The complete bundle bound is 25,255 bytes.

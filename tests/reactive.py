@@ -30,7 +30,7 @@ def signed_read(key, scope, kind='session', attachment=0, nonce=None, cursor=Non
     encoded = (b'SV1U' + struct.pack('<8Q', *scope.values()) + bytes([{'session': 1, 'snapshot': 2, 'events': 3}[kind]])
                + struct.pack('<Q', attachment) + bytes(nonce) + bytes([cursor is not None]))
     if cursor: encoded += cursor_bytes(cursor)
-    return dict(read=value, signature=key.sign(hashlib.sha256(b'transit.reactive.read.v1\0' + encoded).digest()), identity=native_query(key, scope['principal'], {'identity': {}}))
+    return dict(read=value, proof=serving.subject_proof(key, scope['principal'], scope['ingress'], hashlib.sha256(b'transit.reactive.read.v1\0' + encoded).digest()))
 
 
 def reactive(tag, payload):
@@ -38,8 +38,8 @@ def reactive(tag, payload):
 
 
 class WebSocket:
-    def __init__(self, port, host, tls, headers=None, expected=101):
-        self.socket = socket.create_connection(('127.0.0.1', tls[port].port if port in tls else port), timeout=5)
+    def __init__(self, port, host, tls, headers=None, expected=101, timeout=5):
+        self.socket = socket.create_connection(('127.0.0.1', tls[port].port if port in tls else port), timeout=timeout)
         if port in tls: self.socket = tls[port].context.wrap_socket(self.socket, server_hostname='127.0.0.1')
         key = base64.b64encode(os.urandom(16)).decode()
         fields = dict(Host=host, Origin='https://' + host, Upgrade='websocket', Connection='Upgrade', **{'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Protocol': 'transit.reactive.v1', 'Sec-WebSocket-Extensions': 'permessage-deflate'})
@@ -102,14 +102,14 @@ class WebSocket:
 
 
 class SSE:
-    def __init__(self, port, host, tls, bootstrap):
-        headers = {'Host': host, 'Origin': 'https://' + host, 'Content-Type': 'application/json'}
+    def __init__(self, port, host, tls, bootstrap, origin=None, timeout=5):
+        headers = {'Host': host, 'Origin': origin or 'https://' + host, 'Content-Type': 'application/json'}
         cursor = bootstrap['read']['read']['cursor']
         if cursor: headers['Last-Event-ID'] = cursor_bytes(cursor).hex()
         encoded = compact(bootstrap)
         deadline = time.monotonic() + 10
         while True:
-            self.connection = HTTPSConnection('127.0.0.1', tls[port].port, context=tls[port].context, timeout=5) if port in tls else HTTPConnection('127.0.0.1', port, timeout=5)
+            self.connection = HTTPSConnection('127.0.0.1', tls[port].port, context=tls[port].context, timeout=timeout) if port in tls else HTTPConnection('127.0.0.1', port, timeout=timeout)
             self.connection.request('POST', '/reactive/v1/events', encoded, headers)
             self.response = self.connection.getresponse()
             if self.response.status != 503 or time.monotonic() >= deadline: break

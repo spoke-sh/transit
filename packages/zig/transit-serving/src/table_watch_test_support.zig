@@ -9,7 +9,7 @@ const s = root.station;
 const p = root.protocol;
 pub const Store = q.testing.Store;
 pub const principal = 65536;
-pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
+pub const configuration: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .authority = c.testing.Authority.profile, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } };
 pub const catalog: c.TableCatalog = .{ .configuration = configuration };
 fn turn(store: *Store) !s.Turn {
     var next = try store.capture();
@@ -32,11 +32,7 @@ pub fn create(store: *Store, sql: []const u8) !root.ReactiveModel.Source {
     var next = try turn(store);
     try catalog.initialize(&next);
     try store.commit(next);
-    next = try turn(store);
-    var policy = try c.TableCatalogRecords.Policy.administrator(configuration.scope, principal);
-    policy.principal = principal;
-    try catalog.setPolicy(&next, 0, policy);
-    try store.commit(next);
+    try store.setRights(.{ .principal = principal });
     var compiled = try f.TableDdl.compile(std.testing.allocator, sql, null, null);
     defer compiled.deinit();
     const command = compiled.statement.create;
@@ -83,6 +79,13 @@ pub const Reader = struct {
     pub fn open(store: *Store) !Reader {
         const next = try store.capture();
         return .{ .store = store, .turn = next, .view = next.view };
+    }
+    pub fn authorizationSubject(self: *Reader, who: u64) !p.Authorization.Subject {
+        return self.store.authorizationSubject(who);
+    }
+    pub fn requireAuthorization(self: *Reader, guard: p.Authorization.Guard) !p.Authorization.Verified {
+        try self.check();
+        return self.store.requireAuthorization(guard);
     }
     fn check(self: *Reader) !void {
         if (self.reads) |count| {

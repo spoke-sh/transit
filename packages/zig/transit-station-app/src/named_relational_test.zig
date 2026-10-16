@@ -8,7 +8,7 @@ const f = q.fuze;
 const r = root.NamedRelationalRecords;
 const Store = q.testing.Store;
 const owner: root.NamedRelational = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .owner = 3, .namespace = 55 }, .administrator = 17, .records = 4096, .bytes = 32 * 1024 * 1024 } };
-const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } } };
+const catalog: c.TableCatalog = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 8, .staging_records = 8 } } };
 fn turn(store: *Store) !s.Turn {
     var result = try store.capture();
     result.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
@@ -84,9 +84,10 @@ test "publication and conditional authorization retain original names without st
     defer source.deinit();
     const sources = [_]q.TableSource{source.source};
     const declarations = [_]f.Relational.Source{.{ .alias = "i", .realm = 1, .resource = 7, .catalog = 9, .owner = 3, .schema = found.schema.schema }};
-    var bundle: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = q.RelationalMaintenance.resident_base + 8 * 1024 * 1024, .spill_bytes = 32 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 10000, .source_pins = 1 } } };
+    const description: q.RelationalBundle = .{ .sources = &sources, .plan = .{ .sources = &declarations, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = q.RelationalMaintenance.resident_base + 8 * 1024 * 1024, .spill_bytes = 32 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 10000, .source_pins = 1 } } };
     const workspace = try t.allocator.alloc(u8, 4 * 1024 * 1024);
     defer t.allocator.free(workspace);
+    const bundle = try Store.signQuery(description, 17, store.pid, store.pid, store.resource);
     const request = try upload(&store, bundle);
     const proposal: root.NamedRelational.Proposal = .{ .name = try r.Name.init("totals"), .object = 1001, .expected = 0, .peer = 3, .request = request };
     // Allocation and quota failure discard pins and every partial write.
@@ -134,8 +135,10 @@ test "publication and conditional authorization retain original names without st
     try empty(input);
     // A second definition changes lifetime; the original permission/attribution
     // remains attached to the original immutable revision.
-    bundle.plan.lifetime = .maintained;
-    const next_request = try upload(&store, bundle);
+    var successor = description;
+    successor.plan.lifetime = .maintained;
+    const next_bundle = try Store.signQuery(successor, 17, store.pid, store.pid, store.resource);
+    const next_request = try upload(&store, next_bundle);
     var replacement = proposal;
     replacement.expected = 1;
     replacement.request = next_request;

@@ -18,14 +18,14 @@ const Source = struct {
     other: ?*Store = null,
     opens: ?*usize = null,
     deny_at: ?usize = null,
-    pub fn open(self: @This(), resource: u64) !s.Turn {
+    pub fn open(self: @This(), resource: u64) !Store.Reader {
         if (self.opens) |opens| {
             opens.* += 1;
             if (self.deny_at == opens.*) return error.AccessDenied;
         }
         const store = if (resource == self.store.resource) self.store else self.other orelse return error.AccessDenied;
         if (store.denied or resource != store.resource) return error.AccessDenied;
-        return store.capture();
+        return store.reader();
     }
 };
 fn frame(store: *Store, peer: u64, message: s.Frame) !s.Turn {
@@ -119,7 +119,7 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     try t.expectEqual(progress.bytes, size);
     try t.expectEqualSlices(u8, &progress.chain, &chain);
     const authority: Source = .{ .store = store, .other = requests };
-    const identity: q.UnifiedResult.Expected = .{ .resource = store.resource, .source = store.pid, .requester = 9, .correlation = 77, .request = job.request };
+    const identity: q.UnifiedResult.Expected = .{ .resource = store.resource, .source = store.pid, .requester = 9, .correlation = 77, .request = job.request, .disclosure = .{ .accepted = .{ .pid = 9, .input = 1, .principal = 17 } } };
     var cursor: ?q.UnifiedResult.Cursor = null;
     var decoded: q.fuze.LogicalInspect.Batch = undefined;
     var output: [m.Arrow.segment_bytes]u8 = undefined;
@@ -293,7 +293,8 @@ test "Table and accepted Document use the same retained capture manifest and cle
                 try tables.mutate(&store, index + 2, .{ .insert = &.{&row} });
             }
         }
-        const job = try start(&store, &requests, .{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits });
+        const bundle = try Store.signQuery(q.Bundle{ .source = definition, .plan = try plan(test_arena.allocator(), definition, &.{ 0, 1 }, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
+        const job = try start(&store, &requests, bundle);
         try drive(&store, &requests, job, workspace);
         try verifyComplete(&store, &requests, job, 12, workspace);
         var turn = try store.capture();
@@ -671,7 +672,7 @@ test "admitted Table jobs retain their schema through metadata rename and retire
     var source = try tables.source(&store);
     defer source.deinit();
     const declaration: q.SourceDefinition = .{ .resource = 7, .source = .{ .table = source.source } };
-    const bundle: q.Bundle = .{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits };
+    const bundle = try Store.signQuery(q.Bundle{ .source = declaration, .plan = try plan(test_arena.allocator(), declaration, &.{1}, .rows), .limits = limits }, 17, store.pid, requests.pid, requests.resource);
     const job = try start(&store, &requests, bundle);
     var found = try tables.definition(&store);
     defer found.deinit();

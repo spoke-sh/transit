@@ -6,13 +6,13 @@ const s = c.station;
 const p = c.protocol;
 const g = p.Growth;
 const Admin = @import("growing_support.zig").Admin(46);
-pub const Config = struct { definition: g.Definition, writer: Admin.Provision, worker: u64 };
+pub const Config = struct { definition: g.Definition, writer: Admin.Provision, worker: u64, owner_role: u64, authority: c.TableAuthority.Profile };
 const Pending = struct { definition: g.Definition, pending: s.client.Session.Pending };
 pub fn key(comptime byte: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(byte));
 }
 pub fn configuration(config: Config) c.TableCatalogRecords.Configuration {
-    return .{ .scope = .{ .realm = 46, .resource = config.writer.resource, .catalog = std.math.maxInt(u64) }, .owner = config.writer.pid, .administrator = 1234, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = 2 * c.fuze.TableRow.max_bytes, .staging_records = 2 } };
+    return .{ .scope = .{ .realm = 46, .resource = config.writer.resource, .catalog = std.math.maxInt(u64) }, .owner = config.writer.pid, .administrator = 1234, .authority = config.authority, .database_name = c.TableAuthority.Name.init("transit") catch unreachable, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = 2 * c.fuze.TableRow.max_bytes, .staging_records = 2 } };
 }
 pub fn path(init: std.process.Init, directory: []const u8, name: []const u8) ![]const u8 {
     return std.fmt.allocPrint(init.arena.allocator(), "{s}/{s}", .{ directory, name });
@@ -157,7 +157,16 @@ fn pump(init: std.process.Init, wire: *s.client.Client, directory: []const u8, c
             .ready => {
                 const handler = behavior.interface();
                 if (server.initializing) try handler.initialize.?(handler.context, &server.ready.?);
-                try handler.handle(handler.context, &server.ready.?, try s.Frame.decode(server.ready.?.delivery.input.value));
+                handler.handle(handler.context, &server.ready.?, try s.Frame.decode(server.ready.?.delivery.input.value)) catch |err| {
+                    if (err != error.CatalogRegistrationRequired) return err;
+                    const action = behavior.registration orelse return err;
+                    if (action != .register_object) return error.InvalidAuthorizationObject;
+                    try server.discard();
+                    const registrar: s.client.AuthorizationClient = .{ .transport = wire, .realm = 46, .principal = config.worker, .key = try key(8) };
+                    const registration = try registrar.registration(action.register_object);
+                    if (registration == .submit) _ = try wire.submit(registration.submit);
+                    continue;
+                };
                 try server.finish(null);
             },
         }
@@ -173,10 +182,11 @@ fn pump(init: std.process.Init, wire: *s.client.Client, directory: []const u8, c
 fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClient, config: Config, name: []const u8) !void {
     var found = (try caller.lookup(init.gpa, try c.TableMetadata.Name.init(name))) orelse return print(init, .{ .found = false });
     defer found.deinit();
-    var source = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 1234, .key = try key(10) }).open(config.writer.resource);
+    var raw = try (s.client.ResourceReader{ .wire = wire, .realm = 46, .principal = 1234, .key = try key(10) }).open(config.writer.resource);
+    var source = (try caller.authorizationContext()).wrap(&raw);
     var definition = try (c.TableCatalog{ .configuration = configuration(config) }).readDefinition(init.gpa, &source, 1234, found.metadata.object, .{ .id = found.metadata.revision, .spec = try found.metadata.spec() });
     defer definition.deinit();
-    var pages: s.TablePages.Reader(*s.client.ResourceReader.Reader) = .{ .pages = .{ .resource = config.writer.resource, .object = definition.metadata.object }, .source = &source };
+    var pages: s.TablePages.Reader(@TypeOf(&source)) = .{ .pages = .{ .resource = config.writer.resource, .object = definition.metadata.object }, .source = &source };
     const data: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
     var buffer: [4096]u8 = undefined;
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -194,6 +204,7 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
         var row = value;
         defer row.deinit();
         if (count == 128) return error.ProofRowLimit;
+        try source.finish();
         if (count != 0) try out.interface.writeByte(',');
         try out.interface.writeByte('[');
         for (row.row().cells, definition.schema.schema.columns, 0..) |cell, column, index| {
@@ -206,6 +217,7 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
         after = row.identity;
         count += 1;
     }
+    try source.finish();
     try out.interface.writeAll("]}\n");
     try out.interface.flush();
 }
@@ -315,6 +327,21 @@ fn relational(init: std.process.Init, directory: []const u8, caller: *c.TableCli
     try out.interface.print("],\"complete\":true,\"requests\":{d},\"spill_bytes\":{d},\"heap_peak\":{d}}}\n", .{ query.tables.requests, query.spill.count * query.spill.record_bytes, query.memory.peak });
     try out.interface.flush();
 }
+fn tablePrivileges(init: std.process.Init, admin: *Admin, caller: *c.TableClient, config: Config, role: u64, privileges: u64, allowed: bool) !void {
+    var cursor: ?c.TableCatalog.Cursor = null;
+    while (true) {
+        const page = try currentRead(init, admin.wire, c.TableClient.list, .{ caller, cursor });
+        for (page.entries) |slot| if (slot) |entry| {
+            const binding = try c.TableAuthority.binding(configuration(config).scope, .table, entry.metadata.object);
+            const target = (try admin.query(.{ .authorization = .{ .kind = .{ .binding = .{ .domain = config.authority.table_domain, .key = binding } } } })).body.authorization.body.binding orelse return error.MissingProofTable;
+            _ = try admin.authorization(if (allowed)
+                .{ .grant = .{ .object = target.reference, .grantee = role, .privileges = privileges } }
+            else
+                .{ .revoke_privileges = .{ .object = target.reference, .grantee = role, .privileges = privileges, .behavior = .cascade } });
+        };
+        cursor = page.next orelse return;
+    }
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "public")) return print(init, (try key(7)).public_key.toBytes());
@@ -329,10 +356,23 @@ pub fn main(init: std.process.Init) !void {
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         const worker = if (args.len > 4) try std.fmt.parseInt(u64, args[4], 10) else 65536;
-        const config: Config = .{ .definition = g.current_definition, .writer = try admin.provision(worker, try key(8)), .worker = worker };
-        // Replacing a native principal starts a new incarnation and invalidates
-        // its previous resource grants. A second catalog reuses this caller.
-        if (worker == 65536) _ = try admin.submit(.{ .grant = .{ .subject = 1234, .public_key = (try key(10)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        const provision = try admin.provision(worker, try key(8));
+        // The Table owner is an ordinary LOGIN role. Private worker roles only
+        // execute and register objects; they never own the logical database.
+        if (worker == 65536) {
+            const role = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("table-owner"), .login = true } })).?;
+            _ = try admin.authorization(.{ .bind_credential = .{ .principal = 1234, .role = role, .public_key = (try key(10)).public_key.toBytes() } });
+            _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.inspect) | p.permission(.send) } });
+        }
+        const identity: s.client.AuthorizationClient = .{ .transport = &wire, .realm = 46, .principal = 1234, .key = try key(10) };
+        const owner_role = (try identity.read(.identity)).body.authorization.body.identity.login_role;
+        const scope: c.Model.Scope = .{ .realm = 46, .resource = provision.resource, .catalog = std.math.maxInt(u64) };
+        const database_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = worker, .actions = c.TableAuthority.connect } })).?;
+        const schema_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = worker, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+        const table_domain = (try admin.authorization(.{ .register_domain = .{ .registrar = worker, .actions = c.TableAuthority.table_actions } })).?;
+        const database = (try admin.authorization(.{ .register_object = .{ .domain = database_domain, .owner = owner_role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
+        const schema = (try admin.authorization(.{ .register_object = .{ .domain = schema_domain, .owner = owner_role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+        const config: Config = .{ .definition = g.current_definition, .writer = provision, .worker = worker, .owner_role = owner_role, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema } };
         _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         try save(init, directory, "catalog.json", config);
         return print(init, config);
@@ -367,43 +407,60 @@ pub fn main(init: std.process.Init) !void {
         // The wire fixture uses 1235 for SQL and retains 1234 for administration.
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
-        _ = try admin.submit(.{ .grant = .{ .subject = 1235, .public_key = (try key(11)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1235, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-        return submit(init, directory, &caller, try caller.prepareControl(.{ .policy = .{ .expected_revision = 0, .policy = try c.TableCatalogRecords.Policy.administrator(owner.scope, 1235) } }));
+        const login = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-login"), .login = true } })).?;
+        const role = (try admin.authorization(.{ .create_role = .{ .name = try p.Value.init("gateway-caller") } })).?;
+        _ = try admin.authorization(.{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } });
+        // Independent schema tests explicitly select the SQL-created object's
+        // owner role. Catalog administration alone does not confer ownership.
+        _ = try admin.authorization(.{ .membership = .{ .member = config.owner_role, .role = role, .inherit = false, .set = true } });
+        _ = try admin.authorization(.{ .bind_credential = .{ .principal = 1235, .role = login, .public_key = (try key(11)).public_key.toBytes() } });
+        _ = try admin.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.send) } });
+        _ = try admin.authorization(.{ .grant = .{ .object = c.TableAuthority.reference(config.authority.database), .grantee = role, .privileges = c.TableAuthority.connect } });
+        _ = try admin.authorization(.{ .grant = .{ .object = c.TableAuthority.reference(config.authority.initial_schema_authority), .grantee = role, .privileges = c.TableAuthority.usage | c.TableAuthority.create } });
+        _ = try admin.authorization(.{ .default_grant = .{ .creator = config.owner_role, .schema = c.TableAuthority.reference(config.authority.initial_schema_authority), .domain = config.authority.table_domain, .grantee = role, .privileges = c.TableAuthority.table_actions } });
+        _ = try admin.authorization(.{ .default_grant = .{ .creator = role, .schema = c.TableAuthority.reference(config.authority.initial_schema_authority), .domain = config.authority.table_domain, .grantee = config.owner_role, .privileges = c.TableAuthority.table_actions } });
+        try tablePrivileges(init, &admin, &caller, config, role, c.TableAuthority.table_actions, true);
+        return print(init, .{ .principal = @as(u64, 1235), .role = role });
     }
-    if (std.mem.eql(u8, mode, "external-write-policy")) {
+    if (std.mem.eql(u8, mode, "external-role")) {
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try p.Value.init("gateway-caller") } } })).body.authorization.body.resolve.id;
+        const login = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try p.Value.init("gateway-login") } } })).body.authorization.body.resolve.id;
+        const allowed = std.mem.eql(u8, args[4], "allow");
+        if (allowed) {
+            _ = try admin.authorization(.{ .membership = .{ .member = login, .role = role, .inherit = false, .set = true } });
+        } else {
+            const page = (try admin.query(.{ .authorization = .{ .kind = .{ .memberships = .{ .member = login } } } })).body.authorization.body.memberships;
+            if (page.next != null) return error.UnexpectedProofMemberships;
+            var found = false;
+            for (page.records) |slot| if (slot) |membership| {
+                if (membership.role != role or !membership.set) continue;
+                _ = try admin.authorization(.{ .revoke_membership = .{ .id = membership.id, .option = .set, .behavior = .cascade } });
+                found = true;
+            };
+            if (!found) return error.MissingProofMembership;
+        }
+        return print(init, .{ .selected = allowed });
+    }
+    if (std.mem.eql(u8, mode, "external-write-grants")) {
         // Principal 1234 administers the catalog; 1235 belongs exclusively to
         // the SQL gateway in this fixture. Reads never borrow its sequence.
-        var observer = caller;
-        observer.connection.principal = 1235;
-        observer.key = try key(11);
-        const before = try currentRead(init, &wire, c.TableClient.describe, .{&observer});
-        var policy = before.policy;
-        policy.revision += 1;
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try p.Value.init("gateway-caller") } } })).body.authorization.body.resolve.id;
         const allowed = std.mem.eql(u8, args[4], "allow");
-        policy.create = allowed;
-        policy.insert = allowed;
-        policy.update = allowed;
-        policy.delete = allowed;
-        policy.alter = allowed;
-        policy.drop = allowed;
-        const request = try caller.prepareControl(.{ .policy = .{ .expected_revision = before.policy.revision, .policy = policy } });
-        const saved = try request.save(init.gpa);
-        defer init.gpa.free(saved);
-        try saveBytes(init, directory, "external-policy-prepared.json", saved);
-        const receipt = try caller.submit(request);
-        const started = std.Io.Clock.awake.now(init.io);
-        while (try currentRead(init, &wire, c.TableClient.waitObserve, .{ &caller, request, receipt.position }) == .pending) {
-            if (started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 30) return error.ProofTimeout;
-            try init.io.sleep(.fromMilliseconds(5), .awake);
-        }
-        const disposition = (try currentRead(init, &wire, c.TableClient.inputDisposition, .{ &caller, request, receipt.position })) orelse return error.ProofPolicyMissing;
-        if (disposition.outcome != .policy_applied) return error.ProofPolicyRejected;
-        const after = try currentRead(init, &wire, c.TableClient.describe, .{&observer});
-        if (!std.meta.eql(policy, after.policy)) return error.ProofPolicyChanged;
-        return print(init, .{ .write = allowed, .revision = policy.revision });
+        const schema = c.TableAuthority.reference(config.authority.initial_schema_authority);
+        _ = try admin.authorization(if (allowed)
+            .{ .grant = .{ .object = schema, .grantee = role, .privileges = c.TableAuthority.create } }
+        else
+            .{ .revoke_privileges = .{ .object = schema, .grantee = role, .privileges = c.TableAuthority.create, .behavior = .cascade } });
+        try tablePrivileges(init, &admin, &caller, config, role, c.TableAuthority.insert | c.TableAuthority.update | c.TableAuthority.delete, allowed);
+        return print(init, .{ .write = allowed, .revision = (try admin.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision });
     }
     if (std.mem.eql(u8, mode, "external-ddl") or std.mem.eql(u8, mode, "external-ddl-admin")) {
+        const operator: s.client.AuthorizationClient = .{ .transport = &wire, .realm = owner.scope.realm, .principal = 1234, .key = try key(10) };
+        caller.connection.role = (try operator.read(.{ .resolve = try p.Value.init("gateway-caller") })).body.authorization.body.resolve.id;
         if (std.mem.eql(u8, mode, "external-ddl")) {
             caller.connection.principal = 1235;
             caller.key = try key(11);
@@ -446,12 +503,12 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.startsWith(u8, mode, "select-batch")) return select(true, std.mem.eql(u8, mode, "select-batch-buffered"), init, &caller, args[4], std.mem.eql(u8, mode, "select-batch-held"), .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.startsWith(u8, mode, "select")) return select(false, false, init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.eql(u8, mode, "assist")) return print(init, try currentRead(init, &wire, q.TableAssistance.complete, .{ init.arena.allocator(), &caller, .{ .sql = args[4], .cursor = try std.fmt.parseInt(u16, args[5], 10), .generation = 7, .mode = .console } }));
-    if (std.mem.eql(u8, mode, "policy")) {
-        const description = try caller.describe();
-        var policy = description.policy;
-        policy.revision += 1;
-        policy.read = std.mem.eql(u8, args[4], "allow");
-        return submit(init, directory, &caller, try caller.prepareControl(.{ .policy = .{ .expected_revision = description.policy.revision, .policy = policy } }));
+    if (std.mem.eql(u8, mode, "table-select")) {
+        var admin: Admin = .{ .wire = &wire, .key = try key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const allowed = std.mem.eql(u8, args[4], "allow");
+        try tablePrivileges(init, &admin, &caller, config, config.owner_role, c.TableAuthority.select, allowed);
+        return print(init, .{ .read = allowed });
     }
     if (std.mem.eql(u8, mode, "retry-send")) return submit(init, directory, &caller, try prepared(init, directory));
     if (std.mem.eql(u8, mode, "compile")) {

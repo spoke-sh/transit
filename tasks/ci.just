@@ -38,6 +38,13 @@ cost run:
 bindings:
     python3 -B tests/ci.py bindings
 
+# Independent complete portions of the bindings inventory for hosted execution.
+bindings-1:
+    python3 -B tests/ci.py bindings-1
+
+bindings-2:
+    python3 -B tests/ci.py bindings-2
+
 # Browser qualification remains explicit for local developers.
 browser:
     python3 -B tests/ci.py browser

@@ -86,7 +86,7 @@ distinct. Conflict alternatives retain ordered full-width assignment IDs.
 `Page.to_pyarrow()` requires the optional pinned PyArrow 23.0.0 dependency and
 preserves the nested state/alternative schema. An independently decoded IPC
 stream alone establishes neither current authorization nor complete-result
-coverage. Bundles contain at most 25069 bytes. Table results admit 128 columns;
+coverage. Bundles contain at most 25255 bytes. Table results admit 128 columns;
 segments contain at most eight rows and 64 KiB. Comparison literals retain a
 4 KiB byte limit. Descriptors and recursive cells use the shared logical budgets.
 KV has two columns, and Document projections admit eight scalar decoders.
@@ -118,3 +118,15 @@ a renamed or replacement object.
 Run `just bindings::unified-python kv` for a clean installed-wheel codec and
 signed recovery schedule. `table` and `document` select the other source
 profiles; see [proof evidence](../../../../tests/README.md) for completed runs.
+
+Connections accept an optional selected native role; omission uses the login role.
+Local bundle construction produces a description. Call `authorize_bundle` once on the
+query client before persisting a newly constructed Table bundle or its fingerprint.
+The returned bytes bind the authenticated caller, role, credential epoch, source
+owner and requester to the exact query and budget. SQL compilation already returns
+an authorized bundle. An already authorized Table bundle rejects resealing.
+
+Persist and recover the original bundle bytes unchanged, alongside each prepared
+command and receipt. Current authorization is checked again during progress and
+result disclosure. Credential or policy changes never justify replacing accepted
+work with a newly signed bundle. The complete bundle bound is 25,255 bytes.

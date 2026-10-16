@@ -21,7 +21,7 @@ ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
-pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair };
+pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair, reader: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return (err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource;
 }
@@ -52,7 +52,7 @@ fn create(allocator: std.mem.Allocator, io: std.Io, url: []const u8, ledger: g.L
     const config = ledger.configuration;
     self.ingress = .{ .transport = &self.ingress_wire, .ledger = ledger, .principal = config.ingress, .key = keys.ingress };
     self.private = .{ .transport = &self.background, .ledger = ledger, .principal = config.coordinator, .key = keys.coordinator };
-    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .generation = generation };
+    self.coordinator = .{ .allocator = allocator, .client = &self.private, .table_key = keys.table, .reader_key = keys.reader, .generation = generation };
     self.server = try s.GenServer.init(.{ .client = &self.background, .realm = config.realm, .principal = config.worker, .pid = config.owner, .generation = generation, .key = keys.worker }, association);
     self.server.input_guard = self.behavior.guard();
     self.server.failure_policy = .stop;
@@ -157,6 +157,7 @@ fn finishControl(self: *Self, deadline: Deadline) !?g.Control.Disposition {
             continue;
         }) {
             .idle => return null,
+            .admitted => return null,
             .processed => |rejected| return rejected,
             .pending => try self.io.sleep(.fromMilliseconds(5), .awake),
         }
@@ -165,6 +166,10 @@ fn finishControl(self: *Self, deadline: Deadline) !?g.Control.Disposition {
 /// A deadline/cancellation leaves any prepared request in account-owned memory.
 /// The background tick takes over after this function releases the lane lock.
 pub fn control(self: *Self, command: g.Control.Command, deadline: Deadline) !void {
+    return self.handoff(command, deadline, .processed);
+}
+fn handoff(self: *Self, command: g.Control.Command, deadline: Deadline, completion: enum { processed, admitted }) !void {
+    if (completion == .admitted and command != .intent_part) return error.InvalidGatewayCommand;
     while (!self.ingress_mutex.tryLock()) {
         try deadline.check(self.io);
         try self.io.sleep(.fromMilliseconds(5), .awake);
@@ -173,7 +178,10 @@ pub fn control(self: *Self, command: g.Control.Command, deadline: Deadline) !voi
     _ = try self.finishControl(deadline); // Prior caller's detached observation.
     try deadline.check(self.io);
     if (!self.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
-    try self.ingress_lane.start(&self.ingress, command);
+    switch (completion) {
+        .processed => try self.ingress_lane.start(&self.ingress, command),
+        .admitted => try self.ingress_lane.startPart(&self.ingress, command.intent_part),
+    }
     if (try self.finishControl(deadline) != null) return error.GatewayControlRejected;
 }
 /// observer and table borrow the connection's own native transport; no HTTP
@@ -185,7 +193,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const connection = table.connection;
-    try self.control(.{ .begin = .{ .nonce = nonce, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner } } }, deadline);
+    try self.control(.{ .begin = .{ .nonce = nonce, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .namespace = connection.namespace, .role = connection.role } } }, deadline);
     const item = while (true) {
         try deadline.check(self.io);
         break self.discover(observer, nonce) catch |err| {
@@ -210,7 +218,10 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var offset: usize = 0;
     while (offset < intent.bytes.len) {
         const count = @min(g.Upload.part_bytes, intent.bytes.len - offset);
-        try self.control(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), intent.bytes[offset..][0..count]) } }, deadline);
+        // Admission retains the exact bytes in the ordered native mailbox.
+        // Keep only one uncertain send resident; let the ledger consume parts
+        // independently, then require the seal's domain result below.
+        try self.handoff(.{ .intent_part = .{ .operation = item.id, .part = try g.Control.Part.init(@intCast(offset), intent.bytes[offset..][0..count]) } }, deadline, .admitted);
         offset += count;
     }
     try self.control(.{ .seal_intent = item.id }, deadline);

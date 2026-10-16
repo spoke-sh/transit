@@ -9,7 +9,7 @@ import signal
 import time
 
 import yaml
-from ci import LANES, ROOT
+from ci import LANES, ROOT, SUITE
 from ci_select import select
 from ci_cost import summarize
 from verification.external_profiles import DISCOVERY
@@ -18,7 +18,9 @@ from verification.external_profiles import DISCOVERY
 def main():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
-    assert selected == ["core", "growth", "experience", "launchers", "bindings"]
+    assert selected == SUITE["tiers"]["ordinary"]
+    assert SUITE["tiers"]["bindings"] == ["bindings-1", "bindings-2"]
+    assert set(SUITE["tiers"]["bindings"]) <= set(selected)
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     steps = workflow["jobs"]["checks"]["steps"]
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
@@ -59,8 +61,8 @@ def main():
     full_jobs = [dict(job, name=name) for name in selected]
     full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     measured = summarize(sample, full_jobs, full_log, budgets)
-    assert measured['budget_met'] and measured['restored_cache_bytes'] == 1500
-    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 45
+    assert measured['budget_met'] and measured['restored_cache_bytes'] == 300 * len(selected)
+    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9 * len(selected)
     assert not measured['missing_lanes'] and not measured['duplicate_lanes']
     assert not summarize(sample, full_jobs, '', budgets)['budget_met']
     assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
@@ -74,7 +76,7 @@ def main():
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
     fallback_log = full_log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
     fallback = summarize(sample, full_jobs, fallback_log, budgets)
-    assert fallback['restored_cache_bytes'] == 1500 and fallback['cache_profile'] == 'miss-or-partial'
+    assert fallback['restored_cache_bytes'] == 300 * len(selected) and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
@@ -82,7 +84,7 @@ def main():
     full_budgets = dict(budgets, restored_cache_bytes=2000)
     full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
     assert full['budget_met'] and len(full['lanes']) == len(selected)
-    assert full['restored_cache_bytes'] == 1500
+    assert full['restored_cache_bytes'] == 300 * len(selected)
     assert not summarize(sample, [*full_jobs[:-1], docs_skipped], full_log, full_budgets)['budget_met']
     assert not summarize(sample, [*full_jobs[:-1], dict(full_jobs[-1], conclusion='skipped'), docs_skipped], full_log, full_budgets)['budget_met']
     # Missing ordinary lanes cannot meet the suite budget even when there is no
@@ -175,6 +177,33 @@ def main():
         assert metadata["completed"] is False
         assert metadata["expected_tasks"] == LANES["browser"]
         assert "transit-board::browser" in (path / "summary").read_text()
+    # Both independent binding jobs and the full local selector must execute
+    # exactly their declared tasks, retaining complete per-lane evidence.
+    with tempfile.TemporaryDirectory(prefix="transit-ci-bindings-") as directory:
+        path = Path(directory)
+        runner = path / "tests/ci.py"
+        runner.parent.mkdir()
+        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
+        (runner.parent / "verification").mkdir()
+        (runner.parent / "verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
+        script = path / "just"
+        script.write_text(f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
+                          "with Path('executed').open('a') as log: log.write(sys.argv[1]+'\\n')\n")
+        script.chmod(0o755)
+        env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"]}
+        for selection in ("bindings", *SUITE["tiers"]["bindings"]):
+            (path / "executed").unlink(missing_ok=True)
+            subprocess.run([sys.executable, "-B", runner, selection], env=env,
+                           capture_output=True, check=True)
+            lanes = SUITE["tiers"].get(selection, [selection])
+            expected = [task for lane in lanes for task in LANES[lane]]
+            assert (path / "executed").read_text().splitlines() == expected
+            evidence = json.loads((path / f".cache/ci/{selection}.json").read_text())
+            metadata = json.loads((path / f".cache/ci/{selection}.meta.json").read_text())
+            assert [row["task"] for row in evidence] == expected
+            assert metadata["completed"] and metadata["expected_tasks"] == expected
+            assert metadata["result_count"] == len(expected)
+            assert all(row["exit_code"] == 0 for row in evidence)
     # Kill the real runner while its second task is active. Neither SIGTERM nor
     # SIGKILL executes its finally block; the earlier task must remain recorded.
     with tempfile.TemporaryDirectory(prefix="transit-ci-interrupted-") as directory:

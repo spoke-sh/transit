@@ -34,7 +34,7 @@ public final class JavaUnifiedSdk {
     private static Projection projection(String name,DecoderType type,List<String> path,boolean relative,ProjectionMode mode) { return new Projection(new DecoderColumn(name,type),path,relative,mode,4096,4096); }
     private static TableSource tableSource(List<Catalog.Column> columns) {
         byte[] hash=new byte[32];Arrays.fill(hash,(byte)1);
-        var metadata=new Catalog.Metadata(new Catalog.Scope(new ResourceRef(1,7),n(9)),n(9),n(1),"items",new Bytes(hash),17,n(1),1,new Catalog.MetadataCommitment(200,new Bytes(hash)));
+        var metadata=new Catalog.Metadata(new Catalog.Scope(new ResourceRef(1,7),n(9)),1,n(9),n(1),"items",new Bytes(hash),17,n(1),1,new Catalog.MetadataCommitment(200,new Bytes(hash)));
         return new TableSource(new ProcessRef(1,3),metadata,new Catalog.Schema(n(9),n(1),n(columns.size()+1),columns));
     }
     private static TableSource goldenTable() {
@@ -162,10 +162,10 @@ public final class JavaUnifiedSdk {
                 var definition=await(catalog.lookup("items")).orElseThrow(); source=new TableSource(connection.source(),definition.metadata(),definition.schema());
             }
         } else source=source(resource,kind,false);
-        check(bundle(source,kind,false,true,config.get("compound").getAsBoolean()).bytes().equals(read(config,"bundle")));
         Page saved=null;
         try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
-            var description=await(client.describe(source)); check(description.bundleBytes()==25069 && description.batchRows()==8);
+            check(await(client.authorizeBundle(bundle(source,kind,false,true,config.get("compound").getAsBoolean()))).bytes().equals(read(config,"bundle")));
+            var description=await(client.describe(source)); check(description.bundleBytes()==25255 && description.batchRows()==8);
             System.out.println("{\"ready\":true}");
             try(var reader=new java.io.BufferedReader(new java.io.InputStreamReader(System.in,StandardCharsets.UTF_8))) {
                 for(String line;(line=reader.readLine())!=null;) {

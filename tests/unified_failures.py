@@ -8,10 +8,13 @@ import time
 def check(native, port, callers, root, invoke, restart, fault, kind):
     owners = (native, port, *callers)
     namespace = '55001'
-    bundle = bytearray((root / 'bundle.bin').read_bytes())
+    bundle = bytearray((root / 'bundle-description.bin').read_bytes())
     assert bundle[:4] == b'UQB1'
     # The frozen source/plan is unchanged. Admit a one-byte result budget.
     struct.pack_into('<QQQ', bundle, 40, 1000, 100, 1)
+    # This is new work: seal the changed budget before fingerprint/upload.
+    # Never mutate or re-sign the accepted bundle used by earlier schedules.
+    bundle = bytes.fromhex(native.call({'authorize': bundle.hex()})['authorized'])
     lost = dict(attempt=None, receipt=None, retries=0)
     lock = threading.Lock()
 

@@ -46,12 +46,21 @@ loop, durable waiting, and supervision.
 | `Client.query(.delivery)` | Read scoped courier status without payload or general inspection access |
 | `Client.query(.inspection)` | Follow bounded process/history pages with explicit cut/expiry handling |
 | `Client.query` | Discover state capabilities and read metadata, associations, entries or captured views |
+| `AuthorizationClient.read` | Read current identity, roles, grants, effective access, previews and retained operations |
+| `AuthorizationChange.Client` | Prepare, save, explicitly submit and observe [recoverable policy changes](docs/authorization.md) |
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
 | `bootstrap.awaitActivation` | Publish a fresh public key and pin the first controller-granted generation for a provider-bound worker |
 
 The shared client accepts authority base URLs with or without trailing slashes.
 It removes trailing separators before appending the operation route, preserving
 the base path and its escaping. Foreign SDKs use this same transport behavior.
+
+`Client.call` returns fixed native values. Domain responses containing strings or
+collections use `callOwned`, whose parsed arena owns the complete result until
+`deinit`, independently of the transport lifetime. Request and response limits
+default to 1 MiB each and cannot exceed 16 MiB. This path preserves shared JSON
+array shapes, rejects redirects, and drains/frees a response that races a timeout.
+It performs one HTTP attempt; it does not retry uncertain work.
 
 Each client is used by one operation at a time; sessions sharing a principal also
 share its mutation sequence. A client retains at most one free HTTP connection

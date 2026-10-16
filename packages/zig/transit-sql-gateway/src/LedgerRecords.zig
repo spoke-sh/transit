@@ -40,6 +40,9 @@ pub const Operation = struct {
     resource: u64,
     catalog: u64,
     owner: u64,
+    namespace: u64 = 1,
+    role_present: u8 = 0,
+    role: u64 = 0,
     phase: Phase = .reserved,
     intent_length: u32 = 0,
     intent_digest: [32]u8 = @splat(0),
@@ -59,7 +62,11 @@ pub const Operation = struct {
     summary: Summary = .none,
     matched: u64 = 0,
     changed: u64 = 0,
+    pub fn selectedRole(self: Operation) ?u64 {
+        return if (self.role_present == 1) self.role else null;
+    }
     pub fn validate(self: Operation) !void {
+        if (self.namespace == 0 or self.namespace > p.max_counter or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0)) return error.InvalidGatewayOperation;
         if (self.id == 0 or self.id > p.max_counter or self.resource == 0 or self.resource > p.max_counter or self.owner == 0 or self.owner > p.max_counter or self.catalog == 0 or self.cancel > 2 or self.reconcile > 1 or self.blocked > 1 or self.published > self.records or self.changed > self.matched or self.intent_length > g.catalog.TableIntent.max_bytes or self.staging > self.records or self.pending > self.records or self.pending_sequence > p.max_counter or self.input > p.max_counter) return error.InvalidGatewayOperation;
         if ((self.pending == 0) != (self.pending_sequence == 0) or (self.pending == 0 and self.input != 0) or (self.pending != 0 and (self.pending == 1 or self.staging != 0 or self.phase != .active))) return error.InvalidGatewayOperation;
         if (self.phase == .reserved) {
@@ -177,21 +184,25 @@ test "gateway metadata retains full width and rejects foreign definitions and im
 /// lets each signed upload step use a bounded committed range comparison.
 pub const IntentBinding = struct {
     pub const magic = "GSB1";
-    header: [g.catalog.TableCommand.header_bytes]u8,
+    // The GSB1 envelope carries and validates the shared definition once. The
+    // nested TCQ1 magic/definition are omitted, keeping this record within one
+    // native value without dropping any command identity or namespace fields.
+    header: [g.catalog.TableCommand.header_bytes - 36]u8,
     body_offset: u32,
     body_length: u32,
     command_digest: [32]u8,
     identity_digest: [32]u8,
     route: u8,
     pub fn validate(self: IntentBinding) !void {
-        const h = try g.catalog.TableCommand.inspect(&self.header);
+        const h = try self.commandHeader();
         if (self.body_offset < g.catalog.TableIntent.prefix_bytes or self.body_length <= g.catalog.TableCommand.header_bytes or self.body_length > g.catalog.TableCommand.max_bytes or @as(u64, self.body_offset) + self.body_length > g.catalog.TableIntent.max_bytes) return error.InvalidGatewayIntent;
         if (h.kind == .create) {
             if (self.route != 0) return error.InvalidGatewayIntent;
         } else if ((h.kind != .insert and h.kind != .update and h.kind != .delete) or (self.route != 1 and self.route != 2)) return error.InvalidGatewayIntent;
     }
     pub fn from(intent: *const g.catalog.TableIntent) !IntentBinding {
-        const result: IntentBinding = .{ .header = try intent.header.encode(), .body_offset = @intCast(intent.bytes.len - intent.body.len), .body_length = @intCast(intent.body.len), .command_digest = intent.spec.digest, .identity_digest = switch (intent.identity) {
+        const encoded_header = try intent.header.encode();
+        const result: IntentBinding = .{ .header = encoded_header[36..].*, .body_offset = @intCast(intent.bytes.len - intent.body.len), .body_length = @intCast(intent.body.len), .command_digest = intent.spec.digest, .identity_digest = switch (intent.identity) {
             .ddl => |v| v.digest,
             .dml => |v| v.reference.digest,
         }, .route = switch (intent.identity) {
@@ -203,8 +214,15 @@ pub const IntentBinding = struct {
     }
     pub fn binding(self: IntentBinding, id: u64) !g.catalog.TableIntent.Binding {
         try self.validate();
-        const h = try g.catalog.TableCommand.inspect(&self.header);
+        const h = try self.commandHeader();
         if (h.operation != id) return error.GatewayIdentityConflict;
         return .{ .header = h, .namespace = id, .spec = .{ .format = g.catalog.TableCommand.format, .length = self.body_length, .digest = self.command_digest }, .identity = if (self.route == 0) .{ .ddl = .{ .scope = h.scope, .principal = h.principal, .operation = id, .digest = self.identity_digest } } else .{ .dml = .{ .route = std.enums.fromInt(g.station.TableWrite.Status.Route, self.route) orelse return error.InvalidGatewayIntent, .reference = .{ .resource = h.scope.resource, .object = h.object, .principal = h.principal, .operation = id, .digest = self.identity_digest } } } };
+    }
+    fn commandHeader(self: IntentBinding) !g.catalog.TableCommand.Header {
+        var bytes: [g.catalog.TableCommand.header_bytes]u8 = undefined;
+        bytes[0..4].* = "TCQ1".*;
+        bytes[4..36].* = definition();
+        bytes[36..].* = self.header;
+        return g.catalog.TableCommand.inspect(&bytes);
     }
 };

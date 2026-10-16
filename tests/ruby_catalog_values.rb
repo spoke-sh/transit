@@ -22,7 +22,15 @@ scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: 46, resource: 7),
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: true) }
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: 1 << 64) }
 rejects(ArgumentError) { M::Connection.new(owner: Transit::ProcessRef.new(realm: 47, pid: 1), scope: scope) }
-rejects(ArgumentError) { M::PolicyChange.new(expected_revision: -1, policy: nil) }
+authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, database: 20, initial_schema: 1, initial_schema_authority: 21}
+authority = M::AuthorityProfile.new(**authority_values)
+rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(table_domain: 10)) }
+rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(initial_schema_authority: 20)) }
+context = 'a' * 32
+subject = M::Subject.new(principal: 17, login_role: 17, role: 17, credential_epoch: 1, audience: 3, context: context)
+context.clear
+check(subject.context == 'a' * 32 && subject.context.frozen?)
+rejects(ArgumentError) { M::Subject.new(**subject.to_h.merge(credential_epoch: 0)) }
 text = +'opaque recovery bytes'
 prepared = M::Prepared.new(data: text); text.clear
 check(prepared.data == 'opaque recovery bytes' && prepared.data.frozen?)
@@ -135,7 +143,25 @@ begin
     reply.response = {'state'=>{'outcome'=>outcome.merge(defect),'upload'=>nil}}
     rejects(Transit::IncompatibleNative) { client.status(reference) }
   end
-  metadata = {'scope'=>scope.wire,'object'=>((1 << 64)-1).to_s,'revision'=>((1 << 64)-1).to_s,'name'=>'items',
+  description = {'configuration'=>{'scope'=>scope.wire,'owner'=>3,'administrator'=>0,
+    'authority'=>authority.wire,'database_name'=>'ledger',
+    'table_limits'=>{'record_bytes'=>4096,'staging_bytes'=>'32768','staging_records'=>8}},
+    'subject'=>subject.to_h.transform_keys(&:to_s).merge('context'=>subject.context.bytes),
+    'authorization_revision'=>2,'resource_revision'=>3}
+  reply.response = {'description'=>description}
+  current = client.describe
+  check(current.subject == subject && current.configuration.authority == authority && current.authorization_revision == 2)
+  {'principal'=>18,'audience'=>4,'credential_epoch'=>0}.each do |field, value|
+    bad = clone_json(description); bad['subject'][field] = value
+    reply.response = {'description'=>bad}
+    rejects(Transit::IncompatibleNative) { client.describe }
+  end
+  selected = M::Connection.new(owner: client.connection.owner, scope: scope, role: 20)
+  client.instance_variable_set(:@connection, selected)
+  reply.response = {'description'=>description}
+  rejects(Transit::IncompatibleNative) { client.describe }
+  client.instance_variable_set(:@connection, M::Connection.new(owner: selected.owner, scope: scope))
+  metadata = {'namespace'=>1,'scope'=>scope.wire,'object'=>((1 << 64)-1).to_s,'revision'=>((1 << 64)-1).to_s,'name'=>'items',
     'schema_fingerprint'=>'ab' * 32,'principal'=>17,'operation'=>((1 << 64)-1).to_s,'admitted_input'=>2,'commitment'=>{'format'=>0x54434d01,'length'=>200,'digest'=>[1]*32}}
   head = {'revision'=>'1','rows'=>'0','pending'=>'0'}
   entry = {'metadata'=>metadata,'head'=>head}
@@ -150,7 +176,7 @@ begin
   entries = retained.entries.dup
   public_page = M::Page.new(resource_revision: 3, entries: entries, next: retained.next); entries.clear
   check(public_page.entries == retained.entries)
-  definition = {'metadata'=>metadata,'head'=>head,'schema'=>schema.wire}
+  definition = {'authorization'=>30,'metadata'=>metadata,'head'=>head,'schema'=>schema.wire}
   reply.response = {'definition'=>clone_json(definition)}
   resolved = client.lookup('items')
   check(resolved.metadata == retained.entries.first.metadata && resolved.schema == schema)
@@ -160,12 +186,13 @@ begin
   historical = client.definition((1 << 64)-1, (1 << 64)-1)
   check(historical.metadata == resolved.metadata && historical.schema == schema && !historical.respond_to?(:head))
   rejects(Transit::IncompatibleNative) { client.definition(1, 1) }
-  %i[hole order scope cut next_object missing_definition foreign_definition numeric_object unknown_head missing_commitment foreign_commitment long_commitment bad_digest].each do |defect|
+  %i[hole order scope namespace cut next_object missing_definition foreign_definition numeric_object unknown_head missing_commitment foreign_commitment long_commitment bad_digest].each do |defect|
     bad = clone_json(page)
     case defect
     when :hole then bad['entries'][1], bad['entries'][0] = bad['entries'][0], nil
     when :order then bad['entries'][1] = clone_json(entry)
     when :scope then bad['entries'][0]['metadata']['scope']['catalog'] = '1'
+    when :namespace then bad['entries'][0]['metadata']['namespace'] = 2
     when :cut then bad['next']['resource_revision'] += 1
     when :next_object then bad['next']['after_object'] = '1'
     when :missing_definition then bad['next'].delete('definition')
@@ -174,7 +201,7 @@ begin
     when :unknown_head then bad['entries'][0]['head']['other'] = true
     when :missing_commitment then bad['entries'][0]['metadata'].delete('commitment')
     when :foreign_commitment then bad['entries'][0]['metadata']['commitment']['format'] = 0
-    when :long_commitment then bad['entries'][0]['metadata']['commitment']['length'] = 437
+    when :long_commitment then bad['entries'][0]['metadata']['commitment']['length'] = 445
     when :bad_digest then bad['entries'][0]['metadata']['commitment']['digest'][0] = 256
     end
     reply.response = {'page'=>bad}
@@ -215,8 +242,9 @@ rejects(Transit::Closed) { client.capabilities }
 # A real owned child exercises generated response validation and transport loss.
 require 'tmpdir'
 Dir.mktmpdir('transit-catalog-replies-') do |directory|
-  schemas = I::SCHEMAS.merge(JSON.parse(File.binread(File.join(Gem.loaded_specs.fetch('transit-station').full_gem_path,
-    'lib/transit/station/schemas.json'))))
+  station_module = $LOADED_FEATURES.find { |file| file.end_with?('/transit/station.rb') }
+  raise 'Station module was not loaded' unless station_module
+  schemas = I::SCHEMAS.merge(JSON.parse(File.binread(File.join(File.dirname(station_module), 'station/schemas.json'))))
   # Catalog-only framing accepts bounded large requests and fragmented replies.
   host = File.join(directory, 'large-host')
   response = JSON.generate({'status'=>0,'value'=>{'compiled'=>compiled_reply.merge('saved'=>{'definition'=>M::DEFINITION,'bytes'=>'ab' * 300000})}}) + "\n"

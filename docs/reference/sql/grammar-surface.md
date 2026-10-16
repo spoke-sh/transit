@@ -95,7 +95,7 @@ other administrative SQL families retain their own stated support boundaries.
 | Form or family | Support | Semantic target and boundary |
 | --- | --- | --- |
 | `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
-| `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
+| Role/schema administration, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy or catalog schema operations; query-only interfaces reject administrative execution |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
 | Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |

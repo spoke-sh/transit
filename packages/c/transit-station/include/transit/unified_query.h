@@ -94,6 +94,7 @@ void transit_station_unified_cursor_destroy(transit_station_unified_cursor *);
 typedef struct transit_station_unified_connection {
     transit_sdk_process source, requester;
     transit_sdk_resource resource, requests;
+    bool has_role; uint64_t role;
 } transit_station_unified_connection;
 typedef struct transit_station_unified_description {
     uint64_t resource_revision, policy_revision;
@@ -153,6 +154,8 @@ transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_cl
  * Compilation uses current source access and performs no upload or admission. */
 typedef struct transit_station_unified_bindings { const transit_station_unified_scalar *values; size_t count; } transit_station_unified_bindings;
 transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, const transit_station_unified_bindings *, transit_station_unified_bundle **out);
+/* Seal newly constructed work before persistence. Never reseal a recovered bundle. */
+transit_sdk_error transit_station_unified_authorize_bundle(transit_station_unified_client *, const transit_station_unified_bundle *, transit_station_unified_bundle **out);
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_bundle *, transit_station_unified_prepared **out); /* NULL: inspect status, not completion. */
 typedef enum transit_station_unified_control { TRANSIT_UNIFIED_CANCEL, TRANSIT_UNIFIED_RETIRE, TRANSIT_UNIFIED_COLLECT } transit_station_unified_control;
 transit_sdk_error transit_station_unified_prepare_control(transit_station_unified_client *, transit_station_unified_control, uint64_t namespace_id, transit_station_unified_prepared **out);

@@ -5,7 +5,7 @@ from pathlib import Path
 import struct
 import tempfile
 
-from serving import Key, native_query
+from serving import Key, subject_proof
 
 
 def generate():
@@ -37,7 +37,7 @@ def generate():
         cursor_bytes = b'SV1K' + position_bytes[4:] + bytes(cursor['signature'])
         read = dict(scope=scope, kind='events', attachment=3, nonce=[8] * 16, cursor=cursor)
         read_bytes = b'SV1U' + scope_bytes + b'\3' + struct.pack('<Q', 3) + bytes([8]) * 16 + b'\1' + cursor_bytes
-        signed = dict(read=read, signature=key.sign(hashlib.sha256(b'transit.reactive.read.v1\0' + read_bytes).digest()), identity=native_query(key, maximum, {'identity': {}}))
+        signed = dict(read=read, proof=subject_proof(key, maximum, scope['ingress'], hashlib.sha256(b'transit.reactive.read.v1\0' + read_bytes).digest(), credential_epoch=1))
         return dict(version=1, commands=cases, public_key=key.public, cursor=cursor, cursor_hex=cursor_bytes.hex(), read=signed)
 
 

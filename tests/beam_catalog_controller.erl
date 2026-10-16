@@ -9,9 +9,9 @@ result({uncertain,_,E}) -> throw({failure,E}).
 scope(#{<<"realm">>:=R,<<"resource">>:=K,<<"catalog">>:=C}) -> #transit_catalog_scope{resource=#transit_resource{realm=R,resource=K},catalog=binary_to_integer(C)}.
 connect(A,Cfg) ->
     Conn=maps:get(<<"connection">>,Cfg),Scope=scope(maps:get(<<"scope">>,Conn)),Realm=(Scope#transit_catalog_scope.resource)#transit_resource.realm,
-    Config=#transit_config{url=maps:get(<<"url">>,Cfg),profile=native_v1,timeout_ms=10000},
+    Config=#transit_config{url=maps:get(<<"url">>,Cfg),profile=native_v1,timeout_ms=case maps:get(<<"table_service_url">>,Cfg,null) of null->10000; _->30000 end},
     Identity=#transit_credential{realm=Realm,principal=maps:get(<<"principal">>,Conn),seed_file=maps:get(<<"seed_file">>,Cfg)},
-    Connection=#transit_catalog_connection{owner=#transit_process{realm=Realm,pid=maps:get(<<"owner">>,Conn)},scope=Scope},result(A:open(Config,Identity,Connection)).
+    Connection=#transit_catalog_connection{owner=#transit_process{realm=Realm,pid=maps:get(<<"owner">>,Conn)},scope=Scope,role=case maps:get(<<"role">>,Conn,null) of null->undefined; R->R end,namespace=maps:get(<<"namespace">>,Conn,1)},result(A:open(Config,Identity,Connection,case maps:get(<<"table_service_url">>,Cfg,null) of null->undefined; U->U end)).
 persist(Path,Bytes) ->
     {ok,F}=file:open(Path,[write,binary,raw]),try ok=file:change_mode(Path,8#600),ok=file:write(F,Bytes),ok=file:sync(F) after ok=file:close(F) end.
 finish(A,C,#transit_catalog_compiled{intent=#transit_catalog_intent{reference=Reference},saved=#transit_catalog_saved_intent{definition=Definition,bytes=Bytes}},Root) ->
@@ -39,7 +39,7 @@ atom(V) -> {value,{atom,V}}.
 assignment(Column,Value) -> #transit_catalog_assignment{column=Column,value=Value}.
 scenario(A,C,Cfg,Root,Index) ->
     Base=1100+Index*100,Object=12001+Index*10,Name= <<"sdk_people_",(integer_to_binary(Index))/binary>>,
-    #transit_catalog_description{configuration=#transit_catalog_configuration{scope=Scope},policy=#transit_catalog_policy{principal=Principal}}=result(A:describe(C)),
+    #transit_catalog_description{configuration=#transit_catalog_configuration{scope=Scope},subject=#transit_catalog_subject{principal=Principal}}=result(A:describe(C)),
     Scope=scope(maps:get(<<"scope">>,maps:get(<<"connection">>,Cfg))),Principal=maps:get(<<"principal">>,maps:get(<<"connection">>,Cfg)),
     Create=result(A:compile_sql(C,<<"CREATE TABLE ",Name/binary," (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))">>,identity(Base,0),Object)),
     #transit_catalog_outcome{phase=applied}=finish(A,C,Create,Root),
@@ -72,6 +72,7 @@ loop(A,C,Cfg,Root) ->
         eof->ok;
         Line->case json:decode(unicode:characters_to_binary(Line)) of
             #{<<"close">>:=_}->ok;
+            #{<<"denied">>:=_}->Fresh=connect(A,Cfg),try {error,#transit_error{status=4}}=A:describe(Fresh) after A:close(Fresh) end,report(#{status=>0,value=>#{denied=>true}}),loop(A,C,Cfg,Root);
             #{<<"scenario">>:=#{<<"index">>:=Index}}->report(#{status=>0,value=>scenario(A,C,Cfg,Root,Index)}),loop(A,C,Cfg,Root)
         end
     end.

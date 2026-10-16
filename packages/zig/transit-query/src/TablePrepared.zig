@@ -15,9 +15,9 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
     var location: f.Sql.Location = .{};
     const name = try c.TableMetadata.Name.init(try f.TableSelect.targetDialect(arena.allocator(), text, &location, dialect));
     const before = try client.describe();
-    if (!before.policy.permits(.read)) return error.CatalogDenied;
     var definition = (try client.lookup(allocator, name)) orelse return error.TableNotFound;
     defer definition.deinit();
+    _ = try client.requireObject(definition.metadata.object, .read);
     const binding = try c.TableBinding.init(client.connection, definition.metadata);
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     const schema = try definition.schema.schema.rowType(&fields);

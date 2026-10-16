@@ -167,14 +167,12 @@ def run(node, proof):
             assert call('captured-result')['rows'] == captured['rows']
             # Revocation applies to the captured result even though the name
             # metadata and archived authorization are still readable.
-            call('policy', 'deny')
-            call('pump')
+            call('table-select', 'deny')
             call('captured-result', failure='CatalogDenied')
             assert call('captured-named-attribution') == first
             call('captured-retire')
             pump()
-            call('policy', 'allow')
-            call('pump')
+            call('table-select', 'allow')
             call('maintained-plan', SQL)
             call('maintained-stage')
             pump('maintained')

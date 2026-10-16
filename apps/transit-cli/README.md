@@ -28,6 +28,10 @@ Put `--diagnostics=json` before the command for structured stderr errors; result
 stdout keeps its command-specific format. See the
 [structured error reference](../../docs/reference/cli.md#structured-errors).
 
+The [authorization guide](docs/authorization.md) describes `transit auth`
+preview, saved changes, explicit bounded apply and receipt recovery. Catalog SQL
+resolves role, privilege and schema statements to the same shared typed actions.
+
 Bare `transit console` derives its connection from the local installation without
 a generated configuration file. Server, explicit connection and management
 configuration use YAML by default; `.transitrc` remains a DuckDB-style startup

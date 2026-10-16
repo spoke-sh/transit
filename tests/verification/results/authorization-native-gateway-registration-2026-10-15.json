@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "source_revision": "d91222954a45ab9b841a6e91af91d6146756381f",
+  "dirty": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "source_files": {
+    "tests/sql_gateway_native.zig": "ad58a6af1212e1dd8ff3431940f4bae4204c74bcfa7679c3425e4701d86cacf2",
+    "tests/sql_gateway_native.py": "2489d4dc97d8f89005b8e1e257011f2abdf09a4c23e31653bc54dda29d625961"
+  },
+  "command": "taskset -c 24-31 nix develop --option eval-cache false --command just test::sql-gateway",
+  "result": "passed",
+  "exit_code": 0,
+  "proof": {
+    "profile": "native_gateway_ledger",
+    "operations": 33,
+    "lost_receipts": [
+      "1234",
+      "2001",
+      "detached"
+    ],
+    "exact_resubmissions": [
+      "2001",
+      "detached"
+    ],
+    "recovered_receipts": [
+      "1234"
+    ],
+    "fenced_replacements": 3,
+    "receipt_inspectors": {
+      "1234": [
+        1234,
+        2004
+      ]
+    },
+    "exact_counts": true,
+    "detached_replies": 3,
+    "turns": 221,
+    "sends": 213,
+    "seconds": 101.228
+  },
+  "log_sha256": "e7d4c8a9a6bcd3eab8faf5c528ec10fbe2f78a13bd68f0b39d8e9fadf551057f",
+  "failed_clean_attempt": {
+    "source_revision": "d91222954a45ab9b841a6e91af91d6146756381f",
+    "result": "failed",
+    "task": "test::sql-gateway",
+    "error": "CatalogRegistrationRequired",
+    "exit_code": 1,
+    "log": "/tmp/rey-auth-ci-growth9.log",
+    "log_sha256": "2d3acb9f4747eb495ab3fe4c583e4a8ccd329f4f8659822a3e697a3d08e48829"
+  },
+  "failed_focused_attempts": [
+    {
+      "result": "failed",
+      "exit_code": 1,
+      "reason": "The fixture expected retransmission of the Table send, but the coordinator first recovers its exact receipt with current credentials.",
+      "log_sha256": "ff2b99ecfecd997fcbdfec6adf0aac057c715f0cd603c916c2e388186c4d665d"
+    },
+    {
+      "result": "failed",
+      "exit_code": 1,
+      "reason": "The new proxy observer incorrectly required every historical receipt inspector to be the original sender; the caller saw HttpConnectionClosing.",
+      "log_sha256": "64d224df3ab8418b93153d83d6803194231567d50449f5172aecefb8d010d260"
+    },
+    {
+      "result": "failed",
+      "exit_code": 1,
+      "reason": "The diagnostic retry identified an observer AssertionError. Current destination inspectors may also verify the exact receipt.",
+      "log_sha256": "51a9de61cc467780c3c0d712b693da5d44dfd35db1502e75a79c436bc50f8828"
+    }
+  ],
+  "limits": [
+    "The manually driven fixture now performs the existing signed object-registration handshake; no production authorization or recovery behavior changes.",
+    "The lost Table send is recovered by querying its exact original request and matching the original receipt. Authorized destination inspection is also observed. Neither path redispatches the accepted send.",
+    "The control and detached-wait fault cases still require identical signed resubmissions and receipts.",
+    "The native proof retains all original write-count, history, cancellation, fencing, four-mutation and 256-byte assertions and task deadlines.",
+    "This focused pass does not replace all five ordinary clean lanes at the next final committed revision."
+  ]
+}

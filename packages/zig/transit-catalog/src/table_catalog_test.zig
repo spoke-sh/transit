@@ -9,7 +9,7 @@ const TestStore = @import("TestStore.zig");
 const r = c.Records;
 const p = c.protocol;
 const s = c.station;
-const owner: Cat = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } } };
+const owner: Cat = .{ .configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } } };
 fn ready(store: *TestStore) !void {
     var turn = try store.capture(17);
     try owner.initialize(&turn);
@@ -56,15 +56,15 @@ test "root can be an explicit Table administrator but has no implicit catalog ri
     var found = (try root.lookup(t.allocator, &turn, 0, request.name)).?;
     defer found.deinit();
     try t.expectEqual(@as(u64, 0), found.metadata.principal);
-    var revoked = try m.Policy.administrator(root.configuration.scope, 0);
+    var revoked = try @import("TestStore.zig").Rights.administrator(root.configuration.scope, 0);
     revoked.revision = 2;
     revoked.read = false;
-    try root.setPolicy(&turn, 1, revoked);
+    try store.setRights(revoked);
     try store.commit(turn);
     turn = try store.capture(0);
     try root.initialize(&turn);
     try t.expectEqual(@as(usize, 0), countWrites(turn));
-    try t.expectError(error.CatalogDenied, root.authorize(&turn, 0, .read));
+    try t.expectError(error.CatalogDenied, root.authorizeObject(&turn, 0, request.object, .read));
 }
 test "read-definition mismatch evidence is copied only after current inspect and read authorization" {
     var store: TestStore = .{};
@@ -84,10 +84,10 @@ test "read-definition mismatch evidence is copied only after current inspect and
     var current = try owner.readDefinitionDiagnostic(t.allocator, &turn, 17, 10, actual, &evidence);
     defer current.deinit();
     try t.expect(evidence == null);
-    var revoked = try m.Policy.administrator(owner.configuration.scope, 17);
+    var revoked = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     revoked.revision = 2;
     revoked.read = false;
-    try owner.setPolicy(&turn, 1, revoked);
+    try store.setRights(revoked);
     try store.commit(turn);
     turn = try store.capture(17);
     evidence = .{ .expected = expected, .actual = actual };
@@ -127,18 +127,19 @@ fn install(store: *TestStore, object: u64, name: Meta.Name) !void {
     turn = try store.capture(17);
     const head: s.TableHead = .{ .resource = owner.configuration.scope.resource, .object = object, .revision = 1, .schema = schema_ref, .next_record = 2 };
     try head.create(t.allocator, &turn);
-    const current: m.Object = .{ .scope = owner.configuration.scope, .object = object, .state = .live, .metadata = .{ .id = 1, .spec = try metadata.spec() }, .next_revision = 2 };
+    const current: m.Object = .{ .scope = owner.configuration.scope, .object = object, .namespace = 1, .authorization = 100, .state = .live, .metadata = .{ .id = 1, .spec = try metadata.spec() }, .next_revision = 2 };
     try turn.write(owner.key('O', object, 0), try r.encode('O', current));
     try turn.write(try Meta.nameKey(owner.configuration.scope.catalog, try name.digest(), object), try r.encode('N', m.Binding{ .scope = owner.configuration.scope, .object = object }));
     try store.commit(turn);
 }
-test "general namespace policy separates metadata data and schema rights and preserves restoration" {
+test "namespace usage does not grant Table data or ownership rights" {
     var store: TestStore = .{};
     defer store.deinit();
     try ready(&store);
+    _ = try ddl(&store, try createRequest(10, 1, "rights"));
     var turn = try store.capture(17);
     try owner.initialize(&turn);
-    var rights = try m.Policy.administrator(owner.configuration.scope, 18);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 18);
     rights.create = false;
     rights.read = false;
     rights.insert = false;
@@ -146,30 +147,30 @@ test "general namespace policy separates metadata data and schema rights and pre
     rights.delete = false;
     rights.alter = false;
     rights.drop = false;
-    try owner.setPolicy(&turn, 0, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(18);
     _ = try owner.authorize(&turn, 18, .inspect);
-    inline for (.{ .create, .read, .insert, .update, .delete, .alter, .drop }) |right| try t.expectError(error.CatalogDenied, owner.authorize(&turn, 18, right));
-    try t.expectError(error.CatalogDenied, owner.setPolicy(&turn, 1, rights));
+    try t.expectError(error.CatalogDenied, owner.authorize(&turn, 18, .create));
+    inline for (.{ .read, .insert, .update, .delete, .alter, .drop }) |right| try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 10, right));
     turn = try store.capture(17);
-    var administrator = try m.Policy.administrator(owner.configuration.scope, 17);
+    var administrator = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     administrator.revision = 2;
     administrator.inspect = false;
     administrator.alter = false;
-    try owner.setPolicy(&turn, 1, administrator);
+    try store.setRights(administrator);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.list(&turn, 17, .{ .scope = owner.configuration.scope, .resource_revision = 0, .after_object = 0 }));
     administrator.revision = 3;
     administrator.inspect = true;
-    try owner.setPolicy(&turn, 2, administrator);
+    try store.setRights(administrator);
     try store.commit(turn);
     turn = try store.capture(17);
     _ = try owner.authorize(&turn, 17, .inspect);
-    try t.expectError(error.CatalogDenied, owner.authorize(&turn, 17, .alter));
+    try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 17, 10, .alter));
     try owner.initialize(&turn);
-    try t.expectError(error.CatalogDenied, owner.authorize(&turn, 17, .alter));
+    try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 17, 10, .alter));
 }
 test "general namespace resolves full names and pages stable objects beyond one resident page" {
     var store: TestStore = .{};
@@ -213,6 +214,12 @@ test "listing validates live identity without acquiring schema or row bytes" {
         turn: *s.Turn,
         view: p.Growth.View,
         blocked: p.Value,
+        pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+            return self.turn.authorizationSubject(who);
+        }
+        pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
+            return self.turn.requireAuthorization(guard);
+        }
         pub fn read(self: *@This(), key: p.Value) !?p.Value {
             if (key.eql(self.blocked)) return error.Unavailable;
             return self.turn.read(key);
@@ -317,7 +324,7 @@ test "DROP retains the exact blocking dependency after removal replacement and n
         try t.expectEqual(dependency.owner, blocker.owner);
         try t.expectEqual(dependency.kind, blocker.kind);
         const encoded = try r.encode('R', rejected.operation);
-        try t.expectEqual(@as(usize, 242), encoded.len);
+        try t.expectEqual(@as(usize, 250), encoded.len);
         try t.expectEqualDeep(rejected.operation, try r.decode(m.Operation, 'R', encoded));
         var invalid = rejected.operation;
         invalid.blocker = .none;
@@ -360,16 +367,16 @@ test "DROP retains the exact blocking dependency after removal replacement and n
         try t.expectEqualDeep(detail, try c.TableDiagnostic.status(&intent, .{ .ddl = retained }));
         try t.expectEqualDeep(rejected, try owner.step(t.allocator, &turn, request));
         try t.expectEqual(@as(usize, 0), countWrites(turn));
-        var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+        var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
         rights.inspect = false;
         rights.revision = 2;
-        try owner.setPolicy(&turn, 1, rights);
+        try store.setRights(rights);
         try store.commit(turn);
         turn = try store.capture(17);
         try t.expectError(error.CatalogDenied, owner.status(&turn, 17, 2, rejected.operation.digest));
         rights.inspect = true;
         rights.revision = 3;
-        try owner.setPolicy(&turn, 2, rights);
+        try store.setRights(rights);
         try store.commit(turn);
         turn = try store.capture(17);
         try t.expectEqualDeep(rejected, (try owner.status(&turn, 17, 2, rejected.operation.digest)).?);
@@ -629,10 +636,10 @@ test "DDL rechecks current policy and preserves reservation when disclosure is r
     _ = try owner.step(t.allocator, &turn, request);
     try store.commit(turn);
     turn = try store.capture(17);
-    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     rights.revision = 2;
     rights.inspect = false;
-    try owner.setPolicy(&turn, 1, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     const digest = try request.digest(owner.configuration.scope);
@@ -644,7 +651,7 @@ test "DDL rechecks current policy and preserves reservation when disclosure is r
     rights.inspect = true;
     rights.create = false;
     rights.revision = 3;
-    try owner.setPolicy(&turn, 2, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.step(t.allocator, &turn, request));
@@ -778,11 +785,11 @@ test "durable constraint witnesses preserve original intent and enforce current 
     try t.expectEqualStrings("name", (try diagnosticFact(alter_detail, .column)).value.?.text.slice());
     try t.expectEqualStrings("utf8", (try diagnosticFact(alter_detail, .expected_type)).value.?.text.slice());
 
-    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     rights.revision = 2;
     rights.read = false;
     turn = try store.capture(17);
-    try owner.setPolicy(&turn, 1, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     const hidden = (try owner.mutationReceipt(&turn, 17, rejected.reference)).?;
@@ -799,14 +806,14 @@ test "durable constraint witnesses preserve original intent and enforce current 
     try t.expectError(error.InvalidTableWitness, hidden.encode());
     rights.revision = 3;
     rights.inspect = false;
-    try owner.setPolicy(&turn, 2, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.mutationReceipt(&turn, 17, duplicate.reference));
     rights.revision = 4;
     rights.inspect = true;
     rights.read = true;
-    try owner.setPolicy(&turn, 3, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } });
     _ = try ddl(&store, try createRequest(11, 7, "people"));
@@ -913,12 +920,12 @@ test "catalog data policy separates inspection execution and receipt cancellatio
     var turn = try store.capture(17);
     _ = try owner.mutate(t.allocator, &turn, request);
     try store.commit(turn);
-    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     rights.revision = 2;
     rights.insert = false;
     rights.read = false;
     turn = try store.capture(17);
-    try owner.setPolicy(&turn, 1, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.mutate(t.allocator, &turn, request));
@@ -929,7 +936,7 @@ test "catalog data policy separates inspection execution and receipt cancellatio
     turn = try store.capture(17);
     rights.revision = 3;
     rights.inspect = false;
-    try owner.setPolicy(&turn, 2, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.mutationStatus(t.allocator, &turn, 17, request));
@@ -938,6 +945,7 @@ test "catalog data policy separates inspection execution and receipt cancellatio
     try t.expectEqual(@as(usize, 0), countWrites(turn));
     var other = owner;
     other.configuration.scope.catalog = 2;
+    try store.setRights(try TestStore.Rights.administrator(other.configuration.scope, 17));
     try other.initialize(&turn);
     try store.commit(turn);
     turn = try store.capture(17);
@@ -968,7 +976,7 @@ test "owner continuation cannot admit work or impersonate its original principal
     var changed = creation;
     changed.principal = 18;
     turn = try selfTurn(&store, 3);
-    try t.expectError(error.CatalogDenied, owner.continueDdl(t.allocator, &turn, changed));
+    try t.expectError(error.CatalogOperationNotFound, owner.continueDdl(t.allocator, &turn, changed));
     changed = creation;
     changed.name = try Meta.Name.init("other");
     try t.expectError(error.CatalogIdentityConflict, owner.continueDdl(t.allocator, &turn, changed));
@@ -995,10 +1003,10 @@ test "owner continuation cannot admit work or impersonate its original principal
     turn = try selfTurn(&store, 4);
     try t.expectError(error.CatalogDenied, owner.continueMutation(t.allocator, &turn, request));
     turn = try store.capture(17);
-    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     rights.revision = 2;
     rights.insert = false;
-    try owner.setPolicy(&turn, 1, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try selfTurn(&store, 3);
     try t.expectError(error.CatalogDenied, owner.continueMutation(t.allocator, &turn, request));
@@ -1007,7 +1015,7 @@ test "owner continuation cannot admit work or impersonate its original principal
     try t.expectEqual(.building, (try owner.mutationStatus(t.allocator, &turn, 17, request)).?.state);
     rights.revision = 3;
     rights.insert = true;
-    try owner.setPolicy(&turn, 2, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     for (0..100) |_| {
         turn = try selfTurn(&store, 3);
@@ -1102,6 +1110,12 @@ test "command basis resolves accepted historical schema after DROP with current 
         count: usize = 0,
         batches: usize = 0,
         fail_batch: ?usize = null,
+        pub fn authorizationSubject(self: *@This(), who: u64) !p.Authorization.Subject {
+            return self.store.authorizationSubject(who);
+        }
+        pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
+            return self.store.requireAuthorization(guard);
+        }
         pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
             try t.expect(keys.len <= p.Growth.page_size);
             const before = self.count;
@@ -1137,10 +1151,10 @@ test "command basis resolves accepted historical schema after DROP with current 
     changed.owner += 1;
     try t.expectError(error.CatalogOwnerChanged, owner.commandBasis(t.allocator, &turn, 17, changed, .inspect));
     try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 18, body.header, .inspect));
-    var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
     rights.revision = 2;
     rights.insert = false;
-    try owner.setPolicy(&turn, 1, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 17, body.header, .execute));
@@ -1148,7 +1162,7 @@ test "command basis resolves accepted historical schema after DROP with current 
     defer disclosed.deinit();
     rights.revision = 3;
     rights.inspect = false;
-    try owner.setPolicy(&turn, 2, rights);
+    try store.setRights(rights);
     try store.commit(turn);
     turn = try store.capture(17);
     try t.expectError(error.CatalogDenied, owner.commandBasis(t.allocator, &turn, 17, body.header, .inspect));
@@ -1181,10 +1195,10 @@ test "exact general definitions survive evolution retirement and name reuse with
         try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 10, 99));
         try t.expectEqual(null, try owner.definition(t.allocator, &turn, 17, 99, 1));
         try t.expectError(error.InvalidCatalogIdentity, owner.definition(t.allocator, &turn, 17, 10, 0));
-        var rights = try m.Policy.administrator(owner.configuration.scope, 17);
+        var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
         rights.revision = 2;
         rights.inspect = false;
-        try owner.setPolicy(&turn, 1, rights);
+        try store.setRights(rights);
         try store.commit(turn);
         turn = try store.capture(17);
         try t.expectError(error.CatalogDenied, owner.definition(t.allocator, &turn, 17, 10, 1));
@@ -1192,7 +1206,7 @@ test "exact general definitions survive evolution retirement and name reuse with
         rights.revision = 3;
         rights.inspect = true;
         rights.read = false;
-        try owner.setPolicy(&turn, 2, rights);
+        try store.setRights(rights);
         try store.commit(turn);
         turn = try store.capture(17);
         var restored = (try owner.definition(t.allocator, &turn, 17, 10, 1)).?;
@@ -1243,4 +1257,36 @@ test "retained definition allocation failures free owned schema and neutral resu
         return;
     }
     return error.TestUnexpectedResult;
+}
+
+test "current object checks filter two Tables sharing one resource" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const first = try createRequest(10, 1, "visible");
+    const second = try createRequest(20, 2, "hidden");
+    _ = try ddl(&store, first);
+    _ = try ddl(&store, second);
+    var turn = try store.capture(17);
+    var visible = (try owner.lookup(t.allocator, &turn, 17, first.name)).?;
+    defer visible.deinit();
+    turn = try store.capture(17);
+    var hidden = (try owner.lookup(t.allocator, &turn, 17, second.name)).?;
+    defer hidden.deinit();
+    try t.expect(visible.authority.authorization != hidden.authority.authorization);
+    try store.setRights(.{ .principal = 18, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
+    try store.grantObject(18, visible.authority.authorization, c.TableAuthority.select);
+    turn = try store.capture(18);
+    const page = try owner.list(&turn, 18, null);
+    try t.expectEqual(@as(u64, 10), page.entries[0].?.metadata.object);
+    try t.expectEqual(null, page.entries[1]);
+    try t.expectEqual(null, try owner.lookup(t.allocator, &turn, 18, second.name));
+    try t.expectError(error.CatalogDenied, owner.definition(t.allocator, &turn, 18, 20, 1));
+    _ = try owner.authorizeObject(&turn, 18, 10, .read);
+    try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 20, .read));
+    try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 10, .insert));
+    try store.grantObject(18, visible.authority.authorization, 0);
+    turn = try store.capture(18);
+    try t.expectEqual(null, (try owner.list(&turn, 18, null)).entries[0]);
+    try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 10, .read));
 }

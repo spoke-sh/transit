@@ -1,0 +1,23 @@
+{
+  "assertions": "passed",
+  "revision_at_start": "c4a2cf10",
+  "dirty_at_start": true,
+  "revision_at_completion": "88735ebb",
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "command": "nix develop --command just check",
+  "log_sha256": "0882d094f46174f490f6770a0f6fd63fa43207078ca60f1bbb09816dbc140d03",
+  "observations": {
+    "diagnostic_projections": 3380,
+    "diagnostic_surfaces": 29,
+    "cli_cases": 590,
+    "local_links": 5705,
+    "documentation_files": 566,
+    "typescript_query_tests": 35,
+    "board_application_tests": 80,
+    "docs_tests": 8
+  },
+  "limits": [
+    "Some native unit and contract build steps reused current-source local cache outputs; committed-source ci-clean remains a separate gate.",
+    "The first final-definition run was stopped after a test synchronization race caused an unbounded wait. The corrected complete rerun passed."
+  ]
+}

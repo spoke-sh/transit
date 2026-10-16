@@ -148,12 +148,12 @@ test "staged mutation notifications retain old rows until publication and curren
     try t.expectError(error.ReactiveResetRequired, watch.snapshot(t.allocator, &reader, support.principal, source));
     // The original refresh's stop diagnostic can still be read after ALTER.
     _ = try watch.authorize(&reader, support.principal, source);
-    var policy = try c.TableCatalogRecords.Policy.administrator(support.configuration.scope, support.principal);
+    var policy = try c.testing.Authority.Rights.administrator(support.configuration.scope, support.principal);
     policy.revision = 2;
     policy.read = false;
     var turn = try store.capture();
     turn.delivery.input.origin = .{ .external = .{ .principal = 17, .policy_revision = 1 } };
-    try support.catalog.setPolicy(&turn, 1, policy);
+    try store.setRights(policy);
     try store.commit(turn);
     reader = try support.Reader.open(&store);
     var context: root.ServingFailure.Context = .{};

@@ -11,18 +11,30 @@ operations. No caller handle is a Table worker or grants execution rights.
 Creation takes ABI version one, an explicit authority URL, a 32-byte signing seed
 and JSON configuration containing `connection` and optional `timeout_ms` (default
 5000, range 1–60000). The connection contains `scope` (realm/resource numbers and
-a decimal-string catalog ID), owner PID and caller principal. URLs are at most
+a decimal-string catalog ID), owner PID, caller principal, namespace and optional
+selected role. URLs are at most
 2048 bytes, configuration at most 8192 bytes and complete action JSON at most
 16 MiB. Native counters remain safe integers; catalog, object, operation, schema,
 column and row counts use canonical decimal strings for their full widths.
 
+An optional `table_service_url` routes metadata, preparation and recovery reads
+through the shared authenticated Table service. `table_service_limits` bounds
+each request/response body to 1 MiB by default, with an explicit 16 MiB maximum.
+The authority URL and original caller key still own authentication and exact
+mutation submission. The service's private reader is never installed in the
+caller handle. This profile requires the caller's native send capability for
+mutations but no native process inspection or backing-resource read rights.
+Initialization and dependency provisioning require the direct operator profile.
+
 Creating a handle performs no network request, provisioning, grant change,
 activation or catalog initialization. `capabilities` and loading saved intent are
-local. CREATE compilation is local; other SQL compilation and typed preparation
-resolve current authorized metadata. No preparation submits a command. The owning
+local. Direct CREATE compilation is local; mediated compilation uses the Table
+service. Other SQL compilation and typed preparation resolve current authorized
+metadata. No preparation submits a command. The owning
 catalog independently checks current authorization and conditional state when
-applying each input. Inspect, create, read, insert, update, delete, alter and drop
-rights remain independent.
+applying each input. Database CONNECT, schema USAGE/CREATE and Table
+SELECT/INSERT/UPDATE/DELETE are native privileges. ALTER and DROP require logical
+object ownership, independently of the catalog worker's PID ownership.
 
 ## Owned calls and exact recovery
 
@@ -54,12 +66,15 @@ Table outcome and upload independently. `progress`/`wait_progress` combine
 observation with the exact intent and signed input. `input_disposition` describes
 control application or input rejection; it is not a row-mutation result. Null
 outcome or disposition is absence, not success. Applied DML exposes recorded
-matched and changed counts. Current inspection rights gate retained outcomes. Reads and local preparation may
-restart after the exact native `StaleStateResource` rejection, within eight
-restarts and the configured deadline. Each restart releases its workspace; cursor
+matched and changed counts. Current inspection rights gate retained outcomes.
+Reads and local preparation may restart after `StaleStateResource` or
+`QueryExpired`; the mediated profile also retries `StaleAuthorizationRevision`
+when a policy change invalidates a dependent read. At most eight retries occur
+within the configured deadline. Each attempt releases its workspace and checks
+current authorization for the same saved intent and policy preconditions. Cursor
 conflicts, denials and submits are not retried.
 
-`prepare_resume`, `prepare_control`, `prepare_initialize`, `prepare_policy` and
+`prepare_resume`, `prepare_control`, `prepare_initialize` and
 `prepare_dependency` return signed commands without sending them. Operation
 cancellation, upload cancellation and cleanup are distinct controls. Closed
 uploads do not imply cancelled Table operations; cleanup does not erase accepted

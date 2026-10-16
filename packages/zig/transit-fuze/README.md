@@ -8,6 +8,14 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`AuthorizationSql.compile` parses the selected role, membership, privilege,
+default-privilege, schema and ownership statements into unresolved typed syntax.
+Its owned arena is released with `deinit`. Names are bounded to 63 UTF-8 bytes;
+one statement, target and grantee are admitted at a time. PUBLIC delegation,
+column privileges, passwords, superuser attributes and unsupported forms reject.
+Catalog and native administration must resolve and authorize this syntax before
+execution; the parser itself reads no policy and changes no authority.
+
 `Relational` supplies pure admission, stable column resolution, output descriptors
 and prepared/bound identities for finite int64 Table join/group plans. It also
 defines distinct join/group NULL rules and checked aggregate steps.

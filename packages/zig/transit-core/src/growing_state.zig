@@ -37,7 +37,7 @@ pub fn readVersion(engine: anytype, id: g.ReadVersionId) anyerror!growth.StoredR
 pub fn retained(engine: anytype, principal: u64, id: g.ReadVersionId, generation: u64, sample: ?core.Time.Sample) anyerror!growth.StoredReadVersion {
     const process = try engine.process(id.pid);
     if (process.owner != principal or process.generation != generation) return error.StaleGeneration;
-    if ((try engine.principal(principal)).grant.permissions & p.permission(.execute) == 0) return error.Forbidden;
+    if (!try @import("growing_authorization.zig").nativeHas(engine, try engine.principal(principal), id.pid, .execute)) return error.Forbidden;
     try engine.executable(process, sample, true);
     const stored = try readVersion(engine, id);
     if (stored.meta.released_at != null) return error.ReadVersionReleased;
@@ -48,9 +48,7 @@ pub fn retained(engine: anytype, principal: u64, id: g.ReadVersionId, generation
 }
 pub fn allowed(engine: anytype, id: u64, principal: u64, rights: u8) anyerror!void {
     const subject = try engine.principal(principal);
-    var current = try engine.state();
-    const grant = (try current.get(growth.ResourceGrant, try c.key(.grant, id, principal, ""))) orelse return error.Forbidden;
-    if (grant.principal_epoch != subject.epoch or grant.permissions & rights != rights) return error.Forbidden;
+    try @import("growing_authorization.zig").resourceAllowed(engine, subject, id, rights);
 }
 pub fn usable(engine: anytype, value: g.Resource, sample: ?core.Time.Sample) anyerror!void {
     try basicUsable(engine, value, sample);
@@ -155,6 +153,7 @@ pub fn authorizeReceipt(engine: anytype, request: g.Request) anyerror!void {
     }
 }
 fn authorizeTurnReceipt(engine: anytype, principal: u64, command: g.Turn) !void {
+    if (command.authorization) |guard| _ = try @import("growing_authorization.zig").guard(engine, guard, command.pid);
     for (command.views) |slot| if (slot) |id| {
         const stored = try view(engine, id);
         if (stored.meta.principal != principal or stored.meta.pid != command.pid) return error.InvalidHistory;
@@ -176,14 +175,12 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             try candidate.put(address(.resource, position), g.Resource{ .id = position, .writer = writer.pid, .owner = if (command.owned) writer.pid else null, .revision = position, .deadline_ms = deadline, .history_ms = command.history_ms, .changed_ms = if ((command.history_ms orelse 0) > 0) (sample orelse return error.ClockUnavailable).upper() else 0 });
             try candidate.put(try c.key(.resources_by_writer, writer.pid, position, ""), position);
             if (command.owned) try candidate.put(try c.key(.resources_by_owner, writer.pid, position, ""), position);
+            try @import("growing_authorization.zig").object(engine, next, .{ .kind = .resource, .id = position }, p.State.all_permissions);
         },
         .grant_resource => |command| {
             if (request.principal != 0 or command.permissions & ~p.State.all_permissions != 0) return error.Forbidden;
             _ = try resource(engine, command.resource);
-            var principal = try engine.principal(command.subject);
-            try candidate.put(try c.key(.grant, command.resource, command.subject, ""), growth.ResourceGrant{ .principal_epoch = principal.epoch, .permissions = command.permissions });
-            principal.revision = position;
-            try candidate.put(address(.principal, command.subject), principal);
+            try @import("growing_authorization.zig").resourceGrant(engine, next, command.subject, command.resource, command.permissions);
         },
         .associate => |command| {
             var process = try engine.process(command.pid);
@@ -367,6 +364,12 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     try engine.executable(process, sample, true);
     if (process.owner != principal or process.generation != command.generation) return error.StaleGeneration;
     if (process.revision != command.expected_revision) return error.StaleState;
+    if (command.authorization) |guard| _ = @import("growing_authorization.zig").guard(engine, guard, command.pid) catch |err| switch (err) {
+        // This code is emitted only after exact-retry lookup found no receipt.
+        // Receipt disclosure denial above deliberately keeps its ordinary code.
+        error.Forbidden, error.Unauthorized, error.StaleAuthorizationCredential => return error.AuthorizationSubjectDenied,
+        else => return err,
+    };
     _ = try nextInput(engine, process, command.input);
     if (process.turn_permit) |permit| {
         if (command.permit != permit.id or permit.input != command.input) return error.InvalidTurnPermit;
@@ -432,7 +435,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         const subject = try engine.principal(principal);
         for (command.outputs, 0..) |slot, i| if (slot) |output| {
             try engine.executable(process, sample, false);
-            if (subject.grant.permissions & p.permission(.publish) == 0) return error.Forbidden;
+            if (!try @import("growing_authorization.zig").nativeHas(engine, subject, process.pid, .publish)) return error.Forbidden;
             _ = try engine.process(output.pid);
             if (next.outputs >= p.max_counter) return error.Overflow;
             next.outputs += 1;
@@ -447,7 +450,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         };
         if (command.effect) |payload| {
             try engine.executable(process, sample, false);
-            if (subject.grant.permissions & p.permission(.effect) == 0) return error.Forbidden;
+            if (!try @import("growing_authorization.zig").nativeHas(engine, subject, process.pid, .effect)) return error.Forbidden;
             try candidate.mutate(&.{
                 try c.putMutation(address(.effect, position), g.Effect{ .id = position, .pid = process.pid, .payload = payload }),
                 try c.putMutation(try c.key(.effects_by_pid, process.pid, position, ""), position),

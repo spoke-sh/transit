@@ -67,13 +67,15 @@ module Transit
         def initialize(resource:, catalog:) = super(resource: Values.typed(resource, ResourceRef), catalog: Values.wide(catalog))
         def wire = { 'realm' => resource.realm, 'resource' => resource.resource, 'catalog' => catalog.to_s }
       end
-      Connection = Data.define(:owner, :scope) do
-        def initialize(owner:, scope:)
+      Connection = Data.define(:owner, :scope, :role, :namespace) do
+        def initialize(owner:, scope:, role: nil, namespace: 1)
           Values.typed(owner, ProcessRef); Values.typed(scope, Scope)
           raise ArgumentError, 'Catalog connection requires one realm' unless owner.realm == scope.resource.realm
+          Internal.integer(role, min: 0) unless role.nil?
+          Internal.integer(namespace)
           super
         end
-        def wire(principal) = { 'scope' => scope.wire, 'owner' => owner.pid, 'principal' => Internal.integer(principal, min: 0) }
+        def wire(principal) = { 'scope' => scope.wire, 'owner' => owner.pid, 'principal' => Internal.integer(principal, min: 0), 'role' => role, 'namespace' => namespace }
       end
       TableLimits = Data.define(:record_bytes, :staging_bytes, :staging_records) do
         def initialize(record_bytes:, staging_bytes:, staging_records:)
@@ -83,33 +85,32 @@ module Transit
         end
         def wire = { 'record_bytes' => record_bytes, 'staging_bytes' => staging_bytes.to_s, 'staging_records' => staging_records }
       end
-      Configuration = Data.define(:scope, :owner, :administrator, :table_limits) do
-        def initialize(scope:, owner:, administrator:, table_limits:)
+      Configuration = Data.define(:scope, :owner, :administrator, :table_limits, :authority, :database_name) do
+        def initialize(scope:, owner:, administrator:, table_limits:, authority:, database_name:)
           Connection.new(owner: owner, scope: scope)
-          super(scope: scope, owner: owner, administrator: Internal.integer(administrator), table_limits: Values.typed(table_limits, TableLimits))
+          super(scope: scope, owner: owner, administrator: Internal.integer(administrator, min: 0), table_limits: Values.typed(table_limits, TableLimits), authority: Values.typed(authority, AuthorityProfile), database_name: Values.text(Values.name(database_name), 63))
         end
-        def wire = { 'scope' => scope.wire, 'owner' => owner.pid, 'administrator' => administrator, 'table_limits' => table_limits.wire }
+        def wire = { 'scope' => scope.wire, 'owner' => owner.pid, 'administrator' => administrator, 'table_limits' => table_limits.wire, 'authority' => authority.wire, 'database_name' => database_name }
       end
-      Rights = Data.define(:can_inspect, :can_create, :can_read, :can_insert, :can_update, :can_delete, :can_alter, :can_drop) do
-        def initialize(**rights)
-          raise ArgumentError, 'Specify every Table right' unless rights.keys.sort == self.class.members.sort
-          super(**rights.transform_values { |v| Internal.boolean(v) })
-        end
-        def wire = to_h.transform_keys { |key| key.to_s.delete_prefix('can_') }
-      end
-      Policy = Data.define(:scope, :principal, :revision, :rights) do
-        def initialize(scope:, principal:, revision:, rights:)
-          super(scope: Values.typed(scope, Scope), principal: Internal.integer(principal, min: 0), revision: Values.wide(revision), rights: Values.typed(rights, Rights))
-        end
-        def wire = { 'scope' => scope.wire, 'principal' => principal, 'revision' => revision.to_s }.merge(rights.wire)
-      end
-      PolicyChange = Data.define(:expected_revision, :policy) do
-        def initialize(expected_revision:, policy:)
-          Values.wide(expected_revision, min: 0); Values.typed(policy, Policy)
-          raise ArgumentError, 'Policy requires the expected successor revision' unless policy.revision == expected_revision + 1
+      # These opaque IDs are allocated by public native provisioning.
+      AuthorityProfile = Data.define(:database_domain, :schema_domain, :table_domain, :database, :initial_schema, :initial_schema_authority) do
+        def initialize(**values)
+          raise ArgumentError, 'Specify every native authorization binding' unless values.keys.sort == self.class.members.sort
+          values.each_value { |value| Internal.integer(value) }
+          unless [values[:database_domain], values[:schema_domain], values[:table_domain]].uniq.length == 3 && values[:database] != values[:initial_schema_authority]
+            raise ArgumentError, 'Distinct native authorization bindings are required'
+          end
           super
         end
-        def wire = { 'expected_revision' => expected_revision.to_s, 'policy' => policy.wire }
+        def wire = to_h.transform_keys(&:to_s)
+      end
+      # An observation of the authenticated caller, not a reusable capability.
+      Subject = Data.define(:principal, :login_role, :role, :credential_epoch, :audience, :context) do
+        def initialize(principal:, login_role:, role:, credential_epoch:, audience:, context:)
+          super(principal: Internal.integer(principal, min: 0), login_role: Internal.integer(login_role, min: 0),
+            role: Internal.integer(role, min: 0), credential_epoch: Internal.integer(credential_epoch),
+            audience: Internal.integer(audience), context: Values.digest(context))
+        end
       end
       Column = Data.define(:id, :name, :type, :nullable, :default, :max_characters) do
         def initialize(id:, name:, type:, nullable: true, default: nil, max_characters: nil)
@@ -138,13 +139,13 @@ module Transit
       end
       MetadataCommitment = Data.define(:bytes, :digest) do
         def initialize(bytes:, digest:)
-          super(bytes: Internal.integer(bytes, min: 1, max: 436), digest: Values.digest(digest))
+          super(bytes: Internal.integer(bytes, min: 1, max: 444), digest: Values.digest(digest))
         end
         def wire = { 'format' => 0x54434d01, 'length' => bytes, 'digest' => digest.bytes }
       end
-      Metadata = Data.define(:scope, :object, :revision, :name, :schema_fingerprint, :principal, :operation, :admitted_input, :commitment) do
-        def initialize(scope:, object:, revision:, name:, schema_fingerprint:, principal:, operation:, admitted_input:, commitment:)
-          super(scope: Values.typed(scope, Scope), object: Values.wide(object), revision: Values.wide(revision), name: Values.name(name), schema_fingerprint: Values.digest(schema_fingerprint), principal: Internal.integer(principal, min: 0), operation: Values.wide(operation), admitted_input: Internal.integer(admitted_input), commitment: Values.typed(commitment, MetadataCommitment))
+      Metadata = Data.define(:namespace, :scope, :object, :revision, :name, :schema_fingerprint, :principal, :operation, :admitted_input, :commitment) do
+        def initialize(namespace:, scope:, object:, revision:, name:, schema_fingerprint:, principal:, operation:, admitted_input:, commitment:)
+          super(namespace: Internal.integer(namespace), scope: Values.typed(scope, Scope), object: Values.wide(object), revision: Values.wide(revision), name: Values.name(name), schema_fingerprint: Values.digest(schema_fingerprint), principal: Internal.integer(principal, min: 0), operation: Values.wide(operation), admitted_input: Internal.integer(admitted_input), commitment: Values.typed(commitment, MetadataCommitment))
         end
         def basis = Basis.new(object: object, revision: revision, schema_fingerprint: schema_fingerprint)
       end
@@ -152,7 +153,7 @@ module Transit
         def initialize(revision:, rows:, pending:) = super(revision: Values.wide(revision), rows: Values.wide(rows, min: 0), pending: Values.wide(pending, min: 0))
       end
       Entry = Data.define(:metadata, :head)
-      Definition = Data.define(:metadata, :head, :schema)
+      Definition = Data.define(:authorization, :metadata, :head, :schema)
       HistoricalDefinition = Data.define(:metadata, :schema)
       Cursor = Data.define(:definition, :scope, :resource_revision, :after_object) do
         def initialize(definition:, scope:, resource_revision:, after_object:)
@@ -210,7 +211,7 @@ module Transit
         def initialize(observation:, disposition: nil, outcome: nil, upload: nil) = super
       end
       Capabilities = Data.define(:version, :definition, :max_columns, :max_rows, :max_sql_bytes, :max_intent_bytes, :max_action_bytes, :max_prepared_bytes, :resident_intents)
-      Description = Data.define(:configuration, :policy, :resource_revision)
+      Description = Data.define(:configuration, :subject, :authorization_revision, :resource_revision)
       Assignment = Data.define(:column, :value) do
         def initialize(column:, value:) = super(column: Values.wide(column), value: value == :default ? :default : Logical.cell(value))
         def wire = { 'column' => column.to_s, 'value' => value == :default ? { 'default' => {} } : { 'cell' => Logical.cell_wire(value) } }
@@ -347,14 +348,20 @@ module Transit
       module Values
         module_function
         def configuration(value)
-          v = object(value, %w[scope owner administrator table_limits]); s = scope(v.fetch('scope'))
+          v = object(value, %w[scope owner administrator table_limits authority database_name]); s = scope(v.fetch('scope'))
           limits = object(v.fetch('table_limits'), %w[record_bytes staging_bytes staging_records])
-          Configuration.new(scope: s, owner: ProcessRef.new(realm: s.resource.realm, pid: v.fetch('owner')), administrator: v.fetch('administrator'), table_limits: TableLimits.new(record_bytes: limits.fetch('record_bytes'), staging_bytes: decimal(limits.fetch('staging_bytes')), staging_records: limits.fetch('staging_records')))
+          Configuration.new(authority: authority(v.fetch('authority')), database_name: v.fetch('database_name'), scope: s, owner: ProcessRef.new(realm: s.resource.realm, pid: v.fetch('owner')), administrator: v.fetch('administrator'), table_limits: TableLimits.new(record_bytes: limits.fetch('record_bytes'), staging_bytes: decimal(limits.fetch('staging_bytes')), staging_records: limits.fetch('staging_records')))
         end
-        def policy(value)
-          names = Rights.members.map { |k| k.to_s.delete_prefix('can_') }
-          v = object(value, %w[scope principal revision] + names)
-          Policy.new(scope: scope(v.fetch('scope')), principal: v.fetch('principal'), revision: decimal(v.fetch('revision')), rights: Rights.new(**names.to_h { |k| ["can_#{k}".to_sym, v.fetch(k)] }))
+        def authority(value)
+          v = object(value, AuthorityProfile.members.map(&:to_s))
+          AuthorityProfile.new(**v.transform_keys(&:to_sym))
+        end
+        def subject(value)
+          v = object(value, %w[principal login_role role credential_epoch audience context])
+          data = v.fetch('context')
+          raise IncompatibleNative, 'Invalid authenticated context' unless data.is_a?(Array) && data.length == 32
+          context = data.map { |byte| Internal.integer(byte, min: 0, max: 255) }.pack('C*')
+          Subject.new(**v.except('context').transform_keys(&:to_sym), context: context)
         end
         def schema(value)
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
@@ -373,16 +380,16 @@ module Transit
           MetadataCommitment.new(bytes: v.fetch('length'), digest: digest)
         end
         def metadata(value)
-          v = object(value, %w[scope object revision name schema_fingerprint principal operation admitted_input commitment])
-          Metadata.new(scope: scope(v.fetch('scope')), object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), name: v.fetch('name'), schema_fingerprint: Internal.unhex(v.fetch('schema_fingerprint'), 32), principal: v.fetch('principal'), operation: decimal(v.fetch('operation')), admitted_input: v.fetch('admitted_input'), commitment: commitment(v.fetch('commitment')))
+          v = object(value, %w[namespace scope object revision name schema_fingerprint principal operation admitted_input commitment])
+          Metadata.new(namespace: v.fetch('namespace'), scope: scope(v.fetch('scope')), object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), name: v.fetch('name'), schema_fingerprint: Internal.unhex(v.fetch('schema_fingerprint'), 32), principal: v.fetch('principal'), operation: decimal(v.fetch('operation')), admitted_input: v.fetch('admitted_input'), commitment: commitment(v.fetch('commitment')))
         end
         def head(value)
           v = object(value, %w[revision rows pending]); Head.new(revision: decimal(v.fetch('revision')), rows: decimal(v.fetch('rows'), min: 0), pending: decimal(v.fetch('pending'), min: 0))
         end
-        def resolved(value, scope, name)
+        def resolved(value, scope, namespace, name)
           optional(value) do |v|
-            object(v, %w[metadata head schema]); result = Definition.new(metadata: metadata(v.fetch('metadata')), head: head(v.fetch('head')), schema: schema(v.fetch('schema')))
-            raise IncompatibleNative, 'Foreign Table definition' unless result.metadata.scope == scope && result.metadata.name == name && result.metadata.object == result.schema.object
+            object(v, %w[authorization metadata head schema]); result = Definition.new(authorization: Internal.integer(v.fetch('authorization')), metadata: metadata(v.fetch('metadata')), head: head(v.fetch('head')), schema: schema(v.fetch('schema')))
+            raise IncompatibleNative, 'Foreign Table definition' unless result.metadata.scope == scope && result.metadata.namespace == namespace && result.metadata.name == name && result.metadata.object == result.schema.object
             result
           end
         end
@@ -480,8 +487,8 @@ module Transit
           caps.version == 1 && caps.max_columns == 128 && caps.max_rows == 1024 && caps.max_sql_bytes == 4096 && caps.max_intent_bytes == LIMITS.fetch('catalog_intent_bytes') && caps.max_action_bytes == LIMITS.fetch('catalog_action_bytes') && caps.max_prepared_bytes == LIMITS.fetch('catalog_prepared_bytes') && caps.resident_intents == 1
         end
         def description(value, connection, principal)
-          v = object(value, %w[configuration policy resource_revision]); result = Description.new(configuration: configuration(v.fetch('configuration')), policy: policy(v.fetch('policy')), resource_revision: Internal.integer(v.fetch('resource_revision'), min: 0))
-          raise IncompatibleNative, 'Foreign catalog description' unless result.configuration.scope == connection.scope && result.configuration.owner == connection.owner && result.policy.scope == connection.scope && result.policy.principal == principal
+          v = object(value, %w[configuration subject authorization_revision resource_revision]); result = Description.new(configuration: configuration(v.fetch('configuration')), subject: subject(v.fetch('subject')), authorization_revision: Internal.integer(v.fetch('authorization_revision'), min: 0), resource_revision: Internal.integer(v.fetch('resource_revision'), min: 0))
+          raise IncompatibleNative, 'Foreign catalog description' unless result.configuration.scope == connection.scope && result.configuration.owner == connection.owner && result.subject.principal == principal && result.subject.audience == connection.owner.pid && (connection.role.nil? || result.subject.role == connection.role)
           result
         end
       end

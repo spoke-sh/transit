@@ -206,6 +206,26 @@ storage:
 service:
     zig build test-service
 
+# Signed policy staging, current checks and restart against disk-backed Ursula.
+authorization:
+    zig build transit-node rey-cli
+    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/rey-cli --report .cache/verification/authorization-native.json
+
+# Public administration CLI and neutral C/host lifecycle, with disk restart.
+authorization-cli:
+    zig build transit-node rey-cli transit client-abi transit-client-host
+    python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
+
+# Table isolation, original subjects, rotation and revocation across disk restart.
+authorization-tables *args:
+    zig build transit-node rey-cli transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
+
+# Restricted serving snapshots and exact control recovery under current roles.
+authorization-serving:
+    zig build transit-node rey-cli transit transit-query-host transit-table-service serving-example
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+
 # Exercise independent Zig callers against the same generic authority.
 callers:
     zig build test-callers
@@ -343,7 +363,7 @@ table-dml-sql:
 [positional-arguments]
 catalog *args:
     python3 -B tests/catalog_fixture.py
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
 
 # General typed metadata and rows beyond resident pages, cold reads and restart.
 catalog-growth:
@@ -374,7 +394,7 @@ named-relational:
 # General typed Table owner/caller, bounded turns and exact disk recovery.
 [positional-arguments]
 typed-tables *args:
-    zig build test-typed-tables -Doptimize=ReleaseSafe -- "$@"
+    zig build test-typed-tables -Doptimize=ReleaseSafe -- --cold "$@"
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]
@@ -394,7 +414,7 @@ declarative-benchmark *args:
 
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
-    zig build test-public-query
+    zig build test-public-query -Doptimize=ReleaseSafe
 
 # Signed v1 upload, all source adapters, nested results and disk recovery.
 unified-query *args="-Doptimize=ReleaseSafe":
@@ -547,6 +567,7 @@ reactive-client:
 
 # Real shared requester, fair finite refresh and current grant recovery.
 reactive-refresh:
+    python3 -B tests/serving_submission.py
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-refresh=true
 
 # Real Board/counter browser consumers against the durable refresh owner.

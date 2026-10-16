@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
 from serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
 from serving_tls import TLSProxy
-from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter
+from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter, provision_catalog
 from placement import Compose, Reference
 
 
@@ -210,11 +210,15 @@ def run(profile, reactive=False, views=False):
                     send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
                 resource_grant(application_resource, 77, 3)
                 resource_grant(ingress_resource, 78, 3)
-            grant(33, 20); grant(34, 20); grant(80, 148)
+            grant(34, 20); grant(80, 148)
+            for principal in (65536, 65537): grant(principal, 20, ingress)
+            catalog_authority = provision_catalog(REALM, application_resource, keys[33], send,
+                lambda principal, kind: request(url, '/v1/query', native_query(keys[principal], principal, kind)),
+                readers=(65536, 65537) if reactive else ())
             grant(79, 16, None if reactive else ingress); resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
             ingress_role = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)} if views else {'ingress': dict(service=1, administrator=33, observer=34)}
-            application_role = {'application': dict(ingress=ingress, initializer=33, queries=views, table_limits=TABLE_LIMITS)}
+            application_role = {'application': dict(ingress=ingress, initializer=33, queries=views, table_limits=TABLE_LIMITS, **catalog_authority)}
             workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
                        activate('application', 78, application, application_resource, application_role)]
             cast(ingress, b'SV1c\x00'); cast(application, b'')
@@ -228,11 +232,9 @@ def run(profile, reactive=False, views=False):
                 else: placement.stop_for_recovery('courier', delivery)
             deadline = int(time.time() * 1000) + 900000
             cast(ingress, publication(1, application, deadline)); cast(ingress, policy(65536)); drained(ingress)
-            grant(65536, 20, ingress)
             if views:
                 for resource in (ingress_resource, application_resource): resource_grant(resource, 65536, 3)
                 cast(ingress, policy(65537)); drained(ingress)
-                grant(65537, 20, ingress)
 
                 def recover_views():
                     nonlocal workers, storage, authority, url, delivery

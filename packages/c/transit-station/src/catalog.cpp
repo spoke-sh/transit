@@ -8,12 +8,12 @@ struct NativeCatalog {
     std::unique_ptr<station_catalog_client, decltype(&::station_catalog_destroy)> handle;
     Connection connection;
     uint64_t principal;
-    NativeCatalog(const transit_sdk_config &config, const transit_sdk_credential &identity, Connection c)
+    NativeCatalog(const transit_sdk_config &config, const transit_sdk_credential &identity, Connection c, const char *table_service_url)
         : local(config.native_directory), handle(nullptr, local.station_catalog_destroy), connection(c), principal(identity.principal) {
         if (config.sdk_version != TRANSIT_SDK_VERSION) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "catalog-sdk-version");
         credential(identity); require(identity.realm == c.owner.realm, "catalog-realm");
         const auto url = text(config.url, 2048);
-        const auto settings = ld::encode(Json::object({{"connection", connection_wire(c, principal)}, {"timeout_ms", Json::integer(config.timeout_ms)}}));
+        const auto settings = ld::encode(Json::object({{"connection", connection_wire(c, principal)}, {"timeout_ms", Json::integer(config.timeout_ms)}, {"table_service_url", table_service_url ? Json::string(text(table_service_url, 2048)) : Json{}}}));
         Seed seed(identity.seed_file); station_catalog_client *pointer = nullptr;
         const auto status = local.station_catalog_create(STATION_ABI_VERSION, reinterpret_cast<const uint8_t *>(url.data()), url.size(), seed.data(), reinterpret_cast<const uint8_t *>(settings.data()), settings.size(), &pointer);
         handle.reset(pointer); local.raw.check(status, {}, "open-catalog"); require(pointer, "catalog-handle");
@@ -104,10 +104,10 @@ transit_sdk_error transit_station_catalog_next_get(const Next *value, transit_st
     if (out) *out = {}; return boundary([&] { require(value && out, "catalog-next"); *out = {value->kind, value->prepared.get(), value->outcome ? &*value->outcome : nullptr}; });
 }
 void transit_station_catalog_next_destroy(Next *value) { delete value; }
-transit_sdk_error transit_station_catalog_open(const transit_sdk_config *config, const transit_sdk_credential *identity, Connection connection, transit_station_catalog_client **out) {
+transit_sdk_error transit_station_catalog_open(const transit_sdk_config *config, const transit_sdk_credential *identity, Connection connection, const char *table_service_url, transit_station_catalog_client **out) {
     Uninterruptible guard; if (out) *out = nullptr; return boundary([&] {
         require(config && identity && out, "catalog-open"); auto owner = std::make_unique<transit_station_catalog_client>();
-        owner->worker.run([&] { owner->native = std::make_unique<NativeCatalog>(*config, *identity, connection); }); *out = owner.release();
+        owner->worker.run([&] { owner->native = std::make_unique<NativeCatalog>(*config, *identity, connection, table_service_url); }); *out = owner.release();
     });
 }
 transit_sdk_error transit_station_catalog_close(transit_station_catalog_client *owner) {
@@ -125,7 +125,7 @@ transit_sdk_error transit_station_catalog_describe(transit_station_catalog_clien
 transit_sdk_error transit_station_catalog_lookup(transit_station_catalog_client *client, const char *value, Definition **out) {
     if (out) *out = nullptr; std::string expected;
     return action(client, [&] { require(out, "catalog-lookup"); expected = name(value); return ld::encode(tag("lookup", Json::string(expected))); },
-        [&](NativeCatalog &n, const std::string &bytes) { auto result = n.read(bytes, "definition", [&](const Json &v) { return definition(v, n.connection.scope, expected); }); *out = result.release(); });
+        [&](NativeCatalog &n, const std::string &bytes) { auto result = n.read(bytes, "definition", [&](const Json &v) { return definition(v, n.connection, expected); }); *out = result.release(); });
 }
 transit_sdk_error transit_station_catalog_definition_read(transit_station_catalog_client *client, uint64_t object_id, uint64_t revision, Historical **out) {
     if (out) *out = nullptr;
@@ -137,7 +137,7 @@ transit_sdk_error transit_station_catalog_list(transit_station_catalog_client *c
     return action(client, [&] { require(out, "catalog-page"); return ld::encode(tag("list", cursor ? cursor_wire(previous) : Json{})); },
         [&](NativeCatalog &n, const std::string &bytes) {
             require(!cursor || same_scope(previous.scope, n.connection.scope), "catalog-cursor-scope");
-            *out = n.read(bytes, "page", [&](const Json &v) { return page(v, n.connection.scope, cursor ? &previous : nullptr); });
+            *out = n.read(bytes, "page", [&](const Json &v) { return page(v, n.connection, cursor ? &previous : nullptr); });
         });
 }
 transit_sdk_error transit_station_catalog_compile_sql(transit_station_catalog_client *client, const char *sql, Identity id, const uint64_t *create_object, Compiled **out) {
@@ -177,9 +177,6 @@ transit_sdk_error transit_station_catalog_prepare_control(transit_station_catalo
 }
 transit_sdk_error transit_station_catalog_prepare_initialize(transit_station_catalog_client *client, const Configuration *value, Prepared **out) {
     return prepare_action(client, out, [&] { require(value, "catalog-configuration"); return tag("prepare_initialize", configuration_wire(*value)); });
-}
-transit_sdk_error transit_station_catalog_prepare_policy(transit_station_catalog_client *client, const transit_station_catalog_policy_change *value, Prepared **out) {
-    return prepare_action(client, out, [&] { require(value, "catalog-policy"); return tag("prepare_policy", policy_change_wire(*value)); });
 }
 transit_sdk_error transit_station_catalog_prepare_dependency(transit_station_catalog_client *client, const transit_station_catalog_dependency *value, bool present, Prepared **out) {
     return prepare_action(client, out, [&] { require(value, "catalog-dependency"); return tag("prepare_dependency", dependency_wire(*value, present)); });

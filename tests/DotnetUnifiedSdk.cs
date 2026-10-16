@@ -24,7 +24,7 @@ static class Program
     }
     static Q.TableSource TableSource(IReadOnlyList<C.Column> columns) {
         byte[] hash=Enumerable.Repeat((byte)1,32).ToArray();
-        var metadata=new C.Metadata(new C.Scope(new ResourceRef(1,7),9),9,1,"items",new Bytes(hash),17,1,1,new C.MetadataCommitment(200,new Bytes(hash)));
+        var metadata=new C.Metadata(new C.Scope(new ResourceRef(1,7),9),1,9,1,"items",new Bytes(hash),17,1,1,new C.MetadataCommitment(200,new Bytes(hash)));
         return new Q.TableSource(new ProcessRef(1,3),metadata,new C.Schema(9,1,(ulong)columns.Count+1,columns));
     }
     static async Task<Q.Source> Source(ResourceRef r,string kind,bool golden) {
@@ -135,10 +135,10 @@ static class Program
             await using var catalog=await C.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),new C.Connection(connection.Source,new C.Scope(resource,1)));
             var definition=await catalog.LookupAsync("items")??throw new Exception("Missing catalog Table"); source=new Q.TableSource(connection.Source,definition.Metadata,definition.Schema);
         } else source=await Source(resource,kind,false);
-        Check((await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>())).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
         Q.Page? saved=null;
         await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
-            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25069 && description.BatchRows==8);
+            Check((await client.AuthorizeBundleAsync(await Bundle(source,kind,false,true,config["compound"]!.GetValue<bool>()))).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
+            var description=await client.DescribeAsync(source); Check(description.BundleBytes==25255 && description.BatchRows==8);
             // A cancelled wait cannot manufacture query state or dispose ownership.
             using var cancelled=new CancellationTokenSource(); cancelled.Cancel(); bool stopped=false;
             try { await client.StatusAsync(1,cancelled.Token); }catch(OperationCanceledException) { stopped=true; } Check(stopped);

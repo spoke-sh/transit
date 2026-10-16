@@ -13,7 +13,7 @@ fn resourceKey(instance: [16]u8, resource: [32]u8) !core.pages.Key {
     return catalog.key(.runtime_resource, 0, 0, &hash.finalResult());
 }
 
-pub fn apply(engine: anytype, candidate: anytype, request: g.Request, sample: ?core.Time.Sample) !void {
+pub fn apply(engine: anytype, candidate: anytype, next: *growing.Head, request: g.Request, sample: ?core.Time.Sample) !void {
     const pid = switch (request.command) {
         inline .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => |c| c.pid,
         else => unreachable,
@@ -94,15 +94,13 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, sample: ?c
             if (binding.last_worker_incarnation) |old| if (std.meta.eql(old, c.worker_incarnation)) return error.StaleWorkerIncarnation;
             if (c.expected_generation != process.generation) return error.StaleGeneration;
             if (c.worker == 0 or std.mem.allEqual(u8, &c.worker_incarnation, 0)) return error.InvalidGrant;
-            var worker = try engine.principal(c.worker);
+            const worker = try engine.principal(c.worker);
             const rights = p.permission(.execute) | p.permission(.inspect);
             if (worker.grant.pid != pid or worker.grant.permissions & rights != rights) return error.Forbidden;
             if (std.meta.eql(worker.grant.public_key, c.public_key)) return error.FreshKeyRequired;
             _ = try p.Ed25519.PublicKey.fromBytes(c.public_key);
-            worker.grant.public_key = c.public_key;
-            worker.revision = position;
-            // Preserve policy epoch, resource grants and request sequence.
-            try candidate.put(growing.address(.principal, c.worker), worker);
+            // Preserve the bound role, resource grants and request sequence.
+            try @import("growing_authorization.zig").rotate(engine, next, c.worker, c.public_key);
             process.generation = try std.math.add(u64, process.generation, 1);
             process.owner = c.worker;
             binding.activation = .{ .worker_incarnation = c.worker_incarnation, .generation = process.generation };

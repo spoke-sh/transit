@@ -1,12 +1,13 @@
 //! Explicit catalog commands over the shared typed bridge and signed caller.
 const std = @import("std");
 const c = @import("transit_catalog");
+const q = @import("transit_query");
 const B = c.TableBridge;
 const V = c.TableValues;
 const p = c.protocol;
 const Options = @import("CatalogOptions.zig");
 const Diagnostic = @import("Diagnostic.zig");
-const Config = struct { version: u8, connection: B.Connection, url: ?[]const u8 = null, seed_file: ?[]const u8 = null, request_timeout_ms: u32 = 5000 };
+const Config = struct { version: u8, connection: B.Connection, url: ?[]const u8 = null, table_service_url: ?[]const u8 = null, table_service_limits: c.station.client.Client.OwnedLimits = .{}, seed_file: ?[]const u8 = null, request_timeout_ms: u32 = 5000 };
 const CompiledFile = struct { compiled: B.Compiled };
 const PreparedFile = struct { prepared: []const u8 };
 const PageFile = struct { page: V.Page };
@@ -20,17 +21,20 @@ pub const help =
     \\  describe            Read current authorized configuration and policy
     \\  lookup, definition  Read live or exact historical Table metadata
     \\  list                Read one page; optionally continue a saved page
+    \\  query               Execute finite SQL through the configured Table service
     \\  compile             Bind SQL to a new private saved intent (CREATE is offline)
+    \\  compile-authorization Resolve role/privilege/schema SQL to a reviewable plan
+    \\  prepare-schema      Save a signed schema lifecycle plan for explicit submit
     \\  prepare             Bind a typed request to a new private saved intent
     \\  next                Save the next signed step, or report running/terminal state
     \\  prepare-initialize  Save an explicit initialization command
-    \\  prepare-policy      Save a conditional administrator policy control
     \\  prepare-dependency  Save a conditional dependency registration
     \\  prepare-resume      Save a continuation for the original operation
     \\  cancel, cleanup     Save an operation cancellation or candidate cleanup
     \\  cancel-upload       Save upload cancellation, separate from operation outcome
     \\  collect-upload      Save bounded closed-upload cleanup
     \\  submit              Submit the exact command in a saved artifact
+    \\  receipt             Recover an exact receipt using the current credential
     \\  observe, disposition Observe processing and the separate input disposition
     \\  progress            Observe a saved intent and its exact admitted step
     \\  status              Inspect the original intent's upload and domain outcome
@@ -58,20 +62,26 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     if (config.version != 1) return diagnostic.invalidField("version", "must be 1", null);
     const connection = config.connection.native() catch return diagnostic.invalidField("connection", "requires bounded native identities and a canonical positive catalog ID string", null);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return diagnostic.invalidField("request_timeout_ms", "must be between 1 and 60000", null);
-    if (config.url) |url| {
+    try config.table_service_limits.validate();
+    for ([_]?[]const u8{ config.url, config.table_service_url }) |endpoint| if (endpoint) |url| {
         if (url.len == 0 or url.len > 2048) return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL", null);
         const uri = std.Uri.parse(url) catch return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL", null);
         if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL without embedded credentials, query or fragment", null);
-    }
+    };
     var session: B.Session = .{ .allocator = init.gpa };
     defer session.deinit();
     var client: c.TableClient = .{ .transport = undefined, .connection = connection, .key = undefined };
+    const query_request: ?@FieldType(q.TableService.Action, "query") = if (options.mode == .query) query_input: {
+        if (config.table_service_url == null) return diagnostic.invalidField("table_service_url", "is required for mediated catalog queries", null);
+        diagnostic.atFile(options.flags.file.?);
+        break :query_input .{ .sql = try std.Io.Dir.cwd().readFileAlloc(init.io, options.flags.file.?, alloc, .limited(4096)), .rows = options.rows, .reads = options.reads };
+    } else null;
     // Restore and validate local identity before credentials or network access.
-    const action = actionFromInput(init, options, diagnostic, &session, &client) catch |err| {
+    const selected: ?B.Action = if (query_request != null) null else actionFromInput(init, options, diagnostic, &session, &client) catch |err| {
         if (diagnostic.presentation == .general) diagnostic.envelope = c.TableAttempt.artifact(@tagName(options.mode), err) catch null;
         return err;
     };
-    if (offline(action)) {
+    if (selected) |action| if (offline(action)) {
         var location: c.fuze.Sql.Location = .{};
         const result = session.applyDiagnostic(init.arena, &client, action, &location) catch |err| {
             diagnostic.envelope = c.TableAttempt.attempt(&session, connection, action, err, location, false, null, null) catch null;
@@ -79,7 +89,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
             return err;
         };
         return publish(init, options, diagnostic, result);
-    }
+    };
     diagnostic.atFile(absolute);
     const url = config.url orelse return diagnostic.invalidField("url", "is required for remote catalog operations", null);
     const seed_file = config.seed_file orelse return diagnostic.invalidField("seed_file", "is required for remote catalog operations", null);
@@ -95,9 +105,14 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var transport = c.station.client.Client.init(init.gpa, init.io, url);
     defer transport.deinit();
     transport.timeout_ms = config.request_timeout_ms;
+    var service: ?c.station.client.Client = if (config.table_service_url) |endpoint| c.station.client.Client.init(init.gpa, init.io, endpoint) else null;
+    defer if (service) |*value| value.deinit();
+    if (service) |*value| value.timeout_ms = config.request_timeout_ms;
     client.transport = &transport;
     client.key = key;
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
+    if (query_request) |request| return mediatedQuery(init, &client, &service.?, config.table_service_limits, request, diagnostic);
+    const action = selected.?;
     const submitting = action == .submit;
     var identity: ?p.Diagnostic.Identity = null;
     if (submitting) {
@@ -111,10 +126,10 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var location: c.fuze.Sql.Location = .{};
     var response_arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer response_arena.deinit();
-    const result = apply(init.io, &response_arena, &session, &client, action, &location) catch |err| {
+    const result = apply(init.io, &response_arena, &session, &client, if (service) |*value| value else null, config.table_service_limits, action, &location) catch |err| {
         const failure = if (submitting and err != error.AccessDenied and err != error.Rejected and err != error.Conflict) uncertain(diagnostic, err) else err;
         diagnostic.envelope = c.TableAttempt.attempt(&session, connection, action, err, location, submitting, identity, transport.last_rejection) catch null;
-        if (action == .compile and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*where| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(where);
+        if ((action == .compile or action == .compile_authorization) and diagnostic.envelope != null) if (diagnostic.envelope.?.location) |*where| (p.Diagnostic.SourcePath.init(options.flags.file.?) catch return failure).apply(where);
         return failure;
     };
     publish(init, options, diagnostic, result) catch |err| {
@@ -133,16 +148,48 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         return err;
     };
 }
-fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.TableClient, action: B.Action, location: *c.fuze.Sql.Location) !B.Result {
+
+fn mediatedQuery(init: std.process.Init, client: *c.TableClient, service: *c.station.client.Client, limits: c.station.client.Client.OwnedLimits, request: @FieldType(q.TableService.Action, "query"), diagnostic: *Diagnostic) !void {
+    const mediated: q.MediatedTableClient = .{ .allocator = init.gpa, .authority = client.transport, .service = service, .connection = client.connection, .key = client.key, .limits = limits };
+    const deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + service.timeout_ms;
+    var attempts: u8 = 0;
+    const response = while (true) {
+        const result = mediated.call(.{ .query = request }) catch |err| {
+            const stale = (err == error.Rejected or err == error.Conflict) and (service.last_rejection == .StaleStateResource or service.last_rejection == .QueryExpired or service.last_rejection == .StaleAuthorizationRevision);
+            if (stale and attempts < 8 and std.Io.Clock.boot.now(init.io).toMilliseconds() < deadline) {
+                attempts += 1;
+                continue;
+            }
+            diagnostic.envelope = try q.ApiDiagnostic.attempt("catalog_query", .read, null, err, .{}, false, null);
+            return err;
+        };
+        break result;
+    };
+    defer response.deinit();
+    var buffer: [8192]u8 = undefined;
+    var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    var encoder: std.json.Stringify = .{ .writer = &writer.interface };
+    try p.Json.write(response.value, &encoder);
+    try writer.interface.writeByte('\n');
+    try writer.interface.flush();
+}
+fn apply(io: std.Io, arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.TableClient, service: ?*c.station.client.Client, limits: c.station.client.Client.OwnedLimits, action: B.Action, location: *c.fuze.Sql.Location) !B.Result {
     const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + client.transport.timeout_ms;
     var attempts: u8 = 0;
     while (true) {
         client.transport.last_rejection = null;
-        return session.applyDiagnostic(arena, client, action, location) catch |err| {
+        if (service) |value| value.last_rejection = null;
+        return (if (service) |value| q.MediatedTableBridge.apply(arena, session, client, value, limits, action) else session.applyDiagnostic(arena, client, action, location)) catch |err| {
+            if (service) |value| if (value.last_rejection) |rejection| {
+                client.transport.last_rejection = rejection;
+            };
             // Restart only locally unsubmitted reads whose dependent metadata
-            // cut expired. Never retry sends, denial or an incompatible cursor,
+            // or policy cut changed. Recheck current authorization on each
+            // attempt. Never retry sends, denial or an incompatible cursor,
             // and never change the saved intent while the owner advances it.
-            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or client.transport.last_rejection != .StaleStateResource or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
+            const stale = client.transport.last_rejection == .StaleStateResource or client.transport.last_rejection == .QueryExpired or
+                (service != null and client.transport.last_rejection == .StaleAuthorizationRevision);
+            if (action == .submit or attempts == 8 or (err != error.Rejected and err != error.Conflict) or !stale or std.Io.Clock.boot.now(io).toMilliseconds() >= deadline) return err;
             attempts += 1;
             _ = arena.reset(.free_all);
             continue;
@@ -192,6 +239,16 @@ fn actionFromInput(init: std.process.Init, options: Options.Options, diagnostic:
     }
     const path = options.flags.file.?;
     switch (options.mode) {
+        .@"compile-authorization" => {
+            diagnostic.atFile(path);
+            const sql = try std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(4096));
+            return .{ .compile_authorization = .{ .sql = sql, .identity = .{ .operation = if (options.flags.operation) |value| try V.unsigned(value) else 0, .schema = if (options.flags.schema) |value| try V.unsigned(value) else null } } };
+        },
+        .@"prepare-schema" => {
+            const plan = (try artifact(struct { authorization_plan: V.AuthorizationPlan }, init, path, B.max_input_bytes, diagnostic)).authorization_plan;
+            _ = try plan.native();
+            return .{ .prepare_schema_plan = plan };
+        },
         .compile => {
             diagnostic.atFile(path);
             const sql = std.Io.Dir.cwd().readFileAlloc(init.io, path, alloc, .limited(4096)) catch |err| {
@@ -226,21 +283,18 @@ fn actionFromInput(init: std.process.Init, options: Options.Options, diagnostic:
             _ = try configuration.native();
             return .{ .prepare_initialize = configuration };
         },
-        .@"prepare-policy" => {
-            const change = try artifact(V.PolicyChange, init, path, 4096, diagnostic);
-            _ = try change.native();
-            return .{ .prepare_policy = change };
-        },
+
         .@"prepare-dependency" => {
             const change = try artifact(V.DependencyChange, init, path, 4096, diagnostic);
             _ = try change.native();
             return .{ .prepare_dependency = change };
         },
-        .submit, .observe, .disposition, .progress => {
+        .submit, .receipt, .observe, .disposition, .progress => {
             const prepared = (try artifact(PreparedFile, init, path, 65536, diagnostic)).prepared;
             _ = try B.prepared(alloc, prepared);
             return switch (options.mode) {
                 .submit => .{ .submit = prepared },
+                .receipt => .{ .receipt = prepared },
                 .observe => .{ .observe = .{ .prepared = prepared, .input = options.input } },
                 .disposition => .{ .input_disposition = .{ .prepared = prepared, .input = options.input } },
                 .progress => .{ .progress = .{ .intent = try loadIntent(init, options.flags.intent.?, diagnostic, session, client), .prepared = prepared, .input = options.input } },

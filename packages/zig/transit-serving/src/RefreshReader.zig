@@ -17,25 +17,6 @@ pub fn withDiagnostic(self: Self, context: ?*root.ServingFailure.Context) Self {
     return scoped_reader;
 }
 
-fn signedQuery(self: Self, operation: f.ReaderOperation, principal: u64, kind: @FieldType(p.Growth.Query, "kind"), signature: [64]u8) !p.Growth.Response {
-    const request: p.Growth.SignedQuery = .{ .query = .{ .realm = self.resources.realm, .principal = principal, .kind = kind }, .signature = signature };
-    // The authority validates each signature against the caller's current key
-    // and grant. A retained proof is neither an access token nor a cached grant.
-    self.resources.wire.last_rejection = null;
-    const response = self.resources.wire.call(p.Growth.Response, "/v1/query", request) catch |err| {
-        if (err == error.Rejected or err == error.Conflict or err == error.AccessDenied) switch (self.resources.wire.last_rejection orelse return err) {
-            inline .AccessDenied, .Forbidden, .StateResourceExpired, .UnknownStateResource, .DeadlineExpired, .RetiredProcess => |reason| {
-                const original = @field(anyerror, @tagName(reason));
-                self.rememberRead(operation, principal, if (kind == .read_access) kind.read_access else 0, 0, original);
-                return if (reason == .AccessDenied or reason == .Forbidden) error.AccessDenied else error.ResourceUnavailable;
-            },
-            else => {},
-        };
-        return err;
-    };
-    try p.Growth.validateResponse(response, request.query);
-    return response;
-}
 fn rememberRead(self: Self, operation: f.ReaderOperation, principal: u64, resource: u64, namespace: u64, cause: anyerror) void {
     const reason = std.meta.stringToEnum(f.ReaderCause, @errorName(cause)) orelse return;
     f.remember(self.diagnostic, .{ .reader_failure = .{ .operation = operation, .principal = principal, .resource = resource, .namespace = namespace, .cause = reason } });
@@ -57,55 +38,53 @@ fn rememberResourceRead(self: Self, operation: f.ReaderOperation, namespace: u64
     };
     self.rememberRead(operation, self.resources.principal, 0, namespace, cause);
 }
-fn checkIdentity(self: Self, principal: u64, identity: p.Growth.Identity) !void {
-    const permissions = p.permission(.inspect) | p.permission(.send);
-    const failure: ?f.Witness = if (identity.principal != principal)
-        .{ .reader_identity = .{ .field = .principal, .expected = principal, .actual = identity.principal } }
-    else if (identity.pid != self.ingress)
-        .{ .reader_identity = .{ .field = .pid, .expected = self.ingress, .actual = identity.pid orelse 0, .present = identity.pid != null } }
-    else if (identity.permissions & permissions != permissions)
-        .{ .reader_identity = .{ .field = .permissions, .expected = permissions, .actual = identity.permissions } }
-    else
-        null;
-    if (failure) |witness| {
-        var original = witness;
-        original.reader_identity.policy_revision = identity.policy_revision;
-        original.reader_identity.policy_known = true;
-        f.remember(self.diagnostic, original);
-        return error.ServingDenied;
-    }
-}
 fn checkResource(self: Self, role: f.ResourceRole, expected_writer: u64, resource: p.Growth.Resource) !void {
     if (resource.writer == expected_writer and resource.phase == .active) return;
     f.remember(self.diagnostic, .{ .reader_resource = .{ .role = role, .resource = resource.id, .expected_writer = expected_writer, .actual_writer = resource.writer, .phase = resource.phase, .writer_check = resource.writer != expected_writer, .revision = resource.revision } });
     return error.ResourceUnavailable;
 }
-pub fn authorize(self: Self, principal: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !void {
-    const identity = (try self.signedQuery(.identity, principal, .identity, proof.identity)).body.identity;
-    try self.checkIdentity(principal, identity);
-    const source_resource = (try self.signedQuery(.source, principal, .{ .read_access = source.resource }, proof.source)).body.read_access;
-    const request_resource = (try self.signedQuery(.requester, principal, .{ .read_access = self.resource }, proof.requester)).body.read_access;
+fn authority(self: Self, principal: u64, proof: root.RefreshModel.Proof) !q.catalog.TableAuthority.Context {
+    const subject: p.Authorization.Subject = .{ .accepted = proof };
+    try subject.validate();
+    if (proof.principal != principal or proof.pid != self.ingress) return error.ServingDenied;
+    return q.QueryAuthorization.readerContext(self.resources, subject, null);
+}
+pub fn authorize(self: Self, turn: *root.station.Turn, principal: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !void {
+    const context = try self.authority(principal, proof);
+    const source_resource = (try self.resources.query(.{ .resource = source.resource })).body.resource;
+    const request_resource = (try self.resources.query(.{ .resource = self.resource })).body.resource;
     try self.checkResource(.source, source.target, source_resource);
     try self.checkResource(.requester, self.ingress, request_resource);
+    var raw: root.station.client.ResourceReader.Reader = .{ .client = self.resources, .view = .{ .resource = source.resource, .revision = source_resource.revision } };
+    var reader = context.wrap(&raw);
+    _ = root.TableWatch.authorize(&reader, principal, source) catch |err| {
+        self.rememberRead(.source, principal, source.resource, 0, err);
+        return err;
+    };
+    // The same original subject and complete Table requirements also fence the
+    // native turn publication; a successful earlier read is never a lease.
+    _ = try turn.requireAuthorization(reader.observed orelse return error.ServingDenied);
 }
-
-pub fn observe(self: Self, principal: u64, source: root.ReactiveModel.Source) !root.TableWatch.Observation {
+pub fn observe(self: Self, principal: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !root.TableWatch.Observation {
     var failure: ?root.station.client.ResourceReader.Failure = null;
-    var reader = self.resources.withFailure(&failure).open(source.resource) catch |err| {
+    var raw = self.resources.withFailure(&failure).open(source.resource) catch |err| {
         self.rememberResourceRead(.source, 0, failure, err);
         return err;
     };
-    return root.TableWatch.observeDiagnostic(self.resources.wire.http.allocator, &reader, principal, source, self.diagnostic) catch |err| {
+    var reader = (try self.authority(principal, proof)).wrap(&raw);
+    const result_value = root.TableWatch.observeDiagnostic(self.resources.wire.http.allocator, &reader, principal, source, self.diagnostic) catch |err| {
         if (err == error.CatalogDenied) self.rememberRead(.source, principal, source.resource, 0, err) else self.rememberResourceRead(.source, 0, failure, err);
         return err;
     };
+    try reader.finish();
+    return result_value;
 }
 fn requireTemplate(self: Self, namespace: u64, phase: ?q.UnifiedRequest.Phase, manifest: bool) !void {
     if (phase == .complete and manifest) return;
     f.remember(self.diagnostic, .{ .reader_template = .{ .namespace = namespace, .present = phase != null, .phase = phase orelse .uploading, .manifest = phase != null and manifest } });
     return error.InvalidRefreshTemplate;
 }
-pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source) !q.Basis {
+pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source, proof: root.RefreshModel.Proof) !q.Basis {
     if (turn.view.resource != self.resource) {
         f.remember(self.diagnostic, .{ .target = .{ .kind = .resource, .expected = self.resource, .actual = turn.view.resource } });
         return error.ServingDenied;
@@ -119,39 +98,25 @@ pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root
     const status = found.?;
     var fixed = std.heap.FixedBufferAllocator.init(self.scratch);
     var failure: ?root.station.client.ResourceReader.Failure = null;
-    const opened = q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = self.ingress, .correlation = status.correlation, .request = status.reference }, self.resources.withFailure(&failure), fixed.allocator()) catch |err| {
+    const opened = q.UnifiedResult.open(status.manifest.?, .{ .resource = source.resource, .source = source.target, .requester = self.ingress, .correlation = status.correlation, .request = status.reference, .disclosure = .{ .accepted = proof } }, self.resources.withFailure(&failure), fixed.allocator()) catch |err| {
         self.rememberResourceRead(.result, namespace, failure, err);
         return err;
     };
     return try opened.manifest.checkpoint.basis(opened.bundle.source);
 }
 
-test "refresh reader captures exact identity gates without borrowing live policy" {
+test "refresh authority retains native admission and rejects a foreign principal or ingress" {
     const t = std.testing;
-    var context: f.Context = .{};
-    const reader: Self = .{ .resources = undefined, .ingress = 7, .resource = 9, .scratch = &.{}, .diagnostic = &context };
-    var identity: p.Growth.Identity = .{ .principal = 3, .permissions = p.all_permissions, .pid = 7, .policy_revision = 1 };
-    try reader.checkIdentity(3, identity);
-    identity.pid = null;
-    try t.expectError(error.ServingDenied, reader.checkIdentity(3, identity));
-    try t.expectEqual(.pid, context.witness.reader_identity.field);
-    try t.expectEqual(@as(u64, 1), context.witness.reader_identity.policy_revision);
-    try t.expect(context.witness.reader_identity.policy_known);
-    try t.expect(!context.witness.reader_identity.present);
-    identity.pid = 8;
-    try t.expectError(error.ServingDenied, reader.checkIdentity(3, identity));
-    try t.expectEqual(@as(u64, 7), context.witness.reader_identity.expected);
-    try t.expectEqual(@as(u64, 8), context.witness.reader_identity.actual);
-    identity.pid = 7;
-    identity.permissions = p.permission(.inspect);
-    try t.expectError(error.ServingDenied, reader.checkIdentity(3, identity));
-    try t.expectEqual(.permissions, context.witness.reader_identity.field);
-    try t.expectEqual(p.permission(.inspect) | p.permission(.send), context.witness.reader_identity.expected);
-    try t.expectEqual(p.permission(.inspect), context.witness.reader_identity.actual);
-    identity.permissions = p.all_permissions;
-    try reader.checkIdentity(3, identity);
-    // Repairing current permissions does not rewrite an original witness.
-    try t.expectEqual(p.permission(.inspect), context.witness.reader_identity.actual);
+    const reader: Self = .{ .resources = .{ .wire = undefined, .realm = 1, .principal = 90, .key = undefined }, .ingress = 7, .resource = 9, .scratch = &.{} };
+    const original: root.RefreshModel.Proof = .{ .pid = 7, .input = 19, .principal = 3 };
+    try t.expectEqualDeep(p.Authorization.Subject{ .accepted = original }, (try reader.authority(3, original)).subject);
+    try t.expectError(error.ServingDenied, reader.authority(4, original));
+    var foreign = original;
+    foreign.pid = 8;
+    try t.expectError(error.ServingDenied, reader.authority(3, foreign));
+    foreign = original;
+    foreign.input = 0;
+    try t.expectError(error.InvalidAuthorizationCredential, reader.authority(3, foreign));
 }
 
 test "refresh reader retains writer, lifecycle and original read cause separately" {

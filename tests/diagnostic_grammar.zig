@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, mutation, application, relational } = .query,
+    profile: enum { query, template, declaration, table_ddl, mutation, application, relational, authorization } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,10 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .authorization => {
+            var value = try f.AuthorizationSql.compile(allocator, case.sql, location);
+            defer value.deinit();
+        },
         .query => _ = try f.Unified.Sql.planDiagnostic(allocator, case.sql, source, binding),
         .template => {
             var value = try f.Prepared.initDiagnostic(allocator, case.sql, source, binding);
@@ -82,6 +86,7 @@ pub fn main(init: std.process.Init) !void {
             var location: f.Sql.Location = .{};
             compile(arena.allocator(), case, &binding, &location) catch |err| {
                 const detail = (switch (case.profile) {
+                    .authorization => f.SqlDiagnostic.authorization(case.sql, err, location),
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
                     .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
                     .relational => f.SqlDiagnostic.tableSelect(case.sql, err, location),

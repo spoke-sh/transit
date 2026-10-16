@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import time
 import psycopg
 import mysql.connector
 from mysql.connector.constants import ClientFlag
@@ -112,7 +113,12 @@ def run(root,sql_port,mysql_port):
     env.update(PGPASSWORD='proof-password', PGSSLMODE='verify-full', PGSSLROOTCERT=str(root/'certificate.pem'), PGHOSTADDR='127.0.0.1')
     env.update(PGHOST='localhost', PGPORT=str(sql_port), PGUSER='proof', PGDATABASE='data', MYSQL_TCP_PORT=str(mysql_port))
     for binary in clients:
-        result = subprocess.run([str(binary)], env=env, capture_output=True, text=True, timeout=150)
-        assert result.returncode == 0, result.stdout + result.stderr
-        print(result.stdout.strip(), flush=True)
+        started = time.monotonic()
+        # This deadline covers a whole no-retry client workload, including DDL,
+        # writes and reads through the current authorization boundary. Individual
+        # gateway statements retain their own configured admission/work limits.
+        result = subprocess.run([str(binary)], env=env, text=True, timeout=600)
+        assert result.returncode == 0, f'{Path(binary).name} exited {result.returncode}'
+        print(json.dumps(dict(profile='database_wire_client', client=Path(binary).name,
+                              seconds=round(time.monotonic() - started, 3), deadline_seconds=600)), flush=True)
     return options,mysql_options

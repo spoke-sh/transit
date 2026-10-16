@@ -26,7 +26,7 @@ def run(env, tls):
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
     description = client({'describe': {}})['description']
-    assert description['connection'] == dict(realm=49, principal=principal, service=1, ingress=ingress)
+    assert description['connection'] == dict(realm=49, principal=principal, service=1, ingress=ingress, role=None)
     assert client({'clock': {}}, control=True)['clock']['observed_ms'] == now
     post(port, '/reactive/v1/client', {'describe': {}}, host, 403)
     client({'prepare': {'observe_clock': now}}, 400)
@@ -46,7 +46,7 @@ def run(env, tls):
         receipt = client({'submit': prepared}, control=control)['receipt']['receipt']
         assert client({'submit': prepared}, control=control)['receipt']['receipt'] == receipt
         drained(ingress)
-        assert client({'observe': receipt['position']}, control=True)['observation'] == {'committed': {}}
+        assert client({'observe': prepared}, control=True)['observation'] == {'committed': {}}
         return receipt['position']
     generation = command({'open': dict(session=11, source_revision=1, lease_before_ms=now + 28000)}, lost=True)
     subscription = command({'subscribe': dict(identity=dict(session=11, generation=generation), expected=0, subscription=3, operation=0)})
@@ -88,7 +88,7 @@ def run(env, tls):
     env['sequences'][principal] = prepared['request']['sequence']
     rejected_input = client({'submit': prepared}, control=True)['receipt']['receipt']['position']
     drained(ingress)
-    rejected = client({'observe': rejected_input}, control=True)['observation']['rejected']
+    rejected = client({'observe': prepared}, control=True)['observation']['rejected']
     assert rejected['record']['reason'] == 'ReactiveSessionClosed', rejected
     assert rejected['record']['payload'] == list(hashlib.sha256(b'transit.serving.input.v1\0' + bytes.fromhex(prepared['request']['command']['send']['value'])).digest()), rejected
     detail = rejected['diagnostic']
@@ -96,7 +96,7 @@ def run(env, tls):
     facts = {fact['field']: fact for fact in detail['facts'] if fact}
     assert facts['operation']['value'] == {'text': 'closed'}, facts
     assert facts['observed_clock']['availability'] == 'unrecorded', facts
-    assert client({'observe': rejected_input}, control=True)['observation']['rejected'] == rejected
+    assert client({'observe': prepared}, control=True)['observation']['rejected'] == rejected
     cast(ingress, policy(principal, revision=2, reads=False))
     drained(ingress)
     client({'describe': {}}, 403)

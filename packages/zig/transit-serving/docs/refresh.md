@@ -7,7 +7,7 @@ resource grants before exposing ingress. Standalone `Service` rejects refreshes.
 PID-scoped reads also require optional cross-resource associations installed
 before activation; these confer no resource grant or lifetime ownership.
 The source is a published catalog Table with two INT64 columns and a primary
-key on the first. The scheduler checks caller catalog inspect/read rights as
+key on the first. The scheduler checks caller database/schema/Table read privileges as
 well as native and service authority. It uses the native Table-head entry
 revision as its watermark, including possible-change reservations before row
 publication.
@@ -46,14 +46,15 @@ arrays. Copy cancellation uses bounded upload cleanup, retaining terminal status
 
 Selected work survives pause, socket closure and lease expiry. Those events stop
 new selections without retracting committed intents. Before copy/admission the
-owner rechecks service policy, native identity and both resource permissions.
-Follow requires `resource_read_access` and records signatures over the native
-identity query and source/requester `read_access` queries. Authority checks the
-caller's current key, inspect/read grants, PID association scope and resource
-lifetime on every use. Metadata-only permission is insufficient. These proofs cannot read
-arbitrary entries or delegate execution. A conservative host wall-clock bound
-prevents starts after expiry even when the observer stops. Infrastructure failure
-leaves the proposal uncommitted; current denial closes scheduling distinctly.
+owner rechecks service policy and the original subject’s current source privileges.
+Follow retains its original native admission reference. Native authority owns the
+immutable principal, selected role and credential epoch for that input. Each
+continuation authenticates it and checks database CONNECT, schema USAGE and Table
+SELECT, then carries the same subject and requirements into the native publication
+guard. The private reader checks source/requester lifecycle and acquires bytes;
+it does not grant source privileges to the caller. Rotation or revocation stops
+new selection and continuation. Restoring permission never rewrites a retained
+stop record or substitutes a new identity for accepted work.
 
 Completion exposes a ready namespace. The consumer must verify the complete
 result with bounded memory, then reread its visible page under current authority
@@ -99,12 +100,12 @@ witnesses record the comparison clock, the maximum of the committed observer
 sample and conservative host bound; recorded expiry and an observed deadline
 remain distinct. Missing retained query evidence is explicit, never reconstructed
 from a later source read.
-Current caller catalog inspect/read rights protect this status even when its
+Current caller database/schema/Table read privileges protect this status even when its
 source has been renamed or dropped. The service reader's own identity cannot
 substitute for those rights.
 
-Reader diagnostics name the original failed check: principal/PID equality,
-required native permission bits, source/requester writer or lifecycle, or template
+Reader diagnostics name the original failed check: the admitted subject, current
+source privileges, source/requester writer or lifecycle, or template
 phase and manifest presence. They include the observed policy or resource revision
 when that check supplied one. A denied read identifies its operation and principal;
 nested result reads retain the actual failing resource, which may differ from the
@@ -116,7 +117,7 @@ The private caller discovers the selected namespace, then reads refresh head,
 view and selected query status together in one bounded native cut (five keys
 including configuration and policy). A changed namespace restarts this read,
 with at most three attempts. It
-then rechecks current caller identity, resource read rights and service policy
+then rechecks the fresh original-caller proof, source privileges and service policy
 before disclosure. Receipt observation reads the caller-authorized process once
 and performs one protected disposition read with its own before/after checks.
 It does not rediscover the service twice per poll. These reductions preserve

@@ -2,7 +2,7 @@
 -module(transit_unified_query).
 -include("transit_unified_query.hrl").
 -export([prepare/3,prepare/4,decode_arrow/3,decode_arrow/4,open/3,close/1,describe/2,inspect_sql/5,compile_sql/5,compile_sql/6,
-         prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
+         authorize_bundle/2,prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
 %% Internal bounded-worker callbacks, not an application wire interface.
 -export([open/2,execute/2,evidence/1]).
 -export([plan/1]).
@@ -79,14 +79,14 @@ local(Action,Override) ->
 -spec prepare(source(),#transit_unified_plan{},#transit_unified_budgets{}) -> {ok,#transit_unified_bundle{}} | {error,#transit_error{}}.
 prepare(Source,Plan,Budgets) -> prepare(Source,Plan,Budgets,undefined).
 prepare(Source,Plan,Budgets,Override) -> transit_sdk_value:protect(fun() ->
-    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>source(Source),<<"plan">>=>plan(Plan),<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,25069)} end).
+    #{<<"prepared">>:=#{<<"bytes">>:=B}}=local(#{<<"prepare">>=>#{<<"source">>=>source(Source),<<"plan">>=>plan(Plan),<<"limits">>=>budgets(Budgets)}},Override),#transit_unified_bundle{bytes=transit_sdk_value:unhex(B,25255)} end).
 decode_arrow(Columns,Ipc,Rows) -> decode_arrow(Columns,Ipc,Rows,undefined).
 decode_arrow(Columns,Ipc,Rows,Override) -> transit_sdk_value:protect(fun() ->
     true=Columns=/=[],transit_sdk_value:integer(Rows,0,8),
     #{<<"rows">>:=Values}=local(#{<<"inspect_arrow">>=>#{<<"columns">>=>[column(C)||C<-array(Columns,128)],<<"rows">>=>Rows,<<"ipc">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Ipc,65536))}},Override),
     Out=[[transit_logical:cell_from_wire(C)||C<-array(Row,128)]||Row<-array(Values,8)],true=length(Out)=:=Rows,true=lists:all(fun(Row)->length(Row)=:=length(Columns) end,Out),Out end).
-connection(#transit_unified_connection{source=#transit_process{realm=Realm,pid=Source},resource=#transit_resource{realm=Realm,resource=Resource},requester=#transit_process{realm=Realm,pid=Requester},requests=#transit_resource{realm=Realm,resource=Requests}},#transit_credential{realm=Realm,principal=Principal}) ->
-    #{<<"realm">>=>transit_sdk_value:counter(Realm),<<"principal">>=>transit_sdk_value:counter(Principal,0),<<"source">>=>transit_sdk_value:counter(Source),<<"resource">>=>transit_sdk_value:counter(Resource),<<"requester">>=>transit_sdk_value:counter(Requester),<<"requests">>=>transit_sdk_value:counter(Requests)}.
+connection(#transit_unified_connection{source=#transit_process{realm=Realm,pid=Source},resource=#transit_resource{realm=Realm,resource=Resource},requester=#transit_process{realm=Realm,pid=Requester},requests=#transit_resource{realm=Realm,resource=Requests},role=Role},#transit_credential{realm=Realm,principal=Principal}) ->
+    #{<<"realm">>=>transit_sdk_value:counter(Realm),<<"principal">>=>transit_sdk_value:counter(Principal,0),<<"source">>=>transit_sdk_value:counter(Source),<<"resource">>=>transit_sdk_value:counter(Resource),<<"requester">>=>transit_sdk_value:counter(Requester),<<"requests">>=>transit_sdk_value:counter(Requests),<<"role">>=>case Role of undefined->null; _->transit_sdk_value:counter(Role,0) end}.
 open(Config,Credential,Connection) -> case transit_sdk_worker:open(?MODULE,{query,Config,Credential,Connection},false) of {ok,Worker}->{ok,{transit_unified_client,Worker}}; Error->Error end.
 open({local,Override},_) -> #state{bridge=transit_station_bridge:local(Override)};
 open({query,Config,Credential,Connection},_) ->
@@ -103,6 +103,7 @@ describe(Client,Source) -> call(Client,{describe,Source}).
 inspect_sql(Client,Source,Name,Sql,Budgets) -> call(Client,{inspect,Source,Name,Sql,Budgets}).
 compile_sql(Client,Source,Name,Sql,Budgets) -> compile_sql(Client,Source,Name,Sql,Budgets,undefined).
 compile_sql(Client,Source,Name,Sql,Budgets,Parameters) -> call(Client,{compile,Source,Name,Sql,Budgets,Parameters}).
+authorize_bundle(Client,Bundle) -> call(Client,{authorize,Bundle}).
 prepare_next(Client,Namespace,Bundle) -> call(Client,{next,Namespace,Bundle}).
 prepare_control(Client,Control,Namespace) -> call(Client,{control,Control,Namespace}).
 submit(Client,Prepared) -> case call(Client,{submit,Prepared}) of {error,#transit_error{kind=unknown_outcome}=E}->{uncertain,Prepared,E}; Other->Other end.
@@ -131,9 +132,13 @@ operation(B,#transit_unified_connection{resource=R},{compile,S,Name,Sql,Budgets,
     true=source_resource(S)=:=R,
     Values=case Parameters of undefined->null; L when is_list(L),length(L)=<65 -> [scalar(V)||V<-L] end,
     #{<<"compiled">>:=#{<<"bundle">>:=Bundle}}=request(B,#{<<"compile">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096),<<"parameters">>=>Values}}),
-    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,25069)};
+    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,25255)};
+operation(B,_,{authorize,#transit_unified_bundle{bytes=Bytes}}) ->
+    Encoded=transit_sdk_value:hex(transit_sdk_value:bytes(Bytes,25255)),
+    #{<<"authorized">>:=Value}=request(B,#{<<"authorize">>=>Encoded}),
+    #transit_unified_bundle{bytes=transit_sdk_value:unhex(Value,25255)};
 operation(B,_,{next,N,#transit_unified_bundle{bytes=Bundle}}) ->
-    #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,25069))}}),prepared(V);
+    #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,25255))}}),prepared(V);
 operation(B,_,{control,Control,N}) -> #{<<"prepared">>:=V}=request(B,#{<<"prepare">>=>#{enum(Control,[cancel,retire,collect])=>decimal(positive(N))}}),prepared(V);
 operation(B,_,{submit,#transit_unified_prepared{bytes=Bytes}}) ->
     Result=transit_station_bridge:unified_query(B,#{<<"submit">>=>transit_sdk_value:text(Bytes,8192)},true),

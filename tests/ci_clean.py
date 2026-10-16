@@ -19,8 +19,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
-    lanes = json.loads((ROOT / "tests/verification/suite.json").read_text())["lanes"]
-    selection.add_argument("--lane", choices=lanes, help="qualify one lane in its own clean checkout; not the full suite")
+    suite = json.loads((ROOT / "tests/verification/suite.json").read_text())
+    selection.add_argument("--lane", choices=[*suite["lanes"], "bindings"],
+                           help="qualify one lane or both bindings lanes in a clean checkout; not the full suite")
     parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),
                         help="persistent short-path checkout parent (default: /var/tmp)")
     args = parser.parse_args()

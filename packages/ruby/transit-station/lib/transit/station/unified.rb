@@ -128,12 +128,12 @@ module Transit
         def wire = { 'pages' => pages.to_s, 'segments' => segments.to_s, 'result_bytes' => result_bytes.to_s }
       end
       Bundle = Data.define(:data) do
-        def initialize(data:) = super(data: Internal.bytes(data, 25069).freeze)
+        def initialize(data:) = super(data: Internal.bytes(data, 25255).freeze)
         def self.prepare(source, plan, budgets, native_host: nil)
           Values.source!(source)
           raise ArgumentError, 'Expected plan and budgets' unless plan.is_a?(Plan) && budgets.is_a?(Budgets)
           result = Values.codec({ 'prepare' => { 'source' => source.wire, 'plan' => plan.wire, 'limits' => budgets.wire } }, native_host).fetch('prepared')
-          new(data: Internal.unhex(result.fetch('bytes'), 25069))
+          new(data: Internal.unhex(result.fetch('bytes'), 25255))
         end
         def inspect = '#<Transit::Station::Unified::Bundle>'
       end
@@ -152,16 +152,17 @@ module Transit
           super('Query admission is uncertain; retain the identical command', status: 6, code: cause.code, phase: :submit_query, diagnostic: cause.diagnostic, diagnostic_invalid: cause.diagnostic_invalid)
         end
       end
-      Connection = Data.define(:source, :resource, :requester, :requests) do
-        def initialize(source:, resource:, requester:, requests:)
+      Connection = Data.define(:source, :resource, :requester, :requests, :role) do
+        def initialize(source:, resource:, requester:, requests:, role: nil)
           unless source.is_a?(ProcessRef) && requester.is_a?(ProcessRef) && resource.is_a?(ResourceRef) && requests.is_a?(ResourceRef) &&
               [source.realm, resource.realm, requester.realm, requests.realm].uniq.length == 1
             raise ArgumentError, 'Query connection requires one realm'
           end
+          Internal.integer(role, min: 0) unless role.nil?
           super
         end
         def wire(principal) = { 'realm' => source.realm, 'principal' => principal, 'source' => source.pid,
-          'resource' => resource.resource, 'requester' => requester.pid, 'requests' => requests.resource }
+          'resource' => resource.resource, 'requester' => requester.pid, 'requests' => requests.resource, 'role' => role }
       end
       Failure = Data.define(:code, :stage, :dimension, :limit, :observed)
       Status = Data.define(:phase, :correlation, :reference, :manifest, :collected, :failure, :diagnostic)
@@ -349,7 +350,12 @@ module Transit
           end
           result = call({ 'compile' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
             'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096), 'parameters' => values } })
-          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 25069))
+          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 25255))
+        end
+        # Seal new work before persistence. Saved bundles keep their original proof.
+        def authorize_bundle(bundle)
+          raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)
+          Bundle.new(data: Internal.unhex(call({ 'authorize' => bundle.data.unpack1('H*') }).fetch('authorized'), 25255))
         end
         def prepare_next(namespace, bundle)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)

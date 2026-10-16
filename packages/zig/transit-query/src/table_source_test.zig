@@ -7,7 +7,7 @@ const s = q.station;
 const Source = q.TableSource;
 const Store = q.testing.Store;
 const Cell = f.Types.Values.Cell;
-const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
+const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = c.testing.Authority.profile, .table_limits = .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 } };
 const catalog: c.TableCatalog = .{ .configuration = config };
 fn turn(store: *Store) !s.Turn {
     var result = try store.capture();
@@ -182,10 +182,10 @@ test "retained general Table pages preserve wide nested rows through ALTER DROP 
     try e.expectEqual(@as(i128, 19), observed);
     try e.expectEqual(@as(u64, 3), cursor.ordinal);
     try e.expectEqual(.source_end, progress.finished.?);
-    var denied = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
+    var denied = try c.testing.Authority.Rights.administrator(config.scope, 17);
     denied.read = false;
     denied.revision = 2;
-    try catalog.setPolicy(&current, 1, denied);
+    try store.setRights(denied);
     try store.commit(current);
     current = try turn(&store);
     data = try current.openVersion(retained);
@@ -213,26 +213,31 @@ test "complete composite key predicates seek one row and still bind the captured
         var changed = basis;
         changed.revision += 1;
         try e.expectError(error.SourceChanged, source.source.page(e.allocator, changed, try Source.Cursor.start(basis), compiled.plan, &current, &current, 17));
-        var revoked = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
-        revoked.read = false;
         const Live = struct {
             source: *s.Turn,
             view: q.protocol.Growth.View,
-            denied: q.protocol.Value,
-            policy_reads: usize = 0,
+            checks: usize = 0,
             pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
-                if (key.eql(catalog.key('p', 17, 0))) {
-                    self.policy_reads += 1;
-                    if (self.policy_reads > 2) return self.denied;
-                }
                 return self.source.read(key);
             }
+            pub fn authorizationSubject(self: *@This(), who: u64) !q.protocol.Authorization.Subject {
+                return self.source.authorizationSubject(who);
+            }
+            pub fn requireAuthorization(self: *@This(), guard: q.protocol.Authorization.Guard) !q.protocol.Authorization.Verified {
+                for (guard.requirements) |slot| if (slot) |requirement| {
+                    if (requirement.object.id != c.testing.Authority.profile.database and requirement.object.id != c.testing.Authority.profile.initial_schema_authority and requirement.privileges == c.TableAuthority.select) {
+                        self.checks += 1;
+                        if (self.checks == 2) return error.AccessDenied;
+                    }
+                };
+                return self.source.requireAuthorization(guard);
+            }
         };
-        var live: Live = .{ .source = &current, .view = current.view, .denied = try c.Records.encode('P', revoked) };
+        var live: Live = .{ .source = &current, .view = current.view };
         // Permission disappears after the initial gate. Both a populated page
         // and empty point completion must fail before exposing owned output.
         try e.expectError(error.CatalogDenied, source.source.page(e.allocator, basis, try Source.Cursor.start(basis), compiled.plan, &current, &live, 17));
-        try e.expectEqual(@as(usize, 4), live.policy_reads);
+        try e.expectEqual(@as(usize, 2), live.checks);
     }
 }
 
@@ -293,10 +298,10 @@ test "one committed requester policy delegates multiple Tables and still require
     var remapped = admitted;
     remapped.target.catalog.principal = 18;
     try e.expectError(error.StaleQueryPolicy, q.UnifiedCapture.setPolicy(&current, remapped));
-    var denied = try c.TableCatalogRecords.Policy.administrator(config.scope, who);
+    var denied = try c.testing.Authority.Rights.administrator(config.scope, who);
     denied.revision = 2;
     denied.read = false;
-    try catalog.setPolicy(&current, 1, denied);
+    try store.setRights(denied);
     try store.commit(current);
     current = try turn(&store);
     const unchanged = (try q.UnifiedCapture.policy(&current, 9)).?;
@@ -339,7 +344,7 @@ test "embedded source plan and literal decoding share one request arena with exa
     try e.expectError(error.IncompatibleDefinition, Source.decodeInto(empty.allocator(), declaration));
 }
 
-test "interactive authorization uses its original key mapping without a second policy read" {
+test "interactive metadata cannot authenticate a configured principal as its caller" {
     var store: Store = .{};
     defer store.deinit();
     try create(&store, "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT)");
@@ -354,7 +359,6 @@ test "interactive authorization uses its original key mapping without a second p
     var requests: [g.SnapshotRead.current_resources]?g.SnapshotRead.Current = .{ .{ .resource = 7, .keys = @splat(null) }, .{ .resource = 10, .keys = @splat(null) } };
     requests[0].?.keys[0] = q.UnifiedRecords.key('p', 8, 0);
     requests[0].?.keys[1] = c.Records.key(config.scope.catalog, 'c', 0, 0);
-    requests[0].?.keys[2] = c.Records.key(config.scope.catalog, 'p', 17, 0);
     requests[1].?.keys[0] = q.UnifiedRecords.key('w', 0, 0);
     var current = try turn(&store);
     var grant: q.UnifiedRecords.Policy = .{ .peer = 8, .requests = 10, .revision = 1, .allow = true, .limits = .{ .pages = 8, .segments = 8, .result_bytes = 65536 }, .target = .{ .catalog = .{ .scope = config.scope, .owner = config.owner, .principal = 17 } } };
@@ -367,19 +371,14 @@ test "interactive authorization uses its original key mapping without a second p
     std.mem.writeInt(u64, requester[4..12], 23, .little);
     std.mem.writeInt(u64, requester[12..20], config.owner, .little);
     result.current[1].?.entries[0] = .{ .key = requests[1].?.keys[0].?, .value = try p.Value.init(&requester), .revision = 1 };
-    const allowed = try client.interactiveDescription(source, requests, result);
-    try e.expectEqual(current.view.revision, allowed.resource_revision);
-    // A new mapping at acquisition cannot borrow the formerly requested
-    // principal's policy. In particular, no later network read repairs it.
+    // Even an allowed native requester policy is not the caller's Table
+    // identity. Rejection precedes any credential or network access.
+    try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
     grant.target.catalog.principal = 42;
     result.current[0].?.entries[0].?.value = try grant.encode();
-    try e.expectError(error.UnrequestedResourceKey, client.interactiveDescription(source, requests, result));
+    try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
     grant.target.catalog.principal = 17;
     grant.allow = false;
     result.current[0].?.entries[0].?.value = try grant.encode();
     try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
-    grant.allow = true;
-    result.current[0].?.entries[0].?.value = try grant.encode();
-    result.current[0].?.entries[2] = null;
-    try e.expectError(error.CatalogDenied, client.interactiveDescription(source, requests, result));
 }

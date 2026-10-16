@@ -276,7 +276,7 @@ def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
 class Bundle:
     """Validated canonical bytes; preparing this value does not admit work."""
     data: bytes = field(repr=False)
-    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25069))
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25255))
     @classmethod
     def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
         result = _codec({'prepare': {'source': source._wire(), 'plan': plan._wire(), 'limits': budgets._wire()}}, native_directory)
@@ -289,12 +289,14 @@ class Connection:
     resource: ResourceRef
     requester: ProcessRef
     requests: ResourceRef
+    role: int | None = None
     def __post_init__(self) -> None:
         if len({self.source.realm, self.resource.realm, self.requester.realm, self.requests.realm}) != 1:
             raise ValueError('Query connection must use one realm')
+        if self.role is not None: integer(self.role, 'selected role', minimum=0)
     def _wire(self, principal: int) -> object:
         return {'realm': self.source.realm, 'principal': integer(principal, 'principal'), 'source': self.source.pid,
-            'resource': self.resource.resource, 'requester': self.requester.pid, 'requests': self.requests.resource}
+            'resource': self.resource.resource, 'requester': self.requester.pid, 'requests': self.requests.resource, 'role': self.role}
 
 
 @dataclass(frozen=True, slots=True)
@@ -624,6 +626,15 @@ class Client:
         if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
         return _inspection(self._call(_inspection_request(source, name, sql, budgets))['inspection'], source.resource)
 
+    def authorize_bundle(self, bundle: Bundle) -> Bundle:
+        """Seal a newly constructed bundle once, before saving its bytes or fingerprint.
+
+        Saved or accepted bundles already carry their original proof. Recover them
+        unchanged; this method rejects an already authorized Table bundle.
+        """
+        if not isinstance(bundle, Bundle): raise TypeError('Expected query bundle')
+        return Bundle(bytes.fromhex(self._call({'authorize': bundle.data.hex()})['authorized']))
+
     def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
         return None if value is None else Prepared(value.encode())
@@ -697,6 +708,12 @@ class AsyncClient:
     async def inspect_sql(self, source: Source, name: str, sql: str, budgets: Budgets) -> Inspection:
         if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
         return _inspection((await self._call(_inspection_request(source, name, sql, budgets)))['inspection'], source.resource)
+
+    async def authorize_bundle(self, bundle: Bundle) -> Bundle:
+        """Seal new work before persistence; never reseal a recovered bundle."""
+        if not isinstance(bundle, Bundle): raise TypeError('Expected query bundle')
+        result = await self._call({'authorize': bundle.data.hex()})
+        return Bundle(bytes.fromhex(result['authorized']))
 
     async def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = (await self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']

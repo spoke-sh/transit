@@ -59,15 +59,19 @@ fn submitOnce(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt 
 fn identity(self: Self, signed: m.SignedRead, public_key: [32]u8) !void {
     if (signed.read.realm != self.resources.realm or signed.read.service != self.service or signed.read.ingress != self.ingress) return error.ServingDenied;
     try signed.verify(public_key);
-    try self.authorize(signed.identity.native(), public_key);
+    try self.authorize(signed.proof, public_key);
 }
-pub fn authorize(self: Self, signed: g.SignedQuery, public_key: [32]u8) !void {
-    if (signed.query.realm != self.resources.realm or signed.query.kind != .identity) return error.ServingDenied;
-    try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(signed.query), try p.Ed25519.PublicKey.fromBytes(public_key));
-    const response = try self.resources.wire.call(g.Response, "/v1/query", signed);
-    try g.validateResponse(response, signed.query);
-    const current = response.body.identity;
-    if (current.principal != signed.query.principal or current.pid != self.ingress or current.permissions & p.permission(.inspect) == 0) return error.ServingDenied;
+pub fn authority(self: Self, subject: p.Authorization.Subject) root.query.catalog.TableAuthority.Context {
+    return .{ .client = .{ .transport = self.resources.wire, .realm = self.resources.realm, .principal = self.resources.principal, .key = self.resources.key }, .subject = subject };
+}
+pub fn authorize(self: Self, proof: p.Authorization.Proof, public_key: [32]u8) !void {
+    if (proof.claim.realm != self.resources.realm or proof.claim.audience != self.ingress) return error.ServingDenied;
+    try proof.verify(public_key);
+    const context = self.authority(.{ .signed = proof });
+    _ = context.client.authenticate(context.subject) catch |err| {
+        if (err == error.Conflict and self.resources.wire.last_rejection == .StaleAuthorizationCredential) return error.StaleAuthorizationCredential;
+        return err;
+    };
 }
 pub fn reader(self: Self, principal: u64) !struct { data: root.station.client.ResourceReader.Reader, policy: m.Policy } {
     const response = try self.resources.query(.{ .resource = self.resource });

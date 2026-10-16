@@ -1,0 +1,25 @@
+{
+  "revision": "6ab83ad08d88561e17557b0d5ba17397e130e625",
+  "dirty": true,
+  "definition": "3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3",
+  "elapsed_seconds": 10.941358044976369,
+  "artifacts": {
+    "transit-node": "c580abed5f1ac571e5fa76d07bbedb291fb77460b557c112747f7e628f1a2bca",
+    "transit": "fa390251cfacc6c8e52a1fa2f40c693550410ac68ced0a0d04e4542bb0532129",
+    "libtransit_client.so": "90dabc70eb4aa4c7c103460c981183df058025e09028482de902d6ef977b5328",
+    "transit-client-host": "9eb25e9a6507313a8a6ac7b6420f3faaf10c4d4d7736b7e159c5f3e40bcc2c47"
+  },
+  "observations": {
+    "restarts": 2,
+    "cli_reader": 2,
+    "abi_role": 8,
+    "bounded_apply": true,
+    "foreign_missing_definition_rejected": true,
+    "stale_record_preserved": true,
+    "cli_abi_host": true,
+    "scoped_changesets": true,
+    "changeset_partial_recovery": true,
+    "changeset_explicit_removal": true
+  },
+  "assertions": "passed"
+}

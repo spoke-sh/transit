@@ -125,12 +125,22 @@ def run(node, caller, *, resident_pages=64):
                     raise
                 return child
 
+            def call(mode, path, timeout):
+                # Whole-schedule observation is separate from the unchanged
+                # 10-second native request deadline and one-page recovery cache.
+                phase_started = time.monotonic()
+                print("Growing Station phase:", mode, "started", flush=True)
+                subprocess.run([caller, proxy_url, mode, str(path)], check=True, timeout=timeout)
+                print("Growing Station phase:", json.dumps({
+                    "phase": mode, "seconds": round(time.monotonic() - phase_started, 3)
+                }), flush=True)
+
             authority = start()
             started = time.monotonic()
-            subprocess.run([caller, proxy_url, "write", str(manifest)], check=True, timeout=240)
+            call("write", manifest, 240)
             write_seconds = round(time.monotonic() - started, 3)
             assert fault["read"] and fault["retried"] and fault["point_reads"] > 128
-            subprocess.run([caller, proxy_url, "views", str(manifest) + ".views"], check=True, timeout=60)
+            call("views", str(manifest) + ".views", 60)
             assert all(value["retried"] for value in view_faults.values()), view_faults
             authority.kill()
             authority.wait(timeout=10)
@@ -145,8 +155,8 @@ def run(node, caller, *, resident_pages=64):
             config.write_text(json.dumps(recovered))
             authority = start()
             started = time.monotonic()
-            subprocess.run([caller, proxy_url, "views-recover", str(manifest) + ".views"], check=True, timeout=60)
-            subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=60)
+            call("views-recover", str(manifest) + ".views", 60)
+            call("recover", manifest, 240)
             assert fault["namespace_checks"] == 1, "Only creation needs an empty-namespace prefix page"
             assert fault['history_head_reads'] > 0, "History must capture the native head commit coordinate"
             assert fault["version_steps"] == 1 and fault["version_reads"] > 0, ("Exactly one retained Table page before interruption", fault["version_steps"], fault["version_reads"])
@@ -156,7 +166,7 @@ def run(node, caller, *, resident_pages=64):
             fixture.stop()
             fixture.start()
             authority = start()
-            subprocess.run([caller, proxy_url, "resume", str(manifest)], check=True, timeout=60)
+            call("resume", manifest, 240)
             assert fault["version_steps"] == 6, "Retained continuation must resume without rescanning committed pages"
             print("Growing Station timing:", json.dumps({
                 "write_resident_pages": resident_pages, "recover_resident_pages": 1,

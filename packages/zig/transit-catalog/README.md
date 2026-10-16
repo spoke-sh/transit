@@ -3,7 +3,7 @@
 Named typed Tables and schema lifecycle above Station, exported as
 `transit_catalog`. Fuze owns pure schemas, values and SQL/typed compilation;
 Station owns bounded immutable row/index publication; Catalog owns names,
-metadata, current policy and attributed operation outcomes. The deterministic
+metadata, native authorization bindings and attributed operation outcomes. The deterministic
 catalog helper performs no I/O. The signed caller uses the public native client.
 
 `TableIntent.Binding.matches` checks saved steps through a bounded equality
@@ -12,7 +12,7 @@ validate one inline command or one upload part without reloading a whole intent.
 The owner must establish the complete canonical intent before retaining that
 binding; this interface performs no authorization or signing.
 
-## Schema, lifecycle and policies
+## Schema, lifecycle and authorization
 
 `TableCatalog` resolves live names and immutable historical definitions in an
 explicit resource/catalog scope. Object and column identities survive rename;
@@ -20,11 +20,19 @@ name reuse allocates another object. Definitions bind complete shared logical
 schemas, defaults, primary keys and immutable physical references. Catalog and
 Table cardinality remain independent of resident page size.
 
-`TableCatalogRecords.Configuration` fixes the owner, administrator, scope and
-explicit publication quotas. Separate inspect, create, read, insert, update,
-delete, alter and drop permissions apply under current policy, independently of
-native grants. Current authority is checked during work and disclosure. Names,
-retained roots, cached schemas and prepared artifacts grant no permission.
+`TableCatalogRecords.Configuration` fixes the worker PID, bootstrap principal,
+scope, publication quotas and native database/schema/Table domains. Stable native
+database naming is explicit. `SchemaCatalog` provides CREATE, stable-identity
+rename, bounded DROP RESTRICT and current authorized namespace inspection.
+`AuthorizationSql` lowers role/privilege/schema SQL to reviewable native or
+catalog actions with a policy revision precondition. Stable native
+role ownership is separate from the worker PID. Every Table operation requires
+CONNECT on its database and USAGE on its schema. CREATE additionally requires
+schema CREATE; data operations require their Table privilege; ALTER and DROP
+require ownership. Metadata visibility follows ownership or an applicable Table
+grant. There is no catalog-local permission store. Current native authority is
+checked during work and disclosure, including the original credential epoch and
+selected role. Names, retained roots and prepared artifacts grant no permission.
 
 `TableBehavior` accepts initialization and administrator controls, staged Table
 commands, continuation and qualified cancellation/cleanup. It records control or
@@ -49,7 +57,12 @@ and [SQL reference](../../../docs/reference/sql.md) describe user-facing behavio
 ## Signed and neutral callers
 
 `TableClient` prepares general Table SQL and typed intent, signs individual
-steps, submits exact saved commands and inspects original outcomes. Current
+steps, submits exact saved commands and inspects original outcomes. Direct callers
+need explicit raw-resource access. Restricted callers use the
+[Table service](../../../apps/transit-table-service/README.md), whose private
+storage identity is separate from the signed original subject. Its unsigned
+`Candidate` binds the exact native request; callers verify and sign that request
+with their own key. A mediated client cannot sign with the service key. Current
 metadata lookup binds the source before preparation. Loading saved work never
 resolves its name again or recompiles against a replacement schema.
 
@@ -65,6 +78,14 @@ resource revision. Schema chunks share native read batches at that same cut;
 missing keys are cached too. Read failures poison the acquisition, and a later
 call acquires current policy and resource evidence again. This cache neither
 retains a snapshot nor carries permission between calls.
+
+`TableAuthority.Context.wrapAcquisition` lets a bounded read coalesce repeated
+checks of its accumulated native privilege requirements. Its owner must call
+`finish` before disclosure, including empty results, and discard the handle.
+`finish` always checks the complete requirement set against current authority
+and clears the local result. Effects use ordinary current checks. Both wrappers
+forward supported batch prefetch and immutable-node caching without retaining
+permissions across calls.
 
 `TableTyped` lowers complete neutral schemas, assignments, predicates and
 lifecycle requests into the same immutable intent. `TableBridge.Session` owns
@@ -86,7 +107,7 @@ intent, requires current native inspection rights, and never establishes Table
 completion. The following acquisition rechecks current scoped policy and the
 actual outcome. The console uses this wait and records its time in the wait phase.
 
-`TableValues` supplies owned neutral metadata, schemas, cells, policies, counts,
+`TableValues` supplies owned neutral metadata, schemas, cells, authorization bindings, counts,
 results and cursors. Full-width application IDs use canonical decimal strings;
 native IDs remain bounded JSON numbers. Every output belongs to the supplied
 arena. Destruction must release that ownership, including partial allocations.

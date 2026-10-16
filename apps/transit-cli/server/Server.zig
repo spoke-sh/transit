@@ -225,7 +225,7 @@ fn cycle(self: *Self) !void {
     }
 }
 fn tableReady(self: *Self, query: *q.UnifiedClient) !void {
-    const config = Installation.catalogFor(query.connection);
+    const config = Installation.catalogFor(query.connection, self.installation.record);
     var catalog: q.catalog.TableClient = .{ .transport = query.wire, .connection = .{ .scope = config.scope, .owner = config.owner, .principal = query.connection.principal }, .key = query.key };
     const description = try catalog.describe();
     if (!std.meta.eql(description.configuration, config)) return error.CatalogConfigurationChanged;
@@ -242,7 +242,7 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
     const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { catalog: q.catalog.TableCatalogRecords.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
-    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .catalog = Installation.catalogFor(connection) } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
+    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .catalog = Installation.catalogFor(connection, installation.record) } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
     var bytes: [1024]u8 = undefined;

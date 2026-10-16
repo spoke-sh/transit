@@ -88,6 +88,21 @@ caller owns TLS admission, secure randomness, credential revision/rotation,
 authentication concurrency and erasure of the received password buffer. No fast
 authentication cache or unencrypted RSA-password exchange is implemented here.
 
+SQL account verifier files additionally bind their account fingerprint, native
+principal, login role and credential epoch. A valid password alone supplies no
+privileges. Session establishment and protected disclosure validate that binding
+against native authority and require current database CONNECT. Database mappings
+fix a schema namespace and eligible selected role; the operation ledger retains
+both, independently of the connection lifetime.
+
+The private reader identity supplies catalog storage bytes and exact admission
+inspection. The Table caller supplies the signed subject used by the common
+catalog/query evaluator; the reader's raw-resource grants cannot satisfy that
+subject's missing Table privileges. SQL users need no raw-resource grants.
+Immutable signed steps retain their own signing key. Credential rotation does
+not change the ledger's identity or replace those signatures; exact receipt
+recovery precedes any retry under the original request bytes.
+
 ## PostgreSQL frame and cycle ownership
 
 Startup frames carry a four-byte big-endian total length of at least eight bytes,
@@ -248,15 +263,20 @@ input until the session clones/binds them.
 
 ## Saved native steps and record upload
 
-`SavedStep` stores one exact `TableClient.Prepared` in at most 406 bytes. The
+`SavedStep` stores one exact `TableClient.Prepared` in at most 455 bytes. The
 layout is `GSS1`, mandatory current native definition:32, realm/resource/catalog/
-owner/principal/sequence as six little-endian u64 values, Station frame length:u16,
+owner/principal/sequence as six little-endian u64 values, schema namespace:u64,
+selected-role presence:u8 (0 or 1), selected role:u64 (zero when absent), original
+signing public key:32, Station frame length:u16,
 exact frame bytes (at most 256) and signature:64. The redundant native envelope
 identities are reconstructed only after validating this explicit definition and
 the Table command's connection. No signature is generated or replaced. Encoding
 requires a current Table send; decoding rejects missing/foreign definitions,
 invalid framing, unsupported command identities and trailing bytes. `verify`
-checks the saved signature and its match to the original complete Table intent.
+checks the saved public key against the configured original signer, the signature
+and its match to the original complete Table intent. The reconstructed native
+send retains the selected role; schema namespace and null-role presence are not
+inferred from a current session.
 The coordinator remains responsible for current grants and principal sequence
 ownership. A decoded record is not evidence that its send was accepted.
 
@@ -291,7 +311,7 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, current quotas, active operation and known accepted principal sequence |
 | GSN1 | Immutable nonce-to-operation identity |
 | GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
-| GSB1 | Original 141-byte Table command header, body offset/length, command/domain digests and DML route; exactly 250 bytes including prefix |
+| GSB1 | Original Table command header fields with nested TCQ1 magic/definition omitted, body offset/length, command/domain digests and DML route; exactly 222 bytes including the checked GSB1 definition prefix |
 | GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
 | GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
@@ -402,12 +422,24 @@ on an unreceipted private coordinator proposal permits clearing that proposal,
 after checking the actual current native fence. This exception never applies to
 a published Table step or ingress/operator control.
 
+Immutable `intent_part` controls advance after a valid native admission receipt.
+The ordered durable mailbox holds accepted bytes while the ledger processes
+them; the runtime retains at most one uncertain ingress request, independently
+of the durable backlog. A missing or invalid receipt keeps that exact signed
+request pending and prevents allocating its successor. Begin and seal controls
+still wait for their domain processing result. The seal validates the complete
+publication before admission; accepted parts alone establish neither a complete
+intent nor a successful SQL write. Existing per-intent size, native admission
+quotas and turn mutation/value bounds apply unchanged.
+
 Execution reserves a nonce/operation, binds an immutable Table intent, uploads it
 and waits for original terminal evidence. Cancellation/deadline releases the
 wait; it does not roll back, discard or authorize expiry of accepted work. A
 partial upload remains discoverable with its received parts, but missing intent
-bytes are not reconstructed after the originating task ends. It cannot dispatch
-until the complete intent is sealed and admitted; qualified unsent cancellation
+bytes are not reconstructed after the originating task ends. Already admitted
+parts and a queued seal continue processing after the wait ends. An uploading
+phase observation alone does not establish that no later admission can occur.
+It cannot dispatch until the complete intent is sealed and admitted; qualified unsent cancellation
 can close it. The returned terminal record must equal a
 fresh authorized observation from the Table owner; a cached ledger count alone
 cannot establish disclosure authority. The host joins workers and connections

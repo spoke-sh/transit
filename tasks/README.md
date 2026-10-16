@@ -26,17 +26,26 @@ directory. Recipes work from repository subdirectories after entering the dev
 shell. `just ci` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
+`just test::catalog` and `just test::typed-tables` use disk-backed cold storage
+with bounded hot storage and caches. Their retained authorization and Table
+histories can exceed a hot-only store's finite capacity; the proof does not
+raise that capacity or discard history to complete.
+
 | Command | What it does today |
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
 | `just check` | Checks Nix/Zig formatting, tooling, Zig unit tests, Transit/Board contract drift, frontend formatting/lint/types/tests, local Markdown links, and diff whitespace; install locked frontend dependencies first |
 | `just ci` | Loads the pinned bindings shell and runs foundation, package, recovery, Board/frontend, local launcher and language checks |
-| `just ci::core`, `just ci::experience`, `just ci::bindings`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
+| `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
+| `just ci::bindings`, `just ci-clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
 | `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
-| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all five lane reports at the same committed revision |
+| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
+| `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared CLI/ABI/host administration against disk-backed authority |
+| `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
+| `just bindings::authorization` | Build all ten SDKs and run installed grant/use/revoke lifecycles through the private Table service without raw resource access |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
@@ -175,15 +184,25 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-The bindings job has a 300-minute execution cap and growth has 120 minutes.
-The [qualification record](../tests/verification/results/sql-wire-clean-2026-10-14.json)
-retains task durations totaling **265.07 minutes** for bindings and
-**104.96 minutes** for growth across the recorded clean checkouts.
-The latter includes the expanded database gateway proof and its observation of
-an original wide mutation after the SQL response deadline. These local runs
-include concurrent qualification work; their sums are not hosted runtime
-measurements. Job caps include hosted setup. Individual proof deadlines and the
-separately recorded feedback budgets remain unchanged.
+Hosted execution caps are 60 minutes for core, 300 for growth, 60 for experience,
+30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
+The [authorization budget record](../tests/verification/results/authorization-ci-budgets-2026-10-15.json)
+records the measured basis: the complete core lane takes 27.91 minutes before
+hosted setup, and one original 40 KiB SQL mutation takes 56.61 minutes to complete.
+The earlier [database qualification record](../tests/verification/results/sql-wire-clean-2026-10-14.json)
+contains clean-task sums of 265.07 minutes for bindings and 104.96 minutes for
+growth before the authorization cutover. These separate local observations
+motivate finite headroom for the expanded inventories; they are not a measured
+hosted job duration or a claim that the entire current suite has passed.
+Individual proof deadlines, resident bounds and the separately recorded feedback
+budgets remain unchanged.
+
+The [bindings split record](../tests/verification/results/authorization-ci-bindings-split-2026-10-15.json)
+records the complete inventory partition. Python, Node, Rust and Ruby run with
+the shared boundary and cross-language proofs in `bindings-1`; C/C++, Java,
+.NET and Erlang/Elixir run in `bindings-2`. Each job builds its own dependencies.
+Both jobs are required, share the pinned bindings shell, and retain separate
+completion reports. The full `just ci::bindings` command runs both sequentially.
 
 Installed SDK Table schedules select `--cold`: the native history plus SDK and
 prepared-parameter cases exceed the hot-only fixture's 64 MiB total capacity.

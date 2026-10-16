@@ -126,10 +126,10 @@ test "KV and Table adapters page exact cuts and reject source or decoder substit
     var old = try store.clone();
     defer old.deinit();
     const table_definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
-    var snapshot = try old.capture();
+    var snapshot = try tables.turn(&old);
     const table_cut = try source.capture(table_definition, &snapshot, &snapshot, 17, arena.allocator());
     try tables.mutate(&store, 30, .{ .update = &.{.{ .column = 2, .value = .{ .cell = .{ .value = .{ .atom = .{ .bytes = "new" } } } } }} });
-    var current = try store.capture();
+    var current = try tables.turn(&store);
     cursor = .{};
     count = 0;
     while (!cursor.done) {
@@ -337,7 +337,7 @@ test "Table primary-key access matches full predicate evaluation at signed bound
         try tables.mutate(&store, i + 2, .{ .insert = &.{&row} });
     }
     const definition: Definition = .{ .resource = 7, .source = .{ .table = owned.source } };
-    var snapshot = try store.capture();
+    var snapshot = try tables.turn(&store);
     const cut = try source.capture(definition, &snapshot, &snapshot, 17, t.allocator);
     for (0..2) |column| for (std.enums.values(m.Plan.Comparison)) |op| for ([_]i64{ std.math.minInt(i64), -21, -1, 0, 19, 21, std.math.maxInt(i64) }) |bound| {
         const plan: q.fuze.LogicalQuery.Plan = .{ .schema = owned.source.row_type, .source_basis = try cut.fingerprint(), .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = @intCast(column), .op = op, .value = .{ .signed = bound } } } };

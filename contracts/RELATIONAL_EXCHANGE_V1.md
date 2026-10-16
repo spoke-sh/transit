@@ -10,6 +10,25 @@ exchange, partial aggregate reassociation or broadcast operator in this profile.
 
 ## Identity and routing
 
+Table exchange workers retain explicit original-caller assignment proofs.
+`ExchangeAuthorization.prepare` signs once before worker activation using the
+accepted query's same principal, credential epoch and selected role. It does
+not renew an accepted query after rotation. The assignment binds the exchange
+ID, logical producer PID, partition count, worker count/index, batch size,
+physical-plan epoch and quota to the complete query/history basis. The host
+retains that proof with its immutable assignment; replacement never re-signs it.
+
+The claim context is SHA-256 over UTF-8
+`transit.query.exchange.assignment.v1` followed by a zero byte, the canonical
+`RQH1` basis bytes (including the signed query fingerprint), then the eight
+assignment fields above as little-endian uint64 values. The batch size also
+occupies uint64 here. The proof audience is the logical producer PID.
+`bind` checks the complete assignment and original identity before binding the
+subject to the actual native turn. Source reads and publication still require
+current native object checks; an assignment signature is not a cached grant.
+The coordinator retains the accepted query's original audience-bound proof.
+Physical worker credentials supply storage/execution authority separately.
+
 An exchange has a nonzero caller-allocated ID, one immutable bound query, one or
 two sources and a positive uint64 logical partition count. Multiplication of
 source count by partition count must fit uint64. Every source uses every logical

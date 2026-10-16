@@ -65,7 +65,7 @@ def length(n):
 
 
 def records():
-    definition = hashlib.sha256(b'transit.native.v1.sql-wire-parameters.2026-10-13').digest()
+    definition = hashlib.sha256(b'transit.native.v1.authorization-admission-bound-recovery.2026-10-15').digest()
     def record(magic, value, fields):
         encoded = magic.encode() + definition
         for name, layout in fields:
@@ -80,7 +80,7 @@ def records():
     head = dict(configuration=[7]*32, operations=42, unsettled=0, used_bytes=2**64-2,
                 reserved_bytes=0, operation_quota=2**64-1, byte_quota=2**64-1,
                 pending_quota=16, active=0, sequence=1)
-    operation = dict(id=7, nonce=list(range(16)), resource=9, catalog=2**64-1, owner=11,
+    operation = dict(id=7, nonce=list(range(16)), resource=9, catalog=2**64-1, owner=11, namespace=1, role_present=0, role=0,
                      phase='reserved', intent_length=0, intent_digest=[0]*32, records=0,
                      staging=0, pending=0, published=0, pending_sequence=0, input=0,
                      stored_bytes=0, reservation=1024, cancel=0, reconcile=0, blocked=0,
@@ -90,7 +90,7 @@ def records():
                     reason=0, matched=2**64-1, changed=2**64-2, actual_object=0, route=2)
     return dict(
         head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
-        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked') else 'Q') for k in operation]),
+        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('cancel','reconcile','blocked','role_present') else 'Q') for k in operation]),
         terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k in ('reason','route') else 'Q') for k in terminal]),
     )
 
@@ -149,11 +149,11 @@ def mysql_backend():
 
 
 def controls():
-    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.sql-wire-parameters.2026-10-13').digest()
+    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.authorization-admission-bound-recovery.2026-10-15').digest()
     terminal = records()['terminal']
     cases = [
-        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11))),
-         b'\x02' + bytes(range(16)) + struct.pack('<QQQ', 9, 2**64-1, 11)),
+        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None))),
+         b'\x02' + bytes(range(16)) + struct.pack('<QQQQB', 9, 2**64-1, 11, 1, 0)),
         (dict(step_part=dict(target=dict(operation=99, generation=2, record=3),
                              part=dict(offset=128, length=3, bytes=[1, 2, 3]+[0]*125))),
          b'\x09' + struct.pack('<QQQIB', 99, 2, 3, 128, 3) + bytes([1, 2, 3])+bytes(125)),

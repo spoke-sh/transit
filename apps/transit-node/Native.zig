@@ -207,6 +207,7 @@ const Server = struct {
     fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
         const denied = switch (err) {
             error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => true,
+            error.UnknownAuthorizationRole, error.UnknownAuthorizationObject, error.UnknownAuthorizationGrant, error.UnknownAuthorizationChange, error.UnknownRoleMembership, error.RetiredAuthorizationRole, error.RetiredAuthorizationObject, error.InvalidAuthorizationDomain => true,
             else => false,
         };
         if (denied) return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied });
@@ -215,7 +216,7 @@ const Server = struct {
         self.work_failure = @errorName(err);
         const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
         const status: std.http.Status = switch (code) {
-            .Conflict, .QueryExpired, .HistoryReclaimed => .conflict,
+            .Conflict, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
             .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity => .service_unavailable,
             else => .unprocessable_entity,
         };

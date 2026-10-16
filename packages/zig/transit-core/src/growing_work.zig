@@ -65,7 +65,7 @@ pub fn prepareDelivery(engine: anytype, candidate: anytype, request: g.Request, 
     var destination = try engine.process(out.destination);
     out.courier = request.principal;
     out.policy_revision = caller.revision;
-    out.phase = if (try terminal(engine, source, now)) .cancelled else if (caller.grant.permissions & p.permission(.send) == 0) .denied else if (destination.lifecycle == .terminated) .retired else if (try terminal(engine, destination, now)) .expired else .delivered;
+    out.phase = if (try terminal(engine, source, now)) .cancelled else if (!try @import("growing_authorization.zig").nativeHas(engine, caller, out.destination, .send)) .denied else if (destination.lifecycle == .terminated) .retired else if (try terminal(engine, destination, now)) .expired else .delivered;
     if (out.phase == .delivered) if (destination.work_before_ms) |deadline| engine.before(now, deadline) catch |err| {
         if (err == error.DeadlineExpired) out.phase = .expired else return err;
     };
@@ -141,7 +141,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
         .close_effect => |command| {
             var value = try effect(engine, command.effect);
             if (value.pid != command.pid or value.attempt != command.attempt) return error.InvalidAttempt;
-            if (value.executor != request.principal and caller.grant.permissions & p.permission(.admin) == 0) return error.Forbidden;
+            if (value.executor != request.principal and !try @import("growing_authorization.zig").nativeHas(engine, caller, command.pid, .admin)) return error.Forbidden;
             if (value.phase != .authorized and value.phase != .unknown) return error.ReconciliationClosed;
             if (command.reason == .deadline) try (now orelse return error.ClockUnavailable).after(value.reconcile_before_ms orelse return error.NoDeadline);
             value.phase = .closed_unknown;

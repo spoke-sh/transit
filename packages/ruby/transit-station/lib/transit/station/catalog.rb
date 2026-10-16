@@ -16,10 +16,10 @@ module Transit
       end
       class Client
         attr_reader :connection
-        def self.open(config, credential, connection)
-          return new(config, credential, connection) unless block_given?
+        def self.open(config, credential, connection, table_service_url: nil)
+          return new(config, credential, connection, table_service_url: table_service_url) unless block_given?
           Thread.handle_interrupt(Object => :never) do
-            owner = new(config, credential, connection)
+            owner = new(config, credential, connection, table_service_url: table_service_url)
             begin
               Thread.handle_interrupt(Object => :immediate) { yield owner }
             ensure
@@ -27,15 +27,16 @@ module Transit
             end
           end
         end
-        def initialize(config, credential, connection)
+        def initialize(config, credential, connection, table_service_url: nil)
           unless config.is_a?(ClientConfig) && credential.is_a?(Credential) && connection.is_a?(Connection) && credential.realm == connection.scope.resource.realm
             raise ArgumentError, 'Expected configuration and credential matching the catalog realm'
           end
           @connection, @principal = connection, credential.principal
           target = connection.wire(@principal)
+          service_url = table_service_url.nil? ? nil : ClientConfig.new(url: Values.text(table_service_url, 2048), profile: :native_v1).url
           @worker = Internal::Worker.new do
             bridge = Bridge.new({ 'url' => config.url, 'seed_file' => credential.seed_file,
-              'catalog_client' => { 'connection' => target, 'timeout_ms' => config.timeout_ms } }, config.native_host)
+              'catalog_client' => { 'connection' => target, 'timeout_ms' => config.timeout_ms, 'table_service_url' => service_url } }, config.native_host)
             begin
               caps = decode { Values.capabilities(Values.result(bridge.catalog({ 'capabilities' => {} }), 'capabilities')) }
               raise UnsupportedCapability, 'Native catalog client lacks general Tables' unless Values.supported?(caps)
@@ -50,7 +51,7 @@ module Transit
         def describe = read({ 'describe' => {} }, 'description') { |v| Values.description(v, connection, @principal) }
         def lookup(name)
           name = Values.name(name)
-          read({ 'lookup' => name }, 'definition') { |v| Values.resolved(v, connection.scope, name) }
+          read({ 'lookup' => name }, 'definition') { |v| Values.resolved(v, connection.scope, connection.namespace, name) }
         end
         def definition(object, revision)
           action = { 'definition' => { 'object' => Values.wide(object).to_s, 'revision' => Values.wide(revision).to_s } }
@@ -61,7 +62,11 @@ module Transit
             Values.typed(cursor, Cursor)
             raise ArgumentError, 'Foreign catalog cursor' unless cursor.scope == connection.scope
           end
-          read({ 'list' => cursor&.wire }, 'page') { |v| Values.page(v, connection.scope, cursor) }
+          read({ 'list' => cursor&.wire }, 'page') do |v|
+            page = Values.page(v, connection.scope, cursor)
+            raise IncompatibleNative, 'Foreign schema namespace' unless page.entries.all? { |entry| entry.metadata.namespace == connection.namespace }
+            page
+          end
         end
         def compile_sql(sql, identity, create_object = nil)
           Values.typed(identity, Identity)
@@ -88,7 +93,6 @@ module Transit
           prepared('prepare_control', { 'intent' => reference(intent), 'control' => Values.symbol(control, %i[cancel_operation cleanup_operation cancel_upload collect_upload]) })
         end
         def prepare_initialize(configuration) = prepared('prepare_initialize', Values.typed(configuration, Configuration).wire)
-        def prepare_policy(change) = prepared('prepare_policy', Values.typed(change, PolicyChange).wire)
         def prepare_dependency(dependency, present) = prepared('prepare_dependency', Values.typed(dependency, Dependency).wire(present))
         def submit(prepared)
           value = call({ 'submit' => Values.typed(prepared, Prepared).data })

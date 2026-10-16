@@ -29,7 +29,7 @@ fn context(self: Self, signed: r.SignedRead, public_key: [32]u8) !Context {
     const scope = signed.read.scope;
     if (scope.realm != self.base.resources.realm or scope.service != self.base.service or scope.ingress != self.base.ingress) return error.ServingDenied;
     try signed.verify(public_key);
-    try self.base.authorize(signed.identity.native(), public_key);
+    try self.base.authorize(signed.proof, public_key);
     var scoped = try self.base.readerFor(scope.principal, &.{
         root.Model.key('S', scope.principal, scope.session), root.Model.key('W', 0, 0), root.Model.key('b', 0, 0),
     });
@@ -71,11 +71,13 @@ fn acquire(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
 }
 fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
     const before = try self.context(signed, public_key);
-    var result: Response = .{ .session = before.session, .source = before.source };
+    var result: Response = .{ .session = before.session, .source = if (signed.read.kind == .session) null else before.source };
     var acquired: ?root.TableWatch.Observation = null;
     if (signed.read.kind != .session) {
         const source = before.source.?;
-        var reader = try self.sourceReader(source);
+        const authority = self.base.authority(.{ .signed = signed.proof });
+        var raw = try self.sourceReader(source);
+        var reader = authority.wrap(&raw);
         const observation = if (signed.read.kind == .snapshot) blk: {
             result.snapshot = try root.TableWatch.snapshot(self.base.resources.wire.http.allocator, &reader, signed.read.scope.principal, source);
             break :blk result.snapshot.?.observation;
@@ -102,8 +104,11 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
         // Current source authority/lifecycle/schema after copying bounded bytes.
         // Newer data is safely reported by the next poll; a changed declaration
         // cannot disclose a page from the previous schema.
-        var latest = try self.sourceReader(source);
+        var latest_raw = try self.sourceReader(source);
+        var latest = authority.wrap(&latest_raw);
         const current = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &latest, signed.read.scope.principal, source);
+        try reader.finish();
+        try latest.finish();
         if (current.data_revision < observation.data_revision) return error.ReactiveResetRequired;
     }
     const after = try self.context(signed, public_key);
@@ -128,7 +133,7 @@ pub fn attach(self: Self, bootstrap: root.ReactiveWire.Bootstrap, public_key: [3
     if (attachment.identity.session != request.scope.session or attachment.identity.generation != request.scope.generation or
         request.attachment == 0 or attachment.expected != request.attachment - 1 or !std.mem.eql(u8, &attachment.nonce, &request.nonce)) return error.InvalidReactiveScope;
     if (request.scope.realm != self.base.resources.realm or request.scope.service != self.base.service or request.scope.ingress != self.base.ingress) return error.ServingDenied;
-    try self.base.authorize(bootstrap.read.identity.native(), public_key);
+    try self.base.authorize(bootstrap.read.proof, public_key);
     var scoped = try self.base.readerFor(request.scope.principal, &.{root.Model.key('S', request.scope.principal, request.scope.session)});
     const value = (try root.ReactiveService.session(&scoped.data, request.scope.principal, request.scope.session)) orelse return error.ReactiveSessionNotFound;
     if (value.generation != request.scope.generation) return error.ReactiveGenerationConflict;
@@ -152,8 +157,10 @@ pub fn check(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
 fn checkOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
     const current = try self.context(signed, public_key);
     if (signed.read.kind == .session) return error.InvalidReactiveScope;
-    var data = try self.sourceReader(current.source.?);
+    var raw = try self.sourceReader(current.source.?);
+    var data = self.base.authority(.{ .signed = signed.proof }).wrap(&raw);
     _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.scope.principal, current.source.?);
+    try data.finish();
 }
 
 pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, allocator: std.mem.Allocator) !root.Api.Discovery {
@@ -163,13 +170,15 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     var scoped = try self.base.readerFor(signed.read.principal, &.{root.Model.key('W', 0, 0)});
     const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished;
     if (!source.published or !binding.published or source.target != binding.target) return error.ServiceUnpublished;
-    var data = try self.sourceReader(source);
+    var raw = try self.sourceReader(source);
+    var data = self.base.authority(.{ .signed = signed.proof }).wrap(&raw);
     _ = try root.TableWatch.observe(self.base.resources.wire.http.allocator, &data, signed.read.principal, source);
     const result: root.Api.Discovery = .{ .service = self.base.service, .ingress = self.base.ingress, .resource = self.base.resource, .binding_revision = binding.revision, .watch_revision = source.revision, .openapi_sha256 = try root.Api.digest(.openapi, allocator), .asyncapi_sha256 = try root.Api.digest(.asyncapi, allocator) };
     const latest = try self.base.read(signed, public_key);
     if (latest.policy_revision != base.policy_revision or !std.meta.eql(latest.binding, base.binding)) return error.ServiceReadConflict;
     scoped = try self.base.readerFor(signed.read.principal, &.{root.Model.key('W', 0, 0)});
     if (!std.meta.eql(source, (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished)) return error.ServiceReadConflict;
+    try data.finish();
     return result;
 }
 

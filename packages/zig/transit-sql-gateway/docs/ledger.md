@@ -11,10 +11,14 @@ owns worker lifecycle, exact pending controls, key custody and socket admission.
 
 ## Identity and roles
 
-Configuration fixes the realm, resource, owner PID, account fingerprint, Table
-public key and 1–8 catalog bindings. Each binding fixes resource/catalog/owner.
-Worker, ingress, operator control, coordinator and Table principals are distinct,
-nonzero native IDs. The deployment provisions their current native grants.
+Configuration fixes the realm, resource, owner PID, account fingerprint and
+1–8 catalog bindings. Each binding fixes resource/catalog/owner, schema identity
+and optional selected role. Worker, ingress, operator control, coordinator,
+Table caller and private reader principals are distinct, nonzero native IDs.
+The deployment provisions their current native grants. The private reader has
+scoped process inspection and catalog-resource read access; SQL object checks
+use the Table caller's signed subject and selected role. The Table caller does
+not need raw-resource read access.
 The private ledger resource is separate from every configured catalog resource.
 Neither account names nor database selection grant native or catalog access.
 
@@ -31,14 +35,19 @@ catalog mappings on reuse. Initial quotas are separate from this immutable
 fingerprint: explicit operator capacity increases are retained in the head.
 SQL password/verifier rotation is outside ledger identity; native key or scope
 replacement cannot reinterpret a saved step.
+The verifier binds the account to its current native principal, LOGIN role and
+credential epoch. A changed verifier or native credential invalidates the session.
+Keys are outside the immutable configuration fingerprint. Rotation cannot replace
+an accepted operation's selected role or a pending step's original signature.
 
 ## Preparation and discovery
 
 `begin` allocates the operation ID from its native input position. A caller-owned
 16-byte nonce indexes that ID, so a lost response can be discovered without a
 previously delivered handle. Repeating the same nonce/binding returns the original
-operation; a different binding rejects. SQL resubmission uses a new nonce and is
-new work. The method reserves capacity before writing the operation and index.
+operation; a different binding, schema or selected role rejects. SQL resubmission
+uses a new nonce and is new work. The method reserves capacity before writing
+the operation and index.
 
 The caller prepares a typed `TableIntent` with this operation/upload identity.
 `beginIntent`, `intentPart` and `sealIntent` retain its exact bytes. Sealing alone
@@ -149,7 +158,8 @@ The caller durably processes a control before asking for a successor. A replacem
 can publish a completely staged step; an incomplete unpublished step is abandoned
 and its partial bytes collected before another attempt. Published steps always
 come from committed `pendingStep` reads and are never re-signed. `dispatch`
-rechecks the fence and pending identity before attempting the saved Table send;
+rechecks the fence and pending identity, then recovers the exact native receipt
+using the current credential before attempting the original saved Table send;
 its returned receipt control still requires a separate ledger commit.
 
 Finite intent reads prefetch at most eight publication chunks per native read

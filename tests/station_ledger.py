@@ -1,6 +1,8 @@
 """Independent inspection of the example's audit and typed query publications."""
 import hashlib
 import struct
+import sys
+from pathlib import Path
 
 import pyarrow as pa
 
@@ -8,6 +10,27 @@ from fuze_file_query import cell_bytes, descriptor
 from fuze_logical_arrow import arrow_cell
 
 AUDIT = b'\0ledger.audit/'
+
+
+def provision(system, configurations):
+    """Use the launcher's explicit role/bootstrap implementation in proofs."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'launchers'))
+    from authorization import Changes, station
+    receipts = {}
+    def command(name, body):
+        if name not in receipts:
+            receipts[name] = (body, system.command(body))
+        assert receipts[name][0] == body
+        return receipts[name][1]
+    workers = {config['role']: dict(principal=config['principal'], pid=config['pid'], resource=resource,
+        public_key=system.invoke('public-key', config['seed_file'])) for resource, config in configurations}
+    changes = Changes(system.root / 'authorization', command, system.native_query)
+    authority = station(changes, 72, workers)
+    for _, config in configurations:
+        config['authorization'] = authority
+    if 'requester' in workers:
+        next(config for _, config in configurations if config['role'] == 'ledger')['peer_principal'] = workers['requester']['principal']
+    return changes
 
 
 def audit_total(query, resource):

@@ -27,12 +27,18 @@ public static partial class Catalog
         var v = Fields(value, "realm", "resource", "catalog"); return new(new ResourceRef(V.Number(v["realm"], 1), V.Number(v["resource"], 1)), Wide(v["catalog"]));
     }
     private static Configuration ParseConfiguration(JsonNode? value) {
-        var v = Fields(value, "scope", "owner", "administrator", "table_limits"); var scope = ParseScope(v["scope"]); var l = Fields(v["table_limits"], "record_bytes", "staging_bytes", "staging_records");
-        return new(scope, new ProcessRef(scope.Resource.Realm, V.Number(v["owner"], 1)), V.Number(v["administrator"], 1), new(Small(l["record_bytes"], 1), Wide(l["staging_bytes"]), Small(l["staging_records"], 1)));
+        var v = Fields(value, "scope", "owner", "administrator", "table_limits", "authority", "database_name"); var scope = ParseScope(v["scope"]); var l = Fields(v["table_limits"], "record_bytes", "staging_bytes", "staging_records");
+        return new(scope, new ProcessRef(scope.Resource.Realm, V.Number(v["owner"], 1)), V.Number(v["administrator"]), new(Small(l["record_bytes"], 1), Wide(l["staging_bytes"]), Small(l["staging_records"], 1)), ParseAuthority(v["authority"]), V.String(v["database_name"]));
     }
-    private static Policy ParsePolicy(JsonNode? value) {
-        var v = Fields(value, "scope", "principal", "revision", "inspect", "create", "read", "insert", "update", "delete", "alter", "drop");
-        return new(ParseScope(v["scope"]), V.Number(v["principal"]), Wide(v["revision"]), new(V.Boolean(v["inspect"]), V.Boolean(v["create"]), V.Boolean(v["read"]), V.Boolean(v["insert"]), V.Boolean(v["update"]), V.Boolean(v["delete"]), V.Boolean(v["alter"]), V.Boolean(v["drop"])));
+    private static AuthorityProfile ParseAuthority(JsonNode? value) {
+        var v = Fields(value, "database_domain", "schema_domain", "table_domain", "database", "initial_schema", "initial_schema_authority");
+        return new(V.Number(v["database_domain"], 1), V.Number(v["schema_domain"], 1), V.Number(v["table_domain"], 1),
+            V.Number(v["database"], 1), V.Number(v["initial_schema"], 1), V.Number(v["initial_schema_authority"], 1));
+    }
+    private static Subject ParseSubject(JsonNode? value) {
+        var v = Fields(value, "principal", "login_role", "role", "credential_epoch", "audience", "context");
+        return new(V.Number(v["principal"]), V.Number(v["login_role"]), V.Number(v["role"]),
+            V.Number(v["credential_epoch"], 1), V.Number(v["audience"], 1), NativeValues.Digest(v["context"]));
     }
     internal static Schema ParseSchema(JsonNode? value) {
         var v = Fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Current(V.String(v["definition"]));
@@ -93,14 +99,14 @@ public static partial class Catalog
         return new(checked((int)V.Number(v["length"],1)),NativeValues.Digest(v["digest"]));
     }
     private static Metadata ParseMetadata(JsonNode? value) {
-        var v = Fields(value, "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
-        return new(ParseScope(v["scope"]), Wide(v["object"]), Wide(v["revision"]), V.String(v["name"]), new Bytes(V.Unhex(v["schema_fingerprint"], 32)), V.Number(v["principal"]), Wide(v["operation"]), V.Number(v["admitted_input"], 1),ParseCommitment(v["commitment"]));
+        var v = Fields(value, "namespace", "scope", "object", "revision", "name", "schema_fingerprint", "principal", "operation", "admitted_input", "commitment");
+        return new(ParseScope(v["scope"]), V.Number(v["namespace"], 1), Wide(v["object"]), Wide(v["revision"]), V.String(v["name"]), new Bytes(V.Unhex(v["schema_fingerprint"], 32)), V.Number(v["principal"]), Wide(v["operation"]), V.Number(v["admitted_input"], 1),ParseCommitment(v["commitment"]));
     }
     private static Head ParseHead(JsonNode? value) { var v = Fields(value, "revision", "rows", "pending"); return new(Wide(v["revision"]), Zero(v["rows"]), Zero(v["pending"])); }
-    internal static Definition? Resolved(JsonNode? value, Scope scope, string name) {
+    internal static Definition? Resolved(JsonNode? value, Scope scope, ulong schemaNamespace, string name) {
         if (value is null) return null;
-        var v = Fields(value, "metadata", "head", "schema"); Definition found = new(ParseMetadata(v["metadata"]), ParseHead(v["head"]), ParseSchema(v["schema"]));
-        if (found.Metadata.Scope != scope || found.Metadata.Name != name || found.Schema.ObjectId != found.Metadata.ObjectId) throw V.Incompatible("catalog-definition-identity"); return found;
+        var v = Fields(value, "authorization", "metadata", "head", "schema"); Definition found = new(V.Number(v["authorization"], 1), ParseMetadata(v["metadata"]), ParseHead(v["head"]), ParseSchema(v["schema"]));
+        if (found.Metadata.Scope != scope || found.Metadata.Namespace != schemaNamespace || found.Metadata.Name != name || found.Schema.ObjectId != found.Metadata.ObjectId) throw V.Incompatible("catalog-definition-identity"); return found;
     }
     internal static HistoricalDefinition? Historical(JsonNode? value, Scope scope, ulong objectId, ulong revision) {
         if (value is null) return null;
@@ -174,7 +180,7 @@ public static partial class Catalog
     }
     internal static bool Supported(Capabilities c) => c.Version == 1 && c.MaxColumns == 128 && c.MaxRows == 1024 && c.MaxSqlBytes == 4096 && c.MaxIntentBytes == Limit("catalog_intent_bytes") && c.MaxActionBytes == Limit("catalog_action_bytes") && c.MaxPreparedBytes == Limit("catalog_prepared_bytes") && c.ResidentIntents == 1;
     private static Description ParseDescription(JsonNode? value, Connection connection, ulong principal) {
-        var v = Fields(value, "configuration", "policy", "resource_revision"); Description result = new(ParseConfiguration(v["configuration"]), ParsePolicy(v["policy"]), V.Number(v["resource_revision"]));
-        if (result.Configuration.Scope != connection.Scope || result.Configuration.Owner != connection.Owner || result.Policy.Scope != connection.Scope || result.Policy.Principal != principal) throw V.Incompatible("catalog-description"); return result;
+        var v = Fields(value, "configuration", "subject", "authorization_revision", "resource_revision"); Description result = new(ParseConfiguration(v["configuration"]), ParseSubject(v["subject"]), V.Number(v["authorization_revision"]), V.Number(v["resource_revision"]));
+        if (result.Configuration.Scope != connection.Scope || result.Configuration.Owner != connection.Owner || result.Subject.Principal != principal || result.Subject.Audience != connection.Owner.Pid || (connection.Role.HasValue && result.Subject.Role != connection.Role.Value)) throw V.Incompatible("catalog-description"); return result;
     }
 }

@@ -9,6 +9,7 @@ const Self = @This();
 principal: u64,
 operation: u64,
 object: u64,
+namespace: u64 = 1,
 expected_revision: u64,
 name: Meta.Name,
 action: union(m.Kind) {
@@ -27,6 +28,7 @@ pub fn right(self: Self) m.Right {
 pub fn digest(self: Self, scope: m.Scope) ![32]u8 {
     try scope.validate();
     try self.name.validate();
+    try c.Model.nativeId(self.namespace);
     if (self.principal > c.protocol.max_counter or self.operation == 0) return error.InvalidCatalogIdentity;
     switch (self.action) {
         .create => |value| {
@@ -46,12 +48,13 @@ pub fn digest(self: Self, scope: m.Scope) ![32]u8 {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.catalog.ddl.v1\x00");
     hash.update(&Meta.definition());
-    var ids: [64]u8 = undefined;
+    var ids: [72]u8 = undefined;
     var out: std.Io.Writer = .fixed(&ids);
     try Meta.scopeWrite(&out, scope);
     try out.writeInt(u64, self.principal, .little);
     try out.writeInt(u64, self.operation, .little);
     try out.writeInt(u64, self.object, .little);
+    try out.writeInt(u64, self.namespace, .little);
     try out.writeInt(u64, self.expected_revision, .little);
     try out.writeByte(@backingInt(self.action));
     try out.writeByte(self.name.len);

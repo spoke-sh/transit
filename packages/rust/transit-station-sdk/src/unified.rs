@@ -385,7 +385,7 @@ impl Budgets {
 pub struct Bundle(Vec<u8>);
 impl Bundle {
     pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
-        if data.len() > 25069 {
+        if data.len() > 25255 {
             return Err(invalid());
         }
         Ok(Self(data))
@@ -405,7 +405,7 @@ impl Bundle {
         )?;
         Self::from_bytes(unhex(
             string(field(field(&v, "prepared")?, "bytes")?, "query-bundle")?,
-            25069,
+            25255,
         )?)
     }
 }
@@ -433,6 +433,7 @@ pub struct Connection {
     resource: ResourceRef,
     requester: ProcessRef,
     requests: ResourceRef,
+    role: Option<u64>,
 }
 impl Connection {
     pub fn new(
@@ -452,7 +453,16 @@ impl Connection {
             resource,
             requester,
             requests,
+            role: None,
         })
+    }
+    pub fn with_role(mut self, role: u64) -> Result<Self> {
+        counter(&json!(role), true)?;
+        self.role = Some(role);
+        Ok(self)
+    }
+    pub fn role(&self) -> Option<u64> {
+        self.role
     }
     pub fn source(&self) -> ProcessRef {
         self.source
@@ -467,7 +477,7 @@ impl Connection {
         self.requests
     }
     pub(crate) fn wire(&self, principal: u64) -> Value {
-        json!({"realm":self.source.realm(),"principal":principal,"source":self.source.pid(),"resource":self.resource.resource(),"requester":self.requester.pid(),"requests":self.requests.resource()})
+        json!({"realm":self.source.realm(),"principal":principal,"source":self.source.pid(),"resource":self.resource.resource(),"requester":self.requester.pid(),"requests":self.requests.resource(),"role":self.role})
     }
 }
 /// Opaque signed bytes, retained independently of the client before dispatch.
@@ -1030,7 +1040,16 @@ impl Client {
                 field(field(&response, "compiled")?, "bundle")?,
                 "query-bundle",
             )?,
-            25069,
+            25255,
+        )?)
+    }
+    /// Seal newly constructed work once, before persisting its bytes or fingerprint.
+    /// Already authorized bundles reject; recover their original bytes unchanged.
+    pub fn authorize_bundle(&mut self, bundle: &Bundle) -> Result<Bundle> {
+        let value = self.call(json!({"authorize":hex(bundle.data(),25255)?}))?;
+        Bundle::from_bytes(unhex(
+            string(field(&value, "authorized")?, "authorized")?,
+            25255,
         )?)
     }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
@@ -1038,7 +1057,7 @@ impl Client {
             return Err(invalid());
         }
         let v = self.call(
-            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25069)?}}),
+            json!({"next":{"namespace":namespace.to_string(),"bundle":hex(bundle.data(),25255)?}}),
         )?;
         let prepared = field(&v, "prepared")?;
         if prepared.is_null() {

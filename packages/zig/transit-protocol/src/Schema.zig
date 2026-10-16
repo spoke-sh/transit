@@ -11,6 +11,7 @@ pub fn schema(comptime T: type, out: *std.json.Stringify) std.Io.Writer.Error!vo
 pub const Options = struct {
     /// An owner may factor the shared diagnostic into its own definitions.
     diagnostic_reference: ?[]const u8 = null,
+    authorization_proof_reference: ?[]const u8 = null,
     output: bool = false,
     safe_integers: bool = false,
     text_max_length: usize = 256,
@@ -54,6 +55,9 @@ test {
 }
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
+    if (T == p.Authorization.Proof) {
+        if (options.authorization_proof_reference) |name| return out.write(.{ .@"$ref" = name });
+    }
     if (T == p.Diagnostic) {
         if (options.diagnostic_reference) |name| return out.write(.{ .@"$ref" = name });
     }

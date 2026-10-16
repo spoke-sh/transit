@@ -311,7 +311,7 @@ async function codec(
 export class Bundle {
   readonly #data: Uint8Array;
   constructor(data: Uint8Array) {
-    this.#data = owned(data, 25069);
+    this.#data = owned(data, 25255);
     Object.freeze(this);
   }
   get data(): Uint8Array {
@@ -338,7 +338,7 @@ export class Bundle {
       nativeHost,
     );
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared bundle");
-    return new Bundle(unhex(value.prepared.bytes, 25069));
+    return new Bundle(unhex(value.prepared.bytes, 25255));
   }
 }
 /** Local decoding does not establish current source access or result completeness. */
@@ -368,11 +368,13 @@ export class Connection {
   readonly resource: ResourceRef;
   readonly requester: ProcessRef;
   readonly requests: ResourceRef;
+  readonly role: number | undefined;
   constructor(
     source: ProcessRef,
     resource: ResourceRef,
     requester: ProcessRef,
     requests: ResourceRef,
+    role?: number,
   ) {
     if (
       !(source instanceof ProcessRef) ||
@@ -386,6 +388,7 @@ export class Connection {
     this.resource = resource;
     this.requester = requester;
     this.requests = requests;
+    this.role = role === undefined ? undefined : integer(role, "selected role", 0);
     Object.freeze(this);
   }
 }
@@ -735,6 +738,7 @@ export class Client {
           resource: connection.resource.resource,
           requester: connection.requester.pid,
           requests: connection.requests.resource,
+          role: connection.role ?? null,
         },
         timeout_ms: config.timeoutMs,
       },
@@ -828,12 +832,19 @@ export class Client {
       },
     });
     if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled SQL bundle");
-    return new Bundle(unhex(value.compiled.bundle, 25069));
+    return new Bundle(unhex(value.compiled.bundle, 25255));
+  }
+  /** Seal new work once before saving its bytes or fingerprint. Recover saved work unchanged. */
+  async authorizeBundle(bundle: Bundle): Promise<Bundle> {
+    if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
+    const value = await this.bridge.call({ authorize: hex(bundle.data, 25255) });
+    if (!("authorized" in value)) throw new IncompatibleNative("Expected authorized query bundle");
+    return new Bundle(unhex(value.authorized, 25255));
   }
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({
-      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25069) },
+      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25255) },
     });
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared command");
     return value.prepared === null ? undefined : new Prepared(value.prepared);

@@ -3,10 +3,27 @@
 `transit catalog` uses the shared general Table caller for SQL or typed intent,
 private saved steps, exact submission and outcome inspection. Provision the
 [catalog host](../../transit-query-host/README.md), resource, caller grants and
-worker ownership explicitly. CREATE, ALTER, DROP and typed DML share this owner;
-inspect, create, read, insert, update, delete, alter and drop remain separate rights.
+worker ownership explicitly. CREATE, ALTER, DROP and typed DML share this owner.
+Database CONNECT, schema USAGE/CREATE and Table SELECT/INSERT/UPDATE/DELETE use
+native grants. ALTER and DROP require logical object ownership; owning the worker
+PID does not supply those privileges.
 
 ## Connection and local preparation
+
+`transit catalog query --config CONNECTION --file QUERY.sql` executes a finite
+read through the configured `table_service_url`. Optional `--rows` and `--reads`
+bound the request (defaults 1,024 and 4,096; maximums 65,536 and 1,048,576).
+The service's configured limits can be lower. The command prints one JSON
+response containing the contract definition, authorization revision and complete
+typed result. It emits no successful prefix when a query fails. It neither
+creates a durable query nor changes a saved Table intent.
+
+The service supports single-Table SELECT and, with configured private spill,
+the shared int64 joins and grouped COUNT/SUM profile. Every source requires
+current SELECT, including sources that produce no rows. SQL uses Transit syntax
+and literals; parameter binding and EXPLAIN use their separate caller interfaces.
+See the [Table service guide](../../transit-table-service/README.md) for the
+deployment profile and execution budgets.
 
 Use version-1 YAML or an explicit `.json` file with the provisioned identities:
 
@@ -30,6 +47,24 @@ file. Other paths resolve from the working directory. Configuration is at most
 64 KiB; timeout is 1–60000 ms, default 5000. HTTP/HTTPS URLs cannot contain
 credentials, a query or a fragment. There is no configuration discovery or
 environment overlay for these commands.
+
+Set `table_service_url` to an explicitly deployed Table service for a restricted
+caller. `url` remains the native authority used for caller authentication and
+exact mutation submission. Metadata, compilation requiring live metadata,
+processing/disposition/status and resume preparation then use the service's
+private reader. The caller receives no raw-resource or process-inspection rights.
+`table_service_limits.request_bytes` and `response_bytes` default to 1 MiB each
+and accept 1 byte through 16 MiB; the deployed service may impose lower limits.
+Both URLs require a trusted transport boundary. The service binary listens on
+loopback; remote access requires the deployment's authenticated TLS ingress.
+
+Saved commands retain their original public key, signature, sequence, selected
+role and schema namespace. After credential rotation, recover admission with
+`transit catalog receipt --config catalog.yaml --file prepared.json`. It returns
+`receipt_status`, which is null if the exact request has no retained receipt.
+This read neither signs nor submits a replacement. Observing Table outcomes still
+requires current object rights. Initialization and dependency provisioning use
+the direct operator connection.
 
 ```sh
 transit catalog capabilities
@@ -119,22 +154,23 @@ schema changes cannot retarget that saved work. Callers sharing a principal must
 coordinate native sequences; the CLI does not supply an automatic send retry or
 session coordinator. Deleting files does not remove accepted work.
 
-## Initialization and policy controls
+## Initialization and dependency controls
 
-`prepare-initialize`, `prepare-policy` and `prepare-dependency` accept the shared
+`prepare-initialize` and `prepare-dependency` accept the shared
 neutral configuration or conditional control JSON and save one signed step:
 
 ```sh
 transit catalog prepare-initialize --config catalog.yaml --file initialize.json --output initialize-prepared.json
-transit catalog prepare-policy --config catalog.yaml --file policy.json --output policy-prepared.json
 transit catalog prepare-dependency --config catalog.yaml --file dependency.json --output dependency-prepared.json
 ```
 
 Initialization includes the exact scope, owner, administrator and explicit
-Table publication quotas. The configured administrator controls all eight
-catalog permissions and dependency records. Controls carry expected revisions;
-the owner checks them again when applying the command. Matching repeated
-initialization does not reset policy. Inspect each admitted control's separate
+Table publication quotas plus the mandatory native authorization profile.
+Provision the database and initial schema bindings through native authorization
+before initialization. Dependency controls carry expected revisions; the owner
+checks them again when applying the command. Roles, membership and Table grants
+use native authorization operations. Matching repeated initialization cannot
+restore grants. Inspect each admitted control's separate
 input disposition. These operations do not implement SQL GRANT or REVOKE.
 
 ## Metadata and saved pages

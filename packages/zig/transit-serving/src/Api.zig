@@ -23,6 +23,7 @@ pub const Discovery = struct {
 };
 pub const Error = struct { err: enum { ServingRequestFailed, HttpCapacity, InvalidHttpRequest }, reason: ?root.ServingDiagnostic.Reason = null, diagnostic: ?root.protocol.Diagnostic = null };
 pub const definitions = .{
+    .{ "SubjectProof", root.protocol.Authorization.Proof },
     .{ "Diagnostic", root.protocol.Diagnostic },
     .{ "SignedCommand", r.SignedSend },
     .{ "ServingRead", root.Model.SignedRead },
@@ -55,7 +56,7 @@ fn schemas(out: *std.json.Stringify) !void {
     try out.beginObject();
     inline for (definitions) |definition| {
         try out.objectField(definition[0]);
-        try schema.write(definition[1], out, .{ .safe_integers = true, .sequence_max_length = 8, .output = definition[1] == root.protocol.Diagnostic, .diagnostic_reference = if (definition[1] == root.protocol.Diagnostic) null else "#/components/schemas/Diagnostic" });
+        try schema.write(definition[1], out, .{ .safe_integers = true, .sequence_max_length = 8, .output = definition[1] == root.protocol.Diagnostic, .authorization_proof_reference = if (definition[1] == root.protocol.Authorization.Proof) null else "#/components/schemas/SubjectProof", .diagnostic_reference = if (definition[1] == root.protocol.Diagnostic) null else "#/components/schemas/Diagnostic" });
     }
     try out.endObject();
 }

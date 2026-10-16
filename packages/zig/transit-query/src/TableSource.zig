@@ -96,8 +96,8 @@ pub fn fingerprint(self: Self) ![32]u8 {
     digest.update(try self.encode(&buffer));
     return digest.finalResult();
 }
-/// `who` comes from the authenticated caller or an explicit committed query
-/// policy mapping. A submitted declaration must never choose this principal.
+/// `who` must match the reader's independently authenticated original subject.
+/// A stored query policy or supplied principal number cannot authenticate it.
 /// `current` must be a live authorized reader, never the retained data reader.
 pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
     try self.validate();
@@ -106,8 +106,7 @@ pub fn checkCurrent(self: Self, current: anytype, who: u64) !c.TableCatalog {
     if (!std.meta.eql(config.scope, self.scope)) return error.CatalogScopeChanged;
     if (config.owner != self.owner) return error.CatalogOwnerChanged;
     const catalog: c.TableCatalog = .{ .configuration = config };
-    _ = try catalog.authorize(current, who, .inspect);
-    _ = try catalog.authorize(current, who, .read);
+    _ = try catalog.authorizeObject(current, who, self.object, .read);
     return catalog;
 }
 fn resolve(self: Self, allocator: std.mem.Allocator, data: anytype, who: u64) !c.TableCatalog.Definition {

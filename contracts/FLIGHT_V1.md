@@ -41,7 +41,7 @@ consumer uses direct statement execution.
 
 An explicit TLS edge admits connections to a private HTTP/2 listener. A bounded
 configured mapping translates an opaque Bearer credential to a dedicated native
-query principal/key and published serving/query scope. Keep credentials and keys
+query principal/key, optional selected role and published serving/query scope. Keep credentials and keys
 in private files. Reject duplicate credentials and caller-supplied principal,
 upstream or resource overrides. Connection pooling grants no authorization;
 authenticate every RPC. The gateway's inspection key cannot substitute for the
@@ -57,14 +57,19 @@ grants access or turns an unavailable source into an empty result.
 A statement GetFlightInfo requires the decimal `x-transit-request-sequence`
 header. It selects the first native sequence and the immutable upload namespace.
 The configured published schema, SQL and budgets produce one canonical request
-bundle. The gateway signs `begin`, bounded `part` commands, `seal` and `submit`
+bundle, including a proof of the original principal, selected role, credential
+epoch, query bytes and intended recipient. The gateway signs `begin`, bounded `part` commands, `seal` and `submit`
 with consecutive native sequences, waiting for each recorded requester outcome
 before sending the next command. The namespace is the first sequence. The
 principal must be dedicated to this admission stream; concurrent requests must
 not overlap their native sequence ranges.
 
 The same first sequence and canonical bundle reconstruct the same signed commands
-through gateway replacement. Changed bytes at a used sequence conflict. An unknown
+through gateway replacement while the configured key, native credential epoch
+and selected role remain unchanged. Rotation or a role change cannot resume an
+old upload as a new subject: changed bundle bytes conflict at its original first
+sequence, before any successor command is sent. Retain the old identity for
+inspection; do not assign replacement SQL a used namespace. Changed bytes at a used sequence conflict. An unknown
 outcome retains the original sequence and SQL/schema; the gateway never chooses a
 new sequence automatically. Successful `FlightInfo.app_metadata` is JSON
 `{"version":1,"next_sequence":N}` identifying the sequence after the upload. A new
@@ -83,7 +88,8 @@ application admission remains distinct from native input acceptance.
 
 Tickets are private opaque references. The `FTK1` encoding contains the current
 32-byte Transit definition, eight u64 scope fields (realm, principal, service,
-binding revision, ingress, requests, source, resource), the 32-byte Table source
+binding revision, ingress, requests, source, resource), a one-byte selected-role
+presence flag followed by its u64 ID (zero when absent), the 32-byte Table source
 declaration fingerprint, a u64 expiry in Unix milliseconds, then a tagged
 reference. The declaration commits the catalog scope, owner, full-width object
 identity, immutable metadata reference and logical descriptor. Reusing a Table

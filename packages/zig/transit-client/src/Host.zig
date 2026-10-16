@@ -2,18 +2,20 @@
 const std = @import("std");
 const abi = @import("Abi.zig");
 const p = @import("transit_client").protocol;
+const authorization = @import("transit_client").AuthorizationBridge;
 pub const version = 1;
 pub const max_line_bytes = p.max_body * 2 + 16384;
 pub const max_config_bytes = 8192;
 pub const Config = struct { url: []const u8, timeout_ms: u32 = 5000 };
 pub const Prepare = struct { kind: u32, seed_file: []const u8, document: []const u8 };
-pub const Request = union(enum) { hello: void, shutdown: void, capabilities: void, prepare: Prepare, metadata: []const u8, call: []const u8 };
+pub const Request = union(enum) { hello: void, shutdown: void, capabilities: void, prepare: Prepare, metadata: []const u8, call: []const u8, authorization: struct { seed_file: []const u8, connection: authorization.Connection, action: authorization.Action } };
 pub const Capabilities = struct {
     version: u32 = 1,
     definition: p.Growth.Definition = p.Growth.current_definition,
     operation_metadata: bool = true,
     opaque_retry: bool = true,
     native_v1: bool = true,
+    authorization_administration: bool = true,
     minimum_stack_bytes: u32 = abi.minimum_stack_bytes,
     max_line_bytes: u32 = max_line_bytes,
     value_bytes: u32 = p.Value.max_bytes,
@@ -54,6 +56,13 @@ pub fn process(init: std.process.Init, client: *abi.Client, request: Request, al
             status = abi.Api.transit_operation_prepare(prepare.kind, &seed, prepare.document.ptr, prepare.document.len, &operation);
             if (status == .ok) status = abi.Api.transit_operation_export(operation.?, &buffer);
             return respond(out, @backingInt(status), if (buffer) |ptr| try std.json.Stringify.valueAlloc(allocator, abi.Api.transit_buffer_data(ptr)[0..abi.Api.transit_buffer_size(ptr)], .{}) else "null");
+        },
+        .authorization => |value| {
+            var seed = try readSeed(init, value.seed_file);
+            defer std.crypto.secureZero(u8, &seed);
+            const connection = try p.Json.valueAlloc(allocator, value.connection);
+            const action = try p.Json.valueAlloc(allocator, value.action);
+            status = abi.Api.transit_authorization_apply(client, &seed, connection.ptr, connection.len, action.ptr, action.len, &buffer);
         },
         .call, .metadata => |frozen| {
             status = abi.Api.transit_operation_import(frozen.ptr, frozen.len, &operation);

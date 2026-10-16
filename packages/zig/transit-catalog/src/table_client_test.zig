@@ -10,7 +10,27 @@ fn intent() !c.TableIntent {
     return c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(connection.scope, connection.owner, request, null), 1000);
 }
 fn signed(value: p.Value) !Client.Prepared {
-    return .{ .version = 1, .definition = g.current_definition, .connection = connection, .signed = try g.sign(.{ .realm = connection.scope.realm, .principal = connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = connection.owner, .value = try (c.station.Frame{ .kind = .cast, .payload = value }).encode() } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(10))) };
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
+    return .{ .version = 1, .definition = g.current_definition, .connection = connection, .public_key = key.public_key.toBytes(), .signed = try g.sign(.{ .realm = connection.scope.realm, .principal = connection.principal, .sequence = 3, .command = .{ .send = .{ .pid = connection.owner, .value = try (c.station.Frame{ .kind = .cast, .payload = value }).encode() } } }, key) };
+}
+test "unsigned mediated candidates preserve the caller's exact native request" {
+    var operation = try intent();
+    defer operation.deinit();
+    const original = try signed(try p.Value.init(operation.body));
+    var candidate: Client.Candidate = .{ .definition = g.current_definition, .connection = connection, .request = original.signed.request };
+    try t.expect(try candidate.matches(&operation));
+    const prepared = try candidate.sign(try p.Ed25519.KeyPair.generateDeterministic(@splat(10)));
+    try t.expectEqualDeep(original, prepared);
+    var rotated: Client = .{ .transport = undefined, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11)) };
+    try rotated.validate(prepared);
+    var forged = prepared;
+    forged.public_key = rotated.key.public_key.toBytes();
+    try t.expectError(error.SignatureVerificationFailed, rotated.validate(forged));
+    candidate.connection.principal += 1;
+    try t.expectError(error.CatalogIdentityConflict, candidate.command());
+    candidate.connection = connection;
+    candidate.request.command.send.role = 9;
+    try t.expectError(error.CatalogIdentityConflict, candidate.command());
 }
 test "signed typed Table sends persist exact bytes and require explicit definitions" {
     var operation = try intent();
@@ -32,7 +52,7 @@ test "signed typed Table sends persist exact bytes and require explicit definiti
         try t.expectEqualDeep(prepared, restored);
         const canonical = try restored.save(t.allocator);
         defer t.allocator.free(canonical);
-        for (0..7) |index| {
+        for (0..8) |index| {
             var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, canonical, .{});
             defer parsed.deinit();
             const object = &parsed.value.object;
@@ -44,6 +64,7 @@ test "signed typed Table sends persist exact bytes and require explicit definiti
                 4 => object.getPtr("version").?.* = .{ .integer = 2 },
                 5 => object.getPtr("connection").?.object.getPtr("owner").?.* = .{ .integer = 4 },
                 6 => object.getPtr("connection").?.object.getPtr("scope").?.object.getPtr("resource").?.* = .{ .integer = 8 },
+                7 => try t.expect(object.swapRemove("public_key")),
                 else => unreachable,
             }
             const invalid = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});

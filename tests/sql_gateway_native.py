@@ -26,11 +26,24 @@ def run(node, catalog, gateway):
         armed = None
         lost = {}
         replayed = set()
+        recovered = set()
+        receipt_inspectors = {}
         failures = []
         sends = 0
         turns = 0
         delay_ingress = False
         detached_replies = 0
+        pipeline_enabled = False
+        pipeline = {}
+        successor_admitted = threading.Event()
+        def intent_upload(request):
+            send = request['command'].get('send')
+            if request['principal'] != 2001 or send is None:
+                return None
+            frame = bytes.fromhex(send['value'])
+            if len(frame) < 58 or frame[:5] != b'STN1\x01' or frame[13:17] != b'GSQ1' or frame[49] not in (4, 5):
+                return None
+            return frame[49], int.from_bytes(frame[50:58], 'little')
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
@@ -40,9 +53,39 @@ def run(node, catalog, gateway):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', port, timeout=15)
                 try:
+                    if pipeline_enabled and self.path == '/v1/command':
+                        request = json.loads(body)['request']
+                        upload = intent_upload(request)
+                        if not pipeline and upload and upload[0] == 4:
+                            pipeline.update(owner=request['command']['send']['pid'],
+                                            sequence=request['sequence'], operation=upload[1], held_input=None)
+                        command = request['command']
+                        turn = command.get('turn', command.get('turn_with_versions', {}).get('turn'))
+                        if (pipeline and turn and turn['pid'] == pipeline['owner'] and
+                                pipeline['held_input'] in (None, turn['input'])):
+                            pipeline['held_input'] = turn['input']
+                            # Every retry of this turn waits too: a timed-out
+                            # worker attempt cannot accidentally open the gate.
+                            assert successor_admitted.wait(10), 'Upload waited for processing before admitting its successor'
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    if self.path == '/v1/query' and response.status == 200:
+                        query = json.loads(body)['query']
+                        kind = query['kind']
+                        authority = kind.get('authorization') if isinstance(kind, dict) else None
+                        if authority and isinstance(authority['kind'], dict) and 'receipt' in authority['kind']:
+                            original_request = authority['kind']['receipt']
+                            for name, (original, receipt) in list(lost.items()):
+                                if original_request == json.loads(original)['request']:
+                                    observed = json.loads(data)['body']['authorization']['body']['receipt']
+                                    assert observed == json.loads(receipt), 'Receipt lookup changed exact acceptance'
+                                    receipt_inspectors.setdefault(name, set()).add(query['principal'])
+                                    # Current destination inspectors can also
+                                    # verify historical acceptance. Require the
+                                    # original caller's recovery separately.
+                                    if query['principal'] == original_request['principal']:
+                                        recovered.add(name)
                     if self.path == '/v1/command' and response.status == 200:
                         request = json.loads(body)['request']
                         command = request['command']
@@ -53,10 +96,27 @@ def run(node, catalog, gateway):
                             mutations = [entry for entry in turn.get('mutations', []) if entry]
                             assert len(mutations) <= 4
                             assert all(len(bytes.fromhex(entry['value'])) <= 256 for entry in mutations if entry['value'])
-                        for name, (original, receipt) in lost.items():
+                        for name, (original, receipt) in list(lost.items()):
+                            original_request = json.loads(original)['request']
+                            if (request['principal'], request['sequence']) == (original_request['principal'], original_request['sequence']):
+                                assert body == original, 'Recovery replaced the original signed request'
                             if body == original:
                                 assert data == receipt
                                 replayed.add(name)
+                        if pipeline_enabled and pipeline:
+                            upload = intent_upload(request)
+                            if upload and upload[1] == pipeline['operation']:
+                                if request['sequence'] == pipeline['sequence'] and 'pipelined_part' not in lost:
+                                    lost['pipelined_part'] = body, data
+                                    pipeline['first_input'] = json.loads(data)['position']
+                                    # Lose an actual accepted part's transport
+                                    # reply; recovery must use identical bytes.
+                                    self.close_connection = True
+                                    return
+                                if request['sequence'] > pipeline['sequence'] and not successor_admitted.is_set():
+                                    pipeline['successor_tag'] = upload[0]
+                                    pipeline['successor_input'] = json.loads(data)['position']
+                                    successor_admitted.set()
                         selected = request['principal'] if 'send' in command else 'turn' if turn else None
                         if delay_ingress and selected == 2001:
                             delay_ingress = False
@@ -126,6 +186,7 @@ def run(node, catalog, gateway):
             assert call(gateway, 'replace')['stale_rejected']
             armed = 1234
             call(gateway, 'run', fail=True)
+            assert armed is None and '1234' in lost, 'Table receipt fault was not exercised'
             authority.kill()
             authority.wait(timeout=10)
             authority = None
@@ -134,7 +195,8 @@ def run(node, catalog, gateway):
             authority = start()
             call(gateway, 'replace')
             call(gateway, 'run')
-            assert '1234' in replayed
+            assert '1234' in recovered, 'Exact Table receipt was not recovered after restart'
+            assert '1234' not in replayed, 'An accepted Table send was unnecessarily redispatched'
             assert call(gateway, 'status', created['operation'])['summary'] == 'applied'
             assert call(catalog, 'inspect', 'wire_data')['count'] == 0
 
@@ -159,20 +221,28 @@ def run(node, catalog, gateway):
             history = call(gateway, 'history')
             assert history == dict(count=31, pages=4, empty_scheduling_indexes=True), history
             delay_ingress = True
+            pipeline_enabled = True
             result = call(gateway, 'runtime', 'UPDATE wire_data SET value = 21 WHERE id = 2', 'detach')
             assert (result['outcome']['state'], result['outcome']['matched'], result['outcome']['changed']) == ('applied', 1, 1), result
             assert call(gateway, 'read', 'postgres', 'SELECT value FROM wire_data WHERE id = $1', 2)['rows'] == [[21]]
             assert 'detached' in replayed and result['detached'] is not None
+            assert 'pipelined_part' in replayed, 'Lost upload receipt was not retried exactly'
+            assert successor_admitted.is_set() and pipeline['held_input'] == pipeline['first_input'], pipeline
+            assert pipeline['successor_tag'] == 4 and pipeline['successor_input'] > pipeline['first_input'], pipeline
             assert call(gateway, 'status', result['detached'])['phase'] == 'reserved'
             call(gateway, 'cancel', result['detached'])
             call(gateway, 'run')
             assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
             assert not failures, failures
             print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
-                                  lost_receipts=sorted(replayed), fenced_replacements=3,
-                                  exact_counts=True, detached_replies=detached_replies, turns=turns, sends=sends,
+                                  lost_receipts=sorted(replayed | recovered), exact_resubmissions=sorted(replayed),
+                                  recovered_receipts=sorted(recovered), fenced_replacements=3,
+                                  receipt_inspectors={name: sorted(principals) for name, principals in receipt_inspectors.items()},
+                                  exact_counts=True, ingress_pipeline=pipeline, detached_replies=detached_replies, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
+            if sys.exc_info()[0] and failures:
+                print(json.dumps({'gateway_proxy_failures': failures}), file=sys.stderr, flush=True)
             if authority is not None:
                 authority.kill()
                 authority.wait(timeout=10)

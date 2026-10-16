@@ -4,6 +4,34 @@ grammar TransitExtensions;
 options { caseInsensitive = true; }
 
 statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
+// Dedicated administration compiler. Query-only roots do not execute it.
+authorizationStatement: authorizationCommand SEMI? EOF;
+authorizationCommand
+    : grantStatement | revokeStatement
+    | CREATE ROLE identifier (WITH? roleOptions)?
+    | ALTER ROLE identifier (RENAME TO identifier | WITH? roleOptions)
+    | DROP ROLE identifier
+    | CREATE SCHEMA identifier (AUTHORIZATION authorizationRole)?
+    | ALTER SCHEMA identifier RENAME TO identifier
+    | ALTER (DATABASE identifier | SCHEMA identifier | TABLE identifier (DOT identifier)?) OWNER TO authorizationRole
+    | DROP SCHEMA identifier RESTRICT?
+    | ALTER DEFAULT PRIVILEGES (FOR ROLE authorizationRole)? IN SCHEMA identifier
+        (GRANT privilegeList ON TABLES TO grantee grantOption?
+        | REVOKE (GRANT OPTION FOR)? privilegeList ON TABLES FROM grantee revokeBehavior?)
+    | SET ROLE identifier
+    | RESET ROLE
+    ;
+roleOptions: roleOption+;
+roleOption: LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE;
+// Contextual names include CURRENT_ROLE/CURRENT_USER/SESSION_USER/PUBLIC/NONE;
+// the production compiler assigns their role meaning and rejects forbidden uses.
+authorizationRole: identifier;
+grantee: authorizationRole;
+authorizationObject: DATABASE identifier | SCHEMA identifier | TABLE? identifier (DOT identifier)?;
+privilegeList: ALL PRIVILEGES? | privilege (COMMA privilege)*;
+grantOption: WITH GRANT OPTION;
+revokeBehavior: RESTRICT | CASCADE;
+membershipOption: (ADMIN | INHERIT | SET) (OPTION | TRUE | FALSE);
 asOfFragment: asOfClause EOF;
 // Explicit compiler entry; parameters are not accepted by ordinary statements.
 parameterTemplate: templateSelect SEMI? EOF;
@@ -193,19 +221,20 @@ createKv
     : CREATE KV identifier LPAREN dataType RPAREN
     ;
 
-// GRANT/REVOKE spell the existing typed grant/revoke commands
-// (packages/zig/transit-core's .grant/.revoke, Query.setPolicy) as DDL,
-// exactly like CREATE TABLE spells table_create.
+// One object/role and one recipient. Privilege applicability, duplicate options,
+// PUBLIC delegation and role eligibility are production semantic checks.
 grantStatement
-    : GRANT privilege (COMMA privilege)* ON identifier TO identifier
+    : GRANT privilegeList ON authorizationObject TO grantee grantOption?
+    | GRANT identifier TO authorizationRole (WITH membershipOption (COMMA membershipOption)*)?
     ;
 
 revokeStatement
-    : REVOKE privilege (COMMA privilege)* ON identifier FROM identifier
+    : REVOKE (GRANT OPTION FOR)? privilegeList ON authorizationObject FROM grantee revokeBehavior?
+    | REVOKE ((ADMIN | INHERIT | SET) OPTION FOR)? identifier FROM authorizationRole revokeBehavior?
     ;
 
 privilege
-    : identifier
+    : CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE
     ;
 
 // SHOW TABLES; SHOW SOURCES; SHOW SINKS; SHOW CONNECTIONS;
@@ -247,9 +276,37 @@ legacyIdentifier
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
     | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
     | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
+    | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
+    | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
+    | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
     ;
 
 // ---- Lexer rules --------------------------------------------------------
+
+ROLE: 'ROLE';
+LOGIN: 'LOGIN';
+NOLOGIN: 'NOLOGIN';
+CREATEROLE: 'CREATEROLE';
+NOCREATEROLE: 'NOCREATEROLE';
+SCHEMA: 'SCHEMA';
+DATABASE: 'DATABASE';
+AUTHORIZATION: 'AUTHORIZATION';
+OWNER: 'OWNER';
+CURRENT_ROLE: 'CURRENT_ROLE';
+CURRENT_USER: 'CURRENT_USER';
+SESSION_USER: 'SESSION_USER';
+PUBLIC: 'PUBLIC';
+ALL: 'ALL';
+PRIVILEGES: 'PRIVILEGES';
+OPTION: 'OPTION';
+ADMIN: 'ADMIN';
+INHERIT: 'INHERIT';
+CASCADE: 'CASCADE';
+NONE: 'NONE';
+RESET: 'RESET';
+CONNECT: 'CONNECT';
+USAGE: 'USAGE';
+IN: 'IN';
 
 JOIN: 'JOIN';
 INNER: 'INNER';

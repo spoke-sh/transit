@@ -17,9 +17,9 @@ final class Bridge implements Worker.State<Void> {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
     }
-    static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection) {
+    static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection, String tableServiceUrl) {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
+            "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis(), "table_service_url", tableServiceUrl)), client.nativeHost());
     }
     static Bridge open(ServiceConfig config, FailurePolicy failure) {
         Activation activation = config.activation(); ClientConfig client = config.client();

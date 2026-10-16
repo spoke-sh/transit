@@ -18,25 +18,36 @@ preserves identity. Dropping and recreating a name never rebinds an accepted
 operation, prepared plan or retained schema reference to the replacement.
 
 The configured owner has a native PID, resource association and current execution
-grant. CREATE allocates Table records within that resource; it creates no native
-resource, process or grant. Durable collection sizes are independent of resident
+grant. CREATE allocates Table records within that resource and registers a
+separate native authorization object owned by the original role. Applicable
+default grants are copied at registration; CREATE does not provision a native
+resource or process. Durable collection sizes are independent of resident
 pages and per-operation limits. All accepted histories and receipts have unlimited
 retention unless an owning contract explicitly permits collection.
 
-## Initialization and policy
+## Initialization and authorization
 
-Configuration binds scope, owner, administrator and explicit Publication limits.
-The administrator may be native principal zero; that selection does not confer
-an implicit bypass. Initialization rejects orphan state and records its exact
-configuration. Repeating it cannot restore revoked policy or adopt foreign state.
-The initial framework descriptor, configuration, administrator policy and input
-disposition fit one four-write native decision.
+Configuration binds scope, worker PID, bootstrap principal, an explicit database
+name, Publication
+limits and six native authorization identities: database/schema/Table domains,
+database object, initial schema ID and its authorization object. Initialization
+requires database ownership and exact native bindings. It rejects orphan state
+and records configuration, the initial `public` schema, framework descriptor and
+input disposition in one four-write decision. Repetition cannot restore grants.
 
-Inspect, create, read, insert, update, delete, alter and drop rights are independent.
-Current native grants remain required for all reads and execution. Conditional
-administrator controls change catalog policy and explicit dependency registrations;
-they do not change native grants. Caller configuration, cached schemas and earlier
-successful commands grant no later access.
+Every operation requires database CONNECT and schema USAGE. CREATE additionally
+requires schema CREATE. Table data operations require SELECT, INSERT, UPDATE or
+DELETE; ALTER/DROP require native role ownership. Metadata is visible to an owner
+or a role with an applicable Table privilege. Current checks use the original
+subject's credential epoch and selected role, including continuations and final
+native publication. A supplied principal number is not authentication. Native
+process/resource capabilities remain separate requirements for infrastructure.
+There is no catalog-local permission record or control. Dependency registrations
+remain explicit catalog operations. See [authorization](AUTHORIZATION_V1.md).
+
+Restricted readers use the trusted Table service with an independently signed
+original subject. Its private raw-resource credentials are not caller rights.
+Direct readers need explicit raw-resource authority; Table grants never imply it.
 
 ## Conditional Table creation
 
@@ -51,6 +62,40 @@ cancelled candidate never becomes a partial live Table.
 or verify equality with the existing schema. Name and object conflicts retain
 the original outcome. ALTER, RENAME and DROP use the same coordinator and exact
 saved identity; their bounded publication rules appear below.
+
+## Schema namespaces and administration
+
+Schema names have 1–63 bytes in the shared authorization name representation.
+`CREATE SCHEMA` requires database ownership and SET eligibility for its requested
+owner. It registers a native schema object under the database and publishes the
+schema, name and original outcome together. `ALTER SCHEMA … RENAME` and
+`DROP SCHEMA … RESTRICT` require current schema ownership. Rename preserves the
+schema and authorization identities. Drop leaves both identities retained; a
+later creation using the same name requires a new identity.
+
+Each request binds scope, original principal, positive operation/schema IDs,
+expected schema revision and exact action. Creation requires revision zero;
+rename/drop require the current positive revision. Status verifies the original
+request digest and current ownership. Schema listing returns at most eight
+visible records and binds its cursor to scope and the native resource revision.
+Database CONNECT is required; schema ownership, USAGE or CREATE establishes
+metadata visibility. No Table or schema association itself grants access.
+
+RESTRICT scans at most eight Table records per continuation. A live or
+initializing Table prevents deletion. Table CREATE admission increments the
+schema revision in the same decision that reserves the Table. A concurrent
+creation or rename therefore rejects an older DROP continuation as stale before
+publication. The scan holds no resource-wide lock. Schema deletion does not
+delete Table data, native authorization history or accepted work.
+
+The catalog authorization SQL compiler resolves database, schema, Table and role
+names to stable IDs at a specific native policy revision. Its typed plan selects
+a native policy action, a schema request, or a session role. Native policy plans
+use the shared authorization prepare/preview/submit/observe lifecycle; schema
+plans use the catalog's prepare/submit/status lifecycle. Compilation and
+preparation do not dispatch. An explicit role change is subject to current SET
+eligibility. Saved plans reject foreign definitions, changed identities and stale
+policy bases instead of silently resolving newer objects.
 
 ## Signed Zig caller
 
@@ -136,11 +181,11 @@ general Table schema representation. The catalog stages the exact definition bef
 binding and outcome; codecs alone do not establish acceptance.
 
 `TCM1` records contain the magic, mandatory raw shared definition (32 bytes),
-scope (realm/resource/catalog:u64le), object:u64le, metadata revision:u64le,
+scope (realm/resource/catalog:u64le), object:u64le, schema namespace:u64le, metadata revision:u64le,
 name length:u8 and exact UTF-8 bytes, schema reference (record ID:u64le,
 format:u32le, length:u32le, digest:32 bytes), full schema fingerprint:32 bytes,
 principal:u64le, operation:u64le and admission input:u64le. Names have 1–255 bytes,
-valid UTF-8 and no NUL. The maximum record size is 436 bytes. Trailing/truncated
+valid UTF-8 and no NUL. The maximum record size is 444 bytes. Trailing/truncated
 data, foreign definitions, invalid names/IDs and invalid schema formats reject.
 The schema record is an immutable `FTS1` within that object's Table namespace.
 Loading it verifies its exact object and complete schema fingerprint; no newer
@@ -155,7 +200,7 @@ their bytes; loaded schemas have explicit allocator ownership.
 
 Hashed name-index keys contain `00 43`, catalog:u64be, tag `N`, name digest prefix:13 bytes
 and object:u64be. The digest is SHA-256 of `transit.catalog.name.v1\0` and exact
-normalized name bytes. Its first 13 bytes select a bucket within the native
+schema namespace:u64le followed by normalized name bytes. Its first 13 bytes select a bucket within the native
 32-byte key limit. Equal prefixes retain distinct object-suffixed entries.
 Resolution must compare stored names after checking scope and definition; hashes
 are never equality proof. This key does not impose name-order listing semantics.
@@ -164,7 +209,7 @@ Metadata storage uses Publication domain 9 and namespace object. A 68-byte
 manifest at tag `d`, ID/index zero contains `TCB1`, raw shared definition, scope
 and object:u64le. Initialization verifies an existing exact manifest/quota or
 proves the namespace empty before creating them. Orphans and scope drift reject.
-The budget permits one staged record of at most 436 bytes; no total historical
+The budget permits one staged record of at most 444 bytes; no total historical
 record limit is imposed. Both initialization writes share the ordinary native
 turn limit and roll back together on failure.
 
@@ -180,13 +225,22 @@ defines ownership and the current integration boundary.
 
 The general namespace's fixed control records use the same mandatory-definition
 `TCA1` envelope and little-endian reflected field order. They have these tags:
-`C` configuration (scope, owner, administrator, Table Publication limits);
-`P` policy (scope, principal, revision, eight booleans in inspect/create/read/
-insert/update/delete/alter/drop order); `O` current object; `R` DDL operation;
+`C` configuration (scope, owner, bootstrap principal, Table Publication limits,
+authorization profile, database name); `S` schema (scope, ID, authorization ID, length-prefixed
+63-byte name storage, revision, retired flag); `O` current object, including
+schema namespace and native authorization ID; `R` DDL operation;
 `N` name binding (scope, object); and `B` dependency (scope, object, dependency ID,
 owner PID, kind). Fixed records remain within native 256-byte values: configuration
-93 bytes, policy 85, object 182 and dependency 86. Operations occupy 225 bytes without a blocker
-or 242 bytes with an attributed RESTRICT blocker.
+205 bytes, schema 150, object 198 and dependency 86. Operations occupy 233 bytes without a blocker
+or 250 bytes with an attributed RESTRICT blocker.
+
+Schema controls use tag `H`; retained outcomes use `h` and a key qualified by
+original principal and operation. Outcomes retain the request digest, original
+admission/completion inputs, scan position, state and rejection reason. Schema
+name-index keys use tag `n`, a 13-byte SHA-256 prefix and the schema ID. Resolution
+checks the complete stored name and binding; digest equality never establishes
+name equality. The initial schema is included directly from its explicit `S`
+record until an ordinary rename/drop updates its name index.
 
 Object state distinguishes initializing, live and retired. It retains the current
 metadata reference, monotonic next revision and exact pending principal/operation/
@@ -263,14 +317,14 @@ physical reclamation of accepted data or substitute for native read/commit grant
 performs authentication, current authorization, accepted-metadata resolution,
 staging and fenced commit. Header inspection alone never admits work.
 
-`TCQ1` uses a fixed 141-byte header: magic, raw shared definition (32 bytes),
-realm/resource/catalog (u64 each), owner/principal/operation/object (u64 each),
+`TCQ1` uses a fixed 149-byte header: magic, raw shared definition (32 bytes),
+realm/resource/catalog (u64 each), owner/principal/operation/object/namespace (u64 each),
 metadata reference (id:u64, format:u32, length:u32, digest:32 bytes), and kind:u8.
 Integers are little-endian. Kind codes are CREATE=1, ALTER=2, RENAME=3, DROP=4,
 INSERT=5, UPDATE=6, DELETE=7. Only CREATE or DROP bound to absence uses an exactly
 zero metadata reference; only the latter has object=0. Other commands bind an
 accepted immutable metadata record. Missing/foreign definitions reject before
-metadata or schema-dependent decoding. The envelope limit is the 141-byte header
+metadata or schema-dependent decoding. The envelope limit is the 149-byte header
 plus the FDM1 envelope limit, 65,536 schema bytes and 512 bytes of bounded framing.
 
 CREATE adds a u8-length UTF-8 name, IF NOT EXISTS:u8, then length:u32 and FTS1.
@@ -308,7 +362,7 @@ orphan bytes or another principal/catalog. Its fixed quota admits one body of at
 most the TCQ1 envelope limit; native resource quotas remain separately enforced.
 This helper does not install the native behavior or caller transport by itself.
 
-The retained `TCU1` status is 239 bytes: magic, complete TCQ1 header, namespace:u64,
+The retained `TCU1` status is 247 bytes: magic, complete TCQ1 header, namespace:u64,
 body spec (format:u32, length:u32, digest:32), phase:u8, received:u32,
 admission input:u64, application digest:32 and application route:u8. Integers are
 little-endian. Phase codes are uploading=1, sealed=2, ready=3, cancelled=4.
@@ -339,16 +393,15 @@ upload identity, body commitment, application reference and SQL receipts.
 ## General native owner controls
 
 `TableControl` uses current-definition `TCA1` records within ordinary Station
-cast frames. Command tags are initialize=`I`, conditional policy=`P`, dependency
+cast frames. Command tags are initialize=`I`, dependency
 registration/removal=`D`, cancel/cleanup DDL=`X`/`Y`, cancel/cleanup DML=`M`/`N`,
 begin/part/seal upload=`B`/`A`/`S`, drive upload=`V`, and cancel/collect upload=
 `K`/`G`. All control payloads fit the 243-byte Station frame payload limit.
-Initialization contains the full general configuration. Policy contains expected
-revision:u64 and policy. Dependency contains the dependency and present:boolean.
+Initialization contains the full general configuration. Dependency contains the dependency and present:boolean.
 DDL controls contain scope, principal:u64, operation:u64 and digest:32; DML
 controls contain scope and the complete TableWrite reference.
 
-Upload begin contains the complete 141-byte TCQ1 header, namespace:u64 and body
+Upload begin contains the complete 149-byte TCQ1 header, namespace:u64 and body
 spec. Other upload controls contain scope and namespace:u64. A part appends
 offset:u32, length:u8 and 128 bytes, with mandatory zero padding beyond length.
 Control integers use little-endian and booleans are exactly 0 or 1. No control
@@ -413,10 +466,16 @@ inline send or upload step. It returns running while automatic owner execution
 is pending, terminal evidence when complete, or transport cancellation without
 inventing an SQL receipt. `prepareResume` explicitly schedules the same body or
 ready upload after a pause. It refuses an incomplete or cancelled upload.
-Initialization/policy/dependency and exact cancellation/cleanup controls use the
+Initialization/dependency and exact cancellation/cleanup controls use the
 same signed transport and current scoped owner checks.
 
-`observe` checks the exact admitted input and owner mailbox progress. `progress`
+Prepared retains its original public signing key. Restoring it verifies the
+exact signature independently of the currently configured credential; current
+native authority still decides whether submission is accepted. Receipt recovery
+uses the current credential and the retained original request without re-signing.
+
+`observe` verifies that the native receipt for the complete retained request
+matches the supplied input, then checks owner mailbox progress. `progress`
 then acquires its input disposition, original application outcome and upload
 status at one current authorized resource cut. A terminal SQL result by itself
 does not prove that a particular native send was processed. `waitObserve` and
@@ -425,6 +484,11 @@ use bounded change notification, and fall back to a fresh read after bounded
 capacity backoff. They cache no permission or completion claim. Metadata lookup
 returns an owned schema requiring explicit release. Object-ordered listing
 returns an inline page of metadata/head entries without acquiring schema or rows.
+All recovery disclosure requires current object visibility. Restricted callers
+use the Table service; its private process inspector verifies exact admission
+without giving callers process inspection or raw resource access. A terminal
+outcome cannot validate a fabricated input position, including after that input
+has left the mailbox.
 
 ## General neutral session values
 

@@ -19,17 +19,26 @@ fn connect(config: &Value) -> Result<m::Client> {
     let c = &config["connection"];
     let s = &c["scope"];
     let realm = number(s, "realm");
-    m::Client::open(
-        ClientConfig::growing(text(config, "url"))?.with_timeout(10000)?,
-        Credential::new(realm, number(c, "principal"), text(config, "seed_file"))?,
-        m::Connection::new(
-            ProcessRef::new(realm, number(c, "owner"))?,
-            m::Scope::new(
-                ResourceRef::new(realm, number(s, "resource"))?,
-                text(s, "catalog").parse().unwrap(),
-            )?,
+    let native = ClientConfig::growing(text(config, "url"))?.with_timeout(if config["table_service_url"].is_string() {30000} else {10000})?;
+    let credential = Credential::new(realm, number(c, "principal"), text(config, "seed_file"))?;
+    let mut connection = m::Connection::new(
+        ProcessRef::new(realm, number(c, "owner"))?,
+        m::Scope::new(
+            ResourceRef::new(realm, number(s, "resource"))?,
+            text(s, "catalog").parse().unwrap(),
         )?,
-    )
+    )?;
+    if let Some(role) = c["role"].as_u64() {
+        connection = connection.with_role(role)?;
+    }
+    if let Some(namespace) = c["namespace"].as_u64() {
+        connection = connection.with_namespace(namespace)?;
+    }
+    if let Some(service) = config["table_service_url"].as_str() {
+        m::Client::open_mediated(native, credential, connection, service.into())
+    } else {
+        m::Client::open(native, credential, connection)
+    }
 }
 fn persist(path: &Path, data: &[u8]) {
     let mut file = fs::OpenOptions::new()
@@ -108,7 +117,7 @@ fn scenario(mut client: m::Client, config: &Value, path: &Path, index: u64) -> R
     let description = client.describe()?;
     assert_eq!(description.configuration.scope, client.connection().scope());
     assert_eq!(
-        description.policy.principal,
+        description.subject.principal,
         number(&config["connection"], "principal")
     );
     let compiled=client.compile_sql(&format!("CREATE TABLE {name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))"),ids(0),Some(original_object))?;
@@ -271,6 +280,14 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let action: Value = serde_json::from_str(&line?)?;
         if action.get("close").is_some() {
             break;
+        }
+        if action.get("denied").is_some() {
+            let mut fresh = connect(&config)?;
+            assert_eq!(fresh.describe().unwrap_err().status, Some(4));
+            fresh.close()?;
+            println!("{}", json!({"status":0,"value":{"denied":true}}));
+            io::stdout().flush()?;
+            continue;
         }
         let value = scenario(
             client.take().unwrap(),

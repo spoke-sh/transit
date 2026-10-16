@@ -1,0 +1,27 @@
+{
+  "revision": "c740b00125a6a477fb895222bb14ca3909c0cd12",
+  "dirty": true,
+  "definition": "67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e",
+  "elapsed_seconds": 10.964526223950088,
+  "artifacts": {
+    "transit-node": "8204945e1a9390acb85ea69c267d73c4e6584161ae203b0e68d84e996427eef1",
+    "transit": "8e15d123b87688350fbe672bafbf7cdb6debce4a161391cd77e27475d03458c0",
+    "libtransit_client.so": "3ca397190abb20c032b4d6437afc035437910f600ec1eb599d26c4ee050dc0fb",
+    "transit-client-host": "ac2b63ca809425bedcb87428e6b7969a0bbd5ee927e642940272a886d99e29f9"
+  },
+  "observations": {
+    "restarts": 2,
+    "cli_reader": 2,
+    "abi_role": 8,
+    "bounded_apply": true,
+    "foreign_missing_definition_rejected": true,
+    "stale_record_preserved": true,
+    "cli_abi_host": true,
+    "scoped_changesets": true,
+    "changeset_partial_recovery": true,
+    "changeset_explicit_removal": true
+  },
+  "assertions": "passed",
+  "command": "nix develop --command just test::authorization-cli",
+  "log_sha256": "94b46102dbdba61903f2258d8d8f5e3c790cf510a92a30c555d02418edc29542"
+}

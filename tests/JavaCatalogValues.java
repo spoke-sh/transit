@@ -33,28 +33,28 @@ public final class JavaCatalogValues {
         long pid = Long.parseLong(Files.readString(root.resolve("host-pid"))); check(ProcessHandle.of(pid).map(p -> !p.isAlive()).orElse(true));
         check(Thread.getAllStackTraces().keySet().stream().noneMatch(t -> t.isAlive() && (t.getName().equals("transit-owned-port") || t.getName().equals("transit-completions"))));
     }
-    private static JsonObject metadata() { return obj("scope", SCOPE.wire(), "object", MAX.toString(), "revision", MAX.toString(), "name", "items", "schema_fingerprint", "ab".repeat(32), "principal", 17, "operation", MAX.toString(), "admitted_input", 9,"commitment",new MetadataCommitment(200,new Bytes(new byte[32])).wire()); }
+    private static JsonObject metadata() { return obj("namespace", 1, "scope", SCOPE.wire(), "object", MAX.toString(), "revision", MAX.toString(), "name", "items", "schema_fingerprint", "ab".repeat(32), "principal", 17, "operation", MAX.toString(), "admitted_input", 9,"commitment",new MetadataCommitment(200,new Bytes(new byte[32])).wire()); }
     private static Schema schema() { return new Schema(MAX, n(1), n(2), List.of(new Column(n(1), "id", Logical.Scalar.INT128))); }
     private static JsonObject entry() { return obj("metadata", metadata(), "head", obj("revision", "1", "rows", "0", "pending", "0")); }
-    private static JsonObject definition() { JsonObject out = entry(); out.add("schema", schema().wire()); return out; }
+    private static JsonObject definition() { JsonObject out = entry(); out.add("schema", schema().wire()); out.addProperty("authorization", 30); return out; }
     private static JsonObject page() {
         JsonArray entries = new JsonArray(); entries.add(entry()); while (entries.size() < 8) entries.add(JsonNull.INSTANCE);
         return obj("resource_revision", 9, "entries", entries, "next", new Cursor(DEFINITION, SCOPE, 9, MAX).wire());
     }
     private static void metadataValues() {
-        JsonObject wire = definition(); Definition original = CatalogValues.decode(() -> CatalogValues.resolved(wire, SCOPE, "items")).orElseThrow();
+        JsonObject wire = definition(); Definition original = CatalogValues.decode(() -> CatalogValues.resolved(wire, SCOPE, 1, "items")).orElseThrow();
         check(original.metadata().commitment().bytes()==200 && original.metadata().commitment().digest().equals(new Bytes(new byte[32])));
         check(original.metadata().object().equals(MAX) && original.metadata().revision().equals(MAX) && original.schema().equals(schema()));
         wire.getAsJsonObject("metadata").addProperty("name", "changed"); wire.getAsJsonObject("schema").getAsJsonArray("columns").get(0).getAsJsonObject().addProperty("name", "changed");
         check(original.metadata().name().equals("items") && original.schema().columns().getFirst().name().equals("id"));
-        check(CatalogValues.resolved(JsonNull.INSTANCE, SCOPE, "missing").isEmpty());
+        check(CatalogValues.resolved(JsonNull.INSTANCE, SCOPE, 1, "missing").isEmpty());
         JsonObject historical = obj("metadata", metadata(), "schema", schema().wire());
         check(CatalogValues.historical(historical, SCOPE, MAX, MAX).orElseThrow().schema().equals(original.schema()));
         for (Runnable decode : List.<Runnable>of(
-            () -> CatalogValues.resolved(definition(), SCOPE, "wrong"),
+            () -> CatalogValues.resolved(definition(), SCOPE, 1, "wrong"),
             () -> CatalogValues.historical(historical, SCOPE, n(1), MAX),
             () -> CatalogValues.historical(historical, SCOPE, MAX, n(1)),
-            () -> CatalogValues.resolved(definition(), new Scope(SCOPE.resource(), n(1)), "items"))) rejects(TransitException.class, decode);
+            () -> CatalogValues.resolved(definition(), new Scope(SCOPE.resource(), n(1)), 1, "items"))) rejects(TransitException.class, decode);
         JsonObject source = page(); Page page = CatalogValues.page(source, SCOPE, Optional.empty()); source.getAsJsonArray("entries").set(0, JsonNull.INSTANCE);
         check(page.entries().size() == 1 && page.entries().getFirst().metadata().equals(original.metadata())); rejects(UnsupportedOperationException.class, () -> page.entries().clear());
         List<Entry> input = new ArrayList<>(page.entries()); Page copy = new Page(9, input, page.next()); input.clear(); check(copy.equals(page));
@@ -74,7 +74,7 @@ public final class JavaCatalogValues {
                 case 10 -> bad.addProperty("extra", true);
                 case 11 -> first.remove("commitment");
                 case 12 -> first.getAsJsonObject("commitment").addProperty("format",0);
-                case 13 -> first.getAsJsonObject("commitment").addProperty("length",437);
+                case 13 -> first.getAsJsonObject("commitment").addProperty("length",445);
                 case 14 -> first.getAsJsonObject("commitment").getAsJsonArray("digest").set(0,new JsonPrimitive(256));
                 default -> throw new AssertionError();
             }
@@ -84,6 +84,24 @@ public final class JavaCatalogValues {
         JsonObject empty = page(); empty.getAsJsonArray("entries").set(0, JsonNull.INSTANCE); empty.add("next", JsonNull.INSTANCE);
         check(CatalogValues.page(empty, SCOPE, page.next()).entries().isEmpty());
         empty.add("next", new Cursor(DEFINITION, SCOPE, 9, n(9)).wire()); check(CatalogValues.page(empty, SCOPE, Optional.of(new Cursor(DEFINITION, SCOPE, 9, n(8)))).next().orElseThrow().afterObject().equals(n(9)));
+    }
+    private static void authorityValues() {
+        AuthorityProfile authority = new AuthorityProfile(10, 11, 12, 20, 1, 21);
+        rejects(IllegalArgumentException.class, () -> new AuthorityProfile(10, 10, 12, 20, 1, 21));
+        rejects(IllegalArgumentException.class, () -> new AuthorityProfile(10, 11, 12, 20, 1, 20));
+        Connection connection = new Connection(new ProcessRef(46, 3), SCOPE, Optional.of(7L), 1);
+        Configuration configuration = new Configuration(SCOPE, connection.owner(), 0, new TableLimits(4096, n(32768), 8), authority, "ledger");
+        JsonArray context = new JsonArray(); for (int i = 0; i < 32; i++) context.add(1);
+        JsonObject subject = obj("principal", 17, "login_role", 8, "role", 7, "credential_epoch", 1, "audience", 3, "context", context);
+        JsonObject value = obj("configuration", configuration.wire(), "subject", subject, "authorization_revision", 2, "resource_revision", 3);
+        Description description = CatalogValues.description(value, connection, 17);
+        check(description.subject().role() == 7 && description.configuration().authority().equals(authority) && description.authorizationRevision() == 2);
+        context.set(0, new JsonPrimitive(2)); check(description.subject().context().copy()[0] == 1);
+        for (String field : List.of("principal", "role", "audience", "credential_epoch")) {
+            JsonObject bad = value.deepCopy(); bad.getAsJsonObject("subject").addProperty(field, field.equals("credential_epoch") ? 0 : 99);
+            rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.description(bad, connection, 17)));
+        }
+        rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.resolved(definition(), SCOPE, 2, "items")));
     }
     public static void main(String[] args) throws Exception {
         Logical.Cell largeCell = new Logical.Present(new Logical.Binary(new Logical.BinaryData(new byte[1024 * 1024])));
@@ -95,7 +113,7 @@ public final class JavaCatalogValues {
         List<List<Assignment>> oversizedRows = new ArrayList<>(Collections.nCopies(9, List.of(new Assignment(n(1), largeCell))));
         oversizedRows.add(List.of(new Assignment(n(1), laterInvalid)));
         check(rejects(IllegalArgumentException.class, () -> new Insert(oversizedRows).wire()).getMessage().equals("Table wire budget exceeded"));
-        JavaLogicalValues.run(); metadataValues();
+        JavaLogicalValues.run(); metadataValues(); authorityValues();
         Path root = Path.of(args[0]); Files.writeString(root.resolve("seed"), "11".repeat(32));
         rejects(IllegalArgumentException.class, () -> new Scope(SCOPE.resource(), MAX.add(n(1)))); rejects(IllegalArgumentException.class, () -> new Connection(new ProcessRef(47, 3), SCOPE));
         rejects(IllegalArgumentException.class, () -> new SavedIntent("0".repeat(64), new byte[]{1})); rejects(IllegalArgumentException.class, () -> new Prepared(new Bytes(new byte[8193])));

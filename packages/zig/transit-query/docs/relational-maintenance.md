@@ -67,7 +67,14 @@ or justify skipping source transactions.
 
 `RelationalRevision.open` takes a public `ResourceReader`, frozen bundle, owner,
 resource, peer/correlation, optional exact revision, mode, request budget,
-cancellation flag and fresh snapshot nonce. Omitting the revision selects the
+cancellation flag, fresh disclosure subject and snapshot nonce. Obtain the subject
+with `ResultDisclosure.prepare(authorization_client, options.selection(bundle))`.
+It binds the complete selection and the current caller credential/selected role;
+the immutable execution bundle keeps its original subject and fingerprint.
+The resource reader independently needs native access to the result and source
+resources. This low-level reader is an explicitly privileged infrastructure
+profile; the disclosure proof grants no raw-resource access.
+Omitting the revision selects the
 latest complete revision observed at opening. `result` mode reads full rows;
 `delta` mode requires the exact previous manifest reference, absent only for the
 first revision.
@@ -79,7 +86,9 @@ installing the new consumer relation. An incomplete prefix must not replace the
 last complete relation, even if the host disconnects after its final row.
 
 `openNext` validates the saved version, shared definition, query identity and
-bundle, then requests exactly the following revision. It replays an interrupted
+bundle, then requests exactly the following revision. Prepare its fresh disclosure
+subject from `position.nextOptions(requests, cancellation).selection(bundle)`.
+It replays an interrupted
 transaction from the prior complete position. `MaintainedRevisionPending` means
 that successor is not visible. `MaintainedResetRequired` rejects an incompatible
 predecessor or retired query; explicitly acquire a complete snapshot or activate
@@ -87,9 +96,14 @@ a new query before resetting. It never substitutes the latest revision.
 
 Newer publications do not invalidate an open older revision. Failure or
 cancellation preserves its complete results. Every disclosure still rechecks
-current query policy and native/catalog rights to every source, including empty
+current query policy and the reading caller's native/catalog rights to every source, including empty
 or noncontributing sources. Close the reader on success or failure to release its
 lease. Closing a reader does not stop maintenance.
+
+An authorized recovery caller can read an already complete revision after the
+original caller loses permission or rotates its key. This does not authorize
+another maintenance step: execution continues to use the accepted original
+subject, and cannot acquire authority from the recovery reader.
 
 ## Failure, cancellation and retirement
 

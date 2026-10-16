@@ -16,7 +16,7 @@ namespace logical = transit::sdk::logical;
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
-static void ok(transit_sdk_error e) { assert(e.kind == TRANSIT_SDK_OK); }
+static void ok(transit_sdk_error e) { if (e.kind != TRANSIT_SDK_OK) std::cerr << "Unexpected SDK failure: " << e.kind << " " << e.phase << " " << e.code << std::endl; assert(e.kind == TRANSIT_SDK_OK); }
 template<class F> static void wait(F condition) {
     auto deadline = std::chrono::steady_clock::now() + 10s;
     while (!condition()) { assert(std::chrono::steady_clock::now() < deadline); std::this_thread::sleep_for(10ms); }
@@ -32,21 +32,24 @@ int main(int argc, char **argv) {
     const auto directory = (root / "native").string(), seed = (root / "seed").string();
     auto config = transit_sdk_growing_config("http://127.0.0.1:9"); config.timeout_ms = 1000; config.native_directory = directory.c_str();
     const transit_sdk_credential identity{46, 17, seed.c_str()};
-    const transit_station_catalog_connection connection{{46, 3}, {{46, 7}, UINT64_MAX}};
-    transit_station_catalog_client *client = nullptr; ok(transit_station_catalog_open(&config, &identity, connection, &client));
+    const transit_station_catalog_connection connection{{46, 3}, {{46, 7}, UINT64_MAX}, true, 23, 1};
+    transit_station_catalog_client *client = nullptr; ok(transit_station_catalog_open(&config, &identity, connection, NULL, &client));
     const std::string original = "opaque fixture command";
     transit_station_catalog_prepared *prepared = nullptr;
     ok(transit_station_catalog_prepared_import({reinterpret_cast<const uint8_t *>(original.data()), original.size()}, &prepared));
     std::string command;
     while (std::cin >> command) {
         transit_sdk_error result{};
-        if (command == "lookup" || command == "wrong_name") {
+        if (command == "describe") {
+            transit_station_catalog_description out{}; result = transit_station_catalog_describe(client, &out);
+            if (result.kind == TRANSIT_SDK_OK) assert(out.subject.principal == 17 && out.subject.role == 23 && out.subject.context[31] == 171 && out.authorization_revision == 9 && out.configuration.administrator == 0 && out.configuration.authority.table_domain == 3);
+        } else if (command == "lookup" || command == "wrong_name") {
             transit_station_catalog_definition *out = nullptr;
             result = transit_station_catalog_lookup(client, command == "lookup" ? "items" : "wrong", &out);
             if (result.kind == TRANSIT_SDK_OK && out) {
                 const transit_station_catalog_definition_view *v = nullptr; ok(transit_station_catalog_definition_get(out, &v));
                 assert(v->metadata.commitment.bytes == 200 && v->metadata.commitment.digest[0] == 171 && v->metadata.commitment.digest[31] == 171);
-                assert(v->metadata.object == UINT64_MAX && v->metadata.revision == UINT64_MAX && v->schema.columns[0].type->kind == TRANSIT_LOGICAL_INT128);
+                assert(v->authorization == 101 && v->metadata.namespace_id == 1 && v->metadata.object == UINT64_MAX && v->metadata.revision == UINT64_MAX && v->schema.columns[0].type->kind == TRANSIT_LOGICAL_INT128);
             } else assert(!out);
             transit_station_catalog_definition_destroy(out);
         } else if (command == "history" || command == "wrong_history") {

@@ -9,7 +9,7 @@ configuration creates neither native grants nor process ownership.
 ## Initialization and delegation
 
 Initialize through `TableControl.Command.initialize` authenticated as the
-configured catalog administrator. Catalog configuration, administrator policy,
+configured catalog administrator. Catalog configuration, initial schema,
 input disposition and Station descriptor fit the four-write turn. Query ingress
 requires that committed configuration and its exact realm/resource/owner.
 Changed configuration, poisoned reads and incompatible records propagate without
@@ -24,7 +24,7 @@ no policy for that requester. An exact current policy is idempotent. Missing or
 foreign definitions, truncation, trailing bytes and declaration targets reject.
 
 The policy binds requester PID, request resource, catalog scope, owner, explicit
-catalog principal, allow flag and finite page/segment/byte limits. Only native
+expected original principal, allow flag and finite page/segment/byte limits. Only native
 external input from the configured administrator may change it; a process with
 the same numeric ID is not that principal. Scope and owner must match this
 catalog. A stale expected revision records `stale_policy`; changed scope/owner
@@ -33,10 +33,12 @@ changes record `policy_applied`. All dispositions bind the original payload and
 input position using the catalog's existing disposition format. Changed evidence
 at an occupied input rejects. Policy plus disposition requires two writes.
 
-The committed mapping alone does not grant data access. Capture, continuation
-and disclosure also require the mapped principal's current catalog inspect/read
-rights and the current native grants. Create/read/insert/update/delete/alter/drop
-remain independent. Revoking query delegation changes neither Table rows nor
+The committed mapping cannot authenticate a user. A Table query carries a
+signed original-subject proof bound to its immutable bytes, coordinator and
+intended requester/resource. Capture, continuation and disclosure authenticate
+that proof and require current CONNECT, schema USAGE and Table SELECT. The
+expected principal must equal the verified principal. Table data privileges and
+owner-only lifecycle changes remain independent. Revoking query delegation changes neither Table rows nor
 catalog mutation permissions.
 
 ## Routing and recovery

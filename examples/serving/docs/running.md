@@ -26,8 +26,9 @@ The examples provision an administrator, authenticated timer observer, two Stati
 owners, a separately read-authorized gateway and an explicit service caller.
 They initialize the ingress and application privately, create the counter Table,
 and wait for authorized catalog discovery before publishing its service binding
-and granting caller admission. Reactive callers receive separate catalog
-inspect/read policies. Bootstrap delivery runs before this readiness check; the
+and listeners. The initializer has an ordinary LOGIN owner role. Reactive callers
+receive native CONNECT, USAGE and SELECT grants, with creator-scoped defaults
+applied when the Table is published. Bootstrap delivery runs before this readiness check; the
 physical recovery schedule stops delivery again before accepting its test call. The Table is a non-trading integer counter; there
 are no external effects or callback destinations.
 

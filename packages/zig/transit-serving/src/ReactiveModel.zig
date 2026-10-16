@@ -161,18 +161,26 @@ pub const Read = struct {
         return hash.finalResult();
     }
 };
+/// The complete read is bound to a current original-caller credential and role.
+/// Native authority independently checks the proof at every disclosure boundary.
 pub const SignedRead = struct {
     read: Read,
-    signature: [64]u8,
-    identity: m.Identity,
-    pub fn sign(read: Read, pair: p.Ed25519.KeyPair) !SignedRead {
-        return .{ .read = read, .signature = (try pair.sign(&try read.digest(), null)).toBytes(), .identity = try m.Identity.sign(read.scope.realm, read.scope.principal, pair) };
+    proof: p.Authorization.Proof,
+    pub fn sign(read: Read, pair: p.Ed25519.KeyPair, credential_epoch: u64, role: ?u64) !SignedRead {
+        return fromProof(read, try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = read.scope.realm, .principal = read.scope.principal, .credential_epoch = credential_epoch, .role = role, .audience = read.scope.ingress, .context = try read.digest() }, pair));
+    }
+    pub fn prepare(read: Read, caller: @import("root.zig").station.client.AuthorizationClient) !SignedRead {
+        if (caller.realm != read.scope.realm or caller.principal != read.scope.principal) return error.InvalidReactiveScope;
+        return fromProof(read, (try caller.proof(read.scope.ingress, try read.digest())).signed);
+    }
+    pub fn fromProof(read: Read, proof: p.Authorization.Proof) !SignedRead {
+        try proof.claim.validate();
+        if (proof.claim.realm != read.scope.realm or proof.claim.principal != read.scope.principal or proof.claim.audience != read.scope.ingress or !std.mem.eql(u8, &proof.claim.context, &try read.digest())) return error.InvalidReactiveScope;
+        return .{ .read = read, .proof = proof };
     }
     pub fn verify(self: SignedRead, public_key: [32]u8) !void {
-        if (self.identity.query.realm != self.read.scope.realm or self.identity.query.principal != self.read.scope.principal or self.identity.query.kind != .identity) return error.InvalidReactiveScope;
-        const pk = try p.Ed25519.PublicKey.fromBytes(public_key);
-        try p.Ed25519.Signature.fromBytes(self.signature).verify(&try self.read.digest(), pk);
-        try p.Ed25519.Signature.fromBytes(self.identity.signature).verify(&try p.Growth.queryDigest(self.identity.native().query), pk);
+        _ = try fromProof(self.read, self.proof);
+        try self.proof.verify(public_key);
     }
 };
 
@@ -221,11 +229,11 @@ test "reactive records fit one bounded value and signatures bind scope and progr
     var forged = cursor;
     forged.position.data_revision -= 1;
     try t.expectError(error.SignatureVerificationFailed, forged.verify(key.public_key.toBytes()));
-    const request = try SignedRead.sign(.{ .scope = scope, .kind = .events, .attachment = 3, .nonce = @splat(8), .cursor = cursor }, key);
+    const request = try SignedRead.sign(.{ .scope = scope, .kind = .events, .attachment = 3, .nonce = @splat(8), .cursor = cursor }, key, 1, null);
     try request.verify(key.public_key.toBytes());
     var changed = request;
     changed.read.attachment += 1;
-    try t.expectError(error.SignatureVerificationFailed, changed.verify(key.public_key.toBytes()));
+    try t.expectError(error.InvalidReactiveScope, changed.verify(key.public_key.toBytes()));
     var trailing = try cursor.encode();
     trailing.data[trailing.len] = 0;
     trailing.len += 1;

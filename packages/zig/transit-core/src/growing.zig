@@ -1,5 +1,4 @@
-//! M10 authority integration in development. Published roots, not resident
-//! catalogs, hold protocol state. Served only by the explicit development profile.
+//! Native authority over immutable paged catalogs and journal-published policy.
 const std = @import("std");
 const core = @import("root.zig");
 const catalog = @import("catalog.zig");
@@ -8,11 +7,14 @@ const p = core.protocol;
 const g = p.Growth;
 const state_ops = @import("growing_state.zig");
 const work_ops = @import("growing_work.zig");
+const auth_ops = @import("growing_authorization.zig");
 pub const Genesis = struct {
     version: u32 = g.version,
     definition: g.Definition = g.current_definition,
     realm: u64,
     root_key: [32]u8,
+    authorization_limits: p.Authorization.Limits = .{},
+    authorization_change_quota: core.authorization_admin.Quota = .{},
     max_clock_error_ms: ?u32 = null,
     /// Operational bound on required resources checked at one process boundary.
     /// Non-required associations and retained resources have no catalog ceiling.
@@ -40,6 +42,8 @@ pub const Head = struct {
     position: u64,
     genesis: [32]u8,
     catalog: catalog.Snapshot,
+    authorization: core.authorization_store.Snapshot,
+    authorization_next_id: u64,
     time_floor_ms: u64 = 0,
     outputs: u64 = 0,
     history_floor: u64 = 0,
@@ -47,7 +51,9 @@ pub const Head = struct {
 };
 pub const Record = struct { position: u64, previous: ?pages.Reference, next: Head, request: g.Request, time: ?core.Time.Sample };
 pub const Entry = union(enum) { genesis: struct { genesis: Genesis, head: Head }, operation: Record };
-pub const Principal = struct { grant: g.Grant, revision: u64, epoch: u64, sequence: u64 = 0 };
+/// Current derived decision, never a persisted permission record.
+pub const Principal = struct { grant: g.Grant, role: u64, enabled: bool, credential_epoch: u64, revision: u64, epoch: u64, sequence: u64 };
+pub const Sequence = struct { sequence: u64 };
 pub const Receipt = struct { position: u64, digest: [32]u8 };
 pub const StoredView = struct { meta: g.View, snapshot: catalog.Snapshot };
 pub const StoredReadVersion = struct { meta: g.ReadVersion, snapshot: catalog.Snapshot };
@@ -58,13 +64,14 @@ pub const StoredSnapshot = struct {
     principal_epoch: u64,
     nonce: [16]u8,
 };
-pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
 pub const RetiredProcess = struct { pid: u64, lifecycle: @FieldType(g.Process, "lifecycle") };
 pub const Maintenance = @import("growing_maintenance.zig");
 
 fn genesisHash(genesis: Genesis) ![32]u8 {
     if (genesis.version != g.version or genesis.realm == 0 or genesis.realm > p.max_counter) return error.InvalidGenesis;
     _ = try p.Ed25519.PublicKey.fromBytes(genesis.root_key);
+    try genesis.authorization_limits.validate();
+    if (genesis.authorization_change_quota.steps == 0 or genesis.authorization_change_quota.changed_records == 0 or genesis.authorization_change_quota.steps > p.max_counter or genesis.authorization_change_quota.changed_records > p.max_counter) return error.InvalidCapacity;
     if (genesis.required_dependencies == 0 or genesis.required_dependencies > 4096) return error.InvalidCapacity;
     if (genesis.dependency_vertices == 0 or genesis.dependency_vertices > state_ops.graph_vertices) return error.InvalidCapacity;
     if (genesis.admission_ceiling) |ceiling| if (ceiling < 2 or ceiling > p.max_admission_ceiling) return error.InvalidCapacity;
@@ -93,6 +100,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         genesis: Genesis,
         head: Head,
         record_cache: catalog.RecordCache = .{},
+        authorization_cache: catalog.RecordCache = .{},
         clock: ?core.Time.Source = null,
         /// Inject a fresh secure epoch at service startup. Volatile read pins
         /// cannot survive restart or replace retained durable read versions.
@@ -105,14 +113,15 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const fingerprint = try genesisHash(genesis);
             if (try journal.tail() == 0) {
                 var candidate = try Catalog.open(page_store, .{});
-                try candidate.put(address(.principal, 0), Principal{ .grant = .{ .subject = 0, .public_key = genesis.root_key, .permissions = p.all_permissions }, .revision = 0, .epoch = 0 });
-                const head: Head = .{ .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot };
+                try candidate.put(address(.principal, 0), Sequence{ .sequence = 0 });
+                const policy_root = try auth_ops.bootstrap(page_store, genesis.root_key);
+                const head: Head = .{ .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot, .authorization = policy_root, .authorization_next_id = policy_root.next_id };
                 _ = try journal.append(0, .{ .genesis = .{ .genesis = genesis, .head = head } });
             }
             return open(journal, page_store, genesis);
         }
         pub fn open(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
-            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .definition = g.current_definition, .position = 0, .genesis = try genesisHash(genesis), .catalog = .{} } };
+            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .definition = g.current_definition, .position = 0, .genesis = try genesisHash(genesis), .catalog = .{}, .authorization = .{ .catalog = .{}, .revision = 0, .next_id = 1 }, .authorization_next_id = 1 } };
             try self.refresh();
             const root = try self.principal(0);
             if (!std.mem.eql(u8, &root.grant.public_key, &genesis.root_key)) return error.GenesisMismatch;
@@ -140,14 +149,17 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (next.history_floor >= next.position or next.history_floor < self.head.history_floor) return error.InvalidHistory;
             if (!std.mem.eql(u8, &next.genesis, &self.head.genesis)) return error.GenesisMismatch;
             try next.catalog.validate();
-            if (next.catalog.records == 0) return error.InvalidHistory;
+            try next.authorization.validate();
+            if (next.authorization_next_id < next.authorization.next_id or next.authorization_next_id < self.head.authorization_next_id or next.authorization_next_id >= p.Authorization.public_role) return error.InvalidHistory;
+            if (next.authorization.revision >= next.position or next.authorization.revision < self.head.authorization.revision) return error.InvalidHistory;
+            if (next.catalog.records == 0 or next.authorization.catalog.records == 0) return error.InvalidHistory;
             // A persisted root must include its own publication's sequence and
             // receipt. Detect a wrong/partial root rather than trust a position
             // field that merely claims the proposal became visible.
             if (entry == .operation) {
                 const record = entry.operation;
                 var proposed = try Catalog.open(self.page_store, next.catalog);
-                const caller = (try proposed.get(Principal, address(.principal, record.request.principal))) orelse return error.InvalidHistory;
+                const caller = (try proposed.get(Sequence, address(.principal, record.request.principal))) orelse return error.InvalidHistory;
                 const receipt = (try proposed.get(Receipt, try catalog.key(.receipt, record.request.principal, record.request.sequence, ""))) orelse return error.MissingReceipt;
                 if (caller.sequence != record.request.sequence or receipt.position != record.position or !std.mem.eql(u8, &receipt.digest, &try g.digest(record.request))) return error.InvalidHistory;
             }
@@ -161,8 +173,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return result;
         }
         pub fn principal(self: *Self, id: u64) !Principal {
-            var current = try self.state();
-            return (try current.get(Principal, address(.principal, id))) orelse error.Unauthorized;
+            return auth_ops.principal(self, id);
+        }
+        pub fn authorization(self: *Self) !core.authorization_store.Store(PageStore) {
+            var store = try core.authorization_store.Store(PageStore).open(self.page_store, self.head.authorization);
+            store.catalog.record_cache = &self.authorization_cache;
+            store.next_id = self.head.authorization_next_id;
+            return store;
         }
         pub fn process(self: *Self, pid: u64) !g.Process {
             var current = try self.state();
@@ -195,6 +212,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return principal_value;
         }
         fn authorize(self: *Self, principal_value: Principal, command: g.Command) !void {
+            if (!principal_value.enabled) return error.Forbidden;
+            if (command == .authorization) return;
             const needed: p.Permission = switch (command) {
                 .spawn, .create => .spawn,
                 .send => .send,
@@ -204,7 +223,6 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 .dispatch, .observe, .close_effect => .effect,
                 else => .admin,
             };
-            if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
                 inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect, .runtime_intent, .runtime_observe, .runtime_upgrade, .activate, .declare_payload, .payload_ready, .retire_payload, .payload_deleted, .collect, .initialize, .@"suspend", .@"resume" => |c| c.pid,
                 .turn_with_versions => |command_value| command_value.turn.pid,
@@ -214,6 +232,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 else => null,
             };
             if (principal_value.grant.pid) |scope| if (pid != scope) return error.Forbidden;
+            const permitted = if (command == .send)
+                try auth_ops.selectedNativeHas(self, principal_value, command.send.role, pid, needed)
+            else
+                try auth_ops.nativeHas(self, principal_value, pid, needed);
+            if (!permitted) return error.Forbidden;
         }
         fn duplicate(self: *Self, request: g.Request, principal_value: Principal) !?u64 {
             if (request.sequence > principal_value.sequence) {
@@ -248,6 +271,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (self.head.position < ceiling) return;
             if (self.head.position >= ceiling + self.genesis.control_reserve) return error.ControlCapacity;
             switch (command) {
+                .authorization => |value| if (!try auth_ops.controlCommand(self, value)) return error.AdmissionClosed,
                 .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint, .payload_ready, .retire_payload, .payload_deleted, .collect => {},
                 .grant_resource => |c| if (c.permissions != 0) return error.AdmissionClosed,
                 .turn => |t| {
@@ -274,7 +298,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             }
             var next = self.head;
             const needs_time = switch (request.command) {
-                .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
+                .authorization, .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
                 .reclaim_resource => |id| ((try state_ops.resource(self, id)).history_ms orelse 0) > 0,
                 .runtime_intent => |c| c.desired == .running,
                 .close_effect => |c| c.reason == .deadline,
@@ -307,7 +331,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             };
             // Grant changes may target this caller only when the root's own
             // identity is unchanged; administrative root replacement is invalid.
-            var principal_value = (try candidate.get(Principal, address(.principal, request.principal))) orelse return error.InvalidHistory;
+            var principal_value = (try candidate.get(Sequence, address(.principal, request.principal))) orelse return error.InvalidHistory;
             principal_value.sequence = request.sequence;
             mutations[count] = try catalog.putMutation(address(.principal, request.principal), principal_value);
             mutations[count + 1] = try catalog.putMutation(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) });
@@ -356,26 +380,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         fn apply(self: *Self, candidate: *Catalog, next: *Head, request: g.Request, sample: ?core.Time.Sample) !void {
             const position = self.head.position;
             switch (request.command) {
+                .authorization => try auth_ops.apply(self, candidate, next, request),
                 .grant, .create_principal => |grant| {
-                    if (request.principal != 0) return error.Forbidden;
-                    if (grant.subject == 0 or grant.permissions & ~p.all_permissions != 0) return error.InvalidGrant;
-                    _ = try p.Ed25519.PublicKey.fromBytes(grant.public_key);
-                    const previous = try candidate.get(Principal, address(.principal, grant.subject));
-                    if (request.command == .create_principal and previous != null) return error.InvalidGrant;
-                    var subject = previous orelse Principal{ .grant = grant, .revision = position, .epoch = 0 };
-                    subject.grant = grant;
-                    subject.revision = position;
-                    subject.epoch = position;
-                    try candidate.put(address(.principal, grant.subject), subject);
+                    _ = grant;
+                    try auth_ops.nativeGrant(self, candidate, next, request);
                 },
-                .revoke => |id| {
-                    if (request.principal != 0 or id == 0) return error.Forbidden;
-                    var subject = (try candidate.get(Principal, address(.principal, id))) orelse return error.UnknownPrincipal;
-                    subject.grant.permissions = 0;
-                    subject.revision = position;
-                    subject.epoch = position;
-                    try candidate.put(address(.principal, id), subject);
-                },
+                .revoke => try auth_ops.nativeRevoke(self, next, request),
                 .declare_payload, .payload_ready, .retire_payload, .payload_deleted => try @import("growing_payload.zig").apply(self, candidate, request, sample),
                 .spawn => |create| {
                     if ((create.work_before_ms == null) != (create.settle_before_ms == null)) return error.InvalidLifetime;
@@ -384,6 +394,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                         try self.before(sample, cutoff);
                     }
                     try candidate.put(address(.process, position), g.Process{ .pid = position, .allow_collection = create.allow_collection, .code = create.code, .work_before_ms = create.work_before_ms, .settle_before_ms = create.settle_before_ms });
+                    try auth_ops.object(self, next, .{ .kind = .process, .id = position }, p.all_permissions);
                 },
                 .own => |own| {
                     var process_value = try self.process(own.pid);
@@ -391,7 +402,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try self.executable(process_value, sample, true);
                     if (process_value.generation != own.expected_generation) return error.StaleGeneration;
                     const worker = try self.principal(own.worker);
-                    if (worker.grant.permissions & p.permission(.execute) == 0) return error.Forbidden;
+                    if (!try auth_ops.nativeHas(self, worker, own.pid, .execute)) return error.Forbidden;
                     if (worker.grant.pid) |scope| if (scope != own.pid) return error.Forbidden;
                     process_value.generation += 1;
                     process_value.owner = own.worker;
@@ -403,7 +414,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     if (process_value.binding != null) return error.RuntimeActivationRequired;
                     try self.executable(process_value, sample, true);
                     if (process_value.generation != rotation.expected_generation) return error.StaleGeneration;
-                    var worker = try self.principal(rotation.worker);
+                    const worker = try self.principal(rotation.worker);
                     const required = p.permission(.inspect) | p.permission(.execute);
                     if (worker.grant.pid != rotation.pid or worker.grant.permissions != rotation.expected_permissions or
                         worker.grant.permissions & required != required or
@@ -412,11 +423,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     _ = try p.Ed25519.PublicKey.fromBytes(rotation.public_key);
                     // Preserve both epoch (resource policy) and signed sequence.
                     // A key rotation cannot restore a revoked resource grant.
-                    worker.grant.public_key = rotation.public_key;
-                    worker.revision = position;
                     process_value.generation += 1;
                     process_value.owner = rotation.worker;
-                    try candidate.put(address(.principal, rotation.worker), worker);
+                    try auth_ops.rotate(self, next, rotation.worker, rotation.public_key);
                     try candidate.put(address(.process, rotation.pid), process_value);
                 },
                 .send => |send| {
@@ -424,9 +433,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try self.admissible(process_value, sample, false);
                     process_value.admitted += 1;
                     const input: g.Input = .{ .position = position, .ordinal = process_value.admitted, .value = send.value, .origin = .{ .external = .{ .principal = request.principal, .policy_revision = (try self.principal(request.principal)).revision } } };
+                    const caller = try self.principal(request.principal);
+                    const claim: p.Authorization.Claim = .{ .definition = g.current_definition, .realm = request.realm, .principal = request.principal, .credential_epoch = caller.credential_epoch, .role = (try auth_ops.actor(self, request.principal, send.role)).role, .audience = send.pid, .context = try p.Authorization.inputContext(send.value) };
                     try candidate.mutate(&.{
                         try catalog.putMutation(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input),
                         try catalog.putMutation(address(.process, send.pid), process_value),
+                        try catalog.putMutation(try catalog.key(.authorization_origin, send.pid, input.position, ""), claim),
                     });
                 },
                 .retry => |command| {
@@ -457,10 +469,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
                 .deliver => unreachable, // Prepared with its retry records above.
                 .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
-                .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => try @import("growing_runtime.zig").apply(self, candidate, request, sample),
-                .create, .initialize, .@"suspend", .@"resume", .expire_suspension => try @import("growing_lifecycle.zig").apply(self, candidate, request, sample),
+                .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => try @import("growing_runtime.zig").apply(self, candidate, next, request, sample),
+                .create, .initialize, .@"suspend", .@"resume", .expire_suspension => {
+                    try @import("growing_lifecycle.zig").apply(self, candidate, request, sample);
+                    if (request.command == .create) try auth_ops.object(self, next, .{ .kind = .process, .id = position }, p.all_permissions);
+                },
                 .collect => |command| {
-                    try @import("growing_collection.zig").apply(self, candidate, command);
+                    try @import("growing_collection.zig").apply(self, candidate, next, command);
                     next.last_collection = position;
                 },
                 .checkpoint => {

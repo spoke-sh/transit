@@ -2,7 +2,7 @@
 
 A Table is typed application state in an explicitly configured catalog over one
 durable resource. The catalog owner controls schema changes and row publication.
-Native grants and current catalog permissions apply independently; a name,
+Current database, schema and Table grants use native authorization; a name,
 retained snapshot or cached schema grants neither access nor execution rights.
 
 The [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
@@ -10,6 +10,13 @@ routes CREATE, ALTER, DROP, INSERT, UPDATE, DELETE and supported SELECT statemen
 through that catalog. An authorized new Table is discoverable without editing a
 per-Table connection file or starting another writer. Provisioning the resource,
 assigning its owner and granting permissions remain explicit operations.
+
+The catalog binds an explicit database and initial `public` schema to stable
+native authorization objects. Table metadata records its namespace and logical
+role owner independently of the catalog's worker PID. Restricted readers use the
+[Table service](../../apps/transit-table-service/README.md), which keeps storage
+credentials private and checks a signed original subject. Direct clients require
+explicit raw-resource privileges; those privileges expose the backing resource.
 
 ## Schemas and identities
 
@@ -39,9 +46,12 @@ memory bounds do not impose a fixed total Table or catalog cardinality.
 ## Mutation and visibility
 
 [INSERT](sql/insert.md), [UPDATE](sql/update.md) and [DELETE](sql/delete.md) bind
-complete typed intent to the original object and metadata. Inspect, read,
-create, insert, update, delete, alter and drop are separate catalog rights.
-Successful SELECT or CREATE does not grant a mutation right.
+complete typed intent to the original object and metadata. Every operation needs
+database CONNECT and schema USAGE. Creating a Table also needs schema CREATE;
+SELECT, INSERT, UPDATE and DELETE use the respective Table privilege. ALTER and
+DROP require role ownership. Metadata visibility follows ownership or an
+applicable Table grant. The native graph supplies the current decision, including
+credential epoch and selected role, during execution and final publication.
 
 Each head replacement preserves its immutable predecessor and native commit
 position. Small point changes can publish their row, index, head and terminal
@@ -97,8 +107,11 @@ and remains separate from accepted-history retention.
 resume position only after its complete traversal. Later writes remain in the
 Table's immutable head history while backfill is paused. `openTail` resumes that
 exact object, including after rename, retirement or reuse of its former name.
-The signed caller needs current native resource access and catalog inspection
-and read rights throughout snapshot and tail delivery.
+The signed caller needs current native resource access, database CONNECT,
+schema USAGE and Table SELECT throughout snapshot and tail delivery. A resume
+position retains the original Table identity; rename, DROP or name reuse cannot
+substitute another object's permissions. Every delivered batch and completion
+checks current authority, including a tail reopened from a saved position.
 
 The tail covers every committed head revision in order. Inserts have an after
 row, deletes have a before row, and updates pair both values under one stable

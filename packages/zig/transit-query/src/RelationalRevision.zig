@@ -18,6 +18,9 @@ pub const Options = struct {
     mode: Mode = .result,
     requests: u64,
     cancellation: ?*const std.atomic.Value(bool) = null,
+    pub fn selection(self: Options, bundle: q.RelationalBundle) !q.ResultDisclosure.Selection {
+        return .{ .maintained = .{ .request = try bundle.fingerprint(), .owner = self.owner, .resource = self.resource, .identity = self.identity, .revision = self.revision, .mode = self.mode, .requests = self.requests } };
+    }
 };
 pub const Position = struct {
     version: u8,
@@ -36,11 +39,19 @@ pub const Position = struct {
         try self.reference.validate();
         if (self.revision == 0 or self.reference.domain != .query_result or self.reference.namespace != ((@as(u64, 1) << 63) | self.id) or self.reference.spec.format != r.revision_format or self.reference.spec.length > r.Manifest.max_bytes) return error.InvalidMaintainedRecord;
     }
+    /// The caller signs this next-read selection with its current credential.
+    /// A saved position never carries authority or changes the original bundle.
+    pub fn nextOptions(self: Position, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Options {
+        try self.validate();
+        const revision = std.math.add(u64, self.revision, 1) catch return error.MaintainedRevisionExhausted;
+        return .{ .owner = self.owner, .resource = self.reference.resource, .identity = self.identity, .revision = revision, .mode = .{ .delta = self.reference }, .requests = requests, .cancellation = cancellation };
+    }
 };
 pub const Event = union(enum) { row: f.RelationalExecution.Output, delta: f.RelationalDelta };
 bundle: q.RelationalBundle,
 source: q.wire.SnapshotReader,
 options: Options,
+disclosure: p.Authorization.Subject,
 stored: r.Head,
 reference: Ref,
 manifest: r.Manifest,
@@ -58,13 +69,14 @@ complete: bool = false,
 failed: bool = false,
 closed: bool = false,
 
-pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, nonce: [16]u8) !Self {
+pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
     try bundle.validate();
     try options.identity.validate();
     if (bundle.plan.lifetime != .maintained or bundle.sources[0].scope.realm != client.realm or bundle.sources[0].scope.resource != options.resource or bundle.sources[0].owner != options.owner) return error.RelationalSourceChanged;
     if (options.requests < 2) return error.QueryPageBudget;
     if (options.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
-    var self: Self = .{ .bundle = bundle, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .options = options, .stored = undefined, .reference = undefined, .manifest = undefined, .progress = undefined, .chain = if (options.mode == .result) finite.initialChain() else r.initialDeltaChain() };
+    const subject = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
+    var self: Self = .{ .bundle = bundle, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .options = options, .disclosure = subject, .stored = undefined, .reference = undefined, .manifest = undefined, .progress = undefined, .chain = if (options.mode == .result) finite.initialChain() else r.initialDeltaChain() };
     errdefer {
         const rejection = client.wire.last_rejection;
         self.close() catch {};
@@ -99,11 +111,10 @@ pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: 
 }
 /// Resume exactly the next complete transaction. Pending means no successor is
 /// visible yet; reset-required never silently chooses a newer starting point.
-pub fn openNext(client: q.wire.ResourceReader, bundle: q.RelationalBundle, position: Position, nonce: [16]u8, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
+pub fn openNext(client: q.wire.ResourceReader, bundle: q.RelationalBundle, position: Position, disclosure: p.Authorization.Subject, nonce: [16]u8, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     try position.validate();
     if (!std.mem.eql(u8, &position.request, &try bundle.fingerprint())) return error.RelationalSourceChanged;
-    const revision = std.math.add(u64, position.revision, 1) catch return error.MaintainedRevisionExhausted;
-    var self = try open(client, bundle, .{ .owner = position.owner, .resource = position.reference.resource, .identity = position.identity, .revision = revision, .mode = .{ .delta = position.reference }, .requests = requests, .cancellation = cancellation }, nonce);
+    var self = try open(client, bundle, try position.nextOptions(requests, cancellation), disclosure, nonce);
     errdefer self.close() catch {};
     if (self.stored.id != position.id) return error.MaintainedResetRequired;
     return self;
@@ -167,9 +178,13 @@ fn authorize(self: *Self, finish: bool) !void {
     var reader: Reader = .{ .owner = self, .view = self.source.view };
     const grant = (try q.RelationalCapture.policy(&reader, self.stored.peer)) orelse return error.QueryDenied;
     if (!grant.allow or grant.revision != self.stored.policy_revision or grant.requests != self.stored.request.resource or !std.mem.eql(u8, &grant.request, &try self.bundle.fingerprint())) return error.QueryDenied;
+    const original = try self.bundle.subject(self.stored.request_version.pid, self.stored.peer, self.stored.request.resource);
+    if (original.principal() != grant.principal) return error.QueryDenied;
+    var observed: ?p.Authorization.Guard = null;
+    var authority = q.QueryAuthorization.readerContext(self.source.client, self.disclosure, &observed);
+    authority.budget = .{ .used = &self.requests, .limit = self.options.requests };
     for (self.bundle.sources) |source| {
         try add(&selections, source.scope.resource, q.catalog.Records.key(source.scope.catalog, 'c', 0, 0));
-        try add(&selections, source.scope.resource, q.catalog.Records.key(source.scope.catalog, 'p', grant.principal, 0));
     }
     const value = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = selections, .finish = finish });
     for (value.current) |slot| if (slot) |current_result| {
@@ -183,10 +198,13 @@ fn authorize(self: *Self, finish: bool) !void {
             if (live.phase == .retired) return error.MaintainedResetRequired;
             if (live.id != self.stored.id or live.policy_revision != self.stored.policy_revision or !std.meta.eql(live.request, self.stored.request) or !std.meta.eql(live.request_version, self.stored.request_version) or live.revision < self.stored.revision) return error.QueryDenied;
         }
+        var data: q.wire.ResourceReader.Reader = .{ .client = self.source.client, .view = .{ .resource = current_result.resource.id, .revision = current_result.resource.revision } };
+        var authorized = authority.wrap(&data);
         for (self.bundle.sources) |source| if (source.scope.resource == current_result.resource.id) {
-            _ = try source.checkCurrent(&current, grant.principal);
+            _ = try source.checkCurrent(&authorized, self.disclosure.principal());
         };
     };
+    _ = try authority.requireAuthorization(observed orelse return error.QueryDenied);
 }
 fn order(self: *Self, identity: @FieldType(f.RelationalExecution.Output, "identity")) !void {
     if (self.last) |previous| if (try f.RelationalDelta.identityOrder(previous, identity) != .lt) return error.InvalidRelationalSourceOrder;

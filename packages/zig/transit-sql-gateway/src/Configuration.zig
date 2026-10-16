@@ -21,7 +21,7 @@ limits: g.Limits = .{},
 request_timeout_ms: u32 = 5000,
 accounts: []const Account,
 pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
-pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8 };
+pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
 pub const Account = struct {
     name: []const u8,
     verifier_file: []const u8,
@@ -66,7 +66,7 @@ pub fn validate(self: Self) !void {
             // Separate runtime lanes cannot share any sequenced principal.
             const a = value.ledger;
             const b = other.ledger;
-            for ([_]u64{ a.worker, a.ingress, a.control, a.coordinator, a.table_principal }) |principal| for ([_]u64{ b.worker, b.ingress, b.control, b.coordinator, b.table_principal }) |old| if (principal == old) return error.InvalidGatewayConfiguration;
+            for ([_]u64{ a.worker, a.ingress, a.control, a.coordinator, a.table_principal, a.reader }) |principal| for ([_]u64{ b.worker, b.ingress, b.control, b.coordinator, b.table_principal, b.reader }) |old| if (principal == old) return error.InvalidGatewayConfiguration;
         }
         for (value.databases, 0..) |database, j| {
             try validateName(database.name);
@@ -82,20 +82,30 @@ pub const Credential = struct {
     definition: p.Growth.Definition,
     account: [32]u8,
     revision: u64,
+    principal: u64,
+    login_role: u64,
+    credential_epoch: u64,
     enabled: bool,
     verifier: g.Authentication.Verifier,
+    pub fn checkIdentity(self: Credential, principal: u64, login_role: u64, epoch: u64) !void {
+        if (self.principal != principal or self.login_role != login_role or self.credential_epoch != epoch) return error.GatewayCredentialChanged;
+    }
     pub fn validate(self: Credential, identity: [32]u8) !void {
         if (self.version != 1 or self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-        if (self.revision == 0 or !std.mem.eql(u8, &self.account, &identity)) return error.InvalidAuthentication;
+        if (self.principal == 0 or self.principal > p.max_counter or self.login_role > p.max_counter or self.credential_epoch == 0 or self.credential_epoch > p.max_counter or self.revision == 0 or !std.mem.eql(u8, &self.account, &identity)) return error.InvalidAuthentication;
         try self.verifier.validate();
         if (!self.enabled) return error.InvalidAuthentication;
     }
 };
 test "credentials bind an explicit revision and account independently of SQL names" {
     const t = std.testing;
-    var credential: Credential = .{ .version = 1, .definition = p.Growth.current_definition, .account = @splat(31), .revision = 1, .enabled = true, .verifier = try g.Authentication.Verifier.create("secret", @splat(17), 4096) };
+    var credential: Credential = .{ .version = 1, .definition = p.Growth.current_definition, .account = @splat(31), .revision = 1, .principal = 6, .login_role = 12, .credential_epoch = 2, .enabled = true, .verifier = try g.Authentication.Verifier.create("secret", @splat(17), 4096) };
     try credential.validate(@splat(31));
     try t.expectError(error.InvalidAuthentication, credential.validate(@splat(32)));
+    try credential.checkIdentity(6, 12, 2);
+    try t.expectError(error.GatewayCredentialChanged, credential.checkIdentity(7, 12, 2));
+    try t.expectError(error.GatewayCredentialChanged, credential.checkIdentity(6, 13, 2));
+    try t.expectError(error.GatewayCredentialChanged, credential.checkIdentity(6, 12, 3));
     credential.enabled = false;
     try t.expectError(error.InvalidAuthentication, credential.validate(@splat(31)));
     credential.version = 0;
@@ -103,9 +113,8 @@ test "credentials bind an explicit revision and account independently of SQL nam
 }
 test "SQL mappings reject shared native sequence owners and mismatched catalogs" {
     const t = std.testing;
-    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(31));
     const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
-    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .ledger = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .table_public_key = key.public_key.toBytes(), .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .worker = "/private/w", .ingress = "/private/i", .coordinator = "/private/c", .table = "/private/t" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
+    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .ledger = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .worker = "/private/w", .ingress = "/private/i", .coordinator = "/private/c", .table = "/private/t", .reader = "/private/r" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
     var config: Self = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = "http://127.0.0.1:7700", .certificate_file = "/private/cert", .certificate_key_file = "/private/key", .activation_directory = "/private/activation", .spill_directory = "/private/spill", .postgres_port = 5432, .accounts = &accounts };
     try config.validate();
     try t.expectEqual(@as(usize, 0), try config.account("user"));

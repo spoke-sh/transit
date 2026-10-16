@@ -10,7 +10,7 @@ wire: *root.station.client.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
 refresh: bool = false,
-pub const Connection = struct { realm: u64, principal: u64, service: u64, ingress: u64 };
+pub const Connection = struct { realm: u64, principal: u64, service: u64, ingress: u64, role: ?u64 = null };
 /// Deliberately excludes publication, policy, observer and application commands.
 pub const Command = union(enum) {
     open: r.Open,
@@ -33,7 +33,7 @@ pub const Request = union(enum) {
     covered: struct { observation: root.TableWatch.Observation, captured: root.query.Basis },
     prepare: Command,
     submit: r.SignedSend,
-    observe: u64,
+    observe: r.SignedSend,
     sign_read: r.Read,
     refresh_prepare: root.RefreshModel.Input,
     refresh_status: root.RefreshModel.Selection,
@@ -49,23 +49,16 @@ pub const Response = union(enum) {
     signed_read: r.SignedRead,
     refresh_status: root.RefreshFailure.Status,
 };
-fn query(self: Self, kind: @FieldType(p.Growth.Query, "kind")) !p.Growth.Response {
-    const signed = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = kind }, self.key);
-    const response = self.wire.call(p.Growth.Response, "/v1/query", signed) catch |err| {
-        if (err == error.Rejected or err == error.Conflict) switch (self.wire.last_rejection orelse return err) {
-            .AccessDenied, .Forbidden => return error.ServingDenied,
-            .StateResourceExpired, .UnknownStateResource, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
-            else => {},
-        };
-        return err;
-    };
-    try p.Growth.validateResponse(response, signed.query);
-    return response;
+pub fn authorization(self: Self) root.station.client.AuthorizationClient {
+    return .{ .transport = self.wire, .realm = self.connection.realm, .principal = self.connection.principal, .key = self.key, .role = self.connection.role };
+}
+pub fn servingRead(self: Self, read: m.Read) !m.SignedRead {
+    if (read.service != self.connection.service or read.ingress != self.connection.ingress) return error.ServingDenied;
+    return m.SignedRead.prepare(read, self.authorization());
 }
 pub fn prepare(self: Self, command: Command) !r.SignedSend {
     inline for (.{ "realm", "principal", "service", "ingress" }) |name| try m.identity(@field(self.connection, name));
-    const current = try self.query(.{ .identity = {} });
-    if (current.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    const current = try self.authorization().read(.identity);
     return self.prepareAt(command, try std.math.add(u64, current.principal_sequence, 1));
 }
 /// Explicit sequence is useful to a host that already owns a serialized caller
@@ -77,7 +70,7 @@ fn nativeAt(self: Self, command: m.Command, sequence: u64) !r.SignedSend {
     try m.identity(sequence);
     const payload = try command.encode();
     const value = try (root.station.Frame{ .kind = .cast, .payload = payload }).encode();
-    const signed = try p.Growth.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.connection.ingress, .value = value } } }, self.key);
+    const signed = try p.Growth.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.connection.ingress, .role = self.connection.role, .value = value } } }, self.key);
     return .{ .request = .{ .definition = signed.request.definition, .realm = signed.request.realm, .principal = signed.request.principal, .sequence = sequence, .command = .{ .send = signed.request.command.send } }, .signature = signed.signature };
 }
 pub fn validate(self: Self, prepared: r.SignedSend) !void {
@@ -96,20 +89,12 @@ pub fn validate(self: Self, prepared: r.SignedSend) !void {
 }
 fn refreshPrepare(self: Self, adapter: root.Adapter, input: root.RefreshModel.Input) !r.SignedSend {
     if (!self.refresh) return error.ServingDenied;
-    if (!(try self.query(.capabilities)).body.capabilities.resource_read_access) return error.ReadAccessUnavailable;
+    _ = adapter;
     const command: root.RefreshModel.Command = switch (input) {
-        .follow => |view| blk: {
-            var scoped = try adapter.readerFor(self.connection.principal, &.{m.key('W', 0, 0)});
-            const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ReactiveResetRequired;
-            const identity = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .identity }, self.key);
-            const source_proof = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .{ .read_access = source.resource } }, self.key);
-            const requester_proof = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .{ .read_access = adapter.resource } }, self.key);
-            break :blk .{ .follow = .{ .view = view, .proof = .{ .identity = identity.signature, .source = source_proof.signature, .requester = requester_proof.signature } } };
-        },
+        .follow => |view| .{ .follow = .{ .view = view } },
         inline else => |value, tag| @unionInit(root.RefreshModel.Command, @tagName(tag), value),
     };
-    const current = try self.query(.identity);
-    if (current.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    const current = try self.authorization().read(.identity);
     return self.nativeAt(.{ .refresh = command }, try std.math.add(u64, current.principal_sequence, 1));
 }
 fn refreshStatus(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshFailure.Status {
@@ -121,8 +106,11 @@ fn refreshStatus(self: Self, adapter: root.Adapter, selection: root.RefreshModel
 }
 fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshFailure.Status {
     if (!self.refresh) return error.ServingDenied;
-    const identity = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .identity }, self.key);
-    try adapter.authorize(identity, self.key.public_key.toBytes());
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.serving.refresh-status.v1\x00");
+    hash.update((try root.Codec.encode('f', selection)).slice());
+    const proof = (try self.authorization().proof(self.connection.ingress, hash.finalResult())).signed;
+    try adapter.authorize(proof, self.key.public_key.toBytes());
     var scoped = try adapter.readerFor(self.connection.principal, &.{
         root.RefreshModel.headKey(self.connection.principal, selection.session.session),
         root.RefreshModel.viewKey(self.connection.principal, selection.generation),
@@ -151,50 +139,47 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
         }
         if (result.query_diagnostic == null and view.failure == .stopped and view.failure.stopped.reason == .query_rejected) if (result.diagnostic) |*diagnostic| try diagnostic.absent(.native_cause, .owner, .unavailable);
     }
-    const source = (try self.query(.{ .read_access = view.source.resource })).body.read_access;
-    const requester = (try self.query(.{ .read_access = adapter.resource })).body.read_access;
-    if (source.writer != view.source.target or source.phase != .active or requester.writer != self.connection.ingress or requester.phase != .active) return error.ResourceUnavailable;
-    // Retained diagnostics remain readable across ALTER/DROP only while the
-    // caller retains current catalog rights. The service's native identity
-    // acquires these policy bytes but cannot lend its own catalog permission.
-    var catalog_policy = try adapter.resources.readBatch(view.source.resource, null, &.{
-        root.query.catalog.Records.key(view.source.catalog.value, 'c', 0, 0),
-        root.query.catalog.Records.key(view.source.catalog.value, 'p', self.connection.principal, 0),
-    });
-    if (catalog_policy.resource.writer != view.source.target or catalog_policy.resource.phase != .active) return error.ResourceUnavailable;
+    var raw = try adapter.resources.open(view.source.resource);
+    if ((try adapter.resources.query(.{ .resource = view.source.resource })).body.resource.writer != view.source.target) return error.ResourceUnavailable;
+    var catalog_policy = adapter.authority(.{ .signed = proof }).wrap(&raw);
     _ = try root.TableWatch.authorize(&catalog_policy, self.connection.principal, view.source);
     // These copied records are not disclosed until caller identity and current
     // service policy have been checked again. Mutable ingress writes cannot
     // expire the bounded head/view acquisition halfway through its read.
-    try adapter.authorize(identity, self.key.public_key.toBytes());
+    try adapter.authorize(proof, self.key.public_key.toBytes());
     const latest = try adapter.readerFor(self.connection.principal, &.{});
     if (latest.policy.revision != scoped.policy.revision) return error.ServiceReadConflict;
+    try catalog_policy.finish();
     return result;
 }
 /// A clock sample for lease renewal does not rediscover source schemas or
 /// compute an API-description digest. All reads retain current caller/service
 /// authority and one exact ingress cut; this never records time itself.
 pub fn observedClock(self: Self, adapter: root.Adapter) !u64 {
-    const before = try self.query(.identity);
-    if (before.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    const proof = try self.servingRead(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .discovery });
+    try adapter.authorize(proof.proof, self.key.public_key.toBytes());
     var scoped = try adapter.readerFor(self.connection.principal, &.{m.key('T', 0, 0)});
     const observed = try root.ReactiveService.clock(&scoped.data);
-    const after = try self.query(.identity);
-    if (after.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    try adapter.authorize(proof.proof, self.key.public_key.toBytes());
+    const latest = try adapter.readerFor(self.connection.principal, &.{});
+    if (latest.policy.revision != scoped.policy.revision) return error.ServiceReadConflict;
     return observed;
 }
 pub fn signRead(self: Self, read: r.Read) !r.SignedRead {
     const scope = read.scope;
     if (scope.realm != self.connection.realm or scope.principal != self.connection.principal or scope.service != self.connection.service or scope.ingress != self.connection.ingress) return error.ServingDenied;
-    return r.SignedRead.sign(read, self.key);
+    return r.SignedRead.prepare(read, self.authorization());
 }
-pub fn observe(self: Self, adapter: root.Adapter, input: u64) !Observation {
-    try m.identity(input);
-    const signed = try m.SignedRead.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .disposition, .operation = input }, self.key);
-    // The process observation uses the actual caller's native inspection right.
-    // The subsequent disposition read checks caller/service/resource authority
-    // before and after copying any protected service bytes for disclosure.
-    const current = try self.query(.{ .process = self.connection.ingress });
+/// Recovery authenticates the current credential, addresses the exact old native
+/// request and uses the private reader only after scoped service authorization.
+pub fn observe(self: Self, adapter: root.Adapter, prepared: r.SignedSend) !Observation {
+    const request = prepared.native().request;
+    if (request.realm != self.connection.realm or request.principal != self.connection.principal or request.command.send.pid != self.connection.ingress) return error.ServingDenied;
+    const receipt = (try self.authorization().read(.{ .receipt = request })).body.authorization.body.receipt orelse return .pending;
+    const input = receipt.position;
+    const signed = try self.servingRead(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .disposition, .operation = input });
+    _ = try adapter.read(signed, self.key.public_key.toBytes());
+    const current = try adapter.resources.query(.{ .process = self.connection.ingress });
     if (input > current.position) return error.InvalidServingReceipt;
     const state = current.body.process;
     if (state.process.lifecycle != .running or state.process.failure != null) return error.ResourceUnavailable;

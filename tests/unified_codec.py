@@ -107,7 +107,7 @@ def boolean_bundle_fixtures():
         plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest() +
                       hashlib.sha256(b'transit.query.source.v1\0' + source_bytes).digest() + hashlib.sha256(descriptor(schema)).digest() +
                       bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code)
-        wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + source_bytes + plan_bytes
+        wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + b'\0' + source_bytes + plan_bytes
         digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
         for chunk_index, offset in enumerate(range(0, len(wire), 256)):
             chunk = wire[offset:offset+256]
@@ -220,7 +220,7 @@ def run(host, library, producer):
         assert decoded['plan']['predicate'] == bundle['plan']['predicate']
         assert check({'prepare': decoded})['prepared'] == prepared
         old = bytearray(wire)
-        old[64+source_length+4:64+source_length+36] = bytes.fromhex('58ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c')
+        old[65+source_length+4:65+source_length+36] = bytes.fromhex('58ae72e1f9a4b589536e5a0d262d6e6aebcc2fab40698b4bfea6833281ad9f3c')
         check({'decode': old.hex()}, valid=False)
 
     for program in ([], [{'negate': {}}], [{'atom': {'all': {}}}]*2,

@@ -86,6 +86,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         const step = host.step(handler, now + 30000) catch |err| {
+            if (err == error.CatalogRegistrationRequired) {
+                const action = behavior.registration orelse return err;
+                if (action != .register_object or host.pending != null) return err;
+                if (host.ready != null) try host.discard();
+                const registrar: s.client.AuthorizationClient = .{ .transport = &wire, .realm = config.application.realm, .principal = config.principal, .key = key };
+                const next = try registrar.registration(action.register_object);
+                if (next == .submit) _ = try wire.submit(next.submit);
+                continue;
+            }
             diagnostics.event(.{ .name = "worker.step", .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
             if (s.client.Client.unavailable(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();

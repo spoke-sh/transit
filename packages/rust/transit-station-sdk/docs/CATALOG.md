@@ -3,7 +3,7 @@
 `transit_station_sdk::catalog::Client` exposes CREATE, typed INSERT/UPDATE/DELETE,
 ALTER, RENAME, DROP, authorized metadata and exact saved-intent recovery through
 the shared Zig compiler and owner. Provision the catalog host, native resource,
-ownership, grants and policy explicitly.
+ownership, roles and object grants explicitly.
 
 ```rust
 use transit_station_sdk::catalog::{Client, Connection, Identity, Scope};
@@ -36,7 +36,7 @@ an operation. `compile_sql` takes `Some(object)` for CREATE and `None` for other
 statements.
 
 Resolved `Metadata` includes an owned `MetadataCommitment { bytes, digest }`
-for its immutable publication. The length is one to 436 bytes; the digest is
+for its immutable publication. The length is one to 444 bytes; the digest is
 `[u8; 32]`. Query sources consume it with the metadata revision and schema.
 It identifies the definition and does not grant access or establish current
 name resolution.
@@ -106,10 +106,11 @@ files does not cancel accepted work.
 ## Metadata and administration
 
 `lookup(name)` returns `Option<Definition>` with current `metadata`, complete
-`schema` and live `head`. `definition(object, revision)` returns an accepted
+`schema`, live `head` and stable native `authorization` object. Metadata includes
+the schema `namespace`. `definition(object, revision)` returns an accepted
 `HistoricalDefinition` with metadata and schema and no live head. Historical
-reads survive ALTER, DROP and name reuse under current grants and inspection
-rights. Absent revisions and known unaccepted candidates return `None`; missing
+reads survive ALTER, DROP and name reuse under current database CONNECT, schema
+USAGE and Table SELECT. Absent revisions and known unaccepted candidates return `None`; missing
 original acceptance evidence or corrupt/incompatible retained records fail.
 Private publication alone does not establish acceptance.
 
@@ -122,13 +123,22 @@ fresh listing rather than combining revisions. Response decoding checks exact
 identity, page shape/order/scope, continuation and outcome/count consistency.
 Native validation checks success and failure diagnostics.
 
-`Configuration` includes explicit record/staging byte and staging-record limits.
-`Policy` carries eight independent `Rights`: inspect, create, read, insert,
-update, delete, alter and drop. `PolicyChange` requires the exact expected and
-successor revisions. `prepare_initialize`, `prepare_policy` and
-`prepare_dependency` prepare administrator controls; `describe` reads current
-configuration and caller policy. The native owner rechecks authority and
-conditions when processing commands.
+`Configuration` includes explicit record/staging byte and staging-record limits,
+a database name and an `AuthorityProfile` containing the six registered native
+bindings. Provisioning allocates these identities explicitly. `prepare_initialize`
+and `prepare_dependency` prepare controls without dispatch. `describe` returns
+configuration, the current authenticated `Subject`, and `authorization_revision`.
+The subject carries the login role, selected role, credential epoch, audience and
+an owned context digest; the observation itself grants no authority. The native
+owner rechecks the original subject on continuation and publication.
+
+`Connection::with_role` selects an eligible active role; `with_namespace` selects
+a schema namespace (initially 1). `Client::open_mediated` takes the explicitly
+configured Table service URL. The caller signs commands with its own credential;
+the trusted service holds its separate infrastructure identity. Restricted Table
+users receive no raw-resource access. `Client::open` uses direct reads and requires
+separately granted infrastructure rights. Saved intents retain their original
+identities across revocation and credential rotation.
 
 Methods borrow the client mutably, preventing overlapping calls through safe
 Rust. Use an owned blocking task on an async executor. `close(self)` consumes the

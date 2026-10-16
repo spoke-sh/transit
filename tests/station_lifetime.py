@@ -6,7 +6,7 @@ import time
 
 from inspection import System
 from station import frame
-from station_ledger import audit_total
+from station_ledger import audit_total, provision
 from storage import wait_ready
 
 
@@ -16,11 +16,12 @@ def run(node, cli, worker, courier):
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
         resource = s.command({"create_resource": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}})
         seed, public = s.key("worker")
-        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 88, "pid": pid}})
-        for principal in (0, 1):
+        for principal in (0,):
             s.command({"grant_resource": {"resource": resource, "subject": principal, "permissions": 7}})
         s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
         s.command({"initialize": {"pid": pid, "expected_generation": 1}})
+        application = dict(role='ledger', principal=1, pid=pid, seed_file=str(seed))
+        provision(s, [(resource, application)])
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 2}})
         config = s.root / "station.json"
         courier_seed, courier_public = s.key('courier')
@@ -31,7 +32,7 @@ def run(node, cli, worker, courier):
 
         def once(generation, error=None):
             config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 1,
-                "pid": pid, "generation": generation, "seed_file": str(seed)}))
+                "pid": pid, "generation": generation, "seed_file": str(seed), "authorization": application['authorization']}))
             # Zig's build runner can force color even in redirected child logs.
             # This fixture compares an exact error, so use unstyled diagnostics.
             child = s.start(worker, "--once", config, env=dict(os.environ, NO_COLOR="1"))

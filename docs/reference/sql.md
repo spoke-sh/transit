@@ -26,8 +26,13 @@ The [grammar surface inventory](sql/grammar-surface.md) labels implemented and
 planned operations, including the intended graph, foreign-relation and historical
 schema syntax. Planned examples are proposals, not runnable SQL.
 
+The dedicated [authorization interface](sql/authorization.md) compiles role,
+schema, grant, revoke, default-privilege and ownership statements to reviewable
+typed plans. Explicit administration applies them through the native or catalog
+owner; query-only transports do not acquire administrative mutation semantics.
+
 Diagnostics distinguish malformed executable syntax from syntax unavailable on
-the selected interface. Grammar-only connection, source, sink and grant families
+the selected interface. Grammar-only connection, source and sink families
 report that their submitted syntax has not been validated. An incomplete `SHOW`
 requires a catalog name; it is not evidence that a named catalog is unsupported.
 

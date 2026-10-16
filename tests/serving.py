@@ -16,7 +16,7 @@ import time
 
 from storage import Fixture, free_port, wait_ready
 from cold_storage import ColdStore
-from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter
+from serving_table import TABLE_LIMITS, bootstrap as bootstrap_counter, provision_catalog
 
 REALM = 49
 TLS = {}
@@ -44,12 +44,14 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=1, definition='138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365', realm=REALM, principal=principal, sequence=sequence, command=command)
+    if 'send' in command:
+        command['send'].setdefault('role', None)
+    request = dict(version=1, definition='4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -70,10 +72,18 @@ def policy(principal, revision=1, commands=True, reads=True, limit=1):
     return b'SV1c\x02' + struct.pack('<QQQ??B', principal, revision - 1, revision, commands, reads, limit)
 
 
+def subject_proof(key, principal, ingress, context, credential_epoch=None, role=None, realm=REALM):
+    if credential_epoch is None:
+        observation = post(key.authority_port, '/v1/query', native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
+        credential_epoch = observation['body']['authorization']['body']['identity']['credential_epoch']
+    claim = dict(definition='4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
+    return dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest()))
+
+
 def signed_read(key, principal, ingress, kind, operation=0):
     read = dict(realm=REALM, principal=principal, service=1, ingress=ingress, kind=kind, operation=operation)
     encoded = b'SV1r' + struct.pack('<QQQQBQ', REALM, principal, 1, ingress, {'discovery': 1, 'status': 2, 'result': 3, 'disposition': 4}[kind], operation)
-    return dict(read=read, signature=key.sign(hashlib.sha256(b'transit.serving.read.v1\0' + encoded).digest()), identity=native_query(key, principal, {'identity': {}}))
+    return dict(read=read, proof=subject_proof(key, principal, ingress, hashlib.sha256(b'transit.serving.read.v1\0' + encoded).digest()))
 
 
 def post(port, path, value, host=None, status=200, headers=None):
@@ -96,9 +106,10 @@ def post(port, path, value, host=None, status=200, headers=None):
         # Cold recovery can temporarily exhaust authority request admission.
         # Retry only the same serialized signed command, never a new sequence.
         # Explicit rejection/fault assertions (status=None/503) remain visible.
-        capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
+        serving_capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
                        for fact in (decoded.get('diagnostic') or {}).get('facts', []))
-        if path == '/serving/v1/command' and status == 202 and actual == 503 and capacity and time.monotonic() < deadline:
+        native_capacity = path == '/v1/command' and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
+        if (native_capacity or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
             retries += 1
             time.sleep(.05)
             continue
@@ -121,6 +132,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
         keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         port = free_port()
+        for key in keys.values(): key.authority_port = port
         url = f'http://127.0.0.1:{port}'
         configuration = store.root / 'node.json'
         configuration.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
@@ -262,7 +274,10 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
                 for pid, foreign, worker in ((ingress, application_resource, 77), (application, ingress_resource, 78)):
                     send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
                     send({'own': dict(pid=pid, expected_generation=2, worker=worker)})
-            for principal in (33, 34): grant(principal, 20)
+            grant(34, 20)
+            for principal in (65536, 65537): grant(principal, 20, ingress)
+            catalog_authority = provision_catalog(REALM, application_resource, keys[33], send, query,
+                readers=(65536, 65537) if reactive else ())
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
@@ -270,7 +285,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             grant(80, 148)
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
-            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS)})
+            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33, table_limits=TABLE_LIMITS, **catalog_authority)})
             if live_profile:
                 ingress_config['generation'] = application_config['generation'] = 3
                 ingress_config['role'] = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)}
@@ -291,8 +306,7 @@ def run(node, example, courier, cli, tls=False, capacity=False, lifetimes=False,
             cast(ingress, publication(1, application, deadline_ms))
             for principal in (65536, 65537): cast(ingress, policy(principal))
             drained(ingress)
-            # Initialize privately before exposing any untrusted native ingress.
-            for principal in (65536, 65537): grant(principal, 20, ingress)
+            # Publish listeners only after private initialization has completed.
             if live_profile:
                 resource_grant(application_resource, 65536, 3)
                 resource_grant(ingress_resource, 65536, 3)

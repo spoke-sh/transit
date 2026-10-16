@@ -23,12 +23,14 @@ generate:
 # Detect public schema/default/signing changes that were not reviewed together.
 check:
     zig build contract | python3 -B tests/contract.py
+    python3 -B tests/native_fixtures.py
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py
     just contract::client-check
     just contract::station-check
     just contract::logical-check
+    just contract::table-service-check
     python3 -B bindings/generate.py
     python3 -B tests/binding_schema_types.py
 
@@ -52,3 +54,9 @@ logical-generate:
 
 logical-check:
     zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py
+
+table-service-generate:
+    zig build table-service-contract | python3 -B tests/table_service_contract.py --write
+
+table-service-check:
+    zig build table-service-contract | python3 -B tests/table_service_contract.py

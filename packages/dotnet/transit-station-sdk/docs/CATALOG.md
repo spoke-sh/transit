@@ -37,7 +37,7 @@ default. Opening owns a native worker and checks the exact shared definition
 and capabilities.
 
 Resolved `Metadata` owns a `MetadataCommitment(bytes, digest)` identifying its
-immutable publication. The length is one to 436 bytes and the digest is an
+immutable publication. The length is one to 444 bytes and the digest is an
 immutable 32-byte `Bytes` value. Query sources consume it with the metadata
 revision and schema; it grants no access and does not establish live resolution.
 
@@ -118,29 +118,40 @@ category, status, code and diagnostic. The client performs no automatic submissi
 retry; durable recovery material belongs to the application, independently of a
 Task or managed object.
 
-## Policy, dependencies and metadata
+## Authority, dependencies and metadata
 
-`PrepareInitializeAsync(Configuration(scope, owner, administrator, tableLimits))`
-prepares immutable host configuration. `TableLimits(recordBytes, stagingBytes,
-stagingRecords)` requires explicit deployment quotas. `PreparePolicyAsync(
-PolicyChange(expectedRevision, policy))` prepares conditional administrator
-control. A `Policy` owns scope/principal/revision and eight independent boolean
-`Rights`: Inspect, Create, Read, Insert, Update, Delete, Alter and Drop. Expected
-revision zero means an absent policy. The caller and host validate successor
-revision and authority.
+`PrepareInitializeAsync(Configuration(scope, owner, administrator, tableLimits,
+authority, databaseName))` prepares immutable host configuration. `TableLimits`
+requires explicit deployment quotas. `AuthorityProfile(databaseDomain,
+schemaDomain, tableDomain, database, initialSchema, initialSchemaAuthority)`
+contains the six registered native bindings. Provision these explicitly; startup
+does not invent objects or restore grants.
+
+`Connection(owner, scope, role: null, schemaNamespace: 1)` selects an eligible
+active role and schema namespace. `Client.OpenAsync` accepts an explicit
+`tableServiceUrl` for trusted Table mediation. The caller retains its own signing
+credential; the service holds its separate infrastructure identity. Restricted
+Table users receive no raw-resource access. Omitting the endpoint uses direct
+reads and requires separately granted infrastructure rights.
 
 `PrepareDependencyAsync(Dependency(scope, objectId, identity, owner, kind), present)`
 registers/removes a dependency. Kinds are `QuerySource`, `Writer`, `Watch`,
 `MaintainedRelation` and `History`; registration grants no access. DROP RESTRICT
 retains original blocking dependency evidence. `InputDispositionAsync` reads an
 administrator-control or rejected-input result. Absence proves no outcome.
-`DescribeAsync` returns current configuration/policy; `CapabilitiesAsync` returns
-typed native limits.
+`DescribeAsync` returns current configuration, authenticated `Subject` and
+`AuthorizationRevision`; `CapabilitiesAsync` returns typed native limits. The
+subject carries principal, login role, selected role, credential epoch, audience
+and an owned context digest. It grants no authority. Protected disclosures and
+owner continuations check current rights; accepted write identities survive
+revocation.
 
-`LookupAsync(name)` returns a nullable `Definition(Metadata, Head, Schema)`.
+`LookupAsync(name)` returns a nullable `Definition(Authorization, Metadata, Head, Schema)`.
 `DefinitionAsync(objectId, revision)` returns a nullable accepted
 `HistoricalDefinition` with metadata and schema, including after retirement;
-it has no current head. Missing/unaccepted definitions are absent.
+it has no current head. Missing/unaccepted definitions are absent. Metadata
+includes the schema `Namespace`; `Authorization` identifies the stable native
+Table object. Current CONNECT, USAGE and SELECT also govern historical reads.
 `ListAsync` returns a `Page` with a resource revision, at most eight ordered
 `Entry(Metadata, Head)` values and optional `Next`. Continue while the cursor
 exists, including empty pages with continuation. Restore all `Cursor` fields:

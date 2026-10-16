@@ -4,7 +4,7 @@ const c = @import("root.zig");
 const p = c.protocol;
 const s = c.station;
 const Store = @import("TestStore.zig");
-const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } };
+const config: c.TableCatalogRecords.Configuration = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .administrator = 17, .database_name = c.TableAuthority.Name.init("test") catch unreachable, .authority = @import("TestStore.zig").profile, .table_limits = .{ .record_bytes = c.fuze.TableRow.max_bytes, .staging_bytes = c.fuze.TableRow.max_bytes * 2, .staging_records = 2 } };
 const catalog: c.TableCatalog = .{ .configuration = config };
 const uploads: c.TableUpload = .{ .catalog = catalog };
 const upload: c.TableControl.Upload = .{ .scope = config.scope, .namespace = 1000 };
@@ -86,6 +86,114 @@ fn create(store: *Store, behavior: *c.TableBehavior) !void {
     var buffer: [4096]u8 = undefined;
     try drain(store, behavior, try stage(store, behavior, try creation(&buffer)));
 }
+
+fn bindSchema(store: *Store, id: u64, native: u64) !void {
+    const binding = try c.TableAuthority.binding(config.scope, .schema, id);
+    try store.authority.bindings.put(t.allocator, binding, .{ .reference = c.TableAuthority.reference(native), .owner = 17, .registrar = 2, .domain = config.authority.schema_domain, .binding = binding, .parent = c.TableAuthority.reference(config.authority.database), .actions = 3, .revision = 1 });
+}
+fn schemaRequest(id: u64, operation: u64, name: []const u8) !c.SchemaCatalog.Request {
+    return .{ .scope = config.scope, .principal = 17, .operation = operation, .schema = id, .expected_revision = 0, .action = .{ .create = .{ .name = try .init(name), .owner = 17 } } };
+}
+
+test "schema lifecycle preserves identity through rename and permits only fresh identities on name reuse" {
+    var store: Store = .{};
+    defer store.deinit();
+    var behavior: c.TableBehavior = .{ .allocator = t.allocator, .configuration = config };
+    try ready(&store, &behavior);
+    const schemas: c.SchemaCatalog = .{ .configuration = config };
+    const create_schema = try schemaRequest(8, 1, "sales");
+    try bindSchema(&store, 8, 108);
+    var turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = create_schema }));
+    try t.expectEqual(@as(usize, 3), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture(17);
+    const original = (try schemas.lookup(&turn, 17, try .init("sales"))).?;
+    try t.expectEqual(@as(u64, 108), original.authorization);
+    try t.expectEqual(.applied, (try schemas.status(&turn, 17, create_schema)).?.state);
+    turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = create_schema }));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try store.commit(turn);
+
+    const rename: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .{ .rename = try .init("accounts") } };
+    turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = rename }));
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expect(try schemas.lookup(&turn, 17, try .init("sales")) == null);
+    try t.expectEqual(original.authorization, (try schemas.lookup(&turn, 17, try .init("accounts"))).?.authorization);
+
+    const drop: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 3, .schema = 8, .expected_revision = 2, .action = .drop };
+    turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = drop }));
+    const next = turn.decision.outputs[0].?.value;
+    try store.commit(turn);
+    try drain(&store, &behavior, next);
+    turn = try store.capture(17);
+    try t.expect((try schemas.record(&turn, 8)).?.retired);
+    try t.expectEqual(.applied, (try schemas.status(&turn, 17, drop)).?.state);
+    const reused = try schemaRequest(8, 4, "accounts");
+    try t.expectError(error.CatalogIdentityConflict, schemas.prepare(&turn, reused));
+    try bindSchema(&store, 9, 109);
+    const replacement = try schemaRequest(9, 5, "accounts");
+    turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = replacement }));
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try t.expectEqual(@as(u64, 109), (try schemas.lookup(&turn, 17, try .init("accounts"))).?.authorization);
+    const listing = try schemas.list(&turn, 17, null);
+    try t.expectEqual(@as(u64, 1), listing.schemas[0].?.id);
+    try t.expectEqual(@as(u64, 9), listing.schemas[1].?.id);
+    try t.expect(listing.schemas[2] == null);
+}
+
+test "schema DROP scans bounded pages and fences a concurrent initializing Table" {
+    var store: Store = .{};
+    defer store.deinit();
+    var behavior: c.TableBehavior = .{ .allocator = t.allocator, .configuration = config };
+    try ready(&store, &behavior);
+    const schemas: c.SchemaCatalog = .{ .configuration = config };
+    try bindSchema(&store, 8, 108);
+    try store.commit(try dispatch(&store, &behavior, external(17), try frame(.{ .schema = try schemaRequest(8, 1, "sales") })));
+    // Retired records remain durable. They force pagination without imposing a
+    // resident limit on all Table identities or requiring physical cleanup.
+    for (10..29) |id| {
+        var turn = try store.capture(17);
+        const object: c.TableCatalogRecords.Object = .{ .scope = config.scope, .object = id, .namespace = 1, .authorization = 200 + id, .state = .retired, .next_revision = 2 };
+        try turn.write(catalog.key('O', id, 0), try c.Records.encode('O', object));
+        try store.commit(turn);
+    }
+    var drop: c.SchemaCatalog.Request = .{ .scope = config.scope, .principal = 17, .operation = 2, .schema = 8, .expected_revision = 1, .action = .drop };
+    var turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = drop }));
+    var message = turn.decision.outputs[0].?.value;
+    try store.commit(turn);
+    turn = try dispatch(&store, &behavior, process(3), message);
+    try t.expectEqual(@as(usize, 1), writes(turn));
+    message = turn.decision.outputs[0].?.value;
+    try store.commit(turn);
+
+    const binding = try c.TableAuthority.binding(config.scope, .table, 40);
+    try store.authority.bindings.put(t.allocator, binding, .{ .reference = c.TableAuthority.reference(140), .owner = 17, .registrar = 2, .domain = config.authority.table_domain, .binding = binding, .parent = c.TableAuthority.reference(108), .actions = c.TableAuthority.table_actions, .revision = 1 });
+    const table: c.TableDdlRequest = .{ .principal = 17, .operation = 10, .namespace = 8, .object = 40, .expected_revision = 0, .name = try .init("pending"), .action = .{ .create = .{ .schema = .{ .object = 40, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }}, .primary_key = &.{} } } } };
+    turn = try store.capture(17);
+    const admitted = try (c.TableCatalog{ .configuration = config, .namespace = 8 }).step(t.allocator, &turn, table);
+    try t.expectEqual(.preparing, admitted.operation.state);
+    try t.expectEqual(@as(usize, 3), writes(turn));
+    try store.commit(turn);
+    try drain(&store, &behavior, message);
+    turn = try store.capture(17);
+    try t.expectEqual(.stale_schema, (try schemas.status(&turn, 17, drop)).?.reason);
+    try t.expect(!(try schemas.record(&turn, 8)).?.retired);
+
+    drop.operation = 3;
+    drop.expected_revision = 2;
+    turn = try dispatch(&store, &behavior, external(17), try frame(.{ .schema = drop }));
+    message = turn.decision.outputs[0].?.value;
+    try store.commit(turn);
+    try drain(&store, &behavior, message);
+    turn = try store.capture(17);
+    try t.expectEqual(.not_empty, (try schemas.status(&turn, 17, drop)).?.reason);
+    try t.expect(!(try schemas.record(&turn, 8)).?.retired);
+    const object = try c.Records.decode(c.TableCatalogRecords.Object, 'O', (try turn.read(catalog.key('O', 40, 0))).?);
+    try t.expectEqual(.initializing, object.state);
+}
 fn dml(store: *Store, sql: []const u8, operation: u64) !p.Value {
     var turn = try store.capture(17);
     var definition = (try catalog.lookup(t.allocator, &turn, 17, try c.TableMetadata.Name.init("people"))).?;
@@ -138,10 +246,10 @@ test "general owner pauses denied continuations and resumes original accepted wo
     var turn = try dispatch(&store, &behavior, external(17), deletion);
     const message = turn.decision.outputs[0].?.value;
     try store.commit(turn);
-    var policy = try c.TableCatalogRecords.Policy.administrator(config.scope, 17);
+    var policy = try @import("TestStore.zig").Rights.administrator(config.scope, 17);
     policy.revision = 2;
     policy.delete = false;
-    try store.commit(try dispatch(&store, &behavior, external(17), try frame(.{ .policy = .{ .expected_revision = 1, .policy = policy } })));
+    try store.setRights(policy);
     turn = try dispatch(&store, &behavior, process(3), message);
     try t.expectEqual(.denied, (try disposition(&turn)).?.outcome);
     try t.expectEqual(@as(usize, 1), writes(turn));
@@ -150,7 +258,7 @@ test "general owner pauses denied continuations and resumes original accepted wo
     try store.commit(turn);
     policy.revision = 3;
     policy.delete = true;
-    try store.commit(try dispatch(&store, &behavior, external(17), try frame(.{ .policy = .{ .expected_revision = 2, .policy = policy } })));
+    try store.setRights(policy);
     turn = try dispatch(&store, &behavior, external(17), deletion);
     const resumed = turn.decision.outputs[0].?.value;
     try store.commit(turn);
@@ -211,7 +319,6 @@ test "native Table controls round trip within one frame and reject padding" {
     const data: c.TableControl.Dml = .{ .scope = config.scope, .reference = reference };
     const commands = [_]c.TableControl.Command{
         .{ .initialize = config },
-        .{ .policy = .{ .expected_revision = 0, .policy = try c.TableCatalogRecords.Policy.administrator(config.scope, 18) } },
         .{ .dependency = .{ .dependency = .{ .scope = config.scope, .object = 100, .identity = 1, .owner = 4, .kind = .history }, .present = true } },
         .{ .cancel_ddl = ddl },
         .{ .cleanup_ddl = ddl },

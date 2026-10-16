@@ -7,12 +7,14 @@ const t = f.Types;
 const logical = f.LogicalQuery;
 const codec = f.LogicalPlanCodec;
 const Self = @This();
-pub const header_bytes = 64;
-pub const max_bytes = header_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;
+pub const header_bytes = 65;
+pub const max_bytes = header_bytes + q.QueryAuthorization.encoded_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;
 pub const format: u32 = 0x31425155; // UQB1
 source: q.SourceDefinition,
 plan: logical.Plan,
 limits: Limits,
+/// Null is an unsigned description. Table execution requires a bound proof.
+authorization: ?q.QueryAuthorization = null,
 /// The SQL name is a caller-owned alias for this explicit source definition.
 /// Returned plan slices belong to allocator; source slices retain their owner.
 pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits) !Self {
@@ -45,6 +47,8 @@ pub const Limits = struct {
     }
 };
 pub fn validate(self: Self) !void {
+    if (self.source.source != .table and self.authorization != null) return error.UnsupportedQueryAuthorization;
+    if (self.authorization) |value| try value.validate();
     try self.limits.validate();
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try self.source.schema(&fields);
@@ -72,6 +76,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     try writer.writeInt(u16, @intCast(source.len), .little);
     try writer.writeInt(u16, @intCast(plan.len), .little);
     inline for (.{ "pages", "segments", "result_bytes" }) |name| try writer.writeInt(u64, @field(self.limits, name), .little);
+    try q.QueryAuthorization.write(self.authorization, &writer);
     try writer.writeAll(source);
     try writer.writeAll(plan);
     return writer.buffered();
@@ -84,16 +89,41 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     const source_length = try reader.takeInt(u16, .little);
     const plan_length = try reader.takeInt(u16, .little);
     const limits: Limits = .{ .pages = try reader.takeInt(u64, .little), .segments = try reader.takeInt(u64, .little), .result_bytes = try reader.takeInt(u64, .little) };
+    const authorization = try q.QueryAuthorization.read(&reader);
     const source = try q.SourceDefinition.decode(allocator, try reader.take(source_length));
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const result: Self = .{
         .limits = limits,
+        .authorization = authorization,
         .source = source,
         .plan = try codec.decodeInto(allocator, try source.schema(&fields), try source.fingerprint(), try reader.take(plan_length)),
     };
     if (reader.bufferedLen() != 0) return error.InvalidQueryBundle;
     try result.validate();
     return result;
+}
+fn unsigned(self: Self, output: []u8) ![]const u8 {
+    var description = self;
+    description.authorization = null;
+    return description.encode(output);
+}
+pub fn authorize(self: Self, client: q.wire.AuthorizationClient, audience: u64, requester: u64, requests: u64) !Self {
+    if (self.authorization != null) return error.QueryAlreadyAuthorized;
+    var bytes: [max_bytes]u8 = undefined;
+    var result = self;
+    result.authorization = try q.QueryAuthorization.prepare(client, audience, requester, requests, try self.unsigned(&bytes));
+    return result;
+}
+pub fn subject(self: Self, audience: u64, requester: u64, requests: u64) !?q.protocol.Authorization.Subject {
+    const authorization = self.authorization orelse return if (self.source.source == .table) error.QueryDenied else null;
+    var bytes: [max_bytes]u8 = undefined;
+    return try authorization.subject(audience, requester, requests, try self.unsigned(&bytes));
+}
+pub fn bindSubject(self: Self, turn: *q.station.Turn, requester: u64, requests: u64, expected: ?u64) !void {
+    if (try self.subject(turn.delivery.pid, requester, requests)) |original| {
+        if (expected) |who| if (original.principal() != who) return error.QueryDenied;
+        try turn.bindAuthorizationSubject(original);
+    } else if (expected != null) return error.QueryDenied;
 }
 pub fn reference(self: Self, resource: u64, namespace: u64) !q.station.PublicationReference {
     var buffer: [max_bytes]u8 = undefined;

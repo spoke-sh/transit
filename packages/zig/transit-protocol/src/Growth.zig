@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.sql-wire-parameters.2026-10-13.
+/// SHA-256 of transit.native.v1.authorization-admission-bound-recovery.2026-10-15.
 pub const Definition = enum {
-    @"138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+    @"4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -93,14 +93,17 @@ pub const Turn = struct {
     outputs: [turn_outputs]?Output = @splat(null),
     effect: ?p.Value = null,
     failed: bool = false,
+    /// Current original-subject requirements, independent of executor fencing.
+    authorization: ?p.Authorization.Guard = null,
 };
 pub const Command = union(enum) {
+    authorization: p.Authorization.Command,
     grant: Grant,
     revoke: Id,
     spawn: Create,
     own: struct { pid: Id, expected_generation: u64, worker: Id },
     retry: struct { pid: Id, expected_generation: u64, failure_input: Id },
-    send: struct { pid: Id, value: p.Value },
+    send: struct { pid: Id, value: p.Value, role: ?Id = null },
     begin_turn: struct { pid: Id, generation: u64, input: Id },
     turn: Turn,
     terminate: Id,
@@ -264,6 +267,7 @@ pub const Query = struct {
     realm: Id,
     principal: Id,
     kind: union(enum) {
+        authorization: p.Authorization.Query,
         capabilities: void,
         inspection: Inspection.Query,
         delivery: void,
@@ -326,6 +330,7 @@ pub const Capabilities = struct {
     leased_snapshots: bool = false,
     snapshot_read: bool = false,
     worker_rotation: bool = false,
+    declarative_authorization: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
@@ -345,6 +350,7 @@ pub const Response = struct {
     position: Id,
     principal_sequence: u64,
     body: union(enum) {
+        authorization: p.Authorization.Result,
         capabilities: Capabilities,
         inspection: Inspection.Page,
         delivery: struct { next: ?Id },
@@ -424,6 +430,7 @@ pub fn validate(request: Request) !void {
     }
 }
 fn validateTurn(turn: Turn) !void {
+    if (turn.authorization) |guard| try guard.validate();
     for (turn.current_views, 0..) |slot, i| if (slot) |id| {
         if (id == 0 or std.mem.indexOfScalar(?Id, &turn.views, id) == null) return error.InvalidStateView;
         for (turn.current_views[0..i]) |previous| if (previous == id) return error.InvalidStateView;
@@ -446,6 +453,7 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .authorization => |q| try p.Authorization.validateQuery(q),
         .inspection => |q| try Inspection.validate(q),
         .snapshot_read => |q| try SnapshotRead.validate(q),
         .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
@@ -500,6 +508,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .authorization => |q| try p.Authorization.validateResult(response.body.authorization, q, query.realm, query.principal),
         .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
         .inspection => try Inspection.validatePage(response.body.inspection, query, response.position),
         .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
@@ -645,7 +654,7 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
 
 test "contract definitions reject numeric enum aliases in both JSON decoders" {
     const t = std.testing;
-    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "null", "false", "[]", "{}" }) |bytes| {
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
         const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer value.deinit();
@@ -796,6 +805,24 @@ test "native responses require the current contract definition even with a v1 la
         "00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214",
         // Integrated plans before the neutral caller layout cutover.
         "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
+        // Coupled native credential/permission records before declarative roles.
+        "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+        // Role graph before authenticated service claims and publication guards.
+        "9019f430927fc05d487fc716b7a33d870909e0c00a8808799d085b09658aa246",
+        "3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51",
+        // Application Table continuations before native original-subject guards.
+        "dbabceb7ec736d0ab8c2874fb404249f45eea6ad9666a183a7e0a4125f6c4986",
+        // SQL account records before retained schema/role and private reader identity.
+        "d70f7dc070a57a2da55ff74f938297ae6c48404d2b648aa3fdd7b214c481939b",
+        // Serving reads before bound current original-subject proofs.
+        "84cad99694b96f29d0b8bff1529036006166000d56bc5889b19f6760ef0a6373",
+        // Mediation recovery before retained signer and exact send receipts.
+        "3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3",
+        // Original-subject queries before recoverable administration semantics.
+        "3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a",
+        "ac0e81dfaadf725c78718db69d4f29fddf460007918b8e8ea12d518179c0b67d",
+        "38d50a6745f3bafd7e25f1e8300af4fd054818a0a7b90426786b1294fd06b727",
+        "f5aa69446cb85fcbc2e5d0e3f56f2af91b86d99c481d8bdc53c033c4a95d84a9",
     }) |definition| {
         const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, previous, .{}));
@@ -963,8 +990,11 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("da7d5c214623f765485956ead362d69fe832f123ede4f9fae8f1dbc1d7224f7e", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("04f7cc62dcba85d269baffc9dfbd665fc40b2081e6280a330626763856245ea1", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    const Fixture = struct { turn: struct { sha256: []const u8 }, entries: struct { sha256: []const u8 } };
+    const fixture = try std.json.parseFromSlice(Fixture, std.testing.allocator, @embedFile("fixtures/authorization-v1.json"), .{ .ignore_unknown_fields = true });
+    defer fixture.deinit();
+    try std.testing.expectEqualStrings(fixture.value.turn.sha256, &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings(fixture.value.entries.sha256, &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

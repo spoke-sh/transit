@@ -39,6 +39,12 @@ pub const Control = enum { cancel_operation, cleanup_operation, cancel_upload, c
 pub const Action = union(enum) {
     capabilities,
     describe,
+    schemas: ?v.SchemaCursor,
+    schema_lookup: []const u8,
+    schema_status: v.SchemaRequest,
+    prepare_schema: v.SchemaRequest,
+    prepare_schema_plan: v.AuthorizationPlan,
+    compile_authorization: struct { sql: []const u8, identity: c.AuthorizationSql.Identity = .{} },
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
     list: ?v.Cursor,
@@ -51,9 +57,9 @@ pub const Action = union(enum) {
     prepare_resume: Reference,
     prepare_control: struct { intent: Reference, control: Control },
     prepare_initialize: v.Configuration,
-    prepare_policy: v.PolicyChange,
     prepare_dependency: v.DependencyChange,
     submit: []const u8,
+    receipt: []const u8,
     observe: Input,
     wait_observe: Input,
     input_disposition: Input,
@@ -65,6 +71,10 @@ pub const Progress = union(enum) { pending, processed: struct { disposition: ?v.
 pub const Result = union(enum) {
     capabilities: Capabilities,
     description: v.Description,
+    schemas: v.Schemas,
+    schema: ?v.Namespace,
+    schema_outcome: ?v.SchemaOutcome,
+    authorization_plan: v.AuthorizationPlan,
     definition: ?v.Definition,
     historical: ?v.HistoricalDefinition,
     page: v.Page,
@@ -75,6 +85,7 @@ pub const Result = union(enum) {
     state: v.State,
     prepared: []const u8,
     receipt: p.Receipt,
+    receipt_status: ?p.Receipt,
     observation: Client.Observation,
     disposition: ?v.Disposition,
     progress: Progress,
@@ -132,9 +143,15 @@ pub const Session = struct {
         const allocator = arena.allocator();
         return switch (action) {
             .capabilities => .{ .capabilities = .{} },
+            .schemas => |cursor| .{ .schemas = try v.Schemas.foreign(allocator, try client.schemas(if (cursor) |value| try value.native() else null)) },
+            .schema_lookup => |name| .{ .schema = if (try client.schema(try .init(name))) |value| try v.Namespace.foreign(allocator, value) else null },
+            .schema_status => |request| .{ .schema_outcome = if (try client.schemaStatus(try request.native())) |value| try v.SchemaOutcome.foreign(allocator, value) else null },
+            .prepare_schema => |request| .{ .prepared = try (try client.prepareControl(.{ .schema = try request.native() })).save(allocator) },
+            .prepare_schema_plan => |plan| .{ .prepared = try (try client.prepareSchemaPlan(try plan.native())).save(allocator) },
+            .compile_authorization => |value| .{ .authorization_plan = try v.AuthorizationPlan.foreign(allocator, try c.AuthorizationSql.compile(client, allocator, value.sql, value.identity, location)) },
             .describe => blk: {
                 const value = try client.describe();
-                break :blk .{ .description = .{ .configuration = try v.Configuration.foreign(allocator, value.configuration), .policy = try v.Policy.foreign(allocator, value.policy), .resource_revision = value.resource_revision } };
+                break :blk .{ .description = .{ .configuration = try v.Configuration.foreign(allocator, value.configuration), .subject = value.subject, .authorization_revision = value.authorization_revision, .resource_revision = value.resource_revision } };
             },
             .lookup => |name| blk: {
                 var value = (try client.lookup(allocator, try c.TableMetadata.Name.init(name))) orelse break :blk .{ .definition = null };
@@ -209,9 +226,9 @@ pub const Session = struct {
                 break :blk .{ .prepared = try (try client.prepareControl(command)).save(allocator) };
             },
             .prepare_initialize => |value| .{ .prepared = try (try client.prepareControl(.{ .initialize = try value.native() })).save(allocator) },
-            .prepare_policy => |value| .{ .prepared = try (try client.prepareControl(.{ .policy = try value.native() })).save(allocator) },
             .prepare_dependency => |value| .{ .prepared = try (try client.prepareControl(.{ .dependency = try value.native() })).save(allocator) },
             .submit => |value| .{ .receipt = try client.submit(try prepared(allocator, value)) },
+            .receipt => |value| .{ .receipt_status = try client.receipt(try prepared(allocator, value)) },
             .observe => |value| .{ .observation = try client.observe(try prepared(allocator, value.prepared), value.input) },
             .wait_observe => |value| .{ .observation = try client.waitObserve(try prepared(allocator, value.prepared), value.input) },
             .input_disposition => |value| .{ .disposition = if (try client.inputDisposition(try prepared(allocator, value.prepared), value.input)) |result| try v.Disposition.foreign(result) else null },

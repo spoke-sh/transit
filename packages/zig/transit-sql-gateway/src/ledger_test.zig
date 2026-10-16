@@ -3,19 +3,18 @@ const g = @import("root.zig");
 const c = g.catalog;
 const Store = @import("store_test.zig");
 const t = std.testing;
-const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
-const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .table_public_key = @splat(0), .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
+const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9, .namespace = 7, .role = 29 };
+const configuration: g.Ledger.Configuration = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .reader = 11, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 1000, .byte_quota = 1024 * 1024, .pending_quota = 2 };
 fn intent(id: u64) !c.TableIntent {
     const schema: c.fuze.TableSchema.Schema = .{ .object = id, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
-    const request: c.TableDdlRequest = .{ .principal = configuration.table_principal, .operation = id, .object = id, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = schema } } };
+    const request: c.TableDdlRequest = .{ .principal = configuration.table_principal, .namespace = binding.namespace, .operation = id, .object = id, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = schema } } };
     return c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(.{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog }, binding.owner, request, null), id);
 }
 test "ledger reserves identity and capacity before staged intent; only committed intent is admitted" {
     var store: Store = .{};
     defer store.deinit();
     const signing_key = try c.protocol.Ed25519.KeyPair.generateDeterministic(@splat(31));
-    var config = configuration;
-    config.table_public_key = signing_key.public_key.toBytes();
+    const config = configuration;
     const ledger: g.Ledger = .{ .configuration = config };
     var turn = try store.capture();
     try ledger.initialize(&turn, 0);
@@ -29,6 +28,15 @@ test "ledger reserves identity and capacity before staged intent; only committed
     turn = try store.capture();
     const before = turn.decision;
     try t.expectEqualDeep(item, try ledger.begin(&turn, @splat(11), binding));
+    try t.expectEqualDeep(before, turn.decision);
+    try t.expectEqual(binding.namespace, item.namespace);
+    try t.expectEqual(binding.role, item.selectedRole());
+    var changed_binding = binding;
+    changed_binding.role = null;
+    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding));
+    changed_binding = binding;
+    changed_binding.namespace += 1;
+    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding));
     try t.expectEqualDeep(before, turn.decision);
     var saved = try intent(item.id);
     defer saved.deinit();
@@ -77,7 +85,20 @@ test "ledger reserves identity and capacity before staged intent; only committed
     try store.commit(turn);
     const payload = if (saved.body.len <= g.station.Frame.max_payload) try c.protocol.Value.init(saved.body) else try (c.TableControl.Command{ .begin = .{ .header = try saved.header.encode(), .namespace = saved.namespace, .spec = saved.spec } }).encode();
     const native = c.protocol.Growth;
-    const step: c.TableClient.Prepared = .{ .version = 1, .definition = native.current_definition, .connection = .{ .scope = saved.header.scope, .owner = saved.header.owner, .principal = saved.header.principal }, .signed = try native.sign(.{ .realm = 1, .principal = configuration.table_principal, .sequence = 1, .command = .{ .send = .{ .pid = binding.owner, .value = try (g.station.Frame{ .kind = .cast, .payload = payload }).encode() } } }, signing_key) };
+    const step: c.TableClient.Prepared = .{ .version = 1, .definition = native.current_definition, .connection = .{ .scope = saved.header.scope, .owner = saved.header.owner, .principal = saved.header.principal, .namespace = binding.namespace, .role = binding.role }, .public_key = signing_key.public_key.toBytes(), .signed = try native.sign(.{ .realm = 1, .principal = configuration.table_principal, .sequence = 1, .command = .{ .send = .{ .pid = binding.owner, .role = binding.role, .value = try (g.station.Frame{ .kind = .cast, .payload = payload }).encode() } } }, signing_key) };
+    // A valid newly signed request cannot change the operation's selected role.
+    var switched = step;
+    switched.connection.role = 30;
+    switched.signed.request.command.send.role = 30;
+    switched.signed = try native.sign(switched.signed.request, signing_key);
+    const switched_record = try stage(&store, ledger, item.id, 1, switched);
+    turn = try store.capture();
+    try t.expectError(error.GatewayIdentityConflict, ledger.publishStep(t.allocator, &turn, item.id, 1, switched_record));
+    try ledger.abandonStep(&turn, item.id, 1, switched_record);
+    try store.commit(turn);
+    turn = try store.capture();
+    try ledger.collectAbandonedStep(&turn, item.id, 1, switched_record);
+    try store.commit(turn);
     // A valid signature at a foreign sequence remains unpublished. Its abandoned
     // attempt can be collected without ever changing/reusing its identity.
     var foreign = step;

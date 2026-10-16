@@ -79,7 +79,7 @@ test "bounded control records survive data reads and invalidate on root changes"
     var store: Store = .{};
     defer store.deinit();
     var catalog = try c.Catalog(Store).open(&store, .{});
-    const grant = try c.key(.grant, 4, 3, "");
+    const grant = try c.key(.authorization_grant, 4, 3, "");
     try catalog.put(grant, @as(u64, 7));
     for (0..32) |i| try catalog.put(try c.key(.entry, 4, i, "data"), @as(u64, i));
     var cache: c.RecordCache = .{};

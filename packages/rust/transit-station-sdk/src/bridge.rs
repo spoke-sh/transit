@@ -748,12 +748,13 @@ impl CatalogNative {
         config: &transit_client::ClientConfig,
         credential: &transit_client::Credential,
         connection: &crate::catalog::Connection,
+        service_url: Option<&str>,
     ) -> Result<Self> {
         let (url, timeout, directory) = settings(config);
         let local = Local::open(directory)?;
         let key = credential_seed(credential)?;
         let bytes = serde_json::to_vec(
-            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout}),
+            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout,"table_service_url":service_url}),
         )
         .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-config"))?;
         let mut pointer = ptr::null_mut();

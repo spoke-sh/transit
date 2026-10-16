@@ -5,7 +5,7 @@ import time
 
 from inspection import System
 from station import frame
-from station_ledger import AUDIT, audit_state, audit_total
+from station_ledger import AUDIT, audit_state, audit_total, provision
 
 
 def run(node, cli, worker, courier, controller):
@@ -29,23 +29,26 @@ def run(node, cli, worker, courier, controller):
             pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
             resource = s.command({"create_resource": {"writer": pid}})
             seed, public = s.key(role)
-            s.command({"grant": {"subject": principal, "public_key": public, "permissions": 88, "pid": pid}})
-            for subject in (0, principal):
+            if role == 'coordinator':
+                s.command({"grant": {"subject": principal, "public_key": public, "permissions": 88, "pid": pid}})
+            for subject in ((0, principal) if role == 'coordinator' else (0,)):
                 s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
             s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
             command(pid, b"init")
             s.command({"initialize": {"pid": pid, "expected_generation": 1}})
-            s.command({"own": {"pid": pid, "worker": principal, "expected_generation": 2}})
             configs[pid] = {"url": s.url, "realm": 72, "principal": principal, "pid": pid,
                             "generation": 3, "seed_file": str(seed), "role": role,
                             "destination": destination, "observer": 5}
             resources[pid] = resource
-            worker_once(pid)
             return pid
 
         ledger = create(1, "ledger")
         requester = create(2, "requester", ledger)
         coordinator = create(4, "coordinator", ledger)
+        provision(s, [(resources[pid], configs[pid]) for pid in (ledger, requester)])
+        for pid in (ledger, requester, coordinator):
+            s.command({'own': dict(pid=pid, worker=configs[pid]['principal'], expected_generation=2)})
+            worker_once(pid)
         # A PID-scoped actuator reads its supervisor's intent through an explicit
         # optional association as well as a separate read grant.
         s.command({"suspend": {"pid": ledger, "expected_generation": 3,

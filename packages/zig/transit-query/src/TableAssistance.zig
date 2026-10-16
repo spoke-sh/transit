@@ -234,12 +234,12 @@ pub fn complete(allocator: std.mem.Allocator, client: *c.TableClient, request: a
     const initial = try client.describe();
     var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
     hash.update(&c.TableMetadata.definition());
-    for ([_]u64{ client.connection.scope.realm, client.connection.scope.resource, client.connection.scope.catalog, client.connection.owner, client.connection.principal, initial.resource_revision, initial.policy.revision }) |id| {
+    for ([_]u64{ client.connection.scope.realm, client.connection.scope.resource, client.connection.scope.catalog, client.connection.owner, client.connection.principal, initial.resource_revision, initial.authorization_revision }) |id| {
         var bytes: [8]u8 = undefined;
         std.mem.writeInt(u64, &bytes, id, .little);
         hash.update(&bytes);
     }
-    var response: a.Response = .{ .generation = request.generation, .profile = .catalog_v1, .resource = client.connection.scope.resource, .contract = hash.finalResult(), .resource_revision = initial.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{initial.policy.revision}), .range = range, .items = &.{} };
+    var response: a.Response = .{ .generation = request.generation, .profile = .catalog_v1, .resource = client.connection.scope.resource, .contract = hash.finalResult(), .resource_revision = initial.resource_revision, .policy_revision = try std.fmt.allocPrint(allocator, "{d}", .{initial.authorization_revision}), .range = range, .items = &.{} };
     errdefer allocator.free(response.policy_revision);
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();

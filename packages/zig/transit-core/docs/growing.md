@@ -24,8 +24,10 @@ Its successful authority-tail check is the authorization point, not a reusable
 grant. Core tests cover separate PID scope, read-only revocation with metadata
 still readable, signature tampering, raced authority and resource retirement.
 
-Principals use full-width value keys. Grants have an epoch for later resource-
-grant invalidation without scanning all resources. Receipts are independently
+Principals use full-width value keys. Credentials bind stable roles; a separate
+paginated policy root owns memberships, objects and grants. Direct-native
+credential replacement retires its private role without scanning resources.
+Named roles retain privileges across explicit credential rotation. Receipts are independently
 addressed by principal and sequence; retry does not scan the history or evict an
 older receipt. Authentication/current command permission precedes retry lookup.
 Mailbox keys combine PID and per-process ordinal; input bytes and source evidence
@@ -51,8 +53,8 @@ it never guesses a root from page or snapshot listings.
 State turns stage bounded mutations alongside process progress, output/effect
 intents, closed views and retry evidence. Current resource grants are required
 when disclosing a retained state receipt, including receipts whose views closed
-long ago. A grant epoch change invalidates old resource grants without scanning
-the resource catalog. Views retain one catalog root, not copies of resource data.
+long ago. Current graph grants apply independently of the captured resource
+catalog. Views retain one catalog root, not copies of resource data.
 Resource entry counts obey the public integer encoding range. A batch that would
 exceed it publishes neither mutations, progress nor view closure; an atomic key
 replacement at that range boundary remains valid. This is an encoding limit,

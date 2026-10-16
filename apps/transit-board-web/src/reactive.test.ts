@@ -45,7 +45,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+        definition: "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -138,7 +138,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "138bd4043de660b50db60d909ab7e29c3d1ab64b1b0658a8a8e000fd15d72365",
+          definition: "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
           realm: 49,
           principal: 65536,
           sequence: 1,
@@ -229,6 +229,17 @@ describe("generated reactive transport boundary", () => {
 test.each(["valid", "malformed", "foreign", "wrong_input", "wrong_outcome", "absent"])(
   "committed rejection preserves primary reason without resubmitting (%s)",
   async (kind) => {
+    const signed = {
+      request: {
+        version: 1,
+        definition: reactiveFixture.read.proof.claim.definition,
+        realm: 49,
+        principal: 65536,
+        sequence: 7,
+        command: { send: { pid: 1, role: null, value: "00" } },
+      },
+      signature: Array(64).fill(0),
+    };
     const original = {
       ...structuredClone(diagnosticFixture),
       code: "reactive.lease_conflict",
@@ -267,7 +278,7 @@ test.each(["valid", "malformed", "foreign", "wrong_input", "wrong_outcome", "abs
     const session = new Session(
       new Transport(async (_url, options) => {
         ++calls;
-        expect(JSON.parse(options!.body as string)).toEqual({ observe: 10 });
+        expect(JSON.parse(options!.body as string)).toEqual({ observe: signed });
         return Response.json({
           observation: {
             rejected: {
@@ -291,7 +302,7 @@ test.each(["valid", "malformed", "foreign", "wrong_input", "wrong_outcome", "abs
       connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
     } as never;
     session.pending = {
-      signed: {} as never,
+      signed: signed as never,
       command: {
         renew: { identity: { session: 5, generation: 6 }, expected: 1000, lease_before_ms: 2000 },
       },

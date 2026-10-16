@@ -1,0 +1,19 @@
+{
+  "assertions": "passed",
+  "revision": "ca76ae7a",
+  "dirty": true,
+  "definition": "c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd",
+  "command": "nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-tls=true -Dserving-reactive=true -Dserving-reactive-refresh=true",
+  "seconds": 162.64,
+  "log_sha256": "230c416738589f0fbb840ec88bc80dce2f631a3f149d25947b6eff487347569f",
+  "checks": [
+    "Two views under one principal, exact lost follow receipt, one admitted query and fair successor.",
+    "Worker replacement preserves frozen original query proofs and full-width identities.",
+    "Removing caller raw resource READ does not block mediated refresh; removing native Table SELECT denies refresh and admission.",
+    "Retained denial diagnostic remains stable after rights restoration; pause and close controls remain usable."
+  ],
+  "limits": [
+    "Executable hashes and overall build time were not captured.",
+    "The success message was corrected after this run to describe the native SELECT injection accurately; no assertion or runtime behavior changed."
+  ]
+}

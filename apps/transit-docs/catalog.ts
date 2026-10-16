@@ -23,6 +23,12 @@ export const sections: Section[] = [
     label: "CLI",
     pages: [
       reference("cli", "Transit CLI"),
+      page(
+        "apps/transit-cli/docs/authorization.md",
+        "guides/authorization",
+        "Administer roles and grants",
+      ),
+      page("apps/transit-cli/docs/catalog.md", "guides/catalog", "Use Tables and recover writes"),
       page("apps/transit-cli/docs/console.md", "guides/console", "Use the console"),
       page("apps/transit-cli/docs/file-query.md", "guides/file-query", "Query CSV and JSONL files"),
       page("apps/transit-cli/docs/server.md", "guides/server", "Configure a local server"),
@@ -61,6 +67,7 @@ export const sections: Section[] = [
       reference("sql/drop-table", "DROP TABLE"),
       reference("sql/create-document", "CREATE DOCUMENT"),
       reference("sql/create-kv", "CREATE KV"),
+      reference("sql/authorization", "Role and schema administration"),
       reference("sql/grant", "GRANT"),
       reference("sql/revoke", "REVOKE"),
       reference("sql/show", "SHOW"),
@@ -136,6 +143,7 @@ export const sections: Section[] = [
       reference("native", "Native signed protocol"),
       page("contracts/SERVICE_V1.md", "reference/native-wire", "Native HTTP wire contract"),
       page("contracts/TRANSIT_V1.md", "reference/native-protocol", "Native protocol v1"),
+      page("contracts/AUTHORIZATION_V1.md", "reference/authorization-contract", "Authorization v1"),
     ],
   },
   {

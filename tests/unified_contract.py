@@ -117,7 +117,7 @@ def bundles():
         named = head + bytes([0, 2, 1, 0, 6]) + b'Result' + b'\0' + suffix
         counted = head + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
         def bundle(plan):
-            return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+            return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + b'\0' + source + plan
         wire = bundle(plan)
         digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
         for index, offset in enumerate(range(0, len(wire), 256)):

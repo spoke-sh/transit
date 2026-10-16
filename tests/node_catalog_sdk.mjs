@@ -9,9 +9,9 @@ assert.ok(import.meta.resolve('@transit/station').startsWith(new URL('./node_mod
 const config = JSON.parse(await readFile(process.argv[2], 'utf8'));
 const c = config.connection;
 const scope = new m.Scope(new ResourceRef(c.scope.realm, c.scope.resource), BigInt(c.scope.catalog));
-const connection = new m.Connection(new ProcessRef(c.scope.realm, c.owner), scope);
+const connection = new m.Connection(new ProcessRef(c.scope.realm, c.owner), scope, c.role ?? undefined, c.namespace ?? 1);
 const credential = new Credential(c.scope.realm, c.principal, config.seed_file);
-const connect = () => m.Client.open({url:config.url, profile:'native_v1', timeoutMs:10000}, credential, connection);
+const connect = () => m.Client.open({url:config.url, profile:'native_v1', timeoutMs:config.table_service_url ? 30000 : 10000, tableServiceUrl:config.table_service_url ?? undefined}, credential, connection);
 let client = await connect();
 async function persist(name, data) {
   const file = await open(join(dirname(process.argv[2]), name), 'w', 0o600);
@@ -48,7 +48,7 @@ async function scenario(index) {
   const ids = offset => identity(base + offset);
   const description = await client.describe();
   assert.equal(description.configuration.scope.catalog, scope.catalog);
-  assert.equal(description.policy.principal, credential.principal);
+  assert.equal(description.subject.principal, credential.principal);
   const compiled = await client.compileSql(`CREATE TABLE ${name} (id INTEGER PRIMARY KEY, payload STRUCT(data BINARY, label UTF8), amount DECIMAL(38,2))`, ids(0), object);
   const created = await finish(compiled);
   assert.equal(created.phase, 'applied');
@@ -90,6 +90,11 @@ try {
   for await (const line of createInterface({input:process.stdin})) {
     const action = JSON.parse(line);
     if ('close' in action) break;
+    if ('denied' in action) {
+      const fresh = await connect();
+      try { await assert.rejects(fresh.describe(), error => error instanceof TransitError && error.status === 4); } finally { await fresh.close(); }
+      console.log(JSON.stringify({status:0,value:{denied:true}})); continue;
+    }
     assert.ok('scenario' in action);
     console.log(JSON.stringify({status:0,value:await scenario(action.scenario.index)}));
   }

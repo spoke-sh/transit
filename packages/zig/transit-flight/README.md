@@ -36,3 +36,11 @@ profile. That output failure does not change the durable computation outcome.
 The RPC boundary retains native rejection detail before client disposal and binds
 permitted failed reads to their selected query. Current denial omits protected
 query identity and execution facts.
+
+The configured caller carries an optional selected native role. Statement bundles
+freeze that caller's signed authority; SEND and current metadata/result checks
+use the same role. Tickets bind the role as part of their scope. The inspection
+identity reads service configuration and does not replace caller authorization.
+This adapter uses the explicit infrastructure-reader profile: the dedicated
+caller needs native read access to its source and request resources. Restricted
+Table clients use the [Table service](../transit-catalog/README.md) boundary.

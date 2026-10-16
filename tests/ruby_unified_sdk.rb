@@ -9,7 +9,7 @@ def scalar(type, value)
   Q::Scalar.new(kind: { int64: :signed, uint64: :unsigned }.fetch(type, type), value: value)
 end
 def table_source(columns)
-  metadata = C::Metadata.new(scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
+  metadata = C::Metadata.new(namespace: 1, scope: C::Scope.new(resource: Transit::ResourceRef.new(realm: 1, resource: 7), catalog: 9),
     object: 9, revision: 1, name: 'items', schema_fingerprint: "\x01".b*32, principal: 17, operation: 1, admitted_input: 1,
     commitment: C::MetadataCommitment.new(bytes: 200, digest: "\x01".b*32))
   Q::TableSource.new(owner: Transit::ProcessRef.new(realm: 1, pid: 3), metadata: metadata,
@@ -137,10 +137,10 @@ def serve(config)
       Q::PredicateAtom.new(predicate: Q::IsState.new(column: column, state: :null)), :disjunction, :negate, :conjunction])
   end
   bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], output_names: doc ? ['Result', nil, nil, nil] : ['Result'], predicate: predicate), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
-  check(bundle.data == File.binread(config.fetch('bundle')))
   Q::Client.open(cfg, credential, connection) do |client|
+    check(client.authorize_bundle(bundle).data == File.binread(config.fetch('bundle')))
     description = client.describe(source)
-    check(description.bundle_bytes == 25069 && description.batch_rows == 8)
+    check(description.bundle_bytes == 25255 && description.batch_rows == 8)
     puts JSON.generate(ready: true)
     STDIN.each_line do |line|
       action = JSON.parse(line)

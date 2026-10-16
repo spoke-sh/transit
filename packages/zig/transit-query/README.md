@@ -88,7 +88,8 @@ for policy, host recovery, memory, closure and collection requirements.
 `RelationalMaintenance` records every complete Table-history basis, stages its
 result and paired delta, and atomically publishes a complete revision. A failed
 successor preserves the preceding result. `RelationalRevision` verifies full
-results or exact predecessor deltas under current source rights; its saved
+results or exact predecessor deltas under the reading caller's current source
+rights, using a fresh proof bound to the complete result selection; its saved
 position advances only after complete delivery. The host explicitly activates
 and wakes this typed owner. See [maintained relations](docs/relational-maintenance.md)
 for scheduling, recomputation costs, quotas, resume and retirement.
@@ -108,7 +109,7 @@ own current grants; native retained pins remain scoped to their capturing PID.
 
 `TableSource` provides canonical schema-bound declarations and bounded owned pages
 over supplied captured/retained readers. It checks a separately authenticated
-principal's current catalog rights before and after each page, preserving the
+principal's current database, schema and Table rights before and after each page, preserving the
 original schema/root through ALTER, DROP and name reuse. Complete composite-key
 equality uses the existing collision-safe index. Its
 [source contract](../../../contracts/TABLE_QUERY_V1.md#signed-native-table-reads)
@@ -116,15 +117,23 @@ keeps retention, requester-policy mapping and durable result publication with th
 host. `UnifiedCapture` retains the head/schema cut and `UnifiedResult` checks
 current rights before returning owned logical Arrow rows.
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
-target maps a requester process to a catalog principal within one scope and
-owner. It permits resolving new Table objects without installing a per-Table
-policy; every page still requires current catalog inspect/read rights. Policy
-installation belongs to the authorized owner, and a changed mapping advances its
-revision. Native durable admission and result verification use this adapter and the
-canonical logical plan/Arrow codecs. `CatalogQueryOwner` composes the Table
-lifecycle owner with query dispatch; its administrator installs explicit
-requester delegation without creating a worker or policy per Table. See
-[catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
+target constrains the authenticated requester's original principal, scope and
+owner. The immutable bundle carries a separately signed proof bound to the
+canonical query, coordinator, requester PID and request resource. The configured
+principal cannot authenticate the caller. Current CONNECT, USAGE and each
+Table's SELECT gate admission, continuation, result pages and completion.
+Recovery retains the original proof; credential rotation never silently resigns
+accepted work. Completed-result disclosure uses a fresh, separately bound caller
+proof and checks that reader's current source rights. Internal refresh
+continuations instead retain the Follow input's accepted subject.
+`UnifiedClient.authorizeBundle` seals a newly constructed Table
+bundle once; SQL compilation does this before returning saved bytes. The neutral
+`authorize` operation accepts unsigned bundle hex and returns `authorized` hex.
+
+`CatalogQueryOwner` composes Table lifecycle and query dispatch. Its administrator
+installs requester admission constraints and computational limits without
+creating a worker or policy per Table. Native grants remain the authorization
+source. See [catalog query ownership](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `TableAssistance` reads current catalog metadata, derives continuations from the
 same general Table parsers and checks the metadata/policy revision again before
@@ -141,8 +150,8 @@ may retry the read, but must never regenerate uncertain mutations automatically.
 
 `CatalogQueryOwner` routes query and Table lifecycle inputs through their owning
 operations. Administrator initialization and conditional requester delegation
-are separate bounded commits. Query access uses each requester's explicit mapped
-catalog principal and current read rights; mutation permissions remain independent.
+are separate bounded commits. Query access requires the signed original subject
+and current Table rights; mutation permissions remain independent.
 See the [catalog owner contract](../../../contracts/CATALOG_QUERY_OWNER_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof
@@ -174,6 +183,17 @@ The local server initializes the catalog and requester, installs query delegatio
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
+`TableService` mediates Table metadata, finite queries and original
+operation recovery with a private scoped resource reader. Every request binds
+the original caller's current credential, selected role, connection and action.
+`MediatedTableClient.call` returns an owned response; release it with `deinit`.
+`MediatedTableBridge` shares the catalog CLI/ABI lifecycle, keeping pending
+mutation bytes with the caller. The caller signs and explicitly submits native
+mutations. See the [service guide](../../../apps/transit-table-service/README.md)
+for configuration, limits, trust and recovery.
+Configured relational spill enables the same bounded joins and aggregates as
+`RelationalQuery`, with the original subject checked across every source.
+
 `TablePrepared.prepare` resolves an authorized catalog Table and owns SELECT
 parameter/result metadata. `TableQuery.openPrepared` opens a new cut and checks
 that immutable identity for every execution. `LogicalPrepared.instantiate`
@@ -241,6 +261,13 @@ source bundles, including a 512-byte predicate and their Publication commitments
 policy, Document lifecycle, publication publisher and complete manifest. Pages
 validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
+For Tables, `Expected.disclosure` is mandatory. `Expected.authorize` obtains a
+fresh proof bound to the complete result reference, expected route and cursor;
+`UnifiedClient.page` supplies it. `RelationalResult.open` takes an explicit
+disclosure subject bound to `Options.selection(bundle)` and checks every source
+under it. Private resource-reader credentials do not supply this subject. These
+low-level result readers still require separate raw native read access; their
+proofs do not grant access to backing resources.
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
 An error invalidates the entire page. The [proof guide](../../../tests/README.md)

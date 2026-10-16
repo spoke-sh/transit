@@ -19,10 +19,11 @@ fn publication() app.Publication {
     return .{ .configuration = .{ .application = 9, .realm = 51, .namespace = .{ .value = 19 }, .administrator = 65537, .name_digest = app.Publication.nameDigest("work_items") } };
 }
 fn policy(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
-    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .catalog = .{ .scope = .{ .realm = 51, .resource = saved.data.resource, .catalog = 1 }, .owner = saved.data.pid, .principal = 65537 } }, .allow = true, .limits = limits }).encode(), null);
+    _ = try caller.sendPayload(init.io, try (q.UnifiedRecords.Policy{ .peer = saved.requests.pid, .requests = saved.requests.resource, .revision = revision, .target = .{ .catalog = .{ .scope = .{ .realm = 51, .resource = saved.data.resource, .catalog = 1 }, .owner = saved.data.pid, .principal = 1234 } }, .allow = true, .limits = limits }).encode(), null);
 }
 fn publish(caller: *proof.Caller, init: std.process.Init, saved: Saved, revision: u64) !void {
-    var data_reader = try caller.read();
+    var source = try caller.read();
+    var data_reader = try caller.authorized(&source);
     var table_source = try proof.owner(init.gpa, saved.data).source(&data_reader, 65537, @intCast(revision));
     defer table_source.deinit();
     caller.saved = saved.publication;
@@ -102,15 +103,18 @@ pub fn main(init: std.process.Init) !void {
     const saved_path = try path(init, directory, "application.json");
     if (std.mem.eql(u8, phase, "setup")) {
         const requests = try provision(&admin, 65539, 12, null);
-        const data = try provision(&admin, 65536, 8, requests.resource);
+        var data = try provision(&admin, 65536, 8, requests.resource);
         const pub_owner = try provision(&admin, 65540, 13, null);
-        const saved: Saved = .{ .data = data, .requests = requests, .publication = pub_owner };
         for ([_]struct { id: u64, seed: u8, permissions: u16, pid: ?u64 }{
-            .{ .id = 65537, .seed = 9, .permissions = p.permission(.inspect) | p.permission(.send), .pid = null },
             .{ .id = 65538, .seed = 11, .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery), .pid = null },
-            .{ .id = 1234, .seed = 10, .permissions = p.permission(.inspect) | p.permission(.send), .pid = null },
             .{ .id = 65541, .seed = 14, .permissions = p.permission(.inspect), .pid = pub_owner.pid },
         }) |v| _ = try admin.submit(.{ .grant = .{ .subject = v.id, .public_key = (try key(v.seed)).public_key.toBytes(), .permissions = v.permissions, .pid = v.pid } });
+        const authorization = @import("table_authorization_support.zig");
+        const owner_role = try authorization.login(q.catalog, &admin, "work-items-owner", 65537, try key(9), null);
+        const reader_role = try authorization.login(q.catalog, &admin, "work-items-reader", 1234, try key(10), null);
+        data.authority = try authorization.profile(q.catalog, &admin, .{ .realm = 51, .resource = data.resource, .catalog = 1 }, 65536, owner_role);
+        try authorization.grantDefaults(q.catalog, &admin, data.authority.?, owner_role, reader_role, q.catalog.TableAuthority.select);
+        const saved: Saved = .{ .data = data, .requests = requests, .publication = pub_owner };
         for ([_]struct { subject: u64, resource: u64 }{
             .{ .subject = 65537, .resource = data.resource },      .{ .subject = 65537, .resource = pub_owner.resource },
             .{ .subject = 1234, .resource = data.resource },       .{ .subject = 1234, .resource = requests.resource },
@@ -157,9 +161,8 @@ pub fn main(init: std.process.Init) !void {
     caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
-        _ = try caller.send(init.io, .catalog_initialize, null);
+        _ = try caller.send(init.io, .{ .catalog_initialize = saved.data.authority orelse return error.MissingProofAuthority }, null);
         for ([_]u32{ 1, 2 }) |table| _ = try caller.send(init.io, .{ .prepare_table = table }, null);
-        _ = try caller.send(init.io, .{ .read_policy = .{ .principal = 1234, .expected = 0, .revision = 1, .allow = true } }, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = 65537, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);
         for (0..19) |i| _ = try caller.send(init.io, .{ .put = .{ .epoch = .{ .value = 1 }, .id = @as(i64, @intCast(i)) - 10, .state = @intCast(i % 2) } }, null);
         try policy(&caller, init, saved, 1);

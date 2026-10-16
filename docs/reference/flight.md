@@ -101,7 +101,10 @@ Compose and reference installations and executes the actual Python/C consumers.
 
 Every RPC authenticates its caller. Statement admission requires a canonical
 decimal `x-transit-request-sequence`; the same sequence and original SQL/schema
-reconstruct the same signed upload commands. The header is the first sequence of
+reconstruct the same signed upload commands under the same configured key, native
+credential epoch and selected role. The query freezes that original authority;
+rotation or a role change cannot renew an accepted query. Reusing its first
+sequence with changed authority conflicts before further upload. The header is the first sequence of
 that upload, which uses multiple consecutive native operations. Preserve it after
 uncertainty, including across gateway replacement. Successful FlightInfo application
 metadata returns `{"version":1,"next_sequence":N}`. Use that sequence for the next
@@ -109,7 +112,7 @@ statement; incrementing the prior first sequence by one overlaps its upload.
 Clients without access to FlightInfo application metadata can read their dedicated
 principal’s next native sequence after the prior statement completes.
 
-Tickets are signed, scoped and expiring. They never replace current service,
+Tickets are signed, scoped to the configured selected role and expiring. They never replace current service,
 source and requester rights. Every bounded read and final disclosure rechecks
 those rights. Ticket expiry does not cancel a query or delete its result. Fetching
 again starts the captured result at its first batch; there is no offset resume.

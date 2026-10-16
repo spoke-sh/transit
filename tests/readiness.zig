@@ -76,7 +76,15 @@ pub fn main(init: std.process.Init) !void {
             _ = try send(e, key, .{ .terminate = pid });
             _ = try send(e, key, .{ .retire_resource = resource });
             _ = try send(e, key, .{ .reclaim_resource = resource });
+            // Collection retires authorization before deleting the resource
+            // metadata. The intermediate phase must still prevent PID removal.
             try collect(e, key, pid, .resource, resource);
+            var policy = try e.authorization();
+            try t.expect((try policy.object(.{ .kind = .resource, .id = resource })).?.retired);
+            _ = try disk.record(e, g.Resource, .resource, resource);
+            try t.expectError(error.StateResourceInUse, collect(e, key, pid, .process, pid));
+            try collect(e, key, pid, .resource, resource);
+            try t.expectError(error.MissingFixtureRecord, disk.record(e, g.Resource, .resource, resource));
             while (true) {
                 _ = e.process(pid) catch |err| {
                     if (err == error.RetiredProcess) break;
