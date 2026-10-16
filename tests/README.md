@@ -488,6 +488,21 @@ Table SELECT denies refresh and new admission. Retained denial diagnostics stay
 stable after restoration, and pause/close controls remain available. Executable
 hashes and overall build time were not captured.
 
+The [final-definition capacity report](verification/results/authorization-reactive-capacity-2026-10-15.json)
+records two clean `f7e5dc98` refresh attempts failing at the same native
+maintenance send with explicit `HttpCapacity`. The fixture now retries the
+identical serialized command within its existing ten-second window. Explicit
+capacity assertions and other rejections remain visible; runtime admission,
+deadlines and protocol semantics do not change. Five regression cases pass,
+including two that fail against the old fixture. The complete corrected TLS
+refresh preflight passes in **234.683 s**, with a **210.62 s** runtime schedule,
+on `f7e5dc98` plus the recorded fixture changes. The deterministic cases exercise
+capacity retries; the full runtime run does not record an additional retry.
+The same report retains the first installed-application inspection failure and
+the unchanged fresh lifecycle passing in **1,237.070 s**. That successful rerun
+does not establish the earlier unavailable response's cause. Final committed
+clean-source qualification remains separate.
+
 The [Flight authorization report](verification/results/authorization-flight-2026-10-14.json)
 records the real TLS PyArrow and ADBC C/Python suite passing with original-subject
 query bundles and role-bound tickets. Its 41-row finite statement/retry schedule

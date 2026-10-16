@@ -106,9 +106,10 @@ def post(port, path, value, host=None, status=200, headers=None):
         # Cold recovery can temporarily exhaust authority request admission.
         # Retry only the same serialized signed command, never a new sequence.
         # Explicit rejection/fault assertions (status=None/503) remain visible.
-        capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
+        serving_capacity = actual == 503 and status == 202 and any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'HttpCapacity'}
                        for fact in (decoded.get('diagnostic') or {}).get('facts', []))
-        if path == '/serving/v1/command' and status == 202 and actual == 503 and capacity and time.monotonic() < deadline:
+        native_capacity = path == '/v1/command' and status == 200 and actual == 503 and decoded == {'err': 'HttpCapacity'}
+        if (native_capacity or (path == '/serving/v1/command' and serving_capacity)) and time.monotonic() < deadline:
             retries += 1
             time.sleep(.05)
             continue

@@ -567,6 +567,7 @@ reactive-client:
 
 # Real shared requester, fair finite refresh and current grant recovery.
 reactive-refresh:
+    python3 -B tests/serving_submission.py
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-refresh=true
 
 # Real Board/counter browser consumers against the durable refresh owner.
