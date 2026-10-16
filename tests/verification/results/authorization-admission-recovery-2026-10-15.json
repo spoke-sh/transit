@@ -68,5 +68,23 @@
     "packages/zig/transit-client/src/AuthorizationSet.zig": "92c9fc409a76a25c867ea096838c188758cc69614b63375a613ed11b52a209b6",
     "tests/authorization_cli.py": "001699c4b00c2c258ba5cc2e3d0322f226905856a7f7bcb738d269021d29a646"
   },
-  "scope": "Focused preflight on modified source. Final committed-source root, all ordinary lanes and focused adapter gates remain required; earlier-definition results are retained under their actual source and definition."
+  "scope": "Focused preflight on modified source. Final committed-source root, all ordinary lanes and focused adapter gates remain required; earlier-definition results are retained under their actual source and definition.",
+  "definition_fixture_correction": {
+    "source_revision": "43df4bc38235263f2f92208e3e54023f7041281f",
+    "tracked_changes": true,
+    "before": {
+      "task": "just check",
+      "exit_code": 1,
+      "seconds": 113.589,
+      "failed_test": "ExchangeAuthorization: expected SignatureVerificationFailed, got InvalidEncoding after flipping a signature curve-point byte",
+      "log_sha256": "838832472afa4a7c7a236af526fb7141cd6e83b238d79a317fc895909292ac68"
+    },
+    "correction": "Use a well-formed signature from an unrelated key to test signer rejection independently of definition-dependent point encoding. No product or definition change.",
+    "after": {
+      "task": "just test::unit",
+      "exit_code": 0,
+      "log_sha256": "af05d533a1d7b4c28958e83b3e7128a078ae5155e001fee868f73e64f9743b27"
+    },
+    "source_sha256": "bfc6103c799bd39c0900f7d1fb39bee96b75c8c365b5eee05787fa6ca9ef303e"
+  }
 }

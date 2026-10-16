@@ -114,7 +114,9 @@ test "exchange authorization binds original caller, complete basis and exact wor
     try t.expectError(error.QueryDenied, saved.subject(assignment, foreign, foreign_basis));
     try t.expectError(error.QueryDenied, saved.bind(&turn, assignment, bundle, basis));
     var forged = saved;
-    forged.proof.signature[0] ^= 1;
+    // Keep the signature encoding valid so this checks signer rejection,
+    // independent of the contract definition's effect on the curve point.
+    forged.proof = try p.Authorization.Proof.sign(claim, try q.catalog.testing.Authority.key(18));
     const unverified = try forged.subject(assignment, bundle, basis);
     try t.expectError(error.SignatureVerificationFailed, unverified.signed.verify(key.public_key.toBytes()));
 }
