@@ -88,6 +88,10 @@ incompatible wire, ABI or stored framework definition changes, including changes
 that retain the same fields but alter their meaning. It is a compatibility token,
 not an automatically computed source hash or a substitute for verification.
 
+Authorization operation records retain the original admission public key and
+canonical request digest. Recovery requires both fields; records from earlier
+definitions cannot acquire admission identity from the current credential.
+
 The current definition includes general typed Tables, immutable schema and
 metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,
 compact immutable index nodes and schema-bound catalog command payloads. The

@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "source_revision": "3af13da38b32b0e362c465e2fd8030836da65d60",
+  "tracked_changes": true,
+  "definition": "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
+  "defect": "A forged changeset sealed by a substituted key could borrow a real completed operation and make the client sign an altered unsent intent with its current credential. Local signature validation alone did not authenticate the historical signer.",
+  "correction": "Retain the admission public key and exact canonical begin-request digest in native operation records; compare both before continuation. Required stored and wire fields replace the current v1 definition.",
+  "before": {
+    "task": "transit-client: zig build test",
+    "exit_code": 1,
+    "tests_passed": 29,
+    "tests_total": 30,
+    "log_sha256": "4a4c15adab2a0020df40ec44172aed16cae83d455faab3174cb98cbd91e37438",
+    "failure": "Signer-substitution regression expected InvalidAuthorizationChange but received a prepared continuation."
+  },
+  "after": [
+    {
+      "task": "transit-client: zig build test",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Initial signer-substitution regression; before definition regeneration."
+    },
+    {
+      "task": "transit-core: zig build test; transit-client: zig build test",
+      "exit_code": 0,
+      "log_sha256": "c026967d4b0c30659250ad63058e9aaab8ef23fe3b4b517e00cece969d1f06ae",
+      "scope": "Core recovery after credential rotation and reopen; forged current/completed prefixes, exact sequence binding and authentic rotated-client continuation. Before definition regeneration."
+    },
+    {
+      "task": "just test::authorization-cli",
+      "exit_code": 0,
+      "log_sha256": "5e16c356d274416063b258ca642a496b535becbacc84d37250667e3a621306bc",
+      "scope": "Regenerated current definition; real CLI forgery rejects with binding diagnostic, no authority mutation, and original saved bytes remain usable. Complete CLI/ABI/host recovery workflow passes."
+    }
+  ],
+  "cli": {
+    "revision": "3af13da38b32b0e362c465e2fd8030836da65d60",
+    "dirty": true,
+    "definition": "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
+    "elapsed_seconds": 11.09956071083434,
+    "artifacts": {
+      "transit-node": "e4349ec47ea6a278ecb9342ea39b77add3e21af3d9c11fef3834603d84599455",
+      "transit": "256663a0e4d343fb32f70c0c534f294fca0b329009c259b1ae5a7de6939aa740",
+      "libtransit_client.so": "41a5dc259058f030aba176d481f23979eee81adc6abda728be76749e61abfd70",
+      "transit-client-host": "95a8466ab1fd9fd85300081123af65d44de38dde23aeb4a034d7ead9bd84ad09"
+    },
+    "observations": {
+      "restarts": 2,
+      "cli_reader": 2,
+      "abi_role": 8,
+      "bounded_apply": true,
+      "foreign_missing_definition_rejected": true,
+      "stale_record_preserved": true,
+      "cli_abi_host": true,
+      "scoped_changesets": true,
+      "changeset_partial_recovery": true,
+      "changeset_explicit_removal": true,
+      "changeset_signer_substitution_rejected": true
+    },
+    "assertions": "passed"
+  },
+  "source_files": {
+    "packages/zig/transit-protocol/src/Authorization.zig": "2d5963c03419beef3e7ecc875c5ac5f50c59cd7a25bcbf22f70b09a6dddabb6b",
+    "packages/zig/transit-protocol/src/Growth.zig": "937b5daa5ed4ea867cb6ef09712f148776fd8f3db95ac9888d2ad8743dc713e8",
+    "packages/zig/transit-core/src/growing_authorization.zig": "073436dfb4f93a8b18b64712c407790f803bdb4a71e2155204cb31afe081da35",
+    "packages/zig/transit-core/src/growing_test.zig": "594e11c5297903dc5a3885105b2c75f6a111f978844311c13b6f9a7ca421a6e5",
+    "packages/zig/transit-client/src/AuthorizationChange.zig": "6af5ac242b41554cf87acef7e43b4e0ac979341c3960ce95d782900a5c73169a",
+    "packages/zig/transit-client/src/AuthorizationSet.zig": "92c9fc409a76a25c867ea096838c188758cc69614b63375a613ed11b52a209b6",
+    "tests/authorization_cli.py": "001699c4b00c2c258ba5cc2e3d0322f226905856a7f7bcb738d269021d29a646"
+  },
+  "scope": "Focused preflight on modified source. Final committed-source root, all ordinary lanes and focused adapter gates remain required; earlier-definition results are retained under their actual source and definition."
+}

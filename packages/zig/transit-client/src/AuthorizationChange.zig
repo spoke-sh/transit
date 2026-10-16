@@ -105,6 +105,8 @@ pub fn WithTransport(comptime Transport: type) type {
             try self.validate(record);
             const observation = try self.recoveryAuthority().read(.{ .operation = record.change orelse return error.AuthorizationChangeNotAdmitted });
             const operation = observation.body.authorization.body.operation;
+            if (!std.mem.eql(u8, &operation.begin.public_key, &record.begin.public_key) or
+                !std.mem.eql(u8, &operation.begin.digest, &try g.digest(record.begin.signed.request))) return error.InvalidAuthorizationChange;
             const original = record.begin.signed.request.command.authorization.begin;
             if (operation.outcome.principal != self.authority.principal or operation.outcome.basis != original.expected_revision or !std.meta.eql(operation.action, original.action)) return error.InvalidAuthorizationChange;
             if (original.role) |role| if (operation.outcome.role != role) return error.InvalidAuthorizationChange;
@@ -175,7 +177,7 @@ test "saved authorization steps preserve identity through uncertain submits and 
     fake.response.body.authorization.body = .{ .receipt = .{ .position = 12 } };
     try t.expect(std.meta.eql(admitted, (try client.recoverPending(restored)).?));
     fake.response.principal_sequence = 5;
-    fake.response.body.authorization.body = .{ .operation = .{ .action = action, .outcome = .{ .id = 12, .principal = 0, .role = 0, .basis = 7, .revision = 12, .status = .ready, .created_id = 15, .changed_records = 1, .steps = 1 } } };
+    fake.response.body.authorization.body = .{ .operation = .{ .begin = .{ .public_key = admitted.begin.public_key, .digest = try g.digest(admitted.begin.signed.request) }, .action = action, .outcome = .{ .id = 12, .principal = 0, .role = 0, .basis = 7, .revision = 12, .status = .ready, .created_id = 15, .changed_records = 1, .steps = 1 } } };
     const publish = (try client.next(admitted)).pending;
     try t.expectEqual(@as(u64, 12), publish.pending.?.signed.request.command.authorization.publish);
     try t.expectEqual(@as(u64, 6), publish.pending.?.signed.request.sequence);

@@ -2,6 +2,25 @@
 
 ## Declarative authorization evaluator
 
+The [admission-bound recovery report](verification/results/authorization-admission-recovery-2026-10-15.json)
+records a signer-substitution defect in saved changesets and its correction.
+Against `3af13da3`, a new regression receives a signed continuation where it
+expects rejection: a substituted seal and begin key borrow a real completed
+operation to change an unsent intent. The native ledger now retains the original
+admission key and exact request digest. Recovery compares both before signing.
+Core/client tests pass for forged current and completed checkpoints, a different
+request sequence, authentic continuation with a rotated key, and retained
+admission identity after rotation and reopening the authority.
+
+The complete CLI/ABI/host preflight passes with definition `4af64397…98b50`.
+An independently re-signed forged artifact returns a binding diagnostic without
+changing authority; the original saved changeset then completes across disk
+restart. The report records dirty source and exact file/log hashes. These are
+focused preflight results; final committed-source root checks, all 86 ordinary
+tasks and focused adapter proofs remain separate gates. Earlier results below
+retain their actual source and definition and do not certify this cutover.
+
+
 The [repository check report](verification/results/authorization-check-2026-10-15.json)
 records `just check` passing with definition `67f02f8b…2a15e`: native unit and
 contract checks, 3,380 diagnostic projections across 29 surfaces, 590 CLI cases,
@@ -53,7 +72,7 @@ six ordinary lanes at the same final revision.
 
 The [SDK queue observer report](verification/results/authorization-sdk-queue-observer-2026-10-15.json)
 retains clean Ruby and Erlang queue failures at committed `d7298d22`, under the
-same final definition. Their tasks stop after **734.40 s** and **730.35 s** when
+then-current definition. Their tasks stop after **734.40 s** and **730.35 s** when
 the shared per-drain **600-second** observer expires. Separate instrumented
 schedules then verify all **46 exact terminal outcomes**, FIFO intervals and
 removed work records in **415 turns** each. Ruby's drains take **529.599 s** and

@@ -162,7 +162,10 @@ An intervening revision stops progress without rebasing, rollback or compensatio
 The saved record contains the seal, completed native records/outcomes and at
 most one current change. Its maximum encoded size is 128 KiB. Observation and
 submission verify completed outcomes against the retained native operation
-ledger; a local completion flag never proves acceptance. A completed step is
+ledger; a local completion flag never proves acceptance. Recovery compares the
+retained admission public key and exact begin-request digest with the saved
+envelope before signing a continuation. A locally valid signature under a
+self-supplied key does not establish the original signer. A completed step is
 checkpointed before preparation of its successor. Pending sends retain exact
 bytes and use current-credential receipt recovery. Abandonment closes only a
 resolved unpublished candidate; it cannot undo the published prefix. Mixed
@@ -181,8 +184,12 @@ Privilege and membership revocation removes the issuing grantor's matching
 authority and then checks dependency closure; independent grantors survive.
 Partial default revocation applies only to future registrations.
 
-`operation` inspection returns the retained action and outcome to its original
-principal or root, allowing recovery to verify the saved intent. Exact logical
+`operation` inspection returns the retained action, outcome and required `begin`
+identity to its original principal or root. `begin.public_key` is the key verified
+at admission; `begin.digest` is the canonical native request digest, including
+its sequence, role, basis and action. Both remain unchanged through publication,
+credential rotation and restart, allowing recovery to verify the exact saved
+intent without treating the current credential as its historical signer. Exact logical
 role-name resolution is public within the authenticated realm; private native
 roles and general role enumeration retain their inspection restrictions. Names
 and role attributes contain no credentials.

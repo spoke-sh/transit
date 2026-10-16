@@ -291,6 +291,72 @@ pub const Result = union(enum) {
     recovered: ?[]const u8,
 };
 
+test "changeset recovery rejects a substituted signer before signing an unsent intent" {
+    const t = std.testing;
+    const g = p.Growth;
+    const Fake = struct {
+        operation: @FieldType(@FieldType(a.Result, "body"), "operation"),
+        previews: usize = 0,
+        pub fn query(self: *@This(), query_value: g.Query, key: p.Ed25519.KeyPair) !g.Response {
+            _ = try g.signQuery(query_value, key);
+            const body: @FieldType(a.Result, "body") = switch (query_value.kind.authorization.kind) {
+                .operation => .{ .operation = self.operation },
+                .preview => blk: {
+                    self.previews += 1;
+                    break :blk .{ .preview = .{ .complete = true, .changed_records = 1, .steps = 1, .pages = 1, .reads = 1 } };
+                },
+                else => return error.UnexpectedQuery,
+            };
+            return .{ .definition = g.current_definition, .realm = 1, .position = 11, .principal_sequence = 2, .body = .{ .authorization = .{ .revision = 11, .role = 4, .body = body } } };
+        }
+    };
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const rotated = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const attacker = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
+    const object: a.ObjectRef = .{ .kind = .domain, .id = 12 };
+    const intents = [_]Intent{
+        .{ .grant = .{ .object = object, .grantee = 4, .privileges = 1 } },
+        .{ .grant = .{ .object = object, .grantee = 99, .privileges = 2 } },
+    };
+    const request: g.Request = .{ .realm = 1, .principal = 2, .sequence = 1, .command = .{ .authorization = .{ .begin = .{ .expected_revision = 3, .role = 4, .action = intents[0].action() } } } };
+    var fake: Fake = .{ .operation = .{ .begin = .{ .public_key = key.public_key.toBytes(), .digest = try g.digest(request) }, .action = intents[0].action(), .outcome = .{ .id = 7, .principal = 2, .role = 4, .basis = 3, .revision = 11, .status = .published, .created_id = null, .changed_records = 1, .steps = 1 } } };
+    const client: WithTransport(Fake) = .{ .allocator = alloc, .client = .{ .authority = .{ .transport = &fake, .realm = 1, .principal = 2, .key = rotated } } };
+    // An attacker keeps the admitted first action, replaces the unsent second
+    // intent, then re-signs both the document and original begin with their key.
+    var seal: Seal = .{ .document = .{ .definition = g.current_definition, .realm = 1, .base_revision = 3, .managed_scope = .{ .objects = &.{object} }, .intents = &intents }, .principal = 2, .role = 4, .public_key = attacker.public_key.toBytes(), .signature = undefined };
+    seal.signature = (try attacker.sign(&try seal.digest(alloc), null)).toBytes();
+    var record: Record = .{ .seal = seal, .current = null, .completed = &.{.{ .record = .{ .definition = g.current_definition, .begin = .{ .signed = try g.sign(request, attacker), .public_key = attacker.public_key.toBytes() }, .change = 7, .pending = null }, .outcome = fake.operation.outcome }} };
+    try record.validate(alloc);
+    try t.expectError(error.InvalidAuthorizationChange, client.next(record));
+    try t.expectEqual(@as(usize, 0), fake.previews);
+    // The same forged prefix must reject while its publication is still the
+    // current local checkpoint, before it can be recorded as completed.
+    var current = record;
+    current.current = record.completed[0].record;
+    current.completed = &.{};
+    try t.expectError(error.InvalidAuthorizationChange, client.next(current));
+    // An authentic original seal remains recoverable with a rotated credential.
+    record.seal.public_key = key.public_key.toBytes();
+    record.seal.signature = (try key.sign(&try record.seal.digest(alloc), null)).toBytes();
+    var completion = record.completed[0];
+    completion.record.begin = .{ .signed = try g.sign(request, key), .public_key = key.public_key.toBytes() };
+    record.completed = &.{completion};
+    const resumed = (try client.next(record)).record.current.?;
+    try t.expectEqualSlices(u8, &rotated.public_key.toBytes(), &resumed.begin.public_key);
+    try t.expect(std.meta.eql(intents[1].action(), resumed.begin.signed.request.command.authorization.begin.action));
+    try t.expectEqual(@as(usize, 1), fake.previews);
+    // Matching action, caller, role and basis do not establish exact admission.
+    var other_request = request;
+    other_request.sequence += 1;
+    completion.record.begin.signed = try g.sign(other_request, key);
+    record.completed = &.{completion};
+    try t.expectError(error.InvalidAuthorizationChange, client.next(record));
+    try t.expectEqual(@as(usize, 1), fake.previews);
+}
+
 test "changesets require explicit scopes and reject overlapping grant intent" {
     const t = std.testing;
     const object: a.ObjectRef = .{ .kind = .domain, .id = 12 };

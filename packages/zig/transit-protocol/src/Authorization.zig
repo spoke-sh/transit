@@ -354,6 +354,9 @@ pub const Command = union(enum) {
     publish: Id,
     abandon: Id,
 };
+/// Native admission evidence, retained independently of the current credential.
+/// Both fields are required: a self-supplied saved signer is not trusted.
+pub const BeginIdentity = struct { public_key: [32]u8, digest: [32]u8 };
 pub const Status = enum { preparing, ready, published, abandoned };
 pub const Outcome = struct {
     id: Id,
@@ -425,7 +428,7 @@ pub const Result = struct {
         grants: ReadPage(Grant),
         defaults: ReadPage(DefaultGrant),
         change: Outcome,
-        operation: struct { outcome: Outcome, action: Action },
+        operation: struct { outcome: Outcome, action: Action, begin: BeginIdentity },
         receipt: ?p.Receipt,
     },
 };

@@ -8,6 +8,9 @@ const c = core.catalog;
 const growth = @import("growing.zig");
 const policy = core.authorization_store;
 const admin = core.authorization_admin;
+// Persist admission identity beside the private candidate. It survives policy
+// publication and credential rotation; a saved record never supplies its trust.
+const RecordedChange = struct { change: admin.Change, begin: a.BeginIdentity };
 pub const realm: a.ObjectRef = .{ .kind = .realm, .id = 0 };
 
 pub fn controlCommand(engine: anytype, command: a.Command) !bool {
@@ -16,8 +19,8 @@ pub fn controlCommand(engine: anytype, command: a.Command) !bool {
         .abandon => return true,
         .advance, .publish => |id| action: {
             var current = try engine.state();
-            const change = (try current.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
-            break :action change.action;
+            const recorded = (try current.get(RecordedChange, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
+            break :action recorded.change.action;
         },
     };
     return switch (action) {
@@ -259,16 +262,20 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 if (!domain.enabled or (domain.registrar != caller.principal and caller.role != a.root_role)) return error.Forbidden;
             }
             if (registration) |key| if (try candidate.get(u64, key)) |prior| {
-                const previous = (try candidate.get(admin.Change, growth.address(.authorization_change, prior))) orelse return error.InvalidAuthorizationState;
-                if (previous.outcome.status != .abandoned) return error.AuthorizationNameExists;
+                const previous = (try candidate.get(RecordedChange, growth.address(.authorization_change, prior))) orelse return error.InvalidAuthorizationState;
+                if (previous.change.outcome.status != .abandoned) return error.AuthorizationNameExists;
             };
             const change = try admin.begin(&store, caller, engine.head.position, value.action, engine.genesis.authorization_limits, engine.genesis.authorization_change_quota);
             next.authorization_next_id = store.next_id;
-            try candidate.put(growth.address(.authorization_change, change.outcome.id), change);
+            try candidate.put(growth.address(.authorization_change, change.outcome.id), RecordedChange{
+                .change = change,
+                .begin = .{ .public_key = (try engine.principal(request.principal)).grant.public_key, .digest = try g.digest(request) },
+            });
             if (registration) |key| try candidate.put(key, change.outcome.id);
         },
         inline .advance, .publish, .abandon => |id, tag| {
-            var change = (try candidate.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
+            var recorded = (try candidate.get(RecordedChange, growth.address(.authorization_change, id))) orelse return error.UnknownAuthorizationChange;
+            const change = &recorded.change;
             if (change.outcome.principal != request.principal) {
                 if (tag != .abandon or (try actor(engine, request.principal, null)).role != a.root_role) return error.Forbidden;
             } else _ = try actor(engine, request.principal, if (tag == .abandon) null else change.outcome.role);
@@ -281,7 +288,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                     var store = try policy.Store(@TypeOf(engine.page_store.*)).open(engine.page_store, change.candidate);
                     store.next_id = engine.head.authorization_next_id;
                     change.candidate.next_id = store.next_id;
-                    try admin.advance(&store, &change, engine.genesis.authorization_limits);
+                    try admin.advance(&store, change, engine.genesis.authorization_limits);
                     next.authorization_next_id = store.next_id;
                 } else {
                     if (change.outcome.status != .ready) return error.InvalidAuthorizationChange;
@@ -294,7 +301,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                     }
                 }
             }
-            try candidate.put(growth.address(.authorization_change, id), change);
+            try candidate.put(growth.address(.authorization_change, id), recorded);
         },
     }
 }
@@ -398,7 +405,8 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
             if (domain.registrar != identity.grant.subject and caller.role != a.root_role) return error.Forbidden;
             var state = try engine.state();
             const id = (try state.get(u64, try c.key(.authorization_registration, value.domain, 0, &value.key))) orelse break :result .{ .registration = null };
-            const change = (try state.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.InvalidAuthorizationState;
+            const recorded = (try state.get(RecordedChange, growth.address(.authorization_change, id))) orelse return error.InvalidAuthorizationState;
+            const change = recorded.change;
             break :result .{ .registration = .{ .outcome = change.outcome, .action = change.action } };
         },
         .grants => |value| result: {
@@ -414,9 +422,10 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
         },
         inline .change, .operation => |id, tag| result: {
             var state = try engine.state();
-            const change = (try state.get(admin.Change, growth.address(.authorization_change, id))) orelse return error.Forbidden;
+            const recorded = (try state.get(RecordedChange, growth.address(.authorization_change, id))) orelse return error.Forbidden;
+            const change = recorded.change;
             if (change.outcome.principal != identity.grant.subject and caller.role != a.root_role) return error.Forbidden;
-            break :result if (comptime tag == .change) .{ .change = change.outcome } else .{ .operation = .{ .outcome = change.outcome, .action = change.action } };
+            break :result if (comptime tag == .change) .{ .change = change.outcome } else .{ .operation = .{ .outcome = change.outcome, .action = change.action, .begin = recorded.begin } };
         },
     };
     return .{ .revision = store.revision, .role = caller.role, .body = body };

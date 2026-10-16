@@ -9,6 +9,7 @@ import time
 
 from inspection import System
 from storage import wait_ready
+from serving import Key, compact
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -131,6 +132,29 @@ def run(node, signer, transit, library, host, report):
         pending = invoke('apply', set_saved, '--steps', '2')
         assert pending['pending'] and pending['completed'] == 1 and pending['total'] == 2
         retained = set_saved.read_bytes()
+        # Re-sealing with an unrelated key must not borrow a real published
+        # first step to have the current administrator sign an altered successor.
+        forged = json.loads(retained)
+        content = json.loads(forged['record'])
+        content['current'] = None
+        content['seal']['document']['intents'][1]['membership']['admin'] = True
+        attacker = Key(system.root, 'changeset-substitution-test', 19)
+        seal = content['seal']
+        seal['public_key'] = attacker.public
+        sealed = {field: seal[field] for field in ('document', 'principal', 'role', 'public_key')}
+        seal['signature'] = attacker.sign(hashlib.sha256(b'transit.authorization.changeset.v1\0' + compact(sealed)).digest())
+        begin = content['completed'][0]['record']['begin']
+        begin['public_key'] = attacker.public
+        begin['signed']['signature'] = attacker.sign(hashlib.sha256(b'transit.request.v1\0' + compact(begin['signed']['request'])).digest())
+        forged['record'] = compact(content).decode()
+        invalid.write_text(json.dumps(forged))
+        before = system.native_query({'identity': {}})
+        rejected = invoke('apply', invalid, ok=False)
+        diagnostic = json.loads(rejected.stderr)
+        assert diagnostic['code'] == 'authorization.operation_failed'
+        assert diagnostic['category'] == 'binding', diagnostic
+        assert system.native_query({'identity': {}}) == before
+        assert set_saved.read_bytes() == retained
         # Lose the second begin reply from the recovery file, then restart disk.
         receipt = invoke('submit', set_saved)['changeset']['receipt']
         assert set_saved.read_bytes() == retained
@@ -261,7 +285,8 @@ def run(node, signer, transit, library, host, report):
         observations = dict(restarts=2, cli_reader=role, abi_role=terminal['created_id'],
                             bounded_apply=True, foreign_missing_definition_rejected=True,
                             stale_record_preserved=True, cli_abi_host=True, scoped_changesets=True,
-                            changeset_partial_recovery=True, changeset_explicit_removal=True)
+                            changeset_partial_recovery=True, changeset_explicit_removal=True,
+                            changeset_signer_substitution_rejected=True)
     result = dict(revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         dirty=bool(subprocess.check_output(['git', 'diff', '--name-only'], cwd=ROOT, text=True)),
         definition=definition, elapsed_seconds=time.monotonic() - started,

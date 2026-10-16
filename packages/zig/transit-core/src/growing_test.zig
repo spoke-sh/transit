@@ -390,14 +390,18 @@ test "current credentials recover an exact authorization receipt after key rotat
     const pending = try f.worker(1, .{ .authorization = .{ .begin = .{ .expected_revision = f.engine.head.authorization.revision, .action = .{ .create_role = .{ .name = try core.Value.init("created") } } } } });
     try t.expect((try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = pending.request } } })).body.authorization.body.receipt == null);
     const accepted = try f.engine.submit(pending);
+    const admitted_key = f.worker_key.public_key.toBytes();
     const replacement = try core.Ed25519.KeyPair.generateDeterministic(@splat(42));
     _ = try f.authorization(.{ .rotate_credential = .{ .principal = 65536, .expected_epoch = epoch, .public_key = replacement.public_key.toBytes() } });
     f.worker_key = replacement;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
     try t.expectError(error.SignatureVerificationFailed, f.engine.submit(pending));
     const receipt = (try f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = pending.request } } })).body.authorization.body.receipt.?;
     try t.expectEqual(accepted, receipt.position);
     const operation = (try f.query(65536, .{ .authorization = .{ .kind = .{ .operation = receipt.position } } })).body.authorization.body.operation;
     try t.expect(std.meta.eql(pending.request.command.authorization.begin.action, operation.action));
+    try t.expectEqualSlices(u8, &admitted_key, &operation.begin.public_key);
+    try t.expectEqualSlices(u8, &try g.digest(pending.request), &operation.begin.digest);
     var altered = pending.request;
     altered.command.authorization.begin.action.create_role.login = true;
     try t.expectError(error.ConflictingRetry, f.query(65536, .{ .authorization = .{ .kind = .{ .receipt = altered } } }));

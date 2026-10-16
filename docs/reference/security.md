@@ -84,6 +84,13 @@ by current visibility. Historical definitions use the original Table's authority
 including after DROP or name reuse. Direct raw-resource grants deliberately allow
 broader inspection and are not a Table isolation mechanism.
 
+Saved authorization changesets bind their reviewed scope and unsent intents to
+an original signature. Before recovery signs a continuation, it verifies that
+signer and the exact begin request against retained native admission evidence.
+Replacing a saved public key and re-signing the document cannot borrow an earlier
+published step. Credential rotation preserves this verification: the current key
+permits recovery while the retained key identifies the original signed intent.
+
 ## Effects and secrets
 
 Once an external attempt is authorized, treat it as potentially in flight, even
