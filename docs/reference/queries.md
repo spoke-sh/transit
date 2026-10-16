@@ -251,8 +251,8 @@ The Station query ABI and port expose explicit catalog configuration, explanatio
 repeatable one-row pages and close through the shared
 [interactive caller](../../packages/zig/transit-query/docs/relational-callers.md).
 A complete page rechecks all source rights; host loss expires interactive handles.
-The [TypeScript](../../packages/ts/transit-station-sdk/docs/relational.md) and
-[Python](../../packages/python/transit-station/docs/relational.md) SDKs expose
+The [TypeScript](../../sdks/ts/transit-station-sdk/docs/relational.md) and
+[Python](../../sdks/python/transit-station/docs/relational.md) SDKs expose
 that interactive owner with immutable references and full-width integer rows.
 Board's [relational worksheet](../../apps/transit-board/docs/relational.md) exposes
 the same owner through explicit routes and page controls. Active-session

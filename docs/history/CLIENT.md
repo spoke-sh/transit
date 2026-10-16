@@ -320,16 +320,16 @@ Language usage and ownership live beside each SDK:
 
 | Language | HTTP guide |
 | --- | --- |
-| Python | [Synchronous and asynchronous readers](../../packages/python/transit-station/docs/http.md) |
-| TypeScript | [Async reply handlers and owned readers](../../packages/ts/transit-station-sdk/docs/http.md) |
-| Rust | [Owned requests and borrowed readers](../../packages/rust/transit-station-sdk/docs/HTTP.md) |
-| Ruby | [Frozen values and joined cleanup](../../packages/ruby/transit-station/docs/HTTP.md) |
-| C | [Explicit handles and inline owned parts](../../packages/c/transit-station/docs/HTTP.md) |
-| C++ | [Reply unions and RAII readers](../../packages/cpp/transit-station-sdk/docs/HTTP.md) |
-| Java | [Immutable values and future ownership](../../packages/java/transit-station-sdk/docs/HTTP.md) |
-| .NET | [Typed outcomes and cancellable task waits](../../packages/dotnet/transit-station-sdk/docs/HTTP.md) |
-| Erlang | [Tagged records and reader tokens](../../packages/beam/transit-station-sdk/docs/http.md) |
-| Elixir | [HTTP structs and immutable readers](../../packages/beam/transit-station-elixir/docs/http.md) |
+| Python | [Synchronous and asynchronous readers](../../sdks/python/transit-station/docs/http.md) |
+| TypeScript | [Async reply handlers and owned readers](../../sdks/ts/transit-station-sdk/docs/http.md) |
+| Rust | [Owned requests and borrowed readers](../../sdks/rust/transit-station-sdk/docs/HTTP.md) |
+| Ruby | [Frozen values and joined cleanup](../../sdks/ruby/transit-station/docs/HTTP.md) |
+| C | [Explicit handles and inline owned parts](../../sdks/c/transit-station/docs/HTTP.md) |
+| C++ | [Reply unions and RAII readers](../../sdks/cpp/transit-station-sdk/docs/HTTP.md) |
+| Java | [Immutable values and future ownership](../../sdks/java/transit-station-sdk/docs/HTTP.md) |
+| .NET | [Typed outcomes and cancellable task waits](../../sdks/dotnet/transit-station-sdk/docs/HTTP.md) |
+| Erlang | [Tagged records and reader tokens](../../sdks/beam/transit-station-sdk/docs/http.md) |
+| Elixir | [HTTP structs and immutable readers](../../sdks/beam/transit-station-elixir/docs/http.md) |
 
 The [M15 proof inventory](../../tests/README.md#m15-connector-work-in-progress)
 distinguishes installed-consumer evidence from outstanding connector lifecycle,

@@ -8,13 +8,13 @@ from schema_types import declarations
 root = Path(__file__).resolve().parents[1]
 contracts = {name: (root / f"packages/zig/transit-{name}{'-bindings' if name == 'station' else ''}/abi-v1.json").read_bytes()
              for name in ("client", "station")}
-outputs = {root / "packages/python/transit-station/transit_station/station-abi.json": contracts["station"]}
-outputs[root / "packages/python/transit-client/transit_client/client-abi.json"] = contracts["client"]
+outputs = {root / "sdks/python/transit-station/transit_station/station-abi.json": contracts["station"]}
+outputs[root / "sdks/python/transit-client/transit_client/client-abi.json"] = contracts["client"]
 # Public C structs are a separate ABI from the raw Zig handles. Bind every C SDK
 # symbol to the same contract definition, so a foreign header/library pair fails
 # at link/load time before either side can read a differently sized struct.
 for family in ('client', 'station'):
-    target = root / f'packages/c/transit-{family}/include/transit'
+    target = root / f'sdks/c/transit-{family}/include/transit'
     names = set()
     for header in target.glob('*.h'):
         if header.name.startswith('definition_'):
@@ -57,8 +57,8 @@ for family, directory in (("client", "transit-client"), ("station", "transit-sta
         name = function['name']
         dynamic.append(f'            {name}: *unsafe {{ library.get(b"{name}\\0")? }},')
     dynamic += ['            _library: library,', '        })', '    }', '}', '']
-    outputs[root / f'packages/rust/{directory}/src/abi.rs'] = '\n'.join(dynamic).encode()
-    outputs[root / f'packages/rust/{directory}/src/contract.json'] = contracts[family]
+    outputs[root / f'sdks/rust/{directory}/src/abi.rs'] = '\n'.join(dynamic).encode()
+    outputs[root / f'sdks/rust/{directory}/src/contract.json'] = contracts[family]
 def clean(value):
     if isinstance(value, dict):
         return {key: clean(item) for key, item in value.items() if not key.startswith("x-transit-")}
@@ -67,7 +67,7 @@ def clean(value):
     return value
 for family in ('client', 'station'):
     directory = 'transit-client' if family == 'client' else 'transit-station-sdk'
-    target = root / f'packages/java/{directory}/resources/io/transit/sdk/{family}'
+    target = root / f'sdks/java/{directory}/resources/io/transit/sdk/{family}'
     outputs[target / 'contract.json'] = contracts[family]
     outputs[target / 'schemas.json'] = (json.dumps(clean(json.loads(contracts[family])['schemas']), separators=(',', ':')) + '\n').encode()
 def cs_type(value, result=False):
@@ -100,14 +100,14 @@ for family in ('client', 'station'):
         dynamic.append(f'        {name} = Marshal.GetDelegateForFunctionPointer<{name}Delegate>(NativeLibrary.GetExport(library, "{name}"));')
     dynamic += ['    }', '}', '']
     directory = 'transit-client' if family == 'client' else 'transit-station-sdk'
-    target = root / f'packages/dotnet/{directory}'
+    target = root / f'sdks/dotnet/{directory}'
     outputs[target / 'Internal/NativeApi.cs'] = '\n'.join(dynamic).encode()
     outputs[target / 'contract.json'] = contracts[family]
-outputs[root / "packages/beam/transit-client/priv/contract.json"] = contracts["client"]
-outputs[root / "packages/beam/transit-station-sdk/priv/contract.json"] = contracts["station"]
+outputs[root / "sdks/beam/transit-client/priv/contract.json"] = contracts["client"]
+outputs[root / "sdks/beam/transit-station-sdk/priv/contract.json"] = contracts["station"]
 for family, directory in (("client", "transit-client"), ("station", "transit-station-sdk")):
     contract = json.loads(contracts[family])
-    target = root / "packages/ts" / directory / "src"
+    target = root / "sdks/ts" / directory / "src"
     outputs[target / "contract.json"] = contracts[family]
     outputs[target / "schemas.json"] = (json.dumps(clean(contract["schemas"]), separators=(",", ":")) + "\n").encode()
     outputs[target / "wire.ts"] = (
@@ -115,7 +115,7 @@ for family, directory in (("client", "transit-client"), ("station", "transit-sta
         "\n".join(declarations(name, schema) for name, schema in contract["schemas"].items()) + "\n").encode()
 for family in ('client', 'station'):
     contract = json.loads(contracts[family])
-    target = root / f'packages/ruby/transit-{family}/lib/transit/{family}'
+    target = root / f'sdks/ruby/transit-{family}/lib/transit/{family}'
     outputs[target / 'contract.json'] = contracts[family]
     outputs[target / 'schemas.json'] = (json.dumps(clean(contract['schemas']), separators=(",", ":")) + "\n").encode()
 for path, content in outputs.items():

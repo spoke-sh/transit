@@ -1,12 +1,12 @@
 # Python SDK API design
 
-Status: the [typed raw client](../../../packages/python/transit-client/README.md) and
-[Station SDK](../../../packages/python/transit-station/README.md) are implemented
+Status: the [typed raw client](../../../sdks/python/transit-client/README.md) and
+[Station SDK](../../../sdks/python/transit-station/README.md) are implemented
 with clean wheel consumers on Linux x86_64 / pinned CPython 3.13. The installable
 [counter/query examples](../../../examples/station-sdk/python/README.md) supply the
 application types/codecs used below. Configuration and durable recovery storage
 remain application-owned. The [shared design](../SDK.md) owns cross-language
-contracts; the [runtime guide](../../../packages/python/transit-station/docs/runtime.md)
+contracts; the [runtime guide](../../../sdks/python/transit-station/docs/runtime.md)
 owns implemented lifecycle, limits and migration from M9.
 
 ## Packages and types

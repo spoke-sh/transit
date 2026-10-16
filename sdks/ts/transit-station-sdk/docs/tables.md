@@ -85,7 +85,7 @@ It requires an authenticated call and a fresh private proposal. The frozen plan
 fits at most 512 bytes. Segments fit a 65535-byte buffer and the Arrow workspace
 is 4 MiB. A projection that exceeds these operation budgets produces a failed
 query outcome; an earlier segment prefix never becomes a complete result.
-See [capture and delivery](../../../zig/transit-station/docs/queries.md).
+See [capture and delivery](../../../../packages/zig/transit-station/docs/queries.md).
 
 The complete handler Table response, including schema metadata, JSON escaping
 and its envelope, is limited to 256 KiB across direct ABI and native-host SDKs.

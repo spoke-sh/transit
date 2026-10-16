@@ -13,7 +13,7 @@ def build(output: Path, packages: list[str], native_prefix: Path = ROOT / 'zig-o
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in packages:
-        source = ROOT / ('examples/station-sdk/python' if name == 'transit-sdk-examples' else 'packages/python/' + name)
+        source = ROOT / ('examples/station-sdk/python' if name == 'transit-sdk-examples' else 'sdks/python/' + name)
         with tempfile.TemporaryDirectory(prefix='transit-wheel-') as temporary:
             staging = Path(temporary) / name
             shutil.copytree(source, staging, ignore=shutil.ignore_patterns('__pycache__', '*.egg-info', 'build', 'dist'))

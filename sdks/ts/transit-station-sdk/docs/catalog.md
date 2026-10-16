@@ -189,7 +189,7 @@ depth below 16, at most 256 type nodes and 4,096 field-name bytes, and at most
 as children; conflict alternatives share their owning cell's depth and require
 two to eight increasing positive counter/replica pairs. The native owner enforces complete schema/value/intent
 budgets. Kernel frames and turn limits remain unchanged. See the
-[shared caller contract](../../../zig/transit-station-bindings/docs/catalog.md)
+[shared caller contract](../../../../packages/zig/transit-station-bindings/docs/catalog.md)
 for exact transport, ownership and recovery limits.
 
 Schema and DML serialization charge each completed column, assignment and

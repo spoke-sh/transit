@@ -14,7 +14,7 @@ def build(output, native_prefix=None):
     output.mkdir(parents=True, exist_ok=True)
     native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
     native = native_prefix / 'lib/libtransit_client.so'
-    sdk = ROOT / 'packages/c/transit-client/zig-out/lib/libtransit_sdk_client.so'
+    sdk = ROOT / 'sdks/c/transit-client/zig-out/lib/libtransit_sdk_client.so'
     if not native.is_file() or not sdk.is_file():
         raise SystemExit('Run just bindings::c-build to compile both SDK and native dependency')
     packages = {
@@ -24,17 +24,17 @@ def build(output, native_prefix=None):
         'transit-client-cpp': {},
         'transit-native-station-c': {'lib/libtransit_station.so': (native_prefix / 'lib/libtransit_station.so').read_bytes(),
             'include/transit_station.h': (ROOT / 'packages/zig/transit-station-bindings/include/transit_station.h').read_bytes()},
-        'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'packages/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
+        'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'sdks/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
         'transit-station-cpp': {},
         'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (ROOT / 'examples/station-sdk/c/zig-out/lib/libtransit_sdk_examples_c.a').read_bytes(),
             'bin/transit-c-counter': (ROOT / 'examples/station-sdk/c/zig-out/bin/transit-c-counter').read_bytes()},
         'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': (ROOT / 'examples/station-sdk/cpp/zig-out/bin/transit-cpp-counter').read_bytes()},
     }
     specifications = [
-        ('transit-client-c', 'packages/c/transit-client', 'transit_sdk_client', ['transit-native-client-c']),
-        ('transit-client-cpp', 'packages/cpp/transit-client', '', ['transit-client-c']),
-        ('transit-station-c', 'packages/c/transit-station', 'transit_sdk_station', ['transit-client-c', 'transit-native-station-c']),
-        ('transit-station-cpp', 'packages/cpp/transit-station-sdk', '', ['transit-station-c', 'transit-client-cpp']),
+        ('transit-client-c', 'sdks/c/transit-client', 'transit_sdk_client', ['transit-native-client-c']),
+        ('transit-client-cpp', 'sdks/cpp/transit-client', '', ['transit-client-c']),
+        ('transit-station-c', 'sdks/c/transit-station', 'transit_sdk_station', ['transit-client-c', 'transit-native-station-c']),
+        ('transit-station-cpp', 'sdks/cpp/transit-station-sdk', '', ['transit-station-c', 'transit-client-cpp']),
         ('transit-sdk-examples-c', 'examples/station-sdk/c', 'transit_sdk_examples_c', ['transit-station-c']),
         ('transit-sdk-examples-cpp', 'examples/station-sdk/cpp', '', ['transit-sdk-examples-c', 'transit-station-cpp']),
     ]

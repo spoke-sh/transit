@@ -4,6 +4,7 @@ packages:
   - examples/serving/web
   - examples/work-items/web
   - packages/ts/*
+  - sdks/ts/*
   - examples/station-sdk/typescript
 onlyBuiltDependencies:
   - esbuild

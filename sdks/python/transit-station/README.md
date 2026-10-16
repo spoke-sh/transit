@@ -50,7 +50,7 @@ publication, correlated outcomes and synchronous/asynchronous capture readers.
 These experimental M15 APIs use shared Zig validation and current-grant reads;
 the full connector milestone remains in progress. The
 [Python API design](../../../docs/history/sdk/PYTHON.md) provides fuller typed examples;
-the [shared ABI guide](../../zig/transit-station-bindings/docs/bindings.md) owns native bounds.
+the [shared ABI guide](../../../packages/zig/transit-station-bindings/docs/bindings.md) owns native bounds.
 
 Raw callers import the independent `transit_client` package. Station exports
 its typed runner APIs; the generic `transit_station.raw` adapter and root

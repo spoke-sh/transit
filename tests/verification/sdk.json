@@ -427,7 +427,7 @@
         },
         {
           "task": "bindings::catalog-node",
-          "source": "packages/ts/transit-station-sdk/src/catalog.test.ts",
+          "source": "sdks/ts/transit-station-sdk/src/catalog.test.ts",
           "anchor": "unconfirmed catalog response retains exact prepared text"
         },
         {
@@ -437,7 +437,7 @@
         },
         {
           "task": "bindings::catalog-rust",
-          "source": "packages/rust/transit-station-sdk/src/catalog.rs",
+          "source": "sdks/rust/transit-station-sdk/src/catalog.rs",
           "anchor": "fn malformed_success_and_worker_panic_preserve_admission_uncertainty()"
         },
         {

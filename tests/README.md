@@ -19929,7 +19929,7 @@ Raw `handler-table-beam-check1.log` SHA-256: `971af456ae695565e47eb3d33652a591a0
 The C SDK's internal catalog codecs now expose the existing owned schema decoder
 and bounded schema/mutation writers for reuse by handler Tables. Catalog requests
 continue to write their basis and mutation through the same bounded output
-writer. `zig build check` in `packages/c/transit-station`, under `nix develop`,
+writer. `zig build check` in `sdks/c/transit-station`, under `nix develop`,
 completes successfully with the package's C++17 `-Wall -Wextra -Werror` flags
 (`handler-table-c-codecs-build1.log`, exit 0). This is compilation evidence for
 the refactor; C/C++ handler replacement and runtime qualification are pending.
@@ -19943,7 +19943,7 @@ saved mutations and the same shared unified query model. Query object/policy
 identities retain full u64 values. Public C symbols are regenerated against the
 current definition; the final coordinated definition replacement remains pending.
 
-Under `nix develop`, `zig build check` in `packages/c/transit-station` passes
+Under `nix develop`, `zig build check` in `sdks/c/transit-station` passes
 C11 public-header/ownership execution and **34 rejection cases**, plus local
 scope/thread/retained-write/read-poison checks. The cases exercise saved input
 ownership, current/missing/foreign definitions, full-width identities, bounded
@@ -19955,7 +19955,7 @@ existing scope guard; a caught failure still blocks subsequent private work.
 Local guard tests omit transport, so passing them establishes no native dispatch
 or authority observation.
 
-`zig build check` in `packages/cpp/transit-station-sdk` passes C++17 ownership
+`zig build check` in `sdks/cpp/transit-station-sdk` passes C++17 ownership
 and codec checks, including general schemas, owned inputs, saved recovery,
 INSERT/UPDATE/DELETE construction, typed DEFAULT, malformed input and a frozen
 copy of the unified plan. Both packages compile with `-Wall -Wextra -Werror`.

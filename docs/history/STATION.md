@@ -68,10 +68,10 @@ that leaves each language to build its own SDK.
 [M11](../roadmap/M11.md) adds idiomatic public SDKs above the implemented adapters.
 It also adds qualified Ruby public SDKs over the shared native port;
 Ruby is outside the M9-qualified binding matrix.
-The public [C](../../packages/c/transit-station/README.md) and
-[C++](../../packages/cpp/transit-station-sdk/README.md) runners now qualify the same
+The public [C](../../sdks/c/transit-station/README.md) and
+[C++](../../sdks/cpp/transit-station-sdk/README.md) runners now qualify the same
 handler/recovery/Table/query schedule with installed example binaries.
-The [Java SDK](../../packages/java/transit-station-sdk/README.md) qualifies typed
+The [Java SDK](../../sdks/java/transit-station-sdk/README.md) qualifies typed
 records/interfaces, scoped synchronous callbacks, bounded asynchronous runner
 operations and owned query IPC through the same schedule. .NET, Erlang and Elixir
 now qualify corresponding native-language interfaces. All public targets run
