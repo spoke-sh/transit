@@ -33,11 +33,11 @@ query-failures *args: build
 
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
-    cd packages/ts/transit-client && vp check
+    cd sdks/ts/transit-client && vp check
     vp exec --filter @transit/client node --test src/errors.test.ts src/port.test.ts
     # Station imports the package's emitted declarations and runtime exports.
     vp exec --filter @transit/client tsc
-    cd packages/ts/transit-station-sdk && vp check
+    cd sdks/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
 
@@ -47,12 +47,12 @@ python-build: build
 
 # Type-check public APIs and run a clean wheel consumer outside the checkout.
 python-test: python-build
-    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_relational_values.py
-    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_handler_tables.py
-    PYTHONPATH=packages/python/transit-client:packages/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
-    PYTHONPATH=packages/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
-    mypy --strict packages/python/transit-native-client/transit_native_client packages/python/transit-native-station/transit_native_station packages/python/transit-client/transit_client
-    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_handler_tables.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station:examples/station-sdk/python python3 -B tests/sdk_table_work.py
+    PYTHONPATH=sdks/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
+    mypy --strict sdks/python/transit-native-client/transit_native_client sdks/python/transit-native-station/transit_native_station sdks/python/transit-client/transit_client
+    mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels
     zig build transit-station-grpc-worker
@@ -70,15 +70,15 @@ relational-node: node-build node-check
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
 
 relational-python: python-build
-    PYTHONPATH=packages/python/transit-client:packages/python/transit-station python3 -B tests/python_relational_values.py
-    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/python_relational_values.py
+    mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
 
 # Qualify public Node clients/runners through the shared real-authority schedules.
 node-sdk-test: node-build
-    cd packages/ts/transit-client && vp check
+    cd sdks/ts/transit-client && vp check
     vp exec --filter @transit/client tsc --noEmit
-    cd packages/ts/transit-station-sdk && vp check
+    cd sdks/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
@@ -97,8 +97,8 @@ logical-test: python-build node-build
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
-    cargo fetch --locked --manifest-path packages/rust/transit-client/Cargo.toml
-    cargo fetch --locked --manifest-path packages/rust/transit-station-sdk/Cargo.toml
+    cargo fetch --locked --manifest-path sdks/rust/transit-client/Cargo.toml
+    cargo fetch --locked --manifest-path sdks/rust/transit-station-sdk/Cargo.toml
     cargo fetch --locked --manifest-path examples/station-sdk/rust/Cargo.toml
     python3 -B bindings/build_rust.py .cache/bindings/rust
 
@@ -109,10 +109,10 @@ rust-lifetime cases="128": rust-build
 
 # Build clean Rust consumers; run from the bindings shell.
 rust-sdk-test: rust-build
-    cargo fmt --manifest-path packages/rust/transit-client/Cargo.toml --check
-    cargo fmt --manifest-path packages/rust/transit-native-client/Cargo.toml --check
-    cargo fmt --manifest-path packages/rust/transit-native-station/Cargo.toml --check
-    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-client/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-native-client/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-native-station/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
     zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
@@ -127,22 +127,22 @@ ruby-build: build
 
 # Syntax checks and installed public Ruby client/authority schedules.
 ruby-sdk-test: ruby-build
-    ruby -Ipackages/ruby/transit-client/lib -Ipackages/ruby/transit-station/lib tests/ruby_handler_tables.rb
-    ruby -c packages/ruby/transit-client/lib/transit/client.rb
-    ruby -c packages/ruby/transit-client/lib/transit/client/values.rb
-    ruby -c packages/ruby/transit-client/lib/transit/client/worker.rb
-    ruby -c packages/ruby/transit-client/lib/transit/client/port.rb
-    ruby -c packages/ruby/transit-client/lib/transit/client/operations.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/values.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/bridge.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/http.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/turn.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/table.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/query.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/catalog_values.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/logical.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/runner.rb
+    ruby -Isdks/ruby/transit-client/lib -Isdks/ruby/transit-station/lib tests/ruby_handler_tables.rb
+    ruby -c sdks/ruby/transit-client/lib/transit/client.rb
+    ruby -c sdks/ruby/transit-client/lib/transit/client/values.rb
+    ruby -c sdks/ruby/transit-client/lib/transit/client/worker.rb
+    ruby -c sdks/ruby/transit-client/lib/transit/client/port.rb
+    ruby -c sdks/ruby/transit-client/lib/transit/client/operations.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/values.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/bridge.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/http.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/turn.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/table.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/query.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/catalog_values.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/logical.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/catalog.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/runner.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
@@ -156,17 +156,17 @@ ruby-sdk-test: ruby-build
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
-    cd packages/c/transit-client && zig build
-    cd packages/cpp/transit-client && zig build check
-    cd packages/c/transit-station && zig build
-    cd packages/cpp/transit-station-sdk && zig build check
+    cd sdks/c/transit-client && zig build
+    cd sdks/cpp/transit-client && zig build check
+    cd sdks/c/transit-station && zig build
+    cd sdks/cpp/transit-station-sdk && zig build check
     cd examples/station-sdk/c && zig build
     cd examples/station-sdk/cpp && zig build
     python3 -B bindings/build_c.py .cache/bindings/c
 
 # Compile installed public C and C++ consumers and run the shared raw schedule.
 c-sdk-test: c-build
-    zig fmt --check packages/c packages/cpp/transit-client packages/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
+    zig fmt --check sdks/c sdks/cpp/transit-client sdks/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
     zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
@@ -218,7 +218,7 @@ logical-beam: beam-build
 # Compile clean Erlang consumers and execute both public BEAM language schedules.
 beam-sdk-test: beam-build
     python3 -B tests/beam_logical_values.py .cache/bindings/beam
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
     zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
@@ -255,7 +255,7 @@ grpc-faults: python-build
 # Qualify Document scoped jobs and read-only native/port consumers.
 document-native: build
     zig build transit-node rey-cli
-    PYTHONPATH=packages/python/transit-station:packages/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
+    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
 
 # Installed Python Document types, scoped changes, retained reads and host loss.
 document-python: python-build
@@ -271,13 +271,13 @@ document-node: node-build
 
 # Installed Ruby Document values, scoped changes and joined reader destruction.
 document-ruby: ruby-build
-    ruby -c packages/ruby/transit-station/lib/transit/station/document.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/document.rb
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language ruby
 
 # Installed Rust Document values and compiler-enforced owner/reader lifetimes.
 document-rust: rust-build
-    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language rust
 
@@ -298,29 +298,29 @@ document-dotnet: dotnet-build
 
 # Installed Erlang and Elixir Document APIs share the native merge implementation.
 document-beam: beam-build
-    mix format --check-formatted packages/beam/transit-station-elixir/lib/document.ex tests/elixir_document_adapter.ex
+    mix format --check-formatted sdks/beam/transit-station-elixir/lib/document.ex tests/elixir_document_adapter.ex
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build
-    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
+    mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python -Dunified-source={{source}}
 
 # Installed TypeScript unified API, runtime schemas, Arrow and signed recovery.
 unified-node source="table": node-build
-    cd packages/ts/transit-station-sdk && vp check
+    cd sdks/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=node -Dunified-source={{source}}
 
 # Installed Ruby unified API with immutable values and joined query ownership.
 unified-ruby source="kv": ruby-build
-    ruby -c packages/ruby/transit-station/lib/transit/station/unified.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/unified.rb
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=ruby -Dunified-source={{source}}
 
 # Installed Rust unified API, exclusive borrows, Arrow and signed recovery.
 unified-rust source="table": rust-build
-    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=rust -Dunified-source={{source}}
 
 # Installed C11 and C++17 unified-query callers; each runs the signed schedule.
@@ -355,7 +355,7 @@ unified-codecs: python-build node-build ruby-build rust-build c-build java-build
 
 # Installed Python sync/async catalog clients and exact saved command recovery.
 catalog-python: python-build
-    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
+    mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
     just test::typed-tables --cold --sdk python
 
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
@@ -364,14 +364,14 @@ catalog-node: node-build node-check
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
 catalog-rust: rust-build
-    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     just test::typed-tables --cold --sdk rust
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
 catalog-ruby: ruby-build
-    ruby -c packages/ruby/transit-station/lib/transit/station/catalog_values.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/logical.rb
-    ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/catalog_values.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/logical.rb
+    ruby -c sdks/ruby/transit-station/lib/transit/station/catalog.rb
     just test::typed-tables --cold --sdk ruby
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
@@ -388,5 +388,14 @@ catalog-dotnet: dotnet-build
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
 catalog-beam: beam-build
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
     just test::typed-tables --cold --sdk erlang --sdk elixir
+
+# Compile and run the public Zig SDK and a separately built application.
+zig-test:
+    cd sdks/zig && zig build test
+    python3 -B tests/sdk_zig.py
+
+# Build the runtime in an isolated source tree that contains no SDKs.
+runtime-boundary:
+    python3 -B tests/sdk_runtime.py

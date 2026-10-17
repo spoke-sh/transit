@@ -14,7 +14,7 @@ def build(output, names, native_prefix=None):
     native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
-        source = ROOT / name if '/' in name else ROOT / 'packages/rust' / name
+        source = ROOT / name if '/' in name else ROOT / 'sdks/rust' / name
         manifest = tomllib.loads((source / 'Cargo.toml').read_text())
         stem = f"{manifest['package']['name']}-{manifest['package']['version']}"
         files = {Path('Cargo.toml'): re.sub(r', path = "[^"]+"', '', (source / 'Cargo.toml').read_text()).encode()}

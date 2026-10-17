@@ -30,7 +30,7 @@ def build(output, names, native_prefix=None):
         base = Path(temporary)
         environment['ERL_LIBS'] = str(base)
         for name in names:
-            source = ROOT / name if '/' in name else ROOT / 'packages/beam' / name
+            source = ROOT / name if '/' in name else ROOT / 'sdks/beam' / name
             erlang = sorted((source / 'src').glob('*.erl'))
             elixir = sorted((source / 'lib').glob('*.ex'))
             if elixir:

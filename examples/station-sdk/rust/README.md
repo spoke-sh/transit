@@ -20,7 +20,7 @@ host loss; applications needing exact crash recovery provide persistence hooks.
 
 Build crates with `nix develop .#bindings --command just bindings::rust-build`,
 then add `transit-sdk-examples-rust = "=0.2.0"` and patch the unpublished artifacts
-as described in the [SDK guide](../../../packages/rust/transit-station-sdk/docs/USAGE.md).
+as described in the [SDK guide](../../../sdks/rust/transit-station-sdk/docs/USAGE.md).
 The library import is `transit_sdk_examples`. Cargo builds the counter CLI from
 this package; the Table/query handlers are library examples used by the live proof.
 `QueryRequester` accepts a callback consuming each owned original `IpcSegment`.

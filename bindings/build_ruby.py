@@ -14,7 +14,7 @@ def build(output, names, native_prefix=ROOT / 'zig-out'):
     for name in names:
         with tempfile.TemporaryDirectory(prefix='transit-gem-') as temporary:
             target = Path(temporary)
-            source = ROOT / name if '/' in name else ROOT / 'packages/ruby' / name
+            source = ROOT / name if '/' in name else ROOT / 'sdks/ruby' / name
             shutil.copytree(source, target, dirs_exist_ok=True)
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')

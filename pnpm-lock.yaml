@@ -130,10 +130,10 @@ importers:
     dependencies:
       '@transit/client':
         specifier: workspace:0.2.0
-        version: link:../../../packages/ts/transit-client
+        version: link:../../../sdks/ts/transit-client
       '@transit/station':
         specifier: workspace:0.2.0
-        version: link:../../../packages/ts/transit-station-sdk
+        version: link:../../../sdks/ts/transit-station-sdk
     devDependencies:
       '@types/node':
         specifier: 24.0.0
@@ -186,22 +186,6 @@ importers:
         specifier: 8.20.0
         version: 8.20.0
 
-  packages/ts/transit-client:
-    dependencies:
-      '@transit/native-client':
-        specifier: workspace:0.2.0
-        version: link:../transit-native-client
-      ajv:
-        specifier: 8.20.0
-        version: 8.20.0
-    devDependencies:
-      '@types/node':
-        specifier: 24.0.0
-        version: 24.0.0
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
   packages/ts/transit-diagnostics:
     dependencies:
       ajv:
@@ -211,10 +195,6 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-
-  packages/ts/transit-native-client: {}
-
-  packages/ts/transit-native-station: {}
 
   packages/ts/transit-query-client:
     dependencies:
@@ -241,7 +221,27 @@ importers:
         specifier: 8.20.0
         version: 8.20.0
 
-  packages/ts/transit-station-sdk:
+  sdks/ts/transit-client:
+    dependencies:
+      '@transit/native-client':
+        specifier: workspace:0.2.0
+        version: link:../transit-native-client
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  sdks/ts/transit-native-client: {}
+
+  sdks/ts/transit-native-station: {}
+
+  sdks/ts/transit-station-sdk:
     dependencies:
       '@transit/client':
         specifier: workspace:0.2.0

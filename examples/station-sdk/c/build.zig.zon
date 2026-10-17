@@ -4,8 +4,8 @@
     .version = "0.2.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
-        .transit_sdk_client = .{ .path = "../../../packages/c/transit-client" },
-        .transit_sdk_station = .{ .path = "../../../packages/c/transit-station" },
+        .transit_sdk_client = .{ .path = "../../../sdks/c/transit-client" },
+        .transit_sdk_station = .{ .path = "../../../sdks/c/transit-station" },
     },
     .paths = .{ "build.zig", "build.zig.zon", "include", "src", "README.md" },
 }

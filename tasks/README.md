@@ -345,3 +345,18 @@ fresh-key disk recovery. `just test::work-items-browser` composes the standalone
 generated frontend, separate publication/data/requester owners, schema switch,
 saved exact query recovery and browser access revocation. Both are focused M23
 qualifications; they do not expand the measured hosted PR lanes.
+
+## SDK source boundary
+
+Consumer packages live in `sdks/<language>/`; shared runtime libraries remain in
+`packages/`. `just bindings::zig-test` checks shared module identity and compiles
+the work-items application from a source-only copy outside the checkout.
+`just bindings::runtime-boundary` builds the actual Nix runtime and SQL gateway
+with SDK source excluded. Both belong to the ordinary core lane. Root checks
+also reject SDK dependencies in runtime manifests/imports, including negative
+controls for Zig and TypeScript.
+
+Packaged runtime builds pass `-Dsdk-examples=false`. Root development/example
+builds resolve the public Zig SDK lazily; trying to build a consumer example
+with the SDK disabled is an error. The handbook's SDK navigation reads language
+installation guides from their SDK directories.

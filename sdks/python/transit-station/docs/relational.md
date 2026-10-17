@@ -4,7 +4,7 @@
 join and grouped aggregate profile through the shared Zig query owner. Configure
 one or two `catalog.Connection` values in one realm. Each statement supplies a
 route index for every `FROM`/`JOIN` target; names never select catalogs implicitly.
-The [relational caller contract](../../../zig/transit-query/docs/relational-callers.md)
+The [relational caller contract](../../../../packages/zig/transit-query/docs/relational-callers.md)
 defines SQL, ordering, budgets and current authorization.
 
 ```python

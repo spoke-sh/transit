@@ -4,7 +4,7 @@
 profile through the shared Zig query owner. Configure one or two
 `catalog.Connection` values in the caller's realm. A statement supplies one
 route index per `FROM`/`JOIN` target; names never select another catalog implicitly.
-The [relational caller contract](../../../zig/transit-query/docs/relational-callers.md)
+The [relational caller contract](../../../../packages/zig/transit-query/docs/relational-callers.md)
 defines SQL, ordering, budgets and current authorization.
 
 ```typescript

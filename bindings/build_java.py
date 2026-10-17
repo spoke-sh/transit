@@ -18,7 +18,7 @@ def build(output, names, native_prefix=ROOT / 'zig-out'):
     (output / 'gson-2.12.1.jar').unlink(missing_ok=True)
     shutil.copy2(gson, output / 'gson-2.12.1.jar')
     for name in names:
-        source = ROOT / name if '/' in name else ROOT / 'packages/java' / name
+        source = ROOT / name if '/' in name else ROOT / 'sdks/java' / name
         tree = ET.parse(source / 'pom.xml')
         ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
         artifact_name = tree.findtext('m:artifactId', namespaces=ns)

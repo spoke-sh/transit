@@ -13,7 +13,7 @@ def build(output: Path, packages: list[str], native_prefix: Path = ROOT / 'zig-o
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in packages:
-        source = ROOT / name if '/' in name else ROOT / 'packages/ts' / name
+        source = ROOT / name if '/' in name else ROOT / 'sdks/ts' / name
         manifest = json.loads((source / 'package.json').read_bytes())
         if not name.startswith('transit-native-'):
             subprocess.run(['vp', 'exec', '--filter', manifest['name'], 'tsc'], cwd=ROOT, check=True)

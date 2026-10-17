@@ -44,7 +44,11 @@ the exact package-manager version declared in `package.json`. The runtime closur
 does not include the frontend toolchain. Compilation uses fixed-output source
 downloads for the three external Zig dependencies, verifies their Zig package
 identities and builds with an offline system package directory. No ambient Zig
-package cache or source checkout artifact is required.
+package cache or source checkout artifact is required. Runtime source excludes
+`sdks/` and the language SDK examples; builds pass `-Dsdk-examples=false`.
+The workspace relocation changes the fixed-output frontend dependency-store
+hash without changing package versions or toolchain pins. The boundary check
+builds both native runtime and SQL gateway derivations from that SDK-free source.
 
 On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
 providers to the closure. It places all executables together in `bin/`, so

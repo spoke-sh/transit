@@ -1,5 +1,34 @@
 # Validation and milestone evidence
 
+## SDK source and runtime boundary
+
+The [SDK directory](../sdks/README.md) owns consumer APIs; shared runtime
+implementation remains under `apps/` and `packages/`. These gates cover the
+source split without changing the protocol definition:
+
+- `python3 -B tests/sdk_layout.py` rejects runtime manifest/import dependencies
+  on SDKs, with negative controls for Zig paths, TypeScript imports, package
+  dependencies and compiler aliases. It does not parse arbitrary build scripts.
+- `just bindings::zig-test` checks exact shared module identity, then copies
+  tracked SDK/shared/example source into an isolated directory, builds the real
+  work-items worker/operator through its SDK dependency and runs its manifest
+  command. It does not simulate a separately published Zig archive.
+- `just bindings::runtime-boundary` asserts the actual Nix source has no SDK or
+  language SDK example tree, builds the native runtime and SQL gateway offline
+  from their pinned dependencies and runs the installed public CLI help paths.
+- Existing binding lanes build and exercise installed language packages after
+  relocation; native generation still compares against shared Zig contracts.
+- Handbook browser proofs exercise SDK navigation and search alongside mobile,
+  diagram and interface pages. Run with both root and prefixed hosting.
+
+The source/consumer preflight, unchanged binding generation, `just doctor` and
+`just check` passed during the October 16 layout work. These workspace runs are
+not clean-checkout evidence. The committed-source gate includes all 88 ordinary
+tasks across six lanes, including the two new SDK checks in core; lane timings
+and completion are retained under `.cache/ci/clean/` and reported in the PR.
+A failed or incomplete lane does not qualify the complete inventory.
+
+
 ## Declarative authorization evaluator
 
 The [admission-bound recovery report](verification/results/authorization-admission-recovery-2026-10-15.json)
@@ -19929,7 +19958,7 @@ Raw `handler-table-beam-check1.log` SHA-256: `971af456ae695565e47eb3d33652a591a0
 The C SDK's internal catalog codecs now expose the existing owned schema decoder
 and bounded schema/mutation writers for reuse by handler Tables. Catalog requests
 continue to write their basis and mutation through the same bounded output
-writer. `zig build check` in `packages/c/transit-station`, under `nix develop`,
+writer. `zig build check` in `sdks/c/transit-station`, under `nix develop`,
 completes successfully with the package's C++17 `-Wall -Wextra -Werror` flags
 (`handler-table-c-codecs-build1.log`, exit 0). This is compilation evidence for
 the refactor; C/C++ handler replacement and runtime qualification are pending.
@@ -19943,7 +19972,7 @@ saved mutations and the same shared unified query model. Query object/policy
 identities retain full u64 values. Public C symbols are regenerated against the
 current definition; the final coordinated definition replacement remains pending.
 
-Under `nix develop`, `zig build check` in `packages/c/transit-station` passes
+Under `nix develop`, `zig build check` in `sdks/c/transit-station` passes
 C11 public-header/ownership execution and **34 rejection cases**, plus local
 scope/thread/retained-write/read-poison checks. The cases exercise saved input
 ownership, current/missing/foreign definitions, full-width identities, bounded
@@ -19955,7 +19984,7 @@ existing scope guard; a caught failure still blocks subsequent private work.
 Local guard tests omit transport, so passing them establishes no native dispatch
 or authority observation.
 
-`zig build check` in `packages/cpp/transit-station-sdk` passes C++17 ownership
+`zig build check` in `sdks/cpp/transit-station-sdk` passes C++17 ownership
 and codec checks, including general schemas, owned inputs, saved recovery,
 INSERT/UPDATE/DELETE construction, typed DEFAULT, malformed input and a frozen
 copy of the unified plan. Both packages compile with `-Wall -Wextra -Werror`.

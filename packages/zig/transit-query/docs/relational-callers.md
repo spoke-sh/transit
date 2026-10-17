@@ -84,6 +84,6 @@ within the same host; it does not resume an earlier host's lost execution.
 The [Board worksheet](../../../../apps/transit-board/docs/relational.md) uses this
 owner, with a 16 KiB HTTP request limit and one active query shared by its private
 viewers. The Station ABI uses the same owned client/session construction. The
-[TypeScript](../../../ts/transit-station-sdk/docs/relational.md) and
-[Python](../../../python/transit-station/docs/relational.md) APIs expose interactive
+[TypeScript](../../../../sdks/ts/transit-station-sdk/docs/relational.md) and
+[Python](../../../../sdks/python/transit-station/docs/relational.md) APIs expose interactive
 calls with immutable values and exact integers.

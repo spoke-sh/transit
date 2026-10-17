@@ -1,8 +1,8 @@
 # TypeScript SDK API design
 
-Status: the [public raw client](../../../packages/ts/transit-client/README.md) is
+Status: the [public raw client](../../../sdks/ts/transit-client/README.md) is
 implemented and qualified through a clean tarball consumer. The
-[public Station package](../../../packages/ts/transit-station-sdk/README.md) implements
+[public Station package](../../../sdks/ts/transit-station-sdk/README.md) implements
 the contracts below, with strictly checked executable examples and the shared
 real-authority runner schedule. The [shared design](../SDK.md) owns authority,
 lifecycle and recovery rules. The existing `@rey/transit-station` M9 adapter

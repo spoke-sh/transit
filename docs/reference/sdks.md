@@ -5,6 +5,10 @@ operations, read capabilities and preserve exact recovery. Station adds typed
 messages, private turns, Tables and handler runners. Shared protocol and framework
 semantics stay in Zig; host packages own language types, codecs and scheduling.
 
+Choose a language below for installation and its client/framework guides.
+The handbook SDK section has its own sidebar and shares search with the other
+interfaces. Source ownership is described in the [SDK directory](../../sdks/README.md).
+
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../examples/station-sdk/README.md).
 Packages are not distributed through public registries.
@@ -15,17 +19,17 @@ in Rust, and Document/effect workflows in Zig, with complete source and run comm
 
 | Language | Raw client | Framework |
 | --- | --- | --- |
-| Zig | [transit-client](../../packages/zig/transit-client/README.md) | [transit-station](../../packages/zig/transit-station/README.md) |
-| Python | [transit-client](../../packages/python/transit-client/README.md) | [transit-station](../../packages/python/transit-station/README.md) |
-| TypeScript / Node.js | [transit-client](../../packages/ts/transit-client/README.md) | [transit-station](../../packages/ts/transit-station-sdk/README.md) |
-| Rust | [transit-client](../../packages/rust/transit-client/README.md) | [transit-station](../../packages/rust/transit-station-sdk/README.md) |
-| Ruby | [transit-client](../../packages/ruby/transit-client/README.md) | [transit-station](../../packages/ruby/transit-station/README.md) |
-| C | [transit-client](../../packages/c/transit-client/README.md) | [transit-station](../../packages/c/transit-station/README.md) |
-| C++ | [transit-client](../../packages/cpp/transit-client/README.md) | [transit-station](../../packages/cpp/transit-station-sdk/README.md) |
-| Java | [transit-client](../../packages/java/transit-client/README.md) | [transit-station](../../packages/java/transit-station-sdk/README.md) |
-| .NET | [transit-client](../../packages/dotnet/transit-client/README.md) | [transit-station](../../packages/dotnet/transit-station-sdk/README.md) |
-| Erlang | [transit-client](../../packages/beam/transit-client/README.md) | [transit-station](../../packages/beam/transit-station-sdk/README.md) |
-| Elixir | [transit-client](../../packages/beam/transit-client-elixir/README.md) | [transit-station](../../packages/beam/transit-station-elixir/README.md) |
+| [Zig](../../sdks/zig/README.md) | [transit_client](../../sdks/zig/README.md) | [transit_station](../../sdks/zig/README.md) |
+| [Python](../../sdks/python/README.md) | [transit-client](../../sdks/python/transit-client/README.md) | [transit-station](../../sdks/python/transit-station/README.md) |
+| [TypeScript / Node.js](../../sdks/ts/README.md) | [transit-client](../../sdks/ts/transit-client/README.md) | [transit-station](../../sdks/ts/transit-station-sdk/README.md) |
+| [Rust](../../sdks/rust/README.md) | [transit-client](../../sdks/rust/transit-client/README.md) | [transit-station](../../sdks/rust/transit-station-sdk/README.md) |
+| [Ruby](../../sdks/ruby/README.md) | [transit-client](../../sdks/ruby/transit-client/README.md) | [transit-station](../../sdks/ruby/transit-station/README.md) |
+| [C](../../sdks/c/README.md) | [transit-client](../../sdks/c/transit-client/README.md) | [transit-station](../../sdks/c/transit-station/README.md) |
+| [C++](../../sdks/cpp/README.md) | [transit-client](../../sdks/cpp/transit-client/README.md) | [transit-station](../../sdks/cpp/transit-station-sdk/README.md) |
+| [Java](../../sdks/java/README.md) | [transit-client](../../sdks/java/transit-client/README.md) | [transit-station](../../sdks/java/transit-station-sdk/README.md) |
+| [.NET](../../sdks/dotnet/README.md) | [transit-client](../../sdks/dotnet/transit-client/README.md) | [transit-station](../../sdks/dotnet/transit-station-sdk/README.md) |
+| [Erlang](../../sdks/beam/README.md) | [transit-client](../../sdks/beam/transit-client/README.md) | [transit-station](../../sdks/beam/transit-station-sdk/README.md) |
+| [Elixir](../../sdks/beam/README.md) | [transit-client](../../sdks/beam/transit-client-elixir/README.md) | [transit-station](../../sdks/beam/transit-station-elixir/README.md) |
 
 The ten non-Zig language targets use the shared native boundary. Browser clients
 use separate generated, runtime-validated [query](../../packages/ts/transit-query-client/README.md),
@@ -42,16 +46,16 @@ ordinary bundle and performs no snapshot acquisition or admission.
 
 | Language | Public query method |
 | --- | --- |
-| Python | [`Client.compile_sql`, `AsyncClient.compile_sql`](../../packages/python/transit-station/docs/unified-query.md) |
-| TypeScript | [`Client.compileSql`](../../packages/ts/transit-station-sdk/docs/unified-query.md) |
-| Rust | [`Client::compile_sql`](../../packages/rust/transit-station-sdk/docs/UNIFIED_QUERY.md) |
-| Ruby | [`Client#compile_sql`](../../packages/ruby/transit-station/docs/UNIFIED_QUERY.md) |
-| C | [`transit_station_unified_compile_sql`](../../packages/c/transit-station/docs/UNIFIED_QUERY.md) |
-| C++ | [`Client::compile_sql`](../../packages/cpp/transit-station-sdk/docs/UNIFIED_QUERY.md) |
-| Java | [`Client.compileSql`](../../packages/java/transit-station-sdk/docs/UNIFIED_QUERY.md) |
-| .NET | [`Client.CompileSqlAsync`](../../packages/dotnet/transit-station-sdk/docs/UNIFIED_QUERY.md) |
-| Erlang | [`transit_unified_query:compile_sql/5,6`](../../packages/beam/transit-station-sdk/docs/unified-query.md) |
-| Elixir | [`UnifiedQuery.compile_sql/5,6`](../../packages/beam/transit-station-elixir/docs/unified-query.md) |
+| Python | [`Client.compile_sql`, `AsyncClient.compile_sql`](../../sdks/python/transit-station/docs/unified-query.md) |
+| TypeScript | [`Client.compileSql`](../../sdks/ts/transit-station-sdk/docs/unified-query.md) |
+| Rust | [`Client::compile_sql`](../../sdks/rust/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Ruby | [`Client#compile_sql`](../../sdks/ruby/transit-station/docs/UNIFIED_QUERY.md) |
+| C | [`transit_station_unified_compile_sql`](../../sdks/c/transit-station/docs/UNIFIED_QUERY.md) |
+| C++ | [`Client::compile_sql`](../../sdks/cpp/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Java | [`Client.compileSql`](../../sdks/java/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| .NET | [`Client.CompileSqlAsync`](../../sdks/dotnet/transit-station-sdk/docs/UNIFIED_QUERY.md) |
+| Erlang | [`transit_unified_query:compile_sql/5,6`](../../sdks/beam/transit-station-sdk/docs/unified-query.md) |
+| Elixir | [`UnifiedQuery.compile_sql/5,6`](../../sdks/beam/transit-station-elixir/docs/unified-query.md) |
 
 Omitted bindings select ordinary SQL; an explicit empty collection selects a
 template without placeholders. The [parameter reference](sql/parameters.md)
@@ -107,8 +111,8 @@ SDK libraries and native artifacts under the current shared v1 definition.
 
 ## Relational callers
 
-[TypeScript `relational.Client`](../../packages/ts/transit-station-sdk/docs/relational.md)
-and [Python `relational.Client` / `AsyncClient`](../../packages/python/transit-station/docs/relational.md)
+[TypeScript `relational.Client`](../../sdks/ts/transit-station-sdk/docs/relational.md)
+and [Python `relational.Client` / `AsyncClient`](../../sdks/python/transit-station/docs/relational.md)
 expose explicit catalog routes, metadata-only explanation, interactive open,
 one-row pages and close through the shared Zig relational owner. Typed Zig and
 these SQL callers use the same prepared plans, source rights and budgets.
@@ -125,16 +129,16 @@ alone do not provide an idiomatic relational adapter.
 
 ## Catalog callers
 
-Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);
-TypeScript provides [promise-based catalog callers](../../packages/ts/transit-station-sdk/docs/catalog.md);
-Rust provides [blocking callers with exclusive borrows](../../packages/rust/transit-station-sdk/docs/CATALOG.md);
-Ruby provides [block-scoped synchronous callers](../../packages/ruby/transit-station/docs/CATALOG.md);
-C provides [owned handles and inline values](../../packages/c/transit-station/docs/CATALOG.md);
-C++ provides [typed values and move-only owners](../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
-Java provides [immutable values and bounded futures](../../packages/java/transit-station-sdk/docs/CATALOG.md);
-.NET provides [immutable values and bounded tasks](../../packages/dotnet/transit-station-sdk/docs/CATALOG.md);
-Erlang provides [immutable records and an owned worker](../../packages/beam/transit-station-sdk/docs/catalog.md);
-Elixir provides [structs over the Erlang caller](../../packages/beam/transit-station-elixir/docs/catalog.md).
+Python provides [synchronous and asynchronous catalog callers](../../sdks/python/transit-station/docs/catalog.md);
+TypeScript provides [promise-based catalog callers](../../sdks/ts/transit-station-sdk/docs/catalog.md);
+Rust provides [blocking callers with exclusive borrows](../../sdks/rust/transit-station-sdk/docs/CATALOG.md);
+Ruby provides [block-scoped synchronous callers](../../sdks/ruby/transit-station/docs/CATALOG.md);
+C provides [owned handles and inline values](../../sdks/c/transit-station/docs/CATALOG.md);
+C++ provides [typed values and move-only owners](../../sdks/cpp/transit-station-sdk/docs/CATALOG.md);
+Java provides [immutable values and bounded futures](../../sdks/java/transit-station-sdk/docs/CATALOG.md);
+.NET provides [immutable values and bounded tasks](../../sdks/dotnet/transit-station-sdk/docs/CATALOG.md);
+Erlang provides [immutable records and an owned worker](../../sdks/beam/transit-station-sdk/docs/catalog.md);
+Elixir provides [structs over the Erlang caller](../../sdks/beam/transit-station-elixir/docs/catalog.md).
 These support initialization, conditional policy, named Table creation and exact
 saved recovery through the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md),
 retaining full-width identities. All ten SDKs also expose exact-name lookup,

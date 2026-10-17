@@ -27,7 +27,6 @@ test("production navigation, search, generated references and exact downloads", 
   for (const name of [
     "CLI",
     "SQL",
-    "SDKs",
     "HTTP APIs / OpenAPI",
     "Reactive APIs / AsyncAPI",
     "Flight SQL and ADBC",
@@ -39,7 +38,7 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(page.getByRole("heading", { name: "SELECT", exact: true })).toBeVisible();
   await sidebar.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
   await expect(
-    page.getByText("Catalog execution and offline compilation.", { exact: true }),
+    page.getByText(/CREATE TABLE publishes a general typed Table in the console/),
   ).toBeVisible();
   await sidebar.getByRole("link", { name: "CREATE CONNECTION", exact: true }).click();
   await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
@@ -56,7 +55,8 @@ test("production navigation, search, generated references and exact downloads", 
   ).toBeVisible();
   await expect(
     page
-      .getByRole("row", { name: /Compatible empty CREATE TABLE publication/ })
+      .getByRole("row")
+      .filter({ has: page.getByRole("cell", { name: "CREATE TABLE", exact: true }) })
       .getByRole("cell", { name: "Implemented — execution", exact: true }),
   ).toBeVisible();
   await sidebar.getByRole("link", { name: "Application declarations", exact: true }).click();
@@ -84,6 +84,19 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(
     page.getByRole("heading", { name: "Flight SQL and ADBC", exact: true }),
   ).toBeVisible();
+  await page.locator(".navbar").getByRole("link", { name: "SDKs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Language SDKs", exact: true })).toBeVisible();
+  await expect(sidebar.getByText("SDK foundations", { exact: true })).toBeVisible();
+  await sidebar.getByText("Languages", { exact: true }).click();
+  await sidebar.getByRole("link", { name: "Zig", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Zig SDK", exact: true })).toBeVisible();
+  await expect(page.getByText("transit_sdk", { exact: true }).first()).toBeVisible();
+  await sidebar.getByRole("link", { name: "Python", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Python SDK", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("Python SDK");
+  await page.locator(".search-results").getByRole("link", { name: "Python", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Python SDK", exact: true })).toBeVisible();
   await page.locator(".navbar").getByRole("link", { name: "Internals", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Internals", exact: true })).toBeVisible();
   await page
@@ -197,7 +210,7 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await expect(mobileMenu).not.toBeInViewport();
   await expect(page.getByRole("heading", { name: "CREATE TABLE", exact: true })).toBeVisible();
   await expect(
-    page.getByText("Catalog execution and offline compilation.", { exact: true }),
+    page.getByText(/CREATE TABLE publishes a general typed Table in the console/),
   ).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

@@ -3,6 +3,11 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    // The root composes both runtime and consumer examples. Packaged runtime
+    // builds omit SDK sources and disable this lazy, examples-only dependency.
+    const sdk_examples = b.option(bool, "sdk-examples", "Enable consumer examples through the Zig SDK") orelse true;
+    const sdk = if (sdk_examples) b.lazyDependency("transit_sdk", .{ .target = target, .optimize = optimize }) orelse return else null;
+
     const http_server = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize });
     const serving_http = b.dependency("transit_serving_http", .{ .target = target, .optimize = optimize });
     const application = b.dependency("transit_station_app", .{ .target = target, .optimize = optimize });
@@ -222,7 +227,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-serving-counter", "Check staged typed counter writes and original replies").dependOn(&counter_test.step);
 
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
-    const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") } } });
+    const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = exampleModule(b, sdk, "transit_station_app", target, optimize) }, .{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) } } });
     const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
     const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });
     const install_work_items = b.addInstallArtifact(work_items, .{});
@@ -652,7 +657,7 @@ pub fn build(b: *std.Build) void {
     apps_step.dependOn(&install_document_worker.step);
     build_test_step.dependOn(&document_worker.step);
     b.step("transit-station-document-worker", "Install the growing Document writer").dependOn(&install_document_worker.step);
-    const document_caller = b.addExecutable(.{ .name = "example-station-document", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-document/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_document", .module = document.module("transit_station_document") }} }) });
+    const document_caller = b.addExecutable(.{ .name = "example-station-document", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-document/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_document", .module = exampleModule(b, sdk, "transit_station_document", target, optimize) }} }) });
     const install_document_caller = b.addInstallArtifact(document_caller, .{});
     b.getInstallStep().dependOn(&install_document_caller.step);
     build_test_step.dependOn(&document_caller.step);
@@ -669,7 +674,7 @@ pub fn build(b: *std.Build) void {
     apps_step.dependOn(&install_http_worker.step);
     build_test_step.dependOn(&http_worker.step);
     b.step("transit-station-http-worker", "Install the finite growing HTTP worker").dependOn(&install_http_worker.step);
-    const http_caller = b.addExecutable(.{ .name = "example-station-http", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-http/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
+    const http_caller = b.addExecutable(.{ .name = "example-station-http", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-http/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = exampleModule(b, sdk, "transit_station_http", target, optimize) }} }) });
     const install_http_caller = b.addInstallArtifact(http_caller, .{});
     b.getInstallStep().dependOn(&install_http_caller.step);
     build_test_step.dependOn(&http_caller.step);
@@ -687,7 +692,7 @@ pub fn build(b: *std.Build) void {
     grpc_codegen_test.has_side_effects = true;
     grpc_codegen_test.stdio = .inherit;
     b.step("test-grpc-codegen", "Qualify offline descriptor-generated RPC requests").dependOn(&grpc_codegen_test.step);
-    const grpc_caller = b.addExecutable(.{ .name = "example-station-grpc", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-grpc/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }} }) });
+    const grpc_caller = b.addExecutable(.{ .name = "example-station-grpc", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-grpc/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_grpc", .module = exampleModule(b, sdk, "transit_station_grpc", target, optimize) }} }) });
     const install_grpc_caller = b.addInstallArtifact(grpc_caller, .{});
     b.getInstallStep().dependOn(&install_grpc_caller.step);
     build_test_step.dependOn(&grpc_caller.step);
@@ -872,7 +877,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("examples/state-query/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        .imports = &.{.{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) }},
     }) });
     const install_query_example = b.addInstallArtifact(query_example, .{});
     build_test_step.dependOn(&query_example.step);
@@ -1225,7 +1230,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("examples/station-ledger/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        .imports = &.{.{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) }},
     }) });
     const install_ledger = b.addInstallArtifact(station_ledger, .{});
     b.step("example-station-ledger", "Install the Station ledger example").dependOn(&install_ledger.step);
@@ -1255,7 +1260,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("examples/" ++ name ++ "/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+            .imports = &.{.{ .name = "transit_client", .module = exampleModule(b, sdk, "transit_client", target, optimize) }},
         }) });
         example_artifacts[index] = example;
         const install = b.addInstallArtifact(example, .{});
@@ -1379,4 +1384,11 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
     build_test_step.dependOn(&growing_capacity.step);
+}
+
+fn exampleModule(b: *std.Build, sdk: ?*std.Build.Dependency, name: []const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Module {
+    if (sdk) |dependency| return dependency.module(name);
+    // A runtime-only build must not silently compile consumers against an
+    // alternate package surface. This module fails only if an example is built.
+    return b.createModule(.{ .root_source_file = b.path("tests/sdk_disabled.zig"), .target = target, .optimize = optimize });
 }

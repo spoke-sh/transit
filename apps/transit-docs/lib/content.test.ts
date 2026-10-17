@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { pages, handbookPages } from "../catalog";
+import { pages, handbookPages, sdkPages } from "../catalog";
 import { pageContent, resolveLink } from "./content";
 import { object, readSpecification, renderSpecification, specifications } from "./specs";
 
@@ -66,6 +66,23 @@ describe("documentation ownership and navigation", () => {
     }
     expect(new Set(pages.map((entry) => entry.route)).size).toBe(pages.length);
     expect(new Set(pages.map((entry) => entry.source)).size).toBe(pages.length);
+  });
+  it("publishes SDK language owners and resolves links inside prefixed hosting", () => {
+    const languages = readdirSync(path.join(root, "sdks"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `sdks/${entry.name}/README.md`);
+    for (const source of languages) {
+      expect(
+        sdkPages.some((entry) => entry.source === source),
+        source,
+      ).toBe(true);
+    }
+    expect(
+      resolveLink(root, "docs/reference/sdks.md", "../../sdks/zig/README.md", "/handbook/"),
+    ).toBe("/handbook/sdks/zig");
+    expect(
+      resolveLink(root, "sdks/python/README.md", "../../docs/reference/callers.md", "/handbook/"),
+    ).toBe("/handbook/reference/callers");
   });
   it("keeps page/anchor links inside a mounted site and unselected owners in source", () => {
     expect(resolveLink(root, "docs/reference/callers.md", "cli.md#commands", "/handbook/")).toBe(

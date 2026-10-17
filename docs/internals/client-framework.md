@@ -50,8 +50,8 @@ worker's return. Waiting for `C` permits the unsafe order `C < U < R`; it does
 not establish `R < U`. Joining the SDK's host thread does not join a different
 detached I/O thread.
 
-The [Rust loader](../../packages/rust/transit-client/src/library.rs) and
-[.NET loader](../../packages/dotnet/transit-client/Internal/NativePackage.cs)
+The [Rust loader](../../sdks/rust/transit-client/src/library.rs) and
+[.NET loader](../../sdks/dotnet/transit-client/Internal/NativePackage.cs)
 therefore retain and reuse bounded code mappings until process exit. Handles,
 buffers and accepted-work evidence keep their explicit cleanup/recovery rules.
 Removing a private extraction file leaves its existing mapping valid. Each

@@ -1,12 +1,12 @@
 # Rust SDK API design
 
-Status: the independent [raw client](../../../packages/rust/transit-client/README.md)
-and [Station SDK](../../../packages/rust/transit-station-sdk/README.md) implement the
+Status: the independent [raw client](../../../sdks/rust/transit-client/README.md)
+and [Station SDK](../../../sdks/rust/transit-station-sdk/README.md) implement the
 contracts below. The [compiled examples](../../../examples/station-sdk/rust/README.md)
 own the executable counter/query applications and shared fixture codecs. Read the
 [shared design](../SDK.md) for authority, lifecycle and recovery rules and the
 [test guide](../../../tests/README.md) for qualification. The
-[existing Rust adapter](../../../packages/rust/transit-station-sdk/README.md) retains its
+[existing Rust adapter](../../../sdks/rust/transit-station-sdk/README.md) retains its
 M9 surface. Bootstrap configuration and durable recovery storage are application
 inputs.
 

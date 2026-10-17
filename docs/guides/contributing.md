@@ -55,6 +55,21 @@ exercise both root and prefixed hosting.
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../../AGENTS.md), [documentation ownership](../README.md#where-documentation-lives) |
 
+## Source layout
+
+`apps/` contains runtime entry points; `packages/` contains the shared libraries
+needed to build Transit. Board and its TypeScript browser libraries stay there.
+`sdks/<language>/` contains consumer APIs, language packaging and installation
+guides. SDKs may depend on shared packages; runtime apps and packages must not
+depend on SDKs. Documentation catalogs can reference SDK Markdown sources.
+
+The shared Zig client, Station and native binding bridge remain in `packages/zig/`.
+The [Zig SDK](../../sdks/zig/README.md) exports their existing modules to consumers.
+Examples exercise SDK entry points. The root build composes both examples and
+runtime targets; packaged runtime builds explicitly disable SDK examples and
+exclude SDK source. The [SDK tooling guide](../../sdks/README.md) names the boundary
+and isolated-consumer checks.
+
 ## Package workflow
 
 Each Zig library owns `build.zig`, `build.zig.zon`, direct dependencies and an

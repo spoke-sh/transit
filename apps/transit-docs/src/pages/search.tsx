@@ -86,7 +86,12 @@ export default function Search(): ReactElement {
                 <p>
                   {entry.route === "internals" || entry.route.startsWith("internals/")
                     ? "Internals"
-                    : "Guides and reference"}
+                    : entry.route.startsWith("sdks/") ||
+                        ["reference/sdks", "reference/callers", "reference/station"].includes(
+                          entry.route,
+                        )
+                      ? "SDKs"
+                      : "Guides and reference"}
                 </p>
                 <p>
                   {start ? "…" : ""}

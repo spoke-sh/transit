@@ -17,7 +17,7 @@ The [Rust](sdk/RUST.md) raw/Station APIs are implemented with clean crate
 consumers, borrowed turns, panic/recovery and optional Arrow ownership proofs.
 Ruby's independent raw/Station gems now have clean installation, scoped handlers,
 recovery/ownership and original query IPC proofs. Independent
-[C](../../packages/c/transit-client/README.md)/[C++](../../packages/cpp/transit-client/README.md)
+[C](../../sdks/c/transit-client/README.md)/[C++](../../sdks/cpp/transit-client/README.md)
 raw clients and Station handlers now have installed artifacts and shared
 recovery/ownership/Table/query proofs. Java's independent raw/Station JARs now
 qualify bounded futures, typed scoped handlers, exact recovery, retained Tables

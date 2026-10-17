@@ -28,5 +28,5 @@ four writes; queries receive NotReady while accepted work remains pending.
 `just bindings::ruby-sdk-test` installs all five gems outside the repository,
 checks shared codec fixtures, invokes both CLI roles across ownership replacement,
 and proves retained Tables and six query segments with independent PyArrow after
-runner disposal. Read the [SDK guide](../../../packages/ruby/transit-station/docs/USAGE.md)
+runner disposal. Read the [SDK guide](../../../sdks/ruby/transit-station/docs/USAGE.md)
 and [test evidence](../../../tests/README.md).

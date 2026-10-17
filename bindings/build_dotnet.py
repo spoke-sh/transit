@@ -14,7 +14,7 @@ def build(output, names, native_prefix=ROOT / 'zig-out'):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
-        source = ROOT / name if '/' in name else ROOT / 'packages/dotnet' / name
+        source = ROOT / name if '/' in name else ROOT / 'sdks/dotnet' / name
         with tempfile.TemporaryDirectory(prefix='transit-dotnet-build-') as temporary:
             target = Path(temporary)
             shutil.copytree(source, target, dirs_exist_ok=True)
