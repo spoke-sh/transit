@@ -21087,3 +21087,52 @@ A fresh diagnostic reproduces libpq leaving OpenSSL error `0A000197` in the
 Python caller thread after an expected rejected login. Isolating those negative
 clients on a joined worker thread passes the unchanged capacity/cancellation
 checks. This changes test-client ownership, not gateway limits or TLS behavior.
+
+
+The [committed-source configuration qualification record](verification/results/configuration-clean-2026-10-17.json)
+accounts for **all 88 ordinary recipes**: 28 core, 32 growth, seven experience,
+two launcher and 19 bindings recipes. Runtime source is `9dffe9e4`; the SQL
+compiler/final fault scope uses `ac9d1db3`, whose only change is the compiler
+proof harness. Every result retains its actual revision. Each canonical recipe
+passes from a committed-source clean checkout. Complete lanes and complete task
+scopes supply this coverage; the earlier failed/interrupted enclosing runs remain
+incomplete. This is not one uninterrupted all-lanes invocation or a hosted timing
+qualification. The record retains per-task revisions/results, six-lane coverage,
+toolchain and log digests, continuation drivers, failure history and scope limits.
+The [public SDK interoperability record](verification/results/configuration-clean-2026-10-17/sdk-interop.json)
+retains the ten installed counter/query pairs, exact recovery, queued Tables and
+owned IPC observations separately from artifact builds and other failure suites.
+
+At the runtime revision, `just check` passes with **595 real CLI diagnostic cases**, and
+the installed server lifecycle passes in **88.61 seconds**. The complete wire task
+passes: its main TLS/driver/authority/recovery/schema/capacity/drain fixture takes
+**6,410.701 seconds**, followed by a separate fresh-fixture `psql`/Oracle `mysql`
+CLI lifecycle in **333.58 seconds**. The original 40 KiB mutation completes in
+**3,494.134 seconds** within its unchanged 3,600-second bound, with **one SQL
+attempt** and verified applied counts. These are functional observations, not
+latency or throughput guarantees.
+
+The final resolver correction reserves the exact existing build/launcher
+`TRANSIT_` controls; unknown setting names still fail. An earlier clean startup
+rejected Nix's build controls, and the installed diagnostic suite now covers
+that case. The full corrected wire run also qualifies the rejected-login TLS
+thread isolation described above.
+
+The first final SQL compiler proof also fails: its harness assumes every
+extension returns the initial `UnsupportedStatement` error. Configuration
+SELECT forms enter the finite-query grammar and reject later; the test-only
+correction asserts the exact `InvalidColumnName`/`UnsupportedConstruct` errors.
+The complete compiler proof and remaining fault recipes pass from that commit.
+No runtime parser or administration boundary changes for this correction.
+
+An overlapping SDK batch exceeded the existing public-query fixture deadline in
+Node, C++, Java and .NET; an initial Ruby setup exceeded its one-second authority
+wait. Those attempts remain failed. Complete canonical recipes then pass on fresh
+fixtures at bounded lower concurrency, without increasing deadlines. Interrupted
+Rust/Ruby/BEAM runs are retained separately from their successful retries. The
+remaining growth/experience scope starts after the deadline-sensitive SDK phases,
+with at most two proof runs active; the shared/model tail follows SDK completion.
+
+Hosted run `39014578659` executes no job steps: GitHub reports failed account
+payments or a spending-limit restriction. No hosted pass or ordinary-suite time
+budget is claimed. The separate browser lane is outside this 88-recipe inventory.
