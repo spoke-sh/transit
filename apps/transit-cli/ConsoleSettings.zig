@@ -57,7 +57,13 @@ pub fn command(console: *Console, text: []const u8) !bool {
         };
         return false;
     }
-    var plan = (q.SettingsSql.parse(console.init.gpa, text, .transit) catch |err| return console.sqlFailure(text, err)) orelse return false;
+    var plan = (q.SettingsSql.parse(console.init.gpa, text, .transit) catch |err| {
+        if (try q.SettingsSql.diagnostic(err)) |detail| {
+            console.diagnostic.envelope = detail;
+            return err;
+        }
+        return console.sqlFailure(text, err);
+    }) orelse return false;
     defer plan.deinit();
     if (plan.statement == .catalog) {
         if (plan.statement.catalog == .tables) return false;

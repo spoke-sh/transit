@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, mutation, application, relational, authorization } = .query,
+    profile: enum { query, template, declaration, table_ddl, mutation, application, relational, authorization, settings } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,10 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .settings => {
+            var value = (try q.SettingsSql.parse(allocator, case.sql, .transit)) orelse return error.UnsupportedStatement;
+            defer value.deinit();
+        },
         .authorization => {
             var value = try f.AuthorizationSql.compile(allocator, case.sql, location);
             defer value.deinit();
@@ -85,6 +89,12 @@ pub fn main(init: std.process.Init) !void {
             var binding: f.Sql.Binding = .{};
             var location: f.Sql.Location = .{};
             compile(arena.allocator(), case, &binding, &location) catch |err| {
+                if (case.profile == .settings) if (try q.SettingsSql.diagnostic(err)) |detail| {
+                    diagnostic = detail;
+                    try std.json.Stringify.value(.{ .id = case.id, .accepted = false, .kind = kind, .diagnostic = diagnostic }, .{}, &output.interface);
+                    try output.interface.writeByte('\n');
+                    continue;
+                };
                 const detail = (switch (case.profile) {
                     .authorization => f.SqlDiagnostic.authorization(case.sql, err, location),
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),

@@ -41,6 +41,11 @@
       "source": "packages/zig/transit-fuze/src/AuthorizationSql.zig",
       "contract": "contracts/AUTHORIZATION_V1.md",
       "behavior": "Pure selected role/schema/privilege parsing. Native identity resolution, current authorization and durable publication have separate owners and proofs."
+    },
+    "settings": {
+      "source": "packages/zig/transit-query/src/SettingsSql.zig",
+      "contract": "contracts/CONFIGURATION_V1.md",
+      "behavior": "Pure shared settings plans and typed metadata compilation; no reads, authority checks or reload dispatch."
     }
   },
   "cases": [
@@ -5375,6 +5380,284 @@
       "reference": true,
       "expected": {
         "accepted": true
+      }
+    },
+    {
+      "id": "settings-0",
+      "sql": "SHOW ALL",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-1",
+      "sql": "SHOW version",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-2",
+      "sql": "SHOW ports.gateway",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-3",
+      "sql": "SHOW one.two.three",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-4",
+      "sql": "SHOW DATABASES",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-5",
+      "sql": "SHOW SCHEMAS",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-6",
+      "sql": "SET query.statement_timeout = '5s'",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-7",
+      "sql": "SET query.statement_timeout TO 5",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-8",
+      "sql": "SET query.statement_timeout=DEFAULT",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-9",
+      "sql": "RESET ALL",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-10",
+      "sql": "RESET query.statement_timeout",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-11",
+      "sql": "SELECT transit_reload_conf()",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-12",
+      "sql": "SELECT * FROM transit_settings()",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-13",
+      "sql": "SELECT * FROM transit_config_reloads()",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-14",
+      "sql": "SELECT name FROM transit_settings() WHERE pending_restart=true ORDER BY name ASC LIMIT 8",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-15",
+      "sql": "SELECT name FROM transit_settings() ORDER BY name",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-16",
+      "sql": "SELECT phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settings-contextual-identifiers",
+      "sql": "CREATE TABLE transit_reload_conf (transit_settings INT64, transit_config_reloads INT64, asc INT64, desc INT64, source INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_sql_syntax",
+        "category": "syntax"
+      }
+    },
+    {
+      "id": "settings-standalone-rejection-0",
+      "sql": "SELECT transit_reload_conf() FROM items",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.standalone_required",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "settings-standalone-rejection-1",
+      "sql": "SELECT transit_reload_conf(1)",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.standalone_required",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "settings-standalone-rejection-2",
+      "sql": "SELECT transit_reload_conf(); SELECT 1",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.standalone_required",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "settings-diagnostic-immutable",
+      "sql": "SET ports.gateway=19000",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.session_immutable",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "settings-diagnostic-sort-limit",
+      "sql": "SELECT * FROM transit_config_reloads() ORDER BY ordinal",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.sort_limit_required",
+        "category": "limit"
+      }
+    },
+    {
+      "id": "settings-diagnostic-bad-unit",
+      "sql": "SET query.statement_timeout='3minutes'",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "configuration.invalid_value",
+        "category": "binding"
       }
     }
   ]

@@ -299,6 +299,8 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
         error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
         error.SettingNotSessionMutable => .{ "0A000".*, "Setting cannot be changed by this session" },
+        error.StandaloneConfigurationOperationRequired => .{ "0A000".*, "Reload requires the complete standalone SELECT transit_reload_conf() statement" },
+        error.ConfigurationSortRequiresBoundedLimit => .{ "54000".*, "Ordered configuration history requires LIMIT of at most 256" },
         error.ConfigurationServiceRequired => .{ "0A000".*, "Configuration service binding is required" },
         error.ConfigurationReloadRejected => .{ "22023".*, "Configuration reload rejected; inspect transit_config_reloads()" },
         error.ConfigurationSnapshotChanged => .{ "40001".*, "Configuration changed; discard partial results and repeat the read" },

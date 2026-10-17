@@ -71,7 +71,7 @@ pub fn cells(a: std.mem.Allocator, value: anytype) ![]const f.Types.Values.Cell 
 fn cell(a: std.mem.Allocator, value: anytype) !f.Types.Values.Cell {
     const T = @TypeOf(value);
     if (@typeInfo(T) == .optional) return if (value) |present| cell(a, present) else .null;
-    const atom: f.Types.Values.Atom = if (T == bool) .{ .boolean = value } else if (T == u64) .{ .unsigned = value } else .{ .bytes = if (@typeInfo(T) == .@"enum") @tagName(value) else if (T == []const u8) value else try q.protocol.Json.valueAlloc(a, value) };
+    const atom: f.Types.Values.Atom = if (T == bool) .{ .boolean = value } else if (T == u64) .{ .unsigned = value } else .{ .bytes = if (T == [16]u8) try a.dupe(u8, &std.fmt.bytesToHex(value, .lower)) else if (@typeInfo(T) == .@"enum") @tagName(value) else if (T == []const u8) value else try q.protocol.Json.valueAlloc(a, value) };
     return .{ .value = .{ .atom = atom } };
 }
 pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect) !?Owned {
@@ -134,9 +134,9 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dial
         return null;
     }
     if (try parser.takeWord("transit_reload_conf")) {
-        try parser.require(.left);
-        try parser.require(.right);
-        try parser.finish();
+        parser.require(.left) catch return error.StandaloneConfigurationOperationRequired;
+        parser.require(.right) catch return error.StandaloneConfigurationOperationRequired;
+        parser.finish() catch return error.StandaloneConfigurationOperationRequired;
         owned.statement = .reload;
         return owned;
     }
@@ -186,6 +186,21 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dial
     owned.statement = .{ .relation = relation };
     return owned;
 }
+pub fn diagnostic(cause: anyerror) !?q.protocol.Diagnostic {
+    const d = q.protocol.Diagnostic;
+    const entry: struct { []const u8, d.Category, []const u8 } = switch (cause) {
+        error.StandaloneConfigurationOperationRequired => .{ "configuration.standalone_required", .unsupported, "Reload requires the complete standalone statement SELECT transit_reload_conf()." },
+        error.SettingNotSessionMutable => .{ "configuration.session_immutable", .unsupported, "Only query.statement_timeout can be changed in a session." },
+        error.ConfigurationSortRequiresBoundedLimit => .{ "configuration.sort_limit_required", .limit, "Ordered configuration history requires LIMIT of at most 256." },
+        error.InvalidSettingValue, error.InvalidSettingType, error.InvalidSettingUnit, error.SettingOutOfRange => .{ "configuration.invalid_value", .binding, "The setting value does not satisfy its type, unit or allowed range." },
+        error.InvalidSettingName => .{ "configuration.invalid_name", .syntax, "Settings use canonical lower-case dotted names." },
+        else => return null,
+    };
+    var result = try d.init(entry[0], entry[1], .parse, .not_submitted, .local_before_dispatch, entry[2]);
+    result.cause = try d.Code.init(@errorName(cause));
+    try result.action(.correct_input);
+    return result;
+}
 fn key(parser: *Parser) ![]const u8 {
     var buffer: std.Io.Writer.Allocating = .init(parser.allocator);
     defer buffer.deinit();
@@ -204,8 +219,8 @@ test "settings grammar is standalone and metadata lowers through Fuze" {
         var plan = (try parse(t.allocator, sql, .transit)).?;
         defer plan.deinit();
     }
-    try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "SELECT transit_reload_conf() FROM items", .transit));
-    try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "SELECT transit_reload_conf(); SELECT 1", .transit));
+    try t.expectError(error.StandaloneConfigurationOperationRequired, parse(t.allocator, "SELECT transit_reload_conf() FROM items", .transit));
+    try t.expectError(error.StandaloneConfigurationOperationRequired, parse(t.allocator, "SELECT transit_reload_conf(); SELECT 1", .transit));
     try t.expectError(error.SettingNotSessionMutable, parse(t.allocator, "SET ports.gateway = 99", .transit));
     try t.expectError(error.ConfigurationSortRequiresBoundedLimit, parse(t.allocator, "SELECT * FROM transit_config_reloads() ORDER BY ordinal", .transit));
 }

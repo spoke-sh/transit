@@ -80,6 +80,8 @@ def run(fixture):
         (history_dir / ('ordinal-'+str(outcome['ordinal'])+'.json')).unlink()
         assert post(port,'/configuration/v1',request)['result']==accepted['result']
         assert json.loads(checkpoint.read_text())['pending'] is None
+        operation_id = bytes(outcome['operation']).hex()
+        assert sql(f"SELECT phase FROM transit_config_reloads() WHERE operation='{operation_id}'")[0]['phase']==outcome['phase']
         first_page = post(port,'/configuration/v1',signed(dict(settings=dict(name=None,cursor=None,origins=False)),1))
         assert len(first_page['result']['settings']['rows'])==8 and first_page['result']['settings']['next'] is not None
         assert all(row['source_name'] is None for row in first_page['result']['settings']['rows'])

@@ -172,14 +172,15 @@ fn rows(a: std.mem.Allocator, state: State, action: @FieldType(C.Action, "settin
             .source_line = if (action.origins) origin.line else null,
             .source_column = if (action.origins) origin.column else null,
             .generation = state.generation,
-            .pending_restart = !optionalEqual(effective, candidate),
+            .pending_restart = !try valueEqual(a, R.get(active, descriptor.name), R.get(configured, descriptor.name)),
             .redacted = descriptor.sensitive,
         });
     }
     return .{ .generation = state.generation, .rows = items.items, .next = next };
 }
-fn optionalEqual(left: ?[]const u8, right: ?[]const u8) bool {
-    return if (left) |l| if (right) |r| std.mem.eql(u8, l, r) else false else right == null;
+fn valueEqual(a: std.mem.Allocator, left: ?std.json.Value, right: ?std.json.Value) !bool {
+    if (left == null or right == null) return left == null and right == null;
+    return std.mem.eql(u8, try q.protocol.Json.valueAlloc(a, left.?), try q.protocol.Json.valueAlloc(a, right.?));
 }
 fn outcomes(self: *Self, a: std.mem.Allocator, state: State, action: @FieldType(C.Action, "reloads")) !@FieldType(@FieldType(C.Response, "result"), "reloads") {
     if (action.cursor) |cursor| if (cursor.revision != state.revision) return error.ConfigurationSnapshotChanged;
@@ -249,9 +250,9 @@ fn apply(self: *Self, a: std.mem.Allocator, wire: *q.wire.Client, state: *State,
         var pending = false;
         var components: std.array_list.Managed(C.Component) = .init(a);
         for (Config.settings.descriptors) |descriptor| {
-            const left = try descriptor.display(a, R.get(before, descriptor.name));
-            const right = try descriptor.display(a, R.get(after, descriptor.name));
-            if (optionalEqual(left, right)) continue;
+            // Compare private typed values before redaction. A sensitive marker
+            // must never suppress a real lifecycle change or pending restart.
+            if (try valueEqual(a, R.get(before, descriptor.name), R.get(after, descriptor.name))) continue;
             if (descriptor.change == .initialization) {
                 immutable = true;
                 outcome.error_field = descriptor.name;
@@ -279,7 +280,7 @@ fn apply(self: *Self, a: std.mem.Allocator, wire: *q.wire.Client, state: *State,
             state.configured = loaded.config;
             state.file = loaded.file;
             const applied_origins = try a.dupe(R.Origin, state.origins);
-            for (Config.settings.descriptors, 0..) |descriptor, i| if (descriptor.change == .reload or descriptor.change == .new_session) {
+            for (Config.settings.descriptors, 0..) |descriptor, i| if (descriptor.change == .reload or descriptor.change == .new_session or try valueEqual(a, R.get(before, descriptor.name), R.get(after, descriptor.name))) {
                 applied_origins[i] = next_origins[i];
             };
             state.origins = applied_origins;

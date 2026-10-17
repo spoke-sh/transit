@@ -3,6 +3,7 @@ const std = @import("std");
 const q = @import("root.zig");
 const A = q.Assistance;
 pub fn complete(allocator: std.mem.Allocator, client: q.SettingsClient, request: A.Request) !?A.Response {
+    try q.fuze.Sql.validateText(request.sql);
     if (request.cursor > request.sql.len) return error.InvalidSqlCursor;
     const text = request.sql[0..request.cursor];
     if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidSqlCursor;
@@ -45,7 +46,9 @@ pub fn complete(allocator: std.mem.Allocator, client: q.SettingsClient, request:
     } else return error.ConfigurationReadBudgetExceeded;
     const revision = try std.fmt.allocPrint(allocator, "{d}", .{policy});
     errdefer allocator.free(revision);
-    return .{ .generation = request.generation, .profile = .configuration_v1, .resource = client.binding.object.id, .contract = q.settings.Contract.Binding.identity(client.binding.installation), .resource_revision = generation.?, .policy_revision = revision, .range = .{ .start = @intCast(start), .end = request.cursor, .quoted = false }, .items = try items.toOwnedSlice() };
+    var end: usize = request.cursor;
+    while (end < request.sql.len and (std.ascii.isAlphanumeric(request.sql[end]) or request.sql[end] == '_' or request.sql[end] == '.')) : (end += 1) {}
+    return .{ .generation = request.generation, .profile = .configuration_v1, .resource = client.binding.object.id, .contract = q.settings.Contract.Binding.identity(client.binding.installation), .resource_revision = generation.?, .policy_revision = revision, .range = .{ .start = @intCast(start), .end = @intCast(end), .quoted = false }, .items = try items.toOwnedSlice() };
 }
 fn add(allocator: std.mem.Allocator, items: *std.array_list.Managed(A.Item), prefix: []const u8, name: []const u8, detail: []const u8) !void {
     if (items.items.len == A.max_items or !std.ascii.startsWithIgnoreCase(name, prefix)) return;

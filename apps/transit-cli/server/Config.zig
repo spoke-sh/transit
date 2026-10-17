@@ -287,3 +287,36 @@ fn environmentDiagnostic(init: std.process.Init, inputs: Inputs, diagnostic: *Di
         diagnostic.file = null;
     }
 }
+
+test "pinned optional source can appear once and never falls back after acceptance" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    const directory = try temporary.dir.realPathFileAlloc(t.io, ".", a);
+    const source = try std.fs.path.join(a, &.{ directory, "transit.yaml" });
+    const init: std.process.Init = .{ .io = t.io, .gpa = t.allocator, .arena = &arena, .minimal = undefined, .environ_map = undefined, .preopens = undefined };
+    var defaults = try settings.defaults(a);
+    try defaults.object.put(a, "installation", .{ .string = try std.fs.path.join(a, &.{ directory, "installation" }) });
+    try defaults.object.put(a, "executables", Settings.object(a));
+    var diagnostic: Diagnostic = .{};
+    const inputs: Inputs = .{ .path = source, .optional = true, .defaults = defaults, .environment = Settings.object(a) };
+    const missing = try resolve(init, inputs, &diagnostic, false);
+    try t.expect(missing.inputs.optional);
+    try t.expectEqual(@as(u64, 0), missing.config.query.statement_timeout);
+    try Files.write(t.io, source, "query:\n  statement_timeout: 5s\n");
+    const present = try resolve(init, missing.inputs, &diagnostic, false);
+    try t.expect(!present.inputs.optional);
+    try t.expectEqual(@as(u64, 5000), present.config.query.statement_timeout);
+    var pinned = present.inputs;
+    try @import("transit_query").settings.Registry.set(a, &pinned.environment, "query.statement_timeout", .{ .integer = 7000 });
+    try Files.write(t.io, source, "query:\n  statement_timeout: 9s\n");
+    try t.expectEqual(@as(u64, 7000), (try resolve(init, pinned, &diagnostic, false)).config.query.statement_timeout);
+    try Files.write(t.io, source, "{}\n");
+    try t.expectEqual(@as(u64, 7000), (try resolve(init, pinned, &diagnostic, false)).config.query.statement_timeout);
+    try t.expectEqual(@as(u64, 0), (try resolve(init, present.inputs, &diagnostic, false)).config.query.statement_timeout);
+    try temporary.dir.deleteFile(t.io, "transit.yaml");
+    try t.expectError(error.InvalidConfiguration, resolve(init, pinned, &diagnostic, false));
+}

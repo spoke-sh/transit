@@ -650,7 +650,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 49,
         "catch": 2
       },
       "imports": [
@@ -2137,11 +2137,12 @@
         "read()": "<inferred>",
         "rows()": "<inferred>",
         "save()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "valueEqual()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 68,
+        "try": 71,
         "catch": 6
       },
       "imports": [
@@ -2531,6 +2532,7 @@
         "ConfigurationReloadRejected": 1,
         "ConfigurationServiceRequired": 1,
         "ConfigurationSnapshotChanged": 1,
+        "ConfigurationSortRequiresBoundedLimit": 1,
         "Conflict": 1,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
@@ -2556,6 +2558,7 @@
         "SettingNotSessionMutable": 1,
         "SettingOutOfRange": 1,
         "StaleGatewayCoordinator": 2,
+        "StandaloneConfigurationOperationRequired": 1,
         "StatementTimedOut": 1,
         "TableNotFound": 1,
         "TooManyWirePortals": 1,
@@ -14250,11 +14253,14 @@
     },
     "packages/zig/transit-query/src/SettingsSql.zig": {
       "errors": {
-        "ConfigurationSortRequiresBoundedLimit": 1,
-        "InvalidSettingValue": 2,
-        "SettingNotSessionMutable": 1,
-        "SettingOutOfRange": 1,
-        "StandaloneConfigurationOperationRequired": 1,
+        "ConfigurationSortRequiresBoundedLimit": 2,
+        "InvalidSettingName": 1,
+        "InvalidSettingType": 1,
+        "InvalidSettingUnit": 1,
+        "InvalidSettingValue": 3,
+        "SettingNotSessionMutable": 2,
+        "SettingOutOfRange": 2,
+        "StandaloneConfigurationOperationRequired": 5,
         "UnknownColumn": 1,
         "UnsupportedAggregate": 1
       },
@@ -14282,13 +14288,14 @@
         "Owned.output()": "<inferred>",
         "cell()": "<inferred>",
         "cells()": "<inferred>",
+        "diagnostic()": "<inferred>",
         "key()": "<inferred>",
         "parse()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 49,
-        "catch": 1
+        "try": 50,
+        "catch": 4
       },
       "imports": [
         "root.zig",
