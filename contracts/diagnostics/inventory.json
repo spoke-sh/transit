@@ -2710,7 +2710,7 @@
     "apps/transit-sql-gateway/src/Host.zig": {
       "errors": {
         "AccessDenied": 1,
-        "AuthorityUnavailable": 2,
+        "AuthorityUnavailable": 1,
         "Canceled": 1,
         "Cancelled": 1,
         "CatalogDefinitionChanged": 2,
@@ -2781,6 +2781,7 @@
         "begin()": "<inferred>",
         "bind()": "<inferred>",
         "current()": "<inferred>",
+        "currentOnce()": "<inferred>",
         "fresh()": "<inferred>",
         "init()": "<inferred>",
         "loadCredential()": "<inferred>",
