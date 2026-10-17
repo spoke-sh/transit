@@ -49,8 +49,8 @@ def post(port, path, value, expected=200, headers=None, retry_unavailable=False)
         result = exchange(port, path, value, headers)
         if not retry_unavailable or result != (503, b'{"err":"AuthorityUnavailable"}') or time.monotonic() >= deadline:
             break
-        # Opted in only for read-only rejected connection discovery below.
-        # An unavailable identity read is neither an authorization nor a denial.
+        # Opt in only for pure reads or a caller-retained identical native
+        # request whose exact replay is part of the proof. Never rebuild an ID.
         time.sleep(.05)
     status, data = result
     assert status == expected, (status, data)

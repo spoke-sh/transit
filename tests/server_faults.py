@@ -199,7 +199,9 @@ def configured_hosts(cli, node, host):
         assert response(fixture, "/health", headers={"Host": f"bank.local.test:{tunnel_port}"})[0] == 403
         fixture.stop()
         before = fixture.record()
+        original = fixture.config
         changed = dict(fixture.config, gateway_allowed_hosts=[f"other.test:{port}"])
+        fixture.config = changed
         fixture.path.write_text(json.dumps(changed))
         fixture.start()
         fixture.ready()
@@ -208,6 +210,7 @@ def configured_hosts(cli, node, host):
         assert response(fixture, "/health", headers={"Host": f"other.test:{port}"})[0] == 200
         assert response(fixture, "/health", headers={"Host": f"bank.local.test:{port}"})[0] == 403
         fixture.stop()
+        fixture.config = original
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready()

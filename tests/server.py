@@ -180,14 +180,17 @@ class Fixture:
         done = record['provision']
 
         def query(kind):
-            return post(port, '/v1/query', native(key, realm, 0, kind))
+            return post(port, '/v1/query', native(key, realm, 0, kind), retry_unavailable=True)
 
         def authority(kind):
             return query(dict(authorization=dict(role=None, kind=kind)))['body']['authorization']
 
         def command(value):
             sequence = query({'capabilities': {}})['principal_sequence'] + 1
-            return post(port, '/v1/command', native(key, realm, 0, dict(authorization=value), sequence))['position']
+            # Retain the exact signature and sequence through unavailable replies;
+            # retry never constructs a second authorization action.
+            signed = native(key, realm, 0, dict(authorization=value), sequence)
+            return post(port, '/v1/command', signed, retry_unavailable=True)['position']
 
         binding = hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(record['definition']) + struct.pack('<QQQBQ', realm, done[5], 1, 3, 1)).digest()
         table = authority(dict(binding=dict(domain=record['authorization_steps'][5], key=list(binding))))['body']['binding']
