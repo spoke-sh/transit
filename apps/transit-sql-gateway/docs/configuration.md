@@ -179,7 +179,9 @@ reload independently on the target configuration domain; no native administrator
 key is loaded by the adapter. Without a binding, host administration reports
 unavailable. Catalog SHOW and session controls retain their own owners.
 
-At login, the adapter captures the current statement timeout and ceiling. SET
+When a settings binding is configured, login requires configuration inspection
+permission to capture the current statement timeout and ceiling. A denied or
+unavailable owner fails login; it does not supply unrestricted defaults. SET
 changes only that session; RESET restores the captured default. Its deadline is
 the stricter of the configured command budget and nonzero statement timeout.
 The fixed PostgreSQL/MySQL encoding/autocommit probes retain their requirements.

@@ -21044,3 +21044,33 @@ independent drivers, revocation, prepared execution, account recovery and TLS.
 Configuration tests add no user-facing commands or flags. Metadata work is
 bounded by page and sort limits; these checks establish no latency or throughput
 guarantee and do not qualify distributed configuration rollout.
+
+Subsequent qualification passes `just check`, the installed
+`just test::server` lifecycle in **85.78 seconds**, and `just test::server-faults`
+with its repeated core lifecycle in **88.23 seconds** and bootstrap/gateway/
+rollback faults in **46.19 seconds**. The fault proof uses current native domain
+grants and exact signed retries; it checks permitted Host-policy changes on
+restart without replacing installation identity or grants. Automatic child
+restart exposed and now covers the retained endpoint's process-arena lifetime.
+
+The focused TLS settings adapter proof passes PostgreSQL/MySQL SHOW, SET/RESET,
+prepared reload, session default/ceiling isolation, bounded statement deadlines,
+metadata and reload revocation. It includes the corrected text-cell encoding:
+owned text and hexadecimal operation IDs are SQL text without JSON quotes.
+A broader driver run encountered MinIO `XMinioStorageFull` on an existing Table
+update when the host crossed its free-drive threshold. That run remains failed;
+the rerun retains disk-backed fixtures and unchanged storage safety limits.
+
+`just test::server-applications` passes the real installation/replacement profile
+in **971.46 seconds** (19 rows/steps, 21 receipts, generation 9; maximum manager
+RSS 43,335,680 bytes and checkpoint 3,056 bytes). `just test::server-board` passes
+defaults/toggles, embedded assets, replacement, revocation and owned failures in
+**43.96 seconds**, plus exact Board bootstrap recovery after lost replies and
+manager death. These are local functional observations, not performance bounds.
+
+Final recovery review adds a missing-checkpoint refusal before child startup,
+records installation completion after first settings publication, and requires
+the persisted completion field. The installed proof also checks that refusal
+leaves installation/history bytes unchanged and that restoring the checkpoint
+retains reload history. The preceding clean run was interrupted to qualify this
+change; partial results are not a completed clean qualification.
