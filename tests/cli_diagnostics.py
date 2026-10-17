@@ -441,14 +441,27 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     home, project = root/'home', root/'project'
     home.mkdir(); project.mkdir()
     environment = dict(ENV, HOME=str(home))
-    home_server, project_server = home/'transit.yaml', project/'transit.yaml'
+    (home/'.config').mkdir()
+    home_server, project_server = home/'.config/transit.yaml', project/'transit.yaml'
     home_server.write_text('version: 9\n')
-    invoke(['server'], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    invoke(['server'], env=environment, cwd=project, contains=('version', 'home/.config/transit.yaml'))
     project_server.write_text('executables: 1\n')
     invoke(['server'], env=environment, cwd=project, contains=('executables must be an object', 'project/transit.yaml'))
     project_server.write_text('ports: !tag invalid\n')
     invoke(['server'], env=environment, cwd=project, contains=('unsupported YAML',))
-    invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/.config/transit.yaml'))
+    # Explicit environment selection and XDG directory override discovery.
+    invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(home_server)), cwd=project,
+           contains=('version', 'home/.config/transit.yaml'))
+    invoke(['server', '--config', home_server], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')),
+           cwd=project, contains=('version', 'home/.config/transit.yaml'))
+    project_server.unlink()
+    xdg = root/'xdg'; xdg.mkdir()
+    (xdg/'transit.yaml').write_text('version: 8\n')
+    invoke(['server'], env=dict(environment, XDG_CONFIG_HOME=str(xdg)), cwd=project,
+           contains=('version', 'xdg/transit.yaml'))
+    invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
+           contains=('absent.yaml', 'was not found'))
     yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))

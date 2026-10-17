@@ -36,6 +36,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-grpc](../../packages/zig/transit-grpc/README.md) / `transit_grpc` | Finite HTTP/2 RPC transport and protobuf codecs; no dispatch authority | transit-tls, pinned zig-libs HTTP/2/protobuf/gRPC client snapshot |
 | [transit-observability](../../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
+| [transit-config](../../packages/zig/transit-config/README.md) | Typed configuration input, setting descriptions, units and provenance | Zig standard library |
 | [transit-protocol](../../packages/zig/transit-protocol/README.md) / `transit_protocol` | Public types, signatures, opaque values, schema, shared fixtures | None |
 | [transit-core](../../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |

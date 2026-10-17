@@ -1,4 +1,5 @@
 //! One bounded public query model, shared by Board and the signed CLI.
+pub const settings = @import("transit_config");
 pub const station = @import("transit_station");
 pub const protocol = station.protocol;
 pub const fuze = station.fuze;

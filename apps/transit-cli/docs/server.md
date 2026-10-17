@@ -37,11 +37,13 @@ recorded before starting children; restart retains the same identity checks.
 With no `--config`, the server selects the **first existing** file:
 
 1. `./transit.yaml`
-2. `~/transit.yaml`
+2. `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`)
 3. `/etc/transit/transit.yaml`
 
 It does not merge these files. A selected file's read or validation error stops
-startup. `--config FILE` selects exactly that file and disables discovery. If no
+startup. `--config FILE` selects exactly that file and disables discovery.
+`TRANSIT_CONFIG` selects an explicit file when `--config` is absent; an empty
+selector rejects. An explicit missing file fails without discovery. If no
 file exists, built-in defaults apply. The selected file overlays defaults:
 nested mappings merge, scalars and lists replace. Partial customization is enough:
 
@@ -68,17 +70,18 @@ are literal values; numbers, booleans, lists and objects use JSON syntax. More
 specific nested variables override a whole-object variable regardless of
 environment iteration order. Lists replace as a unit. Unknown settings and
 invalid types reject; values are never printed. `TRANSIT_CONSOLE_CONFIG` is
-reserved for the console and ignored by the server. Explicit invocation flags
+reserved for the console and ignored by the server; `TRANSIT_CONFIG` selects
+the server file and is not interpreted as a setting. Explicit invocation flags
 such as `--no-ui` and `--initialize` remain command-line actions, not YAML settings.
 The local profile has no configurable bind host or top-level `port`; its actual
 port fields are under `ports`, `applications` and `board`.
 
 Files are at most 64 KiB. JSON files use the `.json` extension; YAML accepts block
-mappings, scalar sequences, plain/single-quoted strings and JSON-encoded quoted
+mappings, sequences including mapping entries, plain/single-quoted strings and JSON-encoded quoted
 strings or flow values. It rejects duplicate/unknown keys, anchors, aliases,
-tags, merge keys and multiline scalars. Nesting is limited to 16 levels; block
-entries and JSON tokens are bounded to 2048 per parsed input. YAML flow values
-must use JSON syntax and have no trailing comment. This is a data-only subset,
+tags, merge keys and multiline scalars. Nesting is limited to 96 levels; block
+entries and JSON tokens are bounded to 65,536 per parsed input. YAML flow values
+use JSON syntax and may have a trailing comment. This is a data-only subset,
 not a general YAML processor. `TRANSIT_` input has a combined 64 KiB limit.
 
 Explicit relative paths resolve against the selected file, or the working

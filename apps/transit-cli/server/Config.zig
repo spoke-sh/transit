@@ -3,6 +3,7 @@ const Files = @import("Files.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
 const Settings = @import("../Settings.zig");
+pub const settings = @import("SettingsSchema.zig").registry;
 version: u8,
 installation: []const u8,
 realm: u64,
@@ -27,10 +28,10 @@ pub fn forConsole(init: std.process.Init, diagnostic: *Diagnostic) !Self {
 }
 fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic, resolve_executables: bool) !Self {
     const allocator = init.arena.allocator();
-    const selected = requested orelse (Settings.discover(init, "transit.yaml", "transit.yaml", "/etc/transit/transit.yaml", diagnostic) catch |err| {
+    const selected = Settings.discoverServer(init, requested, diagnostic) catch |err| {
         diagnostic.configurationFailure(err);
         return error.InvalidConfiguration;
-    });
+    };
     const cwd = try std.Io.Dir.cwd().realPathFileAlloc(init.io, ".", allocator);
     const absolute = if (selected) |name| std.Io.Dir.cwd().realPathFileAlloc(init.io, name, allocator) catch |err| {
         diagnostic.atFile(name);
@@ -40,8 +41,15 @@ fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnosti
     const base = if (absolute) |name| std.fs.path.dirname(name).? else cwd;
     var overlay = if (absolute) |name| try Settings.read(init, name, diagnostic) else Settings.object(allocator);
     if (overlay != .object) return diagnostic.invalidField("configuration", "must be an object", null);
-    try Settings.shape(Self, allocator, overlay, "", diagnostic);
-    try Settings.environment(Self, init, &overlay, diagnostic);
+    var field: ?[]const u8 = null;
+    settings.normalizeInput(allocator, &overlay, &field) catch |err| {
+        if (err == error.InvalidSettingType) {
+            const descriptor = settings.lookup(field orelse "") catch null;
+            if (descriptor == null or descriptor.?.kind == .object) return diagnostic.invalidField(field orelse "configuration", "must be an object", null);
+        }
+        return diagnostic.invalidFieldCause(err, field orelse "configuration", "contains an unknown field or invalid value", null);
+    };
+    try settings.environment(init, &overlay, diagnostic);
     errdefer Settings.environmentOrigin(init, diagnostic);
     try Settings.shape(Self, allocator, overlay, "", diagnostic);
     const version = if (overlay.object.get("version")) |v| (std.json.parseFromValueLeaky(u8, allocator, v, .{}) catch return diagnostic.invalidField("version", "must be 1", null)) else 1;
