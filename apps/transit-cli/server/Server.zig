@@ -168,7 +168,9 @@ fn cycle(self: *Self) !void {
     }
     installation.record.complete = true;
     try installation.save();
-    installation.record.endpoint = try Provider.url(allocator, config.ports.gateway);
+    // The retained record outlives this cycle, including automatic child
+    // restarts. Keep its endpoint in the installation's process arena.
+    installation.record.endpoint = try Provider.url(self.init.arena.allocator(), config.ports.gateway);
     try installation.save();
     const configuration = try installation.path("configuration.json");
     const binding = try Installation.settingsBinding(installation.record, config.realm);
