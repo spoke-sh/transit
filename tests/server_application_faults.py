@@ -143,7 +143,16 @@ def node(real, directory, args):
                         (directory / 'probe-recovered').touch()
             upstream = HTTPConnection('127.0.0.1', source['port'], timeout=4)
             try:
-                upstream.request(self.command, self.path, body, {'Content-Type': 'application/json'})
+                # Preserve the native client's bounded admission classes.
+                # Dropping the wait hint lets long polls occupy all ordinary
+                # request slots and manufactures persistent read starvation.
+                # These hints classify scheduling; native authorization still
+                # validates every request at the real authority.
+                headers = {'Content-Type': 'application/json'}
+                for name in ('x-transit-control', 'x-transit-wait'):
+                    if (value := self.headers.get(name)) is not None:
+                        headers[name] = value
+                upstream.request(self.command, self.path, body, headers)
                 response = upstream.getresponse()
                 data = response.read()
                 if self.path == '/v1/query' and body:
@@ -264,10 +273,7 @@ def run(cli, node_binary, host, worker, operator):
         if operation:
             argv.append(str(fixture.root / (operation + '.json')))
         command = [*argv, *map(str, args)]
-        # Inspection crosses current authorization and each Table page. Under
-        # the fault peer's admission contention it may need a fresh read; this
-        # observation budget never extends a mutation's completion deadline.
-        deadline = time.monotonic() + (120 if mode == 'inspect' else 40)
+        deadline = time.monotonic() + 40
         while True:
             result = subprocess.run(command, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
             if fail or result.returncode == 0 or result.stderr.strip() not in (
