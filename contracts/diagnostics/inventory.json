@@ -14146,7 +14146,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
+        "try": 11,
         "catch": 0
       },
       "imports": [

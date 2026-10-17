@@ -20987,3 +20987,60 @@ elapsed time or a feedback-budget qualification. The final full root check at
 `781b2da5`, Board API/Chromium, packaged installation, all-type native recovery,
 accepted interactive budgets and matched performance evidence remain separately
 scoped. Same-revision hosted CI and integration are still pending.
+
+## Typed configuration and SQL settings
+
+The configuration-v1 implementation separates immutable installation/artifact
+identity from active and configured generations. Its public owners are the
+[configuration reference](../docs/reference/configuration.md),
+[SQL reference](../docs/reference/sql/settings.md) and
+[wire contract](../contracts/CONFIGURATION_V1.md). Tests use disposable directories;
+the developer's installation is not a fixture.
+
+During the 2026-10-16 implementation on `feat/sql-configuration`, the pinned
+`nix develop` environment ran these checks successfully:
+
+- `just doctor`, locked `just transit-board::install`, configuration/query package
+  tests, native authorization/core tests, and CLI lifecycle tests. The lifecycle
+  suite includes a real optional source becoming present, file removal rejection,
+  atomic replacement, key deletion and captured environment precedence.
+- `just test::cli-diagnostics`: **594 real command cases**. Input diagnostics
+  preserve private values and source locations without stdout contamination.
+- `just test::sql-grammar`: **174 finite SELECT AST comparisons**, **32 syntax
+  exclusions**, **24 extensions**, **33 relational AST comparisons** and
+  **113 public SQL examples**, with zero ANTLR generation diagnostics.
+- `just test::diagnostic-grammar`: **434 compiler cases** covering **633 parser
+  rule/alternative/boundary obligations**, including standalone-only reload,
+  immutable session settings, invalid units and bounded history ordering.
+- `just test::diagnostic-outcomes`: **3,384 projections** across **29 declared
+  outcome surfaces**. The native error vocabulary and independent expected
+  mappings changed together.
+- `just check`: generated contracts/fixtures, source inventories, Nix checks,
+  Zig unit checks, CLI/history diagnostics, frontend checks and public site build.
+  The site includes configuration and settings SQL in navigation and search.
+
+The installed server's new configuration subproof passed SQL metadata/filtering,
+YAML coordinates, real Host-policy changes, session limits, pending restart and
+normal restart application, immutable/artifact rejection, expected-generation
+races, tampered signature rejection and same-operation retry after file edits.
+It also reconstructs the exact checkpoint state between acceptance and history
+indexing, removes the two indexes, and verifies idempotent repair. This is an
+explicit modeled crash point; it is not arbitrary filesystem power-loss evidence.
+
+Initial broader runs exposed an empty SQL command-result schema, a missing
+readable directory descriptor for recovery fsync, and completed reload records
+shadowing later Table recovery controls. Those defects were corrected. A later
+server run encountered a concurrent native `StaleStateResource` during a pure
+Table status read; status now uses bounded read-only retry without resubmitting
+accepted work. The broader server and TLS database-wire runs and committed-HEAD
+clean qualification are recorded separately below when complete. Their earlier
+failed runs do not count as passes.
+
+Reproduction commands are `just test::server` and `just test::sql-wire-gateway`.
+For focused adapter diagnosis, use
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- settings`.
+The full task also exercises pinned PostgreSQL/MySQL command-line clients,
+independent drivers, revocation, prepared execution, account recovery and TLS.
+Configuration tests add no user-facing commands or flags. Metadata work is
+bounded by page and sort limits; these checks establish no latency or throughput
+guarantee and do not qualify distributed configuration rollout.
