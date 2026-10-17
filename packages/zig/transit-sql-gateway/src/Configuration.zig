@@ -40,6 +40,10 @@ pub fn account(self: Self, name: []const u8) !usize {
     for (self.accounts, 0..) |value, i| if (std.mem.eql(u8, value.name, name)) return i;
     return error.InvalidAuthentication;
 }
+/// Retained ledger workers may run without admitting any new SQL connections.
+pub fn listening(self: Self) bool {
+    return self.postgres_port != null or self.mysql_port != null;
+}
 fn validateName(value: []const u8) !void {
     if (value.len == 0 or value.len > g.Limits.max_name_bytes or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidGatewayConfiguration;
 }
@@ -55,8 +59,12 @@ pub fn validate(self: Self) !void {
     }
     if (self.health_port == 0 or (self.health_port != null and (self.health_port == self.postgres_port or self.health_port == self.mysql_port)) or self.drain_ms == 0 or self.drain_ms > 270000) return error.InvalidGatewayConfiguration;
     try path(self.health_address);
-    if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port == null and self.mysql_port == null) or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;
-    for ([_][]const u8{ self.native_url, self.certificate_file, self.certificate_key_file, self.activation_directory, self.spill_directory, self.bind_address }) |value| try path(value);
+    if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;
+    for ([_][]const u8{ self.native_url, self.activation_directory, self.spill_directory, self.bind_address }) |value| try path(value);
+    if (self.listening()) {
+        try path(self.certificate_file);
+        try path(self.certificate_key_file);
+    }
     for (self.accounts, 0..) |value, i| {
         try validateName(value.name);
         try validateName(value.association);
@@ -137,6 +145,15 @@ test "SQL mappings reject shared native sequence owners and mismatched catalogs"
     config.mysql_port = config.postgres_port;
     try t.expectError(error.InvalidGatewayConfiguration, config.validate());
     config.mysql_port = null;
+    config.postgres_port = null;
+    config.certificate_file = "";
+    config.certificate_key_file = "";
+    try config.validate();
+    try t.expect(!config.listening());
+    config.postgres_port = 5432;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    config.certificate_file = "/private/cert";
+    config.certificate_key_file = "/private/key";
     accounts[0].databases = &.{.{ .name = "data", .binding = .{ .resource = 10, .catalog = 1, .owner = 9 } }};
     try t.expectError(error.InvalidGatewayConfiguration, config.validate());
 }
