@@ -73,7 +73,7 @@ pub const Read = struct {
         if (self.operation) |id| {
             if (self.emitted) return null;
             self.emitted = true;
-            return try q.SettingsSql.cells(a, .{ .operation = try a.dupe(u8, &std.fmt.bytesToHex(id, .lower)) });
+            return try q.SettingsSql.cells(a, .{ .operation = id });
         }
         switch (self.plan.statement.catalog) {
             .databases => {

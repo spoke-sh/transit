@@ -71,8 +71,17 @@ pub fn cells(a: std.mem.Allocator, value: anytype) ![]const f.Types.Values.Cell 
 fn cell(a: std.mem.Allocator, value: anytype) !f.Types.Values.Cell {
     const T = @TypeOf(value);
     if (@typeInfo(T) == .optional) return if (value) |present| cell(a, present) else .null;
-    const atom: f.Types.Values.Atom = if (T == bool) .{ .boolean = value } else if (T == u64) .{ .unsigned = value } else .{ .bytes = if (T == [16]u8) try a.dupe(u8, &std.fmt.bytesToHex(value, .lower)) else if (@typeInfo(T) == .@"enum") @tagName(value) else if (T == []const u8) value else try q.protocol.Json.valueAlloc(a, value) };
+    const atom: f.Types.Values.Atom = if (T == bool) .{ .boolean = value } else if (T == u64) .{ .unsigned = value } else .{ .bytes = if (T == [16]u8) try a.dupe(u8, &std.fmt.bytesToHex(value, .lower)) else if (@typeInfo(T) == .@"enum") @tagName(value) else if (T == []const u8 or T == []u8) value else try q.protocol.Json.valueAlloc(a, value) };
     return .{ .value = .{ .atom = atom } };
+}
+
+test "settings text cells preserve owned strings and hexadecimal operation identity" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const row = try cells(a, .{ .name = try a.dupe(u8, "public"), .operation = @as([16]u8, @splat(0xab)) });
+    try std.testing.expectEqualStrings("public", row[0].value.atom.bytes);
+    try std.testing.expectEqualStrings("abababababababababababababababab", row[1].value.atom.bytes);
 }
 pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect) !?Owned {
     var owned: Owned = .{ .arena = .init(allocator), .statement = undefined };
