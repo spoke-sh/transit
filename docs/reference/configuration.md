@@ -33,6 +33,13 @@ mapping keys, invalid types and invalid effective combinations fail. Reload
 retains startup environment values; changing another shell's environment does
 not change the running process.
 
+`TRANSIT_CONFIG` and `TRANSIT_CONSOLE_CONFIG` select input files rather than
+settings. The exact names `TRANSIT_SQL_TOOLS`, `TRANSIT_GSON_JAR`,
+`TRANSIT_FUZE_BENCH_PYTHON`, `TRANSIT_DOCS_BASE_URL`, `TRANSIT_LIBRARY_DIR` and
+`TRANSIT_PORT` belong to build tools or launcher templates and are excluded from
+server settings. Other unknown `TRANSIT_` names still fail; these exceptions do
+not reserve whole prefixes.
+
 The data-only YAML profile supports block mappings, sequences including mapping
 items, quoted/plain scalars and JSON flow values. Anchors, aliases, tags, merge
 keys, multiline scalars and multiple documents are rejected. Input is limited

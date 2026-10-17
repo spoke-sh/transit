@@ -465,6 +465,13 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
+    # Installed runtime loading must coexist with the repository's supported
+    # build/launcher environment, while the invalid realm remains diagnosed.
+    tools_environment = {name: 'private-must-not-appear' for name in (
+        'TRANSIT_SQL_TOOLS', 'TRANSIT_GSON_JAR', 'TRANSIT_FUZE_BENCH_PYTHON',
+        'TRANSIT_DOCS_BASE_URL', 'TRANSIT_LIBRARY_DIR', 'TRANSIT_PORT')}
+    invoke(['server', '--no-ui'], env=dict(environment, **tools_environment),
+           cwd=project, contains=('realm must be',))
     for setting in ({'TRANSIT_BOGUS': 'private-must-not-appear'}, {'TRANSIT_PORTS__GATEWAY': '"private-must-not-appear"'}):
         invoke(['server', '--no-ui'], env=dict(environment, **setting), cwd=project,
                contains=('setting' if 'TRANSIT_BOGUS' in setting else 'ports.gateway',))

@@ -123,7 +123,14 @@ pub fn discoverServer(init: std.process.Init, requested: ?[]const u8, diagnostic
 }
 
 pub fn reservedEnvironment(key: []const u8) bool {
-    return std.mem.eql(u8, key, "TRANSIT_CONSOLE_CONFIG") or std.mem.eql(u8, key, "TRANSIT_CONFIG");
+    // These exact names belong to selectors, build tools or launcher templates.
+    // Do not exempt prefixes: misspelled operator settings still fail closed.
+    for ([_][]const u8{
+        "TRANSIT_CONSOLE_CONFIG", "TRANSIT_CONFIG",            "TRANSIT_SQL_TOOLS",
+        "TRANSIT_GSON_JAR",       "TRANSIT_FUZE_BENCH_PYTHON", "TRANSIT_DOCS_BASE_URL",
+        "TRANSIT_LIBRARY_DIR",    "TRANSIT_PORT",
+    }) |name| if (std.mem.eql(u8, key, name)) return true;
+    return false;
 }
 pub const Location = struct { name: []const u8, line: u64, column: u64 };
 pub const Document = struct { value: Value, locations: []const Location };
