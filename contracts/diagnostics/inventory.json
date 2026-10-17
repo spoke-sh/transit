@@ -17114,7 +17114,7 @@
         "GatewayIdentityConflict": 2,
         "GatewayNotInitialized": 2,
         "GatewayOperationBlocked": 1,
-        "GatewayOwnerUnavailable": 2,
+        "GatewayOwnerUnavailable": 1,
         "GatewayWaitCancelled": 1,
         "InvalidGatewayCommand": 1,
         "InvalidGatewayConfiguration": 1,
@@ -17141,12 +17141,13 @@
         "handoff()": "<inferred>",
         "init()": "<inferred>",
         "observe()": "<inferred>",
+        "prepareControl()": "<inferred>",
         "tick()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 50,
-        "catch": 10
+        "try": 53,
+        "catch": 11
       },
       "imports": [
         "root.zig",

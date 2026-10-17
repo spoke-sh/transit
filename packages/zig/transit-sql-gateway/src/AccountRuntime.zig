@@ -178,12 +178,28 @@ fn handoff(self: *Self, command: g.Control.Command, deadline: Deadline, completi
     defer self.ingress_mutex.unlock(self.io);
     _ = try self.finishControl(deadline); // Prior caller's detached observation.
     try deadline.check(self.io);
-    if (!self.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
-    switch (completion) {
-        .processed => try self.ingress_lane.start(&self.ingress, command),
-        .admitted => try self.ingress_lane.startPart(&self.ingress, command.intent_part),
+    while (!self.ready.load(.acquire)) {
+        try deadline.check(self.io);
+        try self.io.sleep(.fromMilliseconds(20), .awake);
     }
+    try prepareControl(&self.ingress_lane, &self.ingress, command, deadline, self.io);
+    self.ingress_lane.pending.?.admission_only = completion == .admitted;
     if (try self.finishControl(deadline) != null) return error.GatewayControlRejected;
+}
+/// Only prepare reads are repeated. Once preparation publishes into the lane,
+/// finishControl owns the exact request, including any uncertain native send.
+fn prepareControl(lane: *g.ControlLane, client: anytype, command: g.Control.Command, deadline: Deadline, io: std.Io) !void {
+    var attempts: u8 = 0;
+    while (true) {
+        try deadline.check(io);
+        lane.start(client, command) catch |err| {
+            if (attempts == 64 or !retryObservation(client.transport, err)) return err;
+            attempts += 1;
+            try io.sleep(.fromMilliseconds(20), .awake);
+            continue;
+        };
+        return;
+    }
 }
 /// observer and table borrow the connection's own native transport; no HTTP
 /// client or mutable sequence state is shared between concurrent sessions.
@@ -208,9 +224,9 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var intent = while (true) {
         try deadline.check(self.io);
         break statement.bindWrite(allocator, table, values, item.id) catch |err| {
-            if (attempts == 64 or (!staleRead(table.transport, err) and err != error.CatalogDefinitionChanged)) return err;
+            if (attempts == 64 or (!retryObservation(table.transport, err) and err != error.CatalogDefinitionChanged)) return err;
             attempts += 1;
-            try self.io.sleep(.fromMilliseconds(1), .awake);
+            try self.io.sleep(.fromMilliseconds(if (s.client.Client.unavailable(err)) 20 else 1), .awake);
             continue;
         };
     };
@@ -267,4 +283,34 @@ test "observation retries unavailable transport without treating denial as trans
     wire.last_rejection = .StaleStateResource;
     try std.testing.expect(retryObservation(&wire, error.Conflict));
     try std.testing.expect(!retryObservation(&wire, error.InvalidGatewayRecord));
+}
+
+test "unsent control preparation retries observations and preserves the published request" {
+    const t = std.testing;
+    const Fake = struct {
+        transport: *s.client.Client,
+        attempts: u8 = 0,
+        failure: anyerror = error.AuthorityUnavailable,
+        pub fn prepare(self: *@This(), command: g.Control.Command) !g.Client.Prepared {
+            self.attempts += 1;
+            if (self.attempts <= 2) return self.failure;
+            const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
+            return .{ .version = 1, .definition = p.Growth.current_definition, .realm = 1, .resource = 2, .owner = 3, .configuration = @splat(7), .signed = try p.Growth.sign(.{ .realm = 1, .principal = 4, .sequence = 5, .command = .{ .send = .{ .pid = 3, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, key) };
+        }
+    };
+    var wire: s.client.Client = undefined;
+    wire.last_rejection = .HttpCapacity;
+    var client: Fake = .{ .transport = &wire };
+    var lane: g.ControlLane = .{};
+    const deadline: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
+    try prepareControl(&lane, &client, .{ .seal_intent = 17 }, deadline, t.io);
+    try t.expectEqual(@as(u8, 3), client.attempts);
+    const saved = lane.pending.?.prepared;
+    try t.expectError(error.GatewayControlBusy, prepareControl(&lane, &client, .{ .seal_intent = 18 }, deadline, t.io));
+    try t.expectEqualDeep(saved, lane.pending.?.prepared);
+    lane = .{};
+    client = .{ .transport = &wire, .failure = error.AccessDenied };
+    try t.expectError(error.AccessDenied, prepareControl(&lane, &client, .{ .seal_intent = 17 }, deadline, t.io));
+    try t.expectEqual(@as(u8, 1), client.attempts);
+    try t.expect(lane.pending == null);
 }
