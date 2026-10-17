@@ -33,6 +33,8 @@ pub const descriptors = [_]D{
     sqlNumber("health_port", "Private loopback SQL recovery and readiness port", "19108", .unsigned, 1024, 65535),
     sqlNumber("drain_ms", "Connection drain deadline", "30000", .duration, 1, 270000),
     sqlNumber("request_timeout_ms", "Native request deadline", "5000", .duration, 1, 60000),
+    sqlNumber("command_ms", "Maximum SQL statement duration", "30000", .duration, 1, 270000),
+    sqlNumber("idle_ms", "Idle SQL session deadline", "30000", .duration, 1, 270000),
     sqlNumber("connections", "Simultaneous SQL connection quota", "64", .unsigned, 1, 256),
     sqlNumber("connections_per_account", "Simultaneous connections per account", "8", .unsigned, 1, 255),
     sqlNumber("authentications", "Simultaneous SQL authentication work", "4", .unsigned, 1, 16),

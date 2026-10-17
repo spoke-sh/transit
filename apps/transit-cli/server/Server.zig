@@ -7,10 +7,11 @@ const Files = @import("Files.zig");
 const Process = @import("Process.zig");
 const Board = @import("Board.zig");
 const Provider = @import("Provider.zig");
+const Sql = @import("Sql.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway, board };
+const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway, board, sql };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -147,6 +148,9 @@ fn cycle(self: *Self) !void {
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
     try self.ready(node_health);
     _ = try installation.query(.{ .capabilities = {} });
+    try installation.flush();
+    self.active_role = .sql;
+    try Sql.recover(installation);
     const applications = if (config.applications != null) try @import("Applications.zig").create(self.init, installation, self.executable) else null;
     defer if (applications) |manager| manager.destroy();
     if (applications) |manager| try manager.recover();
@@ -189,6 +193,9 @@ fn cycle(self: *Self) !void {
     try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
+    self.active_role = .sql;
+    const sql = try Sql.create(installation, allocator, self.executable);
+    defer if (sql) |manager| manager.stop();
     if (self.ui) {
         const board_path = try Board.configuration(installation, allocator);
         try self.start(allocator, .board, &.{ config.executables.board.?, board_path }, &.{}, false);
@@ -213,6 +220,7 @@ fn cycle(self: *Self) !void {
         .allowed_hosts = try @import("Hosts.zig").list(allocator, config.ports.gateway, config.gateway_allowed_hosts),
         .board_url = if (self.ui) config.board.?.public_origin else null,
         .ui = if (self.ui) "ready" else "disabled",
+        .sql = if (sql) |manager| try manager.report(allocator) else null,
     }, .{});
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
@@ -221,7 +229,13 @@ fn cycle(self: *Self) !void {
     var unavailable_probes: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
-        if (applications) |manager| try manager.tick();
+        if (sql) |manager| {
+            self.active_role = .sql;
+            try manager.tick();
+        }
+        if (sql == null or !sql.?.hasPending()) {
+            if (applications) |manager| try manager.tick();
+        }
         const now = std.Io.Clock.awake.now(self.init.io);
         if (last.durationTo(now).toMilliseconds() >= 1000) {
             self.active_role = .node;

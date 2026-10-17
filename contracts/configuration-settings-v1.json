@@ -466,6 +466,38 @@
       "items_schema": null
     },
     {
+      "name": "sql.command_ms",
+      "description": "Maximum SQL statement duration",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "30000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 270000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.idle_ms",
+      "description": "Idle SQL session deadline",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "30000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 270000,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "sql.connections",
       "description": "Simultaneous SQL connection quota",
       "owner": "sql",
@@ -1050,6 +1082,40 @@
             "x-transit-owner": "sql",
             "x-transit-change": "restart",
             "default": 5000
+          },
+          "command_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 270000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Maximum SQL statement duration",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 30000
+          },
+          "idle_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 270000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Idle SQL session deadline",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 30000
           },
           "connections": {
             "type": "integer",

@@ -25,6 +25,7 @@ pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
 pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
 pub const Account = struct {
     name: []const u8,
+    enabled: bool = true,
     verifier_file: []const u8,
     ledger: g.Ledger.Configuration,
     generation: u64,
@@ -37,7 +38,7 @@ pub const Account = struct {
     }
 };
 pub fn account(self: Self, name: []const u8) !usize {
-    for (self.accounts, 0..) |value, i| if (std.mem.eql(u8, value.name, name)) return i;
+    for (self.accounts, 0..) |value, i| if (value.enabled and std.mem.eql(u8, value.name, name)) return i;
     return error.InvalidAuthentication;
 }
 /// Retained ledger workers may run without admitting any new SQL connections.
