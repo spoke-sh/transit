@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 
-from server import children, joined
+from server import children, joined, freeze_executables
 from storage import free_port
 from serving import compact
 
@@ -101,7 +101,8 @@ def node(real, directory, args):
         if ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != expected_parent:
             os._exit(1)
 
-    process = subprocess.Popen([real, str(backend), *args[1:]], preexec_fn=death)
+    with (directory / 'backend-node.stderr').open('ab') as diagnostics:
+        process = subprocess.Popen([real, str(backend), *args[1:]], preexec_fn=death, stderr=diagnostics)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
@@ -213,11 +214,12 @@ def arm(fixture, command, label=None, principal=None):
 
 
 def run(cli, node_binary, host, worker, operator):
-    from server_applications import Applications
+    from server_applications import Applications, provision_authority
     import concurrent.futures
     import shutil
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node_binary, host)
+    freeze_executables(fixture)
     install_peer(fixture)
     started = time.monotonic()
     success = False
@@ -309,6 +311,8 @@ def run(cli, node_binary, host, worker, operator):
             assert latency < 5
             for task in tasks:
                 task.result()
+        profile = provision_authority(fixture, operator, {name: fixture.root / (name + '.json') for name in ('operator', 'writer', 'inspector')})
+        domain('operator', 'initialize-catalog', 'catalog-initialize', profile)
         domain('operator', 'authorize', 'authorize')
         domain('operator', 'prepare-table', 'prepare-initial', 1)
         for i in range(5):

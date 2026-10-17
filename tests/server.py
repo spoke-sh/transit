@@ -55,6 +55,17 @@ def joined(pids):
     raise AssertionError(f"Unjoined children: {remaining}")
 
 
+def freeze_executables(fixture):
+    """Keep a source-built fixture independent of later workspace builds."""
+    directory = fixture.root / 'bin'
+    directory.mkdir(mode=0o700)
+    for key, name in [('node', 'transit-node'), ('query_host', 'transit-query-host'),
+                      ('board', 'transit-board'), ('sql_gateway', 'transit-sql-gateway')]:
+        destination = directory / name
+        shutil.copy2(fixture.config['executables'][key], destination)
+        fixture.config['executables'][key] = str(destination)
+
+
 class Fixture:
     def __init__(self, cli, node, host, parent="/var/tmp"):
         self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir=parent))
