@@ -413,7 +413,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     adjacent.mkdir(); search.mkdir()
     local_cli = adjacent/'transit'
     shutil.copy2(CLI, local_cli)
-    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board')
+    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')
     for name in names: (adjacent/name).symlink_to(sys.executable)
     discovery_config = root/'convention.json'
     reserved = [socket.socket() for _ in range(6)]

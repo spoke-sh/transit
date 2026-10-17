@@ -51,17 +51,22 @@ hash without changing package versions or toolchain pins. The boundary check
 builds both native runtime and SQL gateway derivations from that SDK-free source.
 
 On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
-providers to the closure. It places all executables together in `bin/`, so
+providers and matching SQL gateway to the closure. It places all executables together in `bin/`, so
 `transit server` finds dependencies beside itself before searching `PATH`. It
 also exposes a JSON executable map
-in `share/transit/local-executables.json` (including `board`); downstream flakes can also use the
-`transit`, `ursula` and `minio` passthru packages to construct explicit server
+in `share/transit/local-executables.json` (including `board` and `sql_gateway`); downstream flakes can also use the
+`transit`, `transit-sql-gateway`, `ursula` and `minio` passthru packages to construct explicit server
 configuration. It does not initialize storage or start processes during a build
 or shell entry. Run `transit server --initialize` once, then `transit server` to resume.
-Optional `transit.yaml` settings overlay the version-3 defaults;
+Optional `transit.yaml` settings overlay the current defaults;
 Board is enabled by default, with `--no-ui` for headless use. Retain the package
 output through a Nix profile or build-link GC root while installations use its
 pinned paths; see the [server guide](../apps/transit-cli/docs/server.md).
+
+The CLI and SQL gateway link the existing locked OpenSSL 3.6.4 library; the CLI
+uses it to issue local certificates without invoking an ambient `openssl`
+command. Adding this runtime dependency does not change the flake input pins.
+SQL listeners remain disabled unless configured, including in the local bundle.
 
 To prepare the bundle for the public quickstart, run from the repository root:
 

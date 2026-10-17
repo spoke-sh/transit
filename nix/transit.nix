@@ -11,7 +11,10 @@
   python3,
   zstd,
   vite-plus,
+  openssl,
+  pkg-config,
 }:
+assert openssl.version == "3.6.4";
 let
   # Seed Zig's package directory from fixed-output downloads. The build itself
   # runs offline and verifies the same package identities as build.zig.zon.
@@ -111,8 +114,12 @@ stdenv.mkDerivation {
   pname = "transit";
   version = "0.1.0";
   inherit src;
-  nativeBuildInputs = [ zig ] ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
-  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
+  nativeBuildInputs = [
+    zig
+    pkg-config
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
+  buildInputs = [ openssl ] ++ lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
   configurePhase = ''
     runHook preConfigure
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"

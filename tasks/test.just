@@ -493,7 +493,7 @@ diagnostic-grammar:
 
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Owned durable writes; requires --output, supports independent history/row controls.
@@ -515,7 +515,7 @@ server-faults:
 
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host
 
 # Current grant changes/cancellation after a durable segment staging decision.
@@ -617,25 +617,25 @@ work-items-placement profile="compose":
 
 # Separately compiled consumer, scoped installation and disk-backed replacement.
 server-applications:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Default embedded Board, retained inspection grants and local UI recovery.
 server-board:
-    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 

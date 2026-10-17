@@ -341,6 +341,9 @@ if __name__ == '__main__':
             target = artifacts / Path(argument).name
             shutil.copy2(Path(argument).resolve(), target)
             binaries.append(str(target))
+        sql_gateway = artifacts / 'transit-sql-gateway'
+        shutil.copy2(Path(sys.argv[1]).resolve().parent / 'transit-sql-gateway', sql_gateway)
+        os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(sql_gateway)
         preflight(*binaries[:4])
         incompatible(*binaries[:4])
         lifecycle(*binaries)

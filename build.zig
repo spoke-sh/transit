@@ -46,6 +46,9 @@ pub fn build(b: *std.Build) void {
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const sql_gateway = b.dependency("transit_sql_gateway", .{ .target = target, .optimize = optimize });
+    const tls_server = b.dependency("transit_tls_server", .{ .target = target, .optimize = optimize });
+    const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
     const diagnostic_grammar = b.addExecutable(.{ .name = "transit-diagnostic-grammar", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/diagnostic_grammar.zig"),
         .target = target,
@@ -757,7 +760,11 @@ pub fn build(b: *std.Build) void {
         }) });
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
-        if (comptime std.mem.eql(u8, entry[0], "transit")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
+        if (comptime std.mem.eql(u8, entry[0], "transit")) {
+            app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
+            app.root_module.addImport("transit_sql_gateway", sql_gateway.module("transit_sql_gateway"));
+            app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
+        }
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
@@ -766,6 +773,8 @@ pub fn build(b: *std.Build) void {
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
     const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
+        .{ .name = "transit_sql_gateway", .module = sql_gateway.module("transit_sql_gateway") },
+        .{ .name = "transit_tls_server", .module = tls_server.module("transit_tls_server") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
@@ -810,7 +819,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-logical-arrow", "Independently check logical type/state Arrow export").dependOn(&logical_arrow_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
-    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board }) |artifact| server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
     if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     server_test.has_side_effects = true;
     server_test.step.dependOn(&lifecycle_test.step);
@@ -852,7 +861,6 @@ pub fn build(b: *std.Build) void {
     b.step("transit-table-service", "Install the authenticated Table service").dependOn(&b.addInstallArtifact(table_service, .{}).step);
     build_test_step.dependOn(&table_service.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = table_service.root_module })).step);
-    const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&b.addInstallArtifact(sql_gateway_app, .{}).step);
     build_test_step.dependOn(&sql_gateway_app.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);

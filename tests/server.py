@@ -70,6 +70,7 @@ class Fixture:
             "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports)),
             "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
                 "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
+                "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
                 "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
         self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
@@ -414,6 +415,8 @@ def run(cli, node, host):
 if __name__ == "__main__":
     faults = sys.argv[-1] == "--faults"
     args = sys.argv[1:-1] if faults else sys.argv[1:]
+    if len(args) == 5:
+        os.environ["TEST_TRANSIT_SQL_GATEWAY_BINARY"] = str(Path(args.pop()).resolve())
     if len(args) == 4:
         os.environ["TEST_TRANSIT_BOARD_BINARY"] = str(Path(args.pop()).resolve())
     run(*args)
