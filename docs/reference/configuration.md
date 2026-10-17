@@ -69,7 +69,11 @@ pending value without changing listening sockets.
 `executables.sql_gateway` identifies the matching gateway artifact in the local
 bundle. The installation fingerprints that artifact even while both protocols
 are disabled, so enabling a listener does not change its immutable artifact
-identity. Listener settings do not grant native, catalog or data access.
+identity. Listener settings do not grant native, catalog or data access. The
+[local database guide](../../apps/transit-cli/docs/sql.md) describes enrollment,
+trust and retained-worker lifecycle. `sql.command_ms` bounds each SQL statement
+and `sql.idle_ms` bounds an idle session; both default to 30 seconds and permit
+at most 270 seconds. A session statement timeout can further shorten the wait.
 
 ## Inspect, change and reload
 

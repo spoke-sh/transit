@@ -3,7 +3,7 @@
 Start an isolated, application-capable local installation, then read and write
 its Table. Use Linux x86_64 with the complete local bundle installed and
 `transit` available on `PATH` in both terminals. The bundle includes matching
-Transit, Board, Ursula and MinIO executables; Docker is not required at runtime.
+Transit, Board, the SQL gateway, Ursula and MinIO executables; Docker is not required at runtime.
 Check that the command is available:
 
 ```sh
@@ -97,5 +97,7 @@ Interactive SELECT statements run again against a fresh snapshot.
 If state or an artifact is missing, startup refuses to recreate its history.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
-Next, [install a separately compiled application](applications.md). Flight and
-Board's query/operator workspaces require separate configuration.
+Next, [connect with psql or mysql](../../apps/transit-cli/docs/sql.md) or
+[install a separately compiled application](applications.md). Database listeners
+are independently opt-in; the default startup opens neither SQL port. Flight
+requires its own configuration.

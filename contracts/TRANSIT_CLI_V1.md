@@ -206,7 +206,9 @@ restart budgets/backoff. Loss of required storage or authority withdraws gateway
 readiness and stops dependent workers before recovering the same durable history.
 Exhausted recovery fails the installation visibly and reaps its owned children.
 
-Every growing worker replacement uses a fresh key and an exact generation.
+Every growing worker replacement acquires a fresh exact generation. The local
+catalog/query workers rotate their keys. SQL account workers retain their
+enrolled identities and require current grants; replacement never regrants them.
 Persist the intended public registration, grant changes and expected ownership
 before submission. Flush any pending signed operation byte-for-byte before
 preparing another. Record its receipt before deriving dependent identities.
@@ -437,3 +439,43 @@ Interruptions preserve work; cancellation never undoes a published operation.
 Cancellation outcomes follow the shared Table client's current phase. Unresolved writes block replacement work and connection
 switching. A new durable query replaces completed write recovery only after SQL
 compilation. Query recovery keeps its own format and lifecycle.
+
+## Configured local database access
+
+The installed bundle fingerprints its SQL gateway even when disabled. Nullable
+`sql.postgres` and `sql.mysql` settings independently select loopback listeners.
+With no retained enrollment and neither configured, startup creates no SQL-only
+identity, credential, ledger or process. Listener/account/TLS settings require
+restart and use the shared configuration registry and environment precedence.
+
+SQL enrollment checkpoints a definition-bound installation identity, exact
+pending root requests and completed receipts before deriving dependent work.
+Separate sequence owners serve worker, ingress, coordinator, control, Table and
+private-reader lanes. Application and SQL setup serialize unresolved root work;
+public administration uses a separate explicitly privileged principal. Account
+role and catalog bindings remain immutable. Public authorization preparation and
+apply explicitly publish login binding and data access. Ordinary startup does
+not restore revoked credentials or grants.
+
+Initialization runs without listeners, followed by a distinct fresh native
+activation for admission. Core readiness and SQL readiness are independent; the
+ready record links the atomically published SQL status file. That file carries
+states, actual accepting ports, public CA path and per-account control profiles,
+never passwords or signing keys. Missing or invalid listener trust cannot grant
+admission or prevent listener-free recovery of previously accepted operations.
+
+Disable/remove stops new admission after restart while preserving enrolled
+identities, original bindings, ledger records and pending controls. Retained
+unsettled accounts continue under their current native rights; settled removed
+accounts need no resident worker. Fixed setup receipt arrays describe only finite
+setup stages. Account-history scans page through one retained record at a time;
+active/recovering accounts have an explicit deployment quota.
+
+Managed trust is checkpointed before PEM publication. Supplied trust must have a
+valid matching key/leaf, a verified chain to the advertised CA, TLS server usage
+and localhost/127.0.0.1 SANs. A salted password verifier is established once from
+an explicit private file. Later password rotation uses the existing signed-control
+profile's credential operation, independently from data privileges and ledger
+identity. The [local SQL guide](../apps/transit-cli/docs/sql.md) owns configuration,
+client commands, bounds and recovery usage; the [gateway contract](SQL_GATEWAY_V1.md)
+owns wire semantics and retained operation evidence.

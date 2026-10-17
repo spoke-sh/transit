@@ -10,6 +10,8 @@ continues to own outbound TLS.
 paths and checks that they match and that the leaf certificate is currently valid. Contexts remain immutable while sessions use
 them; certificate rotation creates a replacement context for new sessions.
 Compression, renegotiation, session caching and tickets are disabled.
+`Context.verifyLocalTrust` checks the supplied CA chain, server usage and both
+loopback SAN identities before a local placement advertises that trust.
 
 `LocalTrust.issue` creates a P-256 local CA and a server certificate for
 `localhost` and `127.0.0.1` through the pinned provider. The CA is valid for ten

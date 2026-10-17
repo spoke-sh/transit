@@ -23,7 +23,9 @@ compatible build.
 | `accounts` | 1–32 explicit SQL names, verifier references, native identities and database/catalog mappings |
 
 Each account supplies `name`, `verifier_file`, `ledger`, `generation`, optional
-state `association` (default `state`), `keys` and `databases`. Key references are
+state `association` (default `state`), `enabled` (default true), `keys` and
+`databases`. Setting `enabled` false rejects account selection while keeping its
+retained ledger worker and coordinator available. Key references are
 `worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.

@@ -401,3 +401,12 @@ explains package retention. Its manifest includes Board and all native
 providers; paths and executable hashes identify the selected bytes. Do not replace
 individual pinned paths during ordinary restart. Runtime execution needs no
 Node, Python, frontend dev server, source tree, Docker or ambient PATH lookup.
+
+## PostgreSQL and MySQL
+
+The matching local bundle includes the SQL gateway. Neither database listener is
+enabled by default. The [local SQL guide](sql.md) explains YAML settings, explicit
+account authorization, verified TLS clients, rotation and recovery. The ready
+record points to an atomically replaced SQL status file while enrollment runs;
+core readiness does not imply that SQL is accepting connections. Disabling a
+listener preserves accepted operations and their account recovery identities.
