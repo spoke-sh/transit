@@ -135,6 +135,20 @@ pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, 
     if (!std.mem.eql(u8, record.role, desired.role) or !std.mem.eql(u8, record.database, desired.database) or !std.mem.eql(u8, record.schema, desired.schema)) return error.GatewayConfigurationChanged;
     return record;
 }
+
+/// Policy administration does not imply data-plane CONNECT/USAGE. Publish a
+/// proposal for catalog discovery; only an explicit operator apply grants it.
+pub fn catalogAccess(installation: *Installation, allocator: std.mem.Allocator) !void {
+    const revision = (try installation.query(.{ .authorization = .{ .kind = .identity } })).body.authorization.revision;
+    const catalog = Installation.catalogFor(installation.connection(), installation.record);
+    const objects = [_]p.Authorization.ObjectRef{ .{ .kind = .domain, .id = catalog.authority.database }, .{ .kind = .domain, .id = catalog.authority.initial_schema_authority } };
+    const intents = [_]q.wire.AuthorizationSet.Intent{
+        .{ .grant = .{ .object = objects[0], .grantee = p.Authorization.root_role, .privileges = q.catalog.TableAuthority.connect } },
+        .{ .grant = .{ .object = objects[1], .grantee = p.Authorization.root_role, .privileges = q.catalog.TableAuthority.usage } },
+    };
+    const document: q.wire.AuthorizationSet.Document = .{ .definition = n.current_definition, .realm = installation.config.realm, .base_revision = revision, .managed_scope = .{ .objects = &objects }, .intents = &intents };
+    _ = try Files.jsonIfChanged(installation.init.io, allocator, try path(installation, allocator, "catalog-access.json"), document);
+}
 pub fn loadAccount(installation: *Installation, allocator: std.mem.Allocator, name: []const u8) !Account {
     const record = try Files.read(Account, installation.init.io, allocator, try accountPath(installation, allocator, name, "account.json"));
     if (record.definition != n.current_definition or !std.mem.eql(u8, &record.installation, &installation.record.installation) or !std.mem.eql(u8, record.name, name)) return error.InstallationIdentityMismatch;

@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import sys
 
 from server import Fixture, joined
@@ -65,6 +66,25 @@ def run(cli, node, host, board, gateway):
         assert retained['initialized'] and retained['journal']['generation'] > frozen_init['journal']['generation']
         print('Local SQL: accepted root allocation and initialize reply loss recovered exact saved identities after manager SIGKILL.', flush=True)
 
+        # A foreign process owns the configured port. Admission must report a
+        # failure while the native administrator remains available; restarting
+        # after releasing that port uses the same enrolled identity.
+        fixture.stop()
+        query = fixture.root / 'identity.json'; query.write_text('{"identity":{}}')
+        with socket.socket() as occupied:
+            occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            occupied.bind(('127.0.0.1', fixture.config['sql']['postgres']['port']))
+            occupied.listen(1)
+            fixture.start(); fixture.ready(timeout=300)
+            status = wait_status(fixture, lambda s: s['service']['state'] == 'unavailable' and s['service']['error_type'] is not None)
+            assert status['service']['postgres_port'] is None
+            call([fixture.cli, 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml', '--file', query], retry_observation=True)
+            fixture.stop()
+        fixture.start(); fixture.ready(timeout=300)
+        wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
+        assert json.loads(path.read_text())['identity'] == retained['identity']
+        print('Local SQL: occupied port withdraws admission, preserves core access and recovers after release.', flush=True)
+
         # Disable the worker using public authorization. A subsequent root own
         # must reject without restoring its credential or blocking core access.
         control = json.loads((fixture.installation / 'sql/accounts/owner/control.json').read_text())
@@ -72,7 +92,6 @@ def run(cli, node, host, board, gateway):
         worker_profile.write_text(json.dumps(dict(version=1, url=control['native_url'],
             seed_file=str(fixture.installation / 'sql/accounts/owner/worker.seed'),
             connection=dict(definition=control['definition'], realm=control['ledger']['realm'], principal=control['ledger']['worker']))))
-        query = fixture.root / 'identity.json'; query.write_text('{"identity":{}}')
         observed = json.loads(call([fixture.cli, 'auth', 'read', '--config', worker_profile, '--file', query], retry_observation=True))['observation']['body']['authorization']
         change = fixture.root / 'disable-worker.json'
         change.write_text(json.dumps(dict(expected_revision=observed['revision'], action=dict(disable_credential=dict(

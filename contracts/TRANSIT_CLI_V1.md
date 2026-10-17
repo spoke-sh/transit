@@ -457,6 +457,11 @@ role and catalog bindings remain immutable. Public authorization preparation and
 apply explicitly publish login binding and data access. Ordinary startup does
 not restore revoked credentials or grants.
 
+The administrator's selected root role governs policy changes; catalog name
+resolution separately requires database CONNECT and schema USAGE. A generated
+`catalog-access.json` proposes those discovery rights for explicit preparation
+and apply. Refreshing its policy basis never applies the proposal.
+
 Initialization runs without listeners, followed by a distinct fresh native
 activation for admission. Core readiness and SQL readiness are independent; the
 ready record links the atomically published SQL status file. That file carries

@@ -155,7 +155,22 @@ settings inspection, database CONNECT and schema USAGE. It grants no Table
 SELECT/INSERT/UPDATE/DELETE or schema CREATE privilege. Repeat bounded apply on
 the saved changeset until all intents finish.
 
-For Table access, put one statement in a file such as `writer.sql`:
+Catalog name resolution requires CONNECT and schema USAGE even for a policy
+administrator. First review and explicitly apply the generated discovery grant:
+
+```sh
+transit auth prepare-set --config .transit/sql/authorization.yaml \
+  --file .transit/sql/catalog-access.json --output catalog-access.saved.json
+transit auth apply --config .transit/sql/authorization.yaml \
+  --file catalog-access.saved.json --steps 64
+```
+
+This grants CONNECT on the local database and USAGE on its public schema to the
+administrator's selected root role. It grants no Table data privileges. Repeat
+apply on that saved file if pending. Startup refreshes the proposal's policy
+basis but never applies it or restores revoked discovery rights.
+
+Then put the desired Table grant in `writer.sql`:
 
 ```sql
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;

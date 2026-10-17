@@ -1,5 +1,6 @@
 """Installed local SQL lifecycle using public administration and real database CLIs."""
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, command
+from server import Fixture, children, command, freeze_executables as freeze
 from storage import free_port
 
 
@@ -64,7 +65,9 @@ def apply(fixture, input_path, name, mode='prepare'):
         # A generated proposal can lag another explicit policy publication by
         # one supervisor tick. Nothing was sent or saved: wait for its refreshed
         # revision. Once saved, only apply that exact operation below.
-        assert mode == 'prepare' and 'StaleAuthorizationRevision' in prepared.stderr and not saved.exists() and time.monotonic() < deadline, prepared.stderr
+        refreshed = mode in ('prepare', 'prepare-set') and 'StaleAuthorizationRevision' in prepared.stderr
+        unavailable = any(cause in prepared.stderr for cause in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity', 'HttpConnectionClosing', 'ConnectionResetByPeer'))
+        assert (refreshed or unavailable) and not saved.exists() and time.monotonic() < deadline, prepared.stderr
         time.sleep(.3)
     for _ in range(16):
         result = json.loads(call([fixture.cli, 'auth', 'apply', '--config', profile, '--file', saved, '--steps', '64'], retry_observation=True))
@@ -77,7 +80,7 @@ def apply(fixture, input_path, name, mode='prepare'):
 def policy(fixture, sql, name):
     source, plan = fixture.root / f'{name}.sql', fixture.root / f'{name}.plan.json'
     source.write_text(sql)
-    call([fixture.cli, 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan])
+    call([fixture.cli, 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', source, '--output', plan], retry_observation=True)
     return apply(fixture, plan, name, 'prepare-plan')
 
 
@@ -100,18 +103,9 @@ def closed(port):
         assert peer.connect_ex(('127.0.0.1', port)) != 0, port
 
 
-def freeze(fixture):
-    """Keep a source-built fixture independent of later workspace builds."""
-    directory = fixture.root / 'bin'
-    directory.mkdir(mode=0o700)
-    for key, name in [('node', 'transit-node'), ('query_host', 'transit-query-host'),
-                      ('board', 'transit-board'), ('sql_gateway', 'transit-sql-gateway')]:
-        destination = directory / name
-        shutil.copy2(fixture.config['executables'][key], destination)
-        fixture.config['executables'][key] = str(destination)
-
-
 def run(cli, node, host, board, gateway, *, bundle=None):
+    assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
+    started = time.monotonic()
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     gateway = str(Path(gateway).resolve())
@@ -185,7 +179,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
 
         profile = fixture.installation / 'sql/accounts/owner/control.json'
         def controls(*args):
-            return json.loads(call([gateway, 'control', profile, *map(str, args)]))
+            return json.loads(call([gateway, 'control', profile, *map(str, args)], retry_observation=True))
 
         assert pg('SELECT 1') == mysql('SELECT 1') == '1'
         assert pg('SHOW DATABASES') == 'transit'
@@ -193,6 +187,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         pg('CREATE TABLE shared_rows (id BIGINT PRIMARY KEY, label UTF8)')
         pg('SELECT * FROM shared_rows', 'reader', reject=True)
         mysql("INSERT INTO shared_rows (id,label) VALUES (1,'unauthorized')", 'writer', reject=True)
+        discovery = fixture.root / 'discovery.sql'
+        discovery.write_text('GRANT SELECT ON TABLE public.shared_rows TO reader;')
+        assert 'CatalogDenied' in denied([fixture.cli, 'catalog', 'compile-authorization', '--config', fixture.installation / 'sql/catalog.yaml', '--file', discovery, '--output', fixture.root / 'ungranted-discovery.json'])
+        apply(fixture, fixture.installation / 'sql/catalog-access.json', 'catalog-discovery', 'prepare-set')
         policy(fixture, 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;', 'writer-data')
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-data')
         mysql("INSERT INTO shared_rows (id,label) VALUES (1,'snow ☃')", 'writer')
@@ -269,6 +267,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                 fresh = [e for e in controls('list')['entries'] if e['operation'] not in before and e['phase'] in ('active', 'terminal')]
                 if fresh:
                     assert len(fresh) == 1
+                    assert fresh[0]['phase'] == 'active', 'The proof must interrupt accepted, unfinished work'
                     operation = fresh[0]['operation']; break
                 assert lost.poll() is None, lost.communicate()
                 time.sleep(.3)
@@ -276,7 +275,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         finally:
             if lost.poll() is None: lost.kill()
             lost.communicate(timeout=10)
-        fixture.stop()
+        fixture.stop(kill=True)
         fixture.config['sql']['mysql'] = None
         fixture.config['sql']['accounts'] = [a for a in accounts if a['name'] != 'owner']
         fixture.config['sql']['tls'] = {'certificate_file': 'missing.pem', 'key_file': 'missing.key', 'ca_file': 'missing-ca.pem'}
@@ -331,6 +330,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         ca = str(cert)
         assert pg('SELECT COUNT(*) FROM shared_rows WHERE id=2', 'reader') == '1'
         print('Local SQL: expired trust blocks admission without blocking recovery; explicit TLS replacement and client CA update passed.', flush=True)
+        print(json.dumps({'local_sql': 'passed', 'installed_bundle': bundle is not None, 'elapsed_seconds': round(time.monotonic()-started, 3)}), flush=True)
         success = True
     finally:
         fixture.cleanup()

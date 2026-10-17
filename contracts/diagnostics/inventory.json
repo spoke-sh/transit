@@ -2476,7 +2476,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 83,
+        "try": 84,
         "catch": 4
       },
       "imports": [
@@ -2516,6 +2516,7 @@
         "Account.ledger()": "<inferred>",
         "accountPath()": "<inferred>",
         "administrator()": "<inferred>",
+        "catalogAccess()": "<inferred>",
         "controlProfile()": "<inferred>",
         "createAccount()": "<inferred>",
         "enrollment()": "<inferred>",
@@ -2530,7 +2531,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
+        "try": 88,
         "catch": 3
       },
       "imports": [
@@ -2732,7 +2733,7 @@
         "GatewayDeadline": 1,
         "GatewayMutationCancelled": 2,
         "GatewayMutationRejected": 2,
-        "GatewayOwnerUnavailable": 3,
+        "GatewayOwnerUnavailable": 4,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 2,
         "InvalidAuthorityResponse": 1,

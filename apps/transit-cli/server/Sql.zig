@@ -244,6 +244,7 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         self.setup_complete = true;
     }
     for (self.entries.items) |*entry| try entry.record.journal.flush(self.installation, try E.accountPath(self.installation, allocator, entry.record.name, "account.json"), &entry.record);
+    try E.catalogAccess(self.installation, allocator);
     try self.pollInitialization(allocator);
     for (self.entries.items, 0..) |*entry, index| {
         if (entry.desired) |desired_config| {
@@ -261,8 +262,13 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         if (!self.service.alive()) return error.GatewayOwnerUnavailable;
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {
+            self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
             self.status = if (self.installation.config.sql.listening() and self.trust != null) .accepting else .recovery;
-        } else if (self.service_started.?.durationTo(std.Io.Clock.awake.now(self.installation.init.io)).toMilliseconds() > 30000) return error.GatewayOwnerUnavailable;
+            self.last_error = null;
+        } else {
+            self.status = .unavailable;
+            if (self.service_started.?.durationTo(std.Io.Clock.awake.now(self.installation.init.io)).toMilliseconds() > 30000) return error.GatewayOwnerUnavailable;
+        }
     }
 }
 pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
