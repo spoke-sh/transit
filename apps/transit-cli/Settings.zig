@@ -16,6 +16,7 @@ pub const readDetailed = input.readDetailed;
 pub const Yaml = input.Yaml;
 pub const environment = input.environment;
 pub const environmentOrigin = input.environmentOrigin;
+pub const reservedEnvironment = input.reservedEnvironment;
 
 /// Human configuration defaults to YAML; explicit .json exports stay compatible.
 pub fn write(init: std.process.Init, name: []const u8, value: anytype) !void {

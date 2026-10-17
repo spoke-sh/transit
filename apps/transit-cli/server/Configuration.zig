@@ -314,7 +314,7 @@ fn origins(a: std.mem.Allocator, loaded: Config.Loaded) ![]const R.Origin {
     const result = try a.alloc(R.Origin, Config.settings.descriptors.len);
     for (Config.settings.descriptors, result) |descriptor, *origin| {
         if (R.get(loaded.inputs.environment, descriptor.name) != null) {
-            origin.* = .{ .source = .environment, .name = try R.environmentName(a, descriptor.name) };
+            origin.* = .{ .source = .environment, .name = R.environmentSource(loaded.inputs.environment_names, try R.environmentName(a, descriptor.name)) };
         } else if (R.get(loaded.file, descriptor.name) != null) {
             origin.* = .{ .source = .file, .name = loaded.inputs.path };
             for (loaded.locations) |location| if (std.mem.eql(u8, location.name, descriptor.name)) {

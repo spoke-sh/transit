@@ -26,6 +26,7 @@ pub const Inputs = struct {
     optional: bool,
     defaults: std.json.Value,
     environment: std.json.Value,
+    environment_names: []const []const u8,
 };
 pub const Loaded = struct { config: Self, inputs: Inputs, file: std.json.Value, locations: []const @import("transit_query").settings.Input.Location };
 pub fn load(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic) !Self {
@@ -50,7 +51,13 @@ pub fn capture(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diag
     try defaults.object.put(allocator, "installation", .{ .string = try std.fs.path.join(allocator, &.{ cwd, ".transit" }) });
     var environment = Settings.object(allocator);
     try settings.environment(init, &environment, diagnostic);
-    const inputs: Inputs = .{ .path = absolute, .optional = selected == null, .defaults = defaults, .environment = environment };
+    var names: std.array_list.Managed([]const u8) = .init(allocator);
+    var iterator = init.environ_map.iterator();
+    while (iterator.next()) |entry| {
+        const name = entry.key_ptr.*;
+        if (std.mem.startsWith(u8, name, "TRANSIT_") and !Settings.reservedEnvironment(name)) try names.append(try allocator.dupe(u8, name));
+    }
+    const inputs: Inputs = .{ .path = absolute, .optional = selected == null, .defaults = defaults, .environment = environment, .environment_names = names.items };
     var loaded = try resolve(init, inputs, diagnostic, resolve_executables);
     // Resolve fallback executable discovery once, even when a file currently
     // overrides it. A later deletion must not search a changed child PATH.
@@ -282,9 +289,12 @@ fn environmentDiagnostic(init: std.process.Init, inputs: Inputs, diagnostic: *Di
     const field = diagnostic.field orelse return;
     const R = @import("transit_query").settings.Registry;
     if (R.get(inputs.environment, field) != null) {
-        const name = R.environmentName(init.arena.allocator(), field) catch return;
+        const canonical = R.environmentName(init.arena.allocator(), field) catch return;
+        const name = R.environmentSource(inputs.environment_names, canonical) orelse return;
         diagnostic.field = std.fmt.allocPrint(init.arena.allocator(), "{s} ({s})", .{ name, field }) catch return;
         diagnostic.file = null;
+        diagnostic.line = null;
+        diagnostic.column = null;
     }
 }
 
@@ -302,7 +312,7 @@ test "pinned optional source can appear once and never falls back after acceptan
     try defaults.object.put(a, "installation", .{ .string = try std.fs.path.join(a, &.{ directory, "installation" }) });
     try defaults.object.put(a, "executables", Settings.object(a));
     var diagnostic: Diagnostic = .{};
-    const inputs: Inputs = .{ .path = source, .optional = true, .defaults = defaults, .environment = Settings.object(a) };
+    const inputs: Inputs = .{ .path = source, .optional = true, .defaults = defaults, .environment = Settings.object(a), .environment_names = &.{} };
     const missing = try resolve(init, inputs, &diagnostic, false);
     try t.expect(missing.inputs.optional);
     try t.expectEqual(@as(u64, 0), missing.config.query.statement_timeout);
@@ -317,6 +327,14 @@ test "pinned optional source can appear once and never falls back after acceptan
     try Files.write(t.io, source, "{}\n");
     try t.expectEqual(@as(u64, 7000), (try resolve(init, pinned, &diagnostic, false)).config.query.statement_timeout);
     try t.expectEqual(@as(u64, 0), (try resolve(init, present.inputs, &diagnostic, false)).config.query.statement_timeout);
+    var invalid = pinned;
+    invalid.environment = try clone(a, pinned.environment);
+    invalid.environment_names = &.{"TRANSIT_QUERY"};
+    try @import("transit_query").settings.Registry.set(a, &invalid.environment, "query.statement_timeout", .{ .integer = 86400001 });
+    diagnostic = .{};
+    try t.expectError(error.InvalidConfiguration, resolve(init, invalid, &diagnostic, false));
+    try t.expectEqualStrings("TRANSIT_QUERY (query.statement_timeout)", diagnostic.field.?);
+    try t.expect(diagnostic.file == null and diagnostic.line == null and diagnostic.column == null);
     try temporary.dir.deleteFile(t.io, "transit.yaml");
     try t.expectError(error.InvalidConfiguration, resolve(init, pinned, &diagnostic, false));
 }

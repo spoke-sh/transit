@@ -120,6 +120,18 @@ pub fn environmentName(allocator: Allocator, name: []const u8) ![]const u8 {
     return output.toOwnedSlice();
 }
 
+/// A whole-object override supplies its descendants unless a more specific
+/// variable wins. A composite object assembled from leaves has no single name.
+pub fn environmentSource(names: []const []const u8, canonical: []const u8) ?[]const u8 {
+    var result: ?[]const u8 = null;
+    for (names) |name| {
+        if (!std.mem.startsWith(u8, canonical, name)) continue;
+        if (canonical.len != name.len and !std.mem.startsWith(u8, canonical[name.len..], "__")) continue;
+        if (result == null or name.len > result.?.len) result = name;
+    }
+    return result;
+}
+
 pub fn environment(self: Self, init: std.process.Init, root: *Value, diagnostic: anytype) !void {
     const allocator = init.arena.allocator();
     var used: usize = 0;
@@ -288,6 +300,10 @@ test "registry validates unknown input and normalizes nested values without disc
     const secret = try registry.lookup("tls.key_file");
     try t.expectEqual(@as(?[]const u8, null), try secret.display(allocator, .{ .string = "private" }));
     try t.expectEqualStrings("TRANSIT_QUERY__STATEMENT_TIMEOUT", try environmentName(allocator, "query.statement_timeout"));
+    const names = &.{ "TRANSIT_QUERY__STATEMENT_TIMEOUT", "TRANSIT_QUERY", "TRANSIT_PORTS__GATEWAY" };
+    try t.expectEqualStrings("TRANSIT_QUERY", environmentSource(names, "TRANSIT_QUERY__STATEMENT_TIMEOUT_CEILING").?);
+    try t.expectEqualStrings("TRANSIT_QUERY__STATEMENT_TIMEOUT", environmentSource(names, "TRANSIT_QUERY__STATEMENT_TIMEOUT").?);
+    try t.expect(environmentSource(names, "TRANSIT_PORTS") == null);
     const integer: Descriptor = .{ .name = "size", .description = "size", .owner = "test", .kind = .unsigned, .change = .restart };
     try t.expectError(error.InvalidSettingType, integer.normalize(allocator, .{ .string = "42" }));
 }
