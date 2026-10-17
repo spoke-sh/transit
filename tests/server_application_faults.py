@@ -264,11 +264,15 @@ def run(cli, node_binary, host, worker, operator):
         if operation:
             argv.append(str(fixture.root / (operation + '.json')))
         command = [*argv, *map(str, args)]
-        deadline = time.monotonic() + 40
+        # Inspection crosses current authorization and each Table page. Under
+        # the fault peer's admission contention it may need a fresh read; this
+        # observation budget never extends a mutation's completion deadline.
+        deadline = time.monotonic() + (120 if mode == 'inspect' else 40)
         while True:
             result = subprocess.run(command, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
             if fail or result.returncode == 0 or result.stderr.strip() not in (
-                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused') or time.monotonic() >= deadline:
+                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused',
+                    'error: ReadFailed', 'error: WriteFailed', 'error: ConnectionResetByPeer') or time.monotonic() >= deadline:
                 break
             # As in server_applications, retry through the same public recovery
             # file. Never prepare a new operation to hide an uncertain result.
