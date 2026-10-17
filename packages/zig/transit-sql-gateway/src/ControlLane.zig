@@ -10,7 +10,8 @@ pub const Result = union(enum) { idle, pending, admitted: p.Receipt, processed: 
 pub fn start(self: *Self, client: anytype, command: g.Control.Command) !void {
     if (self.pending != null) return error.GatewayControlBusy;
     // Prepare has only reads. Ownership transfers before the first send.
-    self.pending = .{ .prepared = try client.prepare(command) };
+    const prepared = try client.prepare(command);
+    self.pending = .{ .prepared = prepared };
 }
 /// Only immutable parts use this path. The ordered durable mailbox owns an
 /// admitted part; the ordinary seal control still waits for full validation.
@@ -91,6 +92,26 @@ test "control handoff survives receipt loss and source failure without allocatin
     try t.expectEqual(@as(usize, 1), client.prepared);
     try t.expectEqual(@as(usize, 2), client.sends);
     try t.expectEqual(Result.idle, try lane.poll(&client));
+}
+
+test "failed preparation cannot publish a partially initialized control" {
+    const t = std.testing;
+    const Fake = struct {
+        failure: bool = true,
+        fn sign(self: *@This()) !p.Growth.SignedRequest {
+            if (self.failure) return error.AuthorityTimeout;
+            return error.UnexpectedTestPath;
+        }
+        fn prepare(self: *@This(), _: g.Control.Command) !g.Client.Prepared {
+            return .{ .version = 1, .definition = p.Growth.current_definition, .realm = 1, .resource = 2, .owner = 3, .configuration = @splat(7), .signed = try self.sign() };
+        }
+    };
+    var client: Fake = .{};
+    var lane: Self = .{};
+    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = 0 }));
+    try t.expect(lane.pending == null);
+    try t.expectError(error.AuthorityTimeout, lane.start(&client, .{ .initialize = 0 }));
+    try t.expect(lane.pending == null);
 }
 
 test "intent parts advance only after valid native admission and seal retains its processing barrier" {

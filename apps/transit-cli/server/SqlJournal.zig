@@ -61,7 +61,8 @@ pub fn flush(self: *Self, installation: *Installation, path: []const u8, record:
 pub fn submit(self: *Self, installation: *Installation, path: []const u8, record: anytype, index: u8, command: native.Command) !void {
     if (self.pending != null or installation.record.pending != null or installation.root_pending != null) return error.UnresolvedProvisioning;
     const observation = try installation.query(.{ .capabilities = {} });
-    self.pending = .{ .index = index, .signed = try native.sign(.{ .realm = installation.config.realm, .principal = 0, .sequence = try std.math.add(u64, observation.principal_sequence, 1), .command = command }, installation.root) };
+    const signed = try native.sign(.{ .realm = installation.config.realm, .principal = 0, .sequence = try std.math.add(u64, observation.principal_sequence, 1), .command = command }, installation.root);
+    self.pending = .{ .index = index, .signed = signed };
     try save(installation, path, record);
     try self.flush(installation, path, record);
 }

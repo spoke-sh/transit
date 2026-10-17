@@ -38,7 +38,9 @@ pub fn recover(installation: *Installation) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     var meta = (try E.open(installation, allocator)) orelse return;
-    try meta.journal.flush(installation, try E.path(installation, allocator, "installation.json"), &meta);
+    meta.journal.flush(installation, try E.path(installation, allocator, "installation.json"), &meta) catch |err| {
+        if (installation.failed or meta.journal.pending != null) return err;
+    };
     var directory = try std.Io.Dir.cwd().openDir(installation.init.io, try E.path(installation, allocator, "accounts"), .{ .iterate = true });
     defer directory.close(installation.init.io);
     var iterator = directory.iterate();
@@ -47,7 +49,9 @@ pub fn recover(installation: *Installation) !void {
         var page: std.heap.ArenaAllocator = .init(installation.init.gpa);
         defer page.deinit();
         var record = try E.loadAccount(installation, page.allocator(), entry.name);
-        try record.journal.flush(installation, try E.accountPath(installation, page.allocator(), record.name, "account.json"), &record);
+        record.journal.flush(installation, try E.accountPath(installation, page.allocator(), record.name, "account.json"), &record) catch |err| {
+            if (installation.failed or record.journal.pending != null) return err;
+        };
     }
 }
 pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8) !?*Self {
@@ -134,11 +138,10 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
     const installation = self.installation;
     const entry = &self.entries.items[index];
     try self.activate(&entry.record);
-    const config = try self.configuration(allocator, &.{try self.runtimeAccount(allocator, entry.*)}, false);
+    const accounts = [_]g.Configuration.Account{try self.runtimeAccount(allocator, entry.*)};
+    const config = try self.configuration(allocator, &accounts, false);
     const file = try E.accountPath(installation, allocator, entry.record.name, "initialize.json");
     try Files.json(installation.init.io, allocator, file, config);
-    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file } }, false);
-    self.bootstrapping = index;
     var control_key = try q.wire.readKey(allocator, installation.init.io, try E.accountPath(installation, allocator, entry.record.name, "control.seed"));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&control_key));
     var client: g.Client = .{ .transport = installation.wire, .ledger = .{ .configuration = config.accounts[0].ledger }, .principal = entry.record.principals.control, .key = control_key };
@@ -146,11 +149,16 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
         var table_key = try q.wire.readKey(allocator, installation.init.io, config.accounts[0].keys.table);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&table_key));
         const identity: q.wire.AuthorizationClient = .{ .transport = installation.wire, .realm = installation.config.realm, .principal = entry.record.principals.table, .key = table_key };
-        entry.record.initialization = .{ .prepared = try client.prepare(.{ .initialize = (try identity.read(.identity)).principal_sequence }) };
+        const sequence = (try identity.read(.identity)).principal_sequence;
+        const prepared = try client.prepare(.{ .initialize = sequence });
+        entry.record.initialization = .{ .prepared = prepared };
         try self.saveAccount(&entry.record);
     }
+    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file } }, false);
+    self.bootstrapping = index;
     if (entry.record.initialization.?.receipt == null) {
-        entry.record.initialization.?.receipt = try client.submit(entry.record.initialization.?.prepared);
+        const receipt = try client.submit(entry.record.initialization.?.prepared);
+        entry.record.initialization.?.receipt = receipt;
         try self.saveAccount(&entry.record);
     }
     self.status = .initializing;
@@ -161,7 +169,13 @@ fn pollInitialization(self: *Self, allocator: std.mem.Allocator) !void {
     var key = try q.wire.readKey(allocator, installation.init.io, try E.accountPath(installation, allocator, entry.record.name, "control.seed"));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var client: g.Client = .{ .transport = installation.wire, .ledger = .{ .configuration = try entry.record.ledger(allocator, installation.config.realm) }, .principal = entry.record.principals.control, .key = key };
-    const pending = entry.record.initialization orelse return error.UnresolvedProvisioning;
+    if (entry.record.initialization == null) return error.UnresolvedProvisioning;
+    if (entry.record.initialization.?.receipt == null) {
+        const receipt = try client.submit(entry.record.initialization.?.prepared);
+        entry.record.initialization.?.receipt = receipt;
+        try self.saveAccount(&entry.record);
+    }
+    const pending = entry.record.initialization.?;
     const progress = try client.progress(pending.prepared, pending.receipt orelse return error.UnresolvedProvisioning);
     if (progress == .pending) {
         if (!self.bootstrap.alive()) return error.GatewayOwnerUnavailable;
@@ -241,7 +255,7 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     for (self.entries.items) |entry| if (entry.record.initialized) {
         initialized += 1;
     };
-    if (self.entries.items.len == 0) self.status = .recovery;
+    if (self.entries.items.len == 0) self.status = if (self.installation.config.sql.listening()) .awaiting_authorization else .recovery;
     if (initialized != self.service_count) try self.startService(allocator);
     if (self.service.child != null) {
         if (!self.service.alive()) return error.GatewayOwnerUnavailable;
