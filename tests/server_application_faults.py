@@ -231,6 +231,14 @@ def arm(fixture, command, label=None, principal=None):
     (fixture.root / 'drop-next').write_text(json.dumps(dict(command=command, label=label or command, principal=principal)))
 
 
+def recovered_operation(fixture, label, name):
+    """Receipt-first recovery may resolve the exact request without resending it."""
+    frozen = json.loads((fixture.root / f'dropped-{label}.json').read_text())
+    saved = json.loads((fixture.root / f'{name}.json').read_text())
+    assert saved['signed'] == json.loads(bytes.fromhex(frozen['body']))
+    assert saved['receipt'] == json.loads(bytes.fromhex(frozen['receipt']))['position']
+
+
 def run(cli, node_binary, host, worker, operator):
     from server_applications import Applications, provision_authority
     import concurrent.futures
@@ -347,7 +355,7 @@ def run(cli, node_binary, host, worker, operator):
         fixture.kill_role('/applications/work-items/data.bootstrap.json')
         fresh = fixture.active(previous=ready['roles'][0]['generation'])
         domain('operator', 'step', 'copy-1')
-        wait_file(fixture.root / 'retried-copy-send')
+        recovered_operation(fixture, 'copy-send', 'copy-1')
         frozen = json.loads((fixture.root / 'accepted-worker.json').read_text())
         post(fixture.config['ports']['node'], '/v1/command', frozen, 403)
         # Lose a committed worker turn reply. Its live host must retry exact
@@ -367,7 +375,7 @@ def run(cli, node_binary, host, worker, operator):
         domain('operator', 'step', 'activate', fail=True)
         (fixture.root / 'release-activation-send').touch()
         domain('operator', 'step', 'activate')
-        wait_file(fixture.root / 'retried-activation-send')
+        recovered_operation(fixture, 'activation-send', 'activate')
         assert domain('inspector', 'inspect')['head']['epoch'] == '2'
         # Root credentials are used only by this adversarial fixture to revoke
         # current native rights. The application workflow above never reads them.
