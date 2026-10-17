@@ -116,6 +116,61 @@ current permissions, an eligible worker, finite admitted work and sufficient
 quota. Socket timeout or successful shutdown alone establishes none of those
 conditions and cannot promise rollback.
 
+## Configured local SQL admission
+
+The local placement asks a second question: how can configuration disable a
+database socket without discarding work accepted through it? The implementation
+introduced on 2026-10-17 composes the existing native authorization, Catalog and
+account-ledger owners. Its scope is the trusted local Linux placement and one
+current contract definition. It assumes durable local checkpoints and the native
+storage/ownership conditions above; remote exposure and cross-build migration
+are excluded. The [local SQL guide](../../apps/transit-cli/docs/sql.md) owns usage.
+
+The model separates desired listeners, retained enrollment and native authority.
+Enrollment fixes an account's identities, catalog binding, credentials and finite
+setup journal. Configuration chooses which enrolled accounts admit new sessions.
+The native ledger determines accepted work and the current generation allowed to
+advance it. None of these three states substitutes for another.
+
+[SqlJournal](../../apps/transit-cli/server/SqlJournal.zig) checkpoints an exact
+signed setup request before submission and its receipt before advancing. A shared
+installation reservation excludes competing root-sequence writers while its
+outcome is unknown. A negative retry resolves the exact native receipt before
+releasing that reservation. Preparing a request must succeed before publishing
+it into retained state; a partially initialized request is not recovery evidence.
+Account creation publishes a private directory atomically, so a resumed setup
+finds the same keys and identities. An operator separately publishes the logical
+role, credential binding and data grants through public authorization commands.
+Completed setup receipts prevent restart from restoring a revoked credential or
+grant. These orderings would be falsified by a second allocation after lost
+receipt, reuse of an unresolved sequence, or a restored data privilege on restart.
+
+[Sql](../../apps/transit-cli/server/Sql.zig) separates ledger initialization,
+fresh fenced activation and socket admission. Disabled listeners do not load
+PEMs. Removed accounts with unsettled operations retain a worker; settled removed
+accounts retain their control profile without a resident worker. Historical
+accounts are scanned individually, while an explicit bound limits simultaneous
+active/recovering accounts. Idle workers back off their native polling; this
+reduces competition with current authorization reads without increasing native
+admission limits. Progress still requires available storage, current worker
+rights and eventual scheduling. Backoff supplies no latency guarantee.
+
+This design chooses retained enrollment over deleting accounts on configuration
+removal, and explicit authorization over reconciling desired grants on every
+start. The costs are additional private recovery records, visible enrollment
+steps and operator intervention after revocation. Local TLS trust has its own
+checkpoint and lifecycle; replacing or expiring a certificate changes admission,
+not the identity or outcome of a recorded operation.
+
+The executable schedules are [public client onboarding](../../tests/server_sql.py)
+and [interrupted enrollment](../../tests/server_sql_faults.py), run through
+`just test::server-sql`, `just test::server-sql-package` and
+`just test::server-sql-faults` in the pinned Nix shell. They check selected
+disconnect, restart, revocation and trust failures on disk-backed Ursula. The
+[proof ledger](../../tests/README.md) distinguishes executed results from this
+reasoning. These schedules do not cover every interruption point, sustained
+maximum-account load or arbitrary filesystem/storage corruption.
+
 ## Reactive consistency
 
 The implemented reactive profile combines int64 Table notifications with exact
