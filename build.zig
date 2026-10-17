@@ -825,6 +825,14 @@ pub fn build(b: *std.Build) void {
     server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
+    inline for (.{ .{ "test-server-sql", "tests/server_sql.py" }, .{ "test-server-sql-faults", "tests/server_sql_faults.py" } }) |proof| {
+        const run = b.addSystemCommand(&.{ "python3", "-B" });
+        run.addFileArg(b.path(proof[1]));
+        for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+        run.has_side_effects = true;
+        run.stdio = .inherit;
+        b.step(proof[0], "Qualify configured local SQL enrollment, clients and retained recovery").dependOn(&run.step);
+    }
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, query_shell }) |artifact| serving_test.addArtifactArg(artifact);

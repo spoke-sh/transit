@@ -513,6 +513,19 @@ server:
 server-faults:
     zig build test-server -Doptimize=ReleaseSafe -Dserver-faults=true
 
+# Actual psql/mysql over opt-in local listeners and public authorization.
+server-sql:
+    zig build test-server-sql -Doptimize=ReleaseSafe
+
+# Exact SQL setup recovery after native commits with lost replies.
+server-sql-faults:
+    zig build test-server-sql-faults -Doptimize=ReleaseSafe
+
+# Installed bundle and adjacent dependency discovery outside the checkout.
+server-sql-package:
+    nix build .#transit-local --out-link .cache/transit-sql-package
+    python3 -B tests/server_sql.py --bundle .cache/transit-sql-package
+
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
