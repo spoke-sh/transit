@@ -2,6 +2,10 @@
 //! socket lifetime, protocol negotiation, authentication and current authority.
 const std = @import("std");
 const c = @import("OpenSsl.zig");
+pub const LocalTrust = @import("LocalTrust.zig");
+test {
+    _ = LocalTrust;
+}
 pub const max_record_bytes = 18432;
 pub const max_handshake_bytes = 65536;
 pub const Context = struct {
@@ -20,6 +24,8 @@ pub const Context = struct {
         if (c.SSL_CTX_use_certificate_chain_file(raw, certificate.ptr) != 1 or
             c.SSL_CTX_use_PrivateKey_file(raw, key.ptr, c.SSL_FILETYPE_PEM) != 1 or
             c.SSL_CTX_check_private_key(raw) != 1) return error.InvalidTlsCredentials;
+        const leaf = c.SSL_CTX_get0_certificate(raw) orelse return error.InvalidTlsCredentials;
+        if (c.X509_cmp_current_time(c.X509_getm_notBefore(leaf)) >= 0 or c.X509_cmp_current_time(c.X509_getm_notAfter(leaf)) <= 0) return error.InvalidTlsCredentials;
         return .{ .raw = raw };
     }
     pub fn deinit(self: *Context) void {

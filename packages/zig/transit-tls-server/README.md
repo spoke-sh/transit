@@ -7,9 +7,17 @@ cryptography or database authentication. The separate `transit-tls` package
 continues to own outbound TLS.
 
 `Context.init` loads explicitly supplied PEM certificate-chain and private-key
-paths and checks that they match. Contexts remain immutable while sessions use
+paths and checks that they match and that the leaf certificate is currently valid. Contexts remain immutable while sessions use
 them; certificate rotation creates a replacement context for new sessions.
 Compression, renegotiation, session caching and tickets are disabled.
+
+`LocalTrust.issue` creates a P-256 local CA and a server certificate for
+`localhost` and `127.0.0.1` through the pinned provider. The CA is valid for ten
+years and the server certificate for one year, with five minutes of clock skew
+allowance. It returns four owned PEM buffers, each bounded to 8 KiB; the caller
+persists them privately before exposing a listener. `deinit` erases and releases
+those buffers. Issuance does not publish trust, renew a retained certificate, or
+grant database access.
 
 The caller negotiates the protocol's TLS upgrade before `Session.accept` and
 owns the socket, context lifetime and absolute deadlines. OpenSSL uses memory
