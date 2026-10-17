@@ -7,7 +7,7 @@ const Self = @This();
 
 pub const Change = enum { initialization, restart, reload, new_session, session, read_only };
 pub const Scope = enum { installation, component, session };
-pub const Kind = enum { boolean, unsigned, string, strings, object, duration, bytes, enumeration };
+pub const Kind = enum { boolean, unsigned, string, strings, records, object, duration, bytes, enumeration };
 pub const Source = enum { defaults, file, environment, invocation, session, derived };
 pub const Origin = struct {
     source: Source,
@@ -29,6 +29,8 @@ pub const Descriptor = struct {
     minimum: u64 = 0,
     maximum: u64 = std.math.maxInt(u64),
     values: []const []const u8 = &.{},
+    /// Reflected by the owning public record type; never a second handwritten schema.
+    items_schema: ?[]const u8 = null,
 
     pub fn normalize(self: Descriptor, allocator: Allocator, value: Value) !Value {
         if (value == .null) {
@@ -41,6 +43,11 @@ pub const Descriptor = struct {
             .strings => {
                 if (value != .array) return error.InvalidSettingType;
                 for (value.array.items) |item| if (item != .string) return error.InvalidSettingType;
+            },
+            .records => {
+                if (value != .array) return error.InvalidSettingType;
+                if (value.array.items.len < self.minimum or value.array.items.len > self.maximum) return error.SettingOutOfRange;
+                for (value.array.items) |item| if (item != .object) return error.InvalidSettingType;
             },
             .object => if (value != .object) return error.InvalidSettingType,
             .enumeration => {
@@ -92,6 +99,7 @@ pub fn validate(self: Self) !void {
         try validateName(descriptor.name);
         if (descriptor.description.len == 0 or descriptor.owner.len == 0 or descriptor.minimum > descriptor.maximum) return error.InvalidSettingDescriptor;
         if ((descriptor.kind == .enumeration) != (descriptor.values.len != 0)) return error.InvalidSettingDescriptor;
+        if ((descriptor.kind == .records) != (descriptor.items_schema != null)) return error.InvalidSettingDescriptor;
         for (self.descriptors[0..i]) |earlier| if (std.mem.eql(u8, earlier.name, descriptor.name)) return error.DuplicateSetting;
     }
 }
@@ -310,7 +318,12 @@ test "registry validates unknown input and normalizes nested values without disc
 
 pub fn defaults(self: Self, allocator: Allocator) !Value {
     var result = Input.object(allocator);
-    for (self.descriptors) |descriptor| if (descriptor.default_json) |bytes| {
+    descriptors: for (self.descriptors) |descriptor| if (descriptor.default_json) |bytes| {
+        var end = std.mem.indexOfScalar(u8, descriptor.name, '.');
+        while (end) |at| {
+            if (get(result, descriptor.name[0..at])) |parent| if (parent == .null) continue :descriptors;
+            end = if (std.mem.indexOfScalar(u8, descriptor.name[at + 1 ..], '.')) |next| at + 1 + next else null;
+        }
         const parsed = try Input.jsonValue(allocator, bytes);
         try set(allocator, &result, descriptor.name, try descriptor.normalize(allocator, parsed));
     };
@@ -336,7 +349,7 @@ pub fn schema(self: Self, allocator: Allocator) !Value {
                 .boolean => "boolean",
                 .unsigned => "integer",
                 .string, .enumeration => "string",
-                .strings => "array",
+                .strings, .records => "array",
                 .object => "object",
                 .duration, .bytes => "integer",
             };
@@ -346,6 +359,11 @@ pub fn schema(self: Self, allocator: Allocator) !Value {
                 try output.object.put(allocator, "properties", node.object.get("properties") orelse Input.object(allocator));
             }
             if (descriptor.kind == .strings) try output.object.put(allocator, "items", try Input.jsonValue(allocator, "{\"type\":\"string\"}"));
+            if (descriptor.kind == .records) {
+                try output.object.put(allocator, "items", try Input.jsonValue(allocator, descriptor.items_schema.?));
+                try output.object.put(allocator, "minItems", .{ .integer = @intCast(descriptor.minimum) });
+                if (descriptor.maximum <= std.math.maxInt(i64)) try output.object.put(allocator, "maxItems", .{ .integer = @intCast(descriptor.maximum) });
+            }
             if (descriptor.kind == .unsigned or descriptor.kind == .duration or descriptor.kind == .bytes) {
                 try output.object.put(allocator, "minimum", .{ .integer = @intCast(descriptor.minimum) });
                 if (descriptor.maximum <= std.math.maxInt(i64)) try output.object.put(allocator, "maximum", .{ .integer = @intCast(descriptor.maximum) });

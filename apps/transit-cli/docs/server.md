@@ -111,6 +111,7 @@ executables:
   node: "/absolute/path/to/transit-node"
   query_host: "/absolute/path/to/transit-query-host"
   board: "/absolute/path/to/transit-board"
+  sql_gateway: "/absolute/path/to/transit-sql-gateway"
 ```
 
 Configuration rejects unknown fields and incompatible versions; ports must be distinct and above 1023. All

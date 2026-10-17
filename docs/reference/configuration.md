@@ -57,6 +57,20 @@ gateway_allowed_hosts:
   - transit.example:443
 ```
 
+The `sql.postgres` and `sql.mysql` objects are independently nullable and default
+to null. A configured object selects its loopback listener; its `port` defaults
+to 15432 or 13306 respectively. `TRANSIT_SQL__POSTGRES__PORT=15432` selects the
+PostgreSQL listener through the same typed override rules. `sql.accounts` is a
+bounded list of typed account declarations, replaced as a whole by an environment
+override. Account declarations and TLS file references are redacted from settings
+inspection. SQL placement settings require restart; reload records a validated
+pending value without changing listening sockets.
+
+`executables.sql_gateway` identifies the matching gateway artifact in the local
+bundle. The installation fingerprints that artifact even while both protocols
+are disabled, so enabling a listener does not change its immutable artifact
+identity. Listener settings do not grant native, catalog or data access.
+
 ## Inspect, change and reload
 
 ```sql

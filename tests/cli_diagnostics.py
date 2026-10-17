@@ -284,7 +284,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     config = {'version': 1, 'installation': str(installation), 'realm': 73,
               'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), range(29001, 29006))),
-              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board'), sys.executable)}
+              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
     server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
@@ -462,7 +462,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
            contains=('version', 'xdg/transit.yaml'))
     invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
            contains=('absent.yaml', 'was not found'))
-    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
     # Installed runtime loading must coexist with the repository's supported
@@ -720,7 +720,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     local = project/'.transit'; local.mkdir()
     (local/'caller.seed').write_text('11'*32)
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
-    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
+    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host', 'sql_gateway'), [0]*32)
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     record = dict(definition=definition, identity=identity, installation=[1]*16, root_public=[0]*32,
                   realm=1, endpoint="http://127.0.0.1:19105", authorization_steps=list(range(1, 11)),
