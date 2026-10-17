@@ -58,7 +58,8 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M48](M48.md) | Vectorized query execution | Complete selected profile: integrated columns, guarded AVX2, bounded host compute, measured portable defaults and all 79 ordinary tasks plus focused caller/recovery proofs |
 | [M49](M49.md) | Declarative authorization | Implemented: shared roles/grants, current authority, trusted Table mediation and hard v1 cutover; committed-source qualification gates apply |
 | [M50](M50.md) | Consumer SDK source and handbook boundary | Implemented: language packages, shared Zig exports, runtime independence and dedicated SDK navigation; committed-source qualification gates apply |
-| [M51](M51.md) | Configured local database access | Planned: independently opt-in PostgreSQL/MySQL listeners over shared authorization |
+| [M51](M51.md) | Typed configuration and SQL settings | In progress: shared YAML/env resolution, current-authority inspection, reload generations and session controls |
+| [M52](M52.md) | Configured local database access | Planned: independently opt-in PostgreSQL/MySQL listeners over shared authorization |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
