@@ -108,6 +108,10 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
         std.crypto.secureZero(u8, bytes);
         allocator.free(bytes);
     }
+    return self.parseJson(T, init, bytes, limit);
+}
+pub fn parseJson(self: *Self, comptime T: type, init: std.process.Init, bytes: []const u8, limit: usize) !T {
+    const allocator = init.arena.allocator();
     const query = @import("transit_query");
     query.fuze.Types.Json.preflight(bytes, .{ .bytes = limit, .depth = query.Values.json_limits.depth, .tokens = limit + 1 }) catch |err| switch (err) {
         // Preserve the normal scanner's exact syntax coordinates. Its recursion

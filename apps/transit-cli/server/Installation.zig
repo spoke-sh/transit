@@ -20,10 +20,12 @@ pub const Record = struct {
     identity: Config.Identity,
     installation: [16]u8,
     root_public: [32]u8,
+    endpoint: []const u8,
+    realm: u64,
     position: u64 = 0,
     genesis_observed: bool = false,
     provision: [14]?u64 = @splat(null),
-    authorization_steps: [8]?u64 = @splat(null),
+    authorization_steps: [10]?u64 = @splat(null),
     authorization_change: ?u64 = null,
     initialized: [3]bool = .{ false, false, false },
     default_table_complete: bool,
@@ -165,6 +167,8 @@ fn provisionAuthorization(self: *Self) !void {
                 }) } },
                 6 => .{ .register_object = .{ .domain = done[3].?, .owner = done[0].?, .binding = try tables.binding(scope, .database, 0) } },
                 7 => .{ .register_object = .{ .domain = done[4].?, .owner = done[0].?, .schema = tables.reference(done[6].?), .binding = try tables.binding(scope, .schema, 1) } },
+                8 => .{ .register_domain = .{ .registrar = 0, .actions = q.settings.Contract.all_privileges } },
+                9 => .{ .register_object = .{ .domain = done[8].?, .owner = done[0].?, .binding = q.settings.Contract.Binding.identity(self.record.installation) } },
                 else => unreachable,
             };
             const observation = try self.query(.{ .authorization = .{ .kind = if (self.record.authorization_change) |id| .{ .change = id } else .identity } });
@@ -294,7 +298,7 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .default_table_complete = false });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     try std.Io.Dir.cwd().renamePreserve(temporary, std.Io.Dir.cwd(), config.installation, init.io);
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(config.installation).?, .{ .iterate = true });
@@ -307,4 +311,8 @@ pub fn checkStorage(self: *Self) !void {
         defer self.init.gpa.free(marker);
         if (!std.mem.eql(u8, marker, &std.fmt.bytesToHex(self.record.installation, .lower))) return error.StorageIdentityMismatch;
     }
+}
+
+pub fn settingsBinding(record: Record, realm: u64) !q.settings.Contract.Binding {
+    return .{ .realm = realm, .installation = record.installation, .object = .{ .kind = .domain, .id = record.authorization_steps[9] orelse return error.InvalidInstallationAuthority } };
 }

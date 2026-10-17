@@ -219,6 +219,8 @@ def run(cli, node, host):
         fixture.refusal("file not found")
         fixture.start(initialize=True)
         fixture.ready()
+        from server_configuration import run as configuration_proof
+        configuration_proof(fixture)
         from server_faults import gateway_hosts, reusable_connections
         gateway_hosts(fixture)
         reusable_connections(fixture)

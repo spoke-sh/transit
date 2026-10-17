@@ -173,6 +173,25 @@ pub fn main(init: std.process.Init) !void {
     var coordinator_client = try client(&wire, registry, 2003);
     var coordinator: gateway.Coordinator = .{ .allocator = init.gpa, .client = &coordinator_client, .table_key = try tableKey(config), .reader_key = try roleKey(2004), .generation = config.writer.generation };
     defer coordinator.deinit();
+    if (std.mem.eql(u8, mode, "configuration") or std.mem.eql(u8, mode, "configuration-deny") or std.mem.eql(u8, mode, "configuration-allow")) {
+        const C = gateway.query.settings.Contract;
+        var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const selected = config.binding.role orelse return error.MissingProofRole;
+        if (!std.mem.eql(u8, mode, "configuration")) {
+            const binding = try support.load(C.Binding, init, directory, "configuration-binding.json");
+            if (std.mem.eql(u8, mode, "configuration-deny")) _ = try admin.authorization(.{ .revoke_privileges = .{ .object = binding.object, .grantee = selected, .privileges = C.reload, .behavior = .cascade } }) else _ = try admin.authorization(.{ .grant = .{ .object = binding.object, .grantee = selected, .privileges = C.reload } });
+            return support.print(init, .{ .changed = true });
+        }
+        const owner = (try admin.authorization(.{ .create_role = .{ .name = try .init("configuration-admin") } })).?;
+        const domain = (try admin.authorization(.{ .register_domain = .{ .registrar = 0, .actions = C.all_privileges } })).?;
+        const installation: [16]u8 = @splat(99);
+        const object = (try admin.authorization(.{ .register_object = .{ .domain = domain, .owner = owner, .binding = C.Binding.identity(installation) } })).?;
+        const binding: C.Binding = .{ .realm = 46, .installation = installation, .object = .{ .kind = .domain, .id = object } };
+        _ = try admin.authorization(.{ .grant = .{ .object = binding.object, .grantee = selected, .privileges = C.all_privileges } });
+        try support.save(init, directory, "configuration-binding.json", binding);
+        return support.print(init, binding);
+    }
     if (std.mem.eql(u8, mode, "app-config")) {
         const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", try tableSeed(config) }, .{ "reader", @as(u8, 25) } };
         var files: gateway.Configuration.KeyFiles = undefined;

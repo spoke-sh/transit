@@ -12,6 +12,7 @@ pub const shape = input.shape;
 pub const discover = input.discover;
 pub const discoverServer = input.discoverServer;
 pub const read = input.read;
+pub const readDetailed = input.readDetailed;
 pub const Yaml = input.Yaml;
 pub const environment = input.environment;
 pub const environmentOrigin = input.environmentOrigin;

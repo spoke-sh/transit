@@ -27,11 +27,12 @@ pub const Config = struct {
     writes: ?Writes.Config = null,
     table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
     relational: ?q.RelationalQuery.Options = null,
+    settings: ?@import("ConsoleSettings.zig").Configuration = null,
 };
-fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
+fn localConfig(init: std.process.Init, directory: []const u8, diagnostic: *Diagnostic) !Config {
     const Installation = @import("server/Installation.zig");
     const allocator = init.arena.allocator();
-    const record_path = try std.fs.path.join(allocator, &.{ topology.installation, "installation.json" });
+    const record_path = try std.fs.path.join(allocator, &.{ directory, "installation.json" });
     diagnostic.atFile(record_path);
     const record = @import("server/Files.zig").read(Installation.Record, init.io, allocator, record_path) catch |err| {
         return diagnostic.fail(error.InvalidConfiguration, "cannot read the local installation", if (err == error.FileNotFound)
@@ -39,13 +40,14 @@ fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), d
         else
             "Check the retained installation record; the console never creates or repairs server state.");
     };
-    if (record.version != 1 or !record.complete or !record.genesis_observed) return diagnostic.invalidField("installation", "is not initialized", "Wait for transit server to finish starting.");
+    if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !record.complete or !record.genesis_observed) return diagnostic.invalidField("installation", "is not initialized", "Wait for transit server to finish starting.");
     inline for (.{ 0, 1, 4, 5 }) |index| if (record.provision[index] == null or record.provision[index].? == 0) return diagnostic.invalidField("installation", "has incomplete resource identities", null);
-    const native = Installation.connectionFrom(record, topology.realm);
+    const native = Installation.connectionFrom(record, record.realm);
     return .{
         .version = 1,
         .profile = .catalog_v1,
-        .url = try @import("server/Provider.zig").url(allocator, topology.ports.gateway),
+        .url = record.endpoint,
+        .settings = .{ .binding = try Installation.settingsBinding(record, record.realm), .recovery_file = "console-configuration.json" },
         .transport = .loopback,
         .seed_file = "caller.seed",
         .catalog = .{ .scope = .{ .realm = native.realm, .resource = native.resource, .catalog = 1 }, .owner = native.source, .principal = native.principal },
@@ -139,9 +141,11 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         base = std.fs.path.dirname(config_path).?;
         break :explicit try @import("Settings.zig").readTyped(Config, init, config_path, diagnostic);
     } else local: {
-        const topology = try @import("server/Config.zig").forConsole(init, diagnostic);
-        base = topology.installation;
-        break :local try localConfig(init, topology, diagnostic);
+        // A malformed desired configuration cannot move a running endpoint.
+        // The conventional installation remains discoverable for repair; custom
+        // locations can always use an explicit console connection file.
+        base = if (@import("server/Config.zig").forConsole(init, diagnostic)) |topology| topology.installation else |_| try std.fs.path.resolve(allocator, &.{ ".", ".transit" });
+        break :local try localConfig(init, base, diagnostic);
     };
     validate(config, allocator, diagnostic) catch |err| {
         return switch (err) {
@@ -187,7 +191,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         try session.checkpoint();
     }
     // One local signing owner per credential file, even across recovery paths.
-    const caller_lock: ?std.Io.File = if (config.execution == .durable or config.writes != null) lock: {
+    const caller_lock: ?std.Io.File = if (config.execution == .durable or config.writes != null or config.settings != null) lock: {
         const caller_lock_path = try std.fmt.allocPrint(allocator, "{s}.console.lock", .{try path(allocator, base, config.seed_file)});
         const file = try std.Io.Dir.cwd().createFile(init.io, caller_lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
         errdefer file.close(init.io);
@@ -203,13 +207,14 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     } else null;
     defer if (writes) |*writer| writer.close();
     if (writes) |*writer| if (writer.unresolved() and session.namespace != null and !session.complete) return error.UnresolvedSubmission;
+    var settings: ?@import("ConsoleSettings.zig").Connection = if (config.settings) |selected| try @import("ConsoleSettings.zig").open(init, .{ .allocator = init.gpa, .transport = &wire, .binding = selected.binding, .principal = if (catalog) |table| table.connection.principal else client.?.connection.principal, .role = if (catalog) |table| table.connection.role else null, .key = key }, if (selected.recovery_file) |file| try path(allocator, base, file) else null) else null;
     diagnostic.field = null;
     const signals = try Signals.install();
     defer signals.close();
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
-    var console: Console = .{ .init = init, .session = &session, .wire = &wire, .client = if (client) |*selected| selected else null, .catalog = if (catalog) |*selected| selected else null, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null, .table_limits = config.table_limits, .relational = config.relational };
+    var console: Console = .{ .settings = if (settings) |*selected| selected else null, .init = init, .session = &session, .wire = &wire, .client = if (client) |*selected| selected else null, .catalog = if (catalog) |*selected| selected else null, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null, .table_limits = config.table_limits, .relational = config.relational };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.executeWithParameters(sql, parameters);
@@ -247,6 +252,7 @@ pub const Console = struct {
     out: *std.Io.Writer,
     recovery: ?*Recovery,
     writes: ?*Writes = null,
+    settings: ?*@import("ConsoleSettings.zig").Connection = null,
     table_limits: q.TableQuery.Limits = .{ .requests = 10000, .rows = 10000, .result_bytes = 16777216 },
     relational: ?q.RelationalQuery.Options = null,
     write_running: bool = false,
@@ -262,6 +268,7 @@ pub const Console = struct {
     active_query: ?u64 = null,
     query_interrupted: bool = false,
     pub fn assist(self: *Console, allocator: std.mem.Allocator, request: q.Assistance.Request) !q.Assistance.Response {
+        if (self.settings) |settings| if (try q.SettingsAssistance.complete(allocator, settings.client, request)) |result| return result;
         if (self.catalog) |catalog| return q.TableAssistance.complete(allocator, catalog, request);
         return (try q.Workspace.apply(allocator, self.client.?, self.config.?, .{ .assist = request })).assistance;
     }
@@ -294,11 +301,13 @@ pub const Console = struct {
             self.write_running = false;
             self.active_query = null;
         }
+        if (!isMeta(text)) try @import("ConsoleSettings.zig").capture(self);
         const result: ?anyerror = result: {
-            if (parameters) |values| {
-                self.query(.{ .sql = text, .parameters = values }) catch |err| break :result err;
-            } else self.perform(text) catch |err| break :result err;
+            self.timed(text, parameters) catch |err| break :result err;
             break :result null;
+        };
+        if (result) |err| if (err == error.StatementTimedOut) {
+            self.diagnostic.setFailure(error.StatementTimedOut, "statement deadline expired; accepted work may still be pending", "Use .status and .resume for saved operations. A statement timeout does not undo accepted work.");
         };
         if (result) |err| if (denied(err)) {
             self.access_lost = true;
@@ -334,6 +343,32 @@ pub const Console = struct {
         }
         return self.next_connection == null;
     }
+    fn invoke(self: *Console, text: []const u8, parameters: ?@import("SqlInput.zig").Parameters) anyerror!void {
+        if (parameters) |values| return self.query(.{ .sql = text, .parameters = values });
+        return self.perform(text);
+    }
+    fn timed(self: *Console, text: []const u8, parameters: ?@import("SqlInput.zig").Parameters) !void {
+        const duration = if (self.settings) |configured| if (configured.session) |session| session.timeout() else 0 else 0;
+        if (duration == 0 or isMeta(text)) return self.invoke(text, parameters);
+        const Event = union(enum) { done: anyerror!void, timeout: anyerror!void };
+        const Timer = struct {
+            fn wait(io: std.Io, ms: u64) !void {
+                try io.sleep(.fromMilliseconds(@intCast(ms)), .awake);
+            }
+        };
+        var events: [2]Event = undefined;
+        var select: std.Io.Select(Event) = .init(self.init.io, &events);
+        defer select.cancelDiscard(); // Join work before releasing borrowed state.
+        try select.concurrent(.timeout, Timer.wait, .{ self.init.io, duration });
+        try select.concurrent(.done, invoke, .{ self, text, parameters });
+        switch (try select.await()) {
+            .done => |result| try result,
+            .timeout => |result| {
+                try result;
+                return error.StatementTimedOut;
+            },
+        }
+    }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
         const Input = @import("SqlInput.zig");
@@ -343,6 +378,8 @@ pub const Console = struct {
             if (try Input.commandPath(arena.allocator(), text)) |file|
                 return self.query(try Input.read(Input.Request, self.init, arena.allocator(), file));
         }
+        if (try @import("ConsoleSettings.zig").command(self, text)) return;
+        if (@import("ConsoleSettings.zig").unresolved(self) and !isMeta(text)) return error.UnresolvedSubmission;
         if (self.catalog) |catalog| if (try @import("ConsoleCatalog.zig").command(self, catalog, text)) return;
         if (!isMeta(text)) {
             var syntax_timing = @import("Timing.zig").start(self.init, self.preferences.timing);
@@ -463,6 +500,12 @@ pub const Console = struct {
             return err;
         };
         switch (err) {
+            error.StatementTimedOut => return self.diagnostic.fail(err, "statement deadline expired; accepted work may still be pending", "Use .status and .resume for saved operations. A statement timeout does not undo accepted work."),
+            error.ConfigurationServiceRequired => return self.diagnostic.fail(err, "this connection has no configuration service binding", "Use the automatic local connection or configure its settings binding. See .help SETTINGS."),
+            error.UnknownSetting => return self.diagnostic.fail(err, "unknown registered setting", "Use SHOW ALL to list settings or .help SETTINGS for supported SQL."),
+            error.SettingOutOfRange => return self.diagnostic.fail(err, "session setting exceeds its allowed range", "Inspect query.statement_timeout_ceiling. Zero is unlimited only when the captured ceiling permits it."),
+            error.ConfigurationReloadRejected => return self.diagnostic.fail(err, "configuration reload rejected; active settings are unchanged", "Inspect transit_config_reloads(), correct the source and submit a new reload."),
+            error.ConfigurationSnapshotChanged => return self.diagnostic.fail(err, "configuration metadata changed during listing", "Discard partial output and start a fresh read."),
             error.InvalidQueryInput => return self.diagnostic.fail(err, "invalid SQL query input", "Use .execute FILE with a JSON object containing sql and optional parameters, or --parameters FILE with an array of exact scalar values."),
             error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most 65 scalar bindings per input file."),
             error.ConsoleWriterRequired => return self.diagnostic.fail(err, if (self.catalog != null) "Table writes are not configured for this console" else "no Table catalog is configured for this console", "Use .help INSERT for syntax, catalog settings and writes.recovery_file. A query connection does not grant writes."),

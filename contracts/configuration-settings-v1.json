@@ -1,0 +1,640 @@
+{
+  "definition": "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
+  "settings": [
+    {
+      "name": "version",
+      "description": "Configuration definition version",
+      "owner": "server",
+      "kind": "unsigned",
+      "scope": "installation",
+      "change": "initialization",
+      "default_json": "1",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 1,
+      "values": []
+    },
+    {
+      "name": "installation",
+      "description": "Retained installation directory",
+      "owner": "server",
+      "kind": "string",
+      "scope": "installation",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "realm",
+      "description": "Native security realm",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "installation",
+      "change": "initialization",
+      "default_json": "1",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "values": []
+    },
+    {
+      "name": "admission_ceiling",
+      "description": "Immutable ordinary admission quota",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "installation",
+      "change": "initialization",
+      "default_json": "65536",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 128,
+      "maximum": 65536,
+      "values": []
+    },
+    {
+      "name": "control_reserve",
+      "description": "Immutable reserved control quota",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "installation",
+      "change": "initialization",
+      "default_json": "4096",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 65536,
+      "values": []
+    },
+    {
+      "name": "query.statement_timeout",
+      "description": "Default statement deadline; zero is unlimited",
+      "owner": "query",
+      "kind": "duration",
+      "scope": "session",
+      "change": "new_session",
+      "default_json": "0",
+      "session_mutable": true,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 86400000,
+      "values": []
+    },
+    {
+      "name": "query.statement_timeout_ceiling",
+      "description": "Maximum session deadline; zero is unlimited",
+      "owner": "query",
+      "kind": "duration",
+      "scope": "session",
+      "change": "new_session",
+      "default_json": "0",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 86400000,
+      "values": []
+    },
+    {
+      "name": "ports.cold",
+      "description": "Loopback TCP port",
+      "owner": "cold",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19101",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "ports.cold_console",
+      "description": "Loopback TCP port",
+      "owner": "cold",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19102",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "ports.store",
+      "description": "Loopback TCP port",
+      "owner": "store",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19103",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "ports.node",
+      "description": "Loopback TCP port",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19104",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "ports.gateway",
+      "description": "Loopback TCP port",
+      "owner": "gateway",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19105",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "executables.minio",
+      "description": "Matching executable path",
+      "owner": "cold",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "executables.ursula",
+      "description": "Matching executable path",
+      "owner": "store",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "executables.node",
+      "description": "Matching executable path",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "executables.query_host",
+      "description": "Matching executable path",
+      "owner": "query",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "executables.board",
+      "description": "Matching executable path",
+      "owner": "board",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "applications",
+      "description": "Application management configuration; null disables admission",
+      "owner": "applications",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "{}",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "applications.port",
+      "description": "Loopback TCP port",
+      "owner": "applications",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19106",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "applications.max_applications",
+      "description": "Application deployment quota",
+      "owner": "applications",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "8",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 64,
+      "values": []
+    },
+    {
+      "name": "applications.max_roles",
+      "description": "Roles per application quota",
+      "owner": "applications",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "32",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 256,
+      "values": []
+    },
+    {
+      "name": "gateway_allowed_hosts",
+      "description": "Additional exact native gateway Host authorities",
+      "owner": "gateway",
+      "kind": "strings",
+      "scope": "component",
+      "change": "reload",
+      "default_json": "[]",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "board",
+      "description": "Board listener configuration",
+      "owner": "board",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "{}",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    },
+    {
+      "name": "board.port",
+      "description": "Loopback TCP port",
+      "owner": "board",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19107",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": []
+    },
+    {
+      "name": "board.public_origin",
+      "description": "Exact Board browser origin",
+      "owner": "board",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": []
+    }
+  ],
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "version": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1,
+        "description": "Configuration definition version",
+        "x-transit-owner": "server",
+        "x-transit-change": "initialization",
+        "default": 1
+      },
+      "installation": {
+        "type": "string",
+        "description": "Retained installation directory",
+        "x-transit-owner": "server",
+        "x-transit-change": "initialization"
+      },
+      "realm": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991,
+        "description": "Native security realm",
+        "x-transit-owner": "node",
+        "x-transit-change": "initialization",
+        "default": 1
+      },
+      "admission_ceiling": {
+        "type": "integer",
+        "minimum": 128,
+        "maximum": 65536,
+        "description": "Immutable ordinary admission quota",
+        "x-transit-owner": "node",
+        "x-transit-change": "initialization",
+        "default": 65536
+      },
+      "control_reserve": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 65536,
+        "description": "Immutable reserved control quota",
+        "x-transit-owner": "node",
+        "x-transit-change": "initialization",
+        "default": 4096
+      },
+      "query": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "statement_timeout": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 86400000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Default statement deadline; zero is unlimited",
+            "x-transit-owner": "query",
+            "x-transit-change": "new_session",
+            "default": 0
+          },
+          "statement_timeout_ceiling": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 86400000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Maximum session deadline; zero is unlimited",
+            "x-transit-owner": "query",
+            "x-transit-change": "new_session",
+            "default": 0
+          }
+        }
+      },
+      "ports": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cold": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "cold",
+            "x-transit-change": "restart",
+            "default": 19101
+          },
+          "cold_console": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "cold",
+            "x-transit-change": "restart",
+            "default": 19102
+          },
+          "store": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "store",
+            "x-transit-change": "restart",
+            "default": 19103
+          },
+          "node": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "node",
+            "x-transit-change": "restart",
+            "default": 19104
+          },
+          "gateway": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "gateway",
+            "x-transit-change": "restart",
+            "default": 19105
+          }
+        }
+      },
+      "executables": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "minio": {
+            "type": "string",
+            "description": "Matching executable path",
+            "x-transit-owner": "cold",
+            "x-transit-change": "restart"
+          },
+          "ursula": {
+            "type": "string",
+            "description": "Matching executable path",
+            "x-transit-owner": "store",
+            "x-transit-change": "restart"
+          },
+          "node": {
+            "type": "string",
+            "description": "Matching executable path",
+            "x-transit-owner": "node",
+            "x-transit-change": "restart"
+          },
+          "query_host": {
+            "type": "string",
+            "description": "Matching executable path",
+            "x-transit-owner": "query",
+            "x-transit-change": "restart"
+          },
+          "board": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Matching executable path",
+            "x-transit-owner": "board",
+            "x-transit-change": "restart"
+          }
+        }
+      },
+      "applications": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "port": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "applications",
+            "x-transit-change": "restart",
+            "default": 19106
+          },
+          "max_applications": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64,
+            "description": "Application deployment quota",
+            "x-transit-owner": "applications",
+            "x-transit-change": "restart",
+            "default": 8
+          },
+          "max_roles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256,
+            "description": "Roles per application quota",
+            "x-transit-owner": "applications",
+            "x-transit-change": "restart",
+            "default": 32
+          }
+        },
+        "description": "Application management configuration; null disables admission",
+        "x-transit-owner": "applications",
+        "x-transit-change": "restart",
+        "default": {}
+      },
+      "gateway_allowed_hosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Additional exact native gateway Host authorities",
+        "x-transit-owner": "gateway",
+        "x-transit-change": "reload",
+        "default": []
+      },
+      "board": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "port": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Loopback TCP port",
+            "x-transit-owner": "board",
+            "x-transit-change": "restart",
+            "default": 19107
+          },
+          "public_origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Exact Board browser origin",
+            "x-transit-owner": "board",
+            "x-transit-change": "restart",
+            "default": null
+          }
+        },
+        "description": "Board listener configuration",
+        "x-transit-owner": "board",
+        "x-transit-change": "restart",
+        "default": {}
+      }
+    }
+  }
+}

@@ -4490,7 +4490,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+                        "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
                       ]
                     },
                     "code": {
@@ -6558,7 +6558,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+                      "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
                     ]
                   },
                   "code": {
@@ -15475,7 +15475,8 @@
             "type": "string",
             "enum": [
               "unified_v1",
-              "catalog_v1"
+              "catalog_v1",
+              "configuration_v1"
             ]
           },
           "T67": {
@@ -17783,7 +17784,7 @@
           "T143": {
             "type": "string",
             "enum": [
-              "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+              "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
             ]
           },
           "T144": {
@@ -19630,7 +19631,7 @@
           "T10": {
             "type": "string",
             "enum": [
-              "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+              "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
             ]
           }
         }
@@ -19692,7 +19693,7 @@
             ],
             "x-transit-defaults": {
               "capabilities": {
-                "definition": "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
+                "definition": "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
                 "sources": 2,
                 "active_queries": 1,
                 "page_rows": 1,
@@ -19753,7 +19754,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
+              "definition": "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -19766,7 +19767,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+              "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
             ]
           },
           "T4": {
@@ -20054,7 +20055,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50",
+              "definition": "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
               "executed": false
             }
           },

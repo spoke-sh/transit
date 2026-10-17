@@ -125,7 +125,12 @@ pub fn discoverServer(init: std.process.Init, requested: ?[]const u8, diagnostic
 pub fn reservedEnvironment(key: []const u8) bool {
     return std.mem.eql(u8, key, "TRANSIT_CONSOLE_CONFIG") or std.mem.eql(u8, key, "TRANSIT_CONFIG");
 }
+pub const Location = struct { name: []const u8, line: u64, column: u64 };
+pub const Document = struct { value: Value, locations: []const Location };
 pub fn read(init: std.process.Init, name: []const u8, diagnostic: anytype) !Value {
+    return (try readDetailed(init, name, diagnostic)).value;
+}
+pub fn readDetailed(init: std.process.Init, name: []const u8, diagnostic: anytype) !Document {
     diagnostic.atFile(name);
     const allocator = init.arena.allocator();
     const bytes = std.Io.Dir.cwd().readFileAlloc(init.io, name, allocator, .limited(max_bytes)) catch |err| {
@@ -137,14 +142,15 @@ pub fn read(init: std.process.Init, name: []const u8, diagnostic: anytype) !Valu
             error.ConfigurationTooDeep, error.ConfigurationTooLarge => return diagnostic.invalidField("configuration", "exceeds the nesting or node limit", null),
             else => {}, // The normal decoder supplies syntax coordinates.
         };
-        return diagnostic.readJson(Value, init, name, max_bytes);
+        return .{ .value = try diagnostic.parseJson(Value, init, bytes, max_bytes), .locations = &.{} };
     }
     var parser: Yaml = .{ .allocator = allocator, .bytes = bytes };
-    return parser.parse() catch |err| {
+    const value = parser.parse() catch |err| {
         diagnostic.line = parser.line;
         diagnostic.column = 1;
         return diagnostic.fail(error.InvalidConfiguration, "invalid or unsupported YAML configuration", @errorName(err));
     };
+    return .{ .value = value, .locations = parser.locations.items };
 }
 
 /// Supports block mappings, scalar sequences and JSON flow values. Rejects
@@ -156,7 +162,8 @@ pub const Yaml = struct {
     line: u64 = 0,
     nodes: usize = 0,
     pending: ?Line = null,
-    const Line = struct { indent: usize, text: []const u8 };
+    locations: std.ArrayList(Location) = .empty,
+    const Line = struct { indent: usize, text: []const u8, number: u64 };
     fn next(self: *Yaml) !?Line {
         if (self.pending) |value| {
             self.pending = null;
@@ -170,7 +177,7 @@ pub const Yaml = struct {
             const text = std.mem.trimStart(u8, raw, " ");
             if (std.mem.indexOfScalar(u8, text, '\t') != null) return error.YamlTab;
             if (text.len == 0 or text[0] == '#') continue;
-            return .{ .indent = raw.len - text.len, .text = text };
+            return .{ .indent = raw.len - text.len, .text = text, .number = self.line };
         }
         return null;
     }
@@ -181,13 +188,13 @@ pub const Yaml = struct {
         const first = try self.next() orelse return object(self.allocator);
         if (first.indent != 0) return error.YamlIndentation;
         self.pending = first;
-        const result = try self.block(0, 0);
+        const result = try self.block(0, 0, "");
         if (try self.next() != null) return error.YamlIndentation;
         var nodes: usize = 0;
         try boundedValue(result, 0, &nodes);
         return result;
     }
-    fn block(self: *Yaml, indent: usize, depth: usize) anyerror!Value {
+    fn block(self: *Yaml, indent: usize, depth: usize, prefix: []const u8) anyerror!Value {
         if (depth > max_depth) return error.ConfigurationTooDeep;
         var result = object(self.allocator);
         var started = false;
@@ -208,12 +215,12 @@ pub const Yaml = struct {
                 const value = if (tail.len == 0 or tail[0] == '#') blk: {
                     const following = try self.next() orelse break :blk Value.null;
                     self.pending = following;
-                    break :blk if (following.indent > indent) try self.block(following.indent, depth + 1) else Value.null;
+                    break :blk if (following.indent > indent) try self.block(following.indent, depth + 1, prefix) else Value.null;
                 } else if (mappingEntry(tail)) blk: {
                     // A mapping item starts at the virtual column after "- ".
                     // Continuation fields have that same indentation.
-                    self.pending = .{ .indent = indent + 2, .text = tail };
-                    break :blk try self.block(indent + 2, depth + 1);
+                    self.pending = .{ .indent = indent + 2, .text = tail, .number = line.number };
+                    break :blk try self.block(indent + 2, depth + 1, prefix);
                 } else try self.scalar(tail);
                 try result.array.append(value);
                 continue;
@@ -223,11 +230,13 @@ pub const Yaml = struct {
             if (key.len == 0 or key.len > 128) return error.YamlInvalidKey;
             for (key) |c| if (!std.ascii.isAlphanumeric(c) and c != '_') return error.YamlInvalidKey;
             if (result.object.contains(key)) return error.DuplicateField;
+            const qualified = if (prefix.len == 0) try self.allocator.dupe(u8, key) else try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, key });
+            try self.locations.append(self.allocator, .{ .name = qualified, .line = line.number, .column = line.indent + 1 });
             const tail = std.mem.trim(u8, line.text[colon + 1 ..], " ");
             const value = if (tail.len == 0 or tail[0] == '#') blk: {
                 const following = try self.next() orelse break :blk Value.null;
                 self.pending = following;
-                break :blk if (following.indent > indent) try self.block(following.indent, depth + 1) else Value.null;
+                break :blk if (following.indent > indent) try self.block(following.indent, depth + 1, qualified) else Value.null;
             } else try self.scalar(tail);
             try result.object.put(self.allocator, try self.allocator.dupe(u8, key), value);
         }

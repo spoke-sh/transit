@@ -33,6 +33,12 @@ ordinary statements continue to reject unresolved placeholders. The
 enable named PREPARE/EXECUTE. The CLI and SDKs submit explicit typed bindings
 through the shared compiler; see the parameter contract.
 
+`configurationSelect`, `sessionSettingStatement` and the settings alternatives
+of `showStatement` belong to the shared query package's `SettingsSql` compiler.
+It lowers typed metadata predicates/projections through Fuze's `TableSelect`;
+administrative reload remains a separate explicit execution operation. See
+[settings SQL](../../docs/reference/sql/settings.md) for its bounded profile.
+
 ## Reproducible reference checks
 
 From the pinned development shell:

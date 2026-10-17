@@ -33,6 +33,7 @@ pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
     };
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     if (console.writes) |writer| try writer.clearComplete();
+    try @import("ConsoleSettings.zig").clearComplete(console);
     timing.enter(.prepare);
     var id: u64 = 0;
     for (0..8) |_| {
@@ -68,6 +69,7 @@ pub fn recover(console: *Console, selected: ?u64) !void {
             session.namespace = id;
         }
         if (console.writes) |writer| try writer.clearComplete();
+        try @import("ConsoleSettings.zig").clearComplete(console);
     }
     if (session.namespace == null) return error.NoQuery;
     console.query_running = true;

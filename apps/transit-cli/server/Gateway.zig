@@ -2,11 +2,14 @@
 const std = @import("std");
 const http = @import("transit_http_server");
 const wire = @import("transit_query").wire;
+const Configuration = @import("Configuration.zig");
+const C = @import("transit_query").settings.Contract;
 const Hosts = @import("Hosts.zig");
-pub const Config = struct { port: u16, upstream: []const u8, allowed_hosts: []const []const u8 = &.{} };
+pub const Config = struct { port: u16, upstream: []const u8, allowed_hosts: []const []const u8 = &.{}, configuration: ?Configuration.Deployment = null };
 pub fn run(init: std.process.Init, path: []const u8) !void {
     const config = try @import("Files.zig").read(Config, init.io, init.arena.allocator(), path);
     var context: Context = .{ .config = config, .hosts = try Hosts.list(init.arena.allocator(), config.port, config.allowed_hosts) };
+    if (config.configuration) |deployment| context.configuration = .{ .init = init, .deployment = deployment };
     for (&context.upstream) |*slot| slot.* = .{ .client = wire.Client.init(init.gpa, init.io, config.upstream) };
     defer for (&context.upstream) |*slot| slot.client.deinit();
     var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", config.port)).listen(init.io, .{ .reuse_address = true });
@@ -15,6 +18,7 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
 }
 const Context = struct {
     config: Config,
+    configuration: ?Configuration = null,
     hosts: []const []const u8,
     upstream: [10]Slot = undefined,
     const Slot = struct { client: wire.Client, busy: std.atomic.Value(bool) = .init(false) };
@@ -26,11 +30,15 @@ const Context = struct {
         return (http.header(request, "x-transit-wait") catch null) != null;
     }
     pub fn isControl(_: *Context, request: *std.http.Server.Request) bool {
-        return std.mem.eql(u8, request.head.target, "/v1/command") or
+        return std.mem.eql(u8, request.head.target, C.route) or std.mem.eql(u8, request.head.target, "/v1/command") or
             (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
     }
     pub fn handle(self: *Context, _: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-        if (!Hosts.allows(self.hosts, (try http.header(request, "host")).?)) return http.respond(request, .forbidden, "{\"err\":\"InvalidHost\"}");
+        var arena: std.heap.ArenaAllocator = .init(allocator);
+        defer arena.deinit();
+        const host = (try http.header(request, "host")).?;
+        const allowed = if (self.configuration) |*manager| try manager.allows(arena.allocator(), host) else Hosts.allows(self.hosts, host);
+        if (!allowed) return http.respond(request, .forbidden, "{\"err\":\"InvalidHost\"}");
         var headers = request.iterateHeaders();
         while (headers.next()) |header| {
             if (std.ascii.eqlIgnoreCase(header.name, "origin") or std.ascii.eqlIgnoreCase(header.name, "authorization") or
@@ -47,8 +55,9 @@ const Context = struct {
             break :hint try parsed.format(&wait_buffer);
         } else null;
         if (wait_value != null and (control or !std.mem.eql(u8, request.head.target, "/v1/query"))) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+        const configuration = self.configuration != null and std.mem.eql(u8, request.head.target, C.route);
         const health = request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health");
-        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query"))))
+        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query") or configuration)))
             return http.respond(request, .not_found, "{\"err\":\"NotFound\"}");
         // Reading a request body invalidates Head string slices. Own the target
         // before that boundary, including for a bodyless health request.
@@ -62,6 +71,20 @@ const Context = struct {
             if (candidate.busy.cmpxchgStrong(false, true, .acquire, .monotonic) == null) break candidate;
         } else return http.respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}");
         defer slot.busy.store(false, .release);
+        if (configuration) {
+            const signed = std.json.parseFromSliceLeaky(C.Signed, arena.allocator(), body, .{ .allocate = .alloc_always }) catch return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
+            const response = self.configuration.?.execute(arena.allocator(), &slot.client, signed) catch |err| {
+                const status: std.http.Status = switch (err) {
+                    error.AccessDenied, error.ConfigurationDenied => .forbidden,
+                    error.ConfigurationSnapshotChanged, error.ConfigurationOperationConflict => .conflict,
+                    error.AuthorityUnavailable, error.AuthorityTimeout, error.ConfigurationUnavailable => .service_unavailable,
+                    else => .bad_request,
+                };
+                const code = if (status == .forbidden) @import("transit_query").protocol.ErrorCode.AccessDenied else std.meta.stringToEnum(@import("transit_query").protocol.ErrorCode, @errorName(err)) orelse .InvalidRequest;
+                return http.respond(request, status, try std.fmt.allocPrint(arena.allocator(), "{{\"err\":\"{s}\"}}", .{@tagName(code)}));
+            };
+            return http.respond(request, .ok, try @import("transit_query").protocol.Json.valueAlloc(arena.allocator(), response));
+        }
         slot.client.beginExchange();
         const output = try allocator.alloc(u8, wire.max_body);
         defer allocator.free(output);

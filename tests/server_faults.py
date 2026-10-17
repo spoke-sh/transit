@@ -89,7 +89,8 @@ def reusable_connections(fixture):
         finally:
             connection.close()
     # Priority hints cannot turn an ordinary operation into a release or grant.
-    query = {'query': {'version': 1, 'realm': fixture.config['realm'], 'principal': 0,
+    definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    query = {'query': {'version': 1, 'definition': definition, 'realm': fixture.config['realm'], 'principal': 0,
                       'kind': {'capabilities': {}}}, 'signature': [0] * 64}
     for direct in (False, True):
         assert response(fixture, '/v1/query', json.dumps(query).encode(), direct=direct)[0] == 403

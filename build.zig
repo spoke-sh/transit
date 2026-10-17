@@ -122,6 +122,14 @@ pub fn build(b: *std.Build) void {
     diagnostic_errors_test.stdio = .inherit;
     b.step("test-diagnostic-errors", "Check compiler-inferred error sets and open-boundary fallbacks").dependOn(&diagnostic_errors_test.step);
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
+    const settings_reference = b.addExecutable(.{ .name = "transit-settings-reference", .root_module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-cli/SettingsReference.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+    }) });
+    b.step("settings-reference", "Export the typed configuration registry").dependOn(&b.addRunArtifact(settings_reference).step);
+    b.step("configuration-contract", "Export reflected configuration operations").dependOn(&b.addRunArtifact(query.artifact("transit-configuration-contract")).step);
     b.step("table-service-contract", "Export reflected Table mediation envelopes").dependOn(&b.addRunArtifact(query.artifact("transit-table-service-contract")).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
@@ -1125,10 +1133,17 @@ pub fn build(b: *std.Build) void {
     const encoding_cost = b.addRunArtifact(sql_wire_encoding);
     encoding_cost.has_side_effects = true;
     b.step("test-sql-wire-encoding", "Measure framed row encoding separately from authority and transport").dependOn(&encoding_cost.step);
+    const configuration_probe = b.addExecutable(.{ .name = "transit-configuration-probe", .root_module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-cli/ConfigurationProbe.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
+    }) });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
     sql_wire_gateway.addPassthruArgs();
     sql_wire_gateway.has_side_effects = true;
     sql_wire_gateway.stdio = .inherit;

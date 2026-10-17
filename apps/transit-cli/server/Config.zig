@@ -14,52 +14,109 @@ executables: Executables,
 applications: ?Applications = null,
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
+query: Query = .{},
+pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
 pub const Executables = struct { minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
 pub const Identity = struct { config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
+pub const Inputs = struct {
+    path: []const u8,
+    optional: bool,
+    defaults: std.json.Value,
+    environment: std.json.Value,
+};
+pub const Loaded = struct { config: Self, inputs: Inputs, file: std.json.Value, locations: []const @import("transit_query").settings.Input.Location };
 pub fn load(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic) !Self {
-    return loadWithExecutables(init, requested, diagnostic, true);
+    return (try capture(init, requested, diagnostic, true)).config;
 }
 /// Console defaults need topology only, without installed server executables.
 pub fn forConsole(init: std.process.Init, diagnostic: *Diagnostic) !Self {
-    return loadWithExecutables(init, null, diagnostic, false);
+    return (try capture(init, null, diagnostic, false)).config;
 }
-fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic, resolve_executables: bool) !Self {
+pub fn capture(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic, resolve_executables: bool) !Loaded {
     const allocator = init.arena.allocator();
     const selected = Settings.discoverServer(init, requested, diagnostic) catch |err| {
         diagnostic.configurationFailure(err);
         return error.InvalidConfiguration;
     };
     const cwd = try std.Io.Dir.cwd().realPathFileAlloc(init.io, ".", allocator);
-    const absolute = if (selected) |name| std.Io.Dir.cwd().realPathFileAlloc(init.io, name, allocator) catch |err| {
-        diagnostic.atFile(name);
-        diagnostic.configurationFailure(err);
-        return error.InvalidConfigurationPath;
-    } else null;
-    const base = if (absolute) |name| std.fs.path.dirname(name).? else cwd;
-    var overlay = if (absolute) |name| try Settings.read(init, name, diagnostic) else Settings.object(allocator);
-    if (overlay != .object) return diagnostic.invalidField("configuration", "must be an object", null);
+    // Pin the filename, not a symlink target or an open inode. Atomic replacement
+    // is observed by reload; discovery and process environment are never repeated.
+    const absolute = try std.fs.path.resolve(allocator, &.{ cwd, selected orelse "transit.yaml" });
+    var defaults = try settings.defaults(allocator);
+    try defaults.object.put(allocator, "executables", Settings.object(allocator));
+    try defaults.object.put(allocator, "installation", .{ .string = try std.fs.path.join(allocator, &.{ cwd, ".transit" }) });
+    var environment = Settings.object(allocator);
+    try settings.environment(init, &environment, diagnostic);
+    const inputs: Inputs = .{ .path = absolute, .optional = selected == null, .defaults = defaults, .environment = environment };
+    var loaded = try resolve(init, inputs, diagnostic, resolve_executables);
+    // Resolve fallback executable discovery once, even when a file currently
+    // overrides it. A later deletion must not search a changed child PATH.
+    const fallbacks = loaded.inputs.defaults.object.getPtr("executables").?;
+    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
+        const found = if (resolve_executables) defaultExecutable(init, entry[1]) catch "" else entry[1];
+        try fallbacks.object.put(allocator, entry[0], .{ .string = found });
+    }
+    return loaded;
+}
+pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, resolve_executables: bool) !Loaded {
+    const allocator = init.arena.allocator();
+    const base = std.fs.path.dirname(inputs.path).?;
+    var locations: []const @import("transit_query").settings.Input.Location = &.{};
+    var present = true;
+    var file = file: {
+        if (inputs.optional) {
+            const handle = std.Io.Dir.cwd().openFile(init.io, inputs.path, .{}) catch |err| {
+                if (err == error.FileNotFound) {
+                    present = false;
+                    break :file Settings.object(allocator);
+                }
+                diagnostic.atFile(inputs.path);
+                diagnostic.configurationFailure(err);
+                return error.InvalidConfigurationPath;
+            };
+            handle.close(init.io);
+        }
+        const document = try Settings.readDetailed(init, inputs.path, diagnostic);
+        locations = document.locations;
+        break :file document.value;
+    };
+    if (file != .object) return diagnostic.invalidField("configuration", "must be an object", null);
+    errdefer if (diagnostic.line == null) {
+        if (diagnostic.field) |name| {
+            for (locations) |location| if (std.mem.eql(u8, name, location.name)) {
+                diagnostic.line = location.line;
+                diagnostic.column = location.column;
+                break;
+            };
+        }
+    };
     var field: ?[]const u8 = null;
-    settings.normalizeInput(allocator, &overlay, &field) catch |err| {
+    settings.normalizeInput(allocator, &file, &field) catch |err| {
         if (err == error.InvalidSettingType) {
             const descriptor = settings.lookup(field orelse "") catch null;
             if (descriptor == null or descriptor.?.kind == .object) return diagnostic.invalidField(field orelse "configuration", "must be an object", null);
         }
         return diagnostic.invalidFieldCause(err, field orelse "configuration", "contains an unknown field or invalid value", null);
     };
-    try settings.environment(init, &overlay, diagnostic);
-    errdefer Settings.environmentOrigin(init, diagnostic);
+    var overlay = try clone(allocator, file);
+    try Settings.merge(allocator, &overlay, inputs.environment);
+    errdefer environmentDiagnostic(init, inputs, diagnostic);
     try Settings.shape(Self, allocator, overlay, "", diagnostic);
     const version = if (overlay.object.get("version")) |v| (std.json.parseFromValueLeaky(u8, allocator, v, .{}) catch return diagnostic.invalidField("version", "must be 1", null)) else 1;
     if (version != 1) return diagnostic.invalidField("version", "must be 1", null);
-    var defaults = (try std.json.parseFromSlice(std.json.Value, allocator,
-        \\{"version":1,"realm":1,"ports":{"cold":19101,"cold_console":19102,"store":19103,"node":19104,"gateway":19105},"executables":{}}
-    , .{})).value;
-    try defaults.object.put(allocator, "installation", .{ .string = try std.fs.path.join(allocator, &.{ cwd, ".transit" }) });
-    try defaults.object.put(allocator, "applications", (try std.json.parseFromSlice(std.json.Value, allocator, "{\"port\":19106}", .{})).value);
+    var defaults = try clone(allocator, inputs.defaults);
     try Settings.merge(allocator, &defaults, overlay);
+    settings.normalize(allocator, &defaults, &field) catch |err| {
+        const descriptor = settings.lookup(field orelse "") catch return diagnostic.invalidFieldCause(err, "configuration", "contains an unknown field or invalid value", null);
+        if (err == error.SettingOutOfRange) {
+            const noun = if (std.mem.startsWith(u8, descriptor.name, "ports.") or std.mem.endsWith(u8, descriptor.name, ".port")) "a port" else "an integer";
+            return diagnostic.invalidField(descriptor.name, try std.fmt.allocPrint(allocator, "must be {s} from {d} through {d}", .{ noun, descriptor.minimum, descriptor.maximum }), null);
+        }
+        return diagnostic.invalidFieldCause(err, descriptor.name, "contains an invalid value", null);
+    };
     const exe_value = defaults.object.getPtr("executables").?;
     if (exe_value.* != .object) return diagnostic.invalidField("executables", "must be an object", null);
     inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
@@ -71,17 +128,16 @@ fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnosti
             try exe_value.object.put(allocator, entry[0], .{ .string = found });
         }
     }
-    if (absolute) |name| diagnostic.atFile(name) else diagnostic.atFile("built-in server defaults");
+    diagnostic.atFile(inputs.path);
     var self = std.json.parseFromValueLeaky(Self, allocator, defaults, .{}) catch |err| {
         return diagnostic.invalidFieldCause(err, "configuration", "contains an unknown field or invalid value", null);
     };
+    if (self.query.statement_timeout_ceiling != 0 and (self.query.statement_timeout == 0 or self.query.statement_timeout > self.query.statement_timeout_ceiling)) return diagnostic.invalidField("query.statement_timeout", "must not exceed the configured ceiling", null);
     if (self.version != 1) return diagnostic.invalidField("version", "must be 1", null);
     if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
-    if (self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("realm", "must be an integer from 1 through 9007199254740991", null);
     {
         if (self.executables.board == null) return diagnostic.invalidFieldCause(error.BoardExecutableRequired, "executables.board", "is required", "Select the matching transit-board executable, including for --no-ui.");
         var board = self.board orelse Board{};
-        if (board.port < 1024) return diagnostic.invalidField("board.port", "must be a port from 1024 through 65535", null);
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (board.port == @field(self.ports, name)) return diagnostic.invalidField("board.port and ports." ++ name, "must be different", null);
         if (self.applications) |apps| if (apps.port == board.port) return diagnostic.invalidField("board.port and applications.port", "must be different", null);
         const origin = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}", .{board.port});
@@ -90,19 +146,13 @@ fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnosti
         self.board = board;
     }
     if (self.applications) |apps| {
-        if (apps.port < 1024) return diagnostic.invalidField("applications.port", "must be a port from 1024 through 65535", null);
-        if (apps.max_applications == 0 or apps.max_applications > 64) return diagnostic.invalidField("applications.max_applications", "must be an integer from 1 through 64", null);
-        if (apps.max_roles == 0 or apps.max_roles > 256) return diagnostic.invalidField("applications.max_roles", "must be an integer from 1 through 256", null);
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return diagnostic.invalidField("applications.port and ports." ++ name, "must be different", null);
     }
-    if (self.admission_ceiling < 128 or self.admission_ceiling > 65536) return diagnostic.invalidField("admission_ceiling", "must be an integer from 128 through 65536", null);
-    if (self.control_reserve > 65536) return diagnostic.invalidField("control_reserve", "must be an integer from 0 through 65536", null);
     @import("Hosts.zig").validate(self.gateway_allowed_hosts) catch |err| {
         return diagnostic.invalidFieldCause(err, "gateway_allowed_hosts", "must contain at most eight exact host:port authorities", "Each authority is limited to 200 bytes; omit schemes, paths and wildcards.");
     };
     const fields = @typeInfo(Ports).@"struct".field_names;
     inline for (fields, 0..) |name, i| {
-        if (@field(self.ports, name) < 1024) return diagnostic.invalidField("ports." ++ name, "must be a port from 1024 through 65535", null);
         inline for (fields[0..i]) |previous| if (@field(self.ports, name) == @field(self.ports, previous)) return diagnostic.invalidField("ports." ++ name ++ " and ports." ++ previous, "must be different", null);
     }
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
@@ -122,11 +172,13 @@ fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnosti
         };
     };
     diagnostic.field = null;
-    return self;
+    var pinned = inputs;
+    if (present) pinned.optional = false;
+    return .{ .config = self, .inputs = pinned, .file = file, .locations = locations };
 }
 pub fn identities(self: Self, init: std.process.Init, executable: []const u8, diagnostic: *Diagnostic) !Identity {
     var result: Identity = undefined;
-    const bytes = try std.json.Stringify.valueAlloc(init.gpa, self, .{});
+    const bytes = try std.json.Stringify.valueAlloc(init.gpa, .{ self.version, self.installation, self.realm, self.admission_ceiling, self.control_reserve }, .{});
     defer init.gpa.free(bytes);
     std.crypto.hash.sha2.Sha256.hash(bytes, &result.config, .{});
     diagnostic.field = "transit executable";
@@ -214,4 +266,24 @@ fn listen(io: std.Io, port: u16, field: []const u8, diagnostic: *Diagnostic) !st
         diagnostic.port = port;
         return diagnostic.fail(err, "cannot bind the configured listener", "Check for another running server. Retained installations require their recorded ports.");
     };
+}
+
+pub fn clone(allocator: std.mem.Allocator, input: std.json.Value) !std.json.Value {
+    const bytes = try std.json.Stringify.valueAlloc(allocator, input, .{});
+    defer allocator.free(bytes);
+    return std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{ .allocate = .alloc_always });
+}
+pub fn value(allocator: std.mem.Allocator, config: Self) !std.json.Value {
+    const bytes = try std.json.Stringify.valueAlloc(allocator, config, .{});
+    defer allocator.free(bytes);
+    return std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{ .allocate = .alloc_always });
+}
+fn environmentDiagnostic(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic) void {
+    const field = diagnostic.field orelse return;
+    const R = @import("transit_query").settings.Registry;
+    if (R.get(inputs.environment, field) != null) {
+        const name = R.environmentName(init.arena.allocator(), field) catch return;
+        diagnostic.field = std.fmt.allocPrint(init.arena.allocator(), "{s} ({s})", .{ name, field }) catch return;
+        diagnostic.file = null;
+    }
 }

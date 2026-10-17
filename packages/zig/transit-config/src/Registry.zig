@@ -22,6 +22,8 @@ pub const Descriptor = struct {
     kind: Kind,
     scope: Scope = .component,
     change: Change,
+    default_json: ?[]const u8 = null,
+    session_mutable: bool = false,
     nullable: bool = false,
     sensitive: bool = false,
     minimum: u64 = 0,
@@ -288,4 +290,77 @@ test "registry validates unknown input and normalizes nested values without disc
     try t.expectEqualStrings("TRANSIT_QUERY__STATEMENT_TIMEOUT", try environmentName(allocator, "query.statement_timeout"));
     const integer: Descriptor = .{ .name = "size", .description = "size", .owner = "test", .kind = .unsigned, .change = .restart };
     try t.expectError(error.InvalidSettingType, integer.normalize(allocator, .{ .string = "42" }));
+}
+
+pub fn defaults(self: Self, allocator: Allocator) !Value {
+    var result = Input.object(allocator);
+    for (self.descriptors) |descriptor| if (descriptor.default_json) |bytes| {
+        const parsed = try Input.jsonValue(allocator, bytes);
+        try set(allocator, &result, descriptor.name, try descriptor.normalize(allocator, parsed));
+    };
+    return result;
+}
+
+/// JSON Schema for the YAML data model, derived from the same key/type registry.
+pub fn schema(self: Self, allocator: Allocator) !Value {
+    var root = try objectSchema(allocator);
+    for (self.descriptors) |descriptor| {
+        var parent = &root;
+        var parts = std.mem.splitScalar(u8, descriptor.name, '.');
+        while (parts.next()) |part| {
+            const properties = parent.object.getPtr("properties").?;
+            if (!properties.object.contains(part)) try properties.object.put(allocator, part, try objectSchema(allocator));
+            const node = properties.object.getPtr(part).?;
+            if (parts.peek() != null) {
+                parent = node;
+                continue;
+            }
+            var output = Input.object(allocator);
+            const name = switch (descriptor.kind) {
+                .boolean => "boolean",
+                .unsigned => "integer",
+                .string, .enumeration => "string",
+                .strings => "array",
+                .object => "object",
+                .duration, .bytes => "integer",
+            };
+            try output.object.put(allocator, "type", if (descriptor.nullable) try Input.jsonValue(allocator, try std.fmt.allocPrint(allocator, "[\"{s}\",\"null\"]", .{name})) else .{ .string = name });
+            if (descriptor.kind == .object) {
+                try output.object.put(allocator, "additionalProperties", .{ .bool = false });
+                try output.object.put(allocator, "properties", node.object.get("properties") orelse Input.object(allocator));
+            }
+            if (descriptor.kind == .strings) try output.object.put(allocator, "items", try Input.jsonValue(allocator, "{\"type\":\"string\"}"));
+            if (descriptor.kind == .unsigned or descriptor.kind == .duration or descriptor.kind == .bytes) {
+                try output.object.put(allocator, "minimum", .{ .integer = @intCast(descriptor.minimum) });
+                if (descriptor.maximum <= std.math.maxInt(i64)) try output.object.put(allocator, "maximum", .{ .integer = @intCast(descriptor.maximum) });
+            }
+            if (descriptor.kind == .duration or descriptor.kind == .bytes) {
+                const pattern = if (descriptor.kind == .duration) "^[0-9]+(ms|s|min|h)$" else "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$";
+                var alternate = Input.object(allocator);
+                try alternate.object.put(allocator, "type", .{ .string = "string" });
+                try alternate.object.put(allocator, "pattern", .{ .string = pattern });
+                var alternatives: std.array_list.Managed(Value) = .init(allocator);
+                try alternatives.append(output);
+                try alternatives.append(alternate);
+                output = Input.object(allocator);
+                try output.object.put(allocator, "anyOf", .{ .array = alternatives });
+            }
+            if (descriptor.values.len != 0) {
+                var alternatives: std.array_list.Managed(Value) = .init(allocator);
+                for (descriptor.values) |value| try alternatives.append(.{ .string = value });
+                try output.object.put(allocator, "enum", .{ .array = alternatives });
+            }
+            try output.object.put(allocator, "description", .{ .string = descriptor.description });
+            try output.object.put(allocator, "x-transit-owner", .{ .string = descriptor.owner });
+            try output.object.put(allocator, "x-transit-change", .{ .string = @tagName(descriptor.change) });
+            if (descriptor.default_json) |value| if (!descriptor.sensitive) {
+                try output.object.put(allocator, "default", try Input.jsonValue(allocator, value));
+            };
+            node.* = output;
+        }
+    }
+    return root;
+}
+fn objectSchema(allocator: Allocator) !Value {
+    return Input.jsonValue(allocator, "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{}}");
 }

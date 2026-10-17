@@ -63,6 +63,7 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     };
     defer intent.deinit();
     if (Signals.interrupted()) return error.ConsoleInterrupted;
+    try @import("ConsoleSettings.zig").clearComplete(console);
     timing.enter(.prepare);
     // A preparation denial has no transport uncertainty and must not install
     // active recovery work. Persist the first exact command before dispatch.

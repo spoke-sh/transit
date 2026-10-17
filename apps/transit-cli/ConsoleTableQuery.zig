@@ -146,6 +146,7 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
         if (next == null) break;
     }
     if (console.writes) |writer| try writer.clearComplete();
+    try @import("ConsoleSettings.zig").clearComplete(console);
     console.query_running = false;
 }
 fn compilationFailure(console: *Console, catalog: *c.TableClient, statement: []const u8, operation: []const u8, err: anyerror, location: q.fuze.Sql.Location) !void {

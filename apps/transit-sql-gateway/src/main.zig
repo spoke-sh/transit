@@ -202,13 +202,13 @@ const Server = struct {
             const idle = engine.cycle.state == .idle;
             if (idle) try transport.resetDeadline(self.config.limits.idle_ms) else {
                 const elapsed = host.deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
-                if (elapsed >= self.config.limits.command_ms) return error.GatewayDeadline;
-                try transport.resetDeadline(@intCast(self.config.limits.command_ms - elapsed));
+                if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
+                try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
             }
             var frame = try pg.Frame.read(allocator, &secure, self.config.limits.frame_bytes);
             defer frame.deinit();
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
-            if (idle) try transport.resetDeadline(self.config.limits.command_ms);
+            if (idle) try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.tag, frame.payload })) break;
         }
         try transport.resetDeadline(self.config.limits.write_ms);
@@ -278,7 +278,7 @@ const Server = struct {
             var frame = try mysql.Frame.read(allocator, &secure, 0, limits.frame_bytes);
             defer frame.deinit();
             if (self.draining.load(.acquire)) return error.GatewayDraining;
-            try transport.resetDeadline(limits.command_ms);
+            try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;
         }
         try transport.resetDeadline(limits.write_ms);

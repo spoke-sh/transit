@@ -715,7 +715,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
     identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
-    record = dict(definition=definition, identity=identity, installation=[0]*16, root_public=[0]*32,
+    record = dict(definition=definition, identity=identity, installation=[1]*16, root_public=[0]*32,
+                  realm=1, endpoint="http://127.0.0.1:19105", authorization_steps=list(range(1, 11)),
                   complete=True, genesis_observed=True, default_table_complete=True, provision=list(range(1, 15)))
     (local/'installation.json').write_text(json.dumps(record))
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
@@ -728,9 +729,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['format'] == 'json'
     project_server.write_text('ports:\n  gateway: 29305\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29305'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'  # Desired/environment topology cannot redirect the retained endpoint.
     shown = invoke(['console'], 0, env=dict(environment, TRANSIT_PORTS__GATEWAY='29306'), cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29306'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'
     record['complete'] = False
     (local/'installation.json').write_text(json.dumps(record))
     invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))

@@ -2765,7 +2765,8 @@
           "type": "string",
           "enum": [
             "unified_v1",
-            "catalog_v1"
+            "catalog_v1",
+            "configuration_v1"
           ]
         },
         "T67": {
@@ -5073,7 +5074,7 @@
         "T143": {
           "type": "string",
           "enum": [
-            "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+            "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
           ]
         },
         "T144": {
@@ -6923,7 +6924,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50"
+            "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
           ]
         },
         "T2": {

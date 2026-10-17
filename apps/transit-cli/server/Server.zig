@@ -17,10 +17,13 @@ executable: []const u8,
 ui: bool,
 diagnostic: *Diagnostic,
 config_path: []const u8,
+loaded: Config.Loaded,
+boot: [16]u8,
 processes: [9]Process = @splat(.{}),
 active_role: Role = .cold,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
-    const config = try Config.load(init, options.path, diagnostic);
+    const loaded = try Config.capture(init, options.path, diagnostic, true);
+    const config = loaded.config;
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable, diagnostic);
     // The sibling lock also serializes first initialization before the directory exists.
@@ -38,7 +41,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     const record = Files.read(Installation.Record, init.io, init.arena.allocator(), record_path) catch |err| {
         return diagnostic.fail(err, "cannot read the retained installation record", "Verify the installation path and restore missing data from its recovery source. Use --initialize only for a deliberately new installation, never to repair missing retained storage.");
     };
-    if (record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
+    if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
     const signals = try Signals.install();
     defer signals.close();
     var wire = q.wire.Client.init(init.gpa, init.io, try Provider.url(init.arena.allocator(), config.ports.node));
@@ -53,7 +56,9 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     try installation.checkStorage();
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
-    self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+    var boot: [16]u8 = undefined;
+    try init.io.randomSecure(&boot);
+    self.* = .{ .loaded = loaded, .boot = boot, .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
     defer self.stop();
     var restarts: u8 = 0;
     while (!Signals.interrupted()) {
@@ -163,8 +168,13 @@ fn cycle(self: *Self) !void {
     }
     installation.record.complete = true;
     try installation.save();
+    installation.record.endpoint = try Provider.url(allocator, config.ports.gateway);
+    try installation.save();
+    const configuration = try installation.path("configuration.json");
+    const binding = try Installation.settingsBinding(installation.record, config.realm);
+    try @import("Configuration.zig").boot(self.init, configuration, binding, self.boot, self.loaded, installation.record.identity);
     const gateway_config = try installation.path("gateway.json");
-    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts });
+    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     if (self.ui) {

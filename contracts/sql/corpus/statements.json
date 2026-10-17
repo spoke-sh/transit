@@ -2322,7 +2322,17 @@
     "SHOW SINKS;",
     "SHOW CONNECTIONS;",
     "DESCRIBE orders;",
-    "EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;"
+    "EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;",
+    "SHOW ALL;",
+    "SHOW ports.gateway;",
+    "SHOW DATABASES;",
+    "SHOW SCHEMAS;",
+    "SET query.statement_timeout = '5s';",
+    "RESET query.statement_timeout;",
+    "RESET ALL;",
+    "SELECT transit_reload_conf();",
+    "SELECT name, value FROM transit_settings() WHERE pending_restart = true ORDER BY name LIMIT 8;",
+    "SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20;"
   ],
   "table_select": [
     {
