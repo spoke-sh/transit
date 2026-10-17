@@ -244,8 +244,15 @@ fn cycle(self: *Self) !void {
                 // exact pending work and live owners while the next scheduled
                 // observation checks availability. Denial/corruption still
                 // fails immediately; persistent outage remains bounded.
-                if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied or unavailable_probes == 2) return err;
-                unavailable_probes += 1;
+                if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
+                // Explicit admission pressure is not evidence of a dead owner.
+                // Restarting every child here amplifies load and fences work
+                // that is still making progress. Keep the next probe bounded;
+                // ordinary transport outages retain their finite restart gate.
+                if (installation.wire.last_rejection != .HttpCapacity) {
+                    if (unavailable_probes == 2) return err;
+                    unavailable_probes += 1;
+                }
                 last = std.Io.Clock.awake.now(self.init.io);
                 try self.init.io.sleep(.fromMilliseconds(100), .awake);
                 continue;

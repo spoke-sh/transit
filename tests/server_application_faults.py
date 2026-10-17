@@ -117,6 +117,18 @@ def node(real, directory, args):
             if self.path == '/v1/query' and body:
                 query = json.loads(body)['query']
                 if query['principal'] == 0 and 'capabilities' in query['kind']:
+                    capacity = directory / 'capacity-probes'
+                    with mutex:
+                        remaining = int(capacity.read_text()) if capacity.exists() else 0
+                        if remaining:
+                            capacity.write_text(str(remaining-1))
+                    if remaining:
+                        self.send_response(503)
+                        data = b'{"err":"HttpCapacity"}'
+                        self.send_header('Content-Length', str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
                     unavailable = directory / 'unavailable-probe'
                     if unavailable.exists():
                         unavailable.unlink()
@@ -134,6 +146,12 @@ def node(real, directory, args):
                 upstream.request(self.command, self.path, body, {'Content-Type': 'application/json'})
                 response = upstream.getresponse()
                 data = response.read()
+                if self.path == '/v1/query' and body:
+                    query = json.loads(body)['query']
+                    if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status != 200:
+                        (directory / 'probe-rejection.json').write_text(json.dumps(dict(status=response.status, body=data.decode())))
+                    if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status == 200 and (directory / 'capacity-probes').exists() and (directory / 'capacity-probes').read_text() == '0':
+                        (directory / 'capacity-recovered').touch()
                 if self.path == '/v1/command' and response.status == 200:
                     envelope = json.loads(body)
                     with mutex:
@@ -262,6 +280,10 @@ def run(cli, node_binary, host, worker, operator):
         wait_file(fixture.root / 'probe-recovered')
         assert fixture.process.poll() is None
         assert set((fixture.installation / 'activations').iterdir()) == activations, 'One unavailable read replaced live owners'
+        (fixture.root / 'capacity-probes').write_text('3')
+        wait_file(fixture.root / 'capacity-recovered')
+        assert fixture.process.poll() is None
+        assert set((fixture.installation / 'activations').iterdir()) == activations, 'Admission pressure replaced live owners'
         declaration = json.loads(subprocess.check_output([operator, 'manifest', worker], text=True))
         manifest = fixture.root / 'application.json'
         manifest.write_text(json.dumps(declaration))
