@@ -14,6 +14,7 @@ const Provider = @import("Provider.zig");
 const Self = @This();
 installation: *Installation,
 allocator: std.mem.Allocator,
+setup_arena: std.heap.ArenaAllocator,
 executable: []const u8,
 meta: E.Meta,
 entries: std.ArrayList(Entry) = .empty,
@@ -57,16 +58,22 @@ pub fn recover(installation: *Installation) !void {
 pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8) !?*Self {
     const meta = (try E.open(installation, allocator)) orelse return null;
     const self = try allocator.create(Self);
-    self.* = .{ .installation = installation, .allocator = allocator, .executable = executable, .meta = meta };
-    errdefer self.stop();
+    self.* = .{ .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
+    errdefer self.destroy();
     try self.tick();
     return self;
 }
 fn prepare(self: *Self) !void {
     const installation = self.installation;
-    const allocator = self.allocator;
-    try E.administrator(installation, allocator, &self.meta);
+    // No child starts until setup completes. Retry reconstructs the same saved
+    // enrollment and exact pending requests, so previous preparation strings
+    // and paths can be released without changing durable work or root ownership.
     self.entries.clearRetainingCapacity();
+    self.provisioning = null;
+    self.trust = null;
+    _ = self.setup_arena.reset(.free_all);
+    const allocator = self.setup_arena.allocator();
+    try E.administrator(installation, allocator, &self.meta);
     if (installation.config.sql.listening()) for (installation.config.sql.accounts) |desired| {
         if (!desired.enabled) continue;
         self.provisioning = try E.createAccount(installation, allocator, desired);
@@ -98,7 +105,7 @@ fn prepare(self: *Self) !void {
             }
         }
         if (self.entries.items.len == g.Limits.max_accounts) return error.GatewayConnectionCapacity;
-        try self.entries.append(allocator, .{ .record = try E.loadAccount(installation, allocator, record.name), .desired = desired });
+        try self.entries.append(self.allocator, .{ .record = try E.loadAccount(installation, allocator, record.name), .desired = desired });
     }
     if (installation.config.sql.listening()) {
         self.trust = Trust.prepare(installation, allocator, &self.meta) catch |err| blk: {
@@ -115,6 +122,10 @@ fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
 pub fn stop(self: *Self) void {
     self.service.stopWithTimeout(self.installation.init.io, self.installation.config.sql.drain_ms + 1000);
     self.bootstrap.stop(self.installation.init.io);
+}
+pub fn destroy(self: *Self) void {
+    self.stop();
+    self.setup_arena.deinit();
 }
 fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Configuration.Account {
     const record = entry.record;

@@ -195,7 +195,7 @@ fn cycle(self: *Self) !void {
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     self.active_role = .sql;
     const sql = try Sql.create(installation, allocator, self.executable);
-    defer if (sql) |manager| manager.stop();
+    defer if (sql) |manager| manager.destroy();
     if (self.ui) {
         const board_path = try Board.configuration(installation, allocator);
         try self.start(allocator, .board, &.{ config.executables.board.?, board_path }, &.{}, false);

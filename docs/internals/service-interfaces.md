@@ -150,8 +150,10 @@ fresh fenced activation and socket admission. Disabled listeners do not load
 PEMs. Removed accounts with unsettled operations retain a worker; settled removed
 accounts retain their control profile without a resident worker. Historical
 accounts are scanned individually, while an explicit bound limits simultaneous
-active/recovering accounts. Idle workers back off their native polling; this
-reduces competition with current authorization reads without increasing native
+active/recovering accounts. Failed setup attempts release their preparation
+arena before reconstructing retained requests; an unavailable dependency does
+not extend the lifetime of discarded setup allocations. Idle workers back off
+their native polling; this reduces competition with current authorization reads without increasing native
 admission limits. Progress still requires available storage, current worker
 rights and eventual scheduling. Backoff supplies no latency guarantee.
 
