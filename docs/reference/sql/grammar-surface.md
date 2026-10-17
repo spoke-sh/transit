@@ -41,6 +41,8 @@ Every row is **Implemented — execution** within its stated profile.
 | Aggregate over one derived table | Only the restricted filter → limit → aggregate form, with its required alias | [Limited aggregate input](select.md#aggregate-a-limited-input) |
 | `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
 | Output `AS name` | Names row or aggregate output positions; distinct names allow repeated inputs; renamed inner columns resolve in the outer aggregate | [Project rows](select.md#project-rows) |
+| `SHOW ALL`, dotted-key SHOW, settings relations, SET/RESET and standalone reload | Shared settings compiler; configured console/database-wire adapters with current scoped authority | [Settings SQL](settings.md) |
+| `SHOW DATABASES`, `SHOW SCHEMAS` | Authorized configured bindings and selected database schemas | [SHOW](show.md) |
 | `DESCRIBE name`, `SHOW TABLES` | Authorized configured-catalog Tables in the console, or the explicit source in query-source scope | [DESCRIBE](describe.md), [SHOW](show.md) |
 | `JOIN`, `GROUP BY`, mixed COUNT/SUM | Explicit relational Table profile: one inner/left int64 equijoin, int64 grouping and ordered checked aggregates; separate opt-in console connection | [Table joins and grouping](relational.md) |
 | `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission or row execution; snapshot behavior depends on the inspection profile | [EXPLAIN](explain.md) |

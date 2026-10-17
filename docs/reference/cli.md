@@ -25,7 +25,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 
 | Command | Input and outcome |
 | --- | --- |
-| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
+| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |

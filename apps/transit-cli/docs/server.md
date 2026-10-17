@@ -88,8 +88,7 @@ Explicit relative paths resolve against the selected file, or the working
 directory if no file is selected. The default installation always remains
 `./.transit` in the working directory. `--initialize` still deliberately creates
 the installation; an ordinary `transit server` restarts it and never recreates
-missing retained state. Changing effective configuration after initialization
-is refused by the same installation identity checks.
+missing retained state. Initialization-only settings remain installation identity checks. Mutable settings use the [configuration lifecycle](../../../docs/reference/configuration.md); restart-required changes apply on normal startup.
 
 A complete YAML configuration can override these defaults:
 
@@ -142,8 +141,7 @@ native MinIO binary from its pinned fixture image. Docker is proof setup, not a
 server runtime dependency. Source builds supply this complete dependency set;
 there is no published release bundle or general runtime upgrade path. The server
 hashes every configured executable and itself with bounded streaming reads before provisioning; ordinary
-startup requires the same hashes and normalized configuration. It currently
-refuses artifact/configuration changes; this is not an upgrade mechanism.
+startup requires the same artifact hashes and immutable configuration. Mutable configuration is tracked independently; executable replacement remains outside this startup mechanism.
 
 After resolving the CLI, the complete local bundle needs no ambient tools.
 The running installation uses no shell, Python, task runner, Process Compose or
@@ -208,7 +206,7 @@ ssh -N -L 19105:127.0.0.1:19105 user@server
 ```
 
 For a different local port or a developer hostname, add the exact authority to
-the public server configuration **before initializing the installation**:
+the public server configuration, then reload it with `SELECT transit_reload_conf();`:
 
 ```json
 "gateway_allowed_hosts": ["localhost:29105", "127.0.0.1:29105", "transit.local.test:19105"]
@@ -238,10 +236,7 @@ The same gateway policy and ready fields apply to the version 1
 listener retains its numeric loopback authority; `gateway_allowed_hosts` applies
 only to the native protocol gateway.
 
-The list is part of the normalized installation configuration. Changing it after
-initialization is refused, as are changed runtime binaries. This enhancement
-applies to installations initialized with the new runtime; it does not upgrade
-older installations or permit editing their private identity records.
+The list is a reloadable setting. See [configuration and settings](../../../docs/reference/configuration.md). Changed runtime binaries remain subject to artifact identity checks; private installation records are never a configuration editing surface.
 
 ## Ownership and recovery
 

@@ -390,3 +390,13 @@ Arrow workspaces. Exhausting either explicit buffer closes that query with
 releasing its captured source pin. Host/storage allocation failures keep their
 original infrastructure meaning. No required-byte measurement is invented.
 Table persistence limits and query transport working sets are independent.
+
+The shared settings adapters use `SettingsSql` for classification and Fuze
+metadata compilation, `SettingsClient` for signed public operations,
+`SettingsReader` for bounded revision-bound pages, `SettingsSession` for captured
+defaults/overrides, and `SettingsJournal` for exact administrative recovery.
+`SettingsAssistance` supplies authorized name completion without execution.
+The console and database-wire adapters compose these owners. See
+[configuration](../../../docs/reference/configuration.md) and
+[settings SQL](../../../docs/reference/sql/settings.md); query-only methods do
+not gain an administrative route.

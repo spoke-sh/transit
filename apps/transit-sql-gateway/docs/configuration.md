@@ -19,6 +19,7 @@ compatible build.
 | `drain_ms` | SIGINT/SIGTERM command drain bound, default 30000, maximum 270000 |
 | `request_timeout_ms` | Native request bound, default 5000, maximum 60000 |
 | `limits` | Explicit connection, authentication, statement, portal, byte and time budgets from the wire contract |
+| `settings` | Optional explicit `{url, binding}` for the configuration service; binding contains realm, installation bytes and its registered domain object |
 | `accounts` | 1–32 explicit SQL names, verifier references, native identities and database/catalog mappings |
 
 Each account supplies `name`, `verifier_file`, `ledger`, `generation`, optional
@@ -167,3 +168,27 @@ looks up the exact accepted request using the current credential; if no receipt
 exists it can only submit the original bytes. It never re-signs an uncertain
 request. Policy revocation can prevent further progress or disclosure without
 erasing the operation or undoing a committed mutation.
+
+## Settings service binding
+
+An explicit `settings` binding enables host `SHOW`, `transit_settings()`,
+`transit_config_reloads()` and standalone `transit_reload_conf()`. The URL names
+the service base, not a filesystem path. The account's authenticated Table
+principal and selected role sign each request. Grant inspection, provenance and
+reload independently on the target configuration domain; no native administrator
+key is loaded by the adapter. Without a binding, host administration reports
+unavailable. Catalog SHOW and session controls retain their own owners.
+
+At login, the adapter captures the current statement timeout and ceiling. SET
+changes only that session; RESET restores the captured default. Its deadline is
+the stricter of the configured command budget and nonzero statement timeout.
+The fixed PostgreSQL/MySQL encoding/autocommit probes retain their requirements.
+
+Preparation authorizes without dispatch; Execute dispatches reload once for that
+result. Each account serializes its private configuration journal under
+`activation_directory`. After a lost reply, the next reload reconciles the saved
+operation using its original generation, caller and selected role. Retained
+history requires current inspection rights. Configuration and Table mutation
+journals remain separate, and neither cancellation nor connection loss undoes
+accepted work. See [settings SQL](../../../docs/reference/sql/settings.md) and
+the [configuration contract](../../../contracts/CONFIGURATION_V1.md).

@@ -1,7 +1,7 @@
 # transit-config
 
 Shared Zig configuration input and domain-owned typed setting descriptions.
-The package depends on the standard library. Component owners supply their
+The package depends on the standard library and public Transit protocol. Component owners supply their
 descriptors, defaults, cross-field validation and application lifecycle.
 
 `Input` owns bounded YAML/JSON input, typed environment overlays and file
@@ -25,3 +25,7 @@ zig build test
 ```
 
 The repository package test/check tasks also include this package.
+
+The public [configuration contract](../../../contracts/CONFIGURATION_V1.md) binds
+requests to current native authority. The package owns input, descriptors and
+envelopes; hosts own file I/O checkpoints and live application.

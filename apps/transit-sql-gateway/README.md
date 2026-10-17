@@ -34,7 +34,7 @@ connection reset clears prepared handles without cancelling durable work.
 Use verified TLS and explicit autocommit. PostgreSQL authenticates with
 SCRAM-SHA-256. MySQL uses full caching_sha2_password authentication inside TLS,
 UTF8MB4, collation utf8mb4_0900_bin and SQL mode
-ANSI_QUOTES,NO_BACKSLASH_ESCAPES. Unknown settings reject. Compatibility version
+ANSI_QUOTES,NO_BACKSLASH_ESCAPES. Host settings, catalog SHOW and session SET/RESET use the shared [settings SQL](../../docs/reference/sql/settings.md) profile; host inspection/reload requires an explicit management binding. Other unknown settings reject. Compatibility version
 selectors choose driver codecs; the endpoint is a Transit adapter, not either
 upstream database engine.
 
