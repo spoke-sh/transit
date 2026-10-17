@@ -32,6 +32,23 @@ pub const Context = struct {
         c.SSL_CTX_free(self.raw);
         self.* = undefined;
     }
+    /// Verify the advertised local CA and both supported loopback identities.
+    /// This does not configure client-certificate authentication.
+    pub fn verifyLocalTrust(self: *const Context, ca_file: [:0]const u8) !void {
+        const leaf = c.SSL_CTX_get0_certificate(self.raw) orelse return error.InvalidTlsCredentials;
+        const store = c.X509_STORE_new() orelse return error.TlsAllocationFailed;
+        defer c.X509_STORE_free(store);
+        if (c.X509_STORE_load_file(store, ca_file.ptr) != 1) return error.InvalidTlsTrust;
+        const verification = c.X509_STORE_CTX_new() orelse return error.TlsAllocationFailed;
+        defer c.X509_STORE_CTX_free(verification);
+        var chain: ?*c.STACK_X509 = null;
+        if (c.SSL_CTX_ctrl(self.raw, c.SSL_CTRL_GET_CHAIN_CERTS, 0, @ptrCast(&chain)) != 1 or
+            c.X509_STORE_CTX_init(verification, store, leaf, chain) != 1 or
+            c.X509_STORE_CTX_set_purpose(verification, c.X509_PURPOSE_SSL_SERVER) != 1 or
+            c.X509_verify_cert(verification) != 1 or
+            c.X509_check_host(leaf, "localhost", 9, c.X509_CHECK_FLAG_NEVER_CHECK_SUBJECT, null) != 1 or
+            c.X509_check_ip_asc(leaf, "127.0.0.1", 0) != 1) return error.InvalidTlsTrust;
+    }
 };
 
 /// Absolute per-operation deadlines bound partial framing and slow peers.

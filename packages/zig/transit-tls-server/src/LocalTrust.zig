@@ -91,3 +91,28 @@ test "managed trust issues distinct bounded public certificates and private keys
     try std.testing.expect(!std.mem.eql(u8, trust.ca, trust.certificate));
     try std.testing.expect(!std.mem.eql(u8, trust.ca_key, trust.key));
 }
+test "local trust verifies the full chain and loopback names and rejects a foreign CA" {
+    const t = std.testing;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var trust = try issue(t.allocator, t.io);
+    defer trust.deinit(t.allocator);
+    var foreign = try issue(t.allocator, t.io);
+    defer foreign.deinit(t.allocator);
+    try tmp.dir.writeFile(t.io, .{ .sub_path = "ca.pem", .data = trust.ca });
+    try tmp.dir.writeFile(t.io, .{ .sub_path = "foreign.pem", .data = foreign.ca });
+    try tmp.dir.writeFile(t.io, .{ .sub_path = "server.pem", .data = trust.certificate });
+    try tmp.dir.writeFile(t.io, .{ .sub_path = "server.key", .data = trust.key, .flags = .{ .permissions = .fromMode(0o600) } });
+    const ca = try tmp.dir.realPathFileAlloc(t.io, "ca.pem", t.allocator);
+    defer t.allocator.free(ca);
+    const foreign_ca = try tmp.dir.realPathFileAlloc(t.io, "foreign.pem", t.allocator);
+    defer t.allocator.free(foreign_ca);
+    const cert = try tmp.dir.realPathFileAlloc(t.io, "server.pem", t.allocator);
+    defer t.allocator.free(cert);
+    const key = try tmp.dir.realPathFileAlloc(t.io, "server.key", t.allocator);
+    defer t.allocator.free(key);
+    var context = try @import("root.zig").Context.init(cert, key);
+    defer context.deinit();
+    try context.verifyLocalTrust(ca);
+    try t.expectError(error.InvalidTlsTrust, context.verifyLocalTrust(foreign_ca));
+}
