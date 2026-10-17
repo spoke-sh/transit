@@ -304,6 +304,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invalid['executables']['query_host'] = str(empty)
     server(invalid, ('executables.query_host', 'InvalidExecutable'))
     server(dict(config, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
+    server(dict(config, executables=dict(config['executables'], sql_gateway='absent-sql')), ('executables.sql_gateway',))
+    for sql, expected in [
+        ({'postgres': {'port': 80}}, 'sql.postgres.port'),
+        ({'postgres': {'port': 29004}}, 'sql.postgres.port'),
+        ({'postgres': {}, 'mysql': {'port': 15432}}, 'sql.mysql.port'),
+        ({'command_ms': 270001}, 'sql.command_ms'),
+        ({'tls': {'key_file': 'private-must-not-appear'}}, 'sql.tls'),
+        ({'accounts': [{'name': '../escape', 'role': 'reader', 'password_file': 'private'}]}, 'sql.accounts'),
+        ({'accounts': [{'name': 'reader', 'role': 'reader', 'password_file': 'private', 'database': 'unknown'}]}, 'sql.accounts'),
+    ]:
+        server(dict(config, sql=sql), (expected,))
     server(dict(config, version=2), ('version must be 1',))
     server(dict(config, version=3), ('version must be 1',))
     with socket.socket() as listener:
@@ -313,6 +324,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invalid = copy.deepcopy(config)
         invalid['ports']['cold'] = port
         server(invalid, ('cannot bind', 'ports.cold', 'address already in use', f'127.0.0.1:{port}'), 1)
+        for protocol in ('postgres', 'mysql'):
+            server(dict(config, sql={protocol: {'port': port}}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
 
     console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',

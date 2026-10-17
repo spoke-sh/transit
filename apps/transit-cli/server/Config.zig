@@ -181,11 +181,12 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     };
     try self.sql.resolve(allocator, base, diagnostic);
     const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null };
+    const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port" };
     for (sql_ports, 0..) |maybe, i| if (maybe) |port| {
-        for (sql_ports[0..i]) |previous| if (previous == port) return diagnostic.invalidField("sql", "requires distinct listener and health ports", null);
-        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (port == @field(self.ports, name)) return diagnostic.invalidField("sql and ports." ++ name, "must use different ports", null);
-        if (self.board) |board| if (port == board.port) return diagnostic.invalidField("sql and board.port", "must use different ports", null);
-        if (self.applications) |apps| if (port == apps.port) return diagnostic.invalidField("sql and applications.port", "must use different ports", null);
+        for (sql_ports[0..i]) |previous| if (previous == port) return diagnostic.invalidField(sql_fields[i], "requires distinct SQL listener and health ports", null);
+        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (port == @field(self.ports, name)) return diagnostic.invalidField(sql_fields[i], "must differ from ports." ++ name, null);
+        if (self.board) |board| if (port == board.port) return diagnostic.invalidField(sql_fields[i], "must differ from board.port", null);
+        if (self.applications) |apps| if (port == apps.port) return diagnostic.invalidField(sql_fields[i], "must differ from applications.port", null);
     };
     diagnostic.field = null;
     var pinned = inputs;
