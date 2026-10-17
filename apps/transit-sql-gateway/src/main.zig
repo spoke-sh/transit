@@ -366,15 +366,21 @@ const Output = struct {
     }
 };
 fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
+    var interval_ms: u32 = 5;
     while (true) {
-        _ = runtime.tick() catch |err| {
+        const progressed = runtime.tick() catch |err| blk: {
             if (!g.station.client.Client.unavailable(err)) {
                 runtime.ready.store(false, .release);
                 diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = if (runtime.background.last_rejection) |cause| @tagName(cause) else @errorName(err) });
                 return;
             }
+            break :blk false;
         };
-        runtime.io.sleep(.fromMilliseconds(5), .awake) catch return;
+        // Idle accounts share the same bounded native request admission with
+        // active work and caller validation. Back off idle polling; a completed
+        // step restores the short interval without retaining a work queue.
+        interval_ms = if (progressed) 5 else @min(interval_ms * 2, 1000);
+        runtime.io.sleep(.fromMilliseconds(interval_ms), .awake) catch return;
     }
 }
 pub fn main(init: std.process.Init) !void {

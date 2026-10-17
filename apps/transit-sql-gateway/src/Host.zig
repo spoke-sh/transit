@@ -161,10 +161,10 @@ fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@Type
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            const unavailable = g.station.client.Client.unavailable(err);
+            const unavailable = g.station.client.Client.unavailable(err) or err == error.GatewayOwnerUnavailable;
             if ((!stale and !unavailable) or attempts == 64) return err;
             attempts += 1;
-            try self.io.sleep(.fromMilliseconds(if (unavailable) 5 else 1), .awake);
+            try self.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
             continue;
         };
     }
