@@ -1,4 +1,5 @@
 """Socket/account bounds and independent readiness under pressure."""
+from concurrent.futures import ThreadPoolExecutor
 import json
 import socket
 import struct
@@ -20,6 +21,20 @@ def health(port, expected=200):
         assert json.loads(response.read())['ready'] == (expected == 200)
 
 
+def connection_denied(postgres, message):
+    # A failed libpq TLS startup can leave SSL_shutdown errors in OpenSSL's
+    # thread-local queue. Keep that negative client off the Python ssl thread
+    # which owns the already admitted raw connection and cancellation socket.
+    def attempt():
+        try:
+            psycopg.connect(**postgres).close()
+        except psycopg.Error:
+            return True
+        return False
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        assert executor.submit(attempt).result(timeout=20), message
+
+
 def capacity(postgres, health_port):
     # The fixture explicitly configures eight normal slots plus cancellation
     # reserve, with eight slots per account and four authentication attempts.
@@ -29,12 +44,7 @@ def capacity(postgres, health_port):
         for _ in range(7):
             connections.append(psycopg.connect(**postgres))
         wire=PostgreSQL(postgres)
-        try:
-            psycopg.connect(**postgres).close()
-        except psycopg.Error:
-            pass
-        else:
-            raise AssertionError('Ninth ordinary session exceeded capacity')
+        connection_denied(postgres, 'Ninth ordinary session exceeded capacity')
         health(health_port)
         wire.sock.sendall(frame(b'P',b'hold\0SELECT id FROM wire_rows\0\0\0')+frame(b'B',b'portal\0hold\0\0\0\0\0\0\0')+frame(b'E',b'portal\0'+struct.pack('!I',1))+frame(b'H'))
         assert wire.until(b's',b'E')[-1][0] == b's'
@@ -57,12 +67,7 @@ def capacity(postgres, health_port):
             assert exact(raw,1)==b'S'
             held.append(raw)
         health(health_port)
-        try:
-            psycopg.connect(**postgres).close()
-        except psycopg.Error:
-            pass
-        else:
-            raise AssertionError('Authentication capacity was not enforced')
+        connection_denied(postgres, 'Authentication capacity was not enforced')
         deadline=time.monotonic()+7
         for raw in held:
             raw.settimeout(max(.1,deadline-time.monotonic()))

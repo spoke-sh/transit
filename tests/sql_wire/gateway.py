@@ -15,7 +15,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
@@ -123,6 +123,13 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
             from settings import run as settings_proof
             settings_proof(root,options,mysql_options,settings_source,lambda mode: call(ledger,mode))
             if slice == 'settings':
+                return
+            if slice == 'lifecycle':
+                with psycopg.connect(**options) as connection:
+                    connection.execute('INSERT INTO wire_rows (id) VALUES (1),(2),(3),(4)')
+                from lifecycle import capacity, drain
+                capacity(options,health_port)
+                drain(server,options,health_port)
                 return
             # Both adapters select the NOLOGIN data role through SET-only
             # membership. Neither the verifier nor the private reader can

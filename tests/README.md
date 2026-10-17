@@ -21039,6 +21039,8 @@ failed runs do not count as passes.
 Reproduction commands are `just test::server` and `just test::sql-wire-gateway`.
 For focused adapter diagnosis, use
 `nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- settings`.
+The focused `-- lifecycle` slice adds socket/account capacity, reserved cancellation
+and bounded shutdown to the settings proof.
 The full task also exercises pinned PostgreSQL/MySQL command-line clients,
 independent drivers, revocation, prepared execution, account recovery and TLS.
 Configuration tests add no user-facing commands or flags. Metadata work is
@@ -21074,3 +21076,14 @@ the persisted completion field. The installed proof also checks that refusal
 leaves installation/history bytes unchanged and that restoring the checkpoint
 retains reload history. The preceding clean run was interrupted to qualify this
 change; partial results are not a completed clean qualification.
+
+The final installed lifecycle passes in **116.84 seconds**, including the retained
+checkpoint/completion-field refusal, and `just check` passes on that implementation.
+A broader wire attempt passes the independent CLI/C clients, settings, authority,
+failure schedules, schema invalidation and exact recovery of a 40 KiB mutation
+in **3,560.366 seconds** within its unchanged 3,600-second observation bound.
+It then fails at the final capacity test; the enclosing task is not a pass.
+A fresh diagnostic reproduces libpq leaving OpenSSL error `0A000197` in the
+Python caller thread after an expected rejected login. Isolating those negative
+clients on a joined worker thread passes the unchanged capacity/cancellation
+checks. This changes test-client ownership, not gateway limits or TLS behavior.
