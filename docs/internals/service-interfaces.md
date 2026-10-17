@@ -163,12 +163,10 @@ checkpoint and lifecycle; replacing or expiring a certificate changes admission,
 not the identity or outcome of a recorded operation.
 
 The executable schedules are [public client onboarding](../../tests/server_sql.py)
-and [interrupted enrollment](../../tests/server_sql_faults.py), run through
-`just test::server-sql`, `just test::server-sql-package` and
-`just test::server-sql-faults` in the pinned Nix shell. They check selected
+and [interrupted enrollment](../../tests/server_sql_faults.py). They check selected
 disconnect, restart, revocation and trust failures on disk-backed Ursula. The
-[proof ledger](../../tests/README.md) distinguishes executed results from this
-reasoning. These schedules do not cover every interruption point, sustained
+[proof ledger](../../tests/README.md) supplies reproduction commands and
+distinguishes executed results from this reasoning. These schedules do not cover every interruption point, sustained
 maximum-account load or arbitrary filesystem/storage corruption.
 
 ## Reactive consistency
