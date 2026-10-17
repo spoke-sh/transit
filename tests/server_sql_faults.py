@@ -66,24 +66,21 @@ def run(cli, node, host, board, gateway):
         assert retained['initialized'] and retained['journal']['generation'] > frozen_init['journal']['generation']
         print('Local SQL: accepted root allocation and initialize reply loss recovered exact saved identities after manager SIGKILL.', flush=True)
 
-        # A foreign process owns the configured port. Admission must report a
-        # failure while the native administrator remains available; restarting
-        # after releasing that port uses the same enrolled identity.
+        # A foreign process owns the configured port. The shared preflight
+        # rejects before starting children or changing the enrolled identity.
         fixture.stop()
+        checkpoint = path.read_bytes()
         query = fixture.root / 'identity.json'; query.write_text('{"identity":{}}')
         with socket.socket() as occupied:
             occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             occupied.bind(('127.0.0.1', fixture.config['sql']['postgres']['port']))
             occupied.listen(1)
-            fixture.start(); fixture.ready(timeout=300)
-            status = wait_status(fixture, lambda s: s['service']['state'] == 'unavailable' and s['service']['error_type'] is not None)
-            assert status['service']['postgres_port'] is None
-            call([fixture.cli, 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml', '--file', query], retry_observation=True)
-            fixture.stop()
+            fixture.refusal('sql.postgres.port')
+            assert path.read_bytes() == checkpoint
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         assert json.loads(path.read_text())['identity'] == retained['identity']
-        print('Local SQL: occupied port withdraws admission, preserves core access and recovers after release.', flush=True)
+        print('Local SQL: occupied port rejects in preflight without enrollment changes; restart succeeds after release.', flush=True)
 
         # Disable the worker using public authorization. A subsequent root own
         # must reject without restoring its credential or blocking core access.
