@@ -24,6 +24,7 @@ export const sections: Section[] = [
     label: "CLI",
     pages: [
       reference("cli", "Transit CLI"),
+      reference("configuration", "Configuration and settings"),
       page(
         "apps/transit-cli/docs/authorization.md",
         "guides/authorization",
@@ -72,6 +73,7 @@ export const sections: Section[] = [
       reference("sql/grant", "GRANT"),
       reference("sql/revoke", "REVOKE"),
       reference("sql/show", "SHOW"),
+      reference("sql/settings", "Settings and reload"),
       reference("sql/describe", "DESCRIBE"),
       reference("sql/explain", "EXPLAIN"),
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),

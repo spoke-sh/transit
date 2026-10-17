@@ -14,9 +14,9 @@ import psycopg
 import mysql.connector
 
 
-def run(node, catalog, ledger, host, gateway, slice="all"):
-    assert slice in ("all","faults","controls","cli")
-    node, catalog, ledger, host, gateway = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway)]
+def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
+    assert slice in ("all","faults","controls","cli","settings","lifecycle")
+    node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
         native_port, sql_port, mysql_port, health_port = free_port(), free_port(), free_port(), free_port()
@@ -54,9 +54,13 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                 entries.extend(page['entries'])
             assert len({entry['operation'] for entry in entries}) == len(entries)
             return entries
+        settings_binding = None
+        settings_port = free_port()
         def configure():
             call(ledger, 'app-config', sql_port)
             configuration = json.loads((root/'sql-gateway.json').read_text())
+            if settings_binding is not None:
+                configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
@@ -80,6 +84,10 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
             # this gateway alone sequences Table principal 1235.
             call(ledger, 'provision-empty', 1235)
             assert call(ledger, 'raw-denied')['raw_denied']
+            settings_binding = call(ledger, 'configuration')
+            from settings import start_configuration
+            settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
+
             call(catalog, 'host')
             configure()
             certificate()
@@ -112,6 +120,17 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            from settings import run as settings_proof
+            settings_proof(root,options,mysql_options,settings_source,lambda mode: call(ledger,mode))
+            if slice == 'settings':
+                return
+            if slice == 'lifecycle':
+                with psycopg.connect(**options) as connection:
+                    connection.execute('INSERT INTO wire_rows (id) VALUES (1),(2),(3),(4)')
+                from lifecycle import capacity, drain
+                capacity(options,health_port)
+                drain(server,options,health_port)
+                return
             # Both adapters select the NOLOGIN data role through SET-only
             # membership. Neither the verifier nor the private reader can
             # preserve that authority after membership revocation.
@@ -241,7 +260,7 @@ def run(node, catalog, ledger, host, gateway, slice="all"):
         # The CLI lifecycle has its own history so expanding it does not change
         # the existing wide-row measurement's retained state or observation bound.
         # Both schedules must pass for the complete gateway task to succeed.
-        run(node,catalog,ledger,host,gateway,'cli')
+        run(node,catalog,ledger,host,gateway,configuration_host,'cli')
 
 
 if __name__ == '__main__':

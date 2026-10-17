@@ -386,6 +386,30 @@
         "transit_catalog"
       ]
     },
+    "apps/transit-cli/ConfigurationProbe.zig": {
+      "errors": {
+        "InvalidProbeArguments": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "Diagnostic.zig",
+        "server/Config.zig",
+        "server/Configuration.zig",
+        "server/Files.zig",
+        "server/Gateway.zig",
+        "std",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/Console.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -394,6 +418,9 @@
         "CatalogDenied": 2,
         "CatalogNameNotFound": 1,
         "CatalogOwnerChanged": 1,
+        "ConfigurationReloadRejected": 1,
+        "ConfigurationServiceRequired": 1,
+        "ConfigurationSnapshotChanged": 1,
         "ConnectionSwitchRequiresTerminal": 1,
         "ConsoleCatalogRequired": 2,
         "ConsoleCommandFailed": 1,
@@ -429,10 +456,13 @@
         "QuerySourceUnavailable": 1,
         "QueryUploadNotFound": 1,
         "ResourceUnavailable": 1,
+        "SettingOutOfRange": 1,
+        "StatementTimedOut": 4,
         "StatementTooLarge": 1,
         "UnknownConsoleCommand": 2,
         "UnknownHelpTopic": 1,
-        "UnresolvedSubmission": 6,
+        "UnknownSetting": 1,
+        "UnresolvedSubmission": 7,
         "UnsupportedCatalog": 1,
         "UnsupportedConsoleVersion": 2,
         "UnsupportedConstruct": 1,
@@ -452,6 +482,10 @@
           "loopback",
           "tls_system",
           "tls_ca"
+        ],
+        "Console.timed().Event": [
+          "done",
+          "timeout"
         ]
       },
       "error_sets": {},
@@ -462,27 +496,31 @@
         "Console.executeCommand()": "<inferred>",
         "Console.executeWithParameters()": "<inferred>",
         "Console.inspection()": "<inferred>",
+        "Console.invoke()": "anyerror",
         "Console.json()": "<inferred>",
         "Console.perform()": "<inferred>",
         "Console.pipe()": "<inferred>",
         "Console.query()": "<inferred>",
         "Console.queryFailure()": "anyerror",
         "Console.sqlFailure()": "anyerror",
+        "Console.timed()": "<inferred>",
+        "Console.timed().Timer.wait()": "<inferred>",
         "connection()": "<inferred>",
         "localConfig()": "<inferred>",
         "path()": "<inferred>",
         "run()": "<inferred>",
         "validate()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 9,
       "propagation": {
-        "try": 80,
-        "catch": 27
+        "try": 91,
+        "catch": 26
       },
       "imports": [
         "Cancel.zig",
         "ConsoleCatalog.zig",
         "ConsoleHelp.zig",
+        "ConsoleSettings.zig",
         "ConsoleTableQuery.zig",
         "ConsoleWrites.zig",
         "Diagnostic.zig",
@@ -505,7 +543,6 @@
         "server/Config.zig",
         "server/Files.zig",
         "server/Installation.zig",
-        "server/Provider.zig",
         "std",
         "transit_catalog",
         "transit_query"
@@ -585,6 +622,46 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/ConsoleSettings.zig": {
+      "errors": {
+        "ConfigurationCancellationUnsupported": 1,
+        "ConfigurationReadBudgetExceeded": 1,
+        "ConfigurationRecoveryRequired": 2,
+        "ConfigurationReloadRejected": 1,
+        "ConfigurationServiceRequired": 1,
+        "ConsoleCatalogRequired": 1,
+        "ConsoleInterrupted": 2,
+        "FileNotFound": 1,
+        "InstallationSyncFailed": 1,
+        "InvalidConfigurationRecovery": 1,
+        "NoConfigurationOperation": 1,
+        "UnresolvedSubmission": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "capture()": "<inferred>",
+        "catalog()": "<inferred>",
+        "clearComplete()": "<inferred>",
+        "command()": "<inferred>",
+        "emit()": "<inferred>",
+        "open()": "<inferred>",
+        "submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 49,
+        "catch": 2
+      },
+      "imports": [
+        "Console.zig",
+        "Output.zig",
+        "Signals.zig",
+        "server/Files.zig",
+        "std",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/ConsoleTableQuery.zig": {
       "errors": {
         "ConsoleInterrupted": 3,
@@ -602,12 +679,13 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 5
       },
       "imports": [
         "Console.zig",
         "ConsoleRelational.zig",
+        "ConsoleSettings.zig",
         "Output.zig",
         "Results.zig",
         "Signals.zig",
@@ -655,12 +733,13 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 73,
+        "try": 74,
         "catch": 3
       },
       "imports": [
         "Console.zig",
         "ConsoleCatalog.zig",
+        "ConsoleSettings.zig",
         "Output.zig",
         "Signals.zig",
         "TableRecovery.zig",
@@ -735,6 +814,7 @@
         "invalidFieldCause()": "anyerror",
         "invalidInvocation()": "anyerror",
         "invalidOption()": "anyerror",
+        "parseJson()": "<inferred>",
         "quoted()": "<inferred>",
         "readJson()": "<inferred>",
         "render()": "<inferred>",
@@ -805,11 +885,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 30,
         "catch": 1
       },
       "imports": [
         "Console.zig",
+        "ConsoleSettings.zig",
         "Output.zig",
         "Results.zig",
         "Signals.zig",
@@ -1401,50 +1482,38 @@
     },
     "apps/transit-cli/Settings.zig": {
       "errors": {
-        "ConfigurationTooDeep": 4,
-        "ConfigurationTooLarge": 6,
-        "DuplicateField": 1,
-        "FileNotFound": 1,
-        "InvalidConfiguration": 2,
-        "InvalidEnvironmentObject": 1,
-        "UnknownEnvironmentSetting": 2,
-        "YamlIndentation": 3,
-        "YamlInvalidKey": 3,
-        "YamlInvalidScalar": 2,
-        "YamlMappingExpected": 1,
-        "YamlMixedCollection": 1,
-        "YamlTab": 1,
-        "YamlUnsupportedScalar": 1
+        "ConfigurationTooLarge": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Yaml.block()": "anyerror",
-        "Yaml.next()": "<inferred>",
-        "Yaml.parse()": "<inferred>",
-        "Yaml.scalar()": "<inferred>",
-        "applyEnv()": "anyerror",
-        "boundJson()": "<inferred>",
-        "boundedValue()": "anyerror",
-        "discover()": "<inferred>",
-        "envValue()": "<inferred>",
-        "environment()": "<inferred>",
-        "jsonValue()": "<inferred>",
-        "merge()": "<inferred>",
-        "read()": "<inferred>",
-        "readTyped()": "<inferred>",
-        "shape()": "anyerror",
-        "write()": "<inferred>",
-        "yaml()": "anyerror"
+        "write()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
-        "catch": 11
+        "try": 5,
+        "catch": 0
       },
       "imports": [
-        "Diagnostic.zig",
         "server/Files.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/SettingsReference.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "server/SettingsSchema.zig",
         "std",
         "transit_query"
       ]
@@ -1994,39 +2063,94 @@
         "EndOfStream": 1,
         "ExecutableNotFound": 2,
         "ExecutableSearchTooLarge": 2,
-        "FileNotFound": 1,
+        "FileNotFound": 2,
         "InvalidBoardOrigin": 1,
         "InvalidConfiguration": 5,
         "InvalidConfigurationPath": 1,
         "InvalidExecutable": 1,
-        "NotDir": 1
+        "InvalidSettingType": 1,
+        "NotDir": 1,
+        "SettingOutOfRange": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "candidate()": "<inferred>",
+        "capture()": "<inferred>",
         "checkedDigest()": "<inferred>",
+        "clone()": "<inferred>",
         "defaultExecutable()": "<inferred>",
         "digest()": "<inferred>",
         "forConsole()": "<inferred>",
         "identities()": "<inferred>",
         "listen()": "<inferred>",
         "load()": "<inferred>",
-        "loadWithExecutables()": "<inferred>",
         "preflight()": "<inferred>",
-        "resolveExecutable()": "<inferred>"
+        "resolve()": "<inferred>",
+        "resolveExecutable()": "<inferred>",
+        "value()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
-        "catch": 12
+        "try": 42,
+        "catch": 19
       },
       "imports": [
         "../Diagnostic.zig",
         "../Settings.zig",
         "Files.zig",
         "Hosts.zig",
+        "SettingsSchema.zig",
         "builtin",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/Configuration.zig": {
+      "errors": {
+        "AuthorityRollback": 3,
+        "ConfigurationCounterExhausted": 1,
+        "ConfigurationOperationConflict": 1,
+        "ConfigurationSnapshotChanged": 2,
+        "ConfigurationTooLarge": 1,
+        "ConfigurationUnavailable": 4,
+        "FileNotFound": 5,
+        "IncompatibleDefinition": 1,
+        "InvalidConfigurationCheckpoint": 1,
+        "PathAlreadyExists": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "allows()": "<inferred>",
+        "apply()": "<inferred>",
+        "boot()": "<inferred>",
+        "checkRetained()": "<inferred>",
+        "execute()": "<inferred>",
+        "finish()": "<inferred>",
+        "history()": "<inferred>",
+        "increment()": "<inferred>",
+        "matchingArtifacts()": "<inferred>",
+        "operationPath()": "<inferred>",
+        "ordinalPath()": "<inferred>",
+        "origins()": "<inferred>",
+        "outcomes()": "<inferred>",
+        "read()": "<inferred>",
+        "rows()": "<inferred>",
+        "save()": "<inferred>",
+        "validate()": "<inferred>",
+        "valueEqual()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 71,
+        "catch": 7
+      },
+      "imports": [
+        "../Diagnostic.zig",
+        "Config.zig",
+        "Files.zig",
+        "Hosts.zig",
         "std",
         "transit_query"
       ]
@@ -2057,6 +2181,13 @@
     },
     "apps/transit-cli/server/Gateway.zig": {
       "errors": {
+        "AccessDenied": 1,
+        "AuthorityTimeout": 1,
+        "AuthorityUnavailable": 1,
+        "ConfigurationDenied": 1,
+        "ConfigurationOperationConflict": 1,
+        "ConfigurationSnapshotChanged": 1,
+        "ConfigurationUnavailable": 1,
         "EndOfStream": 1,
         "HttpConnectionClosing": 1,
         "HttpDeadline": 2
@@ -2069,10 +2200,11 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 12,
-        "catch": 5
+        "try": 15,
+        "catch": 7
       },
       "imports": [
+        "Configuration.zig",
         "Files.zig",
         "Hosts.zig",
         "std",
@@ -2109,7 +2241,7 @@
         "InstallationExists": 1,
         "InstallationIdentityMismatch": 1,
         "InstallationSyncFailed": 2,
-        "InvalidInstallationAuthority": 1,
+        "InvalidInstallationAuthority": 2,
         "ServerStopped": 3,
         "StorageIdentityMismatch": 1,
         "TableWriterNotReady": 3,
@@ -2139,11 +2271,12 @@
         "provisionBoard()": "<inferred>",
         "query()": "<inferred>",
         "save()": "<inferred>",
+        "settingsBinding()": "<inferred>",
         "submit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
+        "try": 76,
         "catch": 2
       },
       "imports": [
@@ -2151,6 +2284,7 @@
         "../TableRecovery.zig",
         "Config.zig",
         "Files.zig",
+        "Provider.zig",
         "std",
         "transit_query"
       ]
@@ -2215,6 +2349,7 @@
         "AuthorityTransportDenied": 1,
         "CatalogConfigurationChanged": 1,
         "ChildExited": 4,
+        "ConfigurationUnavailable": 1,
         "InstallationIdentityMismatch": 2,
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
@@ -2257,8 +2392,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 90,
-        "catch": 5
+        "try": 98,
+        "catch": 6
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2268,12 +2403,28 @@
         "Applications.zig",
         "Board.zig",
         "Config.zig",
+        "Configuration.zig",
         "Files.zig",
         "Gateway.zig",
         "Hosts.zig",
         "Installation.zig",
         "Process.zig",
         "Provider.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/SettingsSchema.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
         "std",
         "transit_query"
       ]
@@ -2380,6 +2531,10 @@
         "CatalogDenied": 1,
         "CatalogIdentityConflict": 1,
         "CellTooLarge": 1,
+        "ConfigurationReloadRejected": 1,
+        "ConfigurationServiceRequired": 1,
+        "ConfigurationSnapshotChanged": 1,
+        "ConfigurationSortRequiresBoundedLimit": 1,
         "Conflict": 1,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
@@ -2395,16 +2550,23 @@
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 2,
         "InvalidAuthorityResponse": 1,
+        "InvalidSettingUnit": 1,
+        "InvalidSettingValue": 1,
         "InvalidSqlSyntax": 1,
         "InvalidWireValue": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
         "Rejected": 1,
+        "SettingNotSessionMutable": 1,
+        "SettingOutOfRange": 1,
         "StaleGatewayCoordinator": 2,
+        "StandaloneConfigurationOperationRequired": 1,
+        "StatementTimedOut": 1,
         "TableNotFound": 1,
         "TooManyWirePortals": 1,
         "TooManyWireStatements": 1,
         "UnexpectedToken": 1,
+        "UnknownSetting": 1,
         "UnknownWirePortal": 1,
         "UnknownWireStatement": 1,
         "UnsupportedExecutionCycle": 1,
@@ -2417,12 +2579,14 @@
       "outcomes": {
         "Prepared": [
           "native",
-          "probe"
+          "probe",
+          "settings"
         ],
         "Read.value": [
           "single",
           "relational",
-          "probe"
+          "probe",
+          "settings"
         ]
       },
       "error_sets": {},
@@ -2443,12 +2607,45 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 41,
+        "try": 47,
         "catch": 4
       },
       "imports": [
+        "Settings.zig",
         "std",
         "transit_postgres",
+        "transit_sql_gateway"
+      ]
+    },
+    "apps/transit-sql-gateway/src/Settings.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "CatalogDenied": 1,
+        "ConfigurationDenied": 1,
+        "ConfigurationReadBudgetExceeded": 1,
+        "ConfigurationReloadRejected": 1,
+        "ConfigurationServiceRequired": 1,
+        "ExpectedGatewayRead": 1,
+        "ExpectedGatewayWrite": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Read.init()": "<inferred>",
+        "Read.next()": "<inferred>",
+        "client()": "<inferred>",
+        "mutate()": "<inferred>",
+        "prepare()": "<inferred>",
+        "reload()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 1
+      },
+      "imports": [
+        "Host.zig",
+        "std",
         "transit_sql_gateway"
       ]
     },
@@ -11579,7 +11776,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50\""
+          "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
         ],
         "Effect.phase": [
           "pending",
@@ -11999,6 +12196,10 @@
       "errors": {},
       "outcomes": {
         "ErrorCode": [
+          "UnknownSetting",
+          "ConfigurationSnapshotChanged",
+          "ConfigurationOperationConflict",
+          "ConfigurationUnavailable",
           "AuthorizationSubjectDenied",
           "AuthorizationBudgetExceeded",
           "AuthorizationChangeQuota",
@@ -12345,7 +12546,8 @@
         ],
         "Response.profile": [
           "unified_v1",
-          "catalog_v1"
+          "catalog_v1",
+          "configuration_v1"
         ]
       },
       "error_sets": {},
@@ -13932,6 +14134,176 @@
         "std"
       ]
     },
+    "packages/zig/transit-query/src/SettingsAssistance.zig": {
+      "errors": {
+        "ConfigurationReadBudgetExceeded": 1,
+        "ConfigurationSnapshotChanged": 1,
+        "InvalidSqlCursor": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "add()": "<inferred>",
+        "complete()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SettingsClient.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "ConfigurationDenied": 1,
+        "ConfigurationOperationConflict": 1,
+        "ConfigurationOperationRequired": 1,
+        "ConfigurationSnapshotChanged": 1,
+        "ConfigurationUnavailable": 1,
+        "UnknownSetting": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "canSeeOrigins()": "<inferred>",
+        "prepare()": "<inferred>",
+        "read()": "<inferred>",
+        "submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SettingsJournal.zig": {
+      "errors": {
+        "ConfigurationRecoverySyncFailed": 1,
+        "ConfigurationTooLarge": 1,
+        "FileNotFound": 1,
+        "InvalidConfigurationRecovery": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SettingsReader.zig": {
+      "errors": {
+        "ConfigurationReadBudgetExceeded": 1,
+        "InvalidConfigurationResponse": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "matches()": "<inferred>",
+        "next()": "<inferred>",
+        "project()": "<inferred>",
+        "raw()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SettingsSession.zig": {
+      "errors": {
+        "ConfigurationSnapshotChanged": 1,
+        "InvalidConfigurationResponse": 3,
+        "SettingOutOfRange": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "capture()": "<inferred>",
+        "overlay()": "<inferred>",
+        "set()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query/src/SettingsSql.zig": {
+      "errors": {
+        "ConfigurationSortRequiresBoundedLimit": 2,
+        "InvalidSettingName": 1,
+        "InvalidSettingType": 1,
+        "InvalidSettingUnit": 1,
+        "InvalidSettingValue": 3,
+        "SettingNotSessionMutable": 2,
+        "SettingOutOfRange": 2,
+        "StandaloneConfigurationOperationRequired": 5,
+        "UnknownColumn": 1,
+        "UnsupportedAggregate": 1
+      },
+      "outcomes": {
+        "Catalog": [
+          "databases",
+          "schemas",
+          "tables"
+        ],
+        "Relation": [
+          "settings",
+          "reloads"
+        ],
+        "Statement": [
+          "show",
+          "relation",
+          "reload",
+          "catalog",
+          "set",
+          "reset"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Owned.output()": "<inferred>",
+        "cell()": "<inferred>",
+        "cells()": "<inferred>",
+        "diagnostic()": "<inferred>",
+        "key()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 50,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query/src/SourceDefinition.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -15100,6 +15472,12 @@
         "RelationalTables.zig",
         "ResultDisclosure.zig",
         "RuntimeWitness.zig",
+        "SettingsAssistance.zig",
+        "SettingsClient.zig",
+        "SettingsJournal.zig",
+        "SettingsReader.zig",
+        "SettingsSession.zig",
+        "SettingsSql.zig",
         "SourceDefinition.zig",
         "SourceWitness.zig",
         "SqlCompilation.zig",
@@ -15124,11 +15502,29 @@
         "builtin",
         "source_store_test.zig",
         "transit_catalog",
+        "transit_config",
         "transit_station",
         "transit_station_document"
       ]
     },
     "packages/zig/transit-query/src/service_export.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_query"
+      ]
+    },
+    "packages/zig/transit-query/src/settings_export.zig": {
       "errors": {},
       "outcomes": {},
       "error_sets": {},
@@ -16710,7 +17106,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -22220,7 +22616,7 @@
       "assignment": "columnReference EQ mutationValue",
       "mutationValue": "DEFAULT | literal",
       "mutationRow": "LPAREN mutationValue ( COMMA mutationValue ) * RPAREN",
-      "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createDocument | createKv | grantStatement | revokeStatement | showStatement | describeStatement | explainStatement",
+      "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createDocument | createKv | grantStatement | revokeStatement | showStatement | sessionSettingStatement | configurationSelect | describeStatement | explainStatement",
       "createConnection": "CREATE CONNECTION identifier TO connectorKind connectionOptions",
       "createSource": "CREATE SOURCE identifier FROM connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
       "createSink": "CREATE SINK identifier INTO connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
@@ -22244,13 +22640,23 @@
       "grantStatement": "GRANT privilegeList ON authorizationObject TO grantee grantOption ? | GRANT identifier TO authorizationRole ( WITH membershipOption ( COMMA membershipOption ) * ) ?",
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",
-      "showStatement": "SHOW catalogKind",
-      "catalogKind": "TABLES | SOURCES | SINKS | CONNECTIONS",
+      "showStatement": "SHOW ( catalogKind | settingKey )",
+      "settingKey": "identifier ( DOT identifier ) *",
+      "sessionSettingStatement": "SET settingKey ( EQ | TO ) ( STRING | INTEGER | DEFAULT ) | RESET settingKey",
+      "configurationSelect": "SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN | SELECT projection FROM ( TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS ) LPAREN RPAREN whereClause ? ( ORDER BY identifier ( ASC | DESC ) ? ) ? limitClause ?",
+      "catalogKind": "TABLES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
       "describeStatement": "DESCRIBE identifier",
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE",
+      "TRANSIT_RELOAD_CONF": "'TRANSIT_RELOAD_CONF'",
+      "TRANSIT_SETTINGS": "'TRANSIT_SETTINGS'",
+      "TRANSIT_CONFIG_RELOADS": "'TRANSIT_CONFIG_RELOADS'",
+      "DATABASES": "'DATABASES'",
+      "SCHEMAS": "'SCHEMAS'",
+      "ASC": "'ASC'",
+      "DESC": "'DESC'",
       "ROLE": "'ROLE'",
       "LOGIN": "'LOGIN'",
       "NOLOGIN": "'NOLOGIN'",

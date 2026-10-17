@@ -1,4 +1,5 @@
 //! One bounded public query model, shared by Board and the signed CLI.
+pub const settings = @import("transit_config");
 pub const station = @import("transit_station");
 pub const protocol = station.protocol;
 pub const fuze = station.fuze;
@@ -85,3 +86,18 @@ pub const RuntimeWitness = @import("RuntimeWitness.zig");
 pub const ApiDiagnostic = @import("ApiDiagnostic.zig");
 pub const ExecutionDiagnostic = @import("ExecutionDiagnostic.zig");
 pub const QueryFailure = @import("QueryFailure.zig");
+
+pub const SettingsClient = @import("SettingsClient.zig");
+
+pub const SettingsAssistance = @import("SettingsAssistance.zig");
+pub const SettingsSql = @import("SettingsSql.zig");
+
+pub const SettingsSession = @import("SettingsSession.zig");
+pub const SettingsReader = @import("SettingsReader.zig");
+
+test {
+    _ = SettingsSql;
+    _ = SettingsSession;
+}
+
+pub const SettingsJournal = @import("SettingsJournal.zig");

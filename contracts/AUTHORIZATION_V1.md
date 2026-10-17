@@ -258,7 +258,11 @@ retains the existing execution/fencing checks. A racing policy publication
 invalidates stale prepared authority decisions.
 
 `authenticate` verifies an original subject, and `check` evaluates a `Guard`.
-Their service caller needs current native inspection rights on the audience PID.
+A caller may submit `check` for its own independently signed subject without
+native inspection rights. The guard still evaluates current scoped privileges
+and credential/role eligibility. `authenticate`, checks for other subjects, and
+checks for accepted historical subjects require current native inspection rights
+on the audience PID. Self-check grants no raw native inspection or impersonation.
 A guard contains at most 16 requirements, all of which must succeed, sharing one
 4096-charge object-evaluation budget. Requirements distinguish all requested
 privileges, any requested privilege, ownership and metadata visibility (ownership

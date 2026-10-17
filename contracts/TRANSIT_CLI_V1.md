@@ -16,7 +16,9 @@ not a promise about remote capabilities or a release tag.
 
 Server configuration overlays built-in defaults with one selected file, then
 typed environment values. With no explicit `--config`, the first existing
-`./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml` is selected.
+`./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`)
+or `/etc/transit/transit.yaml` is selected. `TRANSIT_CONFIG` selects an explicit
+file when `--config` is absent; an explicit missing file rejects.
 Missing all files leaves defaults intact; an unreadable or invalid selected file
 fails without fallback. Objects merge recursively; lists and scalars replace.
 `TRANSIT_` uses uppercase schema names and `__` for nested paths; a single `_`

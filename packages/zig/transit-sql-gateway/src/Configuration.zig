@@ -20,6 +20,7 @@ drain_ms: u32 = 30000,
 limits: g.Limits = .{},
 request_timeout_ms: u32 = 5000,
 accounts: []const Account,
+settings: ?struct { url: []const u8, binding: g.query.settings.Contract.Binding } = null,
 pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
 pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
 pub const Account = struct {
@@ -48,6 +49,10 @@ fn path(value: []const u8) !void {
 pub fn validate(self: Self) !void {
     if (self.version != 1 or self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try self.limits.validate();
+    if (self.settings) |settings| {
+        try path(settings.url);
+        try settings.binding.validate();
+    }
     if (self.health_port == 0 or (self.health_port != null and (self.health_port == self.postgres_port or self.health_port == self.mysql_port)) or self.drain_ms == 0 or self.drain_ms > 270000) return error.InvalidGatewayConfiguration;
     try path(self.health_address);
     if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port == null and self.mysql_port == null) or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;

@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "status": "passed",
+  "recorded_at": "2026-10-17T13:11:39.289905+00:00",
+  "environment": {
+    "platform": "Linux",
+    "architecture": "x86_64",
+    "available_cpus": 48,
+    "authority_cpus": 48,
+    "admin_timeout_ms": 15000
+  },
+  "source_revision": "9dffe9e4e15d5da132d9e2a0b0f8b8815d3af729",
+  "proof_sha256": {
+    "tests/sdk_public_interop.py": "6e445543222ba413346f53a2b14a6317457fdcc9b0bbce090ed1bf7e4ac903a6",
+    "tests/python_station_sdk.py": "7da0c56e454cb5146493ca7602782407e790a3bc9b58f3720befedb5abac7395",
+    "tests/node_station_sdk.py": "bf449a82e060cd6184e1d3485d719bd828815ec495fe000360c7817f699e3ffe",
+    "tests/rust_station_sdk.py": "cb6c6e3566a09542f22c7b24365e0574111def1c9858bbaf5d3f70fb57ab2de5",
+    "tests/ruby_station_sdk.py": "1184a3b2458548f4a86d3666a2bd2f0de7e60630306f9d75591e90cdb52668c1",
+    "tests/c_station_sdk.py": "5fca8150bcd935a3bc89663f8cfff0946815d3cec3c6c9320924f41e9d255aba",
+    "tests/java_station_sdk.py": "448a1221d1e9df461bc0a132007a620ab87c249e21c707485d052f6cf7011e3b",
+    "tests/dotnet_station_sdk.py": "3dbc6b33213ddf817151df17217d4dc7614930cbf7ff15d060e235c3e96d8934",
+    "tests/beam_station_sdk.py": "8d1e8be51e3aed086ab8ff0ecf26a438112e62211e115cc5abd4ea40cfe2965f"
+  },
+  "elapsed_seconds": 1144.908,
+  "consumer_install_seconds": 128.603,
+  "pairs": [
+    {
+      "pair": "Python -> Node",
+      "elapsed_seconds": 88.291,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Node -> Rust",
+      "elapsed_seconds": 98.977,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Rust -> Ruby",
+      "elapsed_seconds": 98.177,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Ruby -> C",
+      "elapsed_seconds": 96.148,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "C -> C++",
+      "elapsed_seconds": 95.871,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "C++ -> Java",
+      "elapsed_seconds": 102.424,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Java -> .NET",
+      "elapsed_seconds": 109.278,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": ".NET -> Erlang",
+      "elapsed_seconds": 102.055,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Erlang -> Elixir",
+      "elapsed_seconds": 111.614,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    },
+    {
+      "pair": "Elixir -> Python",
+      "elapsed_seconds": 113.457,
+      "table_drain_turns": 17,
+      "query_rounds": 47,
+      "ipc_bytes": 6696
+    }
+  ],
+  "reconciled_transient_results": 10,
+  "injected_lost_receipts": 10,
+  "transient_read_retries": 10,
+  "injected_unavailable_reads": 10,
+  "admin_exact_retries": 1,
+  "injected_lost_delivery_receipts": 1,
+  "storage": {
+    "hot_bytes_limit": 8388608,
+    "resident_pages": 64,
+    "cold_objects": 317,
+    "cold_file_bytes": 83242995
+  },
+  "limits": "Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement."
+}

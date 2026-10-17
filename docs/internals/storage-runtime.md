@@ -309,3 +309,96 @@ results cannot be substituted for one another's isolation guarantees.
 Earlier rationale remains in the [Ursula](../history/URSULA.md),
 [deployment](../history/DEPLOYMENT.md) and [observability](../history/OBSERVABILITY.md)
 records. They supply historical context, not additional provider guarantees.
+
+## Configuration generations and installation identity
+
+This section describes the local configuration-v1 mechanism introduced on
+2026-10-16. Its question is how a file-driven server can change operational
+settings without treating mutable configuration as either installation identity
+or authorization. The [configuration reference](../reference/configuration.md)
+and [exact contract](../../contracts/CONFIGURATION_V1.md) own supported usage.
+The source basis is the linked implementations in this revision, rather than
+an older milestone's whole-configuration identity model.
+
+Let I be immutable installation inputs and executable compatibility identities,
+C the last accepted complete candidate, A the active values, g its generation,
+and r the ordinal of the last reload outcome. Startup validates the selected
+file and environment, checks I against the installation record, then establishes
+A=C before services become ready. The local owner stores one bounded checkpoint;
+history cardinality grows on disk independently of resident memory.
+Installation completion is recorded only after the first checkpoint is durable.
+A completed installation checks the retained checkpoint before starting child
+processes and requires it again at publication. Missing completion evidence or
+checkpoint data therefore fails closed; restart cannot reset g or r and
+reinterpret an old operation identity as new. A crash before the completion
+record is saved can resume first bootstrap because no gateway has served it.
+
+Reload reads the pinned filename with captured startup overrides. It rejects
+invalid candidates and changes to initialization-only fields. For a valid
+candidate, live gateway policy and new-session defaults replace their active
+values together. Restart-required values remain in C while A retains the prior
+values. A normal server restart validates and applies them. The model has one
+live application owner: it does not claim atomic rollout across independent
+processes. Other components explicitly report pending restart.
+
+The safety argument depends on three separate boundaries:
+
+1. The native authority evaluates the original caller's signed, action-bound
+   domain requirement. The configuration service has no administrator signing
+   key. It checks current rights before preparation, immediately before accepted
+   publication, and before disclosure. The accepted configuration never supplies
+   grants. Permission changes remain ordered by the independent native authority;
+   a successful check admits the subsequent bounded publication, rather than
+   claiming a distributed transaction with revocation.
+2. The owner serializes operations, checks the expected generation, prepares the
+   complete bounded candidate, and atomically replaces/fsyncs the checkpoint.
+   That checkpoint contains both active/configured values and the pending exact
+   operation outcome. A lost acknowledgement therefore leaves either the prior
+   checkpoint or a recoverable accepted operation, subject to filesystem atomic
+   rename and fsync guarantees. It cannot leave a persisted value change without
+   an attributable operation.
+3. History indexing is idempotent. The owner writes operation-ID and ordinal
+   records, then clears the pending slot. Recovery finishes this indexing before
+   another acceptance. Repeating the original request reads the retained outcome
+   without reopening the source file. Reusing its ID with different request
+   content rejects. File edits between acceptance and retry cannot redefine the
+   accepted operation.
+
+These claims can be falsified by an accepted checkpoint lacking its outcome,
+retry dispatching a changed file, an immutable edit changing A, or a current
+unauthorized caller receiving protected metadata. The implementation owners are
+[Configuration](../../apps/transit-cli/server/Configuration.zig),
+[Config](../../apps/transit-cli/server/Config.zig), the
+[signed contract](../../packages/zig/transit-config/src/Contract.zig), and the
+[session owner](../../packages/zig/transit-query/src/SettingsSession.zig).
+The installed [server proof](../../tests/server_configuration.py) and
+[TLS adapter proof](../../tests/sql_wire/settings.py) exercise the public routes;
+[executed evidence](../../tests/README.md) distinguishes completed runs from
+planned checks. Reproduce with the pinned development shell and the server and database-wire
+recipes named in the proof ledger; both use disposable installation state.
+
+A settings page contains at most eight rows and binds its continuation to g;
+history uses r. A changed basis stops the read instead of combining generations.
+Ordered history keeps at most 256 candidate rows; traversal has a separate work
+budget. The checkpoint and each history record are limited to 256 KiB. This
+bounds resident work independently of retained operation count, but does not
+bound disk growth or establish latency. Checkpoint reads and authority-floor
+writes incur filesystem work on management requests; no performance measurement
+is inferred from the bounds.
+
+Keeping the former whole-config identity hash would make ordinary port or
+operational edits require installation replacement. Treating every setting as
+live would instead require owners capable of safely replacing listeners, child
+processes and artifact state. The chosen classification preserves explicit
+identity checks while admitting only implemented live appliers. Capturing session
+defaults makes RESET deterministic during concurrent reload; the cost is that
+existing sessions retain the earlier ceiling until reconnecting. A live global
+ceiling would need an additional per-statement authority contract.
+
+Filesystem rollback, loss of acknowledged durable storage, malicious replacement
+of the trusted local installation, multi-manager shared-directory use and
+cluster-wide rollout are outside this model. Storage errors make the manager
+unavailable; they do not reset history or restore defaults. Native authority
+checks still govern every later disclosure/retry. The mechanism requires one
+installation manager and the existing installation lock, and does not make a
+restored local checkpoint proof of native permission.

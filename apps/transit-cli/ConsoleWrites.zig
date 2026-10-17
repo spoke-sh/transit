@@ -63,6 +63,7 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     };
     defer intent.deinit();
     if (Signals.interrupted()) return error.ConsoleInterrupted;
+    try @import("ConsoleSettings.zig").clearComplete(console);
     timing.enter(.prepare);
     // A preparation denial has no transport uncertainty and must not install
     // active recovery work. Persist the first exact command before dispatch.
@@ -221,6 +222,9 @@ pub fn status(self: *Self, console: *Console) !bool {
 }
 fn statusTimed(self: *Self, console: *Console, timing: ?*Timing) !bool {
     const intent = if (self.storage.intent) |*value| value else return false;
+    const prior_deadline = self.read_deadline;
+    if (prior_deadline == null) self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 30000;
+    defer self.read_deadline = prior_deadline;
     if (timing) |clock| clock.enter(.fetch);
     // No preparation or submission. Status alone cannot settle an uncertain
     // transport step, even when an original terminal SQL outcome is visible.

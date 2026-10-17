@@ -20987,3 +20987,152 @@ elapsed time or a feedback-budget qualification. The final full root check at
 `781b2da5`, Board API/Chromium, packaged installation, all-type native recovery,
 accepted interactive budgets and matched performance evidence remain separately
 scoped. Same-revision hosted CI and integration are still pending.
+
+## Typed configuration and SQL settings
+
+The configuration-v1 implementation separates immutable installation/artifact
+identity from active and configured generations. Its public owners are the
+[configuration reference](../docs/reference/configuration.md),
+[SQL reference](../docs/reference/sql/settings.md) and
+[wire contract](../contracts/CONFIGURATION_V1.md). Tests use disposable directories;
+the developer's installation is not a fixture.
+
+During the 2026-10-16 implementation on `feat/sql-configuration`, the pinned
+`nix develop` environment ran these checks successfully:
+
+- `just doctor`, locked `just transit-board::install`, configuration/query package
+  tests, native authorization/core tests, and CLI lifecycle tests. The lifecycle
+  suite includes a real optional source becoming present, file removal rejection,
+  atomic replacement, key deletion and captured environment precedence.
+- `just test::cli-diagnostics`: **594 real command cases**. Input diagnostics
+  preserve private values and source locations without stdout contamination.
+- `just test::sql-grammar`: **174 finite SELECT AST comparisons**, **32 syntax
+  exclusions**, **24 extensions**, **33 relational AST comparisons** and
+  **113 public SQL examples**, with zero ANTLR generation diagnostics.
+- `just test::diagnostic-grammar`: **434 compiler cases** covering **633 parser
+  rule/alternative/boundary obligations**, including standalone-only reload,
+  immutable session settings, invalid units and bounded history ordering.
+- `just test::diagnostic-outcomes`: **3,384 projections** across **29 declared
+  outcome surfaces**. The native error vocabulary and independent expected
+  mappings changed together.
+- `just check`: generated contracts/fixtures, source inventories, Nix checks,
+  Zig unit checks, CLI/history diagnostics, frontend checks and public site build.
+  The site includes configuration and settings SQL in navigation and search.
+
+The installed server's new configuration subproof passed SQL metadata/filtering,
+YAML coordinates, real Host-policy changes, session limits, pending restart and
+normal restart application, immutable/artifact rejection, expected-generation
+races, tampered signature rejection and same-operation retry after file edits.
+It also reconstructs the exact checkpoint state between acceptance and history
+indexing, removes the two indexes, and verifies idempotent repair. This is an
+explicit modeled crash point; it is not arbitrary filesystem power-loss evidence.
+
+Initial broader runs exposed an empty SQL command-result schema, a missing
+readable directory descriptor for recovery fsync, and completed reload records
+shadowing later Table recovery controls. Those defects were corrected. A later
+server run encountered a concurrent native `StaleStateResource` during a pure
+Table status read; status now uses bounded read-only retry without resubmitting
+accepted work. The broader server and TLS database-wire runs and committed-HEAD
+clean qualification are recorded separately below when complete. Their earlier
+failed runs do not count as passes.
+
+Reproduction commands are `just test::server` and `just test::sql-wire-gateway`.
+For focused adapter diagnosis, use
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- settings`.
+The focused `-- lifecycle` slice adds socket/account capacity, reserved cancellation
+and bounded shutdown to the settings proof.
+The full task also exercises pinned PostgreSQL/MySQL command-line clients,
+independent drivers, revocation, prepared execution, account recovery and TLS.
+Configuration tests add no user-facing commands or flags. Metadata work is
+bounded by page and sort limits; these checks establish no latency or throughput
+guarantee and do not qualify distributed configuration rollout.
+
+Subsequent qualification passes `just check`, the installed
+`just test::server` lifecycle in **85.78 seconds**, and `just test::server-faults`
+with its repeated core lifecycle in **88.23 seconds** and bootstrap/gateway/
+rollback faults in **46.19 seconds**. The fault proof uses current native domain
+grants and exact signed retries; it checks permitted Host-policy changes on
+restart without replacing installation identity or grants. Automatic child
+restart exposed and now covers the retained endpoint's process-arena lifetime.
+
+The focused TLS settings adapter proof passes PostgreSQL/MySQL SHOW, SET/RESET,
+prepared reload, session default/ceiling isolation, bounded statement deadlines,
+metadata and reload revocation. It includes the corrected text-cell encoding:
+owned text and hexadecimal operation IDs are SQL text without JSON quotes.
+A broader driver run encountered MinIO `XMinioStorageFull` on an existing Table
+update when the host crossed its free-drive threshold. That run remains failed;
+the rerun retains disk-backed fixtures and unchanged storage safety limits.
+
+`just test::server-applications` passes the real installation/replacement profile
+in **971.46 seconds** (19 rows/steps, 21 receipts, generation 9; maximum manager
+RSS 43,335,680 bytes and checkpoint 3,056 bytes). `just test::server-board` passes
+defaults/toggles, embedded assets, replacement, revocation and owned failures in
+**43.96 seconds**, plus exact Board bootstrap recovery after lost replies and
+manager death. These are local functional observations, not performance bounds.
+
+Final recovery review adds a missing-checkpoint refusal before child startup,
+records installation completion after first settings publication, and requires
+the persisted completion field. The installed proof also checks that refusal
+leaves installation/history bytes unchanged and that restoring the checkpoint
+retains reload history. The preceding clean run was interrupted to qualify this
+change; partial results are not a completed clean qualification.
+
+The final installed lifecycle passes in **116.84 seconds**, including the retained
+checkpoint/completion-field refusal, and `just check` passes on that implementation.
+A broader wire attempt passes the independent CLI/C clients, settings, authority,
+failure schedules, schema invalidation and exact recovery of a 40 KiB mutation
+in **3,560.366 seconds** within its unchanged 3,600-second observation bound.
+It then fails at the final capacity test; the enclosing task is not a pass.
+A fresh diagnostic reproduces libpq leaving OpenSSL error `0A000197` in the
+Python caller thread after an expected rejected login. Isolating those negative
+clients on a joined worker thread passes the unchanged capacity/cancellation
+checks. This changes test-client ownership, not gateway limits or TLS behavior.
+
+
+The [committed-source configuration qualification record](verification/results/configuration-clean-2026-10-17.json)
+accounts for **all 88 ordinary recipes**: 28 core, 32 growth, seven experience,
+two launcher and 19 bindings recipes. Runtime source is `9dffe9e4`; the SQL
+compiler/final fault scope uses `ac9d1db3`, whose only change is the compiler
+proof harness. Every result retains its actual revision. Each canonical recipe
+passes from a committed-source clean checkout. Complete lanes and complete task
+scopes supply this coverage; the earlier failed/interrupted enclosing runs remain
+incomplete. This is not one uninterrupted all-lanes invocation or a hosted timing
+qualification. The record retains per-task revisions/results, six-lane coverage,
+toolchain and log digests, continuation drivers, failure history and scope limits.
+The [public SDK interoperability record](verification/results/configuration-clean-2026-10-17/sdk-interop.json)
+retains the ten installed counter/query pairs, exact recovery, queued Tables and
+owned IPC observations separately from artifact builds and other failure suites.
+
+At the runtime revision, `just check` passes with **595 real CLI diagnostic cases**, and
+the installed server lifecycle passes in **88.61 seconds**. The complete wire task
+passes: its main TLS/driver/authority/recovery/schema/capacity/drain fixture takes
+**6,410.701 seconds**, followed by a separate fresh-fixture `psql`/Oracle `mysql`
+CLI lifecycle in **333.58 seconds**. The original 40 KiB mutation completes in
+**3,494.134 seconds** within its unchanged 3,600-second bound, with **one SQL
+attempt** and verified applied counts. These are functional observations, not
+latency or throughput guarantees.
+
+The final resolver correction reserves the exact existing build/launcher
+`TRANSIT_` controls; unknown setting names still fail. An earlier clean startup
+rejected Nix's build controls, and the installed diagnostic suite now covers
+that case. The full corrected wire run also qualifies the rejected-login TLS
+thread isolation described above.
+
+The first final SQL compiler proof also fails: its harness assumes every
+extension returns the initial `UnsupportedStatement` error. Configuration
+SELECT forms enter the finite-query grammar and reject later; the test-only
+correction asserts the exact `InvalidColumnName`/`UnsupportedConstruct` errors.
+The complete compiler proof and remaining fault recipes pass from that commit.
+No runtime parser or administration boundary changes for this correction.
+
+An overlapping SDK batch exceeded the existing public-query fixture deadline in
+Node, C++, Java and .NET; an initial Ruby setup exceeded its one-second authority
+wait. Those attempts remain failed. Complete canonical recipes then pass on fresh
+fixtures at bounded lower concurrency, without increasing deadlines. Interrupted
+Rust/Ruby/BEAM runs are retained separately from their successful retries. The
+remaining growth/experience scope starts after the deadline-sensitive SDK phases,
+with at most two proof runs active; the shared/model tail follows SDK completion.
+
+Hosted run `39014578659` executes no job steps: GitHub reports failed account
+payments or a spending-limit restriction. No hosted pass or ordinary-suite time
+budget is claimed. The separate browser lane is outside this 88-recipe inventory.

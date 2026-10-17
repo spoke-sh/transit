@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='4af643973d56343d3c3b8a229dfe782bee5fc363abc902cf45a7f6c3a4998b50', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -49,8 +49,8 @@ def post(port, path, value, expected=200, headers=None, retry_unavailable=False)
         result = exchange(port, path, value, headers)
         if not retry_unavailable or result != (503, b'{"err":"AuthorityUnavailable"}') or time.monotonic() >= deadline:
             break
-        # Opted in only for read-only rejected connection discovery below.
-        # An unavailable identity read is neither an authorization nor a denial.
+        # Opt in only for pure reads or a caller-retained identical native
+        # request whose exact replay is part of the proof. Never rebuild an ID.
         time.sleep(.05)
     status, data = result
     assert status == expected, (status, data)

@@ -18,7 +18,7 @@ pub const Completion = struct {
 pub const Response = struct {
     version: u8 = 1,
     generation: u32,
-    profile: enum { unified_v1, catalog_v1 } = .unified_v1,
+    profile: enum { unified_v1, catalog_v1, configuration_v1 } = .unified_v1,
     resource: u64,
     contract: [32]u8,
     resource_revision: u64,

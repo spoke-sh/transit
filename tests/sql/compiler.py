@@ -114,8 +114,19 @@ def reference(case, ast):
 
 def main():
     data = check()
+    # Configuration SELECT forms belong to SettingsSql. The finite query
+    # parser enters its SELECT grammar before rejecting them; unlike the
+    # other extensions, they do not fail the initial statement-keyword check.
+    configuration_errors = {
+        'SELECT transit_reload_conf();': 'InvalidColumnName',
+        'SELECT name, value FROM transit_settings() WHERE pending_restart = true ORDER BY name LIMIT 8;': 'UnsupportedConstruct',
+        'SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20;': 'InvalidColumnName',
+    }
+    assert configuration_errors.keys() <= set(data['extensions'])
     cases = data['select'] + data['reject'] + [
-        {'id': f'extension-{i}', 'sql': sql} for i, sql in enumerate(data['extensions'])]
+        {'id': f'extension-{i}', 'sql': sql,
+         'parse_error': configuration_errors.get(sql, 'UnsupportedStatement')}
+        for i, sql in enumerate(data['extensions'])]
     source = CACHE / 'cases.json'
     source.write_text(json.dumps(cases))
     outputs = CACHE / 'arrow'
@@ -131,7 +142,7 @@ def main():
         if i >= len(data['select']):
             assert 'parse_error' in response, response
             if case['id'].startswith('extension-'):
-                assert response['parse_error'] == 'UnsupportedStatement', response
+                assert response['parse_error'] == case['parse_error'], (case, response)
             continue
         ast = antlr_ast(case['sql'])
         assert response.get('ast') == ast, (case['id'], response, ast)

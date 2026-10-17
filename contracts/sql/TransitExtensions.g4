@@ -124,6 +124,8 @@ extensionStatement
     | grantStatement
     | revokeStatement
     | showStatement
+    | sessionSettingStatement
+    | configurationSelect
     | describeStatement
     | explainStatement
     ;
@@ -237,15 +239,27 @@ privilege
     : CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE
     ;
 
-// SHOW TABLES; SHOW SOURCES; SHOW SINKS; SHOW CONNECTIONS;
-// The relational-surface answer to `transit-cli`'s planned `/tables`-style
-// meta-commands (docs/roadmap/M13.md) — same catalog, two frontends.
+// ALL is a contextual setting selector; execution reserves it for the listing.
 showStatement
-    : SHOW catalogKind
+    : SHOW (catalogKind | settingKey)
+    ;
+settingKey: identifier (DOT identifier)*;
+sessionSettingStatement
+    : SET settingKey (EQ | TO) (STRING | INTEGER | DEFAULT)
+    | RESET settingKey
+    ;
+// The shared settings compiler admits only these standalone administration and
+// metadata forms. Query-only SELECT roots never dispatch configuration changes.
+configurationSelect
+    : SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN
+    | SELECT projection FROM (TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS) LPAREN RPAREN
+      whereClause? (ORDER BY identifier (ASC | DESC)?)? limitClause?
     ;
 
 catalogKind
     : TABLES
+    | DATABASES
+    | SCHEMAS
     | SOURCES
     | SINKS
     | CONNECTIONS
@@ -279,9 +293,17 @@ legacyIdentifier
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
+    | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE
     ;
 
 // ---- Lexer rules --------------------------------------------------------
+TRANSIT_RELOAD_CONF: 'TRANSIT_RELOAD_CONF';
+TRANSIT_SETTINGS: 'TRANSIT_SETTINGS';
+TRANSIT_CONFIG_RELOADS: 'TRANSIT_CONFIG_RELOADS';
+DATABASES: 'DATABASES';
+SCHEMAS: 'SCHEMAS';
+ASC: 'ASC';
+DESC: 'DESC';
 
 ROLE: 'ROLE';
 LOGIN: 'LOGIN';

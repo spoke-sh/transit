@@ -8,6 +8,7 @@ const f = g.fuze;
 const p = c.protocol;
 const telemetry = q.wire.observability.telemetry;
 const Self = @This();
+const Settings = @import("Settings.zig");
 allocator: std.mem.Allocator,
 io: std.Io,
 config: *const g.Configuration,
@@ -17,6 +18,8 @@ credential: g.Configuration.Credential,
 database: []const u8,
 dialect: f.Sql.Dialect,
 wire: g.station.client.Client,
+settings_wire: ?g.station.client.Client = null,
+settings_session: q.SettingsSession = .{},
 table: c.TableClient,
 observer: g.Client,
 directory: std.Io.Dir,
@@ -31,22 +34,25 @@ pub const read_options: q.RelationalQuery.Options = .{ .consistency = .per_resou
 pub const Prepared = union(enum) {
     native: g.Statement,
     probe: g.Probe,
+    settings: Settings.Prepared,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
-            .probe => &.{},
+            .probe, .settings => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
         return switch (self.*) {
             .native => |*value| value.fields(),
             .probe => |value| value.fields(),
+            .settings => |value| if (value.output) |output| output.type.structure else &.{},
         };
     }
     pub fn mutation(self: *const Prepared) bool {
         return switch (self.*) {
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
+            .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
     pub fn empty(self: *const Prepared) bool {
@@ -55,7 +61,7 @@ pub const Prepared = union(enum) {
 };
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe },
+    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read },
     row: ?f.LogicalQuery.Row = null,
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
@@ -74,6 +80,7 @@ pub const Read = struct {
                 self.output = try query.next() orelse return null;
                 break :blk self.output.cells[0..self.output.len];
             },
+            .settings => |*settings| try settings.next(),
             .probe => |probe| blk: {
                 if (self.emitted or probe.fields().len == 0) break :blk null;
                 self.emitted = true;
@@ -111,12 +118,19 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
     self.table = .{ .transport = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .owner = binding.owner, .principal = account.ledger.table_principal, .namespace = binding.namespace, .role = binding.role }, .key = runtime.coordinator.table_key, .reader = .{ .wire = &self.wire, .realm = account.ledger.realm, .principal = account.ledger.reader, .key = runtime.coordinator.reader_key } };
     self.observer = .{ .transport = &self.wire, .ledger = runtime.ledger, .principal = account.ledger.ingress, .key = runtime.ingress.key };
     try self.current();
+    if (config.settings) |configured| {
+        self.settings_wire = g.station.client.Client.init(allocator, io, configured.url);
+        self.settings_wire.?.timeout_ms = config.request_timeout_ms;
+        errdefer self.settings_wire.?.deinit();
+        self.settings_session = try q.SettingsSession.capture(try Settings.client(self));
+    }
     return self;
 }
 pub fn deinit(self: *Self) void {
     self.active.store(false, .release);
     self.directory.close(self.io);
     self.wire.deinit();
+    if (self.settings_wire) |*wire| wire.deinit();
     const allocator = self.allocator;
     std.crypto.secureZero(u8, std.mem.asBytes(self));
     allocator.destroy(self);
@@ -157,6 +171,7 @@ pub fn begin(self: *Self) !void {
     self.operation = null;
     self.terminal = null;
     self.deadline.start = std.Io.Clock.awake.now(self.io);
+    self.deadline.milliseconds = self.commandMilliseconds();
     self.active.store(true, .release);
     try self.current();
 }
@@ -166,6 +181,7 @@ pub fn end(self: *Self) void {
 pub fn reset(self: *Self) !void {
     try self.current();
     self.operation = null;
+    self.settings_session.reset();
 }
 pub fn selectDatabase(self: *Self, name: []const u8) !void {
     try self.current();
@@ -187,11 +203,12 @@ pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
     try self.current();
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else result.* = .{ .native = try self.fresh(g.Statement.prepare, .{ self.allocator, &self.table, sql, self.dialect, read_options }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else result.* = .{ .native = try self.fresh(g.Statement.prepare, .{ self.allocator, &self.table, sql, self.dialect, read_options }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (prepared.* == .native) prepared.native.deinit();
+    if (prepared.* == .settings) prepared.settings.deinit();
     self.allocator.destroy(prepared);
 }
 pub fn validate(self: *Self, prepared: *Prepared) !void {
@@ -199,13 +216,14 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
     switch (prepared.*) {
         .native => |*statement| try self.fresh(g.Statement.validate, .{ statement, &self.table }),
+        .settings => {},
         .probe => {}, // current() already validates the login and database.
     }
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
     switch (prepared.*) {
         .native => |*statement| try statement.checkValues(self.allocator, values),
-        .probe => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -214,6 +232,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined };
     switch (prepared.*) {
+        .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
         .native => |*statement| {
             var nonces: [f.Relational.max_sources][16]u8 = undefined;
@@ -241,11 +260,16 @@ pub fn closeRead(self: *Self, read: *Read) void {
             query.deinit();
         },
         .probe => {},
+        .settings => |*settings| settings.deinit(),
     }
     self.allocator.destroy(read);
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: pg.Backend.Completion, count: u64, changed: u64 } {
     try self.validate(prepared);
+    if (prepared.* == .settings) {
+        try Settings.mutate(self, &prepared.settings);
+        return .{ .kind = .set, .count = 0, .changed = 0 };
+    }
     if (prepared.* == .probe) {
         if (prepared.probe.kind != .set) return error.ExpectedGatewayWrite;
         return .{ .kind = .set, .count = 0, .changed = 0 };
@@ -271,7 +295,15 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else switch (err) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
-        error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled => .{ "57014".*, "Request wait ended; admitted writes require outcome inspection" },
+        error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
+        error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
+        error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
+        error.SettingNotSessionMutable => .{ "0A000".*, "Setting cannot be changed by this session" },
+        error.StandaloneConfigurationOperationRequired => .{ "0A000".*, "Reload requires the complete standalone SELECT transit_reload_conf() statement" },
+        error.ConfigurationSortRequiresBoundedLimit => .{ "54000".*, "Ordered configuration history requires LIMIT of at most 256" },
+        error.ConfigurationServiceRequired => .{ "0A000".*, "Configuration service binding is required" },
+        error.ConfigurationReloadRejected => .{ "22023".*, "Configuration reload rejected; inspect transit_config_reloads()" },
+        error.ConfigurationSnapshotChanged => .{ "40001".*, "Configuration changed; discard partial results and repeat the read" },
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
@@ -324,4 +356,9 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     host.wire.last_rejection = null;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
+}
+
+pub fn commandMilliseconds(self: *const Self) u32 {
+    const requested = self.settings_session.timeout();
+    return if (requested == 0) self.config.limits.command_ms else @intCast(@min(requested, self.config.limits.command_ms));
 }

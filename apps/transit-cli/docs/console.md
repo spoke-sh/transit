@@ -28,6 +28,23 @@ transit console -c 'SELECT COUNT(*) FROM items'
 transit console --format json -f queries.sql
 ```
 
+## Host settings and reload
+
+Use `SHOW ALL`, `SHOW ports.gateway` and the typed `transit_settings()` relation
+to inspect the connected host. `SELECT transit_reload_conf()` validates and
+reloads the pinned configuration source. Existing `.status` and `.resume` inspect
+or reconcile its saved identity. `SET query.statement_timeout = '5s'` and
+`RESET ALL` control this session within the captured administrator ceiling.
+See [configuration](../../../docs/reference/configuration.md) and
+[settings SQL](../../../docs/reference/sql/settings.md) for exact behavior.
+
+Automatic local connections receive the installation's management binding and
+recorded active endpoint. An explicit connection can supply `settings` with a
+`binding` (`realm`, installation bytes and domain `object`) and private
+`recovery_file`. It uses the same native caller/selected role as the catalog.
+No management binding or grant is inferred from an arbitrary remote URL.
+`.show` continues to describe local connection and presentation preferences.
+
 ## Startup preferences
 
 The console merges settings in this order; later assignments win:

@@ -132,6 +132,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-config && zig build test
     cd packages/zig/transit-flight && zig build test
     cd packages/zig/transit-station-flight && zig build test
     cd packages/zig/transit-serving-http && zig build test
@@ -164,6 +165,7 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-config && zig build check
     cd packages/zig/transit-flight && zig build check
     cd packages/zig/transit-station-flight && zig build check
     cd packages/zig/transit-serving-http && zig build check

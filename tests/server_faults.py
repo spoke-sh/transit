@@ -89,7 +89,8 @@ def reusable_connections(fixture):
         finally:
             connection.close()
     # Priority hints cannot turn an ordinary operation into a release or grant.
-    query = {'query': {'version': 1, 'realm': fixture.config['realm'], 'principal': 0,
+    definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    query = {'query': {'version': 1, 'definition': definition, 'realm': fixture.config['realm'], 'principal': 0,
                       'kind': {'capabilities': {}}}, 'signature': [0] * 64}
     for direct in (False, True):
         assert response(fixture, '/v1/query', json.dumps(query).encode(), direct=direct)[0] == 403
@@ -198,9 +199,18 @@ def configured_hosts(cli, node, host):
         assert response(fixture, "/health", headers={"Host": f"bank.local.test:{tunnel_port}"})[0] == 403
         fixture.stop()
         before = fixture.record()
+        original = fixture.config
         changed = dict(fixture.config, gateway_allowed_hosts=[f"other.test:{port}"])
+        fixture.config = changed
         fixture.path.write_text(json.dumps(changed))
-        fixture.refusal("configuration or executable differs from the recorded installation")
+        fixture.start()
+        fixture.ready()
+        assert fixture.record()["installation"] == before["installation"]
+        assert fixture.record()["authorization_steps"] == before["authorization_steps"]
+        assert response(fixture, "/health", headers={"Host": f"other.test:{port}"})[0] == 200
+        assert response(fixture, "/health", headers={"Host": f"bank.local.test:{port}"})[0] == 403
+        fixture.stop()
+        fixture.config = original
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready()
@@ -208,7 +218,7 @@ def configured_hosts(cli, node, host):
         gateway_hosts(fixture)
         fixture.console(".schema\n.quit\n")
         success = True
-        print("Transit gateway configured hosts: validation before effects, explicit tunnel authority, same-installation restart and policy-drift refusal passed", flush=True)
+        print("Transit gateway configured hosts: validation before effects, explicit tunnel authority, mutable policy restart and retained installation/grants passed", flush=True)
     finally:
         fixture.cleanup()
         if success:
@@ -249,7 +259,7 @@ def gateway(fixture):
         # The reserve admits cleanup-shaped requests even with data slots full;
         # parsing and signed authority checks remain mandatory after admission.
         assert response(fixture, "/v1/query", b"{}", headers={"X-Transit-Control": "snapshot"})[0] == 400
-        release = {'query': {'version': 1, 'realm': fixture.config['realm'], 'principal': 0,
+        release = {'query': {'version': 1, 'definition': fixture.record()['definition'], 'realm': fixture.config['realm'], 'principal': 0,
                             'kind': {'close_snapshot': {'epoch': [7] * 16, 'serial': 1}}},
                    'signature': [0] * 64}
         assert response(fixture, "/v1/query", json.dumps(release).encode(),

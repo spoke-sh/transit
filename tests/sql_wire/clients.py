@@ -3,6 +3,7 @@ import decimal
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import time
@@ -22,6 +23,9 @@ def cli_roundtrip(command, env, table, separator, postgres=False, mutations=True
     # must therefore be visible through a later connection, not a held result.
     cases = [
         ('SELECT 1', '1', 20),
+        ('SHOW realm', '46', 30),
+        ('SHOW query.statement_timeout', '0', 30),
+        ('SHOW DATABASES', 'data', 30),
         (f'CREATE TABLE {table} (id BIGINT PRIMARY KEY, label UTF8)', 'CREATE TABLE' if postgres else '', 150),
         (f"INSERT INTO {table} (id,label) VALUES (1,'cli snow ☃')", 'INSERT 0 1' if postgres else '', 150),
         (f'SELECT id,label FROM {table}', f'1{separator}cli snow ☃', 20),
@@ -31,11 +35,14 @@ def cli_roundtrip(command, env, table, separator, postgres=False, mutations=True
         (f'SELECT COUNT(*) FROM {table}', '0', 20),
     ]
     if not mutations:
-        cases = cases[:1]
+        cases = cases[:4]
     for sql, expected, timeout in cases:
         result = subprocess.run([*command, sql], env=env, capture_output=True, text=True, timeout=timeout)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == expected, (sql, result.stdout, result.stderr)
+    reload = subprocess.run([*command, 'SELECT transit_reload_conf()'], env=env, capture_output=True, text=True, timeout=30)
+    assert reload.returncode == 0 and re.fullmatch('[0-9a-f]{32}', reload.stdout.strip()), reload
+    print(f'{command[0]}: verified TLS settings, catalog discovery and SQL reload passed.', flush=True)
     if mutations:
         print(f'{command[0]}: verified TLS, literal CREATE/INSERT/UPDATE/DELETE, Unicode/NULL and new-connection row readback passed.', flush=True)
 

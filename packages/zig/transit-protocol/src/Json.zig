@@ -3,6 +3,7 @@
 const std = @import("std");
 pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void {
     const T = @TypeOf(value);
+    if (T == std.json.Value) return out.write(value);
     switch (@typeInfo(T)) {
         .void => {
             try out.beginObject();

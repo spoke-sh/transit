@@ -37,8 +37,23 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\CREATE, read, DML, ALTER and DROP require their separate current catalog rights.
         \\.status observes; .resume reconciles original intent; .cancel never undoes published work.
         \\
+    else if (std.ascii.eqlIgnoreCase(topic, "SETTINGS") or std.ascii.eqlIgnoreCase(topic, "SHOW") or std.ascii.eqlIgnoreCase(topic, "SET") or std.ascii.eqlIgnoreCase(topic, "RESET"))
+        \\SHOW ALL; SHOW ports.gateway; SHOW query.statement_timeout;
+        \\SELECT name, value, pending_restart FROM transit_settings();
+        \\SELECT transit_reload_conf();
+        \\SELECT operation, phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20;
+        \\SET query.statement_timeout = '5s'; RESET query.statement_timeout; RESET ALL;
+        \\SHOW DATABASES; SHOW SCHEMAS; SHOW TABLES;
+        \\Reload validates the pinned file with captured startup environment, then applies live values.
+        \\Ports and service topology remain pending until server restart; initialization-only values reject.
+        \\Reload is standalone and requires its own current grant. Metadata reads never dispatch.
+        \\.status observes a saved reload; .resume retries its exact identity. Timeout does not undo it.
+        \\SET affects this session within its captured ceiling; RESET restores its captured default.
+        \\Host settings require a configured settings binding; catalog listings use current catalog rights.
+        \\
     else if (topic.len == 0 or std.ascii.eqlIgnoreCase(topic, "SQL"))
-        \\SQL: SELECT; DESCRIBE name; SHOW TABLES; CREATE/ALTER/DROP TABLE; INSERT/UPDATE/DELETE.
+        \\SQL: SELECT; DESCRIBE name; SHOW ALL/key/DATABASES/SCHEMAS/TABLES; SET/RESET; CREATE/ALTER/DROP TABLE; INSERT/UPDATE/DELETE.
+        \\Use .help SETTINGS for configuration inspection, reload and session controls.
         \\Use .tables and DESCRIBE name to discover authorized Tables and columns.
         \\  SELECT * FROM people LIMIT 8;
         \\  SELECT id, name FROM people WHERE id >= 0;
@@ -47,7 +62,7 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\SUM requires INT64 values. An outer aggregate LIMIT is not an input limit.
         \\General Table SQL is limited to 4096 UTF-8 bytes and 128 output columns.
         \\Joins, grouped aggregates, expression assignments, RETURNING and transaction sessions are not admitted.
-        \\.help [SQL|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|DROP TABLE]
+        \\.help [SQL|SETTINGS|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|DROP TABLE]
         \\.tables .schema [name] .sources .mode table|json
         \\.timer on|off .connect PATH .show .info .quit
         \\.execute FILE runs one JSON query object; parameter admission depends on the query source.

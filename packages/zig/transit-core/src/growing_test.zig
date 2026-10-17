@@ -602,6 +602,13 @@ test "original subject proofs bind context and current guards fence every source
     const proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 65536, .credential_epoch = epoch, .role = reader, .audience = pid, .context = @splat(7) }, f.worker_key);
     var guard: a.Guard = .{ .subject = .{ .signed = proof }, .requirements = @splat(null) };
     guard.requirements[0] = .{ .object = first, .privileges = 1 };
+    // Self-check permits action-bound forwarding without raw native inspection.
+    _ = try f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .process = pid }));
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .authenticate = .{ .signed = proof } } } }));
+    guard.requirements[0].?.privileges = 2;
+    try t.expectError(error.Forbidden, f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } }));
+    guard.requirements[0].?.privileges = 1;
     const checked = try f.query(0, .{ .authorization = .{ .kind = .{ .check = guard } } });
     try t.expectEqual(reader, checked.body.authorization.body.check.role);
     try t.expectEqual(reader, checked.body.authorization.body.check.login_role);

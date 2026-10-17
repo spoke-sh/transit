@@ -13942,6 +13942,34 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "UnknownSetting": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "ConfigurationSnapshotChanged": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "ConfigurationOperationConflict": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "ConfigurationUnavailable": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },

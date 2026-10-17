@@ -37,11 +37,13 @@ recorded before starting children; restart retains the same identity checks.
 With no `--config`, the server selects the **first existing** file:
 
 1. `./transit.yaml`
-2. `~/transit.yaml`
+2. `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`)
 3. `/etc/transit/transit.yaml`
 
 It does not merge these files. A selected file's read or validation error stops
-startup. `--config FILE` selects exactly that file and disables discovery. If no
+startup. `--config FILE` selects exactly that file and disables discovery.
+`TRANSIT_CONFIG` selects an explicit file when `--config` is absent; an empty
+selector rejects. An explicit missing file fails without discovery. If no
 file exists, built-in defaults apply. The selected file overlays defaults:
 nested mappings merge, scalars and lists replace. Partial customization is enough:
 
@@ -68,25 +70,25 @@ are literal values; numbers, booleans, lists and objects use JSON syntax. More
 specific nested variables override a whole-object variable regardless of
 environment iteration order. Lists replace as a unit. Unknown settings and
 invalid types reject; values are never printed. `TRANSIT_CONSOLE_CONFIG` is
-reserved for the console and ignored by the server. Explicit invocation flags
+reserved for the console and ignored by the server; `TRANSIT_CONFIG` selects
+the server file and is not interpreted as a setting. Explicit invocation flags
 such as `--no-ui` and `--initialize` remain command-line actions, not YAML settings.
 The local profile has no configurable bind host or top-level `port`; its actual
 port fields are under `ports`, `applications` and `board`.
 
 Files are at most 64 KiB. JSON files use the `.json` extension; YAML accepts block
-mappings, scalar sequences, plain/single-quoted strings and JSON-encoded quoted
+mappings, sequences including mapping entries, plain/single-quoted strings and JSON-encoded quoted
 strings or flow values. It rejects duplicate/unknown keys, anchors, aliases,
-tags, merge keys and multiline scalars. Nesting is limited to 16 levels; block
-entries and JSON tokens are bounded to 2048 per parsed input. YAML flow values
-must use JSON syntax and have no trailing comment. This is a data-only subset,
+tags, merge keys and multiline scalars. Nesting is limited to 96 levels; block
+entries and JSON tokens are bounded to 65,536 per parsed input. YAML flow values
+use JSON syntax and may have a trailing comment. This is a data-only subset,
 not a general YAML processor. `TRANSIT_` input has a combined 64 KiB limit.
 
 Explicit relative paths resolve against the selected file, or the working
 directory if no file is selected. The default installation always remains
 `./.transit` in the working directory. `--initialize` still deliberately creates
 the installation; an ordinary `transit server` restarts it and never recreates
-missing retained state. Changing effective configuration after initialization
-is refused by the same installation identity checks.
+missing retained state. Initialization-only settings remain installation identity checks. Mutable settings use the [configuration lifecycle](../../../docs/reference/configuration.md); restart-required changes apply on normal startup.
 
 A complete YAML configuration can override these defaults:
 
@@ -139,8 +141,7 @@ native MinIO binary from its pinned fixture image. Docker is proof setup, not a
 server runtime dependency. Source builds supply this complete dependency set;
 there is no published release bundle or general runtime upgrade path. The server
 hashes every configured executable and itself with bounded streaming reads before provisioning; ordinary
-startup requires the same hashes and normalized configuration. It currently
-refuses artifact/configuration changes; this is not an upgrade mechanism.
+startup requires the same artifact hashes and immutable configuration. Mutable configuration is tracked independently; executable replacement remains outside this startup mechanism.
 
 After resolving the CLI, the complete local bundle needs no ambient tools.
 The running installation uses no shell, Python, task runner, Process Compose or
@@ -205,7 +206,7 @@ ssh -N -L 19105:127.0.0.1:19105 user@server
 ```
 
 For a different local port or a developer hostname, add the exact authority to
-the public server configuration **before initializing the installation**:
+the public server configuration, then reload it with `SELECT transit_reload_conf();`:
 
 ```json
 "gateway_allowed_hosts": ["localhost:29105", "127.0.0.1:29105", "transit.local.test:19105"]
@@ -235,10 +236,7 @@ The same gateway policy and ready fields apply to the version 1
 listener retains its numeric loopback authority; `gateway_allowed_hosts` applies
 only to the native protocol gateway.
 
-The list is part of the normalized installation configuration. Changing it after
-initialization is refused, as are changed runtime binaries. This enhancement
-applies to installations initialized with the new runtime; it does not upgrade
-older installations or permit editing their private identity records.
+The list is a reloadable setting. See [configuration and settings](../../../docs/reference/configuration.md). Changed runtime binaries remain subject to artifact identity checks; private installation records are never a configuration editing surface.
 
 ## Ownership and recovery
 

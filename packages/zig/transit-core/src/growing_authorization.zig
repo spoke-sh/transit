@@ -356,7 +356,14 @@ pub fn read(engine: anytype, identity: growth.Principal, query: a.Query) !a.Resu
         },
         inline .authenticate, .check => |value, tag| result: {
             const subject = if (comptime tag == .authenticate) value else value.subject;
-            if (!try nativeHas(engine, identity, subject.audience(), .inspect)) return error.Forbidden;
+            // A caller may ask authority to evaluate its own signed guard.
+            // This reveals only that caller's current decision and lets a host
+            // forward an action-bound check without a privileged service key.
+            // Authenticating someone else (or accepted historical work) retains
+            // the audience's native inspection requirement.
+            const own_check = comptime tag == .check;
+            const original = own_check and subject == .signed and subject.principal() == identity.grant.subject;
+            if (!original and !try nativeHas(engine, identity, subject.audience(), .inspect)) return error.Forbidden;
             const verified = if (comptime tag == .authenticate) try authenticate(engine, subject, subject.audience()) else try guard(engine, value, subject.audience());
             break :result @unionInit(@FieldType(a.Result, "body"), @tagName(tag), verified);
         },

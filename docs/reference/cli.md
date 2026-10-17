@@ -25,7 +25,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 
 | Command | Input and outcome |
 | --- | --- |
-| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
+| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |
@@ -37,8 +37,9 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | `app connect` | Export a named caller connection, with a seed-file reference rather than an installer/root key |
 
 The installed server starts from defaults and overlays the first existing
-`./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml`; `--config`
-selects exactly one file instead. `TRANSIT_` variables override typed properties,
+`./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`
+selects exactly one file instead. `TRANSIT_CONFIG` selects an explicit file when
+`--config` is absent. `TRANSIT_` variables override typed properties,
 using `__` for nesting. No matching file means defaults; a bad selected file
 fails without fallback. Configuration files are bounded to 64 KiB, 96 nested
 containers and 65,536 syntax nodes; logical schemas retain their own depth,

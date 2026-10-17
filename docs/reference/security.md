@@ -139,3 +139,13 @@ documented TLS, Host/Origin and authorization requirements.
 [Service v1](../../contracts/SERVICE_V1.md), [state v1](../../contracts/STATE_V1.md)
 and [native v1](../../contracts/TRANSIT_V1.md) specify exact permissions and
 signatures. [Deployment](deployment.md) explains bootstrap and recovery trust.
+
+## Configuration administration
+
+The [configuration service](configuration.md) uses a registered native domain
+object scoped to its installation. Inspection, source provenance and reload have
+independent privilege bits. The original caller signs the exact target, operation
+and action; the gateway forwards that caller's own signed guard to current native
+authority. Checking one's own subject does not require raw process inspection and
+does not grant any of the guarded actions. Initial installation grants are
+recorded once; restarting or reloading never restores a revoked grant.

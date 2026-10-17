@@ -170,31 +170,42 @@ class Fixture:
         return table_results(json.loads(line) for line in result.stdout.splitlines())
 
     def revoke_table_writes(self):
+        # Current native domain grants own Table permissions. The old catalog
+        # policy record is no longer an authorization source.
+        import hashlib
         from server_application_faults import ExistingKey, native, post
-        key = ExistingKey(self.root, self.installation / 'caller.seed')
+        key = ExistingKey(self.root, self.installation / 'root.seed')
         port, realm = self.config['ports']['node'], self.config['realm']
-        done = self.record()['provision']
-        address = (b'\0C' + struct.pack('>Q', 1) + b'p' + struct.pack('>QQ', 10, 0)).hex()
+        record = self.record()
+        done = record['provision']
 
         def query(kind):
-            return post(port, '/v1/query', native(key, realm, 10, kind))
+            return post(port, '/v1/query', native(key, realm, 0, kind), retry_unavailable=True)
 
-        def policy():
-            result = query({'read_entries': dict(resource=done[5], revision=None, view=None, keys=[address] + [None] * 7)})
-            return bytes.fromhex(result['body']['read_entries']['entries'][0]['value'])
+        def authority(kind):
+            return query(dict(authorization=dict(role=None, kind=kind)))['body']['authorization']
 
-        current = policy()
-        assert current[:5] == b'TCA1P' and current[-8:] == bytes([1]*8)
-        revision = struct.unpack_from('<Q', current, 69)[0]
-        revoked = current[:69] + struct.pack('<Q', revision + 1) + bytes([1, 1, 1, 0, 0, 0, 1, 1])
-        payload = current[:37] + struct.pack('<Q', revision) + revoked[37:]
-        frame = (b'STN1\1' + bytes(8) + payload).hex()
-        sequence = query({'capabilities': {}})['principal_sequence'] + 1
-        post(port, '/v1/command', native(key, realm, 10, {'send': dict(pid=done[4], value=frame)}, sequence))
-        deadline = time.monotonic() + 15
-        while policy() != revoked:
-            assert time.monotonic() < deadline, 'mutation policy did not revoke'
-            time.sleep(.05)
+        def command(value):
+            sequence = query({'capabilities': {}})['principal_sequence'] + 1
+            # Retain the exact signature and sequence through unavailable replies;
+            # retry never constructs a second authorization action.
+            signed = native(key, realm, 0, dict(authorization=value), sequence)
+            return post(port, '/v1/command', signed, retry_unavailable=True)['position']
+
+        binding = hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(record['definition']) + struct.pack('<QQQBQ', realm, done[5], 1, 3, 1)).digest()
+        table = authority(dict(binding=dict(domain=record['authorization_steps'][5], key=list(binding))))['body']['binding']
+        assert table is not None and table['owner'] == record['authorization_steps'][0]
+        action = dict(revoke_privileges=dict(object=table['reference'], grantee=table['owner'], privileges=14, grant_option_only=False, behavior='cascade'))
+        change = command(dict(begin=dict(expected_revision=authority(dict(identity={}))['revision'], role=None, action=action)))
+        deadline = time.monotonic() + 30
+        while True:
+            status = authority(dict(change=change))['body']['change']
+            if status['status'] == 'ready':
+                command(dict(publish=change))
+                assert authority(dict(change=change))['body']['change']['status'] == 'published'
+                return
+            assert status['status'] == 'preparing' and time.monotonic() < deadline, status
+            command(dict(advance=change))
 
     def kill_role(self, match):
         candidates = [pid for pid in children(self.process.pid) if match in command(pid) and (match != "/transit-node " or "--maintain" not in command(pid))]
@@ -219,6 +230,8 @@ def run(cli, node, host):
         fixture.refusal("file not found")
         fixture.start(initialize=True)
         fixture.ready()
+        from server_configuration import run as configuration_proof
+        configuration_proof(fixture)
         from server_faults import gateway_hosts, reusable_connections
         gateway_hosts(fixture)
         reusable_connections(fixture)

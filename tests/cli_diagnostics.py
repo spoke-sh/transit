@@ -441,17 +441,37 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     home, project = root/'home', root/'project'
     home.mkdir(); project.mkdir()
     environment = dict(ENV, HOME=str(home))
-    home_server, project_server = home/'transit.yaml', project/'transit.yaml'
+    (home/'.config').mkdir()
+    home_server, project_server = home/'.config/transit.yaml', project/'transit.yaml'
     home_server.write_text('version: 9\n')
-    invoke(['server'], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    invoke(['server'], env=environment, cwd=project, contains=('version', 'home/.config/transit.yaml'))
     project_server.write_text('executables: 1\n')
     invoke(['server'], env=environment, cwd=project, contains=('executables must be an object', 'project/transit.yaml'))
     project_server.write_text('ports: !tag invalid\n')
     invoke(['server'], env=environment, cwd=project, contains=('unsupported YAML',))
-    invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/.config/transit.yaml'))
+    # Explicit environment selection and XDG directory override discovery.
+    invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(home_server)), cwd=project,
+           contains=('version', 'home/.config/transit.yaml'))
+    invoke(['server', '--config', home_server], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')),
+           cwd=project, contains=('version', 'home/.config/transit.yaml'))
+    project_server.unlink()
+    xdg = root/'xdg'; xdg.mkdir()
+    (xdg/'transit.yaml').write_text('version: 8\n')
+    invoke(['server'], env=dict(environment, XDG_CONFIG_HOME=str(xdg)), cwd=project,
+           contains=('version', 'xdg/transit.yaml'))
+    invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
+           contains=('absent.yaml', 'was not found'))
     yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
+    # Installed runtime loading must coexist with the repository's supported
+    # build/launcher environment, while the invalid realm remains diagnosed.
+    tools_environment = {name: 'private-must-not-appear' for name in (
+        'TRANSIT_SQL_TOOLS', 'TRANSIT_GSON_JAR', 'TRANSIT_FUZE_BENCH_PYTHON',
+        'TRANSIT_DOCS_BASE_URL', 'TRANSIT_LIBRARY_DIR', 'TRANSIT_PORT')}
+    invoke(['server', '--no-ui'], env=dict(environment, **tools_environment),
+           cwd=project, contains=('realm must be',))
     for setting in ({'TRANSIT_BOGUS': 'private-must-not-appear'}, {'TRANSIT_PORTS__GATEWAY': '"private-must-not-appear"'}):
         invoke(['server', '--no-ui'], env=dict(environment, **setting), cwd=project,
                contains=('setting' if 'TRANSIT_BOGUS' in setting else 'ports.gateway',))
@@ -702,7 +722,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
     identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
-    record = dict(definition=definition, identity=identity, installation=[0]*16, root_public=[0]*32,
+    record = dict(definition=definition, identity=identity, installation=[1]*16, root_public=[0]*32,
+                  realm=1, endpoint="http://127.0.0.1:19105", authorization_steps=list(range(1, 11)),
                   complete=True, genesis_observed=True, default_table_complete=True, provision=list(range(1, 15)))
     (local/'installation.json').write_text(json.dumps(record))
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
@@ -715,9 +736,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['format'] == 'json'
     project_server.write_text('ports:\n  gateway: 29305\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29305'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'  # Desired/environment topology cannot redirect the retained endpoint.
     shown = invoke(['console'], 0, env=dict(environment, TRANSIT_PORTS__GATEWAY='29306'), cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29306'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'
     record['complete'] = False
     (local/'installation.json').write_text(json.dumps(record))
     invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))
