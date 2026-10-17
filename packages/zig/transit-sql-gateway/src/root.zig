@@ -9,6 +9,7 @@ pub const Client = @import("Client.zig");
 pub const ControlLane = @import("ControlLane.zig");
 pub const AccountRuntime = @import("AccountRuntime.zig");
 pub const Configuration = @import("Configuration.zig");
+pub const OperatorConfiguration = @import("OperatorConfiguration.zig");
 pub const Probe = @import("Probe.zig");
 pub const Coordinator = @import("Coordinator.zig");
 pub const Statement = @import("Statement.zig");

@@ -13,6 +13,29 @@ pub fn write(io: std.Io, path: []const u8, bytes: []const u8) !void {
 pub fn json(io: std.Io, allocator: std.mem.Allocator, path: []const u8, value: anytype) !void {
     return jsonBounded(io, allocator, path, value, 65536);
 }
+/// Derived inspection/proposal files need no new checkpoint when bytes agree.
+/// Accepted-operation journals always use json/write directly.
+pub fn jsonIfChanged(io: std.Io, allocator: std.mem.Allocator, path: []const u8, value: anytype) !bool {
+    const bytes = try @import("transit_query").protocol.Json.valueAlloc(allocator, value);
+    defer {
+        std.crypto.secureZero(u8, bytes);
+        allocator.free(bytes);
+    }
+    if (bytes.len > 65536) return error.InstallationRecordTooLarge;
+    const old = std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(65537)) catch |err| blk: {
+        if (err != error.FileNotFound) return err;
+        break :blk null;
+    };
+    if (old) |previous| {
+        defer {
+            std.crypto.secureZero(u8, previous);
+            allocator.free(previous);
+        }
+        if (std.mem.eql(u8, bytes, previous)) return false;
+    }
+    try write(io, path, bytes);
+    return true;
+}
 pub fn jsonBounded(io: std.Io, allocator: std.mem.Allocator, path: []const u8, value: anytype, limit: usize) !void {
     const bytes = try @import("transit_query").protocol.Json.valueAlloc(allocator, value);
     defer {

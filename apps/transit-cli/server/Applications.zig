@@ -413,6 +413,7 @@ fn submit(self: *Self, allocator: std.mem.Allocator, record: *Record, step: Step
 }
 fn flush(self: *Self, allocator: std.mem.Allocator, record: *Record) !void {
     const pending = record.pending orelse return;
+    try self.installation.reserveRoot(pending.signed);
     const accepted = try self.installation.wire.submit(pending.signed);
     const receipt: A.Receipt = .{ .index = record.receipt_count, .principal = pending.signed.request.principal, .sequence = pending.signed.request.sequence, .position = accepted.position, .digest = try g.digest(pending.signed.request) };
     const receipt_path = try self.path(allocator, record.declaration.application, try std.fmt.allocPrint(allocator, "receipts/{d}.json", .{receipt.index}));
@@ -441,6 +442,7 @@ fn flush(self: *Self, allocator: std.mem.Allocator, record: *Record) !void {
     try self.save(allocator, record.*);
     self.installation.record.position = @max(self.installation.record.position, accepted.position);
     try self.installation.save();
+    try self.installation.releaseRoot(pending.signed);
 }
 pub fn tick(self: *Self) !void {
     if (self.failed.load(.acquire)) return error.ApplicationManagerFailed;
@@ -451,8 +453,13 @@ pub fn tick(self: *Self) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     const index = self.next_app % self.count;
+    defer self.next_app = (index + 1) % self.count;
     const app = &self.apps[index];
     var record = try self.load(allocator, app.label());
+    if (self.installation.root_pending != null) {
+        const pending = record.pending orelse return;
+        if (!try self.installation.ownsRoot(pending.signed)) return;
+    }
     if (record.blocked == null) self.advance(allocator, app, &record) catch |err| {
         if (q.wire.Client.unavailable(err) or (record.pending == null and err == error.Conflict)) return; // Keep the same frozen operation first.
         if (self.installation.failed or self.failed.load(.acquire) or err == error.AuthorityRollback or err == error.NoSpaceLeft or err == error.InstallationSyncFailed) return err;
@@ -467,6 +474,7 @@ pub fn tick(self: *Self) !void {
                 if (observed.principal_sequence < pending.signed.request.sequence) {
                     record.rejected = pending;
                     record.pending = null;
+                    try self.installation.releaseRoot(pending.signed);
                 }
             }
         }
@@ -477,7 +485,6 @@ pub fn tick(self: *Self) !void {
             worker.error_name = @errorName(err);
         }
     };
-    self.next_app = (index + 1) % self.count;
 }
 fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Record) !void {
     try self.installer(record.installer, self.installation.wire);

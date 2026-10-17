@@ -45,6 +45,43 @@ root: p.Ed25519.KeyPair,
 caller_key: p.Ed25519.KeyPair,
 record_path: []const u8,
 failed: bool = false,
+/// Runtime scheduling fence over independently persisted setup journals.
+/// Recovery resolves those journals before any new root writer starts.
+root_pending: ?[32]u8 = null,
+pub fn reserveRoot(self: *Self, signed: g.SignedRequest) !void {
+    if (signed.request.principal != 0) return;
+    const digest = try g.digest(signed.request);
+    if (self.root_pending) |pending| if (!std.mem.eql(u8, &pending, &digest)) return error.UnresolvedProvisioning;
+    self.root_pending = digest;
+}
+pub fn releaseRoot(self: *Self, signed: g.SignedRequest) !void {
+    if (signed.request.principal != 0) return;
+    const digest = try g.digest(signed.request);
+    if (self.root_pending) |pending| if (!std.mem.eql(u8, &pending, &digest)) return error.UnresolvedProvisioning;
+    self.root_pending = null;
+}
+pub fn ownsRoot(self: *Self, signed: g.SignedRequest) !bool {
+    const pending = self.root_pending orelse return true;
+    return signed.request.principal == 0 and std.mem.eql(u8, &pending, &try g.digest(signed.request));
+}
+
+test "independent setup journals cannot reuse an unresolved root sequence" {
+    const t = std.testing;
+    var installation: Self = undefined;
+    installation.root_pending = null;
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const first = try g.sign(.{ .realm = 1, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, key);
+    const other = try g.sign(.{ .realm = 1, .principal = 0, .sequence = 1, .command = .{ .create_resource = .{ .writer = 1 } } }, key);
+    try installation.reserveRoot(first);
+    try installation.reserveRoot(first);
+    try t.expect(try installation.ownsRoot(first));
+    try t.expect(!try installation.ownsRoot(other));
+    try t.expectError(error.UnresolvedProvisioning, installation.reserveRoot(other));
+    try t.expectError(error.UnresolvedProvisioning, installation.releaseRoot(other));
+    try installation.releaseRoot(first);
+    try installation.reserveRoot(other);
+    try installation.releaseRoot(other);
+}
 pub fn path(self: *const Self, name: []const u8) ![]const u8 {
     return std.fs.path.join(self.init.arena.allocator(), &.{ self.config.installation, name });
 }
