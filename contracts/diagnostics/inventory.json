@@ -2113,8 +2113,8 @@
         "ConfigurationOperationConflict": 1,
         "ConfigurationSnapshotChanged": 2,
         "ConfigurationTooLarge": 1,
-        "ConfigurationUnavailable": 2,
-        "FileNotFound": 3,
+        "ConfigurationUnavailable": 4,
+        "FileNotFound": 5,
         "IncompatibleDefinition": 1,
         "InvalidConfigurationCheckpoint": 1,
         "PathAlreadyExists": 1
@@ -2125,6 +2125,7 @@
         "allows()": "<inferred>",
         "apply()": "<inferred>",
         "boot()": "<inferred>",
+        "checkRetained()": "<inferred>",
         "execute()": "<inferred>",
         "finish()": "<inferred>",
         "history()": "<inferred>",
@@ -2143,7 +2144,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 71,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2348,6 +2349,7 @@
         "AuthorityTransportDenied": 1,
         "CatalogConfigurationChanged": 1,
         "ChildExited": 4,
+        "ConfigurationUnavailable": 1,
         "InstallationIdentityMismatch": 2,
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
@@ -2390,8 +2392,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
-        "catch": 5
+        "try": 98,
+        "catch": 6
       },
       "imports": [
         "../Diagnostic.zig",

@@ -141,6 +141,28 @@ def run(fixture):
         assert row['value']==str(fixture.config['ports']['gateway']) and not row['pending_restart'],row
         assert fixture.record()['installation']==record['installation']
         assert sql('SELECT phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1')[0]['phase']=='rejected'
+        fixture.stop()
+        retained = checkpoint.read_bytes()
+        installation_before = (fixture.installation / 'installation.json').read_bytes()
+        history_before = {path.name: path.read_bytes() for path in history_dir.iterdir()}
+        checkpoint.unlink()
+        try:
+            fixture.refusal('cannot read the retained configuration checkpoint')
+            assert not checkpoint.exists(), 'Restart recreated missing accepted settings'
+            assert (fixture.installation / 'installation.json').read_bytes() == installation_before
+            assert {path.name: path.read_bytes() for path in history_dir.iterdir()} == history_before
+        finally:
+            checkpoint.write_bytes(retained)
+        incomplete_record = json.loads(installation_before)
+        del incomplete_record['complete']
+        (fixture.installation / 'installation.json').write_text(json.dumps(incomplete_record))
+        try:
+            fixture.refusal('cannot read the retained installation record')
+            assert checkpoint.read_bytes() == retained
+        finally:
+            (fixture.installation / 'installation.json').write_bytes(installation_before)
+        fixture.start(); fixture.ready()
+        assert sql('SELECT phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1')[0]['phase']=='rejected'
     finally:
         fixture.config = original
         explicit = False
@@ -150,4 +172,4 @@ def run(fixture):
             fixture.url = f"http://127.0.0.1:{fixture.config['ports']['gateway']}"
             fixture.start(); fixture.ready()
         sql('SELECT transit_reload_conf()')
-    print('Configuration: SQL inspection, YAML coordinates, live Host policy, session limits, restart application, invalid/immutable rejection, concurrent reloads, exact retries and history-index recovery passed.', flush=True)
+    print('Configuration: SQL inspection, YAML coordinates, live Host policy, session limits, restart application, invalid/immutable rejection, concurrent reloads, exact retries, history-index recovery and missing-checkpoint refusal passed.', flush=True)

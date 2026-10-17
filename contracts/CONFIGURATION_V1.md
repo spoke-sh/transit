@@ -85,6 +85,10 @@ hashes remain identity checks. An automatic child restart retains the same boot
 identifier and recovers the accepted checkpoint rather than restoring stale
 startup values. Restore configuration checkpoint and history together; these
 local records are not a replicated native log.
+The installation completion field is required on disk. Initial startup publishes
+it only after the first configuration checkpoint is durable. Completed
+installations reject a missing or invalid checkpoint before starting children;
+neither normal startup nor automatic recovery creates replacement state.
 
 Loading and reloading are the validation operations. There is no separate check
 endpoint or SQL function, persistent SQL configuration write, automatic watcher,

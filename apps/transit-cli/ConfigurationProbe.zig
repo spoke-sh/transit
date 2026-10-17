@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     var diagnostic: @import("Diagnostic.zig") = .{};
     const loaded = try Config.capture(init, deployment.source, &diagnostic, true);
     const identity = try loaded.config.identities(init, try std.process.executablePathAlloc(init.io, init.arena.allocator()), &diagnostic);
-    try @import("server/Configuration.zig").boot(init, deployment.checkpoint, deployment.binding, @splat(99), loaded, identity);
+    try @import("server/Configuration.zig").boot(init, deployment.checkpoint, deployment.binding, @splat(99), loaded, identity, false);
     try Files.json(init.io, init.gpa, deployment.gateway, @import("server/Gateway.zig").Config{ .port = deployment.port, .upstream = deployment.upstream, .configuration = .{ .path = deployment.checkpoint, .binding = deployment.binding } });
     try @import("server/Gateway.zig").run(init, deployment.gateway);
 }

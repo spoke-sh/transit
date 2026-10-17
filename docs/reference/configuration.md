@@ -129,6 +129,10 @@ PostgreSQL and MySQL retain their fixed encoding and autocommit settings. A wire
 gateway needs an explicit `settings` service binding for host settings and
 reload; its authenticated account and selected role remain the caller. Board,
 Flight and query-only SDK methods do not acquire an administrative route.
+With that binding configured, accounts need configuration inspection permission
+to capture defaults and ceilings at login. Denial or an unavailable settings
+owner fails login rather than substituting unrestricted defaults. The local
+console makes this check on its first SQL statement.
 
 ## Permissions and diagnostics
 
@@ -149,5 +153,7 @@ require provenance. Registered sensitive values are always redacted.
 Artifact paths can change only to executables matching the installation's
 recorded hashes. Reload validates them before accepting the candidate; a mismatch
 rejects the candidate. Startup preserves the same identity protection. Storage
-errors never initialize or clear the installation. Keep the configuration
-checkpoint and history together when restoring a trusted local backup.
+errors never initialize or clear the installation. A completed installation
+requires its retained configuration checkpoint before any child starts; missing
+state is not replaced with defaults. Keep the checkpoint and history together
+when restoring a trusted local backup.

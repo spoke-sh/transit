@@ -326,6 +326,12 @@ and r the ordinal of the last reload outcome. Startup validates the selected
 file and environment, checks I against the installation record, then establishes
 A=C before services become ready. The local owner stores one bounded checkpoint;
 history cardinality grows on disk independently of resident memory.
+Installation completion is recorded only after the first checkpoint is durable.
+A completed installation checks the retained checkpoint before starting child
+processes and requires it again at publication. Missing completion evidence or
+checkpoint data therefore fails closed; restart cannot reset g or r and
+reinterpret an old operation identity as new. A crash before the completion
+record is saved can resume first bootstrap because no gateway has served it.
 
 Reload reads the pinned filename with captured startup overrides. It rejects
 invalid candidates and changes to initialization-only fields. For a valid

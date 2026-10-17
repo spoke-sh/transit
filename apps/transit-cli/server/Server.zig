@@ -42,6 +42,13 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
         return diagnostic.fail(err, "cannot read the retained installation record", "Verify the installation path and restore missing data from its recovery source. Use --initialize only for a deliberately new installation, never to repair missing retained storage.");
     };
     if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
+    if (record.complete) {
+        const checkpoint = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "configuration.json" });
+        diagnostic.atFile(checkpoint);
+        @import("Configuration.zig").checkRetained(init, checkpoint, try Installation.settingsBinding(record, config.realm)) catch |err| {
+            return diagnostic.fail(err, "cannot read the retained configuration checkpoint", "Restore the installation's configuration checkpoint and history together from its recovery source. Startup never recreates missing accepted configuration state.");
+        };
+    }
     const signals = try Signals.install();
     defer signals.close();
     var wire = q.wire.Client.init(init.gpa, init.io, try Provider.url(init.arena.allocator(), config.ports.node));
@@ -70,7 +77,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
             if (diagnostic.cause == null) diagnostic.cause = err;
             // Storage identity/rollback, local durability failure and explicit
             // native denials are never repaired by rewriting installation state.
-            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
+            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.ConfigurationUnavailable or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
             if (restarts == 3) return error.RestartBudgetExhausted;
             restarts += 1;
             diagnostic.setFailure(err, "server role failed; retrying the same installation", "Wait for a ready record or terminal failure. The server preserves installation history and allows at most three automatic restarts.");
@@ -166,15 +173,18 @@ fn cycle(self: *Self) !void {
         };
         break;
     }
-    installation.record.complete = true;
-    try installation.save();
     // The retained record outlives this cycle, including automatic child
     // restarts. Keep its endpoint in the installation's process arena.
     installation.record.endpoint = try Provider.url(self.init.arena.allocator(), config.ports.gateway);
     try installation.save();
     const configuration = try installation.path("configuration.json");
     const binding = try Installation.settingsBinding(installation.record, config.realm);
-    try @import("Configuration.zig").boot(self.init, configuration, binding, self.boot, self.loaded, installation.record.identity);
+    try @import("Configuration.zig").boot(self.init, configuration, binding, self.boot, self.loaded, installation.record.identity, installation.record.complete);
+    // Publish completion only after the first settings checkpoint is durable.
+    // A crash before this save can resume bootstrap; a completed installation
+    // must never replace a missing accepted checkpoint with generation one.
+    installation.record.complete = true;
+    try installation.save();
     const gateway_config = try installation.path("gateway.json");
     try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);

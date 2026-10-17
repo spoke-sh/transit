@@ -31,9 +31,14 @@ deployment: Deployment,
 mutex: std.Io.Mutex = .init,
 failed: bool = false,
 
-pub fn boot(init: std.process.Init, path: []const u8, binding: C.Binding, token: [16]u8, loaded: Config.Loaded, artifacts: Config.Identity) !void {
+pub fn checkRetained(init: std.process.Init, path: []const u8, binding: C.Binding) !void {
+    const manager: Self = .{ .init = init, .deployment = .{ .path = path, .binding = binding } };
+    _ = manager.read(init.arena.allocator()) catch |err| return if (err == error.FileNotFound) error.ConfigurationUnavailable else err;
+}
+
+pub fn boot(init: std.process.Init, path: []const u8, binding: C.Binding, token: [16]u8, loaded: Config.Loaded, artifacts: Config.Identity, required: bool) !void {
     const a = init.arena.allocator();
-    var previous: ?State = Files.readBounded(State, init.io, a, path, C.max_bytes) catch |err| if (err == error.FileNotFound) null else return err;
+    var previous: ?State = Files.readBounded(State, init.io, a, path, C.max_bytes) catch |err| if (err == error.FileNotFound and !required) null else return if (err == error.FileNotFound) error.ConfigurationUnavailable else err;
     var manager: Self = .{ .init = init, .deployment = .{ .path = path, .binding = binding } };
     if (previous) |*state| {
         try manager.validate(state.*);

@@ -29,7 +29,7 @@ pub const Record = struct {
     authorization_change: ?u64 = null,
     initialized: [3]bool = .{ false, false, false },
     default_table_complete: bool,
-    complete: bool = false,
+    complete: bool,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
     installer_receipt: ?u64 = null,
@@ -298,7 +298,7 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .complete = false });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     try std.Io.Dir.cwd().renamePreserve(temporary, std.Io.Dir.cwd(), config.installation, init.io);
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(config.installation).?, .{ .iterate = true });
