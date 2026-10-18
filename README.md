@@ -47,6 +47,12 @@ checkout, and the [launcher guide](launchers/README.md) for development lifecycl
 commands. To run an installed bundle, follow the [local quickstart](docs/guides/quickstart.md)
 with `transit` on `PATH`.
 
+Copy [transit.yaml.example](transit.yaml.example) to `transit.yaml` for an annotated
+local configuration covering services, SQL gateways, accounts, TLS and limits.
+The repository ignores `transit.yaml`; PostgreSQL and MySQL remain disabled
+until selected. Follow the [configuration reference](docs/reference/configuration.md)
+and [SQL access guide](apps/transit-cli/docs/sql.md) when enabling them.
+
 ## Find your way
 
 - [Documentation](docs/README.md): scope, architecture, terminology, and design contracts.

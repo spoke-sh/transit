@@ -13,6 +13,7 @@ coverage/
 /result-*
 
 # Local configuration and runtime data.
+/transit.yaml
 .transit/
 .transit.lock
 .transit.creating-*/

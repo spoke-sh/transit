@@ -7,6 +7,14 @@ contains every local key, default, type, bound and owner; the
 [service contract](../../contracts/CONFIGURATION_V1.md) defines authorization,
 pagination and recovery.
 
+The annotated [transit.yaml.example](../../transit.yaml.example) covers all local
+server settings, including independently enabled PostgreSQL/MySQL listeners,
+accounts and TLS. Copy it to `transit.yaml` and customize it; the repository
+ignores that local file. The example retains the built-in defaults and includes
+commented alternatives for optional features and executable paths. SQL account
+enrollment still requires the explicit authorization workflow in the
+[local database guide](../../apps/transit-cli/docs/sql.md).
+
 ## File selection and precedence
 
 The server selects one source in this order:
