@@ -314,6 +314,19 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         ({'accounts': [{'name': '../escape', 'role': 'reader', 'password_file': 'private'}]}, 'sql.accounts'),
         ({'accounts': [{'name': 'reader', 'role': 'reader', 'password_file': 'private', 'database': 'unknown'}]}, 'sql.accounts'),
     ]:
+        if 'postgres' in sql or 'mysql' in sql:
+            sql.setdefault('accounts', [dict(name='owner', role='local_owner', authentication='trust')])
+        server(dict(config, sql=sql), (expected,))
+    for sql, expected in [
+        ({'postgres': {}, 'accounts': []}, 'sql.accounts'),
+        ({'mysql': {}, 'accounts': [dict(name='off', role='local_owner', authentication='trust', enabled=False)]}, 'sql.accounts'),
+        ({'tls': {'mode': 'unsafe'}}, 'sql.tls.mode'),
+        ({'tls': {'mode': 'disabled', 'certificate_file': 'private', 'key_file': 'private', 'ca_file': 'private'}}, 'sql.tls'),
+        ({'accounts': [dict(name='owner', role='local_owner')]}, 'sql.accounts'),
+        ({'accounts': [dict(name='owner', role='local_owner', authentication='trust', password_file='private')]}, 'sql.accounts'),
+        ({'accounts': [dict(name='owner', role='reader', authentication='trust', bootstrap_owner=True)]}, 'sql.accounts'),
+        ({'mysql': {}, 'tls': {'mode': 'disabled'}, 'accounts': [dict(name='owner', role='local_owner', password_file='private')]}, 'sql.tls.mode'),
+    ]:
         server(dict(config, sql=sql), (expected,))
     server(dict(config, version=2), ('version must be 1',))
     server(dict(config, version=3), ('version must be 1',))
@@ -325,7 +338,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invalid['ports']['cold'] = port
         server(invalid, ('cannot bind', 'ports.cold', 'address already in use', f'127.0.0.1:{port}'), 1)
         for protocol in ('postgres', 'mysql'):
-            server(dict(config, sql={protocol: {'port': port}}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
+            server(dict(config, sql={protocol: {'port': port}, 'accounts': [dict(name='owner', role='local_owner', authentication='trust')]}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
 
     console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',

@@ -7,6 +7,7 @@ const Self = @This();
 version: u8,
 definition: p.Growth.Definition,
 native_url: []const u8,
+tls_mode: TlsMode = .required,
 certificate_file: []const u8,
 certificate_key_file: []const u8,
 activation_directory: []const u8,
@@ -23,8 +24,11 @@ accounts: []const Account,
 settings: ?struct { url: []const u8, binding: g.query.settings.Contract.Binding } = null,
 pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
 pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
+pub const TlsMode = enum { disabled, optional, required };
+pub const Authentication = enum { password, trust };
 pub const Account = struct {
     name: []const u8,
+    authentication: Authentication = .password,
     enabled: bool = true,
     verifier_file: []const u8,
     ledger: g.Ledger.Configuration,
@@ -62,11 +66,20 @@ pub fn validate(self: Self) !void {
     try path(self.health_address);
     if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;
     for ([_][]const u8{ self.native_url, self.activation_directory, self.spill_directory, self.bind_address }) |value| try path(value);
-    if (self.listening()) {
+    if (self.listening() and self.tls_mode != .disabled) {
         try path(self.certificate_file);
         try path(self.certificate_key_file);
     }
     for (self.accounts, 0..) |value, i| {
+        // Trust admits a claimed SQL identity only on an explicit loopback
+        // listener. It never selects a native identity supplied by the client.
+        if (value.authentication == .trust) {
+            const address = std.Io.net.IpAddress.parseIp4(self.bind_address, 0) catch return error.InvalidGatewayConfiguration;
+            if (address.ip4.bytes[0] != 127) return error.InvalidGatewayConfiguration;
+        }
+        // MySQL full caching_sha2_password must never request a clear password
+        // on an unencrypted transport. Optional TLS rejects such a login there.
+        if (self.mysql_port != null and self.tls_mode == .disabled and value.enabled and value.authentication == .password) return error.InvalidGatewayConfiguration;
         try validateName(value.name);
         try validateName(value.association);
         try path(value.verifier_file);
@@ -100,14 +113,14 @@ pub const Credential = struct {
     login_role: u64,
     credential_epoch: u64,
     enabled: bool,
-    verifier: g.Authentication.Verifier,
+    verifier: ?g.Authentication.Verifier,
     pub fn checkIdentity(self: Credential, principal: u64, login_role: u64, epoch: u64) !void {
         if (self.principal != principal or self.login_role != login_role or self.credential_epoch != epoch) return error.GatewayCredentialChanged;
     }
     pub fn validate(self: Credential, identity: [32]u8) !void {
         if (self.version != 1 or self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         if (self.principal == 0 or self.principal > p.max_counter or self.login_role > p.max_counter or self.credential_epoch == 0 or self.credential_epoch > p.max_counter or self.revision == 0 or !std.mem.eql(u8, &self.account, &identity)) return error.InvalidAuthentication;
-        try self.verifier.validate();
+        if (self.verifier) |verifier| try verifier.validate();
         if (!self.enabled) return error.InvalidAuthentication;
     }
 };
@@ -155,6 +168,25 @@ test "SQL mappings reject shared native sequence owners and mismatched catalogs"
     try t.expectError(error.InvalidGatewayConfiguration, config.validate());
     config.certificate_file = "/private/cert";
     config.certificate_key_file = "/private/key";
+    config.tls_mode = .disabled;
+    config.certificate_file = "";
+    config.certificate_key_file = "";
+    try config.validate(); // PostgreSQL SCRAM does not require encryption.
+    config.mysql_port = 3306;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    accounts[0].authentication = .trust;
+    try config.validate();
+    config.bind_address = "0.0.0.0";
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    config.bind_address = "192.0.2.1";
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    config.bind_address = "127.0.0.2";
+    try config.validate();
+    config.tls_mode = .optional;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
+    config.certificate_file = "/private/cert";
+    config.certificate_key_file = "/private/key";
+    try config.validate();
     accounts[0].databases = &.{.{ .name = "data", .binding = .{ .resource = 10, .catalog = 1, .owner = 9 } }};
     try t.expectError(error.InvalidGatewayConfiguration, config.validate());
 }

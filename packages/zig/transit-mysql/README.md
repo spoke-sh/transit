@@ -23,7 +23,7 @@ within the budget is supported. This does not advertise unbounded messages or
 server-side cursor/long-data support. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md).
 
-`Handshake` validates exact SSLRequest/HandshakeResponse41 negotiation, UTF8MB4
+`Handshake` validates plaintext HandshakeResponse41 or exact SSLRequest/response negotiation, UTF8MB4
 encoding, bounded attributes and the caching-SHA2 plugin. It rejects capability
 changes across the TLS upgrade. Only the intersection of server flags and known
 client offers selects features; unadvertised compression, local files, multiple
@@ -41,6 +41,7 @@ repeat within a connection. The host supplies execution and current rights;
 accepted writes belong to its account runtime. UPDATE returns changed rows by
 default and matched rows with negotiated `CLIENT_FOUND_ROWS`. The
 [gateway application](../../../apps/transit-sql-gateway/README.md) supplies the
-TLS listener and host.
+transport policy, authentication and host. Full-password requests require TLS;
+explicit loopback trust uses the same native admission without a password exchange.
 
 Build with `zig build test` or `zig build check` inside `nix develop`.

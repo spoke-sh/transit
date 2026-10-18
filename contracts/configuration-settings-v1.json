@@ -1,5 +1,5 @@
 {
-  "definition": "1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10",
+  "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
   "settings": [
     {
       "name": "version",
@@ -355,7 +355,7 @@
     },
     {
       "name": "sql.accounts",
-      "description": "Configured local SQL accounts and private password references",
+      "description": "SQL logins, authentication and explicit one-time owner bootstrap",
       "owner": "sql",
       "kind": "records",
       "scope": "component",
@@ -367,7 +367,27 @@
       "minimum": 0,
       "maximum": 32,
       "values": [],
-      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"password_file\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"password_file\":{\"type\":\"string\",\"maxLength\":4096},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\",\"password_file\"],\"x-transit-defaults\":{\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+    },
+    {
+      "name": "sql.tls.mode",
+      "description": "SQL transport encryption policy, independent of login authentication",
+      "owner": "sql",
+      "kind": "enumeration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "\"required\"",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [
+        "disabled",
+        "optional",
+        "required"
+      ],
+      "items_schema": null
     },
     {
       "name": "sql.tls.certificate_file",
@@ -960,7 +980,9 @@
               "x-transit-field-order": [
                 "name",
                 "role",
+                "authentication",
                 "password_file",
+                "bootstrap_owner",
                 "enabled",
                 "database",
                 "schema"
@@ -974,9 +996,26 @@
                   "type": "string",
                   "maxLength": 63
                 },
-                "password_file": {
+                "authentication": {
                   "type": "string",
-                  "maxLength": 4096
+                  "enum": [
+                    "password",
+                    "trust"
+                  ]
+                },
+                "password_file": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4096
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bootstrap_owner": {
+                  "type": "boolean"
                 },
                 "enabled": {
                   "type": "boolean"
@@ -992,10 +1031,12 @@
               },
               "required": [
                 "name",
-                "role",
-                "password_file"
+                "role"
               ],
               "x-transit-defaults": {
+                "authentication": "password",
+                "password_file": null,
+                "bootstrap_owner": false,
                 "enabled": true,
                 "database": "transit",
                 "schema": "public"
@@ -1003,7 +1044,7 @@
             },
             "minItems": 0,
             "maxItems": 32,
-            "description": "Configured local SQL accounts and private password references",
+            "description": "SQL logins, authentication and explicit one-time owner bootstrap",
             "x-transit-owner": "sql",
             "x-transit-change": "restart"
           },
@@ -1011,6 +1052,18 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "optional",
+                  "required"
+                ],
+                "description": "SQL transport encryption policy, independent of login authentication",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": "required"
+              },
               "certificate_file": {
                 "type": [
                   "string",

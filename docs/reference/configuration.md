@@ -72,7 +72,13 @@ PostgreSQL listener through the same typed override rules. `sql.accounts` is a
 bounded list of typed account declarations, replaced as a whole by an environment
 override. Account declarations and TLS file references are redacted from settings
 inspection. SQL placement settings require restart; reload records a validated
-pending value without changing listening sockets.
+pending value without changing listening sockets. An enabled listener requires an
+enabled account. `sql.tls.mode` selects `disabled`, `optional` or `required`
+(default), independently of each account's `authentication` (`password` by
+default, or explicit loopback `trust`). `bootstrap_owner: true` on a newly
+enrolled `local_owner` account records its initial binding automatically; it
+never restores revoked access. Password accounts require `password_file`;
+trust accounts omit it. MySQL password authentication requires TLS.
 
 `executables.sql_gateway` identifies the matching gateway artifact in the local
 bundle. The installation fingerprints that artifact even while both protocols

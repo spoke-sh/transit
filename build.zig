@@ -129,7 +129,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("apps/transit-cli/SettingsReference.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_gateway", .module = sql_gateway.module("transit_sql_gateway") } },
     }) });
     b.step("settings-reference", "Export the typed configuration registry").dependOn(&b.addRunArtifact(settings_reference).step);
     b.step("configuration-contract", "Export reflected configuration operations").dependOn(&b.addRunArtifact(query.artifact("transit-configuration-contract")).step);

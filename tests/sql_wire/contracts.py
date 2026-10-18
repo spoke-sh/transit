@@ -65,7 +65,7 @@ def length(n):
 
 
 def records():
-    definition = hashlib.sha256(b'transit.native.v1.configured-local-sql-access.2026-10-17').digest()
+    definition = hashlib.sha256(b'transit.native.v1.local-sql-authentication.2026-10-18').digest()
     def record(magic, value, fields):
         encoded = magic.encode() + definition
         for name, layout in fields:
@@ -149,7 +149,7 @@ def mysql_backend():
 
 
 def controls():
-    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.configured-local-sql-access.2026-10-17').digest()
+    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.local-sql-authentication.2026-10-18').digest()
     terminal = records()['terminal']
     cases = [
         (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None))),

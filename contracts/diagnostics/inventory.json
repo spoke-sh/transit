@@ -2476,7 +2476,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 84,
+        "try": 87,
         "catch": 4
       },
       "imports": [
@@ -2531,7 +2531,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 90,
         "catch": 3
       },
       "imports": [
@@ -2587,7 +2587,8 @@
         "catch": 0
       },
       "imports": [
-        "std"
+        "std",
+        "transit_sql_gateway"
       ]
     },
     "apps/transit-cli/server/SqlTrust.zig": {
@@ -2665,6 +2666,25 @@
         "std"
       ]
     },
+    "apps/transit-sql-gateway/src/Connection.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "finish()": "<inferred>",
+        "readExact()": "<inferred>",
+        "upgrade()": "<inferred>",
+        "writeAll()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "transit_tls_server"
+      ]
+    },
     "apps/transit-sql-gateway/src/Control.zig": {
       "errors": {
         "Conflict": 1,
@@ -2735,7 +2755,7 @@
         "GatewayMutationRejected": 2,
         "GatewayOwnerUnavailable": 4,
         "GatewayWaitCancelled": 1,
-        "InvalidAuthentication": 2,
+        "InvalidAuthentication": 3,
         "InvalidAuthorityResponse": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
@@ -2870,7 +2890,7 @@
         "InvalidAuthentication": 6,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
-        "TlsRequired": 3,
+        "TlsRequired": 6,
         "UnsupportedStartupSetting": 1,
         "WireSessionExhausted": 1
       },
@@ -2914,10 +2934,11 @@
       },
       "open_error_set_uses": 14,
       "propagation": {
-        "try": 129,
-        "catch": 11
+        "try": 141,
+        "catch": 15
       },
       "imports": [
+        "Connection.zig",
         "Control.zig",
         "Host.zig",
         "Stop.zig",
@@ -11063,7 +11084,7 @@
         "InvalidWireMessage": 1,
         "TooManyWireAttributes": 1,
         "UnsupportedAuthentication": 1,
-        "UnsupportedWireCapabilities": 1,
+        "UnsupportedWireCapabilities": 3,
         "UnsupportedWireCharset": 1,
         "WireNegotiationChanged": 1
       },
@@ -11073,12 +11094,13 @@
         "Prefix.read()": "<inferred>",
         "name()": "<inferred>",
         "password()": "<inferred>",
+        "plaintext()": "<inferred>",
         "response()": "<inferred>",
         "upgrade()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -11964,7 +11986,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10\""
+          "@\"09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7\""
         ],
         "Effect.phase": [
           "pending",
@@ -17280,9 +17302,19 @@
         "GatewayDatabaseDenied": 1,
         "IncompatibleDefinition": 2,
         "InvalidAuthentication": 3,
-        "InvalidGatewayConfiguration": 10
+        "InvalidGatewayConfiguration": 13
       },
-      "outcomes": {},
+      "outcomes": {
+        "Authentication": [
+          "password",
+          "trust"
+        ],
+        "TlsMode": [
+          "disabled",
+          "optional",
+          "required"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Account.database()": "<inferred>",
@@ -17296,7 +17328,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 14,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "root.zig",

@@ -66,34 +66,46 @@ query:
 #   mysql: {"port": 13306}
 # Use JSON syntax for flow objects, or ordinary indented YAML mappings.
 #
-# SQL settings require restart. Enabling a listener grants no access: review
-# and apply the generated credential/role/catalog proposals through the public
-# authorization workflow in apps/transit-cli/docs/sql.md before logging in.
+# SQL settings require restart. For local use, enable either port, uncomment
+# the owner account below and set tls.mode to disabled. Then connect with:
+#   psql -h localhost -p 15432 -U owner -d transit
+#   mysql --protocol=TCP -h localhost -P 13306 -u owner -D transit --ssl-mode=DISABLED
+# See apps/transit-cli/docs/sql.md for password/TLS and additional roles.
 # Restart never restores revoked privileges. Disabling listeners or accounts
 # preserves accepted operations and their recovery worker.
 sql:
   postgres: null
   mysql: null
 
-  # Replace [] with a sequence like the commented account below (max 32).
-  # Create the private password file outside Git first: exactly 1..128 printable
-  # ASCII bytes, no trailing newline, readable only by its owner (mode 0600).
+  # A configured listener requires at least one enabled account (max 32).
+  # trust accepts the claimed login from any process able to connect locally;
+  # it does not verify the OS user. Ordinary native role/grant checks still apply.
+  # bootstrap_owner explicitly binds this account to the original local owner
+  # once. Keep its value unchanged after enrollment; revocation remains effective.
   # Account names: 1..63 ASCII letters, digits, underscores or hyphens.
-  # local_owner is the existing catalog owner; a new role needs explicit grants.
   # The local server supports only database transit and schema public.
   accounts: []
   #   - name: owner
   #     role: local_owner
-  #     password_file: ../transit-secrets/sql-owner.password
+  #     authentication: trust
+  #     bootstrap_owner: true
   #     enabled: true
   #     database: transit
   #     schema: public
+  # For password authentication on a newly enrolled account, instead select:
+  #     authentication: password
+  #     password_file: ../transit-secrets/sql-owner.password
+  # The private file contains 1..128 printable ASCII bytes without a newline.
+  # Password accounts default to explicit enrollment (bootstrap_owner: false).
+  # MySQL password authentication requires optional or required TLS.
 
-  # All null generates private local TLS trust when SQL is first enabled.
-  # Or supply all three PEM paths together, for example under
-  # ../transit-secrets/tls/. The leaf must cover localhost and 127.0.0.1.
-  # Clients verify the CA path reported in .transit/sql/status.json.
+  # required is the default; disabled needs no certificates or password files
+  # with trust accounts. optional accepts TLS and plaintext on the same ports.
+  # For optional/required, all null generates private local TLS trust.
+  # Or supply all three PEM paths; the leaf covers localhost and 127.0.0.1.
+  # Supplied PEM paths reject with disabled TLS. Clients can verify the reported CA.
   tls:
+    mode: required
     certificate_file: null  # e.g. ../transit-secrets/tls/server.pem
     key_file: null          # e.g. ../transit-secrets/tls/server.key
     ca_file: null           # e.g. ../transit-secrets/tls/ca.pem

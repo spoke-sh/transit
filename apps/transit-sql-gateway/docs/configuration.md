@@ -10,6 +10,7 @@ compatible build.
 | Field | Meaning |
 | --- | --- |
 | `native_url` | Signed native HTTP endpoint accessible from the private deployment |
+| `tls_mode` | `disabled`, `optional` or `required` (default); independent of account authentication |
 | `certificate_file`, `certificate_key_file` | PEM server chain and private key; clients verify the chain and hostname |
 | `activation_directory` | Persistent private directory containing exclusive native-generation activation markers |
 | `spill_directory` | Private bounded query spill location |
@@ -22,13 +23,29 @@ compatible build.
 | `settings` | Optional explicit `{url, binding}` for the configuration service; binding contains realm, installation bytes and its registered domain object |
 | `accounts` | 1–32 explicit SQL names, verifier references, native identities and database/catalog mappings |
 
-Each account supplies `name`, `verifier_file`, `ledger`, `generation`, optional
+Each account selects `authentication` (`password` by default, or explicit `trust`)
+and supplies `name`, `verifier_file`, `ledger`, `generation`, optional
 state `association` (default `state`), `enabled` (default true), `keys` and
 `databases`. Setting `enabled` false rejects account selection while keeping its
 retained ledger worker and coordinator available. Key references are
 `worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.
+
+Trust accounts are admitted only on an IPv4 loopback listener; they accept the
+claimed configured login without a password or OS identity check. Their private
+credential file retains the native identity, role, epoch and revision, with
+`verifier: null`. Password accounts require a verifier. A mismatch rejects; a
+configuration change cannot silently turn a trust credential into a password.
+Both authentication methods use the same current native authorization checks.
+
+Disabled TLS does not open PEM files. Optional TLS accepts either transport on
+the same socket; missing or invalid TLS material fails startup without falling
+back. Required TLS rejects plaintext with a protocol error. PostgreSQL SCRAM
+works on both transports. MySQL full password authentication requires TLS and
+rejects before requesting a password on plaintext. Disabled TLS with an enabled
+MySQL password account is invalid configuration. Native ledger recovery remains
+independent of all listener authentication and TLS material.
 
 `ledger` defines the realm, private resource, owner process, six distinct
 principals, account fingerprint, admitted catalog bindings and

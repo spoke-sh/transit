@@ -97,6 +97,7 @@ pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const 
     const parsed = try std.json.parseFromSlice(g.Configuration.Credential, allocator, bytes, .{});
     defer parsed.deinit();
     try parsed.value.validate(account.ledger.account);
+    if ((account.authentication == .password) != (parsed.value.verifier != null)) return error.InvalidAuthentication;
     if (parsed.value.principal != account.ledger.table_principal) return error.InvalidAuthentication;
     return parsed.value;
 }
