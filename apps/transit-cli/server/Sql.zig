@@ -138,17 +138,17 @@ fn configuration(self: *Self, allocator: std.mem.Allocator, accounts: []const g.
     const sql = self.installation.config.sql;
     return .{ .version = 1, .definition = p.Growth.current_definition, .native_url = self.installation.wire.url, .certificate_file = if (self.trust) |trust| trust.certificate else "", .certificate_key_file = if (self.trust) |trust| trust.key else "", .activation_directory = try E.path(self.installation, allocator, "activations"), .spill_directory = try E.path(self.installation, allocator, "spill"), .postgres_port = if (admission and self.trust != null and sql.postgres != null) sql.postgres.?.port else null, .mysql_port = if (admission and self.trust != null and sql.mysql != null) sql.mysql.?.port else null, .health_port = if (admission) sql.health_port else null, .drain_ms = sql.drain_ms, .request_timeout_ms = sql.request_timeout_ms, .limits = .{ .connections = sql.connections, .connections_per_account = sql.connections_per_account, .authentications = sql.authentications, .command_ms = sql.command_ms, .idle_ms = sql.idle_ms }, .accounts = accounts, .settings = .{ .url = self.installation.record.endpoint, .binding = try Installation.settingsBinding(self.installation.record, self.installation.config.realm) } };
 }
-fn saveAccount(self: *Self, record: *E.Account) !void {
-    try Journal.save(self.installation, try E.accountPath(self.installation, self.allocator, record.name, "account.json"), record);
+fn saveAccount(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !void {
+    try Journal.save(self.installation, try E.accountPath(self.installation, allocator, record.name, "account.json"), record);
 }
-fn activate(self: *Self, record: *E.Account) !void {
-    const file = try E.accountPath(self.installation, self.allocator, record.name, "account.json");
+fn activate(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !void {
+    const file = try E.accountPath(self.installation, allocator, record.name, "account.json");
     try record.journal.activate(self.installation, file, record, record.journal.receipts[0].?, record.principals.worker);
 }
 fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
     const entry = &self.entries.items[index];
-    try self.activate(&entry.record);
+    try self.activate(allocator, &entry.record);
     const accounts = [_]g.Configuration.Account{try self.runtimeAccount(allocator, entry.*)};
     const config = try self.configuration(allocator, &accounts, false);
     const file = try E.accountPath(installation, allocator, entry.record.name, "initialize.json");
@@ -163,14 +163,14 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
         const sequence = (try identity.read(.identity)).principal_sequence;
         const prepared = try client.prepare(.{ .initialize = sequence });
         entry.record.initialization = .{ .prepared = prepared };
-        try self.saveAccount(&entry.record);
+        try self.saveAccount(allocator, &entry.record);
     }
     try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file } }, false);
     self.bootstrapping = index;
     if (entry.record.initialization.?.receipt == null) {
         const receipt = try client.submit(entry.record.initialization.?.prepared);
         entry.record.initialization.?.receipt = receipt;
-        try self.saveAccount(&entry.record);
+        try self.saveAccount(allocator, &entry.record);
     }
     self.status = .initializing;
 }
@@ -184,7 +184,7 @@ fn pollInitialization(self: *Self, allocator: std.mem.Allocator) !void {
     if (entry.record.initialization.?.receipt == null) {
         const receipt = try client.submit(entry.record.initialization.?.prepared);
         entry.record.initialization.?.receipt = receipt;
-        try self.saveAccount(&entry.record);
+        try self.saveAccount(allocator, &entry.record);
     }
     const pending = entry.record.initialization.?;
     const progress = try client.progress(pending.prepared, pending.receipt orelse return error.UnresolvedProvisioning);
@@ -194,7 +194,7 @@ fn pollInitialization(self: *Self, allocator: std.mem.Allocator) !void {
     }
     if (progress.processed != null) return error.GatewayControlRejected;
     entry.record.initialized = true;
-    try self.saveAccount(&entry.record);
+    try self.saveAccount(allocator, &entry.record);
     self.bootstrap.stop(installation.init.io);
     self.bootstrapping = null;
     try E.controlProfile(installation, allocator, entry.record);
@@ -204,7 +204,7 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     self.service.stopWithTimeout(installation.init.io, installation.config.sql.drain_ms + 1000);
     var accounts: std.ArrayList(g.Configuration.Account) = .empty;
     for (self.entries.items) |*entry| if (entry.record.initialized) {
-        try self.activate(&entry.record);
+        try self.activate(allocator, &entry.record);
         try accounts.append(allocator, try self.runtimeAccount(allocator, entry.*));
     };
     if (accounts.items.len == 0) return;
