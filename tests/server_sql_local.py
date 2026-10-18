@@ -1,4 +1,5 @@
 """Real local SQL clients: transport policy, recorded owner bootstrap and revocation."""
+import argparse
 import ctypes
 import json
 import os
@@ -11,12 +12,16 @@ from server_sql import account, apply, call, denied, freeze, wait_status
 from storage import free_port
 
 
-def run(cli, node, host, board, gateway):
+def run(cli, node, host, board, gateway, *, bundle=None):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Fixture(cli, node, host)
-    freeze(fixture)
+    if bundle:
+        fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
+        fixture.config.pop('executables')  # Installed adjacent dependency discovery.
+    else:
+        freeze(fixture)
     fixture.config['applications'] = {'port': free_port()}
     fixture.config['board'] = {'port': free_port()}
     pg_port, mysql_port = free_port(), free_port()
@@ -220,5 +225,16 @@ def bootstrap_fault(cli, node, host, board, gateway):
 
 
 if __name__ == '__main__':
-    run(*sys.argv[1:])
-    bootstrap_fault(*sys.argv[1:])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--bundle', type=Path)
+    parser.add_argument('binaries', nargs='*')
+    args = parser.parse_args()
+    if args.bundle:
+        root = args.bundle.resolve()
+        binaries = [root / 'bin' / name for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')]
+        run(*binaries, bundle=root)
+        bootstrap_fault(*binaries)
+    else:
+        assert len(args.binaries) == 5
+        run(*args.binaries)
+        bootstrap_fault(*args.binaries)
