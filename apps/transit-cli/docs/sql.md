@@ -64,6 +64,11 @@ while completing enrollment, for example with the default installation path:
 cat .transit/sql/status.json
 ```
 
+The status file is the supervisor's last observed snapshot and can remain after
+shutdown. Confirm that the server is running; use the live private `/health`
+probe for admission readiness or `/recovery` for worker readiness. Their port is
+`sql.health_port` (19108 by default).
+
 The core administration interfaces remain available while SQL awaits
 authorization. The status file lists account names, roles, database/schema,
 initialization state and control profiles. At `awaiting_binding`, the supervisor
