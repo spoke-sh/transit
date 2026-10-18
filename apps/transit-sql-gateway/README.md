@@ -7,6 +7,9 @@ Table principal independently of its network connections. A separate private
 reader supplies backing-resource access; SQL callers use current native
 database/schema/Table grants and retain their selected role through recovery.
 
+For a local installation, follow the [psql/mysql walkthrough](../transit-cli/docs/sql.md).
+The local server manages explicit enrollment and separate fenced activations.
+
 Build from the repository with `nix develop --command zig build
 transit-sql-gateway`. Run `transit-sql-gateway /private/sql-gateway.json` with an
 eligible, initialized configuration. The [configuration and controls](docs/configuration.md)

@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, command
+from server import Fixture, children, command, freeze_executables
 from storage import free_port
 
 
@@ -47,11 +47,12 @@ class Applications(Fixture):
         while True:
             result = subprocess.run([self.cli, 'app', mode, '--config', str(self.management), *map(str, args)],
                 capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()), env={'PATH': '/unavailable'})
-            # Status is read-only. During deliberate storage/authority loss the
+            # Status and connection export only read native authority. During
+            # deliberate storage/authority loss the
             # manager can be reachable before that observation is available.
             # Mutation retries must instead use their saved operation identity.
             first = result.stderr.splitlines()[0] if result.stderr else ''
-            if mode != 'status' or expect or result.returncode == 0 or first not in (
+            if mode not in ('status', 'connect') or expect or result.returncode == 0 or first not in (
                     'application: AuthorityUnavailable', 'application: AuthorityTimeout',
                     'application: HttpConnectionClosing', 'application: ConnectionRefused') or time.monotonic() >= deadline:
                 break
@@ -80,9 +81,45 @@ class Applications(Fixture):
         raise TimeoutError(status)
 
 
+def provision_authority(fixture, operator, connections):
+    """Use the example's recoverable public authorization provisioning."""
+    capabilities = json.loads(subprocess.check_output([fixture.cli, 'auth', 'capabilities'], text=True))
+    caller = json.loads(connections['operator'].read_text())
+    administrator = fixture.root / 'authorization-admin.json'
+    administrator.write_text(json.dumps(dict(version=1, url=caller['url'],
+        connection=dict(definition=capabilities['capabilities']['definition'], realm=caller['realm'], principal=0),
+        seed_file=str(fixture.installation / 'root.seed'), request_timeout_ms=10000)))
+    administrator.chmod(0o600)
+    recovery = fixture.root / 'authorization-recovery'
+    recovery.mkdir(mode=0o700)
+    profile = fixture.root / 'catalog-authority.json'
+    provisioning = [operator, 'provision-authority', str(administrator),
+        *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(profile)]
+    def invoke(timeout):
+        deadline = time.monotonic() + timeout
+        while True:
+            result = subprocess.run(provisioning, capture_output=True, text=True,
+                timeout=max(1, deadline-time.monotonic()), env={'PATH': '/unavailable'})
+            if result.returncode == 0:
+                return result
+            assert result.stderr.strip() in ('error: AuthorityUnavailable', 'error: AuthorityTimeout',
+                'error: HttpConnectionClosing', 'error: ConnectionRefused'), result
+            assert time.monotonic() < deadline, result
+            # The same provisioning directory owns every saved native request.
+            time.sleep(.1)
+    provisioned = invoke(300)
+    recorded = {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')}
+    repeated = invoke(120)
+    assert json.loads(repeated.stdout) == json.loads(provisioned.stdout), repeated
+    assert {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')} == recorded
+    return profile
+
+
 def run(cli, node, host, worker, operator):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node, host)
+    freeze_executables(fixture)
+    fixture.path.write_text(json.dumps(fixture.config))
     started = time.monotonic()
     success = False
     print(f'Application installation proof: {fixture.root}', flush=True)
@@ -164,32 +201,7 @@ def run(cli, node, host, worker, operator):
         assert exported == json.loads(connections['inspector'].read_text())
         # Real application provisioning uses the installed operator and public
         # native authorization lifecycle. Worker replacement never replays it.
-        capabilities = json.loads(subprocess.check_output([cli, 'auth', 'capabilities'], text=True))
-        caller = json.loads(connections['operator'].read_text())
-        administrator = fixture.root / 'authorization-admin.json'
-        administrator.write_text(json.dumps(dict(version=1, url=caller['url'],
-            connection=dict(definition=capabilities['capabilities']['definition'], realm=caller['realm'], principal=0),
-            seed_file=str(fixture.installation / 'root.seed'), request_timeout_ms=10000)))
-        administrator.chmod(0o600)
-        recovery = fixture.root / 'authorization-recovery'
-        recovery.mkdir(mode=0o700)
-        profile = fixture.root / 'catalog-authority.json'
-        provisioning = [operator, 'provision-authority', str(administrator),
-            *(str(connections[name]) for name in ('operator', 'writer', 'inspector')), str(recovery), str(profile)]
-        provisioning_deadline = time.monotonic() + 300
-        while True:
-            provisioned = subprocess.run(provisioning, capture_output=True, text=True,
-                timeout=max(1, provisioning_deadline-time.monotonic()), env={'PATH': '/unavailable'})
-            if provisioned.returncode == 0:
-                break
-            assert provisioned.stderr.strip() in ('error: AuthorityUnavailable', 'error: AuthorityTimeout',
-                'error: HttpConnectionClosing', 'error: ConnectionRefused'), provisioned
-            assert time.monotonic() < provisioning_deadline, provisioned
-            time.sleep(.1)
-        recorded = {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')}
-        repeated = subprocess.run(provisioning, capture_output=True, text=True, timeout=120, env={'PATH': '/unavailable'})
-        assert repeated.returncode == 0 and json.loads(repeated.stdout) == json.loads(provisioned.stdout), repeated
-        assert {path.name: path.read_bytes() for path in recovery.glob('authorization-*.json')} == recorded
+        profile = provision_authority(fixture, operator, connections)
         domain(connections['operator'], 'initialize-catalog', 'catalog-initialize', profile)
         domain(connections['operator'], 'authorize', 'authorize')
         domain(connections['operator'], 'prepare-table', 'prepare-initial', 1)

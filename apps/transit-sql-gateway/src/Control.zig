@@ -4,17 +4,7 @@ const std = @import("std");
 const g = @import("transit_sql_gateway");
 const p = g.catalog.protocol;
 const native = p.Growth;
-const Config = struct {
-    version: u8,
-    definition: native.Definition,
-    native_url: []const u8,
-    ledger: g.Ledger.Configuration,
-    control_key_file: []const u8,
-    table_key_file: []const u8,
-    reader_key_file: []const u8,
-    pending_file: []const u8,
-    timeout_ms: u32 = 30000,
-};
+const Config = g.OperatorConfiguration;
 const Pending = struct { prepared: g.Client.Prepared, receipt: ?p.Receipt = null, processed: bool = false, disposition: ?g.Control.Disposition = null };
 fn print(init: std.process.Init, value: anytype) !void {
     const bytes = try std.json.Stringify.valueAlloc(init.gpa, value, .{});

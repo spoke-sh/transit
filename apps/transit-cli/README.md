@@ -49,6 +49,9 @@ configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings over
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
 
+The [local PostgreSQL/MySQL guide](docs/sql.md) covers opt-in listeners, explicit
+account enrollment, verified TLS, grants and retained-operation recovery.
+
 ## Local file queries
 
 `transit file-query` executes finite SQL over captured CSV/JSONL files or stdin,

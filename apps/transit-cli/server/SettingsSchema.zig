@@ -21,6 +21,26 @@ pub const descriptors = [_]D{
     executable("executables.node", "node", false),
     executable("executables.query_host", "query", false),
     executable("executables.board", "board", true),
+    executable("executables.sql_gateway", "sql", false),
+    .{ .name = "sql.postgres", .default_json = "null", .description = "PostgreSQL listener; null disables admission", .owner = "sql", .kind = .object, .change = .restart, .nullable = true },
+    sqlNumber("postgres.port", "PostgreSQL loopback port", "15432", .unsigned, 1024, 65535),
+    .{ .name = "sql.mysql", .default_json = "null", .description = "MySQL listener; null disables admission", .owner = "sql", .kind = .object, .change = .restart, .nullable = true },
+    sqlNumber("mysql.port", "MySQL loopback port", "13306", .unsigned, 1024, 65535),
+    .{ .name = "sql.accounts", .default_json = "[]", .description = "Configured local SQL accounts and private password references", .owner = "sql", .kind = .records, .change = .restart, .sensitive = true, .maximum = 32, .items_schema = accountSchema() },
+    sqlPath("certificate_file"),
+    sqlPath("key_file"),
+    sqlPath("ca_file"),
+    sqlNumber("health_port", "Private loopback SQL recovery and readiness port", "19108", .unsigned, 1024, 65535),
+    sqlNumber("drain_ms", "Connection drain deadline", "30000", .duration, 1, 270000),
+    sqlNumber("request_timeout_ms", "Native request deadline", "5000", .duration, 1, 60000),
+    sqlNumber("command_ms", "Maximum SQL statement duration", "30000", .duration, 1, 270000),
+    sqlNumber("idle_ms", "Idle SQL session deadline", "30000", .duration, 1, 270000),
+    sqlNumber("connections", "Simultaneous SQL connection quota", "64", .unsigned, 1, 256),
+    sqlNumber("connections_per_account", "Simultaneous connections per account", "8", .unsigned, 1, 255),
+    sqlNumber("authentications", "Simultaneous SQL authentication work", "4", .unsigned, 1, 16),
+    sqlNumber("operation_quota", "Initial retained operation quota per account", "1000000", .unsigned, 1, 9007199254740991),
+    sqlNumber("byte_quota", "Initial retained logical byte quota per account", "1073741824", .bytes, 1048576, 9007199254740991),
+    sqlNumber("pending_quota", "Initial simultaneous unsettled operations per account", "16", .unsigned, 1, 1024),
     .{ .name = "applications", .default_json = "{}", .description = "Application management configuration; null disables admission", .owner = "applications", .kind = .object, .change = .restart, .nullable = true },
     port("applications.port", "applications"),
     .{ .name = "applications.max_applications", .default_json = "8", .description = "Application deployment quota", .owner = "applications", .kind = .unsigned, .change = .restart, .minimum = 1, .maximum = 64 },
@@ -30,6 +50,24 @@ pub const descriptors = [_]D{
     port("board.port", "board"),
     .{ .name = "board.public_origin", .default_json = "null", .description = "Exact Board browser origin", .owner = "board", .kind = .string, .change = .restart, .nullable = true },
 };
+fn sqlNumber(comptime name: []const u8, comptime description: []const u8, comptime default: []const u8, comptime kind: R.Kind, comptime minimum: u64, comptime maximum: u64) D {
+    return .{ .name = "sql." ++ name, .description = description, .default_json = default, .owner = "sql", .kind = kind, .change = .restart, .minimum = minimum, .maximum = maximum };
+}
+fn sqlPath(comptime name: []const u8) D {
+    return .{ .name = "sql.tls." ++ name, .description = "PEM file reference; omit all TLS references for managed local trust", .default_json = "null", .owner = "sql", .kind = .string, .change = .restart, .nullable = true, .sensitive = true };
+}
+fn accountSchema() []const u8 {
+    return comptime blk: {
+        @setEvalBranchQuota(100000);
+        const std = @import("std");
+        var buffer: [8192]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&buffer);
+        var output: std.json.Stringify = .{ .writer = &writer };
+        @import("transit_query").protocol.Schema.schema(@import("SqlSettings.zig").Account, &output) catch @compileError("Account schema exceeds its bounded buffer");
+        const result = writer.buffered().*;
+        break :blk &result;
+    };
+}
 fn port(comptime name: []const u8, comptime owner: []const u8) D {
     return .{ .name = name, .default_json = comptime blk: {
         const std = @import("std");
@@ -43,4 +81,18 @@ fn executable(comptime name: []const u8, comptime owner: []const u8, comptime nu
 
 test "local settings descriptors have unique canonical names" {
     try registry.validate();
+}
+test "SQL defaults leave both protocols disabled without account or TLS inputs" {
+    const std = @import("std");
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const defaults = try registry.defaults(arena.allocator());
+    try std.testing.expect(R.get(defaults, "sql.postgres").? == .null);
+    try std.testing.expect(R.get(defaults, "sql.mysql").? == .null);
+    try std.testing.expectEqual(@as(usize, 0), R.get(defaults, "sql.accounts").?.array.items.len);
+    const accounts = try registry.lookup("sql.accounts");
+    const value = try config.Input.jsonValue(arena.allocator(), "[{\"name\":\"reader\",\"role\":\"reader\",\"password_file\":\"private\"}]");
+    _ = try accounts.normalize(arena.allocator(), value);
+    try std.testing.expectEqual(@as(?[]const u8, null), try accounts.display(arena.allocator(), value));
+    try std.testing.expectError(error.InvalidSettingType, accounts.normalize(arena.allocator(), .{ .string = "private" }));
 }

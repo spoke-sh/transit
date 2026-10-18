@@ -26,7 +26,7 @@ const Server = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     config: *const g.Configuration,
-    tls_context: *tls.Context,
+    tls_context: ?*tls.Context,
     runtimes: []*g.AccountRuntime,
     diagnostics: *telemetry.Runtime,
     workers: []Worker,
@@ -38,9 +38,11 @@ const Server = struct {
     pub fn handle(self: *Server, _: std.Io, _: std.mem.Allocator, request: *std.http.Server.Request) !void {
         if (request.head.method != .GET) return http.respond(request, .method_not_allowed, "{}");
         if (std.mem.eql(u8, request.head.target, "/live")) return http.respond(request, .ok, "{\"live\":true}");
-        if (!std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .not_found, "{}");
+        const recovery = std.mem.eql(u8, request.head.target, "/recovery");
+        if (!recovery and !std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .not_found, "{}");
         var ready = !self.draining.load(.acquire);
         for (self.runtimes) |runtime| ready = ready and runtime.ready.load(.acquire);
+        if (!recovery) ready = ready and self.config.listening();
         return http.respond(request, if (ready) .ok else .service_unavailable, if (ready) "{\"ready\":true}" else "{\"ready\":false}");
     }
     pub fn connectionError(_: *Server, _: anyerror, _: bool) void {}
@@ -134,7 +136,7 @@ const Server = struct {
         }
         if (upgrade.code != pg.Frame.ssl_request) return error.TlsRequired;
         try transport.writeAll("S");
-        var secure = try tls.Session.accept(self.tls_context, &transport);
+        var secure = try tls.Session.accept(self.tls_context orelse return error.TlsRequired, &transport);
         defer secure.deinit();
         var tx: Output = .{ .session = &secure, .write_ms = self.config.limits.write_ms };
         var startup_frame = try pg.Startup.read(allocator, &secure);
@@ -229,7 +231,7 @@ const Server = struct {
         var upgrade = try mysql.Frame.read(allocator, &transport, 1, 32);
         defer upgrade.deinit();
         const prefix = try mysql.Handshake.upgrade(upgrade.payload);
-        var secure = try tls.Session.accept(self.tls_context, &transport);
+        var secure = try tls.Session.accept(self.tls_context orelse return error.TlsRequired, &transport);
         defer secure.deinit();
         var tx: Output = .{ .session = &secure, .write_ms = self.config.limits.write_ms };
         var response = try mysql.Frame.read(allocator, &secure, 2, 8192);
@@ -364,15 +366,21 @@ const Output = struct {
     }
 };
 fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
+    var interval_ms: u32 = 5;
     while (true) {
-        _ = runtime.tick() catch |err| {
+        const progressed = runtime.tick() catch |err| blk: {
             if (!g.station.client.Client.unavailable(err)) {
                 runtime.ready.store(false, .release);
                 diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = if (runtime.background.last_rejection) |cause| @tagName(cause) else @errorName(err) });
                 return;
             }
+            break :blk false;
         };
-        runtime.io.sleep(.fromMilliseconds(5), .awake) catch return;
+        // Idle accounts share the same bounded native request admission with
+        // active work and caller validation. Back off idle polling; a completed
+        // step restores the short interval without retaining a work queue.
+        interval_ms = if (progressed) 5 else @min(interval_ms * 2, 1000);
+        runtime.io.sleep(.fromMilliseconds(interval_ms), .awake) catch return;
     }
 }
 pub fn main(init: std.process.Init) !void {
@@ -400,12 +408,17 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     const config = &parsed.value;
     try config.validate();
-    const certificate = try init.gpa.dupeSentinel(u8, config.certificate_file, 0);
-    defer init.gpa.free(certificate);
-    const certificate_key = try init.gpa.dupeSentinel(u8, config.certificate_key_file, 0);
-    defer init.gpa.free(certificate_key);
-    var context = try tls.Context.init(certificate, certificate_key);
-    defer context.deinit();
+    // Bootstrap and retained-operation recovery have no dependency on listener
+    // credentials. In particular, expired or removed PEM files cannot prevent
+    // a disabled listener's workers from resuming accepted operations.
+    var context: ?tls.Context = if (!initialize and config.listening()) blk: {
+        const certificate = try init.gpa.dupeSentinel(u8, config.certificate_file, 0);
+        defer init.gpa.free(certificate);
+        const certificate_key = try init.gpa.dupeSentinel(u8, config.certificate_key_file, 0);
+        defer init.gpa.free(certificate_key);
+        break :blk try tls.Context.init(certificate, certificate_key);
+    } else null;
+    defer if (context) |*value| value.deinit();
     var runtimes: std.ArrayList(*g.AccountRuntime) = .empty;
     defer runtimes.deinit(init.gpa);
     defer for (runtimes.items) |runtime| runtime.deinit();
@@ -451,7 +464,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(workers);
     for (workers) |*worker| worker.* = .{};
     defer for (workers) |*worker| if (worker.future) |*future| future.cancel(init.io);
-    var server: Server = .{ .allocator = init.gpa, .io = init.io, .config = config, .tls_context = &context, .runtimes = runtimes.items, .diagnostics = diagnostics, .workers = workers };
+    var server: Server = .{ .allocator = init.gpa, .io = init.io, .config = config, .tls_context = if (context) |*value| value else null, .runtimes = runtimes.items, .diagnostics = diagnostics, .workers = workers };
     var health_listener: ?std.Io.net.Server = if (config.health_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.health_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
     defer if (health_listener) |*listener| listener.deinit(init.io);
     var health: ?std.Io.Future(anyerror!void) = if (health_listener) |*listener| try init.io.concurrent(Server.serveHealth, .{ &server, listener }) else null;
@@ -465,7 +478,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (postgres_listener) |*listener| try listeners.concurrent(.postgres, Server.serve, .{ &server, listener, .postgres });
     if (mysql_listener) |*listener| try listeners.concurrent(.mysql, Server.serve, .{ &server, listener, .mysql });
     try listeners.concurrent(.stop, Stop.wait, .{init.io});
-    diagnostics.event(.{ .name = "service.ready", .operation = "sql" });
+    diagnostics.event(.{ .name = if (config.listening()) "service.ready" else "sql.recovery.ready", .operation = "sql" });
     switch (try listeners.await()) {
         .stop => |result| {
             try result;

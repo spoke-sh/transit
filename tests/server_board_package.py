@@ -32,7 +32,7 @@ def defaults(package):
         tools = root/'bin'; tools.mkdir()
         cli = tools/'transit'
         shutil.copy2(package/'bin/transit', cli)
-        for name in ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board'):
+        for name in ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway'):
             (tools/name).symlink_to(package/'bin'/name)
         assert not (root/'share/transit/local-executables.json').exists()
         prior = None
@@ -80,7 +80,7 @@ def run(package):
     package = Path(package).resolve()
     defaults(package)
     executables = json.loads((package / 'share/transit/local-executables.json').read_text())
-    assert set(executables) == {'minio', 'ursula', 'node', 'query_host', 'board'}
+    assert set(executables) == {'minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'}
     assert all(Path(path).is_file() for path in executables.values())
     # Select the packaged provider before constructing the shared fixture:
     # the source proof's Docker-based MinIO extraction is never invoked here.

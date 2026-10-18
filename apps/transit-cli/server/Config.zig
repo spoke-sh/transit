@@ -15,12 +15,13 @@ applications: ?Applications = null,
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
 query: Query = .{},
+sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
-pub const Executables = struct { minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
-pub const Identity = struct { config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
+pub const Executables = struct { sql_gateway: []const u8, minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
+pub const Identity = struct { sql_gateway: [32]u8, config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
 pub const Inputs = struct {
     path: []const u8,
     optional: bool,
@@ -62,7 +63,7 @@ pub fn capture(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diag
     // Resolve fallback executable discovery once, even when a file currently
     // overrides it. A later deletion must not search a changed child PATH.
     const fallbacks = loaded.inputs.defaults.object.getPtr("executables").?;
-    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
+    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
         const found = if (resolve_executables) defaultExecutable(init, entry[1]) catch "" else entry[1];
         try fallbacks.object.put(allocator, entry[0], .{ .string = found });
     }
@@ -126,7 +127,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     };
     const exe_value = defaults.object.getPtr("executables").?;
     if (exe_value.* != .object) return diagnostic.invalidField("executables", "must be an object", null);
-    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
+    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" }, .{ "sql_gateway", "transit-sql-gateway" } }) |entry| {
         if (!exe_value.object.contains(entry[0])) {
             diagnostic.field = "executables." ++ entry[0];
             const found = if (!resolve_executables) entry[1] else defaultExecutable(init, entry[1]) catch |err| {
@@ -164,7 +165,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     }
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
     if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "must be a non-root directory without NUL, newline, quote or backslash characters", null);
-    if (resolve_executables) inline for (.{ "minio", "ursula", "node", "query_host" }) |name| {
+    if (resolve_executables) inline for (.{ "minio", "ursula", "node", "query_host", "sql_gateway" }) |name| {
         diagnostic.field = "executables." ++ name;
         @field(self.executables, name) = resolveExecutable(init, base, @field(self.executables, name)) catch |err| {
             diagnostic.setFailure(err, "cannot locate a configured executable", "Correct this executable path relative to the configuration file; use the matching local bundle.");
@@ -177,6 +178,15 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
             diagnostic.setFailure(err, "cannot locate the Board executable", "Set executables.board to the matching transit-board file, relative to the configuration file.");
             return error.InvalidConfiguration;
         };
+    };
+    try self.sql.resolve(allocator, base, diagnostic);
+    const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null };
+    const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port" };
+    for (sql_ports, 0..) |maybe, i| if (maybe) |port| {
+        for (sql_ports[0..i]) |previous| if (previous == port) return diagnostic.invalidField(sql_fields[i], "requires distinct SQL listener and health ports", null);
+        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (port == @field(self.ports, name)) return diagnostic.invalidField(sql_fields[i], "must differ from ports." ++ name, null);
+        if (self.board) |board| if (port == board.port) return diagnostic.invalidField(sql_fields[i], "must differ from board.port", null);
+        if (self.applications) |apps| if (port == apps.port) return diagnostic.invalidField(sql_fields[i], "must differ from applications.port", null);
     };
     diagnostic.field = null;
     var pinned = inputs;
@@ -224,13 +234,19 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     return hash.finalResult();
 }
 pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !void {
-    var listeners: [7]?std.Io.net.Server = @splat(null);
+    var listeners: [10]?std.Io.net.Server = @splat(null);
     defer for (&listeners) |*listener| if (listener.*) |*server| server.deinit(io);
     inline for (@typeInfo(Ports).@"struct".field_names, 0..) |name, i| listeners[i] = try listen(io, @field(self.ports, name), "ports." ++ name, diagnostic);
     if (ui) if (self.board) |board| {
         listeners[6] = try listen(io, board.port, "board.port", diagnostic);
     };
     if (self.applications) |apps| listeners[5] = try listen(io, apps.port, "applications.port", diagnostic);
+    if (self.sql.postgres) |listener| listeners[7] = try listen(io, listener.port, "sql.postgres.port", diagnostic);
+    if (self.sql.mysql) |listener| listeners[8] = try listen(io, listener.port, "sql.mysql.port", diagnostic);
+    const sql_directory = try std.fs.path.join(std.heap.page_allocator, &.{ self.installation, "sql" });
+    defer std.heap.page_allocator.free(sql_directory);
+    const retained_sql = if (std.Io.Dir.cwd().access(io, sql_directory, .{})) |_| true else |err| if (err == error.FileNotFound) false else return err;
+    if (self.sql.listening() or retained_sql) listeners[9] = try listen(io, self.sql.health_port, "sql.health_port", diagnostic);
 }
 
 /// Resolve defaults as if the executable directory were prepended to PATH.

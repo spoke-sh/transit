@@ -70,6 +70,7 @@
       "transit-docs::check",
       "bindings::node-check",
       "test::observability",
+      "test::server-sql",
       "transit-board::test",
       "transit-board::query-test",
       "launchers::local::test-station"
@@ -225,6 +226,8 @@
       "test::console",
       "test::server",
       "test::server-faults",
+      "test::server-sql-faults",
+      "test::server-sql-package",
       "test::server-applications",
       "test::server-application-faults",
       "test::server-board",

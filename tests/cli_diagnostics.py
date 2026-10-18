@@ -284,7 +284,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     config = {'version': 1, 'installation': str(installation), 'realm': 73,
               'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), range(29001, 29006))),
-              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board'), sys.executable)}
+              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
     server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
@@ -304,6 +304,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invalid['executables']['query_host'] = str(empty)
     server(invalid, ('executables.query_host', 'InvalidExecutable'))
     server(dict(config, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
+    server(dict(config, executables=dict(config['executables'], sql_gateway='absent-sql')), ('executables.sql_gateway',))
+    for sql, expected in [
+        ({'postgres': {'port': 80}}, 'sql.postgres.port'),
+        ({'postgres': {'port': 29004}}, 'sql.postgres.port'),
+        ({'postgres': {}, 'mysql': {'port': 15432}}, 'sql.mysql.port'),
+        ({'command_ms': 270001}, 'sql.command_ms'),
+        ({'tls': {'key_file': 'private-must-not-appear'}}, 'sql.tls'),
+        ({'accounts': [{'name': '../escape', 'role': 'reader', 'password_file': 'private'}]}, 'sql.accounts'),
+        ({'accounts': [{'name': 'reader', 'role': 'reader', 'password_file': 'private', 'database': 'unknown'}]}, 'sql.accounts'),
+    ]:
+        server(dict(config, sql=sql), (expected,))
     server(dict(config, version=2), ('version must be 1',))
     server(dict(config, version=3), ('version must be 1',))
     with socket.socket() as listener:
@@ -313,6 +324,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invalid = copy.deepcopy(config)
         invalid['ports']['cold'] = port
         server(invalid, ('cannot bind', 'ports.cold', 'address already in use', f'127.0.0.1:{port}'), 1)
+        for protocol in ('postgres', 'mysql'):
+            server(dict(config, sql={protocol: {'port': port}}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
 
     console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',
@@ -413,7 +426,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     adjacent.mkdir(); search.mkdir()
     local_cli = adjacent/'transit'
     shutil.copy2(CLI, local_cli)
-    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board')
+    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')
     for name in names: (adjacent/name).symlink_to(sys.executable)
     discovery_config = root/'convention.json'
     reserved = [socket.socket() for _ in range(6)]
@@ -462,7 +475,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
            contains=('version', 'xdg/transit.yaml'))
     invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
            contains=('absent.yaml', 'was not found'))
-    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board', 'sql_gateway'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
     # Installed runtime loading must coexist with the repository's supported
@@ -720,7 +733,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     local = project/'.transit'; local.mkdir()
     (local/'caller.seed').write_text('11'*32)
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
-    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
+    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host', 'sql_gateway'), [0]*32)
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     record = dict(definition=definition, identity=identity, installation=[1]*16, root_public=[0]*32,
                   realm=1, endpoint="http://127.0.0.1:19105", authorization_steps=list(range(1, 11)),

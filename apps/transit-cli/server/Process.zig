@@ -79,10 +79,14 @@ pub fn alive(self: *Self) bool {
     return false;
 }
 pub fn stop(self: *Self, io: std.Io) void {
+    return self.stopWithTimeout(io, 1000);
+}
+pub fn stopWithTimeout(self: *Self, io: std.Io, timeout_ms: u32) void {
     if (self.child) |*child| {
         if (child.id) |id| {
             _ = std.c.kill(-id, .TERM);
-            for (0..20) |_| {
+            const started = std.Io.Clock.awake.now(io);
+            while (started.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() < timeout_ms) {
                 if (!self.alive()) break;
                 std.Io.sleep(io, .fromMilliseconds(50), .awake) catch break;
             }

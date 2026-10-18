@@ -2011,7 +2011,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 157,
+        "try": 161,
         "catch": 13
       },
       "imports": [
@@ -2063,7 +2063,7 @@
         "EndOfStream": 1,
         "ExecutableNotFound": 2,
         "ExecutableSearchTooLarge": 2,
-        "FileNotFound": 2,
+        "FileNotFound": 3,
         "InvalidBoardOrigin": 1,
         "InvalidConfiguration": 5,
         "InvalidConfigurationPath": 1,
@@ -2092,7 +2092,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 47,
         "catch": 19
       },
       "imports": [
@@ -2101,6 +2101,7 @@
         "Files.zig",
         "Hosts.zig",
         "SettingsSchema.zig",
+        "SqlSettings.zig",
         "builtin",
         "std",
         "transit_query"
@@ -2157,7 +2158,8 @@
     },
     "apps/transit-cli/server/Files.zig": {
       "errors": {
-        "InstallationRecordTooLarge": 2,
+        "FileNotFound": 1,
+        "InstallationRecordTooLarge": 3,
         "InstallationSyncFailed": 1
       },
       "outcomes": {},
@@ -2165,14 +2167,15 @@
       "error_returns": {
         "json()": "<inferred>",
         "jsonBounded()": "<inferred>",
+        "jsonIfChanged()": "<inferred>",
         "read()": "<inferred>",
         "readBounded()": "<inferred>",
         "write()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
-        "catch": 0
+        "try": 11,
+        "catch": 1
       },
       "imports": [
         "std",
@@ -2245,7 +2248,7 @@
         "ServerStopped": 3,
         "StorageIdentityMismatch": 1,
         "TableWriterNotReady": 3,
-        "UnresolvedProvisioning": 2
+        "UnresolvedProvisioning": 4
       },
       "outcomes": {
         "Pending.effect": [
@@ -2265,18 +2268,21 @@
         "ensureDefaultTable()": "<inferred>",
         "flush()": "<inferred>",
         "initializeBehaviors()": "<inferred>",
+        "ownsRoot()": "<inferred>",
         "path()": "<inferred>",
         "provision()": "<inferred>",
         "provisionAuthorization()": "<inferred>",
         "provisionBoard()": "<inferred>",
         "query()": "<inferred>",
+        "releaseRoot()": "<inferred>",
+        "reserveRoot()": "<inferred>",
         "save()": "<inferred>",
         "settingsBinding()": "<inferred>",
         "submit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 76,
+        "try": 79,
         "catch": 2
       },
       "imports": [
@@ -2374,7 +2380,8 @@
           "requester",
           "courier",
           "gateway",
-          "board"
+          "board",
+          "sql"
         ],
         "worker().Common.role": [
           "catalog",
@@ -2392,7 +2399,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 98,
+        "try": 103,
         "catch": 6
       },
       "imports": [
@@ -2410,6 +2417,7 @@
         "Installation.zig",
         "Process.zig",
         "Provider.zig",
+        "Sql.zig",
         "std",
         "transit_query"
       ]
@@ -2422,11 +2430,190 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "SqlSettings.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/Sql.zig": {
+      "errors": {
+        "AuthorityRollback": 1,
+        "GatewayConfigurationChanged": 1,
+        "GatewayConnectionCapacity": 1,
+        "GatewayControlRejected": 1,
+        "GatewayOwnerUnavailable": 3,
+        "UnresolvedProvisioning": 2
+      },
+      "outcomes": {
+        "status": [
+          "awaiting_authorization",
+          "initializing",
+          "starting",
+          "accepting",
+          "recovery",
+          "unavailable"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "activate()": "<inferred>",
+        "advance()": "<inferred>",
+        "beginInitialization()": "<inferred>",
+        "configuration()": "<inferred>",
+        "create()": "<inferred>",
+        "pollInitialization()": "<inferred>",
+        "prepare()": "<inferred>",
+        "recover()": "<inferred>",
+        "report()": "<inferred>",
+        "runtimeAccount()": "<inferred>",
+        "saveAccount()": "<inferred>",
+        "startService()": "<inferred>",
+        "tick()": "<inferred>",
+        "writeStatus()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 84,
+        "catch": 4
+      },
+      "imports": [
+        "Files.zig",
+        "Installation.zig",
+        "Process.zig",
+        "Provider.zig",
+        "SqlEnrollment.zig",
+        "SqlJournal.zig",
+        "SqlSettings.zig",
+        "SqlTrust.zig",
+        "std",
+        "transit_query",
+        "transit_sql_gateway"
+      ]
+    },
+    "apps/transit-cli/server/SqlEnrollment.zig": {
+      "errors": {
+        "FileNotFound": 3,
+        "GatewayConfigurationChanged": 1,
+        "GatewayIdentityConflict": 2,
+        "InstallationIdentityMismatch": 2,
+        "InstallationSyncFailed": 2,
+        "InvalidGatewayConfiguration": 1,
+        "UnresolvedProvisioning": 2
+      },
+      "outcomes": {
+        "AuthorizationState": [
+          "awaiting_role",
+          "awaiting_binding",
+          "bound",
+          "unavailable"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Account.ledger()": "<inferred>",
+        "accountPath()": "<inferred>",
+        "administrator()": "<inferred>",
+        "catalogAccess()": "<inferred>",
+        "controlProfile()": "<inferred>",
+        "createAccount()": "<inferred>",
+        "enrollment()": "<inferred>",
+        "loadAccount()": "<inferred>",
+        "number()": "<inferred>",
+        "open()": "<inferred>",
+        "path()": "<inferred>",
+        "provision()": "<inferred>",
+        "publish()": "<inferred>",
+        "seed()": "<inferred>",
+        "temporary()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 88,
+        "catch": 3
+      },
+      "imports": [
+        "../Authorization.zig",
+        "Files.zig",
+        "Installation.zig",
+        "SqlJournal.zig",
+        "SqlSettings.zig",
+        "std",
+        "transit_query",
+        "transit_sql_gateway"
+      ]
+    },
+    "apps/transit-cli/server/SqlJournal.zig": {
+      "errors": {
+        "ProcessUnavailable": 1,
+        "ServerStopped": 1,
+        "UnresolvedProvisioning": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "activate()": "<inferred>",
+        "authorize()": "<inferred>",
+        "flush()": "<inferred>",
+        "save()": "<inferred>",
+        "submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 2
+      },
+      "imports": [
+        "../Signals.zig",
+        "Files.zig",
+        "Installation.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/SqlSettings.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "resolve()": "<inferred>",
+        "resolvePath()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
         "catch": 0
       },
       "imports": [
+        "std"
+      ]
+    },
+    "apps/transit-cli/server/SqlTrust.zig": {
+      "errors": {
+        "FileNotFound": 1,
+        "InstallationIdentityMismatch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "Files.zig",
+        "Installation.zig",
+        "SqlEnrollment.zig",
+        "SqlJournal.zig",
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_tls_server"
       ]
     },
     "apps/transit-flight-gateway/build.zig": {
@@ -2524,7 +2711,7 @@
     "apps/transit-sql-gateway/src/Host.zig": {
       "errors": {
         "AccessDenied": 1,
-        "AuthorityUnavailable": 2,
+        "AuthorityUnavailable": 1,
         "Canceled": 1,
         "Cancelled": 1,
         "CatalogDefinitionChanged": 2,
@@ -2546,7 +2733,7 @@
         "GatewayDeadline": 1,
         "GatewayMutationCancelled": 2,
         "GatewayMutationRejected": 2,
-        "GatewayOwnerUnavailable": 3,
+        "GatewayOwnerUnavailable": 4,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 2,
         "InvalidAuthorityResponse": 1,
@@ -2595,6 +2782,7 @@
         "begin()": "<inferred>",
         "bind()": "<inferred>",
         "current()": "<inferred>",
+        "currentOnce()": "<inferred>",
         "fresh()": "<inferred>",
         "init()": "<inferred>",
         "loadCredential()": "<inferred>",
@@ -2682,7 +2870,7 @@
         "InvalidAuthentication": 6,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
-        "TlsRequired": 1,
+        "TlsRequired": 3,
         "UnsupportedStartupSetting": 1,
         "WireSessionExhausted": 1
       },
@@ -11776,7 +11964,7 @@
           "deadline"
         ],
         "Definition": [
-          "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc"
+          "@\"1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10\""
         ],
         "Effect.phase": [
           "pending",
@@ -16926,7 +17114,7 @@
         "GatewayIdentityConflict": 2,
         "GatewayNotInitialized": 2,
         "GatewayOperationBlocked": 1,
-        "GatewayOwnerUnavailable": 2,
+        "GatewayOwnerUnavailable": 1,
         "GatewayWaitCancelled": 1,
         "InvalidGatewayCommand": 1,
         "InvalidGatewayConfiguration": 1,
@@ -16953,12 +17141,13 @@
         "handoff()": "<inferred>",
         "init()": "<inferred>",
         "observe()": "<inferred>",
+        "prepareControl()": "<inferred>",
         "tick()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 50,
-        "catch": 10
+        "try": 53,
+        "catch": 11
       },
       "imports": [
         "root.zig",
@@ -17106,7 +17295,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 14,
         "catch": 0
       },
       "imports": [
@@ -17406,6 +17595,20 @@
       },
       "imports": []
     },
+    "packages/zig/transit-sql-gateway/src/OperatorConfiguration.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/Probe.zig": {
       "errors": {
         "InvalidWireColumns": 1
@@ -17650,6 +17853,7 @@
         "Ledger.zig",
         "LedgerRecords.zig",
         "Limits.zig",
+        "OperatorConfiguration.zig",
         "Probe.zig",
         "SavedStep.zig",
         "Statement.zig",
@@ -22263,6 +22467,32 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-tls-server/src/LocalTrust.zig": {
+      "errors": {
+        "TlsAllocationFailed": 2,
+        "TlsCertificateGenerationFailed": 8,
+        "TlsKeyGenerationFailed": 2,
+        "UnsupportedTlsLibrary": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "extension()": "<inferred>",
+        "issue()": "<inferred>",
+        "issueCertificate()": "<inferred>",
+        "pem()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "OpenSsl.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-tls-server/src/OpenSsl.zig": {
       "errors": {},
       "outcomes": {},
@@ -22299,8 +22529,9 @@
       "errors": {
         "EndOfStream": 4,
         "InvalidTimeout": 1,
-        "InvalidTlsCredentials": 1,
-        "TlsAllocationFailed": 4,
+        "InvalidTlsCredentials": 4,
+        "InvalidTlsTrust": 2,
+        "TlsAllocationFailed": 6,
         "TlsConfiguration": 2,
         "TlsControlBudget": 2,
         "TlsHandshakeFailed": 1,
@@ -22313,6 +22544,7 @@
       "error_sets": {},
       "error_returns": {
         "Context.init()": "<inferred>",
+        "Context.verifyLocalTrust()": "<inferred>",
         "Session.accept()": "<inferred>",
         "Session.feed()": "<inferred>",
         "Session.finish()": "<inferred>",
@@ -22331,6 +22563,7 @@
         "catch": 0
       },
       "imports": [
+        "LocalTrust.zig",
         "OpenSsl.zig",
         "std"
       ]

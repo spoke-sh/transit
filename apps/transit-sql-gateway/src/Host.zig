@@ -122,7 +122,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         self.settings_wire = g.station.client.Client.init(allocator, io, configured.url);
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
         errdefer self.settings_wire.?.deinit();
-        self.settings_session = try q.SettingsSession.capture(try Settings.client(self));
+        self.settings_session = try self.fresh(q.SettingsSession.capture, .{try Settings.client(self)});
     }
     return self;
 }
@@ -136,6 +136,9 @@ pub fn deinit(self: *Self) void {
     allocator.destroy(self);
 }
 fn current(self: *Self) !void {
+    return self.fresh(Self.currentOnce, .{self});
+}
+fn currentOnce(self: *Self) !void {
     if (!self.runtime.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
     const credential = try loadCredential(self.allocator, self.io, self.account);
     if (!std.meta.eql(credential, self.credential)) return error.GatewayCredentialChanged;
@@ -158,10 +161,10 @@ fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@Type
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            const capacity = err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity;
-            if ((!stale and !capacity) or attempts == 64) return err;
+            const unavailable = g.station.client.Client.unavailable(err) or err == error.GatewayOwnerUnavailable;
+            if ((!stale and !unavailable) or attempts == 64) return err;
             attempts += 1;
-            try self.io.sleep(.fromMilliseconds(if (capacity) 5 else 1), .awake);
+            try self.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
             continue;
         };
     }
@@ -356,6 +359,37 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     host.wire.last_rejection = null;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
+}
+
+test "pure preparation retries transport loss within its budget but never retries denial" {
+    const t = std.testing;
+    const Observation = struct {
+        attempts: u32 = 0,
+        failures: u32 = 2,
+        failure: anyerror = error.AuthorityUnavailable,
+        fn run(self: *@This()) !u32 {
+            self.attempts += 1;
+            if (self.attempts <= self.failures) return self.failure;
+            return 17;
+        }
+    };
+    var host: Self = undefined;
+    host.io = t.io;
+    host.wire.last_rejection = null;
+    host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
+    var read: Observation = .{};
+    try t.expectEqual(@as(u32, 17), try host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 3), read.attempts);
+    read = .{ .failure = error.AccessDenied };
+    try t.expectError(error.AccessDenied, host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 1), read.attempts);
+    read = .{ .failures = 100 };
+    try t.expectError(error.AuthorityUnavailable, host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 65), read.attempts);
+    host.deadline.milliseconds = 0;
+    read = .{};
+    try t.expectError(error.GatewayDeadline, host.fresh(Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 0), read.attempts);
 }
 
 pub fn commandMilliseconds(self: *const Self) u32 {

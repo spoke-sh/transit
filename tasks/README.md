@@ -76,6 +76,8 @@ raise that capacity or discard history to complete.
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
+| `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
+| `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
 | `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |
 | `just test::diagnostic-mappings` | Require reviewed stable compiler codes and explicit boundary exceptions independently of inventory recording; owning executable cases run through `test::unit` |

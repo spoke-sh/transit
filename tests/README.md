@@ -21136,3 +21136,89 @@ with at most two proof runs active; the shared/model tail follows SDK completion
 Hosted run `39014578659` executes no job steps: GitHub reports failed account
 payments or a spending-limit restriction. No hosted pass or ordinary-suite time
 budget is claimed. The separate browser lane is outside this 88-recipe inventory.
+
+## Configured local SQL access — 2026-10-17
+
+The [local SQL qualification record](verification/results/local-sql-2026-10-17.json)
+records the current-v1 definition, source and installed artifact hashes, actual
+per-task revisions, log digests and scope. Shared runtime/protocol/SDK source is
+unchanged from `ca90c312`; `51ad5c65` only supplies the gateway executable to an
+isolated configuration fixture. The final local supervisor is `12c7ba3d`, which
+moves temporary account paths into the existing per-tick arena so unavailable
+activation reads cannot accumulate them for the server cycle's lifetime. Its
+source/installed SQL workflows, setup faults, repository checks and clean
+launcher/experience lanes are rerun. Earlier core/application regression
+observations use `4e141752`, before these SQL-only allocation corrections; their
+exact scope remains distinct from final-runtime SQL checks.
+
+`just check` passes, including **605 actual CLI diagnostic cases**. The complete
+source SQL workflow passes in **329.869 seconds**. The Nix local bundle is built
+and tested outside the checkout using adjacent executable discovery and pinned
+`psql`/Oracle `mysql`; that installed workflow passes in **354.678 seconds**.
+The clean experience lane separately executes the source workflow in **278.718
+seconds**. These tests use disk-backed Ursula and real TLS-verifying clients.
+
+The workflow starts with no configured listener and verifies no SQL process or
+enrollment. It enables both protocols on the compatible installation, explicitly
+applies owner/writer/reader role and credential proposals, checks denied data
+access before grants, then performs shared Unicode/NULL CRUD. It covers
+PostgreSQL-only and MySQL-only exposure, retained rows, current-generation
+fencing, revocation across restart, disabled accounts, password rotation,
+expired trust and explicit replacement trust. For a lost write response it
+observes an accepted, nonterminal operation, kills the client and manager,
+removes that account and disables both listeners with unavailable PEM paths.
+Public controls observe the original operation become applied; re-enabling SQL
+verifies exactly one resulting row. The SQL mutation is never resubmitted.
+
+The installed setup-fault proof passes in **37.154 seconds**. It loses accepted
+root-allocation and initialization replies, kills the manager, and checks exact
+request/identity recovery. Occupied-port preflight leaves enrollment unchanged;
+releasing the port permits setup. Revoking worker authority leaves SQL
+unavailable and core administration usable; restart does not restore the grant.
+The proof observes installation records without editing private authority.
+
+Existing local-server fault coverage passes with its core lifecycle in **85.24
+seconds** and bootstrap/gateway/rollback cases in **45.80 seconds**. The real
+application lifecycle passes in **994.076 seconds** (19 rows/steps, 21 receipts,
+generation 9; maximum observed manager RSS 47,955,968 bytes, checkpoint 3,051
+bytes). Application fault coverage passes in **153.78 seconds**, including saved
+receipts, lost replies, native fencing, revocation and capacity observations
+without replacing healthy owners. The application fault peer preserves native
+control/wait admission headers and retains the original 40-second observation
+budget. These earlier-runtime observations do not substitute for final-runtime
+SQL qualification.
+
+All **89 ordinary recipes** pass through committed-source
+`just ci-clean --lane` invocations: 28 core, 32 growth, eight experience, two launcher and 19
+bindings recipes. Every canonical recipe and deadline is retained. Core and
+bindings-2 use `ca90c312`; growth and bindings-1 use `51ad5c65`; launchers and
+experience use `12c7ba3d`. The final supervisor change only moves temporary
+account paths into the per-tick arena; its source/installed SQL workflows and
+setup faults are rerun, and shared protocol/runtime/SDK sources are unchanged.
+This composes six complete lane results with exact revisions; it is
+not one uninterrupted all-lanes invocation or a hosted timing qualification.
+
+The complete wire recipe passes with its main driver/authority/recovery fixture
+in **5,617.809 seconds** and a separate fresh-fixture `psql`/Oracle `mysql`
+lifecycle in **256.782 seconds**. It retains its original 40 KiB mutation and
+3,600-second observation bound. That operation completes in **3,354.186 seconds**, with **one
+SQL attempt** and verified applied counts after the client wait ends. The final
+record retains the independent client, authority, fault, schema and capacity
+profiles separately from these local timing observations.
+
+Qualification exposed test fixture drift: the independent SQL record generator
+still named the preceding definition, and the isolated configuration fixture
+omitted the now-required gateway artifact. Those enclosing attempts failed;
+the generator and fixture are corrected, and their complete owning recipes are
+rerun. An application fault peer dropped control/wait admission headers, causing
+ordinary request-capacity exhaustion; preserving those headers passes the
+original deadlines. Receipt-first recovery is checked against the original
+accepted body and receipt, without requiring an already-receipted operation to
+be sent again. Failed and interrupted runs remain distinct from passing evidence.
+
+The executed placement is trusted local Linux x86_64 with the existing autocommit
+SQL/type profile. These are functional and recovery observations, not latency or
+throughput guarantees. They do not establish remote exposure, general ORM or
+transaction compatibility, arbitrary power-loss durability, distributed
+activation or hosted CI timing. The separate browser lane is outside this
+ordinary-suite inventory.

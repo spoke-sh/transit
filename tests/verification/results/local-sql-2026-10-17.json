@@ -1,0 +1,2410 @@
+{
+  "version": 1,
+  "issue": 82,
+  "result": "passed_scoped_composition",
+  "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+  "qualification_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+  "shared_runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+  "fixture_revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+  "qualification_method": "All six ordinary lanes run through just ci-clean --lane from committed-source checkouts. Shared runtime/contract/SDK sources are unchanged from ca90c312. Revision 51ad5c65 changes only tests/sql_wire/settings.py to supply the mandatory gateway artifact in its isolated configuration fixture. Final supervisor revision 12c7ba3d changes only temporary account-path allocation lifetime in apps/transit-cli/server/Sql.zig; its affected source/installed SQL workflows, setup faults, repository check and clean experience/launcher lanes are rerun. Core and bindings-2 use ca90c312; growth and bindings-1 use 51ad5c65; launchers and experience use 12c7ba3d. Canonical recipes and deadlines are unchanged. These are separate lane invocations with exact per-task revisions, not one uninterrupted all-lanes invocation or a hosted timing qualification.",
+  "inventory": {
+    "path": "tests/verification/suite.json",
+    "sha256": "d6f9e2745e9391a991c07eefc04793e44fe985fec6ab5305ababbc684ce08c27"
+  },
+  "expected_tasks": 89,
+  "covered_tasks": 89,
+  "missing_tasks": [],
+  "results": [
+    {
+      "lane": "core",
+      "task": "check-core",
+      "seconds": 229.56,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::properties",
+      "seconds": 36.29,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::simulation",
+      "seconds": 65.25,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::resource-simulation-smoke",
+      "seconds": 12.33,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::scheduler-simulation",
+      "seconds": 58.71,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::domain-simulation",
+      "seconds": 44.78,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::vortex",
+      "seconds": 10.34,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::codecs",
+      "seconds": 5.69,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::dev-environment",
+      "seconds": 0.09,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::kubectl-transit",
+      "seconds": 3.47,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::deployments",
+      "seconds": 1.69,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::telemetry",
+      "seconds": 1.65,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::packages-build",
+      "seconds": 204.68,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "bindings::zig-test",
+      "seconds": 138.24,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "bindings::runtime-boundary",
+      "seconds": 3.57,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::sql-wire-contracts",
+      "seconds": 0.75,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::compute",
+      "seconds": 0.37,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::client-abi",
+      "seconds": 7.7,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::station",
+      "seconds": 298.22,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::storage",
+      "seconds": 104.85,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::service",
+      "seconds": 46.48,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::authorization",
+      "seconds": 9.75,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::authorization-cli",
+      "seconds": 11.94,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::authorization-tables",
+      "seconds": 274.24,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::runtime-upgrade",
+      "seconds": 5.26,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::callers",
+      "seconds": 16.29,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::inspection",
+      "seconds": 4.06,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "core",
+      "task": "test::state",
+      "seconds": 9.77,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "growth",
+      "task": "test::arrow",
+      "seconds": 11.95,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::fuze-types",
+      "seconds": 0.63,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::fuze-sources",
+      "seconds": 0.75,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::file-query",
+      "seconds": 29.78,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::logical-arrow",
+      "seconds": 11.53,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::logical-codec",
+      "seconds": 12.17,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::pages",
+      "seconds": 5.8,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::growing",
+      "seconds": 225.17,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::growing-service",
+      "seconds": 552.59,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::public-query",
+      "seconds": 317.52,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::publication",
+      "seconds": 232.71,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::table-query-writer",
+      "seconds": 330.28,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::catalog",
+      "seconds": 879.39,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::typed-tables",
+      "seconds": 695.21,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::sql-gateway",
+      "seconds": 231.21,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::sql-wire-gateway",
+      "seconds": 6012.83,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::relational-callers",
+      "seconds": 198.41,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::relational-maintenance",
+      "seconds": 3343.07,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::relational-exchanges",
+      "seconds": 643.65,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::named-relational",
+      "seconds": 384.32,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::http-transport",
+      "seconds": 23.35,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::tls-alpn",
+      "seconds": 3.02,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-libraries",
+      "seconds": 11.21,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-codegen",
+      "seconds": 7.44,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-transport",
+      "seconds": 13.04,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-server",
+      "seconds": 16.8,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::flight-metadata",
+      "seconds": 57.6,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-worker",
+      "seconds": 392.76,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::grpc-faults",
+      "seconds": 268.63,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "test::http-worker",
+      "seconds": 604.27,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "examples::http",
+      "seconds": 40.38,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "growth",
+      "task": "examples::grpc",
+      "seconds": 48.78,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "experience",
+      "task": "transit-board::check",
+      "seconds": 77.53,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "transit-docs::check",
+      "seconds": 63.65,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "bindings::node-check",
+      "seconds": 10.39,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "test::observability",
+      "seconds": 13.83,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "test::server-sql",
+      "seconds": 488.8,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "transit-board::test",
+      "seconds": 11.49,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "transit-board::query-test",
+      "seconds": 322.57,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "experience",
+      "task": "launchers::local::test-station",
+      "seconds": 291.57,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "launchers",
+      "task": "test::build",
+      "seconds": 35.09,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "launchers",
+      "task": "launchers::local::test",
+      "seconds": 348.59,
+      "exit_code": 0,
+      "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::check",
+      "seconds": 17.52,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::native",
+      "seconds": 406.47,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::python-test",
+      "seconds": 2358.58,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::node-sdk-test",
+      "seconds": 2210.55,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::logical-test",
+      "seconds": 40.15,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::rust-sdk-test",
+      "seconds": 2188.15,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::ruby-sdk-test",
+      "seconds": 2207.71,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::sdk-interop",
+      "seconds": 1340.29,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::authorization",
+      "seconds": 948.11,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "test::model",
+      "seconds": 7.46,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "test::model-delivery",
+      "seconds": 2.11,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "test::sql-rewrites",
+      "seconds": 2.6,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "test::sql",
+      "seconds": 20.98,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::grpc-faults",
+      "seconds": 174.06,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-1",
+      "task": "bindings::connector-preparation",
+      "seconds": 50.07,
+      "exit_code": 0,
+      "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a"
+    },
+    {
+      "lane": "bindings-2",
+      "task": "bindings::c-sdk-test",
+      "seconds": 3856.48,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "bindings-2",
+      "task": "bindings::java-sdk-test",
+      "seconds": 2144.02,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "bindings-2",
+      "task": "bindings::dotnet-sdk-test",
+      "seconds": 2014.94,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    },
+    {
+      "lane": "bindings-2",
+      "task": "bindings::beam-sdk-test",
+      "seconds": 3956.35,
+      "exit_code": 0,
+      "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56"
+    }
+  ],
+  "runs": [
+    {
+      "lane": "core",
+      "metadata": {
+        "version": 1,
+        "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+        "tier": "core",
+        "expected_tasks": [
+          "check-core",
+          "test::properties",
+          "test::simulation",
+          "test::resource-simulation-smoke",
+          "test::scheduler-simulation",
+          "test::domain-simulation",
+          "test::vortex",
+          "test::codecs",
+          "test::dev-environment",
+          "test::kubectl-transit",
+          "test::deployments",
+          "test::telemetry",
+          "test::packages-build",
+          "bindings::zig-test",
+          "bindings::runtime-boundary",
+          "test::sql-wire-contracts",
+          "test::compute",
+          "test::client-abi",
+          "test::station",
+          "test::storage",
+          "test::service",
+          "test::authorization",
+          "test::authorization-cli",
+          "test::authorization-tables",
+          "test::runtime-upgrade",
+          "test::callers",
+          "test::inspection",
+          "test::state"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 1606.02,
+        "checkpoint_unix": 1792268258.5044434,
+        "result_count": 28
+      },
+      "evidence_directory": ".cache/ci/clean/ca90c312cd69-transit-ci-x7znci59",
+      "log": {
+        "name": "rey-sql-ci-clean-core.log",
+        "sha256": "1d74a1d8325e54e23e8c24b4907de98379ba57d5e8ba63ecb543cd3997cbcbed",
+        "bytes": 35484
+      }
+    },
+    {
+      "lane": "growth",
+      "metadata": {
+        "version": 1,
+        "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+        "tier": "growth",
+        "expected_tasks": [
+          "test::arrow",
+          "test::fuze-types",
+          "test::fuze-sources",
+          "test::file-query",
+          "test::logical-arrow",
+          "test::logical-codec",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::table-query-writer",
+          "test::catalog",
+          "test::typed-tables",
+          "test::sql-gateway",
+          "test::sql-wire-gateway",
+          "test::relational-callers",
+          "test::relational-maintenance",
+          "test::relational-exchanges",
+          "test::named-relational",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 15606.29,
+        "checkpoint_unix": 1792287861.4961627,
+        "result_count": 32
+      },
+      "evidence_directory": ".cache/ci/clean/51ad5c651b69-transit-ci-mc8uzn1u",
+      "log": {
+        "name": "rey-sql-ci-clean-growth.log",
+        "sha256": "533bb16070a5dbc79d0cd7a4130e291522542e8391630957677f64c0c97535d7",
+        "bytes": 119114
+      }
+    },
+    {
+      "lane": "experience",
+      "metadata": {
+        "version": 1,
+        "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+        "tier": "experience",
+        "expected_tasks": [
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "test::server-sql",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 1279.84,
+        "checkpoint_unix": 1792291221.8262002,
+        "result_count": 8
+      },
+      "evidence_directory": ".cache/ci/clean/12c7ba3dd798-transit-ci-72bvdr83",
+      "log": {
+        "name": "rey-sql-ci-clean-experience-final.log",
+        "sha256": "ab1a77fa04a629774aa1b84d427e83f734bb8ce06f5572dec21cf2e2a93f3e32",
+        "bytes": 32199
+      }
+    },
+    {
+      "lane": "launchers",
+      "metadata": {
+        "version": 1,
+        "revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+        "tier": "launchers",
+        "expected_tasks": [
+          "test::build",
+          "launchers::local::test"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 383.68,
+        "checkpoint_unix": 1792289923.031219,
+        "result_count": 2
+      },
+      "evidence_directory": ".cache/ci/clean/12c7ba3dd798-transit-ci-qufm_rfo",
+      "log": {
+        "name": "rey-sql-ci-clean-launchers.log",
+        "sha256": "255baa66fb70c4639ea48b8b6e8e82aed06a84571b90dec4d1812a20f3ef9429",
+        "bytes": 8564
+      }
+    },
+    {
+      "lane": "bindings-1",
+      "metadata": {
+        "version": 1,
+        "revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+        "tier": "bindings-1",
+        "expected_tasks": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::logical-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::sdk-interop",
+          "bindings::authorization",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 11974.83,
+        "checkpoint_unix": 1792292551.9175932,
+        "result_count": 15
+      },
+      "evidence_directory": ".cache/ci/clean/51ad5c651b69-transit-ci-r5cqn4su",
+      "log": {
+        "name": "rey-sql-ci-clean-bindings-1.log",
+        "sha256": "e5566d31bf2fd09cf502e0394ebd6cdb83925a0550b9fe2fb338b3bdf1f3a316",
+        "bytes": 540371
+      }
+    },
+    {
+      "lane": "bindings-2",
+      "metadata": {
+        "version": 1,
+        "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+        "tier": "bindings-2",
+        "expected_tasks": [
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test"
+        ],
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "runner": null,
+          "runner_arch": null
+        },
+        "completed": true,
+        "active_task": null,
+        "seconds": 11971.8,
+        "checkpoint_unix": 1792279800.1495888,
+        "result_count": 4
+      },
+      "evidence_directory": ".cache/ci/clean/ca90c312cd69-transit-ci-l2c2tz97",
+      "log": {
+        "name": "rey-sql-ci-clean-bindings-2.log",
+        "sha256": "fe7725cd1ea7de2de15efb27d84a0838b59d5e600c81cba4f6baf73a96008646",
+        "bytes": 531169
+      }
+    }
+  ],
+  "definition": "1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10",
+  "bundle": "/nix/store/lzaflbxp3njr0mf58mz88pxv7zbrpr20-transit-local-0.1.0",
+  "artifacts": {
+    "zig-out/local-sql-final/bin/transit": "ec63b79eea4ed532a73cb8206eca30379cd52f8af14016c1ae1b77ad203568de",
+    "zig-out/local-sql-final/bin/transit-node": "1a55e74c5c9c09ece0aee48ada52d98249728b595c5729676ae5df29d68515f4",
+    "zig-out/local-sql-final/bin/transit-query-host": "4d24309f27a1cf1c47f292d903014f45f731f02e486d89d0964e9ea3a19cbdd2",
+    "zig-out/local-sql-final/bin/transit-board": "806d3cc2a6ada68ecf14dcd0a9c5f46262f728112a554539b09e1b1aeaf42398",
+    "zig-out/local-sql-final/bin/transit-sql-gateway": "066772090100664d31aa794e3c7369c25fa9125b9a8a57f0997bbfacdf13c171",
+    "flake.lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "tests/verification/suite.json": "d6f9e2745e9391a991c07eefc04793e44fe985fec6ab5305ababbc684ce08c27"
+  },
+  "installed_artifacts": {
+    "transit": "7fa0e51c16522f61a05680076a52a9deacb7dbf78eac09f9f2fe1fbeb647022d",
+    "transit-node": "ea70fca21667e26c9c05ef40f221a981d19c9a86def12cbe8de8a4bd3ee4cdcd",
+    "transit-query-host": "fe8c7e5420d704845f7619cfd74337f4d9ced51541a15015f84ae1df9f52e10a",
+    "transit-board": "cd0e10357cf00bb02c0a7cb8c9bd723ad93a21bf0ea3b1b2b83b9574f9ba16be",
+    "transit-sql-gateway": "9e0eb3e6ac3ab828abfbd891f16b4878bf05bce867324248a8c104a6bdbca22c"
+  },
+  "focused_passes": [
+    {
+      "name": "final-check",
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "just",
+        "check"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 188.474,
+      "log": {
+        "name": "rey-sql-final-check.log",
+        "sha256": "ad2b8280d48c22e7a04cd8337f496a97a55dde9f45d7befde11e6cd86a72b430",
+        "bytes": 20241
+      }
+    },
+    {
+      "name": "final-build",
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "zig",
+        "build",
+        "transit",
+        "transit-node",
+        "transit-query-host",
+        "transit-board",
+        "transit-sql-gateway",
+        "test-cli-lifecycle",
+        "-Doptimize=ReleaseSafe",
+        "--prefix",
+        "zig-out/local-sql-final"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 180.762,
+      "log": {
+        "name": "rey-sql-final-build.log",
+        "sha256": "9564723685a41ed4f88574db15ac1f96dcb66293171f49f3e5722e61fa37a282",
+        "bytes": 1570
+      }
+    },
+    {
+      "name": "final-source-sql",
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "python3",
+        "-B",
+        "tests/server_sql.py",
+        "/home/alex/workspace/rupurt/rey/zig-out/local-sql-final/bin/transit",
+        "/home/alex/workspace/rupurt/rey/zig-out/local-sql-final/bin/transit-node",
+        "/home/alex/workspace/rupurt/rey/zig-out/local-sql-final/bin/transit-query-host",
+        "/home/alex/workspace/rupurt/rey/zig-out/local-sql-final/bin/transit-board",
+        "/home/alex/workspace/rupurt/rey/zig-out/local-sql-final/bin/transit-sql-gateway"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 335.059,
+      "log": {
+        "name": "rey-sql-final-source.log",
+        "sha256": "74976d95ff9a2db25f594d180c4f9c9fec2decb4dc0e743edae0fa621252202d",
+        "bytes": 942
+      }
+    },
+    {
+      "name": "final-bundle",
+      "command": [
+        "nix",
+        "build",
+        ".#transit-local",
+        "--out-link",
+        ".cache/transit-sql-package-final"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 383.643,
+      "log": {
+        "name": "rey-sql-final-bundle.log",
+        "sha256": "5ce96939686a005612b5c70b1137102c034fad1ee238a982b98d3b02f8b6a026",
+        "bytes": 6063
+      }
+    },
+    {
+      "name": "final-installed-sql",
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "python3",
+        "-B",
+        "tests/server_sql.py",
+        "--bundle",
+        ".cache/transit-sql-package-final"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 359.748,
+      "log": {
+        "name": "rey-sql-final-installed.log",
+        "sha256": "9ddc68ab2b85a3b82c31aa603decca690ea5c179d420bc44960052482beafaa7",
+        "bytes": 941
+      }
+    },
+    {
+      "name": "final-installed-faults",
+      "command": [
+        "nix",
+        "develop",
+        "--offline",
+        "--command",
+        "python3",
+        "-B",
+        "tests/server_sql_faults.py",
+        "/home/alex/workspace/rupurt/rey/.cache/transit-sql-package-final/bin/transit",
+        "/home/alex/workspace/rupurt/rey/.cache/transit-sql-package-final/bin/transit-node",
+        "/home/alex/workspace/rupurt/rey/.cache/transit-sql-package-final/bin/transit-query-host",
+        "/home/alex/workspace/rupurt/rey/.cache/transit-sql-package-final/bin/transit-board",
+        "/home/alex/workspace/rupurt/rey/.cache/transit-sql-package-final/bin/transit-sql-gateway"
+      ],
+      "runtime_revision": "12c7ba3dd798eb3c3b71206c7c1c52710815a596",
+      "exit_code": 0,
+      "elapsed_seconds": 37.154,
+      "log": {
+        "name": "rey-sql-final-faults.log",
+        "sha256": "911607491e7a4f433f1d920bf3d74ba30192cc5d7969f2121058b57ac1878843",
+        "bytes": 416
+      }
+    },
+    {
+      "name": "local_server_faults",
+      "command": "tests/server.py --faults with the compiled source bundle",
+      "runtime_revision": "4e14175242ffef5eeb2d6bfcf3741127158b26b1",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-server-qualified.log",
+        "sha256": "69acd00542e52eb48b56c565d5861a3cd4e5ae208807bd9db194eded765e5eea",
+        "bytes": 1941
+      }
+    },
+    {
+      "name": "application_lifecycle",
+      "command": "tests/server_applications.py with the real work-items example",
+      "runtime_revision": "4e14175242ffef5eeb2d6bfcf3741127158b26b1",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-applications-qualified.log",
+        "sha256": "bc8a5a79e5db570de60c85854006da478bf58f8e2c8a81b72585f86150f4a5a5",
+        "bytes": 390
+      }
+    },
+    {
+      "name": "application_faults",
+      "command": "tests/server_application_faults.py with fault peer from a2ca3ede and the real example",
+      "runtime_revision": "4e14175242ffef5eeb2d6bfcf3741127158b26b1",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-application-faults-admission.log",
+        "sha256": "ecf4252899bc20e6ca86154728bb5e588a8c835e0e1ce202290efce780de216f",
+        "bytes": 241
+      }
+    },
+    {
+      "name": "corrected_sql_settings_fixture",
+      "command": "tests/sql_wire/gateway.py with ca90c312 binaries and the corrected settings slice",
+      "runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+      "fixture_revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-wire-settings-fixed.log",
+        "sha256": "a2ce0b2810ed7007d6f4594abbcb850f99c5298e641c52cd43cab0750efbbf52",
+        "bytes": 192
+      }
+    }
+  ],
+  "earlier_sql_passes": [
+    {
+      "name": "repository_check",
+      "command": "nix develop --command just check",
+      "runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-check-bounded.log",
+        "sha256": "8bfa40df6b3caa3b28b4cc5f72d50c8aab2ab6f7c2db8e9b00d3909a2a72562b",
+        "bytes": 20048
+      }
+    },
+    {
+      "name": "source_sql",
+      "command": "tests/server_sql.py with the compiled source bundle",
+      "runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-source-bounded.log",
+        "sha256": "cc4e655d19d8e30cfc51f11b5b9391d112103a0b6eb48da7211aa273c64a007f",
+        "bytes": 941
+      }
+    },
+    {
+      "name": "installed_sql",
+      "command": "tests/server_sql.py --bundle .cache/transit-sql-package",
+      "runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-installed-bounded.log",
+        "sha256": "9cde8cb19940f33600f469c7ea7a048ee8af5518b438a7592e822cf95d8c3535",
+        "bytes": 941
+      }
+    },
+    {
+      "name": "installed_setup_faults",
+      "command": "tests/server_sql_faults.py with installed bundle binaries",
+      "runtime_revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+      "exit_code": 0,
+      "log": {
+        "name": "rey-sql-faults-bounded.log",
+        "sha256": "23a07cb874ff82150e4367e935b9181b4e594fa267d0a4e777f195664977351c",
+        "bytes": 416
+      }
+    }
+  ],
+  "workflow_observations": {
+    "source_sql_seconds": 329.869,
+    "installed_sql_seconds": 354.678,
+    "clean_sql_seconds": 278.718,
+    "installed_setup_fault_seconds": 37.154
+  },
+  "focused_scope": "The final SQL supervisor is 12c7ba3d. Relative to 51ad5c65 it changes only temporary account-path allocation lifetime in Sql.zig: paths use the existing per-tick arena, not the server-cycle arena. Durable requests, generations, authorization and all shared runtime/protocol/SDK source are unchanged. Final repository checks, source and installed SQL workflows, installed setup faults and clean launcher/experience lanes run at 12c7ba3d. Earlier core-server/application regressions use 4e141752; their SQL-disabled scope is unchanged by these SQL-only lifetime corrections. The application fault peer preserves native admission headers at a2ca3ede and the original observation budget.",
+  "recorded_at": "2026-10-18T03:02:47.640926+00:00",
+  "toolchain": {
+    "zig": "0.17.0-dev.2267+48abf1a34",
+    "openssl": "3.6.4",
+    "psql": "18.6",
+    "mysql": "8.4.11",
+    "vp": "0.3.3",
+    "flake_lock": {
+      "path": "flake.lock",
+      "sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264"
+    }
+  },
+  "earlier_sql_observations": {
+    "revision": "ca90c312cd69d0ee06a3ecba3f7fad0274c95f56",
+    "source_sql_seconds": 297.64,
+    "installed_sql_seconds": 349.969,
+    "clean_sql_seconds": 277.9,
+    "installed_setup_fault_seconds": 37.444
+  },
+  "earlier_regression_observations": {
+    "revision": "4e14175242ffef5eeb2d6bfcf3741127158b26b1",
+    "earlier_server_seconds": 85.24,
+    "earlier_server_fault_seconds": 45.8,
+    "earlier_application_seconds": 994.076,
+    "earlier_application_fault_seconds": 153.78
+  },
+  "failed_attempts": [
+    {
+      "scope": "Final installed bundle build with offline substitutions",
+      "result": "failed",
+      "cause": "Required pinned build dependencies were not cached; GNU source mirror downloads returned HTTP 403.",
+      "correction": "Retry the same committed source and lockfile with normal Nix substitution/network access; retain prior successful checks.",
+      "log": {
+        "name": "rey-sql-final-bundle-attempt1.log",
+        "sha256": "4c1486f2a741cef63b459fc1f5274a3186f22fc6200b344d01e1374ffa1ab9ca",
+        "bytes": 108142
+      }
+    },
+    {
+      "scope": "Earlier clean SQL wire contract check",
+      "result": "failed",
+      "cause": "The independent SQL records/controls generator retained the preceding definition.",
+      "correction": "d604f605 updates the generator; final clean core lane passes its owning recipe."
+    },
+    {
+      "scope": "First growth lane at ca90c312",
+      "result": "failed",
+      "cause": "The isolated configuration fixture omitted the mandatory sql_gateway executable and rejected before database sessions.",
+      "correction": "51ad5c65 changes only tests/sql_wire/settings.py; focused settings and full clean growth are rerun.",
+      "log": {
+        "name": "rey-sql-ci-clean-growth-attempt1.log",
+        "sha256": "edcdb9677903f176fd4b9e41cd8cc62f2de8d3d2e6fe69080b83ff9483531911",
+        "bytes": 61428
+      }
+    },
+    {
+      "scope": "Earlier application fault observations",
+      "result": "failed",
+      "cause": "The fault peer dropped native control/wait admission headers, exhausting ordinary request capacity.",
+      "correction": "a2ca3ede preserves those headers; the complete fault proof passes with the original 40-second observation budget."
+    },
+    {
+      "scope": "Earlier application readiness observation",
+      "result": "failed",
+      "cause": "An initial role-readiness observation timed out.",
+      "correction": "A later complete canonical proof passes; no isolated root-cause correction is claimed for this attempt."
+    }
+  ],
+  "interruptions": [
+    {
+      "result": "incomplete",
+      "scope": "Earlier all-lane attempts were stopped to qualify subsequent runtime and fixture corrections.",
+      "evidence": "Metadata retained in .cache/ci/interrupted-local-sql; no enclosing pass is claimed."
+    }
+  ],
+  "limits": [
+    "Local Linux x86_64 functional observations, not latency or throughput guarantees.",
+    "The existing autocommit SQL/type profile is unchanged; no general ORM, transaction or remote exposure claim.",
+    "Installed proofs use the recorded Nix bundle and runtime revision, before the final documentation/evidence commit.",
+    "Clean qualification composes complete canonical lane invocations with exact per-task revisions; it is not one uninterrupted all-lanes invocation.",
+    "The application/core-server focused observations use their recorded earlier runtime revision; final-runtime SQL evidence is separate.",
+    "No hosted timing, arbitrary filesystem power-loss or distributed activation qualification.",
+    "The separate browser lane is outside the 89-recipe ordinary inventory."
+  ],
+  "continuation_helpers": [
+    {
+      "name": "rey-sql-clean-queue.py",
+      "sha256": "d07255eaaa84d5b90d4922d4a36a97a24f874edc1d003c8ebfb8d7c8ba0c835c",
+      "bytes": 1789
+    },
+    {
+      "name": "rey-sql-clean-queue-fixed.py",
+      "sha256": "f705c14db9a2442c52c203d68980041887ee34ab52a7f6cc9ce0cb7f431833a2",
+      "bytes": 1789
+    },
+    {
+      "name": "rey-sql-clean-queue-guarded.py",
+      "sha256": "c02ca6e7f56dad3e5a46d603c9490724e5dcf4730d9fbfdcae9bf361e42c874e",
+      "bytes": 2642
+    },
+    {
+      "name": "rey-sql-final-runtime-queue.py",
+      "sha256": "587910f8703ae9feaa4f2b1b203782d15069f7cb6d800b7e171901699cb777c6",
+      "bytes": 3324
+    },
+    {
+      "name": "rey-sql-final-runtime-resume.py",
+      "sha256": "d7fb7b683b451bc544d03106718c5252afe09060b67403ff24690a9a1e9f7699",
+      "bytes": 3526
+    },
+    {
+      "name": "rey-sql-collect-final-runtime.py",
+      "sha256": "e27c40d9b4218e46a657486ae18148713cd701d19c2c07fe34e24441de666559",
+      "bytes": 3685
+    },
+    {
+      "name": "rey-sql-collect-clean.py",
+      "sha256": "67b80f77864adabfa27245d98a9f3bce134c1977cf92a42b39164a3d7bca8c10",
+      "bytes": 4096
+    }
+  ],
+  "scope_scheduling": "At most two proof runs are active. The bindings-1 continuation starts only after bindings-2 passes and the original 40 KiB SQL operation completes. The final SQL lifetime checks and clean launcher/experience lanes start after growth completes, alongside the existing SDK lane. No running recipe, deadline or operation is paused or resubmitted.",
+  "wire_profiles": [
+    {
+      "profile": "database_wire_encoding",
+      "rows_per_sample": 10000,
+      "columns": 7,
+      "warmups": 1,
+      "repetitions": 5,
+      "optimize": "safe",
+      "samples": [
+        {
+          "path": "postgres_text",
+          "milliseconds": [
+            32.206376,
+            31.57062,
+            31.469575,
+            32.994867,
+            31.603102
+          ],
+          "framed_bytes": 5948890
+        },
+        {
+          "path": "postgres_binary",
+          "milliseconds": [
+            21.123577,
+            21.134779,
+            21.515022,
+            20.919284,
+            20.784243
+          ],
+          "framed_bytes": 3420000
+        },
+        {
+          "path": "mysql_text",
+          "milliseconds": [
+            11.510674,
+            11.283726,
+            10.95384,
+            11.131462,
+            12.103227
+          ],
+          "framed_bytes": 3148890
+        },
+        {
+          "path": "mysql_binary",
+          "milliseconds": [
+            8.922743,
+            9.048814,
+            8.94779,
+            8.894358,
+            9.14495
+          ],
+          "framed_bytes": 3080000
+        }
+      ],
+      "limits": "Six scalar types plus NULL; signed values vary by row, binary covers all 256 byte values. Includes scalar validation, formatting, framed-row construction and allocator work. Reuses each backend buffer; output escapes optimization. Excludes metadata, TLS, sockets, authority and storage. Framed bytes are database-protocol application bytes, not network traffic. Local observations, not a throughput or latency guarantee."
+    },
+    {
+      "profile": "database_wire_client",
+      "client": "libpq",
+      "seconds": 174.577,
+      "deadline_seconds": 600
+    },
+    {
+      "profile": "database_wire_client",
+      "client": "libmysqlclient",
+      "seconds": 173.628,
+      "deadline_seconds": 600
+    },
+    {
+      "profile": "database_wire_selected_role",
+      "set_only": true,
+      "revoked_sessions": true,
+      "revoked_logins": true,
+      "raw_reader_denied": true
+    },
+    {
+      "profile": "database_wire_valid_write_cycle",
+      "seconds": 20.993,
+      "client_wait_seconds": 300,
+      "sql_wait_seconds": 270
+    },
+    {
+      "profile": "database_wire_detached_write",
+      "seconds": 36.386,
+      "client_wait_seconds": 300
+    },
+    {
+      "profile": "database_wire_faults",
+      "deferred_write_cycles": true,
+      "suspended_cancel": true,
+      "detached_write": true,
+      "invalid_connections": 10,
+      "native_revocation": true,
+      "revoked_metadata_suppressed": true,
+      "revoked_terminal_suppressed": true,
+      "credential_rotation": true,
+      "credential_cli": true,
+      "native_identity_binding": true
+    },
+    {
+      "profile": "database_wire_authority",
+      "administrator": 1234,
+      "table_principal": 1235,
+      "prepared_revocation": true,
+      "read_only_writes_rejected_before_admission": true,
+      "reads_preserved": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_certificate_rotation",
+      "both_protocols": true,
+      "old_trust_rejected": true,
+      "new_trust_verified": true
+    },
+    {
+      "profile": "database_wire_measurement",
+      "source_revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+      "tracked_changes": false,
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+      "available_cpus": 48,
+      "rows": 4,
+      "selected_rows": 1,
+      "warmups": 1,
+      "repetitions": 5,
+      "unit": "ms",
+      "samples": {
+        "native_process": [
+          316.574,
+          369.177,
+          277.822,
+          298.63,
+          267.153
+        ],
+        "postgres_literal": [
+          3764.372,
+          3605.585,
+          3582.52,
+          3559.476,
+          3796.359
+        ],
+        "postgres_prepared": [
+          3218.059,
+          3172.344,
+          3264.567,
+          3189.513,
+          3154.973
+        ],
+        "mysql_literal": [
+          2861.592,
+          2857.444,
+          2768.328,
+          2590.062,
+          2734.552
+        ],
+        "mysql_prepared": [
+          2755.785,
+          2801.082,
+          2810.213,
+          2929.293,
+          2798.151
+        ]
+      },
+      "median": {
+        "native_process": 298.63,
+        "postgres_literal": 3605.585,
+        "postgres_prepared": 3189.513,
+        "mysql_literal": 2768.328,
+        "mysql_prepared": 2801.082
+      },
+      "limits": "Native includes a fresh process and compilation; drivers retain a connection and prepared handles. Sequential local observations include authority and TLS costs; other proof/build tasks may compete for resources. No throughput, speedup or production latency claim."
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "begin",
+      "variable_bytes": 40960
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "wait_ended",
+      "seconds": 271.032
+    },
+    {
+      "profile": "database_wire_large_row",
+      "phase": "complete",
+      "seconds": 3354.186,
+      "wire_completion": false,
+      "operator_count_verified": true,
+      "sql_attempts": 1
+    },
+    {
+      "profile": "database_wire_values",
+      "utf8_bytes": 4096,
+      "binary_bytes": 4096,
+      "variable_bytes_per_row": 40960,
+      "all_ten_cells_verified": true,
+      "oversized_binding_rejected": true,
+      "defaults_and_null": true,
+      "required_rejection": true,
+      "literal_relational": true,
+      "stale_cancel": true,
+      "fragmented_query": true
+    },
+    {
+      "profile": "database_wire_schema",
+      "external_principal": 1234,
+      "alter_invalidates": true,
+      "drop_invalidates": true,
+      "name_reuse_invalidates": true,
+      "both_protocols": true
+    },
+    {
+      "profile": "database_wire_phases",
+      "unit": "ms",
+      "samples": {
+        "postgres_connect": [
+          190.993,
+          260.217,
+          249.635,
+          217.7,
+          198.11
+        ],
+        "mysql_connect": [
+          1161.254,
+          1121.791,
+          1202.9,
+          1167.417,
+          1162.853
+        ],
+        "postgres_prepare": [
+          692.726,
+          678.406,
+          793.167,
+          704.769,
+          648.338
+        ],
+        "mysql_prepare": [
+          1232.444,
+          1296.421,
+          1270.879,
+          1232.043,
+          1211.841
+        ],
+        "postgres_first_row": [
+          3677.286,
+          3866.079,
+          3891.653,
+          3818.39,
+          3949.998
+        ],
+        "postgres_complete": [
+          6245.334,
+          6404.041,
+          6576.58,
+          6457.377,
+          6547.729
+        ],
+        "mysql_first_row": [
+          3376.329,
+          3391.45,
+          3470.702,
+          3548.624,
+          3578.946
+        ],
+        "mysql_complete": [
+          5284.109,
+          5386.367,
+          5486.45,
+          5531.304,
+          5547.149
+        ],
+        "postgres_write": [
+          25938.446,
+          28509.822,
+          28749.416,
+          31366.598,
+          29628.323
+        ],
+        "mysql_write": [
+          27115.098,
+          27917.337,
+          27929.016,
+          29677.437,
+          29725.648
+        ]
+      },
+      "median": {
+        "postgres_connect": 217.7,
+        "mysql_connect": 1162.853,
+        "postgres_prepare": 692.726,
+        "mysql_prepare": 1232.444,
+        "postgres_first_row": 3866.079,
+        "postgres_complete": 6457.377,
+        "mysql_first_row": 3470.702,
+        "mysql_complete": 5486.45,
+        "postgres_write": 28749.416,
+        "mysql_write": 27929.016
+      },
+      "gateway_memory_kib": {
+        "VmRSS": 63424,
+        "VmHWM": 67464
+      },
+      "warmups": 1,
+      "repetitions": 5,
+      "rows": 4,
+      "limits": "Connect includes verified TLS, authentication and driver startup. Preparation excludes execution. First-row/complete use raw PostgreSQL frames and unbuffered Connector/Python, including driver and transport work. Writes include durable admission and observed completion. RSS is a Linux process sample; HWM covers this activation, not an allocator bound. Timings are sequential local observations, not an SLO or an encoding-only benchmark."
+    },
+    {
+      "profile": "database_wire_native_costs",
+      "observations": [
+        {
+          "path": "idle_100ms",
+          "elapsed_ms": 100.122,
+          "counters": {
+            "attempts": 2,
+            "POST": 1,
+            "request_bytes": 396,
+            "read:process": 1,
+            "principal:2000": 1,
+            "principal:2000:read:process": 1,
+            "elapsed_ns": 8670952,
+            "POST:elapsed_ns": 8670952,
+            "work:wait_ns": 511,
+            "work:work_ns": 8041489,
+            "work:cache_hits": 255,
+            "work:cache_misses": 14,
+            "work:provider:requests": 16,
+            "work:provider:elapsed_ns": 4028311,
+            "work:provider:response_bytes": 18662,
+            "work:responses": 1,
+            "read:process:elapsed_ns": 8670952,
+            "principal:2000:read:process:elapsed_ns": 8670952,
+            "response_bytes": 459,
+            "status:200": 1
+          }
+        },
+        {
+          "path": "native_process",
+          "elapsed_ms": 526.32,
+          "counters": {
+            "attempts": 30,
+            "POST": 31,
+            "request_bytes": 23872,
+            "read:process": 1,
+            "elapsed_ns": 671229331,
+            "POST:elapsed_ns": 671229331,
+            "work:wait_ns": 282463170,
+            "work:work_ns": 368030609,
+            "work:cache_hits": 15385,
+            "work:cache_misses": 459,
+            "work:provider:requests": 535,
+            "work:provider:elapsed_ns": 153601341,
+            "work:provider:response_bytes": 754809,
+            "work:responses": 31,
+            "read:process:elapsed_ns": 10873163,
+            "response_bytes": 39851,
+            "status:200": 31,
+            "principal:2003": 7,
+            "principal:2003:read:process": 1,
+            "principal:2003:read:process:elapsed_ns": 10873163,
+            "read:resource": 1,
+            "principal:2003:read:resource": 1,
+            "read:resource:elapsed_ns": 16101073,
+            "principal:2003:read:resource:elapsed_ns": 16101073,
+            "read:entries": 5,
+            "principal:2003:read:entries": 5,
+            "read:entries:elapsed_ns": 150211611,
+            "principal:2003:read:entries:elapsed_ns": 150211611,
+            "read:authorization": 9,
+            "read:authorization:elapsed_ns": 166851161,
+            "read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 15254312,
+            "principal:1234": 24,
+            "principal:1234:read:capabilities": 1,
+            "principal:1234:read:capabilities:elapsed_ns": 15254312,
+            "read:snapshot_read": 14,
+            "snapshot_open": 1,
+            "principal:1234:read:snapshot_read": 14,
+            "read:snapshot_read:elapsed_ns": 311938011,
+            "principal:1234:read:snapshot_read:elapsed_ns": 311938011,
+            "principal:1234:read:authorization": 9,
+            "principal:1234:read:authorization:elapsed_ns": 166851161,
+            "snapshot_finish": 1
+          }
+        },
+        {
+          "path": "postgres_literal",
+          "elapsed_ms": 4675.968,
+          "counters": {
+            "attempts": 319,
+            "POST": 319,
+            "request_bytes": 232786,
+            "read:process": 18,
+            "principal:2000": 4,
+            "principal:2000:read:process": 4,
+            "elapsed_ns": 5222472780,
+            "POST:elapsed_ns": 5222472780,
+            "work:wait_ns": 1921624791,
+            "work:work_ns": 3106748600,
+            "work:cache_hits": 176346,
+            "work:cache_misses": 3284,
+            "work:provider:requests": 3936,
+            "work:provider:elapsed_ns": 1047696886,
+            "work:provider:response_bytes": 5306400,
+            "work:responses": 319,
+            "read:process:elapsed_ns": 302498545,
+            "principal:2000:read:process:elapsed_ns": 95788999,
+            "response_bytes": 252984,
+            "status:200": 319,
+            "principal:2003": 28,
+            "principal:2003:read:process": 4,
+            "principal:2003:read:process:elapsed_ns": 107524722,
+            "read:resource": 4,
+            "principal:2003:read:resource": 4,
+            "read:resource:elapsed_ns": 87176234,
+            "principal:2003:read:resource:elapsed_ns": 87176234,
+            "read:entries": 27,
+            "principal:2003:read:entries": 20,
+            "read:entries:elapsed_ns": 644750289,
+            "principal:2003:read:entries:elapsed_ns": 511796819,
+            "read:authorization": 147,
+            "principal:1235": 49,
+            "principal:1235:read:authorization": 49,
+            "read:authorization:elapsed_ns": 2219778608,
+            "principal:1235:read:authorization:elapsed_ns": 543540950,
+            "read:capabilities": 1,
+            "principal:2004": 228,
+            "principal:2004:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 16206536,
+            "principal:2004:read:capabilities:elapsed_ns": 16206536,
+            "read:read_entries": 108,
+            "principal:2004:read:read_entries": 108,
+            "read:read_entries:elapsed_ns": 1611300491,
+            "principal:2004:read:read_entries:elapsed_ns": 1611300491,
+            "principal:2004:read:authorization": 98,
+            "principal:2004:read:authorization:elapsed_ns": 1676237658,
+            "principal:2001": 10,
+            "principal:2001:read:process": 10,
+            "principal:2001:read:process:elapsed_ns": 99184824,
+            "read:snapshot_read": 14,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 340762077,
+            "snapshot_finish": 1,
+            "principal:2004:read:entries": 7,
+            "principal:2004:read:entries:elapsed_ns": 132953470,
+            "principal:2004:read:snapshot_read": 14,
+            "principal:2004:read:snapshot_read:elapsed_ns": 340762077
+          }
+        },
+        {
+          "path": "postgres_prepared",
+          "elapsed_ms": 4900.35,
+          "counters": {
+            "attempts": 325,
+            "POST": 325,
+            "request_bytes": 236896,
+            "read:process": 19,
+            "principal:2000": 4,
+            "principal:2000:read:process": 4,
+            "elapsed_ns": 5365451469,
+            "POST:elapsed_ns": 5365451469,
+            "work:wait_ns": 1936979980,
+            "work:work_ns": 3216370874,
+            "work:cache_hits": 179189,
+            "work:cache_misses": 3358,
+            "work:provider:requests": 4022,
+            "work:provider:elapsed_ns": 1074470280,
+            "work:provider:response_bytes": 5415866,
+            "work:responses": 325,
+            "read:process:elapsed_ns": 278759761,
+            "principal:2000:read:process:elapsed_ns": 63034419,
+            "response_bytes": 255744,
+            "status:200": 325,
+            "principal:2003": 28,
+            "principal:2003:read:process": 4,
+            "principal:2003:read:process:elapsed_ns": 94946827,
+            "read:resource": 4,
+            "principal:2003:read:resource": 4,
+            "read:resource:elapsed_ns": 93667638,
+            "principal:2003:read:resource:elapsed_ns": 93667638,
+            "read:entries": 27,
+            "principal:2003:read:entries": 20,
+            "read:entries:elapsed_ns": 653370165,
+            "principal:2003:read:entries:elapsed_ns": 533078538,
+            "read:authorization": 151,
+            "principal:1235": 51,
+            "principal:1235:read:authorization": 51,
+            "read:authorization:elapsed_ns": 2174476665,
+            "principal:1235:read:authorization:elapsed_ns": 562424750,
+            "read:capabilities": 1,
+            "principal:2004": 231,
+            "principal:2004:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 4321039,
+            "principal:2004:read:capabilities:elapsed_ns": 4321039,
+            "read:read_entries": 109,
+            "principal:2004:read:read_entries": 109,
+            "read:read_entries:elapsed_ns": 1797074711,
+            "principal:2004:read:read_entries:elapsed_ns": 1797074711,
+            "principal:2004:read:authorization": 100,
+            "principal:2004:read:authorization:elapsed_ns": 1612051915,
+            "principal:2001": 11,
+            "principal:2001:read:process": 11,
+            "principal:2001:read:process:elapsed_ns": 120778515,
+            "read:snapshot_read": 14,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 363781490,
+            "snapshot_finish": 1,
+            "principal:2004:read:entries": 7,
+            "principal:2004:read:entries:elapsed_ns": 120291627,
+            "principal:2004:read:snapshot_read": 14,
+            "principal:2004:read:snapshot_read:elapsed_ns": 363781490
+          }
+        },
+        {
+          "path": "mysql_literal",
+          "elapsed_ms": 3632.542,
+          "counters": {
+            "attempts": 241,
+            "POST": 241,
+            "request_bytes": 176229,
+            "read:process": 14,
+            "principal:2000": 3,
+            "principal:2000:read:process": 3,
+            "elapsed_ns": 4014378909,
+            "POST:elapsed_ns": 4014378909,
+            "work:wait_ns": 1452894187,
+            "work:work_ns": 2406958569,
+            "work:cache_hits": 134865,
+            "work:cache_misses": 2522,
+            "work:provider:requests": 3018,
+            "work:provider:elapsed_ns": 789328033,
+            "work:provider:response_bytes": 4059094,
+            "work:responses": 241,
+            "read:process:elapsed_ns": 204631608,
+            "principal:2000:read:process:elapsed_ns": 42000339,
+            "response_bytes": 192996,
+            "status:200": 241,
+            "principal:2003": 21,
+            "principal:2003:read:process": 3,
+            "principal:2003:read:process:elapsed_ns": 55092237,
+            "read:resource": 3,
+            "principal:2003:read:resource": 3,
+            "read:resource:elapsed_ns": 93327827,
+            "principal:2003:read:resource:elapsed_ns": 93327827,
+            "read:entries": 20,
+            "principal:2003:read:entries": 15,
+            "read:entries:elapsed_ns": 460913821,
+            "principal:2003:read:entries:elapsed_ns": 396195944,
+            "read:authorization": 111,
+            "principal:1235": 37,
+            "principal:1235:read:authorization": 37,
+            "read:authorization:elapsed_ns": 1633996724,
+            "principal:1235:read:authorization:elapsed_ns": 412212478,
+            "read:capabilities": 1,
+            "principal:2004": 172,
+            "principal:2004:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 9079160,
+            "principal:2004:read:capabilities:elapsed_ns": 9079160,
+            "read:read_entries": 78,
+            "principal:2004:read:read_entries": 78,
+            "read:read_entries:elapsed_ns": 1232607552,
+            "principal:2004:read:read_entries:elapsed_ns": 1232607552,
+            "principal:2004:read:authorization": 74,
+            "principal:2004:read:authorization:elapsed_ns": 1221784246,
+            "principal:2001": 8,
+            "principal:2001:read:process": 8,
+            "principal:2001:read:process:elapsed_ns": 107539032,
+            "read:snapshot_read": 14,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 379822217,
+            "snapshot_finish": 1,
+            "principal:2004:read:entries": 5,
+            "principal:2004:read:entries:elapsed_ns": 64717877,
+            "principal:2004:read:snapshot_read": 14,
+            "principal:2004:read:snapshot_read:elapsed_ns": 379822217
+          }
+        },
+        {
+          "path": "mysql_prepared",
+          "elapsed_ms": 4848.443,
+          "counters": {
+            "attempts": 331,
+            "POST": 331,
+            "request_bytes": 241039,
+            "read:process": 20,
+            "principal:2000": 4,
+            "principal:2000:read:process": 4,
+            "elapsed_ns": 5278453427,
+            "POST:elapsed_ns": 5278453427,
+            "work:wait_ns": 1877951081,
+            "work:work_ns": 3189761568,
+            "work:cache_hits": 181940,
+            "work:cache_misses": 3341,
+            "work:provider:requests": 4017,
+            "work:provider:elapsed_ns": 1052940367,
+            "work:provider:response_bytes": 5390847,
+            "work:responses": 331,
+            "read:process:elapsed_ns": 311391499,
+            "principal:2000:read:process:elapsed_ns": 55725476,
+            "response_bytes": 258504,
+            "status:200": 331,
+            "principal:2003": 28,
+            "principal:2003:read:process": 4,
+            "principal:2003:read:process:elapsed_ns": 98124854,
+            "read:resource": 4,
+            "principal:2003:read:resource": 4,
+            "read:resource:elapsed_ns": 98033649,
+            "principal:2003:read:resource:elapsed_ns": 98033649,
+            "read:entries": 27,
+            "principal:2003:read:entries": 20,
+            "read:entries:elapsed_ns": 610642117,
+            "principal:2003:read:entries:elapsed_ns": 494675161,
+            "read:authorization": 155,
+            "principal:1235": 53,
+            "principal:1235:read:authorization": 53,
+            "read:authorization:elapsed_ns": 2196374299,
+            "principal:1235:read:authorization:elapsed_ns": 513179865,
+            "read:capabilities": 1,
+            "principal:2004": 234,
+            "principal:2004:read:capabilities": 1,
+            "read:capabilities:elapsed_ns": 4343363,
+            "principal:2004:read:capabilities:elapsed_ns": 4343363,
+            "read:read_entries": 110,
+            "principal:2004:read:read_entries": 110,
+            "read:read_entries:elapsed_ns": 1677538830,
+            "principal:2004:read:read_entries:elapsed_ns": 1677538830,
+            "principal:2004:read:authorization": 102,
+            "principal:2004:read:authorization:elapsed_ns": 1683194434,
+            "principal:2001": 12,
+            "principal:2001:read:process": 12,
+            "principal:2001:read:process:elapsed_ns": 157541169,
+            "read:snapshot_read": 14,
+            "snapshot_open": 1,
+            "read:snapshot_read:elapsed_ns": 380129670,
+            "snapshot_finish": 1,
+            "principal:2004:read:entries": 7,
+            "principal:2004:read:entries:elapsed_ns": 115966956,
+            "principal:2004:read:snapshot_read": 14,
+            "principal:2004:read:snapshot_read:elapsed_ns": 380129670
+          }
+        }
+      ],
+      "limits": "One cold preparation/read per path through a bounded HTTP diagnostic proxy; this changes transport costs and is separate from unproxied timings. Counts cover gateway and explicit native caller attempts during each wall-clock window, including concurrent account maintenance; Catalog worker/courier requests bypass the proxy. Provider and authority work come from completed x-transit-work responses. Byte counters are native JSON payloads, not TLS/database-wire traffic. No payloads or credentials are retained; no causal subtraction or speedup claim."
+    },
+    {
+      "profile": "database_wire_capacity",
+      "normal_connections": 8,
+      "authentications": 4,
+      "reserved_cancel": true,
+      "health_progress": true,
+      "prepared_limit": 16,
+      "portal_limit": 4,
+      "oversized_header": true
+    },
+    {
+      "profile": "database_wire_drain",
+      "readiness_revoked": true,
+      "joined_exit": true
+    },
+    {
+      "profile": "database_wire_cold_storage",
+      "data_objects": 1717,
+      "file_bytes": 450808430,
+      "hot_bytes": 8388608,
+      "cache_bytes": 8388608,
+      "resident_pages": 8
+    },
+    {
+      "profile": "database_native_gateway",
+      "slice": "all",
+      "psycopg": "3.3.4",
+      "connector": "9.4.0",
+      "driver_matrix": true,
+      "wide_values": true,
+      "seconds": 5617.809
+    },
+    {
+      "profile": "database_wire_cli",
+      "seconds": 256.782,
+      "fresh_fixture": true,
+      "both_protocols": true
+    }
+  ],
+  "public_sdk_interop": {
+    "version": 1,
+    "status": "passed",
+    "recorded_at": "2026-10-18T02:42:25.755792+00:00",
+    "environment": {
+      "platform": "Linux",
+      "architecture": "x86_64",
+      "available_cpus": 48,
+      "authority_cpus": 48,
+      "admin_timeout_ms": 15000
+    },
+    "source_revision": "51ad5c651b69c1d1adc29aa201ad16c88021969a",
+    "proof_sha256": {
+      "tests/sdk_public_interop.py": "6e445543222ba413346f53a2b14a6317457fdcc9b0bbce090ed1bf7e4ac903a6",
+      "tests/python_station_sdk.py": "7da0c56e454cb5146493ca7602782407e790a3bc9b58f3720befedb5abac7395",
+      "tests/node_station_sdk.py": "bf449a82e060cd6184e1d3485d719bd828815ec495fe000360c7817f699e3ffe",
+      "tests/rust_station_sdk.py": "cb6c6e3566a09542f22c7b24365e0574111def1c9858bbaf5d3f70fb57ab2de5",
+      "tests/ruby_station_sdk.py": "1184a3b2458548f4a86d3666a2bd2f0de7e60630306f9d75591e90cdb52668c1",
+      "tests/c_station_sdk.py": "5fca8150bcd935a3bc89663f8cfff0946815d3cec3c6c9320924f41e9d255aba",
+      "tests/java_station_sdk.py": "448a1221d1e9df461bc0a132007a620ab87c249e21c707485d052f6cf7011e3b",
+      "tests/dotnet_station_sdk.py": "3dbc6b33213ddf817151df17217d4dc7614930cbf7ff15d060e235c3e96d8934",
+      "tests/beam_station_sdk.py": "8d1e8be51e3aed086ab8ff0ecf26a438112e62211e115cc5abd4ea40cfe2965f"
+    },
+    "elapsed_seconds": 1140.572,
+    "consumer_install_seconds": 130.947,
+    "pairs": [
+      {
+        "pair": "Python -> Node",
+        "elapsed_seconds": 87.92,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Node -> Rust",
+        "elapsed_seconds": 99.776,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Rust -> Ruby",
+        "elapsed_seconds": 96.2,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Ruby -> C",
+        "elapsed_seconds": 96.246,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "C -> C++",
+        "elapsed_seconds": 96.143,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "C++ -> Java",
+        "elapsed_seconds": 101.606,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Java -> .NET",
+        "elapsed_seconds": 104.986,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": ".NET -> Erlang",
+        "elapsed_seconds": 106.681,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Erlang -> Elixir",
+        "elapsed_seconds": 109.021,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      },
+      {
+        "pair": "Elixir -> Python",
+        "elapsed_seconds": 111.033,
+        "table_drain_turns": 17,
+        "query_rounds": 47,
+        "ipc_bytes": 6696
+      }
+    ],
+    "reconciled_transient_results": 10,
+    "injected_lost_receipts": 10,
+    "transient_read_retries": 10,
+    "injected_unavailable_reads": 10,
+    "admin_exact_retries": 1,
+    "injected_lost_delivery_receipts": 1,
+    "storage": {
+      "hot_bytes_limit": 8388608,
+      "resident_pages": 64,
+      "cold_objects": 317,
+      "cold_file_bytes": 83262087
+    },
+    "limits": "Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement."
+  },
+  "final_documentation_checks": {
+    "scope": "Final documentation/evidence working tree after runtime qualification; runtime source unchanged from 12c7ba3d.",
+    "checks": [
+      {
+        "command": "nix develop --offline --option eval-cache false --command just transit-docs::check",
+        "exit_code": 0,
+        "log": {
+          "name": "rey-sql-final-docs.log",
+          "sha256": "491685445df041ffedf41b98d4de900361849213b0498144c4cb6e521bc38354",
+          "bytes": 1487
+        }
+      },
+      {
+        "command": "nix develop --offline --option eval-cache false --command python3 -B tests/docs.py",
+        "exit_code": 0,
+        "local_links": 5894,
+        "files": 584
+      },
+      {
+        "command": "nix develop --offline --option eval-cache false --command python3 -B tests/verification/check.py",
+        "exit_code": 0,
+        "invariants": 65,
+        "classified_bounds": 58,
+        "sdk_scenarios": 14
+      },
+      {
+        "command": "git diff --check",
+        "exit_code": 0
+      }
+    ]
+  }
+}

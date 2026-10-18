@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 
-from server import children, joined
+from server import children, joined, freeze_executables
 from storage import free_port
 from serving import compact
 
@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -101,7 +101,8 @@ def node(real, directory, args):
         if ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != expected_parent:
             os._exit(1)
 
-    process = subprocess.Popen([real, str(backend), *args[1:]], preexec_fn=death)
+    with (directory / 'backend-node.stderr').open('ab') as diagnostics:
+        process = subprocess.Popen([real, str(backend), *args[1:]], preexec_fn=death, stderr=diagnostics)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
@@ -116,6 +117,18 @@ def node(real, directory, args):
             if self.path == '/v1/query' and body:
                 query = json.loads(body)['query']
                 if query['principal'] == 0 and 'capabilities' in query['kind']:
+                    capacity = directory / 'capacity-probes'
+                    with mutex:
+                        remaining = int(capacity.read_text()) if capacity.exists() else 0
+                        if remaining:
+                            capacity.write_text(str(remaining-1))
+                    if remaining:
+                        self.send_response(503)
+                        data = b'{"err":"HttpCapacity"}'
+                        self.send_header('Content-Length', str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
                     unavailable = directory / 'unavailable-probe'
                     if unavailable.exists():
                         unavailable.unlink()
@@ -130,9 +143,24 @@ def node(real, directory, args):
                         (directory / 'probe-recovered').touch()
             upstream = HTTPConnection('127.0.0.1', source['port'], timeout=4)
             try:
-                upstream.request(self.command, self.path, body, {'Content-Type': 'application/json'})
+                # Preserve the native client's bounded admission classes.
+                # Dropping the wait hint lets long polls occupy all ordinary
+                # request slots and manufactures persistent read starvation.
+                # These hints classify scheduling; native authorization still
+                # validates every request at the real authority.
+                headers = {'Content-Type': 'application/json'}
+                for name in ('x-transit-control', 'x-transit-wait'):
+                    if (value := self.headers.get(name)) is not None:
+                        headers[name] = value
+                upstream.request(self.command, self.path, body, headers)
                 response = upstream.getresponse()
                 data = response.read()
+                if self.path == '/v1/query' and body:
+                    query = json.loads(body)['query']
+                    if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status != 200:
+                        (directory / 'probe-rejection.json').write_text(json.dumps(dict(status=response.status, body=data.decode())))
+                    if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status == 200 and (directory / 'capacity-probes').exists() and (directory / 'capacity-probes').read_text() == '0':
+                        (directory / 'capacity-recovered').touch()
                 if self.path == '/v1/command' and response.status == 200:
                     envelope = json.loads(body)
                     with mutex:
@@ -212,12 +240,21 @@ def arm(fixture, command, label=None, principal=None):
     (fixture.root / 'drop-next').write_text(json.dumps(dict(command=command, label=label or command, principal=principal)))
 
 
+def recovered_operation(fixture, label, name):
+    """Receipt-first recovery may resolve the exact request without resending it."""
+    frozen = json.loads((fixture.root / f'dropped-{label}.json').read_text())
+    saved = json.loads((fixture.root / f'{name}.json').read_text())
+    assert saved['signed'] == json.loads(bytes.fromhex(frozen['body']))
+    assert saved['receipt'] == json.loads(bytes.fromhex(frozen['receipt']))['position']
+
+
 def run(cli, node_binary, host, worker, operator):
-    from server_applications import Applications
+    from server_applications import Applications, provision_authority
     import concurrent.futures
     import shutil
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node_binary, host)
+    freeze_executables(fixture)
     install_peer(fixture)
     started = time.monotonic()
     success = False
@@ -240,7 +277,8 @@ def run(cli, node_binary, host, worker, operator):
         while True:
             result = subprocess.run(command, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
             if fail or result.returncode == 0 or result.stderr.strip() not in (
-                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused') or time.monotonic() >= deadline:
+                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing', 'error: ConnectionRefused',
+                    'error: ReadFailed', 'error: WriteFailed', 'error: ConnectionResetByPeer') or time.monotonic() >= deadline:
                 break
             # As in server_applications, retry through the same public recovery
             # file. Never prepare a new operation to hide an uncertain result.
@@ -260,6 +298,10 @@ def run(cli, node_binary, host, worker, operator):
         wait_file(fixture.root / 'probe-recovered')
         assert fixture.process.poll() is None
         assert set((fixture.installation / 'activations').iterdir()) == activations, 'One unavailable read replaced live owners'
+        (fixture.root / 'capacity-probes').write_text('3')
+        wait_file(fixture.root / 'capacity-recovered')
+        assert fixture.process.poll() is None
+        assert set((fixture.installation / 'activations').iterdir()) == activations, 'Admission pressure replaced live owners'
         declaration = json.loads(subprocess.check_output([operator, 'manifest', worker], text=True))
         manifest = fixture.root / 'application.json'
         manifest.write_text(json.dumps(declaration))
@@ -309,6 +351,8 @@ def run(cli, node_binary, host, worker, operator):
             assert latency < 5
             for task in tasks:
                 task.result()
+        profile = provision_authority(fixture, operator, {name: fixture.root / (name + '.json') for name in ('operator', 'writer', 'inspector')})
+        domain('operator', 'initialize-catalog', 'catalog-initialize', profile)
         domain('operator', 'authorize', 'authorize')
         domain('operator', 'prepare-table', 'prepare-initial', 1)
         for i in range(5):
@@ -321,7 +365,7 @@ def run(cli, node_binary, host, worker, operator):
         fixture.kill_role('/applications/work-items/data.bootstrap.json')
         fresh = fixture.active(previous=ready['roles'][0]['generation'])
         domain('operator', 'step', 'copy-1')
-        wait_file(fixture.root / 'retried-copy-send')
+        recovered_operation(fixture, 'copy-send', 'copy-1')
         frozen = json.loads((fixture.root / 'accepted-worker.json').read_text())
         post(fixture.config['ports']['node'], '/v1/command', frozen, 403)
         # Lose a committed worker turn reply. Its live host must retry exact
@@ -341,7 +385,7 @@ def run(cli, node_binary, host, worker, operator):
         domain('operator', 'step', 'activate', fail=True)
         (fixture.root / 'release-activation-send').touch()
         domain('operator', 'step', 'activate')
-        wait_file(fixture.root / 'retried-activation-send')
+        recovered_operation(fixture, 'activation-send', 'activate')
         assert domain('inspector', 'inspect')['head']['epoch'] == '2'
         # Root credentials are used only by this adversarial fixture to revoke
         # current native rights. The application workflow above never reads them.

@@ -1,5 +1,5 @@
 {
-  "definition": "e8b8b051371208d375f870a3f294b843b3f9ae4928874da3491cc77ebf0341bc",
+  "definition": "1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10",
   "settings": [
     {
       "name": "version",
@@ -14,7 +14,8 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 1,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "installation",
@@ -29,7 +30,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "realm",
@@ -44,7 +46,8 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 9007199254740991,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "admission_ceiling",
@@ -59,7 +62,8 @@
       "sensitive": false,
       "minimum": 128,
       "maximum": 65536,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "control_reserve",
@@ -74,7 +78,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 65536,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "query.statement_timeout",
@@ -89,7 +94,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 86400000,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "query.statement_timeout_ceiling",
@@ -104,7 +110,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 86400000,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "ports.cold",
@@ -119,7 +126,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "ports.cold_console",
@@ -134,7 +142,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "ports.store",
@@ -149,7 +158,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "ports.node",
@@ -164,7 +174,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "ports.gateway",
@@ -179,7 +190,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "executables.minio",
@@ -194,7 +206,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "executables.ursula",
@@ -209,7 +222,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "executables.node",
@@ -224,7 +238,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "executables.query_host",
@@ -239,7 +254,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "executables.board",
@@ -254,7 +270,328 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "executables.sql_gateway",
+      "description": "Matching executable path",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.postgres",
+      "description": "PostgreSQL listener; null disables admission",
+      "owner": "sql",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.postgres.port",
+      "description": "PostgreSQL loopback port",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "15432",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.mysql",
+      "description": "MySQL listener; null disables admission",
+      "owner": "sql",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.mysql.port",
+      "description": "MySQL loopback port",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "13306",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.accounts",
+      "description": "Configured local SQL accounts and private password references",
+      "owner": "sql",
+      "kind": "records",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "[]",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 32,
+      "values": [],
+      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"password_file\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"password_file\":{\"type\":\"string\",\"maxLength\":4096},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\",\"password_file\"],\"x-transit-defaults\":{\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+    },
+    {
+      "name": "sql.tls.certificate_file",
+      "description": "PEM file reference; omit all TLS references for managed local trust",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.tls.key_file",
+      "description": "PEM file reference; omit all TLS references for managed local trust",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.tls.ca_file",
+      "description": "PEM file reference; omit all TLS references for managed local trust",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.health_port",
+      "description": "Private loopback SQL recovery and readiness port",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19108",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.drain_ms",
+      "description": "Connection drain deadline",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "30000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 270000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.request_timeout_ms",
+      "description": "Native request deadline",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "5000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 60000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.command_ms",
+      "description": "Maximum SQL statement duration",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "30000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 270000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.idle_ms",
+      "description": "Idle SQL session deadline",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "30000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 270000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.connections",
+      "description": "Simultaneous SQL connection quota",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "64",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 256,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.connections_per_account",
+      "description": "Simultaneous connections per account",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "8",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 255,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.authentications",
+      "description": "Simultaneous SQL authentication work",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "4",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 16,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.operation_quota",
+      "description": "Initial retained operation quota per account",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "1000000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.byte_quota",
+      "description": "Initial retained logical byte quota per account",
+      "owner": "sql",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "1073741824",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.pending_quota",
+      "description": "Initial simultaneous unsettled operations per account",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "16",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 1024,
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "applications",
@@ -269,7 +606,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "applications.port",
@@ -284,7 +622,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "applications.max_applications",
@@ -299,7 +638,8 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 64,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "applications.max_roles",
@@ -314,7 +654,8 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 256,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "gateway_allowed_hosts",
@@ -329,7 +670,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "board",
@@ -344,7 +686,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "board.port",
@@ -359,7 +702,8 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": []
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "board.public_origin",
@@ -374,7 +718,8 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
-      "values": []
+      "values": [],
+      "items_schema": null
     }
   ],
   "schema": {
@@ -550,6 +895,289 @@
             "description": "Matching executable path",
             "x-transit-owner": "board",
             "x-transit-change": "restart"
+          },
+          "sql_gateway": {
+            "type": "string",
+            "description": "Matching executable path",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart"
+          }
+        }
+      },
+      "sql": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "postgres": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 65535,
+                "description": "PostgreSQL loopback port",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": 15432
+              }
+            },
+            "description": "PostgreSQL listener; null disables admission",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": null
+          },
+          "mysql": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 65535,
+                "description": "MySQL loopback port",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": 13306
+              }
+            },
+            "description": "MySQL listener; null disables admission",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": null
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "name",
+                "role",
+                "password_file",
+                "enabled",
+                "database",
+                "schema"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 63
+                },
+                "role": {
+                  "type": "string",
+                  "maxLength": 63
+                },
+                "password_file": {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "database": {
+                  "type": "string",
+                  "maxLength": 63
+                },
+                "schema": {
+                  "type": "string",
+                  "maxLength": 63
+                }
+              },
+              "required": [
+                "name",
+                "role",
+                "password_file"
+              ],
+              "x-transit-defaults": {
+                "enabled": true,
+                "database": "transit",
+                "schema": "public"
+              }
+            },
+            "minItems": 0,
+            "maxItems": 32,
+            "description": "Configured local SQL accounts and private password references",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart"
+          },
+          "tls": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "certificate_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "PEM file reference; omit all TLS references for managed local trust",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart"
+              },
+              "key_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "PEM file reference; omit all TLS references for managed local trust",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart"
+              },
+              "ca_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "PEM file reference; omit all TLS references for managed local trust",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart"
+              }
+            }
+          },
+          "health_port": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "description": "Private loopback SQL recovery and readiness port",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 19108
+          },
+          "drain_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 270000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Connection drain deadline",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 30000
+          },
+          "request_timeout_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Native request deadline",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 5000
+          },
+          "command_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 270000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Maximum SQL statement duration",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 30000
+          },
+          "idle_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 270000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Idle SQL session deadline",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 30000
+          },
+          "connections": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256,
+            "description": "Simultaneous SQL connection quota",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 64
+          },
+          "connections_per_account": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Simultaneous connections per account",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 8
+          },
+          "authentications": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "description": "Simultaneous SQL authentication work",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 4
+          },
+          "operation_quota": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Initial retained operation quota per account",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 1000000
+          },
+          "byte_quota": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1048576,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+              }
+            ],
+            "description": "Initial retained logical byte quota per account",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 1073741824
+          },
+          "pending_quota": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1024,
+            "description": "Initial simultaneous unsettled operations per account",
+            "x-transit-owner": "sql",
+            "x-transit-change": "restart",
+            "default": 16
           }
         }
       },

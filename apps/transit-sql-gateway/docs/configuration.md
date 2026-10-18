@@ -14,8 +14,8 @@ compatible build.
 | `activation_directory` | Persistent private directory containing exclusive native-generation activation markers |
 | `spill_directory` | Private bounded query spill location |
 | `bind_address` | IPv4 listener address; default 127.0.0.1 |
-| `postgres_port`, `mysql_port` | Optional distinct nonzero ports; at least one is required |
-| `health_address`, `health_port` | Optional private HTTP readiness listener, separate from SQL ports; address defaults to 127.0.0.1 |
+| `postgres_port`, `mysql_port` | Optional distinct nonzero ports; omit both to run retained-operation recovery without SQL admission |
+| `health_address`, `health_port` | Optional private HTTP readiness listener, separate from SQL ports; address defaults to 127.0.0.1. `/health` requires SQL admission; `/recovery` requires ready ledger workers. |
 | `drain_ms` | SIGINT/SIGTERM command drain bound, default 30000, maximum 270000 |
 | `request_timeout_ms` | Native request bound, default 5000, maximum 60000 |
 | `limits` | Explicit connection, authentication, statement, portal, byte and time budgets from the wire contract |
@@ -23,7 +23,9 @@ compatible build.
 | `accounts` | 1–32 explicit SQL names, verifier references, native identities and database/catalog mappings |
 
 Each account supplies `name`, `verifier_file`, `ledger`, `generation`, optional
-state `association` (default `state`), `keys` and `databases`. Key references are
+state `association` (default `state`), `enabled` (default true), `keys` and
+`databases`. Setting `enabled` false rejects account selection while keeping its
+retained ledger worker and coordinator available. Key references are
 `worker`, `ingress`, `coordinator`, `table` and `reader`; key files contain the native seed
 format. Protect configuration, keys, verifier and recovery files with deployment
 file permissions. The operator control key is separate from the running service.
@@ -60,6 +62,13 @@ the normal service. Normal startup requires an initialized ledger and current
 ownership. Reusing an activation marker fails, including after an idle exit.
 Replacement must fence the previous native owner before resuming saved work;
 restarting a container or deleting a marker does not establish authority.
+
+With both SQL ports absent, normal startup runs the same retained ledger workers
+and coordinator without accepting SQL connections. Initialization and this recovery
+mode do not open certificate or private-key files. `/recovery` reports worker
+readiness; `/health` stays unavailable until a SQL listener is configured.
+Keep the original account identities, catalog bindings and current recovery grants.
+Removing exposure does not cancel accepted operations or authorize replay.
 
 Each session has a bounded allocator. A slow socket retains at most its bounded
 frame/row and stops further acquisition. Handshake, idle, command and write
