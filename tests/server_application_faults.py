@@ -179,7 +179,15 @@ def node(real, directory, args):
                         if armed.exists():
                             selection = json.loads(armed.read_text())
                             selected = selection['label']
-                            if selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']) and (selection.get('resource') is None or selection['resource'] == envelope['request']['command'][selection['command']].get('resource')):
+                            matches = selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']) and (selection.get('resource') is None or selection['resource'] == envelope['request']['command'][selection['command']].get('resource'))
+                            if matches and 'binding_role' in selection:
+                                authorization = envelope['request']['command']['authorization']
+                                binding = authorization.get('begin', {}).get('action', {}).get('bind_credential', {})
+                                if binding.get('role') == selection['binding_role']:
+                                    selection['change'] = json.loads(data)['position']
+                                    armed.write_text(json.dumps(selection))
+                                matches = selection.get('change') is not None and authorization.get('publish') == selection['change']
+                            if matches:
                                 frozen = dict(body=body.hex(), receipt=data.hex())
                                 (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(frozen))
                                 armed.unlink()

@@ -71,6 +71,7 @@
       "bindings::node-check",
       "test::observability",
       "test::server-sql",
+      "test::server-sql-local",
       "transit-board::test",
       "transit-board::query-test",
       "launchers::local::test-station"

@@ -517,6 +517,10 @@ server-faults:
 server-sql:
     zig build test-server-sql -Doptimize=ReleaseSafe
 
+# Local trust/password authentication, all TLS modes and recorded owner bootstrap.
+server-sql-local:
+    zig build test-server-sql-local -Doptimize=ReleaseSafe
+
 # Exact SQL setup recovery after native commits with lost replies.
 server-sql-faults:
     zig build test-server-sql-faults -Doptimize=ReleaseSafe
