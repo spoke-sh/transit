@@ -21222,3 +21222,49 @@ throughput guarantees. They do not establish remote exposure, general ORM or
 transaction compatibility, arbitrary power-loss durability, distributed
 activation or hosted CI timing. The separate browser lane is outside this
 ordinary-suite inventory.
+
+## Local SQL authentication — 2026-10-18
+
+The [local authentication qualification record](verification/results/local-sql-authentication-2026-10-18.json)
+retains the shared definition, artifact/log digests, exact revisions and scope.
+Runtime source is unchanged from `047c2fa7`. Source proofs and the clean
+experience lane use `74c6d400`; `2b0b334d` adds only the installed bundle option
+to the new harness, preserving its default source scenarios. The
+[local SQL guide](../apps/transit-cli/docs/sql.md) owns the runnable configuration.
+
+`just check` passes, including **613 real CLI diagnostic cases**. Focused
+`just test::sql-wire-contracts`, `just test::server-sql-local`,
+`just test::server-sql` and `just test::server-sql-faults` pass. The Nix local
+bundle builds and passes `python3 -B tests/server_sql_local.py --bundle
+.cache/transit-local-auth-package` in the pinned development shell. Its main
+workflow runs outside the checkout without executable overrides, exercising
+adjacent discovery; the interruption fixture uses the bundled artifacts through
+its owned fault peer.
+
+The new workflow exercises the documented YAML at first initialization,
+empty-account preflight, automatic original-owner binding, plaintext trust with
+real `psql` and Oracle `mysql`, shared Unicode/NULL CRUD and settings inspection.
+It checks optional and required TLS, verified TLS, PostgreSQL SCRAM on either
+transport, MySQL password rejection before plaintext exchange, unknown logins and
+wrong passwords. Native credential revocation remains effective across restart;
+the completed owner-binding receipt and account identities remain unchanged.
+A separate fixture loses an accepted owner-binding publish response, kills the
+manager, and verifies recovery of the exact saved request and usable login.
+
+The existing TLS/password workflow still checks manual enrollment, data grants,
+protocol toggles, rotation, expired trust and recovery of accepted work with both
+listeners disabled. Setup faults retain exact root-allocation/initialization
+recovery, occupied-port preflight and denial after worker revocation. An initial
+new-client attempt rejected Oracle MySQL's single-NUL empty password response;
+the corrected parser and negative proof cases pass the complete rerun. Earlier
+failed attempts are not counted as passing evidence.
+
+`just ci-clean --lane experience` passes **all nine experience recipes** from
+committed source without inherited build outputs: frontend/docs checks,
+TypeScript bindings, observability, both SQL workflows, Board inspection/query
+checks and the local Station launcher. Canonical recipes and deadlines are
+unchanged. Other ordinary lanes and the separate browser lane were not rerun;
+this is scoped local Linux x86_64 qualification, not a whole-suite or hosted CI
+claim. Functional durations do not establish latency or throughput guarantees.
+The tests use isolated disk-backed installations; the user's YAML and data are
+unchanged.
