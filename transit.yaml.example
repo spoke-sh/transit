@@ -1,0 +1,135 @@
+# Copy this file to transit.yaml and customize it before starting Transit.
+# The repository ignores /transit.yaml; this example is not loaded automatically.
+# Use the matching local bundle with transit on PATH.
+#
+# Start a deliberately new installation: transit server --initialize
+# Resume an existing installation:      transit server
+# Inspect active settings in SQL:       SHOW ALL;
+# Reload the selected file in SQL:      SELECT transit_reload_conf();
+#
+# Environment overrides use TRANSIT_ and __ between nested keys, for example:
+# TRANSIT_SQL__POSTGRES__PORT=15432 or TRANSIT_QUERY__STATEMENT_TIMEOUT=5s.
+# Relative file paths resolve against this configuration file's directory.
+# Paths are literal: no ~ expansion, shell variables or secret interpolation.
+# See docs/reference/configuration.md for precedence, reload and permissions.
+
+# Installation identity: choose before initialization; retain on every restart.
+version: 1
+installation: ./.transit
+realm: 1
+# Native accepted-work quotas; these do not expire history or reclaim storage.
+admission_ceiling: 65536
+control_reserve: 4096
+
+# Core services bind 127.0.0.1. All configured listener ports must be distinct
+# and in 1024..65535. Port changes require a server restart.
+ports:
+  cold: 19101          # MinIO cold storage
+  cold_console: 19102  # Reserved even though the MinIO browser is disabled
+  store: 19103         # Ursula storage
+  node: 19104          # Native authority
+  gateway: 19105       # Native HTTP gateway, not a PostgreSQL/MySQL endpoint
+
+# Additional exact Host authorities accepted by the native HTTP gateway.
+# Loopback authorities are already allowed. At most eight aliases, each at most
+# 200 bytes; no URL schemes, paths or wildcards. Applies on configuration reload.
+# Example: gateway_allowed_hosts: ["transit.example:443"]
+gateway_allowed_hosts: []
+
+# Application management is enabled by default. Use applications: null to
+# disable its admission endpoint. Limits: 1..64 applications, 1..256 roles each.
+# Install application definitions with the existing transit app workflow;
+# this block configures management, not application definitions or connectors.
+applications:
+  port: 19106
+  max_applications: 8
+  max_roles: 32
+
+# Board starts by default. Use transit server --no-ui for a headless invocation;
+# board: null does not disable it. These settings require restart.
+board:
+  port: 19107
+  # null derives http://127.0.0.1:<board.port>; an explicit origin must match it.
+  public_origin: null
+
+# New sessions capture these settings after reload. Zero adds no statement
+# deadline; other request/work limits still apply. Maximum: 24h.
+# With a nonzero ceiling, the default must also be nonzero and <= the ceiling.
+# Example: statement_timeout: 5s and statement_timeout_ceiling: 30s.
+query:
+  statement_timeout: 0
+  statement_timeout_ceiling: 0
+
+# PostgreSQL and MySQL are independently opt-in. Replace either null with its
+# port object to enable that protocol, and configure an account below:
+#   postgres: {"port": 15432}
+#   mysql: {"port": 13306}
+# Use JSON syntax for flow objects, or ordinary indented YAML mappings.
+#
+# SQL settings require restart. Enabling a listener grants no access: review
+# and apply the generated credential/role/catalog proposals through the public
+# authorization workflow in apps/transit-cli/docs/sql.md before logging in.
+# Restart never restores revoked privileges. Disabling listeners or accounts
+# preserves accepted operations and their recovery worker.
+sql:
+  postgres: null
+  mysql: null
+
+  # Replace [] with a sequence like the commented account below (max 32).
+  # Create the private password file outside Git first: exactly 1..128 printable
+  # ASCII bytes, no trailing newline, readable only by its owner (mode 0600).
+  # Account names: 1..63 ASCII letters, digits, underscores or hyphens.
+  # local_owner is the existing catalog owner; a new role needs explicit grants.
+  # The local server supports only database transit and schema public.
+  accounts: []
+  #   - name: owner
+  #     role: local_owner
+  #     password_file: ../transit-secrets/sql-owner.password
+  #     enabled: true
+  #     database: transit
+  #     schema: public
+
+  # All null generates private local TLS trust when SQL is first enabled.
+  # Or supply all three PEM paths together, for example under
+  # ../transit-secrets/tls/. The leaf must cover localhost and 127.0.0.1.
+  # Clients verify the CA path reported in .transit/sql/status.json.
+  tls:
+    certificate_file: null  # e.g. ../transit-secrets/tls/server.pem
+    key_file: null          # e.g. ../transit-secrets/tls/server.key
+    ca_file: null           # e.g. ../transit-secrets/tls/ca.pem
+
+  # Private loopback /health (admission) and /recovery (worker) probes.
+  # Recovery can retain this endpoint after both database listeners are disabled.
+  health_port: 19108
+  drain_ms: 30s            # Joined connection drain; 1ms..270s
+  request_timeout_ms: 5s   # Native request wait; 1ms..60s
+  command_ms: 30s          # SQL statement wait; 1ms..270s (e.g. 180s for local use)
+  idle_ms: 30s             # Idle session wait; 1ms..270s
+  # A timeout does not undo an accepted write. Inspect its original operation
+  # before submitting new SQL; the local database guide covers lost responses.
+  connections: 64              # 1..256 total
+  connections_per_account: 8   # 1..255, no greater than connections
+  authentications: 4           # 1..16, no greater than connections
+  # Initial durable-ledger quotas per account; changing these does not rewrite
+  # an already enrolled account's ledger or discard accepted operations.
+  operation_quota: 1000000
+  byte_quota: 1GiB
+  pending_quota: 16
+
+# Omitted executable keys are found beside the physical transit executable,
+# then on PATH. Keep this empty for the installed local bundle. Explicit paths
+# resolve relative to this file and must match the installation's recorded
+# artifact hashes; executable replacement is not a configuration upgrade.
+# Board and SQL gateway artifacts are required even with their listeners off.
+executables: {}
+# To override discovery, replace {} with the needed entries, for example:
+#   minio: /absolute/path/to/minio
+#   ursula: /absolute/path/to/ursula
+#   node: /absolute/path/to/transit-node
+#   query_host: /absolute/path/to/transit-query-host
+#   board: /absolute/path/to/transit-board
+#   sql_gateway: /absolute/path/to/transit-sql-gateway
+
+# This file covers the local supervisor's settings. Flight, standalone serving
+# gateways and HTTP/gRPC connector workers use their own deployment interfaces;
+# they are not additional transit.yaml switches. See docs/reference/components.md.
