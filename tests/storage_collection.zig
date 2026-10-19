@@ -185,7 +185,7 @@ pub fn main(init: std.process.Init) !void {
         }
     } else return error.UnknownPhase;
     var buffer: [8192]u8 = undefined;
-    var out = std.Io.File.stdout().writer(init.io, &buffer);
+    var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     var queue = try pages.allocations();
     const status = (try collection.current()).?;
     try std.json.Stringify.value(.{ .phase = args[2], .relocated_from = relocated_from, .collection = status.phase, .verified_pages = status.verified_pages, .verified_blocks = status.verified_blocks, .retained_segments = status.retained_segments, .reclaimed_segments = status.reclaimed_segments, .reclaimed_bytes = status.reclaimed_bytes, .reclaimable_bytes = status.reclaimable_bytes, .protected_bytes = status.protected_bytes, .uncertain_segments = status.uncertain_segments, .accounting = try queue.current(), .resident_bytes = pages.residentBytes() }, .{}, &out.interface);

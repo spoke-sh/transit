@@ -26,7 +26,7 @@ pub fn main(init: std.process.Init) !void {
         .lost = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 7, .command = .{ .spawn = .{} } }, root),
     };
     var buffer: [8192]u8 = undefined;
-    var output = std.Io.File.stdout().writer(init.io, &buffer);
+    var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try std.json.Stringify.value(fixtures, .{}, &output.interface);
     try output.interface.flush();
 }

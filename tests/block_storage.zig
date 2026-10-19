@@ -78,7 +78,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqualStrings("replacement", body.slice());
     } else return error.UnknownPhase;
     var buffer: [1024]u8 = undefined;
-    var output = std.Io.File.stdout().writer(init.io, &buffer);
+    var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try output.interface.print("Block storage {s}: passed\n", .{args[2]});
     try output.interface.flush();
 }
