@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import argparse
+import base64
 from contextlib import nullcontext
 import json
 import select
@@ -92,13 +93,23 @@ def run(node, proof, host, cli, station_host, *arguments):
                                     measurements['max_value_bytes'] = max(measurements['max_value_bytes'], len(encoded))
                                     if encoded.startswith(b'TCA1E'):
                                         measurements['dispositions'].append(encoded[-1])
-                                    if encoded.startswith(b'STJ1'):
-                                        # Head resource is inside STJ1 + STH1;
-                                        # exact native retries cannot count twice.
-                                        identity = encoded[48:56].hex(), entry['key']
-                                        if identity in archived_heads:
-                                            assert archived_heads[identity] == encoded
-                                        archived_heads[identity] = encoded
+                            block_bytes = base64.b64decode(json.loads(body).get('blocks') or '', validate=True)
+                            offset = 0
+                            for entry in turn.get('blocks', []):
+                                if entry is None or entry['value'] is None:
+                                    continue
+                                size = entry['value']['bytes']
+                                encoded = block_bytes[offset:offset + size]
+                                assert len(encoded) == size
+                                offset += size
+                                if encoded.startswith(b'STJ1'):
+                                    # The immutable predecessor now lives in the
+                                    # block index; exact native retries count once.
+                                    identity = encoded[48:56].hex(), entry['key']
+                                    if identity in archived_heads:
+                                        assert archived_heads[identity] == encoded
+                                    archived_heads[identity] = encoded
+                            assert offset == len(block_bytes)
                         for name, (original, receipt) in faults.items():
                             if body == original:
                                 assert data == receipt, 'Exact accepted request changed its receipt'

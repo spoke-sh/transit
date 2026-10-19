@@ -271,12 +271,20 @@ test "general handler retained cursors preserve original schemas across current 
             if (self.store.denied) return error.AccessDenied;
             return self.store.state.get(key);
         }
+        pub fn prefetchBlocks(_: *@This(), _: []const p.Value) !void {}
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            if (self.store.denied) return error.AccessDenied;
+            const value = self.store.blocks.records.get(key) orelse return null;
+            if (value.bytes.len > output.len) return error.BlockBufferTooSmall;
+            @memcpy(output[0..value.bytes.len], value.bytes);
+            return output[0..value.bytes.len];
+        }
     };
     var store: Store = .{};
     defer store.deinit();
     _ = try store.table();
     _ = try sqlStatement(&store, 761, schema, "INSERT INTO items VALUES(1,'one'),(2,'two')");
-    var saved: Store = .{ .state = try store.state.clone(t.allocator), .revision = store.revision };
+    var saved: Store = .{ .blocks = try store.blocks.clone(t.allocator), .state = try store.state.clone(t.allocator), .revision = store.revision };
     defer saved.deinit();
     var source: Retained = .{ .store = &saved, .view = .{ .id = .{ .pid = 2, .input = 40, .index = 0 }, .resource = 7, .revision = saved.revision, .created_at = 41 } };
     var reader = try TableReader.open(t.allocator, &source, 9);
@@ -318,7 +326,7 @@ fn runAlter(store: *Store, request: Alter.Request) !Write.Status {
             try t.expectEqual(null, try turn.read(Statement.Progress.key(result.reference)));
             return result;
         }
-        try t.expect(writes(turn) > 0);
+        try t.expect(writes(turn) + blockWrites(turn) > 0);
     }
     return error.AlterDidNotComplete;
 }
@@ -446,7 +454,7 @@ test "required columns, empty Tables and cancellation retain schema fences" {
     var turn = try store.capture();
     const admitted = try Alter.step(t.allocator, &turn, request);
     try store.commit(turn);
-    for (0..3) |_| {
+    for (0..1) |_| {
         turn = try store.capture();
         try t.expectEqual(.building, (try Alter.step(t.allocator, &turn, request)).state);
         try store.commit(turn);
@@ -488,7 +496,7 @@ fn cleanCandidate(store: *Store, result: Write.Status) !void {
             try t.expectEqual(@as(usize, 0), writes(turn));
             return;
         }
-        try t.expect(writes(turn) > 0);
+        try t.expect(writes(turn) + blockWrites(turn) > 0);
     }
     return error.CleanupDidNotComplete;
 }
@@ -586,7 +594,7 @@ test "closed candidate cleanup releases quota without changing receipts or accep
     const accepted = try pointToCompletion(&store, first);
     var turn = try store.capture();
     try t.expectError(error.TableCleanupNotClosed, Cleanup.step(&turn, accepted.reference));
-    var large: [6000]u8 = @splat('x');
+    var large: [700000]u8 = @splat('x');
     var large_cells: [2]f.Types.Values.Cell = undefined;
     const request = insertRequest(301, 2, &large, &large_cells);
     const reference = try request.reference(t.allocator);
@@ -701,7 +709,7 @@ fn runStatement(store: *Store, request: Statement.Request) !Write.Status {
             try t.expectEqual(null, try turn.read(Statement.Progress.key(reference)));
             return result;
         }
-        try t.expect(writes(turn) > 0);
+        try t.expect(writes(turn) + blockWrites(turn) > 0);
     }
     return error.StatementDidNotComplete;
 }
@@ -772,10 +780,11 @@ test "INSERT batches discard intermediate paths and reject a duplicate after a s
         try t.expectEqualDeep(initial.index, visible.index);
         try t.expectEqual(initial.rows, visible.rows);
         const result = try Statement.step(t.allocator, &turn, request);
-        try t.expect(writes(turn) > 0 and writes(turn) <= 4);
+        try t.expect(writes(turn) + blockWrites(turn) > 0 and writes(turn) <= 4);
         if (iteration == 0) {
-            try t.expectEqual(@as(usize, 4), writes(turn));
-            try t.expect((try turn.read(History.key(9, initial.revision))) != null);
+            try t.expectEqual(@as(usize, 3), writes(turn));
+            var history_bytes: [256]u8 = undefined;
+            try t.expect((try turn.readBlock(History.key(9, initial.revision), &history_bytes)) != null);
             try t.expectEqual(null, try turn.read(Pages.key(9, 'i', initial.next_record)));
             var committed = lost.committed();
             try t.expectEqual(null, try committed.read(Pages.key(9, 'i', initial.next_record)));
@@ -835,7 +844,7 @@ test "statement reservations fence competing work and cancellation preserves exa
     var turn = try store.capture();
     const admitted = try Statement.step(t.allocator, &turn, request);
     try t.expectEqual(.building, admitted.state);
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 3), writes(turn));
     try store.commit(turn);
     turn = try store.capture();
     var competitor = request;
@@ -843,11 +852,6 @@ test "statement reservations fence competing work and cancellation preserves exa
     try t.expectError(error.TableBusy, Statement.step(t.allocator, &turn, competitor));
     var cells: [2]f.Types.Values.Cell = undefined;
     try t.expectError(error.TableBusy, Write.step(t.allocator, &turn, insertRequest(222, 3, "point", &cells)));
-    for (0..1) |_| {
-        turn = try store.capture();
-        try t.expectEqual(.building, (try Statement.step(t.allocator, &turn, request)).state);
-        try store.commit(turn);
-    }
     turn = try store.capture();
     store.denied = true;
     try t.expectError(error.AccessDenied, Statement.cancel(&turn, reference));
@@ -939,18 +943,29 @@ test "statement allocation errors restore proposals and malformed progress rejec
     try t.expectEqualDeep(before, turn.decision);
 }
 const Store = struct {
+    blocks: @import("TestBlocks.zig") = .{},
+    block_calls: usize = 0,
     state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
     changed_at: std.AutoHashMapUnmanaged(p.Value, u64) = .empty,
     revision: u64 = 1,
     input: u64 = 1,
     denied: bool = false,
     fn deinit(self: *Store) void {
+        self.blocks.deinit(t.allocator);
         self.state.deinit(t.allocator);
         self.changed_at.deinit(t.allocator);
     }
     fn capture(self: *Store) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page });
+        const turn = try Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .blocks = readBlocks });
+        try self.blocks.views.put(t.allocator, turn.view.id, turn.view);
+        return turn;
+    }
+    fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        if (self.denied) return error.AccessDenied;
+        self.block_calls += 1;
+        return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
     }
     fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !Turn.Page {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -988,6 +1003,7 @@ const Store = struct {
                 _ = self.changed_at.remove(mutation.key);
             }
         };
+        try self.blocks.apply(t.allocator, &turn.decision.blocks, self.revision + 1);
         self.revision += 1;
     }
     fn create(self: *Store) !Pages {
@@ -1010,13 +1026,6 @@ const Store = struct {
             turn = try self.capture();
         }
         const head: Head = .{ .resource = 7, .object = 9, .revision = 1, .schema = ref, .next_record = 2 };
-        if (bytes.len > Pages.inline_bytes) {
-            // Publication cursors read a committed cut, never the private
-            // descriptor just published in this turn. Preserve that gate.
-            try t.expectError(error.PublicationReadAfterMutation, head.create(t.allocator, &turn));
-            try self.commit(turn);
-            turn = try self.capture();
-        }
         try head.create(t.allocator, &turn);
         try self.commit(turn);
         return head;
@@ -1029,6 +1038,11 @@ const schema: f.TableSchema.Schema = .{ .object = 9, .revision = 1, .next_column
 fn row(ordinal: u32, value: []const u8, cells: *[2]f.Types.Values.Cell) f.TableRow.Row {
     cells.* = .{ .{ .value = .{ .atom = .{ .signed = ordinal } } }, .{ .value = .{ .atom = .{ .bytes = value } } } };
     return .{ .identity = .{ .origin = 2, .operation = 20, .ordinal = ordinal }, .cells = cells };
+}
+fn blockWrites(turn: Turn) usize {
+    var count: usize = 0;
+    for (turn.decision.blocks.mutations) |slot| count += @intFromBool(slot != null);
+    return count;
 }
 fn writes(turn: Turn) usize {
     var count: usize = 0;
@@ -1066,14 +1080,14 @@ test "small typed insert fits row, final index, head and outcome in one turn" {
     try t.expectEqual(@as(usize, 3), overlay.records.items.len);
     try t.expectEqual(@as(usize, 2), try overlay.finish(changed.data.index));
     for (overlay.records.items) |record| if (record.reachable) {
-        try t.expect(record.bytes.len <= Pages.inline_bytes);
+        try t.expect(record.bytes.len <= @import("BlockRecord.zig").block_bytes);
         try t.expectEqual(.ready, try pages.stage(&turn, .{ .id = record.id, .spec = record.spec }, record.bytes));
     };
     const head = try p.Value.init("test-head");
     const receipt = try p.Value.init("test-outcome");
     try turn.put(head, p.Value.integer(@intCast(changed.data.index.root.?.id)));
     try turn.put(receipt, p.Value.integer(1));
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     try t.expectEqual(null, store.state.get(head));
     try store.commit(turn);
     turn = try store.capture();
@@ -1158,9 +1172,8 @@ test "Table pages reject definition drift, identity conflicts, denial and cross-
     try t.expectError(error.TableStorageNotFound, pages.read(&turn, ref, &output));
     try t.expectError(error.IncompatibleTableStorage, Pages.create(&turn, 9, .{ .record_bytes = f.TableRow.max_bytes, .staging_bytes = f.TableRow.max_bytes * 2, .staging_records = 2 }));
     try store.state.put(t.allocator, manifest_key, saved);
-    var broken = store.state.get(Pages.key(9, 'i', 1)).?;
-    broken.data[broken.len - 1] ^= 1;
-    try store.state.put(t.allocator, Pages.key(9, 'i', 1), broken);
+    const broken = store.blocks.records.get(Pages.key(9, 'c', 1)).?;
+    broken.bytes[broken.bytes.len - 1] ^= 1;
     try t.expectError(error.InvalidTablePage, pages.read(&turn, ref, &output));
 }
 fn allocationCase(allocator: std.mem.Allocator) !void {
@@ -1225,13 +1238,14 @@ test "Table page bounds and failed turn composition preserve prior private write
     try t.expectEqual(.ready, try pages.stage(&turn, ref, "data"));
     try store.commit(turn);
     var output: [256]u8 = undefined;
-    const saved = store.state.get(Pages.key(9, 'i', 1)).?;
+    const saved = try t.allocator.dupe(u8, store.blocks.records.get(Pages.key(9, 'c', 1)).?.bytes);
+    defer t.allocator.free(saved);
     for (0..saved.len) |length| {
-        try store.state.put(t.allocator, Pages.key(9, 'i', 1), try p.Value.init(saved.data[0..length]));
+        try store.blocks.put(t.allocator, Pages.key(9, 'c', 1), saved[0..length], store.revision);
         turn = try store.capture();
         try t.expectError(error.InvalidTablePage, pages.read(&turn, ref, &output));
     }
-    try store.state.put(t.allocator, Pages.key(9, 'i', 1), saved);
+    try store.blocks.put(t.allocator, Pages.key(9, 'c', 1), saved, store.revision);
     turn = try store.capture();
     try t.expectError(error.TablePageBufferTooSmall, pages.read(&turn, ref, output[0..3]));
 }
@@ -1287,7 +1301,7 @@ test "Table head binds schema and exact successor, retains retired data and reje
     after.next_record = overlay.nextId();
     try head.replace(&turn, after);
     try turn.put(try p.Value.init("outcome"), p.Value.integer(1));
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     try store.commit(turn);
     turn = try store.capture();
     try t.expectError(error.TableHeadChanged, head.replace(&turn, after));
@@ -1334,7 +1348,7 @@ fn expectHex(hex: []const u8, bytes: []const u8) !void {
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&output, hex), bytes);
 }
 test "typed Table head and page layouts match independent Python bytes" {
-    const Fixture = struct { native_definition: []const u8, creation_receipt_hex: []const u8, creation_key_hex: []const u8, manifest_hex: []const u8, inline_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, history_hex: []const u8, history_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, write_rejection_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
+    const Fixture = struct { native_definition: []const u8, creation_receipt_hex: []const u8, creation_key_hex: []const u8, manifest_hex: []const u8, block_hex: []const u8, head_hex: []const u8, head_key_hex: []const u8, history_hex: []const u8, history_key_hex: []const u8, page_key_hex: []const u8, write_key_hex: []const u8, write_status_hex: []const u8, write_rejection_hex: []const u8, statement_progress_hex: []const u8, statement_progress_key_hex: []const u8, cleanup_hex: []const u8, cleanup_key_hex: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-storage.json"), .{});
     defer fixture.deinit();
     const expected = fixture.value;
@@ -1359,7 +1373,7 @@ test "typed Table head and page layouts match independent Python bytes" {
     try expectHex(expected.history_hex, (try history.encode()).slice());
     try t.expectEqualDeep(history, try History.Record.decode(try history.encode()));
     try expectHex(expected.history_key_hex, History.key(9, 4).slice());
-    try expectHex(expected.page_key_hex, Pages.key(9, 'i', 7).slice());
+    try expectHex(expected.page_key_hex, Pages.key(9, 'c', 7).slice());
     const receipt: Write.Status = .{
         .reference = .{ .resource = 7, .object = 9, .principal = 1, .operation = 21, .digest = @splat(51) },
         .admitted_input = 12,
@@ -1411,7 +1425,8 @@ test "typed Table head and page layouts match independent Python bytes" {
     try expectHex(expected.manifest_hex, (try turn.read(Pages.key(9, 'd', 0))).?.slice());
     const bytes = "typed page";
     try t.expectEqual(.ready, try pages.stage(&turn, .{ .id = 7, .spec = try Pub.Digest.of(Pages.schema_format, bytes) }, bytes));
-    try expectHex(expected.inline_hex, (try turn.read(Pages.key(9, 'i', 7))).?.slice());
+    var block_buffer: [p.Blocks.max_block_bytes]u8 = undefined;
+    try expectHex(expected.block_hex, (try turn.readBlock(Pages.key(9, 'c', 7), &block_buffer)).?);
 }
 
 fn archiveCurrent(store: *Store) !void {
@@ -1462,7 +1477,7 @@ test "Table snapshot and complete tail retain paired changes and explicit no-op 
     turn = try store.capture();
     source = turn.committed();
     const upper = try History.current(&source, 9);
-    try t.expect(upper.head.revision > 6);
+    try t.expectEqual(@as(u64, 6), upper.head.revision);
     try t.expectEqualDeep(initial, try History.at(&source, upper, initial.committed));
     try t.expectEqualDeep(upper, try History.at(&source, upper, turn.view.revision));
     var accepted = initial;
@@ -1524,10 +1539,9 @@ test "Table snapshot and complete tail retain paired changes and explicit no-op 
     incompatible.data[16] ^= 1; // Definition inside the complete STH1 record.
     try t.expectError(error.IncompatibleTableStorage, History.Record.decode(incompatible));
     const first_history = History.key(9, initial.head.revision);
-    const original = store.state.get(first_history).?;
-    _ = store.state.remove(first_history);
+    const original = store.blocks.records.fetchRemove(first_history).?.value;
     try t.expectError(error.TableHistoryGap, Changes.next(&source, initial));
-    try store.state.put(t.allocator, first_history, original);
+    try store.blocks.records.put(t.allocator, first_history, original);
     store.denied = true;
     try t.expectError(error.AccessDenied, Changes.next(&source, accepted));
 }
@@ -1585,7 +1599,7 @@ test "point write publication retains exact counts, rejection and receipts after
     try t.expectEqual(.applied, applied.state);
     try t.expectEqual(@as(u64, 1), applied.matched);
     try t.expectEqual(@as(u64, 1), applied.changed);
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     var before_commit = try store.capture();
     try t.expectEqualDeep(initial, try Head.load(&before_commit, 9));
     try t.expectEqual(null, try Write.status(&before_commit, ref));
@@ -1656,14 +1670,14 @@ test "large point write reserves before staging, fences competitors and accepts 
     var store: Store = .{};
     defer store.deinit();
     const initial = try store.table();
-    var large: [7000]u8 = @splat('x');
+    var large: [300000]u8 = @splat('x');
     var cells: [2]f.Types.Values.Cell = undefined;
     const request = insertRequest(31, 1, &large, &cells);
     var turn = try store.capture();
     var result = try Write.step(t.allocator, &turn, request);
     try t.expectEqual(.building, result.state);
-    try t.expectEqual(@as(usize, 3), writes(turn));
-    try t.expectError(error.PublicationNotFound, (Pub{ .resource = 7, .domain = .table, .namespace = 9 }).inspect(&turn, initial.next_record));
+    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(.staging, (try (Pub{ .resource = 7, .domain = .table, .namespace = 9 }).inspect(&turn, initial.next_record)).state);
     try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
     try t.expectEqual(initial.next_record, result.first_record);
     try store.commit(turn);
@@ -1710,7 +1724,7 @@ test "point cancellation retains reservation and exact terminal result while new
     var store: Store = .{};
     defer store.deinit();
     _ = try store.table();
-    var large: [4096]u8 = @splat('x');
+    var large: [700000]u8 = @splat('x');
     var cells: [2]f.Types.Values.Cell = undefined;
     const request = insertRequest(41, 1, &large, &cells);
     const ref = try request.reference(t.allocator);
@@ -1730,7 +1744,7 @@ test "point cancellation retains reservation and exact terminal result while new
     turn = try store.capture();
     const cancelled = try Write.cancel(&turn, ref);
     try t.expectEqual(.cancelled, cancelled.state);
-    try t.expectEqual(@as(usize, 3), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     try store.commit(turn);
     turn = try store.capture();
     const empty = try Head.load(&turn, 9);
@@ -1812,7 +1826,7 @@ test "compiled key patches preserve unassigned columns and original receipts aft
     turn = try store.capture();
     const accepted = try Write.step(t.allocator, &turn, patch);
     try t.expectEqual(.applied, accepted.state);
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     try store.commit(turn);
     var other = patch;
     other.operation = 63;
@@ -1860,103 +1874,79 @@ test "compiled key patches preserve unassigned columns and original receipts aft
     try t.expectEqual(@as(usize, 0), writes(turn));
 }
 
-test "Table page prefetch batches chunks without bypassing publication or digest checks" {
+test "complete Table blocks preserve manifest, format, length and digest checks" {
     var store: Store = .{};
     defer store.deinit();
     const pages = try store.create();
     const payload: [4100]u8 = @splat('x');
     const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, &payload) };
-    for (0..64) |_| {
-        var turn = try store.capture();
-        const step = try pages.stage(&turn, ref, &payload);
-        try store.commit(turn);
-        if (step == .ready) break;
-    } else return error.UnfinishedTestPage;
     var turn = try store.capture();
-    const Reader = struct {
-        source: *Turn,
-        view: p.Growth.View,
-        keys: [64]?p.Value = @splat(null),
-        values: [64]?p.Value = @splat(null),
-        count: usize = 0,
-        batches: usize = 0,
-        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
-            try t.expect(keys.len > 0 and keys.len <= p.Growth.page_size);
-            self.batches += 1;
-            for (keys) |key| {
-                self.keys[self.count] = key;
-                self.values[self.count] = try self.source.read(key);
-                self.count += 1;
-            }
-        }
-        pub fn read(self: *@This(), key: p.Value) !?p.Value {
-            for (self.keys[0..self.count], self.values[0..self.count]) |address, value| if (address.?.eql(key)) return value;
-            return error.UnbatchedTableRead;
-        }
-    };
-    var reader: Reader = .{ .source = &turn, .view = turn.view };
+    try t.expectEqual(.ready, try pages.stage(&turn, ref, &payload));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try t.expectEqual(@as(usize, 1), blockWrites(turn));
     var output: [payload.len]u8 = undefined;
-    try t.expectEqualStrings(&payload, try pages.read(&reader, ref, &output));
-    try t.expectEqual(@as(usize, 4), reader.batches); // One header pair, then 8+8+1 chunks.
-    try t.expectEqual(@as(usize, 19), reader.count);
+    try t.expectEqualStrings(&payload, try pages.read(&turn, ref, &output));
+    var untouched = try store.capture();
+    try t.expectError(error.TablePageNotFound, pages.read(&untouched, ref, &output));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectEqualStrings(&payload, try pages.read(&turn, ref, &output));
     const location = Pub.key(.table, 9, 'c', ref.id, 0);
-    var damaged = store.state.get(location).?;
-    damaged.data[0] ^= 1;
-    try store.state.put(t.allocator, location, damaged);
-    reader = .{ .source = &turn, .view = turn.view };
-    try t.expectError(error.InvalidPublicationDigest, pages.read(&reader, ref, &output));
-    var descriptor = try Pub.Descriptor.decode(store.state.get(Pages.key(9, 'r', ref.id)).?);
-    descriptor.state = .retired;
-    try store.state.put(t.allocator, Pages.key(9, 'r', ref.id), try descriptor.encode());
-    reader = .{ .source = &turn, .view = turn.view };
-    try t.expectError(error.PublicationNotPublished, pages.read(&reader, ref, &output));
-    try t.expectEqual(@as(usize, 1), reader.batches); // No chunk acquisition after retirement.
+    const original = try t.allocator.dupe(u8, store.blocks.records.get(location).?.bytes);
+    defer t.allocator.free(original);
+    for ([_]usize{ 0, 4, 8, 12, original.len - 1 }) |offset| {
+        try store.blocks.put(t.allocator, location, original, store.revision);
+        store.blocks.records.get(location).?.bytes[offset] ^= 1;
+        turn = try store.capture();
+        try t.expectError(error.InvalidTablePage, pages.read(&turn, ref, &output));
+    }
+    try store.blocks.put(t.allocator, location, original, store.revision);
+    turn = try store.capture();
     store.denied = true;
-    reader = .{ .source = &turn, .view = turn.view };
-    try t.expectError(error.AccessDenied, pages.read(&reader, ref, &output));
+    try t.expectError(error.AccessDenied, pages.read(&turn, ref, &output));
+    try t.expectError(error.AccessDenied, turn.validate());
 }
 
-test "Table index cache reuses bodies but rechecks basis, manifest, lifecycle and access" {
+test "Table node cache binds the exact cut and rechecks its source before reuse" {
     var store: Store = .{};
     defer store.deinit();
     const pages = try store.create();
     const payload: [Index.node_bytes]u8 = @splat('x');
     const ref: Index.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Index.format, &payload), .level = 0, .minimum = try Index.Key.init("a"), .entries = 1 };
-    for (0..64) |_| {
-        var turn = try store.capture();
-        const step = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
-        try store.commit(turn);
-        if (step == .ready) break;
-    } else return error.UnfinishedTestPage;
     var turn = try store.capture();
+    _ = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
+    try store.commit(turn);
+    turn = try store.capture();
     const Source = struct {
         source: *Turn,
         view: p.Growth.View,
-        chunks: usize = 0,
+        bodies: usize = 0,
         headers: usize = 0,
         pub fn read(self: *@This(), key: p.Value) !?p.Value {
-            if (key.len == 27 and key.data[14] == 'c') self.chunks += 1 else self.headers += 1;
+            self.headers += 1;
             return self.source.read(key);
+        }
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            self.bodies += 1;
+            return self.source.readBlock(key, output);
         }
     };
     var source: Source = .{ .source = &turn, .view = turn.view };
-    var cache: Index.Cache = .{};
+    var cache: Pages.Cache = .{};
     var reader: Pages.Reader(*Source) = .{ .pages = pages, .source = &source, .cache = &cache };
     var output: [Index.node_bytes]u8 = undefined;
     try t.expectEqualStrings(&payload, try reader.load(ref, &output));
-    const chunks = source.chunks;
-    try t.expect(chunks > 1);
+    try t.expectEqual(@as(usize, 1), source.bodies);
     const headers = source.headers;
-    // A different adapter in the same captured query can share verified nodes.
     reader = .{ .pages = pages, .source = &source, .cache = &cache };
     try t.expectEqualStrings(&payload, try reader.load(ref, &output));
-    try t.expectEqual(chunks, source.chunks);
+    try t.expectEqual(@as(usize, 1), source.bodies);
     try t.expect(source.headers > headers);
-    try t.expectError(error.IndexNodeTooLarge, reader.load(ref, output[0..1]));
-    source.view.id += 1;
+    try t.expectError(error.TablePageBufferTooSmall, reader.load(ref, output[0..1]));
+    turn = try store.capture();
+    source.view = turn.view;
     try t.expectEqualStrings(&payload, try reader.load(ref, &output));
-    try t.expectEqual(chunks * 2, source.chunks);
-
+    try t.expectEqual(@as(usize, 2), source.bodies);
     const manifest_key = Pages.key(9, 'd', 0);
     const original = store.state.get(manifest_key).?;
     var incompatible = original;
@@ -1964,92 +1954,63 @@ test "Table index cache reuses bodies but rechecks basis, manifest, lifecycle an
     try store.state.put(t.allocator, manifest_key, incompatible);
     try t.expectError(error.IncompatibleTableStorage, reader.load(ref, &output));
     try store.state.put(t.allocator, manifest_key, original);
-    const record_key = Pages.key(9, 'r', ref.id);
-    const record = store.state.get(record_key).?;
-    var descriptor = try Pub.Descriptor.decode(record);
-    descriptor.state = .retired;
-    try store.state.put(t.allocator, record_key, try descriptor.encode());
-    try t.expectError(error.PublicationNotPublished, reader.load(ref, &output));
-    try store.state.put(t.allocator, record_key, record);
     store.denied = true;
     try t.expectError(error.AccessDenied, reader.load(ref, &output));
     store.denied = false;
-    // A failed Station read stays failed. New access requires a fresh turn.
     turn = try store.capture();
-
-    const location = Pub.key(.table, 9, 'c', ref.id, 0);
-    var damaged = store.state.get(location).?;
-    damaged.data[0] ^= 1;
-    try store.state.put(t.allocator, location, damaged);
-    source.view.id += 1;
-    try t.expectError(error.InvalidPublicationDigest, reader.load(ref, &output));
+    source.view = turn.view;
+    store.blocks.records.get(Pages.key(9, 'c', ref.id)).?.bytes[44] ^= 1;
+    try t.expectError(error.InvalidTablePage, reader.load(ref, &output));
 }
 
-test "row lookahead batches bounded headers before chunks and preserves digest and lifecycle gates" {
+test "row lookahead fetches eight bounded blocks once without granting disclosure rights" {
     var store: Store = .{};
     defer store.deinit();
     const pages = try store.create();
     const payload: [600]u8 = @splat('z');
     var refs: [8]Data.Blob = undefined;
+    var turn = try store.capture();
     for (&refs, 0..) |*ref, i| {
         ref.* = .{ .id = 20 + i, .spec = try Pub.Digest.of(Data.row_format, &payload) };
-        for (0..16) |_| {
-            var turn = try store.capture();
-            const step = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
-            try store.commit(turn);
-            if (step == .ready) break;
-        } else return error.UnfinishedTestPage;
+        _ = try pages.stage(&turn, .{ .id = ref.id, .spec = ref.spec }, &payload);
     }
-    var turn = try store.capture();
+    try store.commit(turn);
+    turn = try store.capture();
+    turn.reader.cache_reads = true;
     const Source = struct {
         source: *Turn,
+        store: *Store,
         view: p.Growth.View,
-        batches: usize = 0,
-        chunks: usize = 0,
-        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
-            try t.expect(keys.len > 0 and keys.len <= p.Growth.page_size);
-            self.batches += 1;
-            for (keys) |address| {
-                _ = try self.source.read(address);
-                if (address.data[14] == 'c') self.chunks += 1;
-            }
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            return Store.read(self.store, self.view, key);
         }
-        pub fn read(self: *@This(), address: p.Value) !?p.Value {
-            return self.source.read(address);
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            return self.source.readBlock(key, output);
+        }
+        pub fn prefetchBlocks(self: *@This(), keys: []const p.Value) !void {
+            return self.source.prefetchBlocks(keys);
         }
     };
-    var source: Source = .{ .source = &turn, .view = turn.view };
+    var source: Source = .{ .source = &turn, .store = &store, .view = turn.view };
     var reader: Pages.Reader(*Source) = .{ .pages = pages, .source = &source };
+    const reads = store.block_calls;
     try reader.prefetchBlobs(&refs);
-    try t.expectEqual(@as(usize, 5), source.batches); // Nine headers, then 24 chunk keys.
-    try t.expectEqual(@as(usize, 24), source.chunks);
     var output: [payload.len]u8 = undefined;
     for (refs) |ref| try t.expectEqualStrings(&payload, try reader.loadBlob(ref, &output));
-    const address = Pages.key(9, 'r', refs[7].id);
-    const original = store.state.get(address).?;
-    var descriptor = try Pub.Descriptor.decode(original);
-    descriptor.state = .retired;
-    try store.state.put(t.allocator, address, try descriptor.encode());
-    source = .{ .source = &turn, .view = turn.view };
-    try t.expectError(error.PublicationNotPublished, reader.prefetchBlobs(&refs));
-    try t.expectEqual(@as(usize, 0), source.chunks);
-    try store.state.put(t.allocator, address, original);
-    const chunk = Pub.key(.table, 9, 'c', refs[0].id, 0);
-    var damaged = store.state.get(chunk).?;
-    damaged.data[0] ^= 1;
-    try store.state.put(t.allocator, chunk, damaged);
-    try reader.prefetchBlobs(&refs);
-    try t.expectError(error.InvalidPublicationDigest, reader.loadBlob(refs[0], &output));
+    try t.expectEqual(reads + 1, store.block_calls);
     store.denied = true;
-    source = .{ .source = &turn, .view = turn.view };
-    try t.expectError(error.AccessDenied, reader.prefetchBlobs(&refs));
-    try t.expectEqual(@as(usize, 0), source.chunks);
+    try t.expectError(error.AccessDenied, reader.loadBlob(refs[0], &output));
+    store.denied = false;
+    turn = try store.capture();
+    source.view = turn.view;
+    store.blocks.records.get(Pages.key(9, 'c', refs[0].id)).?.bytes[44] ^= 1;
+    try t.expectError(error.InvalidTablePage, reader.loadBlob(refs[0], &output));
 }
 
 test "point publication reserves application completion writes across staging and lost proposals" {
     const progress_key = try p.Value.init("application.progress");
     const receipt_key = try p.Value.init("application.receipt");
-    const large: [600]u8 = @splat('x');
+    const large: [300000]u8 = @splat('x');
     for ([_][]const u8{ "one", &large }) |value| for ([_]u8{ 1, 2 }) |reserved| {
         var store: Store = .{};
         defer store.deinit();
@@ -2076,7 +2037,7 @@ test "point publication reserves application completion writes across staging an
             try t.expectEqual(proposal.state, result.state);
             if (result.state == .building) {
                 building = true;
-                try t.expect(writes(turn) > 0 and writes(turn) <= 4);
+                try t.expect(writes(turn) + blockWrites(turn) > 0 and writes(turn) <= 4);
                 try store.commit(turn);
                 continue;
             }
@@ -2088,7 +2049,7 @@ test "point publication reserves application completion writes across staging an
             completed = result;
             break;
         } else return error.UnfinishedReservedWrite;
-        try t.expect(building);
+        try t.expectEqual(value.len > @import("BlockRecord.zig").block_bytes, building);
         var turn = try store.capture();
         try t.expectEqual(@as(u64, 1), (try Head.load(&turn, 9)).rows);
         try t.expectEqual(@as(i64, 1), try (try turn.read(progress_key)).?.asInteger());
@@ -2121,6 +2082,7 @@ test "invalid or exhausted application completion reservation restores the priva
     try store.commit(turn);
     turn = try store.capture();
     for (0..4) |i| try turn.write(p.Value.integer(@intCast(i)), p.Value.integer(1));
+    for (0..p.Blocks.max_records) |i| try turn.writeBlock(p.Value.integer(@intCast(i)), "occupied");
     const occupied = turn.decision;
     // Staging can make progress with a full turn, but cannot leak a partial
     // publication when even its next immutable page does not fit.
@@ -2129,136 +2091,119 @@ test "invalid or exhausted application completion reservation restores the priva
     try t.expectEqual(@as(u64, 0), (try Head.load(&turn, 9)).rows);
 }
 
-test "bounded Table staging packs chunks without exposing private publication or losing retry identity" {
-    for ([_]usize{ 257, 512, 513, 1025 }) |length| {
-        for (0..5) |occupied| {
-            var store: Store = .{};
-            defer store.deinit();
-            const pages = try store.create();
-            const payload: [1025]u8 = @splat('s');
-            const bytes = payload[0..length];
-            const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, bytes) };
-            const pubn: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+test "bounded Table blocks resume large records with exact quota and retry identity" {
+    const sizes = [_]usize{ 257, 65280, 65281, 131000, 300000 };
+    for (sizes) |length| {
+        var store: Store = .{};
+        defer store.deinit();
+        const pages = try store.create();
+        const bytes = try t.allocator.alloc(u8, length);
+        defer t.allocator.free(bytes);
+        @memset(bytes, 's');
+        const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, bytes) };
+        const pubn: Pub = .{ .resource = 7, .domain = .table, .namespace = 9 };
+        var complete = false;
+        var steps: usize = 0;
+        while (!complete) : (steps += 1) {
             var turn = try store.capture();
-            for (0..occupied) |i| try turn.put(p.Value.integer(@intCast(i)), p.Value.integer(7));
-            const before = turn.decision;
-            if (occupied > 2) {
-                try t.expectError(error.MutationBudgetExceeded, pages.stage(&turn, ref, bytes));
-                try t.expectEqualDeep(before, turn.decision);
-                continue;
-            }
-            const step = try pages.stage(&turn, ref, bytes);
-            try t.expect(writes(turn) <= 4);
-            if (occupied == 0 and length <= 512) try t.expectEqual(.ready, step);
-            try t.expectError(error.PublicationReadAfterMutation, pubn.open(&turn, ref.id));
+            const state = try pages.stage(&turn, ref, bytes);
+            try t.expect(writes(turn) <= 4 and blockWrites(turn) <= p.Blocks.max_records);
+            try t.expect(turn.decision.blocks.body.len <= p.Blocks.max_batch_bytes);
             var untouched = try store.capture();
-            try t.expectError(error.PublicationNotFound, pubn.inspect(&untouched, ref.id));
-            // Lose this entire private proposal and replay from the original cut.
+            const output = try t.allocator.alloc(u8, length);
+            defer t.allocator.free(output);
+            if (steps == 0) try t.expectError(error.TablePageNotFound, pages.read(&untouched, .{ .id = 99, .spec = try Pub.Digest.of(Data.row_format, "missing") }, output));
+            // A lost proposal cannot advance descriptors or leak its bytes.
             var replay = try store.capture();
-            for (0..occupied) |i| try replay.put(p.Value.integer(@intCast(i)), p.Value.integer(7));
-            try t.expectEqual(step, try pages.stage(&replay, ref, bytes));
-            for (turn.decision.mutations, replay.decision.mutations) |first, second| {
-                if (first) |value| {
-                    try t.expect(second != null);
-                    try t.expect(value.key.eql(second.?.key));
-                    // Publication records retain the actual committed input.
-                    if (!value.key.eql(Pages.key(9, 'r', ref.id))) try t.expectEqualDeep(value, second.?);
-                } else try t.expect(second == null);
-            }
+            try t.expectEqual(state, try pages.stage(&replay, ref, bytes));
+            try t.expectEqualDeep(turn.decision.blocks, replay.decision.blocks);
             try store.commit(replay);
-            for (0..10) |_| {
-                turn = try store.capture();
-                const next = try pages.stage(&turn, ref, bytes);
-                try t.expect(writes(turn) <= 4);
-                if (next == .progress) try t.expect(writes(turn) > 0);
-                try store.commit(turn);
-                if (next == .ready) break;
-            } else return error.UnfinishedTestPage;
-            turn = try store.capture();
-            var output: [1025]u8 = undefined;
-            try t.expectEqualSlices(u8, bytes, try pages.read(&turn, ref, &output));
-            try t.expectEqual(@as(u32, 0), (try pubn.budget(&turn)).records);
-            try t.expectEqual(.ready, try pages.stage(&turn, ref, bytes));
-            try t.expectEqual(@as(usize, 0), writes(turn));
-            const changed: [1025]u8 = @splat('x');
-            const wrong: Pages.Reference = .{ .id = ref.id, .spec = try Pub.Digest.of(Data.row_format, changed[0..length]) };
-            try t.expectError(error.TablePageIdentityConflict, pages.stage(&turn, wrong, changed[0..length]));
-            try t.expectEqual(@as(usize, 0), writes(turn));
+            complete = state == .ready;
+            try t.expect(steps < 8);
         }
+        var turn = try store.capture();
+        const output = try t.allocator.alloc(u8, length);
+        defer t.allocator.free(output);
+        try t.expectEqualSlices(u8, bytes, try pages.read(&turn, ref, output));
+        try t.expectEqual(@as(u32, 0), (try pubn.budget(&turn)).records);
+        try t.expectEqual(.ready, try pages.stage(&turn, ref, bytes));
+        try t.expectEqual(@as(usize, 0), writes(turn) + blockWrites(turn));
+        bytes[0] ^= 1;
+        const wrong: Pages.Reference = .{ .id = ref.id, .spec = try Pub.Digest.of(Data.row_format, bytes) };
+        try t.expectError(error.TablePageIdentityConflict, pages.stage(&turn, wrong, bytes));
     }
 }
 
-test "packed Table staging restores its whole proposal after inconsistent chunk evidence" {
+test "Table block identity and capacity errors restore the complete private proposal" {
     var store: Store = .{};
     defer store.deinit();
     const pages = try store.create();
     const bytes: [512]u8 = @splat('x');
     const ref: Pages.Reference = .{ .id = 20, .spec = try Pub.Digest.of(Data.row_format, &bytes) };
-    const chunk = Pub.key(.table, 9, 'c', ref.id, 0);
-    try store.state.put(t.allocator, chunk, try p.Value.init("unaccounted"));
+    const location = Pub.key(.table, 9, 'c', ref.id, 0);
+    try store.blocks.put(t.allocator, location, "unaccounted", store.revision);
     var turn = try store.capture();
     try turn.put(p.Value.integer(1), p.Value.integer(7));
     const before = turn.decision;
-    try t.expectError(error.InvalidPublicationDescriptor, pages.stage(&turn, ref, &bytes));
+    try t.expectError(error.InvalidPublicationChunk, pages.stage(&turn, ref, &bytes));
     try t.expectEqualDeep(before, turn.decision);
+    var capacity = try store.capture();
+    for (0..p.Blocks.max_records) |i| try capacity.writeBlock(p.Value.integer(@intCast(i)), "occupied");
+    const full = capacity.decision;
+    var fresh = ref;
+    fresh.id += 1;
+    try t.expectError(error.MutationBudgetExceeded, pages.stage(&capacity, fresh, &bytes));
+    try t.expectEqualDeep(full, capacity.decision);
 }
 
-test "point admission stages the first row while the old head remains visible after explicit predecessor staging" {
+test "point writes publish rows and indexes with head and receipt in one bounded turn" {
     var store: Store = .{};
     defer store.deinit();
     _ = try store.table();
-    var first_cells: [2]f.Types.Values.Cell = undefined;
-    const first = insertRequest(200, 1, "first", &first_cells);
-    try archiveCurrent(&store);
-    var turn = try store.capture();
-    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, first)).state);
-    try store.commit(turn);
-    // Three small rows keep their full collision-safe index inline. Each point
-    // insert still fits one four-write decision; a fourth stages publication.
-    var second_cells: [2]f.Types.Values.Cell = undefined;
-    try archiveCurrent(&store);
-    turn = try store.capture();
-    const second = insertRequest(201, 2, "second", &second_cells);
-    const accepted = try Write.step(t.allocator, &turn, second);
-    try t.expectEqual(.applied, accepted.state);
-    try t.expectEqual(@as(usize, 4), writes(turn));
-    var lost = try store.capture();
-    try t.expectEqual(@as(u64, 1), (try Head.load(&lost, 9)).rows);
-    try t.expectEqual(null, try Write.status(&lost, try second.reference(t.allocator)));
-    try store.commit(turn);
-    try archiveCurrent(&store);
-    turn = try store.capture();
-    var third_cells: [2]f.Types.Values.Cell = undefined;
-    try t.expectEqual(.applied, (try Write.step(t.allocator, &turn, insertRequest(202, 3, "third", &third_cells))).state);
-    try t.expectEqual(@as(usize, 4), writes(turn));
-    try store.commit(turn);
-    try archiveCurrent(&store);
-    turn = try store.capture();
-    const original = try Head.load(&turn, 9);
-    var next_cells: [2]f.Types.Values.Cell = undefined;
-    const request = insertRequest(203, 4, "fourth", &next_cells);
-    var outcome = try Write.step(t.allocator, &turn, request);
-    try t.expectEqual(.building, outcome.state);
-    try t.expectEqual(@as(usize, 3), writes(turn));
-    try t.expect((try turn.read(Pages.key(9, 'i', original.next_record))) != null);
-    const reserved = try Head.load(&turn, 9);
-    try t.expectEqualDeep(original.index, reserved.index);
-    try t.expectEqual(original.rows, reserved.rows);
-    try store.commit(turn);
-    var steps: usize = 1;
-    while (outcome.state == .building) {
-        try archiveCurrent(&store);
-        turn = try store.capture();
-        outcome = try Write.step(t.allocator, &turn, request);
-        try t.expect(writes(turn) <= 4);
+    for (0..6) |i| {
+        var cells: [2]f.Types.Values.Cell = undefined;
+        const request = insertRequest(200 + i, i + 1, "value", &cells);
+        var turn = try store.capture();
+        const outcome = try Write.step(t.allocator, &turn, request);
+        try t.expectEqual(.applied, outcome.state);
+        try t.expectEqual(@as(usize, 2), writes(turn));
+        try t.expect(blockWrites(turn) >= 3); // row, final index and predecessor
+        var observer = try store.capture();
+        try t.expectEqual(@as(u64, i), (try Head.load(&observer, 9)).rows);
+        try t.expectEqual(null, try Write.status(&observer, outcome.reference));
         try store.commit(turn);
-        steps += 1;
-        try t.expect(steps <= 3);
+        turn = try store.capture();
+        try t.expectEqual(@as(u64, i + 1), (try Head.load(&turn, 9)).rows);
+        try t.expectEqualDeep(outcome, try Write.step(t.allocator, &turn, request));
+        try t.expectEqual(@as(usize, 0), writes(turn) + blockWrites(turn));
     }
-    try t.expectEqual(.applied, outcome.state);
-    try archiveCurrent(&store);
+}
+
+test "private bulk proposals stay separate from committed cached reads and failures poison the turn" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const key = try p.Value.init("block");
+    const bytes: [1024]u8 = @splat(255);
+    try turn.writeBlock(key, &bytes);
+    var output: [1024]u8 = undefined;
+    try t.expectEqualSlices(u8, &bytes, (try turn.readBlock(key, &output)).?);
+    var committed = turn.committed();
+    try t.expectEqual(null, try committed.readBlock(key, &output));
+    try store.commit(turn);
     turn = try store.capture();
-    try t.expectEqual(@as(u64, 4), (try Head.load(&turn, 9)).rows);
-    try t.expectEqualDeep(outcome, try Write.step(t.allocator, &turn, request));
-    try t.expectEqual(@as(usize, 0), writes(turn));
+    turn.reader.cache_reads = true;
+    const before = store.block_calls;
+    try turn.prefetchBlocks(&.{key});
+    try t.expectEqualSlices(u8, &bytes, (try turn.readBlock(key, &output)).?);
+    try t.expectEqual(before + 1, store.block_calls);
+    try turn.writeBlock(key, null);
+    try t.expectEqual(null, try turn.readBlock(key, &output));
+    committed = turn.committed();
+    try t.expectEqualSlices(u8, &bytes, (try committed.readBlock(key, &output)).?);
+    turn = try store.capture();
+    turn.reader.blocks = null;
+    try t.expectError(error.UnsupportedBlockStorage, turn.readBlock(key, &output));
+    try t.expectError(error.UnsupportedBlockStorage, turn.writeBlock(key, "new"));
+    try t.expectError(error.UnsupportedBlockStorage, turn.validate());
 }

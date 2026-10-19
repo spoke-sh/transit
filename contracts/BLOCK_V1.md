@@ -79,6 +79,11 @@ with nonempty values requires its complete body. Frozen pending operations retai
 both parts. Missing/foreign definitions reject before execution or stored-root
 interpretation.
 
+For fresh work, missing, mismatched or malformed body bytes reject with
+`InvalidBlockBody` before any provider write. This caller rejection is distinct
+from missing or corrupt bytes already referenced by stored state, which prevent
+successful availability or disclosure.
+
 The containing turn requires its current writable view and resource revision.
 Its successor catalog owns the separate block-index root and records
 `Resource.block_entries` independently of the small `entries` count. Metadata,

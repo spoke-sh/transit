@@ -114,7 +114,7 @@ after DROP or name reuse. An absent object/revision or a known unfinished,
 rejected or cancelled candidate returns null. Private Publication completion is
 insufficient: the original catalog receipt, or applied delegated Table receipt,
 must name the exact metadata commitment and admitted input. Missing original
-acceptance evidence, conflicting inline/chunked records and incompatible/corrupt
+acceptance evidence and incompatible/corrupt
 retained definitions return errors. Schema and metadata revisions remain distinct
 across rename and DROP. Call `deinit` on the owned historical result.
 
@@ -124,9 +124,9 @@ row or an exact conjunction containing every primary-key equality and no extra
 predicate. Other selected finite statements use `TableStatement`. The catalog
 recomputes the enclosing-owner binding from the complete request, including
 predicates; switching routes or changing metadata/intent at an occupied operation
-rejects. A small-row insert can publish in four writes after its predecessor
-history record is staged; otherwise it advances through bounded continuation
-turns. Delegated ALTER, DROP and cancellation can also stage that predecessor
+rejects. A small-row insert can publish row/index/predecessor blocks together
+with its head and outcome metadata in one native turn. Work exceeding either
+block or metadata budgets advances through bounded continuations. Delegated ALTER, DROP and cancellation can also stage that predecessor
 before their atomic catalog/Table publication. A pending cancellation still
 requires another exact cancellation step; it is not a completed outcome.
 
@@ -293,19 +293,15 @@ definition for an earlier command.
 It does not consult a newer Table head or reinterpret historical metadata.
 The caller must release the returned value with `deinit`.
 
-`TableMetadataStore` uses the dedicated catalog Publication domain and object
-namespace. A mandatory manifest binds current definition and exact scope/object.
-Initialization refuses orphan state and cannot adopt another catalog's namespace.
-One active metadata record may be staged, within the fixed per-record budget;
-historical record count is independent of resident work.
-
-Encoded records of at most 256 bytes use one inline native value. Longer records
-use the ordinary resumable Publication phases and chunk budget. The supplied
-reference's length selects representation; there is no fallback decoder. Repeated
-staging must provide exactly the same bytes at a revision. Both readers verify the
-complete commitment. Large reads require a committed Publication cursor and reject
-opening a just-published private descriptor. No helper weakens current source
-authorization, captured-turn fencing or the four-mutation limit.
+`TableMetadataStore` uses catalog domain 9 and the stable object namespace.
+A mandatory manifest binds the native definition and exact scope/object.
+Initialization checks both metadata and block namespaces for orphan state.
+Each encoded definition is at most 444 bytes and occupies one `BlockRecord`
+envelope in the resource block index. Historical record count is independent of
+resident work. Repeated staging verifies exactly the same bytes at a revision.
+The private turn can read its complete new block; committed readers cannot.
+Every read verifies the complete commitment and current source access. Metadata
+block completion does not publish a name or replace the accepted catalog outcome.
 
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md#general-table-metadata-records)
 specifies bytes and keys. The [proof ledger](../../../../tests/README.md) separates

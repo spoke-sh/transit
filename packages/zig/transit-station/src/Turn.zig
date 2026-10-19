@@ -5,9 +5,12 @@ const p = client.protocol;
 const Frame = @import("Frame.zig");
 pub const WaitPhase = enum(u8) { waiting = 1, replied = 2, timed_out = 3, cancelled = 4 };
 pub const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
+pub const BlockPage = p.Growth.Batch(p.Blocks.Entry, p.Value);
+const BlockBasis = union(enum) { view: View, version: p.Growth.ReadVersion };
 pub const Reader = struct {
     context: *anyopaque,
     cache_reads: bool = false,
+    blocks: ?*const fn (*anyopaque, p.Growth.BlockRead.Query, *p.Blocks.Body) anyerror!p.Growth.BlockRead.Result = null,
     read: *const fn (*anyopaque, p.Growth.View, p.Value) anyerror!?p.Value,
     many: ?*const fn (*anyopaque, View, [p.Growth.page_size]?p.Value) anyerror![p.Growth.page_size]?p.Growth.Entry = null,
     page: ?*const fn (*anyopaque, p.Growth.View, ?p.Value) anyerror!Page = null,
@@ -35,6 +38,7 @@ authorization_subject: ?p.Authorization.Subject = null,
 // A native prefetch still requests at most one eight-key protocol page.
 read_cache: [read_cache_entries]?struct { key: p.Value, value: ?p.Value } = @splat(null),
 cache_view: ?View = null,
+block_cache: ?struct { basis: BlockBasis, batch: client.BlockBatch } = null,
 cache_next: usize = 0,
 
 /// A read-only borrow of this turn's captured committed cut. Point reads and
@@ -57,6 +61,18 @@ pub const Committed = struct {
             self.turn.read_error = error.InvalidCommittedSource;
             return error.InvalidCommittedSource;
         }
+    }
+    pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+        try self.check();
+        return self.turn.readBlockAt(.{ .view = self.view }, key, output);
+    }
+    pub fn prefetchBlocks(self: *@This(), keys: []const p.Value) !void {
+        try self.check();
+        try self.turn.prefetchBlocksAt(.{ .view = self.view }, keys);
+    }
+    pub fn blockPage(self: *@This(), after: ?p.Value) !BlockPage {
+        try self.check();
+        return self.turn.blockPageAt(.{ .view = self.view }, after);
     }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try self.check();
@@ -143,6 +159,18 @@ pub const Retained = struct {
     }
     pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
         return self.turn.requireAuthorization(guard);
+    }
+    pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+        try self.turn.dependVersion(self.view.id);
+        return self.turn.readBlockAt(.{ .version = self.view }, key, output);
+    }
+    pub fn prefetchBlocks(self: *@This(), keys: []const p.Value) !void {
+        try self.turn.dependVersion(self.view.id);
+        try self.turn.prefetchBlocksAt(.{ .version = self.view }, keys);
+    }
+    pub fn blockPage(self: *@This(), after: ?p.Value) !BlockPage {
+        try self.turn.dependVersion(self.view.id);
+        return self.turn.blockPageAt(.{ .version = self.view }, after);
     }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try p.Growth.validateKey(key);
@@ -244,6 +272,18 @@ pub const Captured = struct {
     }
     pub fn requireAuthorization(self: *@This(), guard: p.Authorization.Guard) !p.Authorization.Verified {
         return self.turn.requireAuthorization(guard);
+    }
+    pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+        try self.check();
+        return self.turn.readBlockAt(.{ .view = self.view }, key, output);
+    }
+    pub fn prefetchBlocks(self: *@This(), keys: []const p.Value) !void {
+        try self.check();
+        try self.turn.prefetchBlocksAt(.{ .view = self.view }, keys);
+    }
+    pub fn blockPage(self: *@This(), after: ?p.Value) !BlockPage {
+        try self.check();
+        return self.turn.blockPageAt(.{ .view = self.view }, after);
     }
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         try self.check();
@@ -435,6 +475,106 @@ pub fn readCommittedFresh(self: *Turn, key: p.Value) !?p.Value {
     self.seedRead(key, value);
     return value;
 }
+/// Complete private immutable values have their own record/byte budget. No I/O
+/// or durable staging occurs while constructing a handler proposal.
+pub fn writeBlock(self: *Turn, key: p.Value, bytes: ?[]const u8) !void {
+    if (self.read_error) |err| return err;
+    self.decision.blocks.put(key, bytes) catch |err| return if (err == error.BlockBatchTooLarge) error.MutationBudgetExceeded else err;
+    self.decision.write_view = self.view.id;
+}
+pub fn readBlock(self: *Turn, key: p.Value, output: []u8) !?[]const u8 {
+    if (self.read_error) |err| return err;
+    try p.State.key(key);
+    try p.Blocks.verify(self.decision.blocks.mutations, &self.decision.blocks.body);
+    var offset: usize = 0;
+    for (self.decision.blocks.mutations) |slot| if (slot) |mutation| {
+        if (mutation.key.eql(key)) {
+            const spec = mutation.value orelse return null;
+            if (spec.bytes > output.len) return error.BlockBufferTooSmall;
+            @memcpy(output[0..spec.bytes], self.decision.blocks.body.slice()[offset..][0..spec.bytes]);
+            return output[0..spec.bytes];
+        }
+        if (mutation.value) |spec| offset += spec.bytes;
+    };
+    return self.readBlockAt(.{ .view = self.view }, key, output);
+}
+pub fn prefetchBlocks(self: *Turn, keys: []const p.Value) !void {
+    try self.prefetchBlocksAt(.{ .view = self.view }, keys);
+}
+fn blockSelector(self: *const Turn, basis: BlockBasis) @FieldType(p.Growth.BlockRead.Query, "source") {
+    return switch (basis) {
+        .view => |view| .{ .view = view.id },
+        .version => |version| .{ .version = .{ .id = version.id, .generation = self.delivery.generation } },
+    };
+}
+fn acquireBlocks(self: *Turn, basis: BlockBasis, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+    if (self.read_error) |err| return err;
+    errdefer body.* = .{};
+    const fetch = self.reader.blocks orelse {
+        self.read_error = error.UnsupportedBlockStorage;
+        return error.UnsupportedBlockStorage;
+    };
+    const result = fetch(self.reader.context, query, body) catch |err| {
+        self.read_error = err;
+        return err;
+    };
+    p.Growth.BlockRead.validateResult(result, query) catch |err| {
+        self.read_error = err;
+        return err;
+    };
+    const matches = switch (basis) {
+        .view => |view| result.view != null and std.meta.eql(view, result.view.?),
+        .version => |version| result.version != null and std.meta.eql(version, result.version.?),
+    };
+    if (!matches) {
+        self.read_error = error.InvalidAuthorityResponse;
+        return error.InvalidAuthorityResponse;
+    }
+    return result;
+}
+fn fetchBlocks(self: *Turn, basis: BlockBasis, keys: []const p.Value) !void {
+    if (keys.len == 0 or keys.len > p.Growth.page_size) return error.InvalidRead;
+    var query: p.Growth.BlockRead.Query = .{ .source = self.blockSelector(basis) };
+    for (keys, 0..) |key, i| query.keys[i] = key;
+    try p.Growth.BlockRead.validate(query);
+    var body: p.Blocks.Body = .{};
+    const result = try self.acquireBlocks(basis, query, &body);
+    const batch = client.BlockBatch.init(query.keys, result.entries, body) catch |err| {
+        self.read_error = err;
+        return err;
+    };
+    self.block_cache = .{ .basis = basis, .batch = batch };
+}
+fn readBlockAt(self: *Turn, basis: BlockBasis, key: p.Value, output: []u8) !?[]const u8 {
+    if (self.read_error) |err| return err;
+    try p.State.key(key);
+    const cached = if (self.block_cache) |*cache| self.reader.cache_reads and std.meta.eql(cache.basis, basis) and cache.batch.contains(key) else false;
+    if (!cached) try self.fetchBlocks(basis, &.{key});
+    return self.block_cache.?.batch.read(key, output);
+}
+fn prefetchBlocksAt(self: *Turn, basis: BlockBasis, keys: []const p.Value) !void {
+    if (self.read_error) |err| return err;
+    if (!self.reader.cache_reads or keys.len == 0) return;
+    if (keys.len > p.Growth.page_size) return error.InvalidRead;
+    if (self.block_cache) |*cache| if (std.meta.eql(cache.basis, basis)) {
+        const all = for (keys) |key| {
+            if (!cache.batch.contains(key)) break false;
+        } else true;
+        if (all) return;
+    };
+    try self.fetchBlocks(basis, keys);
+}
+fn blockPageAt(self: *Turn, basis: BlockBasis, after: ?p.Value) !BlockPage {
+    const query: p.Growth.BlockRead.Query = .{ .source = self.blockSelector(basis), .after = after };
+    try p.Growth.BlockRead.validate(query);
+    var body: p.Blocks.Body = .{};
+    const result = try self.acquireBlocks(basis, query, &body);
+    if (body.len != 0) {
+        self.read_error = error.InvalidAuthorityResponse;
+        return error.InvalidAuthorityResponse;
+    }
+    return .{ .entries = result.entries, .next = result.next };
+}
 pub fn put(self: *Turn, key: p.Value, value: p.Value) !void {
     try userKey(key);
     try self.write(key, value);
@@ -542,6 +682,7 @@ pub fn acceptReply(self: *Turn) !Reply {
 pub fn validate(self: *const Turn) !void {
     if (self.read_error) |err| return err;
     if (self.decision.authorization) |guard| try guard.validate();
+    try p.Blocks.verify(self.decision.blocks.mutations, &self.decision.blocks.body);
 }
 
 test "private writes read their own values and reject oversize batches before publication" {

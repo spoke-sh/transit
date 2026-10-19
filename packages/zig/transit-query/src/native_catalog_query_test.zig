@@ -428,6 +428,10 @@ test "bounded query memory exhaustion closes exact work without masking external
             const self: *@This() = @ptrCast(@alignCast(raw));
             return self.original.authorization.?(self.original.context, guard);
         }
+        pub fn blocks(raw: *anyopaque, query: q.protocol.Growth.BlockRead.Query, body: *q.protocol.Blocks.Body) anyerror!q.protocol.Growth.BlockRead.Result {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return self.original.blocks.?(self.original.context, query, body);
+        }
         pub fn read(raw: *anyopaque, view: q.protocol.Growth.View, key: q.protocol.Value) anyerror!?q.protocol.Value {
             const self: *@This() = @ptrCast(@alignCast(raw));
             if (key.eql(s.TableHead.key(100))) return error.OutOfMemory;
@@ -436,7 +440,7 @@ test "bounded query memory exhaustion closes exact work without masking external
     };
     var poisoned = try message(&store, requests.pid, call);
     var poison: Poison = .{ .original = poisoned.reader };
-    poisoned.reader = .{ .context = &poison, .read = Poison.read, .authorization = Poison.authorize };
+    poisoned.reader = .{ .context = &poison, .read = Poison.read, .blocks = Poison.blocks, .authorization = Poison.authorize };
     try e.expectError(error.OutOfMemory, q.UnifiedCapture.startBoundedDiagnostic(&poisoned, reference, access, adapter, null));
     try e.expectEqual(error.OutOfMemory, poisoned.read_error.?);
     try e.expectEqualDeep(untouched, poisoned.decision);

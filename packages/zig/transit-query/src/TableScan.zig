@@ -21,7 +21,8 @@ owns_lease: bool = true,
 view: @FieldType(q.wire.SnapshotReader, "view"),
 cache: [64]?Cached = @splat(null),
 cache_slot: usize = 0,
-table_nodes: s.ImmutableIndex.Cache = .{},
+table_nodes: s.TablePages.Cache = .{},
+block_cache: ?q.wire.BlockBatch = null,
 requests: u64 = 1,
 request_limit: u64,
 after: ?f.TableRow.Identity = null,
@@ -154,6 +155,7 @@ pub fn nextAfter(self: *Scan, after: ?f.TableRow.Identity) !?logical.Row {
     return self.next();
 }
 pub fn checkCancellation(self: *const Scan) !void {
+    if (self.source.failed) |err| return err;
     if (self.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
 }
 pub fn request(self: *Scan, value: g.SnapshotRead.Query) !g.SnapshotRead.Result {
@@ -195,6 +197,32 @@ pub fn prefetch(self: *Scan, keys: []const p.Value) !void {
     if (count == 0) return;
     const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .points = missing });
     for (missing[0..count], result.points[0..count]) |key, value| self.remember(key.?, value);
+}
+pub fn prefetchBlocks(self: *Scan, keys: []const p.Value) !void {
+    try self.checkCancellation();
+    if (self.source.closed) return error.QueryClosed;
+    if (keys.len == 0) return;
+    if (keys.len > g.page_size) return error.InvalidResourceRead;
+    if (self.block_cache) |*cache| {
+        const all = for (keys) |key| {
+            if (!cache.contains(key)) break false;
+        } else true;
+        if (all) return;
+    }
+    if (self.requests == self.request_limit) return error.QueryPageBudget;
+    self.requests += 1;
+    var request_value: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.source.snapshot.id } };
+    for (keys, 0..) |key, i| request_value.blocks[i] = key;
+    var body: p.Blocks.Body = .{};
+    const result = self.source.blockBatch(request_value, &body) catch |err| {
+        self.rejection = self.source.client.wire.last_rejection;
+        return err;
+    };
+    self.block_cache = try q.wire.BlockBatch.init(request_value.blocks, result.blocks, body);
+}
+pub fn readBlock(self: *Scan, key: p.Value, output: []u8) !?[]const u8 {
+    try self.prefetchBlocks(&.{key});
+    return self.block_cache.?.read(key, output);
 }
 pub fn page(self: *Scan, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
     const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .range = .{ .after = after, .limit = g.page_size } });

@@ -65,7 +65,7 @@ def fixture():
         'rename_command_hex': rename_command.hex(),
         'upload_status_hex': upload.hex(),
         'rename_intent_hex': intent.hex(),
-        'inline_key_hex': (b'\0P' + struct.pack('>IQBQI', 9, maximum, ord('i'), 3, 0)).hex(),
+        'block_key_hex': (b'\0P' + struct.pack('>IQBQI', 9, maximum, ord('c'), 3, 0)).hex(),
         'controls': {'configuration': configuration, 'object': obj, 'operation': operation, 'restricted': restricted, 'dependency': dependency},
     }
 

@@ -65,8 +65,8 @@ application outputs and bookkeeping into the final four-write native proposal.
 
 Every replacement preserves its predecessor through `TableHistory.stage`.
 That record can commit before publication and does not make a successor visible.
-Account for its write when composing a turn; the point and finite coordinators
-stage work to preserve the four-write bound. `TableChanges.next` and `Diff`
+Its bytes use the bulk block budget. The point and finite coordinators account
+for both that budget and the four small metadata mutations separately. `TableChanges.next` and `Diff`
 enumerate consecutive committed before/after transactions with paired rows and
 explicit no-op completion. Their caller supplies current authorized reads and
 durable consumer progress. See the [history format](../../../../contracts/TABLE_DATA_V1.md#complete-committed-head-history).

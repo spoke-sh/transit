@@ -2565,7 +2565,7 @@ test "bulk resource publication keeps exact retries and captured bytes under cur
     const original_writes = f.pages.writes;
     var damaged = batch.body;
     damaged.data[0] ^= 1;
-    try t.expectError(error.CorruptBlock, f.engine.prepareWithBlocks(signed, &damaged));
+    try t.expectError(error.InvalidBlockBody, f.engine.prepareWithBlocks(signed, &damaged));
     try t.expectEqual(original_writes, f.pages.writes);
     try t.expectError(error.InvalidBlockBody, f.engine.submit(signed));
     f.pages.fail_at = f.pages.writes;

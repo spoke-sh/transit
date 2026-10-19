@@ -213,11 +213,11 @@ test "general Table owner schedules uploaded DDL and inline DML without a fifth 
     try create(&store, &behavior);
     const insert = try dml(&store, "INSERT INTO people VALUES (1, 'Ada')", 2);
     var turn = try dispatch(&store, &behavior, external(17), insert);
-    try t.expectEqual(@as(usize, 4), writes(turn));
+    try t.expectEqual(@as(usize, 2), writes(turn));
     try t.expectEqual(null, try disposition(&turn));
-    const insertion = turn.decision.outputs[0].?.value;
+    try t.expectEqual(null, turn.decision.outputs[0]);
+    try t.expect(turn.decision.blocks.mutations[0] != null);
     try store.commit(turn);
-    try drain(&store, &behavior, insertion);
     turn = try dispatch(&store, &behavior, external(17), insert);
     try t.expectEqual(@as(usize, 0), writes(turn));
     const deletion = try dml(&store, "DELETE FROM people", 3);
@@ -241,7 +241,7 @@ test "general owner pauses denied continuations and resumes original accepted wo
     try create(&store, &behavior);
     const insertion = try dispatch(&store, &behavior, external(17), try dml(&store, "INSERT INTO people VALUES (1, 'Ada')", 2));
     try store.commit(insertion);
-    try drain(&store, &behavior, insertion.decision.outputs[0].?.value);
+    try t.expectEqual(null, insertion.decision.outputs[0]);
     const deletion = try dml(&store, "DELETE FROM people", 3);
     var turn = try dispatch(&store, &behavior, external(17), deletion);
     const message = turn.decision.outputs[0].?.value;

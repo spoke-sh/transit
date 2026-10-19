@@ -55,27 +55,28 @@ uses the same record and byte ceilings sized for three maximum-depth index edits
 and one maximum-sized row, independent of Table size. A batch stops before a row
 would exceed either ceiling; its unfinished private paths are discarded.
 
-`TablePages` adapts these records to captured or retained growing KV. A mandatory
-namespace manifest binds the shared native definition and record limit. Small
-pages use one inline KV value; larger pages use resumable Publication chunks.
-Both verify exact commitments and current source access. A small keyed insert
-can compose its row, final index page, head and outcome into four private writes.
-Larger candidates require staging turns before a final head decision. The owner
-must preserve input identity, source root and reservation across those turns.
-These helpers do not perform catalog admission or establish end-to-end latency.
+`TablePages` stores complete immutable blocks under a captured or retained
+resource root. A namespace manifest binds the shared native definition and record
+limit. `BlockRecord` wraps at most 65,280 payload bytes in each native block.
+Larger logical records retain explicit staging quotas, progress and closure;
+their complete digest must verify before a Table head can reference them.
 
-A source with bounded `prefetch` can acquire the namespace manifest and page
-header together, then up to eight immutable chunks per native request. Each
-header, chunk, ordinal and final digest still passes the same validation.
-Retired or unpublished descriptors reject before chunk acquisition; prefetch
-failures propagate without turning partial bytes into a readable record.
+A turn admits sixteen block mutations and 128 KiB of encoded block data alongside
+four small metadata mutations. A point insert can publish row/index blocks and
+predecessor history with the head and outcome in one turn. Larger candidates keep
+input identity, source root and reserved IDs across bounded staging turns.
+No incomplete candidate becomes a visible Table prefix.
 
-`TablePages.Reader` retains at most eight verified immutable index-node bodies.
-A finite query can share this cache across its bounded pages. Reuse is scoped to
-the exact publication resource, namespace and captured read basis. Every access
-still checks the Table manifest and published descriptor; a new basis discards
-the byte cache. Cached bytes do not authorize disclosure or clear a failed read.
-Small inline records and row-value bodies retain their ordinary validation path.
+Known row references can prefetch at most eight complete blocks and 128 KiB.
+Multi-block records acquire at most two blocks at a time. Format, exact length,
+complete logical digest and row identity checks still run. Failed acquisition
+never turns a partial body into a complete record.
+
+`TablePages.Reader` retains eight verified index nodes at one exact resource,
+object and captured basis. Each access checks its source and manifest; changing
+the basis clears the cache. The source/host owns current authorization and final
+disclosure checks. Cached bytes provide no permission and cannot clear a failed
+read. Row prefetch and execution-vector sizes are separate bounds.
 
 `TableHead` binds the resource/object, head revision, exact schema/root, row count,
 record-ID floor, pending work and retirement in one native value. `create`
@@ -88,9 +89,9 @@ data. This helper does not implement catalog DROP, name reuse or write admission
 `TableWrite.step` coordinates one typed insertion, complete-row replacement or
 row-identity deletion. The owner supplies authenticated principal/operation,
 captured schema and current policy. The helper recomputes intent identity, uses a
-four-write direct publication when possible including predecessor history,
+single-turn publication when both metadata and block budgets fit, including predecessor history,
 or reserves IDs and a frozen head
-for resumable staging. It checks the fresh candidate's write-slot cost before
+for resumable staging. It checks the fresh candidate's metadata, block-record and block-byte cost before
 attempting direct publication. Admission uses remaining slots to stage the first
 records alongside the reservation; the old root and row count remain visible.
 The final head and exact matched/changed counts publish

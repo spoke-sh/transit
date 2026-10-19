@@ -125,6 +125,12 @@ test "maintained revisions restart every bounded step and preserve last result a
     // Live input advances during a delayed backfill. The first publication is
     // still exactly the original result and later transactions remain pending.
     try tables.mutate(&store, 3, .{ .insert = &.{&.{ integer(2), integer(20) }} });
+    var no_op = try tables.turn(&store);
+    const before_head = try s.TableHead.load(&no_op, 100);
+    var after_head = before_head;
+    after_head.revision += 1;
+    try before_head.replace(&no_op, after_head);
+    try store.commit(no_op);
     var stored = try finish(&store, bundle, admitted.identity(), workspace);
     var first = try readResult(&store, bundle, stored);
     try t.expectEqual(@as(u64, 1), stored.revision);
@@ -229,8 +235,7 @@ test "a retained history gap fails the successor and restoration cannot silently
     // This reference-store corruption fixture removes required accepted history;
     // normal retention never performs this deletion. Preserve it for restoration.
     const address = s.TableHistory.key(100, original.manifest.vector.entries[0].record.head.revision);
-    const history = store.state.get(address).?;
-    try t.expect(store.state.remove(address));
+    const history = store.blocks.records.fetchRemove(address).?.value;
     var turn = try tables.turn(&store);
     try t.expectEqual(.closed, try owner.wake(&turn, admitted.identity(), workspace));
     const failed_proposal = turn.decision;
@@ -245,7 +250,7 @@ test "a retained history gap fails the successor and restoration cannot silently
     try t.expectEqual(complete.manifest, failed.manifest);
     const failure = try q.RelationalRecords.Failure.decode((try turn.read(r.key('f', failed.id, try failed.successor(), 0))).?);
     try t.expectEqualStrings("TableHistoryGap", failure.cause.slice());
-    try store.state.put(t.allocator, address, history);
+    try store.blocks.records.put(t.allocator, address, history);
     turn = try tables.turn(&store);
     try t.expectEqual(.duplicate, try owner.wake(&turn, admitted.identity(), workspace));
     for (turn.decision.mutations) |entry| try t.expect(entry == null);

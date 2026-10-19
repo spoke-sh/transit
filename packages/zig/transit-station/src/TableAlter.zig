@@ -39,9 +39,10 @@ pub const Request = struct {
 fn add(left: u64, right: u64) !u64 {
     return std.math.add(u64, left, right) catch return error.TableCapacity;
 }
-fn writeCount(turn: *const Turn) usize {
+fn progressCount(turn: *const Turn) usize {
     var count: usize = 0;
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
+    for (turn.decision.blocks.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
 fn schemaReference(result: Write.Status, bytes: []const u8) !Pages.Reference {
@@ -112,11 +113,11 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     var schema_buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const schema_bytes = try transition.after.encode(&schema_buffer);
     const schema_ref = try schemaReference(result, schema_bytes);
-    const before_schema = writeCount(turn);
+    const before_schema = progressCount(turn);
     if (try pages.stage(turn, schema_ref, schema_bytes) == .progress) return result;
-    // Publication readers require a committed cut. Finish schema staging before
-    // reading source rows; do not weaken that boundary to combine more work.
-    if (writeCount(turn) != before_schema) return result;
+    // Keep schema staging (including multi-block quota metadata) separate from
+    // rewrite progress and terminal catalog controls, each with its own budget.
+    if (progressCount(turn) != before_schema) return result;
     if (transition.work == .metadata) return finish(turn, head, result, progress, schema_ref);
     var reader: Pages.Reader(*Turn) = .{ .pages = pages, .source = turn };
     const original: Data = .{ .schema = transition.before, .index = head.index };
@@ -161,9 +162,9 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     _ = try overlay.finish(changed.data.index);
     progress.index = changed.data.index;
     progress.changed = try add(progress.changed, 1);
-    const count_before = writeCount(turn);
+    const count_before = progressCount(turn);
     const ready = stageAll(turn, pages, &overlay) catch |err| {
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+        if (err != error.MutationBudgetExceeded or progressCount(turn) == count_before) return err;
         return result;
     };
     if (!ready) return result;
@@ -175,7 +176,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     result.end_record = reserved.next_record;
     advance(turn, head, reserved, result, progress) catch |err| {
         turn.decision = staged;
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+        if (err != error.MutationBudgetExceeded or progressCount(turn) == count_before) return err;
         return prior.?;
     };
     return result;

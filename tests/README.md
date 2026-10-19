@@ -1,5 +1,25 @@
 # Validation and milestone evidence
 
+## Table records on native blocks
+
+The Station (120 tests), catalog (83 tests), query (138 tests), core and client
+package suites pass for Table rows, index nodes, schemas, metadata and immutable
+predecessors stored through the native block index. Schedules cover private
+visibility, exact retries, block/header/digest corruption, retained revisions,
+current denial after cached reads, large multi-turn records and reservation
+cleanup. The current v1 identifier and generated consumers are replaced together;
+`just contract::check` passes after regeneration.
+
+The disk native-block proof also passes with the new definition and explicit
+`InvalidBlockBody` rejection before writes. Full Table/Station service
+qualification is still underway. Early runs exposed a saved pending request
+missing its body, an obsolete expectation of multiple recovered Table turns,
+and a supplied host treating a moving read cut as fatal. The fixtures retain
+the complete pending command and count the bulk successor; the host retains
+exact pending bytes across ordinary contention. Those failed runs are not
+reported as completed service proofs. End-to-end latency, disclosure batching
+and physical reclamation require their separate remaining schedules.
+
 ## Native bulk resource publication
 
 On October 18, 2026, `just test::native-blocks` passes with 16 records and 128 KiB

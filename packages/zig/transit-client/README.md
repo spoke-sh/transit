@@ -204,6 +204,10 @@ resource, or metadata observed at a lifecycle failure. The caller owns this boun
 context and keeps it alive with the reader. A fresh query clears earlier evidence;
 successful or unrelated transport failures cannot borrow an old rejection.
 Station Document uses this shared adapter for public accepted-state reads.
+`Reader.readBlock(key, output)` reads a complete immutable block at that same
+revision. `Batches.readBlocks` and its operation-local cache acquire at most
+eight keys and 128 KiB of verified owned bytes. `BlockBatch` keeps missing keys
+distinct from unrequested keys and empty values; it supplies no authorization.
 `Reader.entry` returns the same bounded point observation with its resource-local
 entry revision. The serving Table watch uses that revision for its application
 progress marker; it never compares entry positions from unrelated resources.
@@ -216,6 +220,11 @@ back to the finite lease. The reader preserves failures, supports a cancellation
 flag between fetches and cannot resume after authority restart. See
 [leased snapshots](../../../contracts/INTERACTIVE_QUERY_V1.md#generic-leased-snapshots)
 for active quotas, clock requirements and retained-byte limits.
+
+`SnapshotReader.blockBatch(request, body)` reads block data at the same leased
+cut and preserves the metadata reader's failure, cancellation and renewal rules.
+Its caller owns the body. Table hosts may cache verified bytes within one cut;
+they still validate current authority before disclosing results.
 
 With the native `resource_read_batch` capability, `ResourceReader.readBatch`
 acquires up to eight distinct keys in one current authorized cut. The returned

@@ -61,12 +61,14 @@ pub fn stage(head: Head, turn: *Turn) !Pages.Step {
     if (!(try observed.head.encode()).eql(try head.encode())) return error.TableHeadChanged;
     const value = try observed.encode();
     const address = key(head.object, head.revision);
-    if (try turn.read(address)) |existing| {
+    var buffer: [p.Value.max_bytes]u8 = undefined;
+    if (try turn.readBlock(address, &buffer)) |bytes| {
+        const existing = try p.Value.init(bytes);
         _ = try Record.decode(existing);
         if (!existing.eql(value)) return error.TableHistoryConflict;
         return .ready;
     }
-    try turn.write(address, value);
+    try turn.writeBlock(address, value.slice());
     return .progress;
 }
 /// Resolve one accepted Table revision under an already captured current upper
@@ -76,7 +78,8 @@ pub fn revision(source: anytype, upper: Record, requested: u64) !Record {
     if (upper.head.resource != source.view.resource or upper.committed > source.view.revision) return error.InvalidTableHistory;
     if (requested == 0 or requested > upper.head.revision) return error.InvalidTableHistoryCursor;
     if (requested == upper.head.revision) return upper;
-    const value = (try source.read(key(upper.head.object, requested))) orelse return error.TableHistoryGap;
+    var buffer: [p.Value.max_bytes]u8 = undefined;
+    const value = try p.Value.init((try source.readBlock(key(upper.head.object, requested), &buffer)) orelse return error.TableHistoryGap);
     const result = try Record.decode(value);
     if (result.head.object != upper.head.object or result.head.resource != upper.head.resource or result.head.revision != requested or result.committed >= upper.committed or result.head.retired) return error.InvalidTableHistory;
     return result;

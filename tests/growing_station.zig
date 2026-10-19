@@ -17,7 +17,7 @@ const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column
 }, .primary_key = &.{1} };
 const Realm = 43;
 const Count = 40;
-const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, after: u64 = 0, stale: ?g.SignedRequest = null };
+const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, after: u64 = 0, stale: ?client.Session.Pending = null };
 
 const Admin = @import("growing_support.zig").Admin(Realm);
 
@@ -254,6 +254,13 @@ fn verify(admin: *Admin, expected: Expected, count: usize) !void {
     const Source = struct {
         admin: *Admin,
         view: struct { id: u64 = 0, resource: u64, revision: u64 },
+        pub fn prefetchBlocks(_: *@This(), _: []const p.Value) !void {}
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            const query: p.Growth.BlockRead.Query = .{ .source = .{ .resource = .{ .id = self.view.resource, .revision = self.view.revision } }, .keys = .{ key, null, null, null, null, null, null, null } };
+            const response = try self.admin.wire.queryBlocks(.{ .realm = Realm, .principal = 0, .kind = .{ .block_entries = query } }, self.admin.key);
+            const block_batch = try client.BlockBatch.init(query.keys, response.response.body.block_entries.entries, response.blocks);
+            return block_batch.read(key, output);
+        }
         pub fn read(self: *@This(), key: p.Value) !?p.Value {
             const page = (try self.admin.query(.{ .entries = .{ .resource = self.view.resource, .revision = self.view.revision, .key = key } })).body.entries.page;
             return if (page.entries[0]) |entry| entry.value else null;
@@ -347,7 +354,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try deliver(&admin, &after);
         _ = try drive(init.io, &write_server, &write_handler, true); // Unsent native Table step.
         expected.after = after;
-        expected.stale = write_server.pending.?.signed;
+        expected.stale = write_server.pending.?;
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
         defer init.gpa.free(bytes);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = bytes });
@@ -384,7 +391,7 @@ pub fn main(init: std.process.Init) !void {
         }
         _ = try admin.submit(.{ .own = .{ .pid = expected.requester, .expected_generation = 2, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = expected.writer, .expected_generation = 2, .worker = 65537 } });
-        try t.expectError(error.Rejected, wire.submit(expected.stale.?));
+        try t.expectError(error.Rejected, expected.stale.?.submit(&wire));
         try t.expectEqual(.StaleGeneration, wire.last_rejection.?);
         var request_server = try makeServer(&wire, 65536, expected.requester, 3, requester_key);
         var write_server = try makeServer(&wire, 65537, expected.writer, 3, writer_key);
@@ -394,7 +401,8 @@ pub fn main(init: std.process.Init) !void {
         _ = try finishCall(init.io, &admin, &expected.after, &write_server, &write_handler, &request_server, &request_handler);
         try t.expectEqual(@as(usize, 0), request_handler.initialized + write_handler.initialized);
         try t.expectEqual(@as(usize, 1), request_handler.handled);
-        try t.expect(write_handler.handled > 1);
+        // The unsent Table successor fits one bulk turn after recovery.
+        try t.expectEqual(@as(usize, 1), write_handler.handled);
         try verify(&admin, expected, Count + 1);
         _ = try admin.submit(.{ .send = .{ .pid = expected.writer, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("scan") }).encode() } });
         _ = try drive(init.io, &write_server, &write_handler, false);

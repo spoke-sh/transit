@@ -319,7 +319,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const descriptors = g.blockMutations(request.command);
             if (descriptors[0] != null) {
                 const empty: p.Blocks.Body = .{};
-                try p.Blocks.verify(descriptors, self.block_body orelse &empty);
+                p.Blocks.verify(descriptors, self.block_body orelse &empty) catch return error.InvalidBlockBody;
             } else if (self.block_body != null) return error.InvalidBlockBody;
             var candidate = try self.state();
             var pending: catalog.Candidate = .{};

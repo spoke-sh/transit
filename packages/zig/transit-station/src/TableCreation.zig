@@ -84,9 +84,6 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, schema: f.TableSchema.Sch
     const pages = try Pages.create(turn, schema.object, limits);
     const ref: Pages.Reference = .{ .id = 1, .spec = try Pub.Digest.of(Pages.schema_format, encoded) };
     if (try pages.stage(turn, ref, encoded) != .ready) return record.result();
-    // Large publication readers require a committed descriptor. The next step
-    // verifies the published schema before exposing the Table head.
-    if (encoded.len > Pages.inline_bytes and !std.meta.eql(before, turn.decision)) return record.result();
     const head: Head = .{ .resource = turn.view.resource, .object = schema.object, .revision = 1, .schema = ref, .next_record = 2 };
     try head.create(allocator, turn);
     record.completed = turn.delivery.input.position;

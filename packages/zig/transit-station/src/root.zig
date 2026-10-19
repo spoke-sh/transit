@@ -6,6 +6,10 @@ pub const Turn = @import("Turn.zig");
 pub const GenServer = @import("GenServer.zig");
 pub const TableData = @import("TableData.zig");
 pub const TableCandidate = @import("TableCandidate.zig");
+pub const BlockRecord = @import("BlockRecord.zig");
+pub const testing = if (@import("builtin").is_test) struct {
+    pub const Blocks = @import("TestBlocks.zig");
+} else struct {};
 pub const TablePages = @import("TablePages.zig");
 pub const TableHead = @import("TableHead.zig");
 pub const TableHistory = @import("TableHistory.zig");

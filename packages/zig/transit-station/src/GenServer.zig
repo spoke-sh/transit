@@ -287,7 +287,7 @@ fn prepareTurn(self: *GenServer) !void {
     const view = page.view orelse return error.InvalidAuthorityResponse;
     if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
     const fresh = try self.freshDelivery();
-    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries, .authorization = readAuthorization, .authorization_binding = readAuthorizationBinding });
+    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .blocks = readBlocks, .version = readVersion, .version_entries = readVersionEntries, .authorization = readAuthorization, .authorization_binding = readAuthorizationBinding });
     errdefer self.ready = null;
     for (self.read_view_ids, self.read_resources) |id, resource| if (id) |selected| {
         const response = try self.session.readView(selected, descriptor_key, null);
@@ -338,4 +338,13 @@ fn readVersion(context: *anyopaque, id: p.Growth.ReadVersionId) anyerror!p.Growt
 fn readVersionEntries(context: *anyopaque, basis: p.Growth.ReadVersion, key: ?p.Value, after: ?p.Value) anyerror!@import("Turn.zig").Page {
     const self: *GenServer = @ptrCast(@alignCast(context));
     return (try self.session.readVersion(basis, key, after)).page;
+}
+
+fn readBlocks(context: *anyopaque, selector: p.Growth.BlockRead.Query, body: *p.Blocks.Body) anyerror!p.Growth.BlockRead.Result {
+    const self: *GenServer = @ptrCast(@alignCast(context));
+    if (selector.keys[0] == null) {
+        body.* = .{};
+        return (try self.session.client.query(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .block_entries = selector } }, self.session.key)).body.block_entries;
+    }
+    return self.session.readBlocks(selector, body);
 }

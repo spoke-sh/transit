@@ -144,6 +144,7 @@ pub const ErrorCode = enum {
     InvalidAttempt,
     InvalidBinding,
     InvalidBody,
+    InvalidBlockBody,
     InvalidBudget,
     InvalidEffect,
     InvalidEncoding,

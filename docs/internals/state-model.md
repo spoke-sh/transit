@@ -39,7 +39,7 @@ merge rules and the accepted index. The
 
 The question is how a reader can finish a frozen backfill and later recover
 every intervening Table transaction without adding an unbounded resident log
-or exceeding the native four-write turn. The implemented Table history applies
+or exceeding the native metadata and block budgets. The implemented Table history applies
 to one stable Table object; it is separate from the proposed branch mechanisms
 below and from a global snapshot.
 
@@ -71,9 +71,11 @@ Diff traversal merges immutable row identities with at most two owned rows and
 two schemas. It pairs updates, preserves inserts/deletes, and exposes a complete
 transaction boundary even when no row changes. Equal schema/index roots permit
 constant-work no-op completion; other differences can require a full traversal.
-Each replaced head adds one retained record, and some publications need an extra
-staging turn. This favors exact history and bounded memory over minimum write
-latency. It does not imply sublinear change extraction or a measured catch-up
+Each replaced head adds one retained block. The small head and receipt mutations
+can share a turn with that block and row/index blocks; candidates beyond the
+separate block-count/byte budget need additional staging. This favors exact
+history and bounded memory without making each predecessor consume a metadata
+write slot. It does not imply sublinear change extraction or a measured catch-up
 rate for large changing relations.
 
 The [proof ledger](../../tests/README.md#complete-table-history-and-snapshot-tail)

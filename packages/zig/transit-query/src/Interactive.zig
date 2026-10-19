@@ -13,7 +13,8 @@ cursor: q.UnifiedSource.Cursor = .{},
 bytes: u64 = 0,
 cache: [64]?Cached = @splat(null),
 cache_slot: usize = 0,
-table_nodes: q.station.ImmutableIndex.Cache = .{},
+table_nodes: q.station.TablePages.Cache = .{},
+block_cache: ?q.wire.BlockBatch = null,
 current: ?q.wire.ResourceReader.Batch = null,
 range: ?g.SnapshotRead.Range = null,
 range_entries: [g.SnapshotRead.range_entries]?g.Entry = @splat(null),
@@ -51,7 +52,11 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8, allocator
         try retained.finish();
         try current.finish();
         break :table basis;
-    } else try q.UnifiedSource.capture(bundle.source, &data, &result.current.?, try grant.principal(bundle.source), allocator);
+    } else decoder: {
+        try q.UnifiedSource.checkCurrent(bundle.source, &result.current.?, try grant.principal(bundle.source));
+        if (data.view.resource != bundle.source.resource) return error.SourceChanged;
+        break :decoder try q.UnifiedSource.basis(bundle.source, data.view.revision);
+    };
     result.progress = try f.LogicalStream.Progress.start(try bundle.bind(try result.basis.fingerprint()));
     const metadata = try client.interactiveMetadata(bundle.source);
     const refreshed = try result.source.batch(.{ .snapshot = .{ .existing = result.source.snapshot.id }, .current = metadata });
@@ -189,11 +194,33 @@ const Cached = struct { key: q.protocol.Value, entry: ?q.protocol.Growth.Entry }
 const CachedReader = struct {
     session: *Self,
     view: @FieldType(q.wire.SnapshotReader, "view"),
-    pub fn tableIndexCache(self: *@This()) *q.station.ImmutableIndex.Cache {
+    pub fn tableIndexCache(self: *@This()) *q.station.TablePages.Cache {
         return &self.session.table_nodes;
     }
     pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
         return if (try self.entry(key)) |value| value.value else null;
+    }
+    pub fn readBlock(self: *@This(), key: q.protocol.Value, output: []u8) !?[]const u8 {
+        try self.prefetchBlocks(&.{key});
+        return self.session.block_cache.?.read(key, output);
+    }
+    pub fn prefetchBlocks(self: *@This(), keys: []const q.protocol.Value) !void {
+        if (self.session.source.failed) |err| return err;
+        if (self.session.source.closed) return error.QueryClosed;
+        if (self.session.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+        if (keys.len == 0) return;
+        if (keys.len > g.page_size) return error.InvalidResourceRead;
+        if (self.session.block_cache) |*cache| {
+            const all = for (keys) |key| {
+                if (!cache.contains(key)) break false;
+            } else true;
+            if (all) return;
+        }
+        var request: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.session.source.snapshot.id } };
+        for (keys, 0..) |key, i| request.blocks[i] = key;
+        var body: q.protocol.Blocks.Body = .{};
+        const result = try self.session.source.blockBatch(request, &body);
+        self.session.block_cache = try q.wire.BlockBatch.init(request.blocks, result.blocks, body);
     }
     pub fn entry(self: *@This(), key: q.protocol.Value) !?q.protocol.Growth.Entry {
         if (self.session.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;

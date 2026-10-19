@@ -225,15 +225,23 @@ fn writeCount(turn: *const Turn) usize {
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
+fn progressCount(turn: *const Turn) usize {
+    var count = writeCount(turn);
+    for (turn.decision.blocks.mutations) |slot| count += @intFromBool(slot != null);
+    return count;
+}
 fn fitsSingleTurn(turn: *const Turn, overlay: anytype, reserved_mutations: u8, history_staged: bool) bool {
-    var required: usize = writeCount(turn) + reserved_mutations + 2 + @intFromBool(!history_staged);
+    if (writeCount(turn) + reserved_mutations + 2 > turn.decision.mutations.len) return false;
+    var records: usize = @intFromBool(!history_staged);
+    var bytes: usize = turn.decision.blocks.body.len + if (history_staged) @as(usize, 0) else p.Value.max_bytes;
+    for (turn.decision.blocks.mutations) |slot| records += @intFromBool(slot != null);
     for (overlay.records.items) |item| if (item.reachable) {
-        // Fresh reservation IDs cannot name earlier staged records. Large
-        // publications need descriptor/quota slots as well as their chunks.
-        required += if (item.bytes.len <= Pages.inline_bytes) 1 else 2 + item.spec.chunks();
-        if (required > turn.decision.mutations.len) return false;
+        // Multi-block records retain their quota/descriptor staging workflow.
+        if (item.bytes.len > @import("BlockRecord.zig").block_bytes) return false;
+        records += 1;
+        bytes += @import("BlockRecord.zig").encodedSize(item.bytes.len);
     };
-    return required <= turn.decision.mutations.len;
+    return records <= p.Blocks.max_records and bytes <= p.Blocks.max_batch_bytes;
 }
 fn requireCompletionSpace(turn: *Turn, reserved_mutations: u8) !void {
     if (writeCount(turn) + reserved_mutations > turn.decision.mutations.len) return error.MutationBudgetExceeded;
@@ -328,7 +336,8 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
 
     if (previous == null) {
         const fast_before = turn.decision;
-        const history_staged = try turn.read(@import("TableHistory.zig").key(head.object, head.revision)) != null;
+        var history: [p.Value.max_bytes]u8 = undefined;
+        const history_staged = try turn.readBlock(@import("TableHistory.zig").key(head.object, head.revision), &history) != null;
         const ready = if (fitsSingleTurn(turn, &overlay, reserved_mutations, history_staged)) stageAll(turn, pages, &overlay) catch |err| blk: {
             if (err != error.MutationBudgetExceeded) return err;
             break :blk false;
@@ -355,15 +364,15 @@ pub fn stepWithReserve(allocator: std.mem.Allocator, turn: *Turn, request: Reque
         return result;
     }
 
-    const prior_writes = writeCount(turn);
+    const prior_writes = progressCount(turn);
     const ready = stageAll(turn, pages, &overlay) catch |err| {
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == prior_writes) return err;
+        if (err != error.MutationBudgetExceeded or progressCount(turn) == prior_writes) return err;
         return result;
     };
     if (!ready) return result;
     return completion(turn, head, result, changed, request, reserved_mutations) catch |err| {
         if (err != error.MutationBudgetExceeded) return err;
-        if (writeCount(turn) == prior_writes) {
+        if (progressCount(turn) == prior_writes) {
             // Two caller-reserved receipt slots still fit after the immutable
             // predecessor has been staged in its own bounded turn.
             if (try @import("TableHistory.zig").stage(head, turn) == .ready) return err;

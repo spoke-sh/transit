@@ -1,6 +1,7 @@
 //! Native v1 protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
 pub const ResourceReader = @import("ResourceReader.zig");
+pub const BlockBatch = @import("BlockBatch.zig");
 pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const WorkerHandoff = @import("WorkerHandoff.zig");
 pub const AuthorizationClient = @import("AuthorizationClient.zig").Client;
@@ -24,6 +25,12 @@ pub const Receipt = protocol.Receipt;
 pub const WaitHint = @import("WaitHint.zig");
 
 pub const Client = struct {
+    /// A moving authority cut or publication CAS can be observed again. This
+    /// classifies only; mutations must retain their exact pending identity/body.
+    /// Expiry, fencing and conflicting retries are distinct terminal decisions.
+    pub fn contended(self: *const Client, err: anyerror) bool {
+        return err == error.Conflict and self.last_rejection == .Conflict;
+    }
     /// Temporary transport availability is not an authority decision. This
     /// classifies only; callers still retain exact uncertain mutation bytes.
     pub fn unavailable(err: anyerror) bool {
@@ -363,6 +370,19 @@ fn largestFields(comptime T: type) T {
     };
 }
 
+test "contention classification preserves fences and exact retry conflicts" {
+    var client: Client = undefined;
+    client.last_rejection = .Conflict;
+    try std.testing.expect(client.contended(error.Conflict));
+    try std.testing.expect(!client.contended(error.AuthorityUnavailable));
+    inline for (.{ protocol.ErrorCode.QueryExpired, .ConflictingRetry, .StaleAuthorizationCredential, .StaleStateResource, .AccessDenied }) |code| {
+        client.last_rejection = code;
+        try std.testing.expect(!client.contended(error.Conflict));
+    }
+    client.last_rejection = null;
+    try std.testing.expect(!client.contended(error.Conflict));
+}
+
 test "a full metadata view fits the bounded HTTP response" {
     // All optional metadata is present, all slots filled, every enum uses its
     // longest tag and integers use their widest decimal form (even wider than
@@ -379,6 +399,7 @@ test {
     _ = AuthorizationSet;
     _ = AuthorizationBridge;
     _ = WaitHint;
+    _ = BlockBatch;
     _ = @import("ConcurrencyTests.zig");
     _ = @import("OwnedHttpTests.zig");
     _ = SnapshotReader;

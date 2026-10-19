@@ -168,7 +168,10 @@ def run(node):
             pending['blocks'] = base64.b64encode(first+second).decode()
             writes = fault['writes']
             corrupt = dict(pending, blocks=base64.b64encode(b'\xff'+first[1:]+second).decode())
-            assert request(corrupt)[0] != 200
+            rejected = request(corrupt)
+            assert rejected[0] == 422 and rejected[1]['err'] == 'InvalidBlockBody', rejected
+            missing = request({name: value for name, value in pending.items() if name != 'blocks'})
+            assert missing[0] == 422 and missing[1]['err'] == 'InvalidBlockBody', missing
             assert fault['writes'] == writes, 'invalid bytes reached storage'
             fault['stage'] = True
             assert request(pending)[0] != 200

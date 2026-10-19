@@ -16,6 +16,8 @@ const Store = struct {
     pid: u64 = 2,
     resource: u64 = 7,
     state: Map = .empty,
+    blocks: @import("TestBlocks.zig") = .{},
+    source_blocks: @import("TestBlocks.zig") = .{},
     source: Map = .empty,
     version: ?p.Growth.ReadVersion = null,
     revision: u64 = 1,
@@ -27,12 +29,30 @@ const Store = struct {
     batch_calls: usize = 0,
     batch_failure: ?anyerror = null,
     fn deinit(self: *Store) void {
+        self.blocks.deinit(t.allocator);
+        self.source_blocks.deinit(t.allocator);
         self.state.deinit(t.allocator);
         self.source.deinit(t.allocator);
     }
     fn turn(self: *Store, frame: Frame, peer: u64) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .many = many, .page = currentPage, .cache_reads = self.batch_reads, .version = metadata, .version_entries = entries });
+        const proposal = try Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .blocks = readBlocks, .many = many, .page = currentPage, .cache_reads = self.batch_reads, .version = metadata, .version_entries = entries });
+        try self.blocks.views.put(t.allocator, proposal.view.id, proposal.view);
+        return proposal;
+    }
+    fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        if (query.source == .view) return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
+        self.source_reads += 1;
+        if (self.unavailable) return error.Unavailable;
+        const version = try metadata(raw, query.source.version.id);
+        const view: p.Growth.View = .{ .id = 1, .pid = self.pid, .principal = 65536, .generation = 3, .input = 1, .process_revision = version.revision, .resource = version.resource, .revision = version.revision, .deadline_ms = 10000 };
+        var selected = query;
+        selected.source = .{ .view = 1 };
+        var result = try self.source_blocks.read(selected, body, view);
+        result.view = null;
+        result.version = version;
+        return result;
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -96,6 +116,7 @@ const Store = struct {
             try t.expect(self.version == null);
             var iterator = self.state.iterator();
             while (iterator.next()) |entry| try self.source.put(t.allocator, entry.key_ptr.*, entry.value_ptr.*);
+            self.source_blocks = try self.blocks.clone(t.allocator);
             self.version = .{ .id = .{ .pid = proposal.delivery.pid, .input = proposal.delivery.input.position, .index = @intCast(i) }, .resource = proposal.view.resource, .revision = proposal.view.revision, .created_at = proposal.delivery.input.position };
         };
         for (proposal.decision.release) |slot| if (slot) |id| {
@@ -105,6 +126,7 @@ const Store = struct {
         for (proposal.decision.mutations) |slot| if (slot) |mutation| {
             if (mutation.value) |value| try self.state.put(t.allocator, mutation.key, value) else _ = self.state.remove(mutation.key);
         };
+        try self.blocks.apply(t.allocator, &proposal.decision.blocks, self.revision + 1);
         self.revision += 1;
     }
     fn create(self: *Store, schema: f.TableSchema.Schema) !void {

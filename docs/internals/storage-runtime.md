@@ -83,6 +83,61 @@ budget per lane and potentially conflicting prepared candidates. The
 [node configuration](../../apps/transit-node/docs/growing.md) gives those bounds.
 Horizontal write partitioning and storage reclamation require separate contracts.
 
+## Complete blocks beneath Table records
+
+The question is whether immutable Table data must pay the control record's
+256-byte mutation cost. In the current native-v1 implementation, a resource has
+separate metadata and block indexes under the same accepted catalog root.
+Assume authenticated requests, collision-resistant digests, verified immutable
+storage and conditional authority publication. A prepared root is private until
+that conditional append accepts it. Bytes can survive a failed append without
+becoming accepted Table data.
+
+[Native blocks](../../contracts/BLOCK_V1.md) bind key, length and content digest
+in the signed logical request. Their body is separate from the authority journal
+record. The core checks the entire body before staging, and the backend reads
+back staged bytes before returning their reference. One resource root change
+then accepts metadata, block edges, input progress and outputs together. Lost
+replies preserve the exact logical identity and owned bytes; an accepted receipt
+can reconcile without staging them again. This argument depends on the existing
+authority CAS and current-grant checks, not on the location of provider bytes.
+
+[BlockRecord](../../packages/zig/transit-station/src/BlockRecord.zig) maps typed
+Table records to these blocks. One envelope has 44 bytes of spec plus at most
+65,280 payload bytes. This makes its payload an integral number of the existing
+256-byte logical digest units. Larger rows retain quota-accounted descriptors
+and resume in complete blocks, so the row codec's larger value limit is preserved.
+Metadata definitions, index nodes and most schemas/rows fit one block. Predecessor
+history is another immutable block. Small point writes consequently need only
+head/outcome metadata mutations; they no longer stage a predecessor merely to
+free a control slot. This is a statement about operation structure, not measured
+end-to-end latency.
+
+The resident batch is bounded at sixteen mutations and 128 KiB. Reads acquire
+at most eight blocks with the same byte bound. Table lookahead combines known
+single-block row references; multi-block records fetch at most two parts per
+request. Eight verified index nodes can be cached at one exact cut. Cached bytes
+have no authority: hosts bind the source identity, propagate read failures and
+validate current rights before disclosure or commit.
+
+The alternative of increasing small-value size would enlarge every control
+record and authority journal entry. Sending each 256-byte part independently
+keeps messages small but couples logical record size to control transactions.
+The separate block index preserves small metadata while admitting bounded bulk
+I/O. Its costs are another resource index, larger bounded request buffers and
+an explicit ownership/reclamation obligation for staged bytes. Accepted history
+and failed candidate bytes still need distinct physical-liveness decisions.
+
+Reference-store checks in
+[Table tests](../../packages/zig/transit-station/src/table_pages_test.zig) cover
+lost private proposals, larger-record resumption, exact quota release, corrupted
+record envelopes, retained schemas and current read failures. Run
+`cd packages/zig/transit-station && zig build test` in the pinned shell. Native
+authority/storage schedules are recorded separately in the
+[proof ledger](../../tests/README.md). These checks do not establish scan pruning,
+columnar storage, horizontal write scaling or a latency improvement; matched
+service campaigns must measure the latter.
+
 ## Reducing durable mutation work
 
 The question is which work a short Table mutation can share or avoid while

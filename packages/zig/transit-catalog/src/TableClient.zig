@@ -226,6 +226,12 @@ const Source = struct {
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
         return self.cache.read(key);
     }
+    pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+        return self.cache.readBlock(key, output);
+    }
+    pub fn prefetchBlocks(self: *@This(), keys: []const p.Value) !void {
+        return self.cache.prefetchBlocks(keys);
+    }
     pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
         try self.cache.prefetch(keys);
     }
