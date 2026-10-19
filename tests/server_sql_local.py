@@ -12,14 +12,19 @@ from server_sql import account, apply, call, denied, freeze, wait_status
 from storage import free_port
 
 
-def run(cli, node, host, board, gateway, *, bundle=None):
+def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Fixture(cli, node, host)
     if bundle:
         fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
-        fixture.config.pop('executables')  # Installed adjacent dependency discovery.
+        if source_install:
+            # A source build installs Transit artifacts; Nix supplies providers.
+            fixture.config['executables'] = {name: fixture.config['executables'][name]
+                                             for name in ('minio', 'ursula')}
+        else:
+            fixture.config.pop('executables')  # Installed adjacent dependency discovery.
     else:
         freeze(fixture)
     fixture.config['applications'] = {'port': free_port()}
@@ -226,13 +231,15 @@ def bootstrap_fault(cli, node, host, board, gateway):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--bundle', type=Path)
+    placement = parser.add_mutually_exclusive_group()
+    placement.add_argument('--bundle', type=Path)
+    placement.add_argument('--source-install', type=Path)
     parser.add_argument('binaries', nargs='*')
     args = parser.parse_args()
-    if args.bundle:
-        root = args.bundle.resolve()
+    if args.bundle or args.source_install:
+        root = (args.bundle or args.source_install).resolve()
         binaries = [root / 'bin' / name for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')]
-        run(*binaries, bundle=root)
+        run(*binaries, bundle=root, source_install=args.source_install is not None)
         bootstrap_fault(*binaries)
     else:
         assert len(args.binaries) == 5

@@ -2,6 +2,13 @@
 
 Run commands from the repository root inside `nix develop`.
 
+The default `zig build` and `just build::release-safe` install the matching
+Transit CLI, node, query host, Board and SQL gateway into `zig-out/bin/`.
+The `apps` build target also installs the SQL gateway. Building an individual
+target updates only that executable; rebuild the complete set before initializing
+a local server. Installations retain executable hashes, so rebuilding is not an
+in-place upgrade of an existing server installation.
+
 ## Task interface
 
 The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
