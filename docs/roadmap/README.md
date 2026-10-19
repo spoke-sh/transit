@@ -61,6 +61,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M51](M51.md) | Typed configuration and SQL settings | Implemented and locally qualified: YAML/env resolution, authorized reload generations and SQL/session controls; all 88 ordinary recipes pass with unchanged runtime source and the corrected SQL proof harness |
 | [M52](M52.md) | Configured local database access | Implemented and locally qualified: opt-in PostgreSQL/MySQL, explicit authorization, installed workflow and retained recovery |
 | [M53](M53.md) | Local SQL startup and authentication | Implemented: optional TLS, explicit loopback trust and recorded owner bootstrap; source/installed clients and clean experience lane pass |
+| [M54](M54.md) | Storage publication, concurrent access and reclamation | Selected: complete shared storage foundation, measured Table integration and prerequisite gates for historical branches |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
