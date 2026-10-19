@@ -195,7 +195,10 @@ The native configuration accepts `storage.limits.bytes` (default 8 GiB),
 `storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`
 (8 MiB maximum). These reserve encoded immutable segment bytes, including
 unpublished candidates. Control/collection allocations have a separate reserve;
-quota pressure does not expire accepted data. Provider metadata, ledgers, WAL,
+they use ordinary capacity first and fall back to that reserve only when an
+allocation cannot fit. The ledger retains each allocation's actual charged budget
+through collection and restart. Quota pressure does not expire accepted data.
+Provider metadata, ledgers, WAL,
 snapshots and filesystem headroom require separate budgets.
 
 `storage.maintenance.collection_every_records` defaults to 1,024 allocation

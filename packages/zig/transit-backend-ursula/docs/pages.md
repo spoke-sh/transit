@@ -62,7 +62,11 @@ queue's conditional cumulative charge remains the quota authority after restart.
 and collection marks. Defaults are eight GiB and 64 MiB. The candidate limit is
 configured by `storage.limits.candidate_bytes`, at most eight MiB. Quota includes
 unpublished candidates and temporary mark pages. Refusal leaves accepted roots
-and their receipts unchanged. Relocation uses ordinary capacity, keeping the
+and their receipts unchanged. Every allocation uses ordinary capacity when it
+fits. Eligible control commands and collection marks use the reserve only when
+ordinary capacity cannot hold the allocation. The conditional reservation records
+the actual charged budget; carry, release and restart preserve that choice.
+Relocation uses ordinary capacity, keeping the
 collection reserve separate. These counters describe segment records and seals,
 not provider metadata, work-ledger records, WAL replication, snapshots or disk
 filesystem allocation. Those require provider/disk quotas and headroom too.

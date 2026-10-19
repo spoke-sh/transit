@@ -182,6 +182,18 @@ are accounted control allocations; a later completed pass can collect them.
 The queues and catalogs are durable state, while their operation buffers remain
 bounded independently of retained cardinality.
 
+Control eligibility grants access to recovery capacity; it does not select a
+separate allocation partition. The reservation CAS charges ordinary capacity
+first, falling back to the control reserve only for eligible work that cannot fit.
+The queued allocation records the actual charged class, so carry and reclamation
+release the same budget after restart or a quota change. This distinction matters
+because an ordinary turn with no new output or effect is recovery-eligible.
+Charging every such turn to the reserve exhausts recovery capacity during normal
+traffic even when the ordinary budget is mostly unused. The allocation unit test
+checks primary admission, fallback, reserve exhaustion and lowered quotas; the
+disk collection schedule checks refusal of new ordinary work alongside an
+accepted checkpoint charged to the reserve.
+
 [Root enumeration](../../packages/zig/transit-core/src/StorageRoots.zig) selects
 retained journal roots and current live captured roots.
 [Traversal](../../packages/zig/transit-core/src/StorageWalk.zig) follows typed

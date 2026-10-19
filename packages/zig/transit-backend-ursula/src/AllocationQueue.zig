@@ -14,6 +14,7 @@ pub const Allocation = struct {
     data_bytes: u32,
     fenced: bool,
     digest: [32]u8,
+    /// Actual charged budget, retained through carry/release and restart.
     control: bool,
     pub fn validate(self: Allocation) !void {
         try self.identity.validate();
@@ -33,15 +34,22 @@ pub const State = struct {
         if (self.position != position or self.position > core.protocol.max_counter or self.cursor > position or self.data_bytes > core.protocol.max_counter or self.control_bytes > core.protocol.max_counter) return error.InvalidAllocationHistory;
         if (self.item) |item| try item.validate();
     }
-    pub fn reserve(self: State, allocation: Allocation, limits: Limits) !State {
+    pub fn reserve(self: State, allocation: Allocation, limits: Limits, control_eligible: bool) !State {
         try allocation.validate();
         try limits.validate();
+        if (allocation.control) return error.InvalidStorageAllocation;
+        var charged = allocation;
+        // Eligibility is not a separate allocation partition. Ordinary turns
+        // can qualify for recovery admission; charging every such turn to the
+        // reserve would exhaust it while the primary budget remains unused.
+        charged.control = self.data_bytes > limits.bytes or allocation.bytes > limits.bytes - self.data_bytes;
+        if (charged.control and !control_eligible) return error.StorageQuota;
         var next = self;
         next.position = try std.math.add(u64, self.position, 1);
-        const amount = if (allocation.control) &next.control_bytes else &next.data_bytes;
+        const amount = if (charged.control) &next.control_bytes else &next.data_bytes;
         amount.* = try std.math.add(u64, amount.*, allocation.bytes);
-        if (amount.* > (if (allocation.control) limits.control_bytes else limits.bytes)) return error.StorageQuota;
-        next.item = allocation;
+        if (amount.* > (if (charged.control) limits.control_bytes else limits.bytes)) return error.StorageQuota;
+        next.item = charged;
         try next.validate(next.position);
         return next;
     }
@@ -123,10 +131,10 @@ fn append(self: *Self, state: State) !bool {
 }
 /// A lost acknowledgement returns uncertainty without creating any bytes. The
 /// reservation remains enumerable, even if no creator ever reaches the provider.
-pub fn reserve(self: *Self, allocation: Allocation) !void {
+pub fn reserve(self: *Self, allocation: Allocation, control_eligible: bool) !void {
     for (0..8) |_| {
         const state = try self.current();
-        if (try self.append(try state.reserve(allocation, self.limits))) return;
+        if (try self.append(try state.reserve(allocation, self.limits, control_eligible))) return;
     }
     return error.AllocationConflict;
 }
@@ -151,11 +159,11 @@ test "allocation queue carries ownership and releases each charge only once" {
     const t = std.testing;
     const initial: State = .{ .definition = core.protocol.Growth.current_definition, .position = 0, .cursor = 0, .data_bytes = 0, .control_bytes = 0, .reclaimed_bytes = 0, .item = null };
     const item: Allocation = .{ .identity = .{ .epoch = 1, .nonce = @splat(9) }, .bytes = 100, .frames = 1, .data_bytes = 80, .fenced = false, .digest = @splat(1), .control = false };
-    var state = try initial.reserve(item, .{ .bytes = 100 });
-    try t.expectError(error.StorageQuota, state.reserve(item, .{ .bytes = 100 }));
+    var state = try initial.reserve(item, .{ .bytes = 100 }, false);
+    try t.expectError(error.StorageQuota, state.reserve(item, .{ .bytes = 100 }, false));
     var control = item;
     control.control = true;
-    state = try state.reserve(control, .{ .bytes = 100 });
+    state = try state.reserve(item, .{ .bytes = 100 }, true);
     state = try state.consume(0, null, false);
     state = try state.consume(1, item, true);
     try t.expectEqual(@as(u64, 100), state.data_bytes);
@@ -172,6 +180,34 @@ test "allocation queue carries ownership and releases each charge only once" {
     try t.expect(state.item.?.fenced);
     try t.expectEqual(@as(u32, 0), state.item.?.data_bytes);
     try t.expectError(error.InvalidStorageAllocation, state.fence(state.cursor, state.item.?));
+}
+
+test "control eligibility uses primary capacity before the recovery reserve" {
+    const t = std.testing;
+    const limits: Limits = .{ .bytes = 200, .control_bytes = 1024 * 1024 };
+    const initial: State = .{ .definition = core.protocol.Growth.current_definition, .position = 0, .cursor = 0, .data_bytes = 0, .control_bytes = 0, .reclaimed_bytes = 0, .item = null };
+    const item: Allocation = .{ .identity = .{ .epoch = 1, .nonce = @splat(3) }, .bytes = 100, .frames = 1, .data_bytes = 80, .fenced = false, .digest = @splat(7), .control = false };
+    var state = try initial.reserve(item, limits, true);
+    try t.expectEqual(@as(u64, 100), state.data_bytes);
+    try t.expectEqual(@as(u64, 0), state.control_bytes);
+    try t.expect(!state.item.?.control);
+    state = try state.reserve(item, limits, false);
+    try t.expectError(error.StorageQuota, state.reserve(item, limits, false));
+    state = try state.reserve(item, limits, true);
+    try t.expectEqual(@as(u64, 200), state.data_bytes);
+    try t.expectEqual(@as(u64, 100), state.control_bytes);
+    try t.expect(state.item.?.control);
+    // A consumed reserve does not prevent eligible work from using available
+    // primary capacity, including after collection releases primary charges.
+    state.control_bytes = limits.control_bytes;
+    try t.expectError(error.StorageQuota, state.reserve(item, limits, true));
+    state.data_bytes = 0;
+    state = try state.reserve(item, limits, true);
+    try t.expectEqual(@as(u64, 100), state.data_bytes);
+    try t.expectEqual(limits.control_bytes, state.control_bytes);
+    try t.expect(!state.item.?.control);
+    // Lowering a configured quota cannot underflow the remaining-capacity test.
+    try t.expectError(error.StorageQuota, state.reserve(item, .{ .bytes = 50, .control_bytes = limits.control_bytes }, true));
 }
 
 /// After a permanent closed-name fence and confirmed trim, release only data

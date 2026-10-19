@@ -125,6 +125,23 @@ in 93.545 seconds: 116 turns, two recovered initialization receipts, interleaved
 durable/interactive snapshots, saved console recovery, cancellation races and
 current policy/native denial. Installed SDK variants are unselected in this run.
 
+At `15195190`, focused catalog, typed Table and SQL gateway schedules pass, but
+the full SQL wire schedule stalls during its 40 KiB row. The account worker first
+receives repeated `StorageQuota` refusals, then exceeds its captured turn deadline
+and stops with `StateViewExpired`. Routine turns eligible for recovery had been
+charged exclusively to the 64 MiB control reserve despite available ordinary
+capacity. Allocation now uses ordinary capacity first, reserving fallback access
+for eligible work when ordinary capacity cannot fit it. The ledger records the
+actual charged class for exact carry and release. Unit and disk regression cases
+cover this accounting without raising quotas or deadlines. The interrupted wire
+run is incomplete and does not establish a pass for its wide-row or later cases.
+The focused adapter unit suite and disk collection rerun pass with the accounting
+fix: the quota-pressure checkpoint reserves 3,223 control bytes, retains that
+charge through the first collection and provider restarts, then releases it after
+history trimming and the second collection. The two cycles reclaim 216,440
+accounted bytes with one decoded page. This fixture adds the checkpoint and is
+distinct from the earlier recorded collection run below.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

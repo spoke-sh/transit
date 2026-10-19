@@ -92,7 +92,7 @@ pub fn main(init: std.process.Init) !void {
         var queue = try pages.allocations();
         for ([_]u8{ 61, 62 }) |nonce| {
             const identity: backend.Segment.Identity = .{ .epoch = 1, .nonce = @splat(nonce) };
-            try queue.reserve(.{ .identity = identity, .bytes = 507, .data_bytes = 7, .frames = 1, .fenced = false, .digest = @splat(7), .control = false });
+            try queue.reserve(.{ .identity = identity, .bytes = 507, .data_bytes = 7, .frames = 1, .fenced = false, .digest = @splat(7), .control = false }, false);
             if (nonce == 62) {
                 const name = try identity.name(journal.journal.stream.bucket, journal.journal.stream.name);
                 var open = try client.send(.{ .create_stream = .{ .stream = .{ .bucket = journal.journal.stream.bucket, .name = &name }, .options = .{ .content_type = "application/json", .body = "\"YQ==\"" } } });
@@ -101,6 +101,7 @@ pub fn main(init: std.process.Init) !void {
             }
         }
         const admitted = try queue.current();
+        try t.expectEqual(@as(u64, 0), admitted.control_bytes);
         const previous_head = engine.head;
         pages.limits.bytes = admitted.data_bytes;
         try t.expectError(error.StorageQuota, engine.prepare(try signed(&engine, .{ .spawn = .{} })));
@@ -111,6 +112,15 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.StorageCandidateBudget, engine.prepare(try signed(&engine, .{ .spawn = .{} })));
         try t.expectEqualDeep(admitted, try queue.current());
         pages.limits.candidate_bytes = backend.Segment.max_bytes;
+        // The same quota that refuses new ordinary allocation still admits a
+        // checkpoint from the independent recovery reserve. Persist the actual
+        // charged class so later process/provider restart releases it exactly.
+        pages.limits.bytes = admitted.data_bytes;
+        _ = try submit(&engine, .{ .checkpoint = {} });
+        const reserved = try queue.current();
+        try t.expectEqual(admitted.data_bytes, reserved.data_bytes);
+        try t.expect(reserved.control_bytes > admitted.control_bytes);
+        pages.limits.bytes = 8 * 1024 * 1024 * 1024;
         const old = try engine.prepare(try signed(&engine, .{ .spawn = .{} }));
         const fence = try submit(&engine, .{ .storage_fence = {} });
         try t.expectError(error.Conflict, engine.commit(old));

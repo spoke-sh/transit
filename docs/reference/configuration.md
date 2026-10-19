@@ -207,6 +207,12 @@ control/collection reserve and the private candidate buffer. Defaults are 8 GiB,
 Changes require restart. `SHOW storage.limits.bytes` reports the configured quota,
 not current filesystem usage.
 
+All allocations use ordinary capacity when available. Eligible control and
+collection work can use the separate reserve when ordinary capacity is exhausted;
+routine eligible turns do not consume the reserve while they fit the ordinary
+budget. Each reservation records which budget owns its bytes until collection
+releases them. Neither quota pressure nor reserve exhaustion expires data.
+
 The existing maintenance process begins another physical pass after
 `storage.maintenance.collection_every_records` allocation-ledger records
 (default 1,024). `storage.maintenance.compact` enables bounded relocation before

@@ -91,7 +91,7 @@ pub fn finish(self: *Self) !void {
     var out: std.Io.Writer = .fixed(&seal_bytes);
     try std.json.Stringify.value(seal, .{}, &out);
     var queue = try self.allocations();
-    try queue.reserve(.{ .identity = candidate.identity, .bytes = candidate.used + out.buffered().len + 1, .frames = candidate.count, .data_bytes = candidate.used, .fenced = false, .digest = seal.digest, .control = self.control });
+    try queue.reserve(.{ .identity = candidate.identity, .bytes = candidate.used + out.buffered().len + 1, .frames = candidate.count, .data_bytes = candidate.used, .fenced = false, .digest = seal.digest, .control = false }, self.control);
     var name: [45]u8 = undefined;
     const target = try self.stream(candidate.identity, &name);
     // Ursula accepts one JSON value or an array on writes and returns NDJSON.

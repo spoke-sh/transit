@@ -75,7 +75,8 @@ def run(executable):
             fixture.stop()
             fixture.start()
         try:
-            phase('initialize')
+            initialized = phase('initialize')
+            assert initialized['accounting']['control_bytes'] > 0
             restart()
             fault.update(mode='corrupt', observed=0)
             phase('mark', b'CorruptBlock')
@@ -88,6 +89,7 @@ def run(executable):
             phase('sweep', b'error:')
             restart()
             first = phase('sweep')
+            assert first['accounting']['control_bytes'] == initialized['accounting']['control_bytes']
             restart()
             phase('verify')
             previous = phase('compact')['relocated_from']
@@ -99,6 +101,7 @@ def run(executable):
             restart()
             second = phase('sweep')
             assert second['accounting']['reclaimed_bytes'] > first['accounting']['reclaimed_bytes']
+            assert second['accounting']['control_bytes'] == 0
             restart()
             phase('verify')
             identity = previous['epoch'].to_bytes(8, 'big') + bytes(previous['nonce'])
