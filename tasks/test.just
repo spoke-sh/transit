@@ -518,8 +518,9 @@ server-sql:
     zig build test-server-sql -Doptimize=ReleaseSafe
 
 # Local trust/password authentication, all TLS modes and recorded owner bootstrap.
+# Exercise the default installed Transit binaries and adjacent discovery.
 server-sql-local:
-    zig build test-server-sql-local -Doptimize=ReleaseSafe
+    zig build test-server-sql-local -Doptimize=ReleaseSafe --prefix .cache/transit-sql-local
 
 # Exact SQL setup recovery after native commits with lost replies.
 server-sql-faults:

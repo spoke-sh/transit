@@ -2,6 +2,13 @@
 
 Run commands from the repository root inside `nix develop`.
 
+The default `zig build` and `just build::release-safe` install the matching
+Transit CLI, node, query host, Board and SQL gateway into `zig-out/bin/`.
+The `apps` build target also installs the SQL gateway. Building an individual
+target updates only that executable; rebuild the complete set before initializing
+a local server. Installations retain executable hashes, so rebuilding is not an
+in-place upgrade of an existing server installation.
+
 ## Task interface
 
 The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
@@ -77,6 +84,7 @@ raise that capacity or discard history to complete.
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
+| `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
 | `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |

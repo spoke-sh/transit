@@ -828,7 +828,15 @@ pub fn build(b: *std.Build) void {
     inline for (.{ .{ "test-server-sql", "tests/server_sql.py" }, .{ "test-server-sql-faults", "tests/server_sql_faults.py" }, .{ "test-server-sql-local", "tests/server_sql_local.py" } }) |proof| {
         const run = b.addSystemCommand(&.{ "python3", "-B" });
         run.addFileArg(b.path(proof[1]));
-        for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+        if (comptime std.mem.eql(u8, proof[0], "test-server-sql-local")) {
+            // Exercise the default installation users run from zig-out/bin,
+            // including adjacent executable discovery instead of cache artifacts.
+            run.addArg("--source-install");
+            run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
+            run.step.dependOn(b.getInstallStep());
+        } else {
+            for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+        }
         run.has_side_effects = true;
         run.stdio = .inherit;
         b.step(proof[0], "Qualify configured local SQL enrollment, clients and retained recovery").dependOn(&run.step);
@@ -869,7 +877,10 @@ pub fn build(b: *std.Build) void {
     b.step("transit-table-service", "Install the authenticated Table service").dependOn(&b.addInstallArtifact(table_service, .{}).step);
     build_test_step.dependOn(&table_service.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = table_service.root_module })).step);
-    b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&b.addInstallArtifact(sql_gateway_app, .{}).step);
+    const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});
+    b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&install_sql_gateway.step);
+    b.getInstallStep().dependOn(&install_sql_gateway.step);
+    apps_step.dependOn(&install_sql_gateway.step);
     build_test_step.dependOn(&sql_gateway_app.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
