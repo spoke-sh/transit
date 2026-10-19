@@ -50,8 +50,8 @@ def foundation(postgres, mysql_options, executables):
     paths = ('postgres_literal', 'postgres_prepared', 'mysql_literal', 'mysql_prepared')
     cases = (
         ('point', 'SELECT id FROM wire_rows WHERE id=101', [(101,)]),
-        ('range', 'SELECT id FROM wire_rows WHERE id>=101 AND id<=103 ORDER BY id', [(101,), (102,), (103,)]),
-        ('full', 'SELECT id FROM wire_rows ORDER BY id', [(101,), (102,), (103,), (104,)]),
+        ('range', 'SELECT id FROM wire_rows WHERE id>=101 AND id<=103', [(101,), (102,), (103,)]),
+        ('full', 'SELECT id FROM wire_rows', [(101,), (102,), (103,), (104,)]),
         ('empty', 'SELECT id FROM wire_rows WHERE id=999', []),
         ('limit_zero', 'SELECT id FROM wire_rows LIMIT 0', []),
     )
@@ -60,6 +60,7 @@ def foundation(postgres, mysql_options, executables):
                   source_dirty=bool(subprocess.check_output(['git','status','--porcelain'])),
                   build_revision=os.environ.get('TRANSIT_BENCH_BUILD_REVISION'),
                   rows=4, warmups=1, read_repetitions=20, mutation_repetitions=3,
+                  read_order='Unordered selection; the oracle sorts rows after timing.',
                   samples=[], errors=[], executables={},
                   limits='Sequential local disk/TLS observations after builds finish. Retained connections; one excluded warmup per read case/path. Read p95 has 20 samples; mutation medians have three, no tail claim. Synthetic scalar profile; no nested SQL wire support or production SLO is implied.')
     for name, binary in (executables | {name: shutil.which(name) for name in ('ursula', 'minio')}).items():
@@ -80,7 +81,7 @@ def foundation(postgres, mysql_options, executables):
                         start = time.monotonic_ns()
                         rows = execute(path, sql, True)
                         elapsed = time.monotonic_ns() - start
-                        assert rows == expected, (path, case, rows)
+                        assert sorted(rows) == expected, (path, case, rows)
                         if iteration:
                             report['samples'].append(dict(path=path, case=case, elapsed_ns=elapsed))
             for _ in range(3):

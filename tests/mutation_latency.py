@@ -424,17 +424,18 @@ def main():
         report['reader_queries'] = reader_counts
         if args.read_repeat:
             report['read_samples'] = []
+            report['read_order'] = 'Unordered selection; the oracle sorts rows after timing.'
             for _ in range(args.read_repeat):
                 for case, sql, keys in (
                     ('point', 'SELECT * FROM items WHERE id=1', [1]),
-                    ('range', 'SELECT * FROM items WHERE id>=1 AND id<=8 ORDER BY id', list(range(1, 9))),
-                    ('full', 'SELECT * FROM items ORDER BY id', list(range(args.rows + 1))),
+                    ('range', 'SELECT * FROM items WHERE id>=1 AND id<=8', list(range(1, 9))),
+                    ('full', 'SELECT * FROM items', list(range(args.rows + 1))),
                     ('empty', 'SELECT * FROM items WHERE id=-9', []),
                     ('limit_zero', 'SELECT * FROM items LIMIT 0', []),
                 ):
                     before = {name: probe.snapshot() for name, probe in probes.items()}
                     value, measurement = verifier.call(sql)
-                    rows = value['rows']
+                    rows = sorted(value['rows'], key=lambda row: int(row[0]['value']['atom']['signed']))
                     assert [int(row[0]['value']['atom']['signed']) for row in rows] == keys, value
                     for key, row in zip(keys, rows, strict=True):
                         expected_value = args.age - 1 if key == 0 and args.age else 100
