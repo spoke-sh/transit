@@ -255,7 +255,7 @@ capacity:
 
 # Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
 growing-capacity:
-    zig build growing-capacity-proof
+    zig build growing-capacity-proof -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof
 
 # Exercise bounded discovery and retained inspection through the public client.

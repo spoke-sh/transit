@@ -139,7 +139,7 @@ raise that capacity or discard history to complete.
 | `just test::simulation [--seeds N --steps N]` | Runs multi-process authority/delivery schedules, independent recovery comparisons and bounded progress with identical replay |
 | `just test::simulation-mutations` | Checks committed-source delivery-order/provenance mutants in isolated clones |
 | `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
-| `just test::growing-capacity` | Uses an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
+| `just test::growing-capacity` | Uses ReleaseSafe binaries and an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
 | `just test::pages-cold [--keys N --cache N]` | Linux x86_64: repeats the page proof with pinned native MinIO and measures both providers |
 | `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
@@ -150,6 +150,7 @@ raise that capacity or discard history to complete.
 | `just test::node-concurrency` | Uses provider barriers to check overlapping signed reads/commits, revocation during a read and one receipt for concurrent exact retries |
 | `just test::block-storage` | Checks immutable block/index primitives through disk restart, failed staging and corrupt/missing bytes; native turn and SQL integration are separate |
 | `just test::native-blocks` | Atomic native bulk publication, retained bytes, exact retry and current authority through disk faults |
+| `just test::storage-collection` | Disk-backed segment ownership, quota refusal, resumable collection, late-create fencing, relocation and confirmed deletion while retained roots survive |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |

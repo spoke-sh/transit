@@ -2,6 +2,13 @@
 
 ## Segment storage and physical collection
 
+Reproduce the focused schedules with `just test::storage-collection`,
+`just test::native-blocks`, `just test::block-storage` and `just test::pages` in
+the pinned development shell. The native overlap schedule is
+`just test::node-concurrency`. Cold storage and actual disk pressure have separate
+tasks, `just test::pages-cold --keys 1024 --cache 2` and
+`just test::growing-capacity`.
+
 The disk segment, native block and concurrency proofs pass with current native
 v1 definition `1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f`.
 Segments privately group pages/blocks, reserve encoded bytes, verify provider
@@ -31,6 +38,16 @@ These tests use an injected trusted clock to cross the full grace interval.
 They do not prove host power-loss behavior, backup erasure, immediate WAL shrink,
 or asynchronous cold-object deletion. Full service/clean-CI completion and matched
 performance measurements remain separate qualification gates.
+
+The [physical capacity record](verification/results/storage-foundation-capacity-2026-10-19.json)
+passes with 72 retained 256-byte values and one decoded page (17,032 resident
+bytes). Actual ext4 ENOSPC denies writes without advancing position 96. Releasing
+only the preallocated 1 GiB reserve permits revocation, expiry, effect closure,
+drain and checkpoint/trim through position 130. Provider SIGKILL/restart retains
+all values and the completed maintenance issues only GET/HEAD. The two preceding
+Debug setup attempts exceed the unchanged 120-second phase deadline; the task
+now selects ReleaseSafe, matching the service-load proofs. This run records its
+pending harness changes and is separate from committed-source clean CI.
 
 ## Table records on native blocks
 

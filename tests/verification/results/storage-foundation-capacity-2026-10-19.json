@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "status": "passed",
+  "image": "ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba",
+  "profile": "native_v1",
+  "revision": "2c4aa67e4e3bd8f4df2a3c987dfebc5e9d3f4673",
+  "dirty": true,
+  "binary_sha256": "d4cf86bbd0e38b87c5a0066c3cfa1f24c2bcd72f52447d9cca1d1b4022f117e6",
+  "admission_ceiling": 96,
+  "control_record_bound": 96,
+  "reserve_bytes": 1073741824,
+  "before_pressure": {
+    "available": 1034039296,
+    "wal_bytes": 1748451,
+    "wal_allocated": 1757184
+  },
+  "pressured": {
+    "available": 3182592,
+    "wal_bytes": 1748451,
+    "wal_allocated": 1757184
+  },
+  "released": {
+    "available": 1077977088,
+    "wal_bytes": 1748451,
+    "wal_allocated": 1757184
+  },
+  "after_control": {
+    "available": 1077637120,
+    "wal_bytes": 2087403,
+    "wal_allocated": 2097152
+  },
+  "before_recovery": {
+    "available": 1077637120,
+    "wal_bytes": 2087403,
+    "wal_allocated": 2097152
+  },
+  "after_recovery": {
+    "available": 1077694464,
+    "wal_bytes": 2028543,
+    "wal_allocated": 2039808
+  },
+  "recovery_methods": [
+    "GET",
+    "HEAD"
+  ],
+  "phases": [
+    {
+      "profile": "native_v1",
+      "phase": "write",
+      "admission_ceiling": 96,
+      "control_reserve": 96,
+      "position": 96,
+      "rows": 72,
+      "resident_bytes": 17032,
+      "created_pages": 668,
+      "page_requests": 38266,
+      "seconds": 99.334
+    },
+    {
+      "profile": "native_v1",
+      "phase": "pressure",
+      "admission_ceiling": 96,
+      "control_reserve": 96,
+      "position": 96,
+      "rows": 72,
+      "resident_bytes": 17032,
+      "created_pages": 10,
+      "page_requests": 2201,
+      "seconds": 12.116
+    },
+    {
+      "profile": "native_v1",
+      "phase": "control",
+      "admission_ceiling": 96,
+      "control_reserve": 96,
+      "position": 130,
+      "rows": 72,
+      "resident_bytes": 17032,
+      "created_pages": 164,
+      "page_requests": 11639,
+      "seconds": 27.701
+    },
+    {
+      "profile": "native_v1",
+      "phase": "recover",
+      "admission_ceiling": 96,
+      "control_reserve": 96,
+      "position": 130,
+      "rows": 72,
+      "resident_bytes": 17032,
+      "created_pages": 0,
+      "page_requests": 2051,
+      "seconds": 3.14
+    }
+  ]
+}
