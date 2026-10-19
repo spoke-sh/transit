@@ -6,7 +6,7 @@ const p = core.protocol;
 const b = p.Blocks;
 const c = core.catalog;
 const pages = core.pages;
-pub const Reference = struct { value: b.Spec, location: [16]u8 };
+pub const Reference = struct { value: b.Spec, location: [32]u8 };
 pub const Record = struct { key: p.Value, reference: Reference, revision: u64 };
 pub const Snapshot = c.Snapshot;
 

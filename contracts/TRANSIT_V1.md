@@ -229,7 +229,8 @@ retained-history policy. The checkpoint publication records a monotonic floor
 that retains its own complete root-bearing journal entry. Trusted maintenance
 verifies committed intent and root snapshot before advancing that floor. It does
 not delete catalog pages, receipts, accepted inputs, values or captured roots.
-This does not add a public history query or page-GC capability.
+Checkpointing does not expose a public history query. Physical segment collection
+uses the separate storage fence and ownership traversal described below.
 
 ### Conditional local worker replacement
 
@@ -350,3 +351,23 @@ current metadata with snapshot acquisition or final validation/release. Its
 range budget is independent of the ordinary eight-record page and mutation
 budgets. See [combined snapshot reads](INTERACTIVE_QUERY_V1.md#combined-snapshot-reads)
 for exact bounds, separate source/current bases and final authority validation.
+
+
+## Physical storage maintenance
+
+`storage_fence` requires current realm-wide administrative authority and trusted
+time. It advances the stored storage epoch in one normal signed acceptance.
+Prepared candidates use the observed epoch and position; an intervening fence
+makes their original publication fail. A later fence can record elapsed read
+lease grace before physical deletion. Neither operation changes retention.
+
+`storage_compact` requires current realm-wide administrative authority. One
+acceptance relocates one block or one catalog/policy leaf and path, advancing the
+head's durable compaction cursor. It preserves logical values, resource revisions
+and retained read versions. It consumes ordinary physical allocation capacity.
+Old accepted roots retain their original placement until independently released.
+
+Stored heads require the current definition, storage epoch and compaction cursor.
+Page/block locations have one current 32-byte opaque definition. There is no
+preceding-format decoder or implied epoch for an old stored head. Configuration,
+provider placement and maintenance ledgers never authorize execution or expiry.

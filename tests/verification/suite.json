@@ -44,6 +44,7 @@
       "test::node-concurrency",
       "test::block-storage",
       "test::native-blocks",
+      "test::storage-collection",
       "test::public-query",
       "test::publication",
       "test::table-query-writer",

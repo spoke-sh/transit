@@ -13970,6 +13970,27 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "InvalidBlockBody": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "StorageCandidateBudget": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "StorageQuota": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },

@@ -71,7 +71,7 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
         var missing: p.Reference = .{ .digest = @splat(1) };
         if (PageStore == adapter.PackedPageStore) {
             try store.create();
-            missing.location[0] = 1;
+            missing.location = try (adapter.Segment.Identity{ .epoch = 1, .nonce = @splat(200) }).locate(0);
         }
         try t.expectError(error.PageUnavailable, store.load(missing));
         var root: ?p.Reference = null;
@@ -80,7 +80,9 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
             const count = @min(batch_size, keys - inserted);
             var mutations: [p.mutation_batch]p.Mutation = undefined;
             for (mutations[0..count], 0..) |*mutation, i| mutation.* = .{ .key = key(inserted + i), .value = value(inserted + i) };
+            if (PageStore == adapter.PackedPageStore) try store.begin(1, false);
             root = if (batch_size == 1) try tree.put(root, mutations[0].key, mutations[0].value.?) else try tree.mutate(root, mutations[0..count]);
+            if (PageStore == adapter.PackedPageStore) try store.finish();
             inserted += count;
         }
         try t.expect(keys * 1024 > store.residentBytes());
@@ -91,19 +93,23 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
             const count = @min(batch_size, keys / 2 - deleted);
             var mutations: [p.mutation_batch]p.Mutation = undefined;
             for (mutations[0..count], 0..) |*mutation, i| mutation.* = .{ .key = key((deleted + i) * 2), .value = null };
+            if (PageStore == adapter.PackedPageStore) try store.begin(1, false);
             root = if (batch_size == 1) try tree.remove(root, mutations[0].key) else try tree.mutate(root, mutations[0..count]);
+            if (PageStore == adapter.PackedPageStore) try store.finish();
             deleted += count;
         }
         try t.expect(try publish(journal, 1, .{ .root = root.?, .entries = keys / 2 }));
         try t.expect(!try publish(journal, 1, .{ .root = snapshot.?, .entries = keys }));
         // Staged orphan is not a publication; root discovery comes only from
         // the authoritative journal, never page timestamps or stream listing.
+        if (PageStore == adapter.PackedPageStore) try store.begin(1, false);
         _ = try tree.put(root, key(keys + 1), value(keys + 1));
+        if (PageStore == adapter.PackedPageStore) try store.finish();
         try t.expectEqual(@as(u64, 2), try journal.tail());
         if (PageStore == adapter.PackedPageStore) {
             // A packed locator is not trusted without the matching digest.
             var wrong = root.?;
-            wrong.location[8..16].* = @splat(0);
+            wrong.digest[0] ^= 1;
             store.clearCache();
             try t.expectError(error.CorruptPage, store.load(wrong));
             var page: p.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
@@ -112,13 +118,17 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
             defer competing.deinit();
             var references: [8]p.Reference = undefined;
             const requests = store.requests;
+            try store.begin(1, false);
+            try competing.begin(1, false);
             for (&references, 0..) |*ref, i| {
                 page.body.leaf[0].?.value = value(keys + i + 2);
                 ref.* = try (if (i % 2 == 0) &store else &competing).stage(try page.reference(), &page);
                 if (i != 0) try t.expect(!std.mem.eql(u8, &ref.location, &references[i - 1].location));
             }
-            try t.expectEqual(@as(u64, 4), store.requests - requests);
-            try t.expectEqual(@as(u64, 4), competing.requests); // One append each, no tail HEAD or retry.
+            try t.expectEqual(@as(u64, 0), store.requests - requests); // All staging is private.
+            try t.expectEqual(@as(u64, 0), competing.requests);
+            try store.finish();
+            try competing.finish();
             store.clearCache();
             for (references, 0..) |ref, i| {
                 const retained = try store.load(ref);
@@ -130,8 +140,10 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
                 item.body.leaf[0].?.value = value(keys + i + 20);
             }
             const bulk_requests = store.requests;
+            try store.begin(1, false);
             try store.stageMany(&batch, &references);
-            try t.expectEqual(@as(u64, 1), store.requests - bulk_requests);
+            try t.expectEqual(@as(u64, 0), store.requests - bulk_requests);
+            try store.finish();
             store.clearCache();
             for (references, batch) |ref, expected| try t.expectEqualDeep(expected, try store.load(ref));
             try t.expectEqual(@as(u64, 2), try journal.tail());
@@ -145,9 +157,10 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
         }
         const sentinel: p.Reference = .{ .digest = @splat(42) };
         var references: [p.mutation_batch]p.Reference = @splat(sentinel);
-        if (store.stageMany(&batch, &references)) |_| return error.ExpectedStagingFailure else |_| {}
-        for (references) |ref| try t.expectEqualDeep(sentinel, ref);
-        try t.expectEqual(@as(u64, 1), store.requests); // No hidden retry after uncertainty.
+        try store.begin(1, false);
+        try store.stageMany(&batch, &references);
+        if (store.finish()) |_| return error.ExpectedStagingFailure else |_| {}
+        try t.expectEqual(@as(u64, 0), store.segments_created); // No publishable candidate or hidden retry.
         try t.expectEqual(@as(u64, 2), try journal.tail());
     } else if (!std.mem.eql(u8, args[2], "recover") and !std.mem.eql(u8, args[2], "checkpoint") and !std.mem.eql(u8, args[2], "trim_recover")) return error.UnknownPhase;
 
@@ -194,7 +207,7 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
     }
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try std.json.Stringify.value(.{ .page_version = p.version, .layout = args[5], .phase = args[2], .mutation_batch = batch_size, .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_pages = store.created, .created_page_streams = if (PageStore == adapter.PackedPageStore) @as(u64, if (std.mem.eql(u8, args[2], "write")) 1 else 0) else store.created, .page_http_requests = store.requests, .page_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
+    try std.json.Stringify.value(.{ .page_version = p.version, .layout = args[5], .phase = args[2], .mutation_batch = batch_size, .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_pages = store.created, .created_page_streams = if (PageStore == adapter.PackedPageStore) store.segments_created else store.created, .page_http_requests = store.requests, .page_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
     try output.interface.writeByte('\n');
     try output.interface.flush();
 }

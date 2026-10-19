@@ -35,12 +35,13 @@ def run(executable):
                     response = connection.getresponse()
                     data = response.read()
                     status = response.status
-                    encoded = data.rstrip(b'\n')
+                    frames = data.splitlines(keepends=True)
+                    encoded = next((frame.rstrip(b'\n') for frame in frames if frame.startswith(b'"VEJL')), data.rstrip(b'\n'))
                     is_block = False
                     if self.command == 'GET' and len(encoded) >= 2 and encoded[:1] == b'"' and encoded[-1:] == b'"':
                         decoded = base64.b64decode(encoded[1:-1], validate=True)
                         is_block = decoded.startswith(b'TBK1')
-                    if fault['mode'] == 'lost-stage' and self.command == 'POST' and '/q-' in self.path:
+                    if fault['mode'] == 'lost-stage' and self.command == 'PUT' and '/s-' in self.path:
                         assert 200 <= status < 300, status
                         fault['observed'] += 1
                         fault['mode'] = None
@@ -48,7 +49,7 @@ def run(executable):
                         return
                     if is_block and fault['mode'] == 'corrupt':
                         decoded = decoded[:-1] + bytes([decoded[-1] ^ 1])
-                        data = b'"' + base64.b64encode(decoded) + b'"\n'
+                        data = data.replace(encoded + b'\n', b'"' + base64.b64encode(decoded) + b'"\n', 1)
                         fault['observed'] += 1
                     elif is_block and fault['mode'] == 'missing':
                         status, data = 404, b''

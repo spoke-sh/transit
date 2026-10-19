@@ -1871,6 +1871,36 @@
       ],
       "limits": "At most sixteen code images per loaded SDK assembly, retained until process exit. Native handles and buffers still close. Override identity is absolute path plus SHA-256 content; byte-identical replacement may reuse code. Linux mapping assertions detect unload independently of crash timing.",
       "model": null
+    },
+    {
+      "id": "STORAGE-01",
+      "claim": "Only complete verified segments can publish roots; collection preserves every explicit owner before reclaiming storage",
+      "owner": "docs/reference/storage.md",
+      "implementation": [
+        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
+        "packages/zig/transit-backend-ursula/src/StorageCollection.zig",
+        "packages/zig/transit-core/src/StorageRoots.zig",
+        "packages/zig/transit-core/src/StorageWalk.zig",
+        "packages/zig/transit-core/src/StorageCompact.zig"
+      ],
+      "profile": "Current native v1; disk Ursula segment layout",
+      "tasks": [
+        "test::unit",
+        "test::native-blocks",
+        "test::storage-collection",
+        "test::block-storage",
+        "test::pages"
+      ],
+      "scenarios": [
+        "Private complete candidate and exact lost staging/commit recovery",
+        "Epoch publication fence, trusted-time grace and current/retained roots",
+        "Corruption during marking, lost delete reply and process/provider restart",
+        "Verified relocation followed by actual old segment absence",
+        "Absent/unsealed allocation fences reject delayed creation; exact quota release"
+      ],
+      "limits": "Injected trusted clock in collection fixtures. Encoded allocation counters exclude provider metadata, work ledgers, snapshots and WAL. Provider deletion/trim does not prove erasure from backups or immediate asynchronous cold-object cleanup.",
+      "model": null,
+      "qualification": "Executed disk/core scopes are recorded in tests/README.md; broader service and clean-CI gates are separate."
     }
   ]
 }

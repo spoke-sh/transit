@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482",
+    "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -67,7 +67,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           ]
         },
         "realm": {
@@ -2093,7 +2093,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                               ]
                                             },
                                             "realm": {
@@ -3033,6 +3033,32 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
+                "storage_fence"
+              ],
+              "properties": {
+                "storage_fence": {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "storage_compact"
+              ],
+              "properties": {
+                "storage_compact": {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
                 "turn_with_versions"
               ],
               "properties": {
@@ -3380,7 +3406,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -4797,7 +4823,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+        "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
       }
     },
     "SignedRequest": {
@@ -4830,7 +4856,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
               ]
             },
             "realm": {
@@ -6856,7 +6882,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -7796,6 +7822,32 @@
                   "type": "object",
                   "additionalProperties": false,
                   "required": [
+                    "storage_fence"
+                  ],
+                  "properties": {
+                    "storage_fence": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "storage_compact"
+                  ],
+                  "properties": {
+                    "storage_compact": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
                     "turn_with_versions"
                   ],
                   "properties": {
@@ -8143,7 +8195,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -9613,7 +9665,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
               ]
             },
             "realm": {
@@ -11639,7 +11691,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -12579,6 +12631,32 @@
                   "type": "object",
                   "additionalProperties": false,
                   "required": [
+                    "storage_fence"
+                  ],
+                  "properties": {
+                    "storage_fence": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "storage_compact"
+                  ],
+                  "properties": {
+                    "storage_compact": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
                     "turn_with_versions"
                   ],
                   "properties": {
@@ -12926,7 +13004,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -14410,7 +14488,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
               ]
             },
             "realm": {
@@ -19919,6 +19997,8 @@
                                       "close_effect",
                                       "cancel_effect",
                                       "checkpoint",
+                                      "storage_fence",
+                                      "storage_compact",
                                       "turn_with_versions",
                                       "rotate_worker",
                                       "create_principal",
@@ -26658,7 +26738,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           ]
         },
         "realm": {
@@ -27996,7 +28076,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                               ]
                                             },
                                             "realm": {
@@ -28186,7 +28266,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -29045,7 +29125,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                   ]
                                 },
                                 "realm": {
@@ -31071,7 +31151,7 @@
                                                                     "definition": {
                                                                       "type": "string",
                                                                       "enum": [
-                                                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                                       ]
                                                                     },
                                                                     "realm": {
@@ -32011,6 +32091,32 @@
                                       "type": "object",
                                       "additionalProperties": false,
                                       "required": [
+                                        "storage_fence"
+                                      ],
+                                      "properties": {
+                                        "storage_fence": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "storage_compact"
+                                      ],
+                                      "properties": {
+                                        "storage_compact": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
                                         "turn_with_versions"
                                       ],
                                       "properties": {
@@ -32358,7 +32464,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                                            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -33775,7 +33881,7 @@
                               ],
                               "x-transit-defaults": {
                                 "version": 1,
-                                "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                               }
                             }
                           }
@@ -35417,7 +35523,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+        "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
       }
     },
     "SignedQuery": {
@@ -35449,7 +35555,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
               ]
             },
             "realm": {
@@ -36787,7 +36893,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                   ]
                                                 },
                                                 "realm": {
@@ -36977,7 +37083,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -37836,7 +37942,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                       ]
                                     },
                                     "realm": {
@@ -39862,7 +39968,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                                            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -40802,6 +40908,32 @@
                                           "type": "object",
                                           "additionalProperties": false,
                                           "required": [
+                                            "storage_fence"
+                                          ],
+                                          "properties": {
+                                            "storage_fence": {
+                                              "type": "object",
+                                              "maxProperties": 0
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
+                                            "storage_compact"
+                                          ],
+                                          "properties": {
+                                            "storage_compact": {
+                                              "type": "object",
+                                              "maxProperties": 0
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "required": [
                                             "turn_with_versions"
                                           ],
                                           "properties": {
@@ -41149,7 +41281,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                                                "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -42566,7 +42698,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "version": 1,
-                                    "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                    "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                   }
                                 }
                               }
@@ -44252,7 +44384,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           ]
         },
         "realm": {
@@ -49761,6 +49893,8 @@
                                   "close_effect",
                                   "cancel_effect",
                                   "checkpoint",
+                                  "storage_fence",
+                                  "storage_compact",
                                   "turn_with_versions",
                                   "rotate_worker",
                                   "create_principal",
@@ -56562,6 +56696,8 @@
             "ConflictingRetry",
             "ControlAlreadyRecorded",
             "ControlCapacity",
+            "StorageQuota",
+            "StorageCandidateBudget",
             "DeadlineExpired",
             "DeadlineNotReached",
             "DeadlineUncertain",

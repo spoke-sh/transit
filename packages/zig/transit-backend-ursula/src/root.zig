@@ -6,6 +6,9 @@ pub const Store = @import("Store.zig");
 pub const PayloadStore = @import("PayloadStore.zig");
 pub const PageStore = @import("PageStore.zig");
 pub const PackedPageStore = @import("PackedPageStore.zig");
+pub const StorageCollection = @import("StorageCollection.zig");
+pub const AllocationQueue = @import("AllocationQueue.zig");
+pub const Segment = @import("Segment.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
 
@@ -21,6 +24,9 @@ pub const Metrics = struct {
 
 test {
     _ = PackedPageStore;
+    _ = Segment;
+    _ = AllocationQueue;
+    _ = StorageCollection;
 }
 
 /// Borrows its client and stream names. Never implicitly creates missing history.
@@ -35,6 +41,7 @@ pub const Journal = struct {
         const counters = self.metrics orelse return self.client.send(operation);
         counters.requests +|= 1;
         switch (operation) {
+            .create_stream => |value| counters.request_payload_bytes +|= value.options.body.len,
             .append => |value| counters.request_payload_bytes +|= value.body.len,
             .append_batch => |value| for (value.frames) |frame| {
                 counters.request_payload_bytes +|= frame.len;

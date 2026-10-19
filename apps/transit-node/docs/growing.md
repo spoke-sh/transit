@@ -52,7 +52,7 @@ qualifies a finite 96-position admission / 96-position reserve workload in an
 owned ext4 fixture. A deployment must provision headroom for page/WAL amplification
 and provider housekeeping; the configured record band alone cannot ensure it.
 
-`--initialize` and `--bootstrap` explicitly create the authority and packed page
+`--initialize` and `--bootstrap` explicitly create a new authority and its allocation/collection
 journals. Ordinary startup requires existing history. Both use the same
 [clock and diagnostic boundary](operations.md#time-and-deadlines) used by the service. Finite
 views require a configured trusted clock bound even for unlimited-lifetime state.
@@ -187,3 +187,22 @@ Missing headers mean missing measurement, not zero work. Counters do not depend
 on sampled logs and retain no payloads, credentials or principal labels. Encoding
 failure omits diagnostics without changing the authority response. Metrics are
 opt-in to keep the default response and instrumentation work unchanged.
+
+
+## Physical storage budgets and maintenance
+
+The native configuration accepts `storage.limits.bytes` (default 8 GiB),
+`storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`
+(8 MiB maximum). These reserve encoded immutable segment bytes, including
+unpublished candidates. Control/collection allocations have a separate reserve;
+quota pressure does not expire accepted data. Provider metadata, ledgers, WAL,
+snapshots and filesystem headroom require separate budgets.
+
+`storage.maintenance.collection_every_records` defaults to 1,024 allocation
+records. The existing maintenance process performs bounded root traversal and
+resumable physical collection. `storage.maintenance.compact` defaults to false;
+when enabled it relocates current blocks/pages before collection. Unlimited
+history still owns old placement. The [backend guide](../../../packages/zig/transit-backend-ursula/docs/pages.md)
+defines the epoch, trusted-time grace, late-create fencing and quota contracts.
+The local server exposes these same YAML settings and starts its existing
+maintenance process; no additional CLI command is required.

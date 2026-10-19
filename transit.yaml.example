@@ -21,6 +21,19 @@ realm: 1
 admission_ceiling: 65536
 control_reserve: 4096
 
+# Physical immutable allocations, including staged candidates. Provider metadata,
+# work ledgers, WAL, snapshots and filesystem headroom have separate costs.
+storage:
+  limits:
+    bytes: 8 GiB
+    control_bytes: 64 MiB
+    candidate_bytes: 8 MiB
+  maintenance:
+    collection_every_records: 1024
+    # Copies current data in bounded steps. Unlimited history still owns old roots.
+    compact: false
+
+
 # Core services bind 127.0.0.1. All configured listener ports must be distinct
 # and in 1024..65535. Port changes require a server restart.
 ports:

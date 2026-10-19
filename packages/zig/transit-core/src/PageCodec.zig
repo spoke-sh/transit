@@ -40,7 +40,7 @@ pub fn decode(comptime P: type, bytes: []const u8) !P.Page {
     } else {
         for (page.body.branch[0..count]) |*child| {
             const key_len = try input.takeByte();
-            child.* = .{ .minimum = try P.Key.init(try input.take(key_len)), .reference = .{ .digest = (try input.take(32))[0..32].*, .location = (try input.take(16))[0..16].* } };
+            child.* = .{ .minimum = try P.Key.init(try input.take(key_len)), .reference = .{ .digest = (try input.take(32))[0..32].*, .location = (try input.take(32))[0..32].* } };
         }
     }
     if (input.seek != bytes.len - 4) return error.InvalidPage;

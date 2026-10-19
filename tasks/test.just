@@ -18,6 +18,10 @@ node-concurrency:
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe
 
+# Epoch fencing, retained roots, relocation and physical deletion across restart.
+storage-collection:
+    zig build test-storage-collection -Doptimize=ReleaseSafe
+
 # Atomic native block roots, retained bytes and current authority through faults.
 native-blocks:
     zig build test-native-blocks -Doptimize=ReleaseSafe

@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.storage-foundation.2026-10-18.
+/// SHA-256 of transit.native.v1.storage-foundation.segment-ownership.2026-10-18.
 pub const Definition = enum {
-    @"b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482",
+    @"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -124,6 +124,10 @@ pub const Command = union(enum) {
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
     cancel_effect: struct { pid: Id, effect: Id },
     checkpoint: void,
+    /// Fence immutable candidates before a physical root collection.
+    storage_fence: void,
+    /// Relocate one bounded portion of current state without logical changes.
+    storage_compact: void,
     // Additive variants preserve existing canonical request bytes and receipts.
     turn_with_versions: TurnWithVersions,
     /// Rotate one PID-scoped worker without renewing its permissions/resource

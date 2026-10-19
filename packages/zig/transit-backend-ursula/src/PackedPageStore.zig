@@ -1,5 +1,5 @@
-//! Immutable pages packed into an append-only journal. Opaque locators carry
-//! verified record coordinates; only a separate authority append publishes roots.
+//! Immutable pages and blocks in privately prepared, accounted, closed segments.
+//! A complete segment is verified before authority publication can reference it.
 const std = @import("std");
 const adapter = @import("root.zig");
 const pages = @import("transit_core").pages;
@@ -7,13 +7,17 @@ const blocks = @import("transit_core").blocks;
 const bulk = @import("transit_core").protocol.Blocks;
 const observations = @import("transit_observability");
 const Self = @This();
+const Segment = adapter.Segment;
+const Queue = adapter.AllocationQueue;
 const max_record_bytes = 2 + std.base64.standard.Encoder.calcSize(pages.max_encoded_bytes);
 const max_block_record_bytes = 2 + std.base64.standard.Encoder.calcSize(4 + bulk.max_block_bytes);
 const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 
 allocator: std.mem.Allocator,
 authority: adapter.Journal,
-name: [45]u8,
+limits: Queue.Limits = .{},
+candidate: ?Segment = null,
+control: bool = false,
 cache: []?Cached,
 access: u64 = 0,
 hits: u64 = 0,
@@ -22,40 +26,131 @@ created: u64 = 0,
 requests: u64 = 0,
 create_payload_bytes_attempted: u64 = 0,
 blocks_created: u64 = 0,
+segments_created: u64 = 0,
 block_payload_bytes_attempted: u64 = 0,
 
 pub fn init(allocator: std.mem.Allocator, authority: adapter.Journal, resident_pages: usize) !Self {
     if (resident_pages > 1024) return error.InvalidPageCacheBudget;
     const cache = try allocator.alloc(?Cached, resident_pages);
     @memset(cache, null);
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.packed.pages.v1\x00");
-    hash.update(authority.stream.bucket);
-    hash.update("\x00");
-    hash.update(authority.stream.name);
-    var name: [45]u8 = undefined;
-    name[0..2].* = "q-".*;
-    _ = std.base64.url_safe_no_pad.Encoder.encode(name[2..], &hash.finalResult());
-    return .{ .allocator = allocator, .authority = authority, .name = name, .cache = cache };
+    return .{ .allocator = allocator, .authority = authority, .cache = cache };
 }
+
 pub fn deinit(self: *Self) void {
+    self.discard();
     self.allocator.free(self.cache);
     self.* = undefined;
 }
-fn journal(self: *Self) adapter.Journal {
-    var result = self.authority;
-    result.stream.name = &self.name;
-    return result;
+pub fn allocations(self: *Self) !Queue {
+    return Queue.init(self.authority, self.limits);
 }
 /// Bootstrap-only creation. Loads never recreate missing history.
 pub fn create(self: *Self) !void {
-    try self.journal().create();
+    var queue = try self.allocations();
+    try queue.create();
+    var collection = adapter.StorageCollection.init(self.authority);
+    try collection.create();
+}
+pub fn begin(self: *Self, epoch: u64, control: bool) !void {
+    var nonce: [16]u8 = undefined;
+    try self.authority.client.http.io.randomSecure(&nonce);
+    try self.beginIdentity(.{ .epoch = epoch, .nonce = nonce }, control);
+}
+fn beginIdentity(self: *Self, identity: Segment.Identity, control: bool) !void {
+    if (self.candidate != null) return error.ActiveStorageCandidate;
+    try self.limits.validate();
+    self.candidate = try Segment.init(self.allocator, identity, self.limits.candidate_bytes);
+    self.control = control;
+}
+pub fn discard(self: *Self) void {
+    if (self.candidate) |*candidate| candidate.deinit();
+    self.candidate = null;
+}
+fn stream(self: *Self, identity: Segment.Identity, name: *[45]u8) !adapter.ursula.Stream {
+    name.* = try identity.name(self.authority.stream.bucket, self.authority.stream.name);
+    return .{ .bucket = self.authority.stream.bucket, .name = name };
+}
+pub const Seal = struct {
+    definition: @import("transit_core").protocol.Growth.Definition,
+    identity: Segment.Identity,
+    frames: u16,
+    bytes: u32,
+    digest: [32]u8,
+};
+/// Reserve the full encoded allocation before creation. The creator makes one
+/// create attempt only. A conditional seal proves it progressed beyond the
+/// create reply and verified every frame; a lost reply never triggers recreation.
+pub fn finish(self: *Self) !void {
+    const candidate = if (self.candidate) |*value| value else return error.NoStorageCandidate;
+    defer self.discard();
+    if (candidate.count == 0) return;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(candidate.body[0..candidate.used], &digest, .{});
+    const seal: Seal = .{ .definition = @import("transit_core").protocol.Growth.current_definition, .identity = candidate.identity, .frames = candidate.count, .bytes = candidate.used, .digest = digest };
+    var seal_bytes: [2048]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&seal_bytes);
+    try std.json.Stringify.value(seal, .{}, &out);
+    var queue = try self.allocations();
+    try queue.reserve(.{ .identity = candidate.identity, .bytes = candidate.used + out.buffered().len + 1, .frames = candidate.count, .data_bytes = candidate.used, .fenced = false, .digest = seal.digest, .control = self.control });
+    var name: [45]u8 = undefined;
+    const target = try self.stream(candidate.identity, &name);
+    // Ursula accepts one JSON value or an array on writes and returns NDJSON.
+    // Frame offsets and the reserved size describe its normalized stored bytes.
+    const payload = try self.allocator.alloc(u8, candidate.used + 1);
+    defer self.allocator.free(payload);
+    payload[0] = '[';
+    for (candidate.body[0..candidate.used], 0..) |byte, i| payload[i + 1] = if (byte == '\n') ',' else byte;
+    payload[candidate.used] = ']';
+    self.requests +|= 1;
+    var created = try self.authority.send(.{ .create_stream = .{ .stream = target, .options = .{ .content_type = "application/json", .body = payload } } });
+    defer created.deinit();
+    try created.head.requireSuccess();
+    const metadata = try created.head.metadata();
+    if (created.head.status != .created or metadata.closed == true or metadata.record_start != 0 or metadata.record_next != candidate.count) return error.InvalidSegmentReceipt;
+    // Group exact known frames within the borrowed client's response ceiling.
+    var first: u16 = 0;
+    while (first < candidate.count) {
+        var count: u16 = 0;
+        var bytes: usize = 0;
+        while (first + count < candidate.count) {
+            const size = (try candidate.frame(first + count)).len + 1;
+            if (bytes + size > 192 * 1024) break;
+            bytes += size;
+            count += 1;
+        }
+        if (count == 0) return error.InvalidStorageFrame;
+        self.requests +|= 1;
+        var read = try self.authority.send(.{ .read = .{ .stream = target, .options = .{ .position = .{ .record = first }, .max_records = count } } });
+        defer read.deinit();
+        try read.head.requireSuccess();
+        const range = try read.head.metadata();
+        if (range.record_start != first or range.record_next != first + count or read.body.len != bytes) return error.InvalidSegmentReceipt;
+        var offset: usize = 0;
+        for (first..first + count) |ordinal| {
+            const frame = try candidate.frame(ordinal);
+            if (!std.mem.eql(u8, read.body[offset..][0..frame.len], frame) or read.body[offset + frame.len] != '\n') return error.CorruptSegment;
+            offset += frame.len + 1;
+        }
+        first += count;
+    }
+    self.requests +|= 1;
+    var closed = try self.authority.send(.{ .append = .{ .stream = target, .body = out.buffered(), .options = .{ .content_type = "application/json", .closed = true, .record_match = candidate.count } } });
+    defer closed.deinit();
+    try closed.head.requireSuccess();
+    const final = try closed.head.metadata();
+    if (final.closed != true or final.record_start != candidate.count or final.record_next != @as(u64, candidate.count) + 1) return error.InvalidSegmentReceipt;
+    self.segments_created +|= 1;
+}
+fn private(self: *Self, location: Segment.Location) !?[]const u8 {
+    const address = try Segment.Address.decode(location);
+    if (self.candidate) |*candidate| if (std.meta.eql(candidate.identity, address.identity)) return try candidate.frame(address.ordinal);
+    return null;
 }
 pub fn clearCache(self: *Self) void {
     @memset(self.cache, null);
 }
 pub fn residentBytes(self: *const Self) usize {
-    return self.cache.len * @sizeOf(?Cached);
+    return self.cache.len * @sizeOf(?Cached) + if (self.candidate) |*candidate| candidate.residentBytes() else @as(usize, 0);
 }
 fn cached(self: *Self, ref: pages.Reference) ?pages.Page {
     for (self.cache) |*slot| if (slot.*) |*entry| {
@@ -93,20 +188,6 @@ fn remember(self: *Self, ref: pages.Reference, page: pages.Page) void {
     }
     self.cache[selected] = .{ .reference = ref, .page = page, .used = self.touch() };
 }
-fn located(ref: pages.Reference, position: u64) pages.Reference {
-    var result = ref;
-    result.location[0] = 1;
-    std.mem.writeInt(u64, result.location[8..16], position, .big);
-    return result;
-}
-fn coordinate(ref: pages.Reference) !u64 {
-    return coordinateLocation(ref.location);
-}
-fn coordinateLocation(location: [16]u8) !u64 {
-    if (location[0] != 1 or !std.mem.allEqual(u8, location[1..8], 0)) return error.UnsupportedPageLocation;
-    return std.mem.readInt(u64, location[8..16], .big);
-}
-
 /// Immutable bytes use their own domain and frame. Publication metadata owns
 /// the reference; a successful append alone grants no resource visibility.
 pub fn stageBlock(self: *Self, spec: bulk.Spec, bytes: []const u8) !blocks.Reference {
@@ -119,43 +200,32 @@ pub fn stageBlock(self: *Self, spec: bulk.Spec, bytes: []const u8) !blocks.Refer
     };
 }
 fn appendBlock(self: *Self, spec: bulk.Spec, bytes: []const u8) !blocks.Reference {
+    const candidate = if (self.candidate) |*value| value else return error.NoStorageCandidate;
     const buffer = try self.allocator.alloc(u8, max_block_record_bytes);
     defer self.allocator.free(buffer);
     const body = try encodeBlock(bytes, buffer);
-    self.requests +|= 1;
+    const location = try candidate.append(body);
     self.block_payload_bytes_attempted +|= body.len;
-    var response = try self.authority.send(.{ .append = .{
-        .stream = self.journal().stream,
-        .body = body,
-        .options = .{ .content_type = "application/json" },
-    } });
-    defer response.deinit();
-    try response.head.requireSuccess();
-    const metadata = try response.head.metadata();
-    const position = try appendedAt(metadata.record_start, metadata.record_next);
-    const reference: blocks.Reference = .{ .value = spec, .location = located(.{ .digest = spec.digest }, position).location };
-    // Establish complete immutable availability before returning a publishable
-    // reference. Missing/corrupt readback never becomes an accepted empty block.
-    const verified = try self.allocator.alloc(u8, spec.bytes);
-    defer self.allocator.free(verified);
-    _ = try self.loadBlock(reference, verified);
     self.blocks_created +|= 1;
-    return reference;
+    return .{ .value = spec, .location = location };
 }
 pub fn loadBlock(self: *Self, reference: blocks.Reference, output: []u8) ![]const u8 {
     try reference.value.validate();
     if (output.len < reference.value.bytes) return error.BlockBufferTooSmall;
-    const position = try coordinateLocation(reference.location);
+    if (try self.private(reference.location)) |body| return decodeBlock(body, reference.value, output);
+    const address = try Segment.Address.decode(reference.location);
     var observation = observations.begin(self.authority.observer, .storage_operation, "block.load", self.authority.parent_context);
     defer observation.finish();
-    return self.fetchBlock(reference, position, output) catch |err| {
+    return self.fetchBlock(reference, address, output) catch |err| {
         observation.fail(err);
         return err;
     };
 }
-fn fetchBlock(self: *Self, reference: blocks.Reference, position: u64, output: []u8) ![]const u8 {
+fn fetchBlock(self: *Self, reference: blocks.Reference, address: Segment.Address, output: []u8) ![]const u8 {
+    const position = address.ordinal;
+    var name: [45]u8 = undefined;
     self.requests +|= 1;
-    var response = try self.authority.send(.{ .read = .{ .stream = self.journal().stream, .options = .{
+    var response = try self.authority.send(.{ .read = .{ .stream = try self.stream(address.identity, &name), .options = .{
         .position = .{ .record = position },
         .max_records = 1,
     } } });
@@ -218,24 +288,31 @@ test "immutable block records separate page framing and verify complete bytes" {
     }
 }
 pub fn load(self: *Self, ref: pages.Reference) !pages.Page {
-    const position = try coordinate(ref);
+    if (try self.private(ref.location)) |body| {
+        const page = try decodeRecord(self.allocator, body);
+        try ref.verify(&page);
+        return page;
+    }
+    const address = try Segment.Address.decode(ref.location);
     if (self.cached(ref)) |page| return page;
     self.misses +|= 1;
     var observation = observations.begin(self.authority.observer, .storage_operation, "page.load", self.authority.parent_context);
     defer observation.finish();
-    const page = self.fetch(ref, position) catch |err| {
+    const page = self.fetch(ref, address) catch |err| {
         observation.fail(err);
         return err;
     };
     self.remember(ref, page);
     return page;
 }
-fn fetch(self: *Self, ref: pages.Reference, position: u64) !pages.Page {
+fn fetch(self: *Self, ref: pages.Reference, address: Segment.Address) !pages.Page {
+    const position = address.ordinal;
+    var name: [45]u8 = undefined;
     self.requests +|= 1;
     // Record and byte limits are mutually exclusive upstream. One record plus
     // the borrowed client's response ceiling bounds transport allocation; the
     // page codec independently enforces its smaller encoded-size contract.
-    var response = try self.authority.send(.{ .read = .{ .stream = self.journal().stream, .options = .{ .position = .{ .record = position }, .max_records = 1 } } });
+    var response = try self.authority.send(.{ .read = .{ .stream = try self.stream(address.identity, &name), .options = .{ .position = .{ .record = position }, .max_records = 1 } } });
     defer response.deinit();
     if (response.head.status == .not_found or response.head.status == .gone) return error.PageUnavailable;
     try response.head.requireSuccess();
@@ -303,130 +380,27 @@ pub fn stage(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.
     };
 }
 fn append(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Reference {
-    // Page order carries no execution authority. Let storage assign this
-    // immutable record's coordinate so independent candidates can interleave.
-    // Only the separate authority journal needs conditional successor fencing.
-    // Never retry a lost/malformed acknowledgement here: no usable locator was
-    // established, and the unpublished bytes may have become an orphan.
+    const candidate = if (self.candidate) |*value| value else return error.NoStorageCandidate;
     var bytes: [max_record_bytes]u8 = undefined;
     const body = try encodeRecord(page, &bytes);
-    self.requests +|= 1;
+    var result = ref;
+    result.location = try candidate.append(body);
     self.create_payload_bytes_attempted +|= body.len;
-    var response = try self.authority.send(.{ .append = .{
-        .stream = self.journal().stream,
-        .body = body,
-        .options = .{ .content_type = "application/json" },
-    } });
-    defer response.deinit();
-    try response.head.requireSuccess();
-    const metadata = try response.head.metadata();
-    const position = try appendedAt(metadata.record_start, metadata.record_next);
     self.created +|= 1;
-    const result = located(ref, position);
-    self.remember(result, page.*);
     return result;
 }
-
-/// Bounded immutable staging, with the same format-1 record locators as stage.
-/// A complete acknowledgement is required before any references are returned.
-/// Accepted but unacknowledged bytes are retained orphans; never retry here.
+/// This bound belongs to tree mutation work. The whole command's storage
+/// candidate has its own frame/byte bounds and one verified closing seal.
 pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
     if (batch.len == 0 or batch.len > pages.mutation_batch or output.len != batch.len) return error.PageMutationBudget;
-    const encoded = try self.allocator.alloc([max_record_bytes]u8, batch.len);
-    defer self.allocator.free(encoded);
-    var frames: [pages.mutation_batch][]const u8 = undefined;
     var references: [pages.mutation_batch]pages.Reference = undefined;
-    var bytes: u64 = 0;
-    for (batch, 0..) |*page, i| {
-        references[i] = try page.reference();
-        frames[i] = try encodeRecord(page, &encoded[i]);
-        bytes += frames[i].len;
-    }
-    var observation = observations.begin(self.authority.observer, .storage_operation, "page.stage_batch", self.authority.parent_context);
-    defer observation.finish();
-    self.create_payload_bytes_attempted +|= bytes;
-    self.appendMany(frames[0..batch.len], references[0..batch.len]) catch |err| {
-        observation.fail(err);
-        return err;
-    };
-    self.created +|= batch.len;
-    for (batch, references[0..batch.len]) |page, ref| self.remember(ref, page);
+    for (batch, 0..) |*page, i| references[i] = try self.stage(try page.reference(), page);
     @memcpy(output, references[0..batch.len]);
 }
-fn appendMany(self: *Self, frames: []const []const u8, references: []pages.Reference) !void {
-    self.requests +|= 1;
-    var response = try self.authority.send(.{ .append_batch = .{
-        .stream = self.journal().stream,
-        .frames = frames,
-        .content_type = "application/json",
-    } });
-    defer response.deinit();
-    try response.head.requireSuccess();
-    try batchReceipts(self.allocator, response.body, references);
-}
-fn batchReceipts(allocator: std.mem.Allocator, body: []const u8, references: []pages.Reference) !void {
-    if (references.len == 0 or references.len > pages.mutation_batch or body.len > pages.mutation_batch * 256) return error.InvalidAppendReceipt;
-    const Ack = struct { status: u16, stream_record_start: ?u64 = null, stream_record_next: ?u64 = null };
-    const parsed = std.json.parseFromSlice([]const Ack, allocator, body, .{}) catch return error.InvalidAppendReceipt;
-    defer parsed.deinit();
-    if (parsed.value.len != references.len) return error.InvalidAppendReceipt;
-    var after: ?u64 = null;
-    for (parsed.value) |ack| {
-        if (ack.status < 200 or ack.status >= 300) return error.InvalidAppendReceipt;
-        const at = try appendedAt(ack.stream_record_start, ack.stream_record_next);
-        if (after) |minimum| if (at < minimum) return error.InvalidAppendReceipt;
-        after = ack.stream_record_next;
-    }
-    // Independent append acknowledgements may have gaps from other writers.
-    // Validate every status/coordinate before modifying any caller references.
-    for (parsed.value, references) |ack, *ref| ref.* = located(ref.*, ack.stream_record_start.?);
-}
-
-test "batch staging checks every independent acknowledgement before returning locators" {
-    const t = std.testing;
-    const sentinel: pages.Reference = .{ .digest = @splat(42) };
-    var references: [2]pages.Reference = @splat(sentinel);
-    try batchReceipts(t.allocator, "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8},{\"status\":204,\"stream_record_start\":19,\"stream_record_next\":20}]", &references);
-    try t.expectEqual(@as(u64, 7), try coordinate(references[0]));
-    try t.expectEqual(@as(u64, 19), try coordinate(references[1]));
-    for ([_][]const u8{
-        "[]",
-        "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8}]",
-        "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8},{\"status\":500}]",
-        "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8},{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8}]",
-        "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8},{\"status\":204,\"stream_record_start\":9}]",
-        "[{\"status\":204,\"stream_record_start\":7,\"stream_record_next\":8},{\"status\":204,\"stream_record_start\":9,\"stream_record_next\":11}]",
-    }) |body| {
-        references = @splat(sentinel);
-        try t.expectError(error.InvalidAppendReceipt, batchReceipts(t.allocator, body, &references));
-        for (references) |ref| try t.expectEqualDeep(sentinel, ref);
-    }
-}
-
-fn appendedAt(start: ?u64, next: ?u64) !u64 {
-    const position = start orelse return error.InvalidAppendReceipt;
-    const expected = std.math.add(u64, position, 1) catch return error.InvalidAppendReceipt;
-    if (next != expected) return error.InvalidAppendReceipt;
-    return position;
-}
-
-test "packed staging requires a complete single-record coordinate acknowledgement" {
-    try std.testing.expectEqual(@as(u64, 0), try appendedAt(0, 1));
-    try std.testing.expectEqual(@as(u64, 65536), try appendedAt(65536, 65537));
-    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(null, 1));
-    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, null));
-    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, 0));
-    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, 2));
-    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(std.math.maxInt(u64), 0));
-}
-
-test "packed page locators remain opaque and reject a different storage mapping" {
-    const ref: pages.Reference = .{ .digest = @splat(42) };
-    try std.testing.expectError(error.UnsupportedPageLocation, coordinate(ref));
-    var addressed = located(ref, 123456);
-    try std.testing.expectEqual(@as(u64, 123456), try coordinate(addressed));
-    addressed.location[1] = 1;
-    try std.testing.expectError(error.UnsupportedPageLocation, coordinate(addressed));
+fn located(ref: pages.Reference, ordinal: u64) pages.Reference {
+    var result = ref;
+    result.location = (Segment.Identity{ .epoch = 1, .nonce = @splat(1) }).locate(ordinal) catch unreachable;
+    return result;
 }
 
 test "verified page cache retains recently read roots within its resident bound" {

@@ -28,7 +28,7 @@ def run(node):
     with Fixture() as store:
         key = Key(store.root, 'root', 71)
         port = free_port()
-        fault = dict(stage=False, reply=False, block=False, block_fault=None, writes=0, stage_hits=0, reply_hits=0)
+        fault = dict(stage=False, reply=False, block=False, block_fault=None, definition_fault=None, writes=0, stage_hits=0, reply_hits=0)
         entered, released = threading.Event(), threading.Event()
 
         class Peer(BaseHTTPRequestHandler):
@@ -54,13 +54,18 @@ def run(node):
                     if self.server.provider:
                         if self.command in ('POST', 'PUT', 'DELETE'):
                             fault['writes'] += 1
-                        if self.command == 'POST' and fault['stage'] and '/q-' in self.path:
+                        if self.command == 'GET' and '/authority' in self.path and fault['definition_fault']:
+                            if fault['definition_fault'] == 'foreign':
+                                data = data.replace(DEFINITION.encode(), b'0' * 64)
+                            else:
+                                data = data.replace(b'"definition":"' + DEFINITION.encode() + b'",', b'')
+                        if self.command == 'PUT' and fault['stage'] and '/s-' in self.path:
                             assert 200 <= status < 300, (status, data)
                             fault['stage'] = False
                             fault['stage_hits'] += 1
                             self.close_connection = True
                             return
-                        raw = data.rstrip(b'\n')
+                        raw = next((frame for frame in data.splitlines() if frame.startswith(b'"VEJL')), b'')
                         decoded = None
                         if self.command == 'GET' and raw.startswith(b'"') and raw.endswith(b'"'):
                             decoded = base64.b64decode(raw[1:-1], validate=True)
@@ -70,7 +75,7 @@ def run(node):
                                 entered.set()
                                 assert released.wait(8), 'block read barrier timed out'
                             if fault['block_fault'] == 'corrupt':
-                                data = b'"' + base64.b64encode(decoded[:-1] + bytes([decoded[-1] ^ 1])) + b'"\n'
+                                data = data.replace(raw + b'\n', b'"' + base64.b64encode(decoded[:-1] + bytes([decoded[-1] ^ 1])) + b'"\n', 1)
                             elif fault['block_fault'] == 'missing':
                                 status, data = 404, b''
                     elif fault['reply'] and self.path == '/v1/command' and status == 200:
@@ -154,6 +159,14 @@ def run(node):
 
         try:
             subprocess.run([node, str(config), '--initialize'], check=True, timeout=30, stdout=log, stderr=log)
+            for incompatible in ('foreign', 'missing'):
+                fault['definition_fault'] = incompatible
+                for mode in ([], ['--initialize']):
+                    before = fault['writes']
+                    rejected = subprocess.run([node, str(config), *mode], capture_output=True, timeout=30)
+                    assert rejected.returncode != 0, 'Incompatible installation admitted'
+                    assert fault['writes'] == before, 'Incompatible installation changed provider state'
+            fault['definition_fault'] = None
             authority = start()
             pid = command(dict(spawn=dict(allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None)))
             resource = command(dict(create_resource=dict(writer=pid, owned=False, deadline_ms=None, history_ms=None)))
@@ -234,7 +247,7 @@ def run(node):
             for peer, thread in peers:
                 peer.shutdown(); peer.server_close(); thread.join(timeout=5)
             log.close()
-    print('Native blocks: 16 records/128 KiB, lost stage/commit replies, exact retry without restaging, retained bytes, corruption/missing rejection and revocation during I/O passed across disk/node restart.')
+    print('Native blocks: incompatible initialization rejects before writes, 16 records/128 KiB, lost stage/commit replies, exact retry without restaging, retained bytes, corruption/missing rejection and revocation during I/O passed across disk/node restart.')
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 const std = @import("std");
 pub const version = 1;
 pub const Value = @import("Value.zig");
+pub const Storage = @import("Storage.zig");
 pub const Blocks = @import("Blocks.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Json = @import("Json.zig");
@@ -129,6 +130,8 @@ pub const ErrorCode = enum {
     ConflictingRetry,
     ControlAlreadyRecorded,
     ControlCapacity,
+    StorageQuota,
+    StorageCandidateBudget,
     DeadlineExpired,
     DeadlineNotReached,
     DeadlineUncertain,

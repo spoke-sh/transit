@@ -86,8 +86,9 @@ infer which keys or effects are safe to discard.
 the pinned client with crashes between physical operations and durable outcomes.
 The [proof guide](../../../../tests/README.md) records tested schedules and limits.
 Native TTL and physical erasure of all historical copies are not claimed.
-Prefix trimming preserves the current catalog root; it does not reclaim catalog
-pages or choose application keys. The portable policy lives in
+Prefix trimming preserves the current catalog root; physical [segment collection](pages.md#root-collection-and-relocation) separately reclaims unreachable catalog
+pages and blocks. Neither mechanism chooses application keys to expire.
+The portable policy lives in
 [retention](../../../../docs/reference/retention.md).
 
 ## Persistence configuration

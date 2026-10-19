@@ -81,7 +81,8 @@ provider delays. Per-request creation would discard useful caches after every
 operation. Bounded reusable lanes avoid both costs, at the expense of a cache
 budget per lane and potentially conflicting prepared candidates. The
 [node configuration](../../apps/transit-node/docs/growing.md) gives those bounds.
-Horizontal write partitioning and storage reclamation require separate contracts.
+Horizontal write partitioning remains a separate contract; physical reclamation
+uses the root and epoch model below.
 
 ## Complete blocks beneath Table records
 
@@ -96,7 +97,7 @@ becoming accepted Table data.
 [Native blocks](../../contracts/BLOCK_V1.md) bind key, length and content digest
 in the signed logical request. Their body is separate from the authority journal
 record. The core checks the entire body before staging, and the backend reads
-back staged bytes before returning their reference. One resource root change
+back staged bytes before the complete candidate becomes publishable. One resource root change
 then accepts metadata, block edges, input progress and outputs together. Lost
 replies preserve the exact logical identity and owned bytes; an accepted receipt
 can reconcile without staging them again. This argument depends on the existing
@@ -137,6 +138,76 @@ authority/storage schedules are recorded separately in the
 [proof ledger](../../tests/README.md). These checks do not establish scan pruning,
 columnar storage, horizontal write scaling or a latency improvement; matched
 service campaigns must measure the latter.
+
+## Physical ownership, uncertainty and collection
+
+The question is how to reclaim unreachable bytes while readers and candidate
+writers overlap, without making retained cardinality a resident-memory budget.
+The model assumes collision-resistant identities, atomic provider/authority
+conditional appends, durable non-rollback history, trusted bounded-error UTC and
+private provider credentials. It distinguishes accepted root ownership from
+physical allocation and from permission to disclose a value.
+
+[Candidate segments](../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig)
+assign private frame addresses before network I/O. The
+[allocation queue](../../packages/zig/transit-backend-ursula/src/AllocationQueue.zig)
+reserves the known normalized size before creation. Verification and a closing
+seal precede authority CAS. The seal matters beyond immutability: the creator
+has completed its single create attempt before issuing it. A collector may
+therefore delete a sealed orphan after fencing old publication. It cannot infer
+the same fact from absence after an unacknowledged create. Such allocations get
+a permanent closed-name fence, followed by data trimming. Releasing their name
+would allow a delayed create to resurrect unaccounted bytes.
+
+The queue's state transition consumes one item, carries a live item forward or
+releases a deleted item's charge, and advances its cursor in one conditional
+append. This makes repeated recovery idempotent without an in-memory allocation
+set. The consumed prefix can be checkpointed and trimmed. Mark pages themselves
+are accounted control allocations; a later completed pass can collect them.
+The queues and catalogs are durable state, while their operation buffers remain
+bounded independently of retained cardinality.
+
+[Root enumeration](../../packages/zig/transit-core/src/StorageRoots.zig) selects
+retained journal roots and current live captured roots.
+[Traversal](../../packages/zig/transit-core/src/StorageWalk.zig) follows typed
+catalog-to-block-index edges and verifies pages. Closed view records in old
+catalogs remain history rather than renewed ownership. A resource or read
+version's own root preserves data independently of another owner's lifetime.
+The [collector](../../packages/zig/transit-backend-ursula/src/StorageCollection.zig)
+records its exact cut, traversal cursor, verified mark index and delete intent.
+An epoch fence makes pre-cut candidates fail ordinary publication CAS. Later
+candidates either use protected accepted data or allocate in the new epoch.
+Incomplete root enumeration, including a racing trim, cannot authorize sweep.
+
+Volatile snapshots on other hosts are protected by their maximum lifetime plus
+the native request bound. After that grace, a durable authority time fence makes
+older clock observations fail. This does not replace the trusted-time assumption
+or grant new access. Deletion is separate from mark completion and quota release;
+a lost delete reply resumes the same intent and requires confirmed absence.
+
+[Relocation](../../packages/zig/transit-core/src/StorageCompact.zig) copies one
+block or one leaf/path per accepted command. Logical values and resource
+revisions stay unchanged, while physical root references change. Old captured
+roots and unlimited history continue owning their original placement. Thus
+compaction can free a partially live segment only after its last old ownership
+edge is released. It cannot manufacture permission to expire history.
+
+Alternatives have different costs. A single append-only page stream minimizes
+stream identities but cannot reclaim isolated orphans. One stream per page
+allows finer deletion but multiplies metadata and requests. Candidate segments
+amortize writes and account failures, while partly live segments can require
+relocation. Ursula still keeps stream metadata and record indexes in memory;
+these Transit bounds do not prove whole-provider resident independence. Physical
+segment quotas also exclude provider WAL, snapshots and work-ledger overhead.
+Those are explicit deployment and measurement obligations.
+
+Reproduce the disk schedules with `just test::storage-collection` and
+`just test::native-blocks`; the [proof ledger](../../tests/README.md) identifies
+executed revisions and limits. The collection fixture injects trusted time,
+restarts processes/provider between phases, loses a deletion acknowledgement,
+corrupts a reachable block and checks retained read versions after relocation.
+These finite schedules do not prove arbitrary provider rollback safety, immediate
+filesystem/cold-object space return, distributed clock correctness or throughput.
 
 ## Reducing durable mutation work
 

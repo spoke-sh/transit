@@ -45,9 +45,9 @@ immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still
 refresh authority and execute all current permission/lifetime checks. This cache
 holds at most about 35 KiB of record bytes and is independent of the configured
-page-cache slots. Every batch acknowledgement is checked
-before the existing final authority commit; failed staging can leave retained
-orphans but cannot publish a partial turn. The current v1 page encoding includes opaque storage locators.
+page-cache slots. Pages and blocks first enter a bounded private segment. The
+backend reserves its bytes, verifies all stored frames and closes it before
+the final authority commit. Failed staging cannot publish a partial turn. The current v1 page encoding includes opaque storage locators.
 Application mutation quotas and durable payload publication bounds are unchanged.
 The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass
@@ -80,6 +80,22 @@ Checkpoint publication precedes authorized prefix trimming. Logical tombstones
 and retained identity floors prevent reuse/resurrection after physical cleanup.
 Maintenance is bounded, fenced and resumable. An acknowledged provider delete
 does not establish erasure from all backups or copied application data.
+
+Physical maintenance advances a durable storage epoch before traversing retained
+roots and current read pins. A paged mark index and durable deletion intent let
+it resume after interruption. Collection waits for the maximum volatile-read
+lifetime and request grace, then records that elapsed time in authority before
+deleting unreachable segments. Incomplete marking cannot authorize deletion.
+Late uncertain creates are fenced with permanent closed stream names; their data
+can be trimmed while the small fence remains accounted.
+
+Optional compaction relocates bounded pieces of current data and indexes while
+preserving logical values and resource revisions. Old roots remain independent
+owners until their configured retention or pin release permits collection.
+Unlimited history retains them. The [segment guide](../../packages/zig/transit-backend-ursula/docs/pages.md)
+explains allocation quotas, control reserve, configuration and provider limits.
+These quotas measure reserved encoded segment bytes; provider metadata, work
+ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
 The local CLI profile composes disk Ursula with S3 cold storage. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;

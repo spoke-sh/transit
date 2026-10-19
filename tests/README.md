@@ -1,5 +1,37 @@
 # Validation and milestone evidence
 
+## Segment storage and physical collection
+
+The disk segment, native block and concurrency proofs pass with current native
+v1 definition `1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f`.
+Segments privately group pages/blocks, reserve encoded bytes, verify provider
+readback and close before reference publication. Page fault schedules reject
+lost creation replies, incomplete coordinates and corrupt readback; old roots
+survive provider SIGKILL, root checkpoint and history trim. The 64-key fixture
+uses two cache slots and creates 48 pages in 15 segments. It reports adapter and
+provider RSS separately; this is not a whole-provider cardinality bound.
+
+`test-storage-collection` passes on disk Ursula with one resident page. Two
+collection cycles reclaim 217,905 accounted encoded bytes in the recorded run,
+including unreachable candidates and an old current segment after relocation.
+The harness independently observes that old segment's 404 response, then verifies
+both current and retained values after provider/process restarts. It injects
+corrupt reachable bytes during marking and loses a successful delete reply.
+Neither incomplete marks nor elapsed volatile-read grace without a durable time
+fence permits deletion. Absent and unsealed candidates receive permanent closed
+names; delayed creation conflicts and only their data charge is released.
+Quota and candidate-budget refusal preserve the accepted head and accounting.
+
+Core/backend unit checks exercise resource-scoped ownership traversal across
+branches and serialized resume, ownership-class mark reuse, exact quota release,
+epoch conflicts and relocation without logical revision changes. An early
+mark-key review found that shared captured catalogs must distinguish the selected
+resource and ownership class; those regressions now have explicit checks.
+These tests use an injected trusted clock to cross the full grace interval.
+They do not prove host power-loss behavior, backup erasure, immediate WAL shrink,
+or asynchronous cold-object deletion. Full service/clean-CI completion and matched
+performance measurements remain separate qualification gates.
+
 ## Table records on native blocks
 
 The Station (120 tests), catalog (83 tests), query (138 tests), core and client

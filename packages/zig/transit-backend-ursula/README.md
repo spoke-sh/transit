@@ -36,7 +36,9 @@ and [Transit's authority model](../../../docs/reference/security.md).
 [Journal](src/root.zig) wraps bounded upstream HTTP operations and copies the
 transport metadata it needs before releasing responses. [Store](src/Store.zig)
 implements core's immutable-position/tail/conditional-append interface, one cached journal entry, root checkpoint loading and authorized prefix trim.
-`PackedPageStore` owns bounded page caching; `PayloadStore` owns immutable payload
+`PackedPageStore` owns bounded private segments and page caching;
+`AllocationQueue` accounts their physical ownership and `StorageCollection`
+persists verified marking/deletion work; `PayloadStore` owns immutable payload
 publication, verification and deletion.
 Protocol validation belongs to core; storage success alone is not a legal turn.
 

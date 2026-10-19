@@ -448,6 +448,18 @@ pub fn build(b: *std.Build) void {
     block_test.has_side_effects = true;
     block_test.stdio = .inherit;
     b.step("test-block-storage", "Qualify bounded immutable blocks and retained roots over disk Ursula").dependOn(&block_test.step);
+    const collection_proof = b.addExecutable(.{ .name = "transit-storage-collection-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage_collection.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const collection_test = b.addSystemCommand(&.{ "python3", "-B" });
+    collection_test.addFileArg(b.path("tests/storage_collection.py"));
+    collection_test.addArtifactArg(collection_proof);
+    collection_test.has_side_effects = true;
+    collection_test.stdio = .inherit;
+    b.step("test-storage-collection", "Qualify epoch-fenced physical reclamation and restart accounting").dependOn(&collection_test.step);
     const growth_proof = b.addExecutable(.{ .name = "transit-growth-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing.zig"),
         .target = target,
@@ -1199,9 +1211,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_gateway", .module = sql_gateway.module("transit_sql_gateway") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
     }) });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
+    const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| {
+        sql_wire_gateway.addArtifactArg(artifact);
+        sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
+    }
     sql_wire_gateway.addPassthruArgs();
     sql_wire_gateway.has_side_effects = true;
     sql_wire_gateway.stdio = .inherit;

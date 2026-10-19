@@ -23,6 +23,7 @@ const Config = struct {
     port: u16 = 8080,
     request_timeout_ms: u32 = 2000,
     resident_pages: u16 = 16,
+    storage: core.protocol.Storage.Settings = .{},
     accept_trace_parent: bool = false,
     request_metrics: bool = false,
     maintenance: ?Maintenance.Config = null,
@@ -32,6 +33,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
+    try config.storage.limits.validate();
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();
@@ -39,9 +41,18 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var journal: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics, .metrics = if (config.request_metrics) &metrics else null } };
     var pages = try adapter.PackedPageStore.init(init.gpa, journal.journal, config.resident_pages);
     defer pages.deinit();
+    pages.limits = config.storage.limits;
     if (mode.initialize or mode.bootstrap) {
-        try journal.journal.create();
-        try pages.create();
+        var existing = try journal.journal.send(.{ .head = .{ .stream = journal.journal.stream } });
+        defer existing.deinit();
+        if (existing.head.status == .not_found) try journal.journal.create() else try existing.head.requireSuccess();
+        if (try journal.tail() == 0) {
+            try pages.create();
+        } else {
+            // Validate the existing definition/genesis before creating any
+            // current-layout work ledger on an incompatible installation.
+            _ = try Engine.open(&journal, &pages, config.genesis);
+        }
     }
     var recovery = observations.begin(diagnostics, .recovery, if (mode.initialize or mode.bootstrap) "bootstrap" else "open", null);
     journal.journal.parent_context = recovery.span.context;
@@ -51,6 +62,10 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         recovery.finish();
         return err;
     };
+    var allocation_queue = try pages.allocations();
+    _ = try allocation_queue.current();
+    var collection = adapter.StorageCollection.init(journal.journal);
+    _ = try collection.current();
     recovery.event.realm = config.genesis.realm;
     recovery.event.position = engine.head.position;
     recovery.finish();
@@ -59,7 +74,11 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (mode.initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
-    if (mode.maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig, diagnostics);
+    if (mode.maintain) {
+        var maintenance = config.maintenance orelse return error.MissingMaintenanceConfig;
+        maintenance.storage = config.storage.maintenance;
+        return Maintenance.run(init, &engine, maintenance, diagnostics);
+    }
     var snapshot_epoch: [16]u8 = undefined;
     try init.io.randomSecure(&snapshot_epoch);
     engine.snapshot_epoch = snapshot_epoch;
@@ -94,6 +113,7 @@ const Lane = struct {
         self.metrics = .{};
         self.journal = .{ .journal = .{ .client = &self.client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics, .metrics = if (config.request_metrics) &self.metrics else null } };
         self.pages = try adapter.PackedPageStore.init(allocator, self.journal.journal, config.resident_pages);
+        self.pages.limits = config.storage.limits;
         self.engine = basis;
         self.engine.journal = &self.journal;
         self.engine.page_store = &self.pages;
@@ -284,7 +304,7 @@ const Server = struct {
         const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
         const status: std.http.Status = switch (code) {
             .Conflict, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
-            .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity => .service_unavailable,
+            .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity, .StorageQuota => .service_unavailable,
             else => .unprocessable_entity,
         };
         return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });

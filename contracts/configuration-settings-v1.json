@@ -1,5 +1,5 @@
 {
-  "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482",
+  "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
   "settings": [
     {
       "name": "version",
@@ -78,6 +78,86 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 65536,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.limits.bytes",
+      "description": "Reserved encoded immutable data bytes, including unpublished candidates",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "8589934592",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.limits.control_bytes",
+      "description": "Separate immutable allocation reserve for control and collection marks",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "67108864",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.limits.candidate_bytes",
+      "description": "Maximum encoded private candidate buffer per admitted operation",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "8388608",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 8388608,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.collection_every_records",
+      "description": "Allocation ledger progress before beginning another physical collection",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "1024",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.compact",
+      "description": "Relocate current state before collection; retained history still owns old roots",
+      "owner": "node",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "false",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
       "values": [],
       "items_schema": null
     },
@@ -787,6 +867,91 @@
         "x-transit-owner": "node",
         "x-transit-change": "initialization",
         "default": 4096
+      },
+      "storage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Reserved encoded immutable data bytes, including unpublished candidates",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 8589934592
+              },
+              "control_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Separate immutable allocation reserve for control and collection marks",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 67108864
+              },
+              "candidate_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8388608
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Maximum encoded private candidate buffer per admitted operation",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 8388608
+              }
+            }
+          },
+          "maintenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "collection_every_records": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "Allocation ledger progress before beginning another physical collection",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 1024
+              },
+              "compact": {
+                "type": "boolean",
+                "description": "Relocate current state before collection; retained history still owns old roots",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": false
+              }
+            }
+          }
+        }
       },
       "query": {
         "type": "object",

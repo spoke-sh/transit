@@ -27,7 +27,7 @@ pub const Store = struct {
     pub fn stageBlock(self: *Store, spec: b.Spec, bytes: []const u8) !blocks.Reference {
         try spec.verify(bytes);
         if (self.fail_at == self.writes) return error.StagingFailed;
-        const reference: blocks.Reference = .{ .value = spec, .location = spec.digest[0..16].* };
+        const reference: blocks.Reference = .{ .value = spec, .location = spec.digest };
         if (!self.values.contains(reference)) {
             const owned = try t.allocator.dupe(u8, bytes);
             errdefer t.allocator.free(owned);

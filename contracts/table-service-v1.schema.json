@@ -44,7 +44,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           ]
         },
         "T2": {
@@ -5206,7 +5206,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                    "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                   ]
                 },
                 "realm": {
@@ -7232,7 +7232,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                        "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                       ]
                                                     },
                                                     "realm": {
@@ -8172,6 +8172,32 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
+                        "storage_fence"
+                      ],
+                      "properties": {
+                        "storage_fence": {
+                          "type": "object",
+                          "maxProperties": 0
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "storage_compact"
+                      ],
+                      "properties": {
+                        "storage_compact": {
+                          "type": "object",
+                          "maxProperties": 0
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
                         "turn_with_versions"
                       ],
                       "properties": {
@@ -8519,7 +8545,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+                                                            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
                                                           ]
                                                         },
                                                         "realm": {
@@ -10175,7 +10201,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           ]
         },
         "T2": {
@@ -14453,7 +14479,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "b61c36b446b7b392f67c65a6cc34a50234bccfd79215a61707717eb1d5c09482"
+            "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f"
           }
         },
         "T135": {
@@ -14754,6 +14780,30 @@
               ],
               "properties": {
                 "checkpoint": {
+                  "$ref": "#/$defs/Response/$defs/T59"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "storage_fence"
+              ],
+              "properties": {
+                "storage_fence": {
+                  "$ref": "#/$defs/Response/$defs/T59"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "storage_compact"
+              ],
+              "properties": {
+                "storage_compact": {
                   "$ref": "#/$defs/Response/$defs/T59"
                 }
               }

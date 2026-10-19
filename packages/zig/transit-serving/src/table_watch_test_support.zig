@@ -99,6 +99,14 @@ pub const Reader = struct {
         try self.check();
         return self.turn.read(key);
     }
+    pub fn readBlock(self: *Reader, key: p.Value, output: []u8) !?[]const u8 {
+        try self.check();
+        return self.turn.readBlock(key, output);
+    }
+    pub fn blockBatch(self: *Reader, keys: [p.Growth.page_size]?p.Value, output: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+        try self.check();
+        return self.turn.blockBatch(keys, output);
+    }
     pub fn page(self: *Reader, after: ?p.Value) !p.Growth.Batch(p.Growth.Entry, p.Value) {
         try self.check();
         return self.turn.page(after);

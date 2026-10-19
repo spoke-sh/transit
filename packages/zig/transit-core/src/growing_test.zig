@@ -2643,3 +2643,52 @@ test "bulk resource publication keeps exact retries and captured bytes under cur
     try t.expectError(error.Forbidden, f.engine.submit(signed)); // Receipts do not retain read/write permission.
     try t.expectEqual(@as(u32, 0), result.blocks.len);
 }
+
+test "physical epoch fences old candidates and rejects unavailable trusted time" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const request = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .spawn = .{} } }, f.root_key);
+    const prepared = try f.engine.prepare(request);
+    try t.expectError(error.ClockUnavailable, f.root(.{ .storage_fence = {} }));
+    try t.expectEqual(@as(u64, 1), f.engine.head.storage_epoch);
+    var now: u64 = 100;
+    const Clock = struct {
+        fn read(raw: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = @as(*u64, @ptrCast(@alignCast(raw))).* };
+        }
+    };
+    f.engine.clock = .{ .context = &now, .read = Clock.read };
+    _ = try f.root(.{ .storage_fence = {} });
+    try t.expectEqual(@as(u64, 2), f.engine.head.storage_epoch);
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    now = 99;
+    const before = f.engine.head;
+    try t.expectError(error.ClockRollback, f.root(.{ .storage_fence = {} }));
+    try t.expectEqualDeep(before, f.engine.head);
+}
+
+test "bounded physical rewriting preserves current data and independent retained roots" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    const first = try fixture.proposal(10);
+    _ = try f.root(.{ .turn_with_versions = first });
+    const second = try fixture.proposal(20);
+    _ = try f.root(.{ .turn_with_versions = second });
+    const original = (try f.query(0, .{ .resource = fixture.resource })).body.resource;
+    var steps: usize = 0;
+    while (f.engine.head.compaction.phase != .complete) : (steps += 1) {
+        if (steps == 256) return error.FixtureBudget;
+        _ = try f.root(.{ .storage_compact = {} });
+        try t.expectEqualDeep(original, (try f.query(0, .{ .resource = fixture.resource })).body.resource);
+        try t.expectEqual(@as(i64, 10), try (try fixture.query(VersionFixture.id(second), 0, second.turn.generation)).body.version_entries.page.entries[0].?.value.asInteger());
+    }
+    try t.expect(steps > 3);
+    _ = try f.root(.{ .checkpoint = {} });
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+    try t.expectEqualDeep(original, (try f.query(0, .{ .resource = fixture.resource })).body.resource);
+    try t.expectEqual(@as(i64, 10), try (try fixture.query(VersionFixture.id(second), 0, second.turn.generation)).body.version_entries.page.entries[0].?.value.asInteger());
+}

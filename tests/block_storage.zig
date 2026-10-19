@@ -39,12 +39,16 @@ pub fn main(init: std.process.Init) !void {
         try batch.put(try .init("a"), &first);
         try batch.put(try .init("b"), &second);
         try batch.put(try .init("empty"), "");
+        try store.begin(1, false);
         const old = try index.publish(.{}, batch.mutations, &batch.body, 1);
+        try store.finish();
         try t.expect(try publish(journal, 0, old));
         var changed: b.Batch = .{};
         try changed.put(try .init("a"), null);
         try changed.put(try .init("b"), "replacement");
+        try store.begin(1, false);
         const next = try index.publish(old, changed.mutations, &changed.body, 2);
+        try store.finish();
         try t.expect(try publish(journal, 1, next));
         try t.expect(!try publish(journal, 1, old));
         try t.expect(first.len + second.len > store.residentBytes());
@@ -52,7 +56,9 @@ pub fn main(init: std.process.Init) !void {
         const old = try recorded(journal, 1);
         var candidate: b.Batch = .{};
         try candidate.put(try .init("orphan"), &first);
-        if (index.publish(old.index, candidate.mutations, &candidate.body, 3)) |_| return error.ExpectedStagingFailure else |_| {}
+        try store.begin(1, false);
+        _ = try index.publish(old.index, candidate.mutations, &candidate.body, 3);
+        if (store.finish()) |_| return error.ExpectedStagingFailure else |_| {}
         try t.expectEqual(2, try journal.tail());
         try t.expectEqualDeep(old, try recorded(journal, 1));
     } else if (std.mem.eql(u8, args[2], "verify")) {
