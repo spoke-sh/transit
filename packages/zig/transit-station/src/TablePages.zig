@@ -123,9 +123,9 @@ pub fn stage(self: Self, turn: *Turn, ref: Reference, bytes: []const u8) !Step {
     return if (ready) .ready else .progress;
 }
 pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const u8 {
-    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, 'b', 0) });
-    const limit = try self.check(source);
     try validate(ref);
+    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, 'b', 0) }, self.blocks().key(ref.id, 0));
+    const limit = try self.check(source);
     if (ref.spec.length > limit) return error.InvalidTablePage;
     if (ref.spec.length > output.len) return error.TablePageBufferTooSmall;
     return self.blocks().read(source, ref.id, ref.spec, output) catch |err| return switch (err) {
@@ -134,8 +134,9 @@ pub fn read(self: Self, source: anytype, ref: Reference, output: []u8) ![]const 
         else => err,
     };
 }
-fn prefetch(source: anytype, keys: []const p.Value) !void {
+fn prefetch(source: anytype, keys: []const p.Value, block: p.Value) !void {
     const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetchRecord")) return source.prefetchRecord(keys, block);
     if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(keys);
 }
 /// Locate one allocated record in a closed reservation without walking unused

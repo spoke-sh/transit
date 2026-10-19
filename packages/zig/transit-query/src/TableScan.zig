@@ -185,7 +185,20 @@ pub fn read(self: *Scan, key: p.Value) !?p.Value {
     return error.InvalidResourceRead;
 }
 pub fn prefetch(self: *Scan, keys: []const p.Value) !void {
-    if (keys.len > g.page_size) return error.InvalidResourceRead;
+    return self.prefetchRead(keys, &.{});
+}
+pub fn prefetchBlocks(self: *Scan, keys: []const p.Value) !void {
+    return self.prefetchRead(&.{}, keys);
+}
+/// Resolve a record's bounded metadata and first block at the same leased cut.
+/// The ordinary current-authority disclosure gate still runs after computation.
+pub fn prefetchRecord(self: *Scan, keys: []const p.Value, block: p.Value) !void {
+    return self.prefetchRead(keys, &.{block});
+}
+fn prefetchRead(self: *Scan, keys: []const p.Value, blocks: []const p.Value) !void {
+    try self.checkCancellation();
+    if (self.source.closed) return error.QueryClosed;
+    if (keys.len > g.page_size or blocks.len > g.page_size) return error.InvalidResourceRead;
     var missing: g.SnapshotRead.Keys = @splat(null);
     var count: usize = 0;
     next_key: for (keys) |key| {
@@ -194,31 +207,24 @@ pub fn prefetch(self: *Scan, keys: []const p.Value) !void {
         missing[count] = key;
         count += 1;
     }
-    if (count == 0) return;
-    const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .points = missing });
-    for (missing[0..count], result.points[0..count]) |key, value| self.remember(key.?, value);
-}
-pub fn prefetchBlocks(self: *Scan, keys: []const p.Value) !void {
-    try self.checkCancellation();
-    if (self.source.closed) return error.QueryClosed;
-    if (keys.len == 0) return;
-    if (keys.len > g.page_size) return error.InvalidResourceRead;
-    if (self.block_cache) |*cache| {
-        const all = for (keys) |key| {
-            if (!cache.contains(key)) break false;
-        } else true;
-        if (all) return;
-    }
-    if (self.requests == self.request_limit) return error.QueryPageBudget;
-    self.requests += 1;
-    var request_value: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.source.snapshot.id } };
-    for (keys, 0..) |key, i| request_value.blocks[i] = key;
-    var body: p.Blocks.Body = .{};
-    const result = self.source.blockBatch(request_value, &body) catch |err| {
-        self.rejection = self.source.client.wire.last_rejection;
-        return err;
+    const cached_blocks = if (self.block_cache) |*cache| for (blocks) |key| {
+        if (!cache.contains(key)) break false;
+    } else true else blocks.len == 0;
+    if (count == 0 and cached_blocks) return;
+    var request_value: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.source.snapshot.id }, .points = missing };
+    const result = if (cached_blocks) try self.request(request_value) else result: {
+        if (self.requests == self.request_limit) return error.QueryPageBudget;
+        self.requests += 1;
+        for (blocks, 0..) |key, i| request_value.blocks[i] = key;
+        var body: p.Blocks.Body = .{};
+        const found = self.source.blockBatch(request_value, &body) catch |err| {
+            self.rejection = self.source.client.wire.last_rejection;
+            return err;
+        };
+        self.block_cache = try q.wire.BlockBatch.init(request_value.blocks, found.blocks, body);
+        break :result found;
     };
-    self.block_cache = try q.wire.BlockBatch.init(request_value.blocks, result.blocks, body);
+    for (missing[0..count], result.points[0..count]) |key, value| self.remember(key.?, value);
 }
 pub fn readBlock(self: *Scan, key: p.Value, output: []u8) !?[]const u8 {
     try self.prefetchBlocks(&.{key});

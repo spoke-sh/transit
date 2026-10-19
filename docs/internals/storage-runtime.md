@@ -121,6 +121,13 @@ request. Eight verified index nodes can be cached at one exact cut. Cached bytes
 have no authority: hosts bind the source identity, propagate read failures and
 validate current rights before disclosure or commit.
 
+The [Table scan](../../packages/zig/transit-query/src/TableScan.zig) fetches a
+record's known metadata keys and first block in one snapshot request. Both
+indexes resolve at the same leased cut. This avoids adding separate round trips
+for the manifest, budget and immutable body when opening a small query. Missing
+bytes still reject, request budgets count the combined fetch, and cached data
+does not replace the later current-authority disclosure check.
+
 The alternative of increasing small-value size would enlarge every control
 record and authority journal entry. Sending each 256-byte part independently
 keeps messages small but couples logical record size to control transactions.

@@ -97,9 +97,9 @@ pub fn referenceAt(self: Self, source: anytype, revision: u64) !?Reference {
 }
 pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
     try self.validate(source);
-    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, 'b', 0) });
-    try self.check(source);
     try checkReference(ref);
+    try prefetch(source, &.{ key(self.object, 'd', 0), key(self.object, 'b', 0) }, key(self.object, 'c', ref.id));
+    try self.check(source);
     var buffer: [Meta.max_bytes]u8 = undefined;
     const bytes = (c.station.BlockRecord{ .publication = self.publication() }).read(source, ref.id, ref.spec, &buffer) catch |err| return switch (err) {
         error.MissingPublicationChunk => error.CatalogDefinitionMissing,
@@ -111,8 +111,9 @@ pub fn read(self: Self, source: anytype, ref: Reference) !Meta.Record {
     if (!std.meta.eql(record.scope, self.scope) or record.object != self.object or record.revision != ref.id) return error.CatalogDefinitionChanged;
     return record;
 }
-fn prefetch(source: anytype, keys: []const p.Value) !void {
+fn prefetch(source: anytype, keys: []const p.Value, block: p.Value) !void {
     const Source = @typeInfo(@TypeOf(source)).pointer.child;
+    if (comptime @hasDecl(Source, "prefetchRecord")) return source.prefetchRecord(keys, block);
     if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(keys);
 }
 
