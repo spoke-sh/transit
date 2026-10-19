@@ -52,7 +52,7 @@ class Probe:
                 if before:
                     before(self.path, body)
                 labels = [self.command, 'request_bytes']
-                if native and self.path in ('/v1/query', '/v1/command'):
+                if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     value = json.loads(body)
                     mutation = self.path.endswith('command')
                     envelope = value['request' if mutation else 'query']
@@ -74,7 +74,7 @@ class Probe:
                 started = time.monotonic_ns()
                 event = {'start_ns': started - owner.started_ns, 'method': self.command,
                          'wait_hint': self.headers.get('X-Transit-Wait') is not None}
-                if native and self.path in ('/v1/query', '/v1/command'):
+                if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     event.update(operation=classified, principal=envelope['principal'])
                     if mutation:
                         event['sequence'] = envelope['sequence']
@@ -99,8 +99,10 @@ class Probe:
                     if len(data) > 4 * 1024 * 1024:
                         raise ValueError('fixture response exceeds probe bound')
                     event['response_ns'] = time.monotonic_ns() - owner.started_ns
-                    if native and response.status == 200 and self.path in ('/v1/query', '/v1/command'):
+                    if native and response.status == 200 and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                         result = json.loads(data)
+                        if self.path == '/v1/blocks':
+                            result = result['response']
                         event['position'] = result['position']
                         if not mutation and operation == 'process':
                             head = result['body']['process']['input']
@@ -130,7 +132,7 @@ class Probe:
                                     raise ValueError('invalid provider counter')
                                 owner.counts['work:provider:' + field] += amount
                             owner.counts['work:responses'] += 1
-                        if native and self.path in ('/v1/query', '/v1/command'):
+                        if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                             owner.counts[classified + ':elapsed_ns'] += elapsed
                             owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
                         owner.counts['response_bytes'] += len(data)
