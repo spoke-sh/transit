@@ -84,7 +84,10 @@ def foundation(postgres, mysql_options, executables):
                         assert sorted(rows) == expected, (path, case, rows)
                         if iteration:
                             report['samples'].append(dict(path=path, case=case, elapsed_ns=elapsed))
-            for _ in range(3):
+                if iteration and iteration % 5 == 0:
+                    print(json.dumps(dict(profile='storage_foundation_database_wire_progress', phase='reads',
+                                          completed=iteration * len(paths) * len(cases), total=400)), flush=True)
+            for iteration in range(3):
                 for path in paths:
                     for case, sql in (
                         ('insert', 'INSERT INTO wire_rows (id,n) VALUES (999,1)'),
@@ -99,6 +102,8 @@ def foundation(postgres, mysql_options, executables):
                         other = 'mysql_literal' if path.startswith('postgres') else 'postgres_literal'
                         expected = [] if case == 'delete' else [(999, 1 if case == 'insert' else 2)]
                         assert execute(other, 'SELECT id,n FROM wire_rows WHERE id=999', True) == expected
+                print(json.dumps(dict(profile='storage_foundation_database_wire_progress', phase='mutations',
+                                      completed=(iteration + 1) * len(paths) * 3, total=36)), flush=True)
             for cursor in cursors:
                 cursor.close()
         grouped = {}

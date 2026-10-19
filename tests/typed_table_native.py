@@ -398,10 +398,18 @@ def run(node, proof, host, cli, station_host, *arguments):
             call('pump')
 
             disclosure_samples = []
-            for sql in ('SELECT v FROM rel_left', 'SELECT v FROM rel_left LIMIT 0', 'SELECT v FROM rel_left WHERE k = 999'):
+            # Snapshot request ceilings from the complete four-row deployment
+            # control; preserve empty-result costs as well as batch savings.
+            for sql, single_limit, batch_limit in (
+                ('SELECT v FROM rel_left', 25, 17),
+                ('SELECT v FROM rel_left LIMIT 0', 15, 15),
+                ('SELECT v FROM rel_left WHERE k = 999', 17, 17),
+            ):
                 single = call('select-batch', sql)
                 bulk = call('select-batch-disclosure', sql)
                 assert single['rows'] == bulk['rows'] and single['complete'] and bulk['complete']
+                assert single['requests'] <= single_limit, (sql, single_limit, single)
+                assert bulk['requests'] <= batch_limit, (sql, batch_limit, bulk)
                 if single['rows']:
                     assert bulk['requests'] < single['requests'], (single, bulk)
                 else:
