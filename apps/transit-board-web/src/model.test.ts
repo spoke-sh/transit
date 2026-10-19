@@ -75,6 +75,7 @@ describe("exchange metadata boundary", () => {
       owner: null,
       revision: 18,
       entries: 1,
+      block_entries: 0,
       deadline_ms: null,
       phase: "active",
       retired_at: null,
@@ -118,6 +119,8 @@ describe("exchange metadata boundary", () => {
   it("preserves full-width identity and refuses narrowed or invented source evidence", () => {
     const valid = page();
     expect(validateRecords(valid)).toBe(true);
+    const { block_entries: _blocks, ...oldResource } = valid.resource;
+    expect(validateRecords({ ...valid, resource: oldResource })).toBe(false);
     for (const exchange of ["18446744073709551616", "01", "0", "1e3", 1]) {
       const changed = structuredClone(valid);
       changed.exchanges[0].declaration.lineage.exchange = exchange;
