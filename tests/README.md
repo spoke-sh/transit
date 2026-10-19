@@ -109,6 +109,22 @@ focused rerun passes all four disk phases with 64 retained values, one decoded
 page (17,032 cache bytes), captured views, grants and exact receipts. The failed
 clean attempt is partial qualification, not a completed ordinary suite.
 
+At `a3a61f8a`, `just check` and `just test::flight-faults` pass. Clean CI passes
+43 tasks, including all core checks, growing services, native concurrency, full
+block publication, physical collection and public queries. The combined Table
+writer then passes its console mutation/recovery schedule but fails when its
+manual delivery helper races the background courier: the observed pending output
+has already been delivered, so the authority returns `OutputAlreadyResolved`.
+The helper now treats only that validated rejection as a step with no delivery,
+matching the public courier; other errors still propagate. Accepted identities
+and unknown-outcome handling are unchanged. The new storage proof executables
+also use streaming stdout so redirected evidence cannot overwrite earlier log
+bytes. This interrupted clean run does not establish a complete ordinary pass.
+The focused `just test::table-query-writer` rerun with the corrected helper passes
+in 93.545 seconds: 116 turns, two recovered initialization receipts, interleaved
+durable/interactive snapshots, saved console recovery, cancellation races and
+current policy/native denial. Installed SDK variants are unselected in this run.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

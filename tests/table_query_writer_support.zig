@@ -82,7 +82,18 @@ pub fn execute(init: std.process.Init, url: []const u8, wire: *s.client.Client, 
                         const frame = try s.Frame.decode(output.value);
                         if (frame.kind != .cast or !(std.mem.startsWith(u8, frame.payload.slice(), "TCQ1") or std.mem.startsWith(u8, frame.payload.slice(), "TCA1V"))) continue;
                     }
-                    if (output.phase == .pending and (output.destination == connection.source or output.destination == connection.requester)) return print(init, .{ .delivered = try admin.submit(.{ .deliver = output.id }) });
+                    if (output.phase == .pending and (output.destination == connection.source or output.destination == connection.requester)) {
+                        const receipt = admin.submit(.{ .deliver = output.id }) catch |err| {
+                            // The real courier runs alongside this helper. Its
+                            // accepted delivery can resolve the observed output
+                            // before this distinct principal submits. As in
+                            // client.delivery.step, only that explicit rejection
+                            // means this step has no remaining delivery work.
+                            if (wire.last_rejection == .OutputAlreadyResolved) return print(init, .{ .delivered = @as(?u64, null) });
+                            return err;
+                        };
+                        return print(init, .{ .delivered = receipt });
+                    }
                 };
                 after = page.next orelse return print(init, .{ .delivered = @as(?u64, null) });
             } else return error.ProofDeliveryBudgetExceeded;
