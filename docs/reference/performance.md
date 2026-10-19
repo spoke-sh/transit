@@ -245,15 +245,14 @@ substitute for reducing work or introducing appropriate wake-ups.
 ## Bounded storage batches
 
 The growing authority batches one turn's resource-entry changes before publishing
-its final catalog root. Shared paths are copied once. The packed backend sends
-bounded groups of immutable sibling pages, checks every provider acknowledgement
-and returns no references if any frame is uncertain. This uses page format 1,
-old roots and the existing authority commit. Namespace scans stop at their upper
-boundary; the verified packed-page cache uses LRU replacement.
+its final catalog root. Shared paths are copied once. The packed backend groups
+immutable pages and blocks into private segments, reserves their encoded bytes,
+verifies every frame and seals the segment before reference publication. Namespace
+scans stop at their upper boundary; the verified page cache uses LRU replacement.
 
-A ReleaseSafe storage-primitive comparison uses the same binary, two cache slots,
-256 keys with 1 KiB values, half-key deletion, retained-root verification and
-unpublished candidates:
+The earlier page-only ReleaseSafe storage-primitive comparison used the same
+binary, two cache slots, 256 keys with 1 KiB values, half-key deletion,
+retained-root verification and unpublished candidates:
 
 | Write-phase metric | Single-key updates | Eight-key batches |
 | --- | ---: | ---: |
@@ -269,36 +268,97 @@ passes with two resident pages. These counts include verification and candidate
 staging; they are not application throughput or total physical write amplification.
 Other qualification ran concurrently, so elapsed times are not used here.
 
-Application turn quotas, inline-value limits and durable result-publication
-chunks are unchanged. Bulk page staging is a backend primitive, not an application
-blob upload API. Persistent columnar Table blocks and larger application payload
-publication remain separate storage work.
+Native turns now have a separate immutable publication budget of 16 records and
+128 KiB, alongside the existing four small metadata mutations. A signed descriptor
+binds each body to its key, length and digest. Only the accepted resource root
+makes it visible. Table rows, indexes, schemas and retained predecessors use this
+boundary; large SQL statement ingress still uses the framework's small messages.
+See [storage](storage.md) and [Table storage](tables.md).
 
-## Planned improvements
+Independent native engines overlap immutable reads and preparation. Publication
+still rechecks the accepted authority cut; bounded retries preserve the exact
+signed identity. Snapshot slots are shared across engines. Bounded Table batches
+reduce per-row disclosure requests while retaining current authorization before
+each batch. Metadata and a record's first block can share one snapshot read.
 
-These priorities implement the [workload model](workloads.md). Interactive
-snapshots and bounded page/read batching are implemented. The remaining payload
-and read-structure changes below remain planned. No dates or speedups are promised.
+Physical collection verifies all protected roots before deletion. Storage epochs
+fence old candidates; the maximum snapshot/request lifetime and a durable time
+floor protect volatile readers. Relocation can release partially live segments
+without changing logical revisions. Unlimited retention retains reachable history.
+Accounted segment deletion is distinct from immediate WAL shrink, cold-tier
+cleanup and backup erasure. The provider still retains per-segment metadata in RAM.
+
+## Remaining improvements
+
+These priorities implement the [workload model](workloads.md). The shared block,
+concurrency and reclamation boundaries are implemented; workload-specific layouts
+and larger ingress need their own contracts and measurements.
 
 | Priority | Intended change | Required evidence |
 | --- | --- | --- |
-| Interactive sessions | Fresh snapshot per SELECT, bounded Arrow streaming, cancel on exit, server-enforced cleanup after disconnect; retain explicit durable jobs separately | First batch/completion and cancellation tails, revocation after a prefix, complete/incomplete framing, bounded pins and memory |
-| Shared read/write amplification | Implemented: combined snapshot/metadata reads, bounded ranges and Document chunks, separate immutable control/page caches, tree mutation/page staging batches and bounded transport reuse | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
-| Application bulk immutable publication | Persist bounded application blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
-| Workload-specific read structures | KV point/range access, persistent columnar Table blocks and block-statistics pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
+| Ingress and gateway coordination | Reduce small-message statement uploads and gateway intent/saved-step publication before Table execution | Exact uncertain recovery, authority, input bounds and wide/nested end-to-end cost |
+| Workload-specific read structures | Persistent columnar Table blocks, statistics/pruning, scalar range indexes and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
+| Scheduling and contention | Reduce background polling and retry work where measured | Control latency, fairness, bounded queues and unchanged exact operation identity |
+| Provider accounting | Measure segment-count metadata, WAL and cold-tier costs separately from Transit caches | Durable growth, physical recovery, reclamation lag and whole-process memory |
 
-The implemented interactive lifecycle is documented in
+The interactive lifecycle is documented in
 [query sessions](queries.md#interactive-sessions) and the
-[neutral contract](../../contracts/INTERACTIVE_QUERY_V1.md), including cancellation,
-leases, current-policy checks and resource accounting. The append-only page
-profile permits volatile snapshot pins; physical reclamation must account for
-them before being enabled. Explicit durable jobs retain their separate contract.
+[neutral contract](../../contracts/INTERACTIVE_QUERY_V1.md). Explicit durable jobs
+retain their separate contract. Fuze and applications stay outside raw provider
+access. Authority partitioning needs its own ordering and fencing design.
 
-Batching must preserve the final atomic publication boundary. New tree layouts
-require explicit format compatibility. Fuze and applications stay outside raw
-provider access; no upstream database becomes a runtime dependency. Storage
-changes benefit both sessions and durable jobs, while authority partitioning
-needs its own ordering and fencing design.
+## Shared storage comparison
+
+The [integrated comparison](../../tests/mutation_latency/results/2026-10-19/README.md)
+measures baseline `ee88a131` against `29765ef0` with ReleaseSafe, pinned providers
+and sequential disk fixtures on the same shared host. Builds finish before
+timing. The complete reports preserve failures, source/binary hashes and
+instrumented request controls separately from ordinary latency.
+
+| Selected control | Baseline p50 | Current p50 |
+| --- | ---: | ---: |
+| Console narrow one-row INSERT | 1,394 ms | 806 ms |
+| Console narrow changing UPDATE | 1,416 ms | 852 ms |
+| Console narrow three-row INSERT | 2,702 ms | 1,174 ms |
+| Console 33-row full read | 834 ms | 393 ms |
+| Console point read | 212 ms | 209 ms |
+| Console empty read | 162 ms | 172 ms |
+| Console LIMIT 0 | 120 ms | 132 ms |
+| PostgreSQL literal four-row full read | 4,714 ms | 2,025.5 ms |
+| MySQL literal four-row full read | 3,916 ms | 1,438 ms |
+| PostgreSQL literal one-row INSERT | 23,259 ms | 13,238 ms |
+
+Narrow mutations and reads have 20 samples per case; wire mutations have three.
+The full report includes p95 where supported, every literal/prepared path,
+wide/nested controls and their slower cases. Console and wire fixtures differ;
+their absolute times do not isolate protocol overhead. These are observations,
+not a latency SLO or an isolated causal estimate for one mechanism.
+
+The retained-history/concurrent-reader workload now completes all 21 mutations
+and 92 reader queries; the baseline reader fails with `HttpCapacity`. A separate
+48-command offered burst still admits two commands and explicitly refuses 46 on
+both builds. Revocation completes after a retry following the burst, with exact
+receipts, drain and restart verified. This does not establish uninterrupted
+control admission under saturated writes.
+
+The instrumented first INSERT uses one turn instead of two, stages 29 pages
+instead of 71, and records 1,072 provider attempts instead of 1,443. Owned snapshot
+calls for the full console read fall from 64 to 29. These counts include
+instrumentation and, except the qualified snapshot calls, overlapping background
+work; they are not fsync counts or durations to add together.
+
+The same page setting is a per-lane budget in the concurrent node, so aggregate
+cache capacity differs. In the console read fixture, node HWM rises from 53,664
+to 82,484 KiB, while Ursula HWM falls from 96,860 to 69,804 KiB. These are maximum
+child observations per role, not summed memory or a whole-provider growth bound.
+Empty and LIMIT 0 console reads remain slower in this control.
+
+Wire reads still take roughly 1.4–2.2 seconds at p50 across the selected paths,
+and wire mutations roughly 13 seconds. Point, range, full and empty reads now
+cluster closely within each path, suggesting substantial fixed work; this
+campaign does not isolate its authorization or setup components. Gateway intents
+and saved steps still use small-message Publication records, as does large
+statement ingress. Those costs remain separate optimization work.
 
 ## Durable Table mutation measurements
 
@@ -346,8 +406,9 @@ checkpoint replaces it. A restored checkpoint can discover a completed outcome
 without sending another mutation.
 
 General Table commands that fit a Station frame avoid upload. Small point writes
-can publish the row, final index, head and outcome in one four-write turn; larger
-values and indexes require staged publication. A 128-bit primary-key lookup prefix
+publish the row, final index and retained predecessor as immutable blocks, together
+with the small head/outcome changes in one turn. Larger values and indexes use
+bounded resumable block publication. A 128-bit primary-key lookup prefix
 keeps two keyed rows in one inline index, while full typed-key comparison and
 256-bit node/row commitments retain equality and integrity checks. Finite INSERT
 builds up to eight rows within the existing candidate record/byte budget and
@@ -355,8 +416,9 @@ stages only the final reachable records. Neither optimization increases native
 values, write slots or collection cardinality limits.
 
 Batched reads and a 64-entry captured-turn cache reduce repeated metadata work.
-Native prefetch remains eight keys; cache entries cannot outlive their captured
-turn or mask a poisoned read. The console attributes local compilation,
+A snapshot request can combine up to eight metadata keys and eight block keys,
+with a separate 128 KiB block-body bound. Cache entries cannot outlive their
+captured turn or mask a poisoned read. The console attributes local compilation,
 preparation, native send, processing wait, result reads and every recovery-file
 save to their respective timing phases. `submit` no longer absorbs the entire
 write lifecycle.
@@ -371,7 +433,8 @@ fixed-column storage profile. It also measures wide/nested values and retained
 data with a concurrent reader. The record separates ordinary timings,
 instrumented counts and failed setups;
 general type support does not establish the earlier performance budgets.
-The measured general-schema costs are accepted as the current baseline. For the
+Those general-schema costs remain the historical accepted baseline; the
+integrated storage campaign above provides the current comparison. For the
 41-row configured-source Table fixture with 64 resident authority pages and no
 setup aging, regression ceilings are 75 requests for scan/COUNT and scalar
 ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for primary-key equality, 20 for its
@@ -379,17 +442,17 @@ COUNT, and 11 for metadata inspection. Explicit bindings add ten requests.
 These ceilings apply to that fixture; they are not latency promises or allowances
 for arbitrary schema/cardinality growth. The earlier failed-budget reports remain
 part of the evidence. [Further optimization](https://github.com/rupurt/rey/issues/76)
-tracks metadata reuse, bounded batch disclosure and immutable-record/publication
-costs while preserving authority, recovery and resource bounds.
+tracks the remaining ingress, layout and workload controls while preserving
+authority, recovery and resource bounds.
 
 Complete Table history adds one retained old-head record at each replacement.
-In the narrow mutation fixture, the additional write moves one-row INSERT and
-changing UPDATE from one native turn to two; the four-write turn bound stays
-fixed. Three-row INSERT remains four turns. The
+The earlier small-KV representation moved narrow INSERT and changing UPDATE from
+one turn to two, with three-row INSERT taking four turns. The
 [complete-history campaign](../../tests/mutation_latency/results/2026-10-12/README.md)
-records all 140 outcomes and a separate provider-work control, including the
-measured cost increase and concurrent-load limits. Its elapsed times overlap
-maintenance qualification and do not isolate the cost of change capture.
+preserves that historical cost and its concurrent-load limits. Its elapsed times
+overlap maintenance qualification and do not isolate change-capture cost. The
+current block representation retains the predecessor in the same publication
+batch; the matched storage-foundation evidence above measures that change.
 
 Idle workers use bounded authorized waits on the observed process or output
 position. Waits release the authority lock, have separate admission capacity,

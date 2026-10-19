@@ -1,5 +1,55 @@
 # Validation and milestone evidence
 
+## Integrated storage foundation
+
+The [matched campaign](mutation_latency/results/2026-10-19/README.md) compares
+`ee88a131` with runtime `29765ef0`, using ReleaseSafe and sequential disk fixtures
+after builds finish. Its [record](verification/results/storage-foundation-2026-10-19.json)
+preserves commands, source/binary hashes, raw reports, intermediate controls and
+failed attempts. Both real SQL wire campaigns complete 400 reads and 36 mutations
+with cross-protocol readback. The final console controls include narrow, wide and
+nested mutations, 100 reads, and retained history with 21 mutations plus 92 reader
+queries. Empty/LIMIT 0 reads regress and node HWM increases; see the report for
+sample sizes, cache differences and limits on attribution.
+
+At `29765ef0`, `just test::typed-tables` passes the complete native deployment
+schedule in 524.817 seconds: all 28 logical descriptors, typed defaults/NULLs,
+prepared parameters, catalog replacement, retained snapshots, exact lost-reply
+recovery, current denial and node/provider restart. Four-row disclosure takes
+17 requests through `nextBatch(8)` versus 25 through independent row pulls;
+LIMIT 0 and empty predicates use 15 and 17 respectively through either path.
+Those observed counts define explicit regression ceilings in the native harness.
+Buffered revocation still prevents the next disclosure. These counts apply to
+this fixture, not arbitrary query shapes or cardinality.
+
+Normal Flight/ADBC and the Flight fault schedule also pass against runtime
+`29765ef0`. They cover real finite statements, full-width/NULL rows, independent
+Python/C ADBC consumption, diagnostics, exact retry, delayed concurrent fetches,
+control progress, slow HTTP/2 clients, current SELECT denial after a returned
+batch, interrupted duplicate fetch, gateway/worker/node/store restart and
+permanent retirement. The record retains their logs and commands. Two fault-run
+attempts fail in Nix before execution because cached shell derivations cannot be
+recreated; the successful retry disables the evaluation cache in the actual
+Flight shell. These setup failures are not counted as executed fault proofs.
+
+The separate offered-load controls both admit two of 48 scheduled commands and
+explicitly refuse 46, with no uncertain outcomes. Initial revocation is also
+refused; its retry completes after the burst. Exact receipt retries, current
+denial, drain and restart pass. This evidence does not establish uninterrupted
+control admission at write saturation or a throughput SLO.
+
+The current-definition 1,024-key cold-storage proof passes with two decoded pages
+(34,064 resident cache bytes), 758 created pages and 195 segments. The
+[retained record](mutation_latency/results/2026-10-19/pages-packed-s3-1024-2-batch8.json.gz)
+includes checkpoint/trim, provider/process restart, 16 MinIO objects, adapter
+write-peak RSS of 18,436 KiB and separate recovery/provider observations. Pending
+source changes are recorded in its provenance. This is primitive storage/recovery
+evidence, not an isolated service benchmark or a whole-provider memory bound.
+
+Complete ordinary qualification runs separately with `just ci-clean` against
+committed HEAD; the PR records its exact revision and outcome. Focused proofs
+and matched measurements do not substitute for that gate.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,
@@ -36,8 +86,9 @@ mark-key review found that shared captured catalogs must distinguish the selecte
 resource and ownership class; those regressions now have explicit checks.
 These tests use an injected trusted clock to cross the full grace interval.
 They do not prove host power-loss behavior, backup erasure, immediate WAL shrink,
-or asynchronous cold-object deletion. Full service/clean-CI completion and matched
-performance measurements remain separate qualification gates.
+or asynchronous cold-object deletion. The integrated measurements and native
+consumer proof above have separate scopes; committed-source clean CI remains
+the final integration gate.
 
 The [physical capacity record](verification/results/storage-foundation-capacity-2026-10-19.json)
 passes with 72 retained 256-byte values and one decoded page (17,032 resident
@@ -63,7 +114,8 @@ The disk native-block proof also passes with the new definition and explicit
 `InvalidBlockBody` rejection before writes. `test-growing-service` also passes
 the retained Station Table and query recovery schedules, including poisoned
 reads, cold storage, one resident page on recovery and quota/control reserves.
-The complete native typed-Table deployment proof passes in 524.664 seconds,
+The earlier Table/disclosure definition (`b61c36…`) completed the native
+typed-Table deployment proof in 524.664 seconds,
 including all 28 logical descriptors, supplied-host lost receipt recovery,
 original/replacement catalog identities, current denial, retained queries and
 node/provider restart. Early runs exposed a saved pending request
@@ -75,13 +127,19 @@ reported as completed service proofs. End-to-end latency and physical
 reclamation require their separate remaining schedules.
 
 The query, shared gateway, PostgreSQL and MySQL package suites pass with bounded
-result disclosure. The native four-row scan uses 19 requests through
+result disclosure. At that earlier definition, the native four-row scan used 19 requests through
 `nextBatch(8)`, versus 27 through independent row pulls; LIMIT 0 and empty
-predicates retain the same 17 and 19 requests. Buffered revocation rejects the
+predicates retained the same 17 and 19 requests. These are historical counts;
+the current metadata/block prefetch changes that path. Buffered revocation rejects the
 next disclosure. PostgreSQL unit schedules cover one-row portal suspension,
 revocation before and after materialization, and malformed empty batches.
-The complete real SQL driver proof is still running; package tests are not a
-substitute for its network, authority and restart schedules.
+The complete real SQL driver proof also passed at that earlier definition,
+including TLS, settings reload, role changes, credential rotation, detached
+writes, schema changes and drain. Its 40 KiB input exceeded the original wire
+wait, then completed under its original identity after 2,086.9 seconds. This
+exposes the remaining small-message ingress cost; it is not a passing latency
+budget. Current-definition full native/SQL qualification belongs to the separate
+committed-source CI result, not these earlier package/service observations.
 
 ## Native bulk resource publication
 

@@ -1,0 +1,4691 @@
+{
+  "version": 1,
+  "date": "2026-10-19",
+  "baseline_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+  "implementation_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+  "optimization": "ReleaseSafe",
+  "toolchain": "Zig 0.17.0-dev.2267+48abf1a34, pinned Nix shells",
+  "machine": {
+    "platform": "Linux",
+    "kernel": "6.17.0-41-generic",
+    "machine": "x86_64",
+    "processor": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+    "logical_cpus": 48,
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+    ],
+    "filesystem": "ext2/ext3",
+    "limits": "Sequential same-host observations, no competing task builds or proofs during campaign. Unrelated host services were left running; no exclusive CPU or fsync isolation is claimed.",
+    "mount_type": "ext4"
+  },
+  "prior_baseline": "tests/verification/results/storage-foundation-baseline-2026-10-18.json",
+  "artifacts": [
+    {
+      "name": "final-reads.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-reads.json.gz",
+      "raw_sha256": "0f42ca249e09b05f3fe9e10d5696450783aabfadb7556c61328103176e527616",
+      "gzip_sha256": "4d0f75e8c5aae2f83997f91dcb342b881ba5558a62316e406670581c695c6304",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-reads.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 20,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 974.006963,
+          "max_ms": 974.006963,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 887.389685,
+          "max_ms": 887.389685,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 846.758362,
+          "max_ms": 846.758362,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 814.66579,
+          "max_ms": 814.66579,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 837.354987,
+          "max_ms": 837.354987,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 783.741857,
+          "max_ms": 783.741857,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 1396.460085,
+          "max_ms": 1396.460085,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 20,
+          "min_ms": 161.855618,
+          "max_ms": 234.668478,
+          "p50_ms": 208.628921,
+          "p95_ms": 230.763139,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 20,
+          "min_ms": 329.849765,
+          "max_ms": 391.814829,
+          "p50_ms": 353.302928,
+          "p95_ms": 389.541012,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 20,
+          "min_ms": 371.629052,
+          "max_ms": 432.322274,
+          "p50_ms": 392.747448,
+          "p95_ms": 428.80921,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 20,
+          "min_ms": 135.302341,
+          "max_ms": 194.968468,
+          "p50_ms": 171.513616,
+          "p95_ms": 193.980825,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 20,
+          "min_ms": 119.088682,
+          "max_ms": 151.348027,
+          "p50_ms": 132.094685,
+          "p95_ms": 150.379272,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 81900,
+          "threads": 23,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24308,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 126944,
+          "threads": 9,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6516736
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 68960,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 12480512
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 82484,
+          "threads": 23,
+          "fds": 16,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24560,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 129564,
+          "threads": 9,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7626752
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 69804,
+          "threads": 6,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 14348288
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 100
+    },
+    {
+      "name": "final-read-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-read-counts.json.gz",
+      "raw_sha256": "4f6803a1ce070d6081275b09a5429705425600d24b62b7f4097b28fef0ac34a9",
+      "gzip_sha256": "9f9b7e91acd9bcbd8b9092d9934f3cdfee0bee4b5241fa7a8b58387ab5adad0f",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-read-counts.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 1,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 1659.185828,
+          "max_ms": 1659.185828,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 1818.883693,
+          "max_ms": 1818.883693,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 1672.61971,
+          "max_ms": 1672.61971,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 1255.226036,
+          "max_ms": 1255.226036,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 1684.071763,
+          "max_ms": 1684.071763,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 1213.166361,
+          "max_ms": 1213.166361,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 2354.728478,
+          "max_ms": 2354.728478,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 1,
+          "min_ms": 283.497254,
+          "max_ms": 283.497254,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 1,
+          "min_ms": 631.130946,
+          "max_ms": 631.130946,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 1,
+          "min_ms": 660.658713,
+          "max_ms": 660.658713,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 1,
+          "min_ms": 274.31822,
+          "max_ms": 274.31822,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 1,
+          "min_ms": 208.467623,
+          "max_ms": 208.467623,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 67400,
+          "threads": 7,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 8192,
+          "write_bytes": 12419072
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25976,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 81940,
+          "threads": 23,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 129716,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6541312
+        }
+      },
+      "resident_after": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 69428,
+          "threads": 7,
+          "fds": 29,
+          "stack_kib": 132,
+          "read_bytes": 8192,
+          "write_bytes": 14323712
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25980,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 82832,
+          "threads": 23,
+          "fds": 16,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 131780,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7626752
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 5
+    },
+    {
+      "name": "final-narrow.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-narrow.json.gz",
+      "raw_sha256": "c9f267e86fc0f5124dca86494ef3d8924121a0a4b00bdfaf301aba8361bebf3f",
+      "gzip_sha256": "5812f14a8ca97edfd094d0bb2b538bb343e7dbeeb1fd9fdafe4ecc2a429d44ae",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-narrow.json",
+        "repeat": 20,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 20,
+          "min_ms": 686.377834,
+          "max_ms": 914.29751,
+          "p50_ms": 806.429246,
+          "p95_ms": 893.934109,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 20,
+          "min_ms": 816.070618,
+          "max_ms": 969.107211,
+          "p50_ms": 852.430468,
+          "p95_ms": 917.010969,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 20,
+          "min_ms": 682.173044,
+          "max_ms": 836.927607,
+          "p50_ms": 791.174247,
+          "p95_ms": 827.756431,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 20,
+          "min_ms": 684.286087,
+          "max_ms": 903.988469,
+          "p50_ms": 760.810446,
+          "p95_ms": 845.054279,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 20,
+          "min_ms": 751.779724,
+          "max_ms": 918.636935,
+          "p50_ms": 830.050087,
+          "p95_ms": 900.571293,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 20,
+          "min_ms": 659.105657,
+          "max_ms": 852.229513,
+          "p50_ms": 745.532441,
+          "p95_ms": 817.741456,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 20,
+          "min_ms": 1107.666827,
+          "max_ms": 1303.223613,
+          "p50_ms": 1173.769232,
+          "p95_ms": 1276.463633,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 63948,
+          "threads": 21,
+          "fds": 14,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24236,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 53724,
+          "threads": 7,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 3641344
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 121868,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 1380352
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 81004,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 27924,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 97304,
+          "threads": 8,
+          "fds": 32,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 41189376
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 315748,
+          "threads": 8,
+          "fds": 11,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 23670784
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 140,
+      "read_samples": 0
+    },
+    {
+      "name": "final-wide.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-wide.json.gz",
+      "raw_sha256": "c879b5bdfea5f7013ffc051424fe6dc168116f1601722b8a1eb6a83fc744b8e6",
+      "gzip_sha256": "f86271e65acb24ea9ce06b95a8a5be0acbcaa5362ae4d35f5c4571ffbe4f844b",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-wide.json",
+        "repeat": 3,
+        "schema_profile": "wide",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 12454.059004,
+          "max_ms": 13652.522684,
+          "p50_ms": 13462.584716,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 830.989468,
+          "max_ms": 925.656425,
+          "p50_ms": 857.174955,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 797.532883,
+          "max_ms": 896.636213,
+          "p50_ms": 849.785314,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 772.892284,
+          "max_ms": 841.051477,
+          "p50_ms": 805.554611,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 827.347117,
+          "max_ms": 866.379669,
+          "p50_ms": 842.1399,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 772.332238,
+          "max_ms": 847.262625,
+          "p50_ms": 818.426989,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 33184.53846,
+          "max_ms": 34440.140342,
+          "p50_ms": 34389.089146,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 72864,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 135240,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7327744
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 71336,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 14868480
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25588,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5200,
+          "read_bytes": 0,
+          "write_bytes": 0
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 77440,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 317224,
+          "threads": 9,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 31240192
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 123120,
+          "threads": 8,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 64188416
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 26028,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5200,
+          "read_bytes": 0,
+          "write_bytes": 0
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "final-nested.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-nested.json.gz",
+      "raw_sha256": "0f7a104540c5a5e558bb624bc0628d78b55acb8e0647e81edeca2765c2e6afb0",
+      "gzip_sha256": "d5812b592ecd0a673805caac070ace99258de12c6519d2636a50d1ac7db5d3cf",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-nested.json",
+        "repeat": 3,
+        "schema_profile": "nested",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 10743.940081,
+          "max_ms": 11997.838842,
+          "p50_ms": 11920.395695,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 848.369322,
+          "max_ms": 1141.145863,
+          "p50_ms": 886.032426,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 763.555071,
+          "max_ms": 852.232793,
+          "p50_ms": 843.665111,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 818.37289,
+          "max_ms": 944.06554,
+          "p50_ms": 902.552496,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 895.957537,
+          "max_ms": 943.486555,
+          "p50_ms": 901.667037,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 765.125492,
+          "max_ms": 859.231597,
+          "p50_ms": 795.440993,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 26597.674035,
+          "max_ms": 30157.4209,
+          "p50_ms": 29616.234095,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 65176,
+          "threads": 8,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 10285056
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 26200,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 7008,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 72424,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 126972,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 4894720
+        }
+      },
+      "resident_after": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 101764,
+          "threads": 8,
+          "fds": 32,
+          "stack_kib": 132,
+          "read_bytes": 8192,
+          "write_bytes": 45166592
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 27860,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 7020,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 80784,
+          "threads": 23,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 306732,
+          "threads": 8,
+          "fds": 11,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 24432640
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "final-retained.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-retained.json.gz",
+      "raw_sha256": "f85e10901683a240af7815ee202724d9be75bad060bc23ec416ff5b982e82ff6",
+      "gzip_sha256": "7bfbe9dc5db9b696c0b7e8b0d756fdba57804cb8979a869f0eea59bd35087e9a",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-retained.json",
+        "repeat": 3,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 1,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 927.989992,
+          "max_ms": 1023.072987,
+          "p50_ms": 993.521298,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 974.415865,
+          "max_ms": 1008.003976,
+          "p50_ms": 997.480423,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 816.489886,
+          "max_ms": 861.361639,
+          "p50_ms": 837.337345,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 785.430848,
+          "max_ms": 824.791053,
+          "p50_ms": 823.250516,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 876.287199,
+          "max_ms": 1015.373769,
+          "p50_ms": 1010.653572,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 689.097107,
+          "max_ms": 844.140626,
+          "p50_ms": 839.349199,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 1372.721077,
+          "max_ms": 1459.242119,
+          "p50_ms": 1430.328027,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [
+        92
+      ],
+      "reader_failures": [],
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 79992,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24036,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 126596,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6516736
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 68984,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 12443648
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 89012,
+          "threads": 24,
+          "fds": 19,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24040,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 143724,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 10055680
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 76908,
+          "threads": 7,
+          "fds": 32,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 18214912
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "final-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-counts.json.gz",
+      "raw_sha256": "69dcc4a463b9581d857edd959e1614cea92de33fbab37a70d68e82c226b27a12",
+      "gzip_sha256": "4367d142c9dbd253b30d916876d83031170e34c04252d6a1ea6a386d22649914",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-final-counts.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "9827a60b1be49d8a3aa3a8c49d536fff12bdff7a8a5cea28efea7ea306fafaa4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "sql_gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "board": "fa43a0689dda006aab4bb117265ada741cd84ceeb2ed8a3f33baa8b55de5e664"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 1142.960909,
+          "max_ms": 1142.960909,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 1263.023465,
+          "max_ms": 1263.023465,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 1161.577499,
+          "max_ms": 1161.577499,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 1183.805315,
+          "max_ms": 1183.805315,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 1298.039696,
+          "max_ms": 1298.039696,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 1107.224963,
+          "max_ms": 1107.224963,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 1876.59216,
+          "max_ms": 1876.59216,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "minio": {
+          "samples": 1,
+          "rss_kib": 120572,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 1380352
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 65392,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24240,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 54100,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 3608576
+        }
+      },
+      "resident_after": {
+        "minio": {
+          "samples": 1,
+          "rss_kib": 122808,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 2191360
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 74572,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24304,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 56608,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 5210112
+        }
+      },
+      "group": "final",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 0
+    },
+    {
+      "name": "baseline-reads.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/baseline-reads.json.gz",
+      "raw_sha256": "221375e8b6d73c630c37c1cee0b2f07fdc20d4393e85454a90bd1cca4d92ca8b",
+      "gzip_sha256": "984e19245bdd64518e9fa50c57e694c9620e32f6bbeb5481511a35c57434fbd9",
+      "source_revision": "70c58ffd827d227fffde2569122e03ee8ac5d52d",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+        "node": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+        "host": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-reads-supported.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "read_repeat": 20,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 6344.473001,
+          "max_ms": 6344.473001,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 3477.303007,
+          "max_ms": 3477.303007,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 938.733345,
+          "max_ms": 938.733345,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 870.886135,
+          "max_ms": 870.886135,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 4428.519279,
+          "max_ms": 4428.519279,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 939.689508,
+          "max_ms": 939.689508,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 9251.678364,
+          "max_ms": 9251.678364,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 20,
+          "min_ms": 183.015071,
+          "max_ms": 247.10835,
+          "p50_ms": 212.449228,
+          "p95_ms": 240.098067,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 20,
+          "min_ms": 421.508597,
+          "max_ms": 530.158323,
+          "p50_ms": 451.512492,
+          "p95_ms": 501.834495,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 20,
+          "min_ms": 696.504836,
+          "max_ms": 882.289453,
+          "p50_ms": 833.650122,
+          "p95_ms": 879.834063,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 20,
+          "min_ms": 122.2637,
+          "max_ms": 182.938653,
+          "p50_ms": 162.259711,
+          "p95_ms": 174.695356,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 20,
+          "min_ms": 100.131438,
+          "max_ms": 145.944233,
+          "p50_ms": 119.861722,
+          "p95_ms": 139.373027,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 96860,
+          "threads": 8,
+          "fds": 26,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 55803904
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 20020,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 3152,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 52980,
+          "threads": 23,
+          "fds": 10,
+          "stack_kib": 1808,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 300208,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 20426752
+        }
+      },
+      "resident_after": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 96860,
+          "threads": 6,
+          "fds": 24,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 68485120
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 20048,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 3152,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 53664,
+          "threads": 23,
+          "fds": 11,
+          "stack_kib": 1808,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 314016,
+          "threads": 8,
+          "fds": 8,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 24809472
+        }
+      },
+      "group": "baseline",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 100
+    },
+    {
+      "name": "baseline-read-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/baseline-read-counts.json.gz",
+      "raw_sha256": "bdde767fd7da382b039daa2029aed8a60a1a9136f6b33b3186e12133e61067ac",
+      "gzip_sha256": "d20dd6b30a9668a789f0d36baee0393d7274c4b186768a2a79f7fc72f8218d59",
+      "source_revision": "70c58ffd827d227fffde2569122e03ee8ac5d52d",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+        "node": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+        "host": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-read-counts-supported.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "read_repeat": 1,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 8562.084978,
+          "max_ms": 8562.084978,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 5637.813118,
+          "max_ms": 5637.813118,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 1685.317898,
+          "max_ms": 1685.317898,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 1412.420631,
+          "max_ms": 1412.420631,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 7061.291118,
+          "max_ms": 7061.291118,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 1357.797021,
+          "max_ms": 1357.797021,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 13737.662727,
+          "max_ms": 13737.662727,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 1,
+          "min_ms": 348.088767,
+          "max_ms": 348.088767,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 1,
+          "min_ms": 716.790154,
+          "max_ms": 716.790154,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 1,
+          "min_ms": 1321.742723,
+          "max_ms": 1321.742723,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 1,
+          "min_ms": 258.872361,
+          "max_ms": 258.872361,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 1,
+          "min_ms": 197.621509,
+          "max_ms": 197.621509,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 51976,
+          "threads": 22,
+          "fds": 10,
+          "stack_kib": 1808,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 19300,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 3152,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 97564,
+          "threads": 8,
+          "fds": 26,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 56520704
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 310484,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 20746240
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 51976,
+          "threads": 22,
+          "fds": 11,
+          "stack_kib": 1808,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 20772,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 3152,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 97564,
+          "threads": 8,
+          "fds": 26,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 68669440
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 315056,
+          "threads": 9,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 25169920
+        }
+      },
+      "group": "baseline",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 5
+    },
+    {
+      "name": "before-prefetch-narrow.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-narrow.json.gz",
+      "raw_sha256": "63c37796150007dcef14a2e110f2283018283b7752fd6d1e0fb81e237094c40c",
+      "gzip_sha256": "9d8edd6d1e488f2c65d92e531f6ee94d6a432670ba8647bb6ff51678357a0661",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-narrow.json",
+        "repeat": 20,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 20,
+          "min_ms": 681.747839,
+          "max_ms": 913.355511,
+          "p50_ms": 831.713963,
+          "p95_ms": 888.055135,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 20,
+          "min_ms": 736.281565,
+          "max_ms": 879.669516,
+          "p50_ms": 797.974032,
+          "p95_ms": 868.594575,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 20,
+          "min_ms": 690.775263,
+          "max_ms": 883.141154,
+          "p50_ms": 784.786291,
+          "p95_ms": 843.959985,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 20,
+          "min_ms": 674.14337,
+          "max_ms": 844.316945,
+          "p50_ms": 747.306642,
+          "p95_ms": 818.1061,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 20,
+          "min_ms": 720.246384,
+          "max_ms": 892.125466,
+          "p50_ms": 816.116462,
+          "p95_ms": 872.784898,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 20,
+          "min_ms": 641.598874,
+          "max_ms": 877.001321,
+          "p50_ms": 747.013738,
+          "p95_ms": 838.024944,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 20,
+          "min_ms": 1033.080852,
+          "max_ms": 1282.724657,
+          "p50_ms": 1185.465285,
+          "p95_ms": 1280.716272,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24240,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 68516,
+          "threads": 21,
+          "fds": 14,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 53184,
+          "threads": 7,
+          "fds": 29,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 3670016
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 121768,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 1380352
+        }
+      },
+      "resident_after": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25932,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 79672,
+          "threads": 23,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 97472,
+          "threads": 7,
+          "fds": 32,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 41254912
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 312576,
+          "threads": 8,
+          "fds": 11,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 23670784
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 140,
+      "read_samples": 0
+    },
+    {
+      "name": "before-prefetch-wide.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-wide.json.gz",
+      "raw_sha256": "ad7e527794381804713c3fe8821a65fb24b84aebe07a10a81b1440aa282a4efc",
+      "gzip_sha256": "f4925b8c640709691ea874c2ece4f3ceb0ceb77ba5e889434c0dce15507f6943",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-wide.json",
+        "repeat": 3,
+        "schema_profile": "wide",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 12488.855877,
+          "max_ms": 13743.512452,
+          "p50_ms": 13022.103056,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 908.061485,
+          "max_ms": 965.320899,
+          "p50_ms": 928.759588,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 815.646562,
+          "max_ms": 856.065527,
+          "p50_ms": 815.917558,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 739.763614,
+          "max_ms": 906.322984,
+          "p50_ms": 826.124056,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 812.553342,
+          "max_ms": 944.608896,
+          "p50_ms": 881.816875,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 757.854509,
+          "max_ms": 853.376457,
+          "p50_ms": 826.227513,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 32297.382679,
+          "max_ms": 35808.069476,
+          "p50_ms": 34240.704834,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24392,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5200,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 73024,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 130732,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7327744
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 71468,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 14831616
+        }
+      },
+      "resident_after": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24180,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5200,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 75960,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 317620,
+          "threads": 9,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 31240192
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 119460,
+          "threads": 8,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 64012288
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "before-prefetch-nested.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-nested.json.gz",
+      "raw_sha256": "6e93e6939df50c8796dd19e924923c0d0fca55791b0f104d9700bebdc7931758",
+      "gzip_sha256": "693f9a9201a40ae3a36f0a7c1d77b31d64e7fee7068a7c805bae3cec1a11521f",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-nested.json",
+        "repeat": 3,
+        "schema_profile": "nested",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 10247.168113,
+          "max_ms": 11357.989248,
+          "p50_ms": 10866.917728,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 763.378109,
+          "max_ms": 907.973488,
+          "p50_ms": 765.711491,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 760.505275,
+          "max_ms": 833.732,
+          "p50_ms": 822.764254,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 751.139456,
+          "max_ms": 866.194397,
+          "p50_ms": 811.019742,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 768.789733,
+          "max_ms": 878.171375,
+          "p50_ms": 840.402798,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 679.186546,
+          "max_ms": 751.05833,
+          "p50_ms": 697.261608,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 25996.8571,
+          "max_ms": 28421.157115,
+          "p50_ms": 26759.941142,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 26200,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 7008,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 127028,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 4894720
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 65356,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 10338304
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 71872,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        }
+      },
+      "resident_after": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 29688,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 7020,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 309088,
+          "threads": 8,
+          "fds": 11,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 24702976
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 103024,
+          "threads": 7,
+          "fds": 32,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 45395968
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 77584,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "before-prefetch-retained.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-retained.json.gz",
+      "raw_sha256": "1540df52fc2bbca76a5eb36508f9d35600d2e85213a62f91fd619011e29fc90a",
+      "gzip_sha256": "028a52158a2ce432a757b68af5351df9e08b627fdcf2f7657031f524897ea3a9",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-retained.json",
+        "repeat": 3,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 1,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "min_ms": 985.45581,
+          "max_ms": 1037.519536,
+          "p50_ms": 1004.671317,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "min_ms": 866.64874,
+          "max_ms": 985.571824,
+          "p50_ms": 922.59308,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "min_ms": 829.447623,
+          "max_ms": 864.679229,
+          "p50_ms": 850.123821,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "min_ms": 727.682118,
+          "max_ms": 842.419233,
+          "p50_ms": 803.226086,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "min_ms": 952.85697,
+          "max_ms": 1030.210651,
+          "p50_ms": 1005.50446,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "min_ms": 775.404447,
+          "max_ms": 862.740434,
+          "p50_ms": 846.689667,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "min_ms": 1361.201205,
+          "max_ms": 1436.044412,
+          "p50_ms": 1397.855962,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [
+        87
+      ],
+      "reader_failures": [],
+      "resident_before": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 79956,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 68516,
+          "threads": 7,
+          "fds": 31,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 12521472
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24032,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 132072,
+          "threads": 8,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6516736
+        }
+      },
+      "resident_after": {
+        "node": {
+          "samples": 2,
+          "rss_kib": 88972,
+          "threads": 25,
+          "fds": 19,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 77332,
+          "threads": 7,
+          "fds": 33,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 18280448
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24328,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 150976,
+          "threads": 8,
+          "fds": 11,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 10055680
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 21,
+      "read_samples": 0
+    },
+    {
+      "name": "before-prefetch-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-counts.json.gz",
+      "raw_sha256": "25fb37ce1198508fe8d301d94e92d14bd6bfd7e757b4cf35d9585a5d2cbf7f7e",
+      "gzip_sha256": "980db030b6dd387b191c82e0d846dd1d1aea6298b4d4c4f5551736b8f3119042",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-counts.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 1452.70934,
+          "max_ms": 1452.70934,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 1330.48185,
+          "max_ms": 1330.48185,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 1068.480009,
+          "max_ms": 1068.480009,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 1101.131602,
+          "max_ms": 1101.131602,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 1327.167948,
+          "max_ms": 1327.167948,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 1229.694387,
+          "max_ms": 1229.694387,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 1904.175095,
+          "max_ms": 1904.175095,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 53324,
+          "threads": 7,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 3604480
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24236,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 62976,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 121732,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 1380352
+        }
+      },
+      "resident_after": {
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 56504,
+          "threads": 7,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 5210112
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24304,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 74904,
+          "threads": 22,
+          "fds": 17,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 123852,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 2195456
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 0
+    },
+    {
+      "name": "before-prefetch-reads.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-reads.json.gz",
+      "raw_sha256": "87810c808daccc72fac894672b965d5a5113bbcf0126acd75de3379176b579a9",
+      "gzip_sha256": "c94a1ce3572204904d8c9018cd5629e5ba1ef499efb7ce0b8ed367932d1d00db",
+      "source_revision": "70c58ffd827d227fffde2569122e03ee8ac5d52d",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-reads-supported.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 20,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 1212.58016,
+          "max_ms": 1212.58016,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 1128.451982,
+          "max_ms": 1128.451982,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 801.506854,
+          "max_ms": 801.506854,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 812.875837,
+          "max_ms": 812.875837,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 815.490581,
+          "max_ms": 815.490581,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 783.585409,
+          "max_ms": 783.585409,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 1335.5662,
+          "max_ms": 1335.5662,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 20,
+          "min_ms": 189.547547,
+          "max_ms": 248.426675,
+          "p50_ms": 227.239555,
+          "p95_ms": 247.919885,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 20,
+          "min_ms": 309.22788,
+          "max_ms": 387.534178,
+          "p50_ms": 345.118732,
+          "p95_ms": 382.676987,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 20,
+          "min_ms": 338.122779,
+          "max_ms": 414.904527,
+          "p50_ms": 386.254999,
+          "p95_ms": 411.087259,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 20,
+          "min_ms": 172.376995,
+          "max_ms": 205.975087,
+          "p50_ms": 197.155322,
+          "p95_ms": 205.41955,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 20,
+          "min_ms": 139.899075,
+          "max_ms": 180.27372,
+          "p50_ms": 158.746695,
+          "p95_ms": 177.05241,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "minio": {
+          "samples": 1,
+          "rss_kib": 130436,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6516736
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 79116,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24308,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 68460,
+          "threads": 8,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 12472320
+        }
+      },
+      "resident_after": {
+        "minio": {
+          "samples": 1,
+          "rss_kib": 131984,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7626752
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 79492,
+          "threads": 22,
+          "fds": 16,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 24304,
+          "threads": 6,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 70148,
+          "threads": 6,
+          "fds": 30,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 14356480
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 100
+    },
+    {
+      "name": "before-prefetch-read-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/before-prefetch-read-counts.json.gz",
+      "raw_sha256": "2569cf88ed539d6ed37993a990af5d14fdb7a2a079ca462386d27177936b254d",
+      "gzip_sha256": "fd93ab8e26f7896abac1ab188f0459f4e8201c3a66f0f92bd95e01e9db62f79c",
+      "source_revision": "70c58ffd827d227fffde2569122e03ee8ac5d52d",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+        "node": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+        "host": "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-foundation-read-counts-supported.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+        "readers": 0,
+        "read_repeat": 1,
+        "client": null
+      },
+      "executables": {
+        "cli": "87c1573edb879d8ff94f34d93f572cf6898ea718aebc17c1b6e13e324af2d407",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "query_host": "6fcfd86946ad2019929bd1dac24b5a48277a821fe111720892265c6206f01fc2",
+        "sql_gateway": "b724c295a77c1bcda13db3490bca1fe82af239ada4a0deb5cc2973a8ef7f8a7e",
+        "board": "e5b8c0e259f9db8768059e849e0732ef526cc70d76c2525e86902bfa16296565"
+      },
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "min_ms": 1691.485423,
+          "max_ms": 1691.485423,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "min_ms": 1549.951223,
+          "max_ms": 1549.951223,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "min_ms": 1470.765008,
+          "max_ms": 1470.765008,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "min_ms": 1369.6931,
+          "max_ms": 1369.6931,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "min_ms": 1673.375277,
+          "max_ms": 1673.375277,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "min_ms": 1307.886641,
+          "max_ms": 1307.886641,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "min_ms": 2510.746913,
+          "max_ms": 2510.746913,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "read_distributions": {
+        "point": {
+          "samples": 1,
+          "min_ms": 366.727409,
+          "max_ms": 366.727409,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "range": {
+          "samples": 1,
+          "min_ms": 608.888713,
+          "max_ms": 608.888713,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "full": {
+          "samples": 1,
+          "min_ms": 735.757331,
+          "max_ms": 735.757331,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "empty": {
+          "samples": 1,
+          "min_ms": 329.080542,
+          "max_ms": 329.080542,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "limit_zero": {
+          "samples": 1,
+          "min_ms": 226.786279,
+          "max_ms": 226.786279,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "read_order": "Unordered selection; the oracle sorts rows after timing.",
+      "resident_before": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25904,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 132176,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 6541312
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 79384,
+          "threads": 22,
+          "fds": 15,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 67852,
+          "threads": 8,
+          "fds": 29,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 12488704
+        }
+      },
+      "resident_after": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 25912,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 5052,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 132728,
+          "threads": 8,
+          "fds": 9,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 7626752
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 79936,
+          "threads": 22,
+          "fds": 16,
+          "stack_kib": 1924,
+          "read_bytes": 0,
+          "write_bytes": 4096
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 70020,
+          "threads": 8,
+          "fds": 29,
+          "stack_kib": 132,
+          "read_bytes": 4096,
+          "write_bytes": 14376960
+        }
+      },
+      "group": "before-prefetch",
+      "status": "complete",
+      "samples": 7,
+      "read_samples": 5
+    },
+    {
+      "name": "failed-baseline-ordered-reads.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/failed-baseline-ordered-reads.json.gz",
+      "raw_sha256": "3bfa726921c9bd9b648f5db94332eb41f5c09aa03bd4fd41323841c22b273cfa",
+      "gzip_sha256": "ab23919bf6ecd4b84ca4ce145d99934ab857735bedd2785b8c5107a3a2825d77",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+        "node": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+        "host": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-reads.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "read_repeat": 20,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "unknown_outcomes": 0,
+      "errors": [
+        "RuntimeError: sql.unsupported_construct"
+      ],
+      "reader_queries": [],
+      "reader_failures": [],
+      "resident_before": {
+        "query_host": {
+          "samples": 3,
+          "rss_kib": 18944,
+          "threads": 7,
+          "fds": 5,
+          "stack_kib": 3152,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "ursula": {
+          "samples": 1,
+          "rss_kib": 96256,
+          "threads": 8,
+          "fds": 26,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 55685120
+        },
+        "node": {
+          "samples": 2,
+          "rss_kib": 54132,
+          "threads": 23,
+          "fds": 10,
+          "stack_kib": 1808,
+          "read_bytes": 0,
+          "write_bytes": 0
+        },
+        "minio": {
+          "samples": 1,
+          "rss_kib": 306772,
+          "threads": 9,
+          "fds": 10,
+          "stack_kib": 132,
+          "read_bytes": 0,
+          "write_bytes": 20426752
+        }
+      },
+      "group": "failed-harness",
+      "status": "failed",
+      "samples": 7,
+      "read_samples": 1
+    },
+    {
+      "name": "interrupted-baseline-ordered-read-counts.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/interrupted-baseline-ordered-read-counts.json.gz",
+      "raw_sha256": "9980e9ed474fb8fa5eb9caeb4de5dbd7a275efe9d5004fb26b9a882b581e3075",
+      "gzip_sha256": "268e9a6c33f7aba763723207595b40993acb4fc6d36638287df55f7e4706dc3c",
+      "source_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "source_dirty": false,
+      "controls": {
+        "cli": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+        "node": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+        "host": "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-read-counts.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "read_repeat": 1,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "unknown_outcomes": 0,
+      "errors": [
+        "KeyboardInterrupt: "
+      ],
+      "reader_queries": [],
+      "reader_failures": [],
+      "group": "failed-harness",
+      "status": "interrupted",
+      "samples": 0,
+      "read_samples": 0,
+      "limits": "The raw running report contains only its last flushed observations. Its counters are not a terminal classification of any work outstanding at interruption."
+    },
+    {
+      "name": "baseline-wire-retry.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/baseline-wire-retry.json.gz",
+      "raw_sha256": "668c67727cbd861aea7a0fe16e0089d6b12921a90306fa3b7dcc65016605ed61",
+      "gzip_sha256": "eac6c9d9db5e107cfc2e85eba9730e623417b0132555018e20342599f1f1aed4",
+      "group": "baseline",
+      "status": "complete",
+      "samples": 436,
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+      "executables": {
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "catalog": "980950565ef542abe8cb2a82e219bf879f9a1256ed312e5c3e335dab96dd984d",
+        "ledger": "3cf4ef37b2902c771ceb5c54229059dfbd8771e5d881bcc4132855936b8f69a3",
+        "host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "configuration_host": "c2f3b6ac1ade43970d76722b115c1146136c09a0d6068dd7191db039129e0977",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef"
+      },
+      "distributions": {
+        "postgres_literal:point": {
+          "samples": 20,
+          "min_ms": 3071.040655,
+          "max_ms": 3436.17618,
+          "p50_ms": 3274.811822,
+          "p95_ms": 3417.947456,
+          "p99_ms": null
+        },
+        "postgres_literal:range": {
+          "samples": 20,
+          "min_ms": 3973.746154,
+          "max_ms": 4515.114933,
+          "p50_ms": 4170.318818,
+          "p95_ms": 4485.433307,
+          "p99_ms": null
+        },
+        "postgres_literal:full": {
+          "samples": 20,
+          "min_ms": 4555.366774,
+          "max_ms": 4866.240274,
+          "p50_ms": 4713.451628,
+          "p95_ms": 4850.640179,
+          "p99_ms": null
+        },
+        "postgres_literal:empty": {
+          "samples": 20,
+          "min_ms": 2534.144307,
+          "max_ms": 2905.570558,
+          "p50_ms": 2729.483699,
+          "p95_ms": 2853.115999,
+          "p99_ms": null
+        },
+        "postgres_literal:limit_zero": {
+          "samples": 20,
+          "min_ms": 2520.061124,
+          "max_ms": 2789.975855,
+          "p50_ms": 2665.073145,
+          "p95_ms": 2789.210106,
+          "p99_ms": null
+        },
+        "postgres_prepared:point": {
+          "samples": 20,
+          "min_ms": 2608.540526,
+          "max_ms": 3018.433987,
+          "p50_ms": 2845.697879,
+          "p95_ms": 2965.575714,
+          "p99_ms": null
+        },
+        "postgres_prepared:range": {
+          "samples": 20,
+          "min_ms": 3655.672823,
+          "max_ms": 4119.109118,
+          "p50_ms": 3869.201869,
+          "p95_ms": 4029.642081,
+          "p99_ms": null
+        },
+        "postgres_prepared:full": {
+          "samples": 20,
+          "min_ms": 4128.926526,
+          "max_ms": 4544.915632,
+          "p50_ms": 4316.364009,
+          "p95_ms": 4540.029183,
+          "p99_ms": null
+        },
+        "postgres_prepared:empty": {
+          "samples": 20,
+          "min_ms": 2275.486588,
+          "max_ms": 2456.173038,
+          "p50_ms": 2359.707317,
+          "p95_ms": 2456.018869,
+          "p99_ms": null
+        },
+        "postgres_prepared:limit_zero": {
+          "samples": 20,
+          "min_ms": 2147.344949,
+          "max_ms": 2490.459477,
+          "p50_ms": 2311.618475,
+          "p95_ms": 2437.539713,
+          "p99_ms": null
+        },
+        "mysql_literal:point": {
+          "samples": 20,
+          "min_ms": 2353.156645,
+          "max_ms": 2647.038898,
+          "p50_ms": 2465.915052,
+          "p95_ms": 2573.639507,
+          "p99_ms": null
+        },
+        "mysql_literal:range": {
+          "samples": 20,
+          "min_ms": 3192.769086,
+          "max_ms": 3611.786535,
+          "p50_ms": 3431.917306,
+          "p95_ms": 3596.498262,
+          "p99_ms": null
+        },
+        "mysql_literal:full": {
+          "samples": 20,
+          "min_ms": 3765.329329,
+          "max_ms": 4232.557363,
+          "p50_ms": 3915.992548,
+          "p95_ms": 4157.395015,
+          "p99_ms": null
+        },
+        "mysql_literal:empty": {
+          "samples": 20,
+          "min_ms": 1864.500554,
+          "max_ms": 2136.948282,
+          "p50_ms": 1967.411965,
+          "p95_ms": 2054.427106,
+          "p99_ms": null
+        },
+        "mysql_literal:limit_zero": {
+          "samples": 20,
+          "min_ms": 1876.169064,
+          "max_ms": 2135.23457,
+          "p50_ms": 1951.140531,
+          "p95_ms": 2037.694498,
+          "p99_ms": null
+        },
+        "mysql_prepared:point": {
+          "samples": 20,
+          "min_ms": 3209.669715,
+          "max_ms": 3612.885014,
+          "p50_ms": 3475.251664,
+          "p95_ms": 3611.180975,
+          "p99_ms": null
+        },
+        "mysql_prepared:range": {
+          "samples": 20,
+          "min_ms": 4177.079579,
+          "max_ms": 4743.171508,
+          "p50_ms": 4503.010554,
+          "p95_ms": 4641.044912,
+          "p99_ms": null
+        },
+        "mysql_prepared:full": {
+          "samples": 20,
+          "min_ms": 4706.438918,
+          "max_ms": 5220.407575,
+          "p50_ms": 4973.080331,
+          "p95_ms": 5121.313653,
+          "p99_ms": null
+        },
+        "mysql_prepared:empty": {
+          "samples": 20,
+          "min_ms": 2720.257609,
+          "max_ms": 3167.306302,
+          "p50_ms": 2917.812449,
+          "p95_ms": 3121.075186,
+          "p99_ms": null
+        },
+        "mysql_prepared:limit_zero": {
+          "samples": 20,
+          "min_ms": 2728.836999,
+          "max_ms": 3269.523494,
+          "p50_ms": 2951.749952,
+          "p95_ms": 3123.27549,
+          "p99_ms": null
+        },
+        "postgres_literal:insert": {
+          "samples": 3,
+          "min_ms": 21422.01901,
+          "max_ms": 24288.800798,
+          "p50_ms": 23259.256659,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_literal:update": {
+          "samples": 3,
+          "min_ms": 22108.49966,
+          "max_ms": 23552.295781,
+          "p50_ms": 22308.609857,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_literal:delete": {
+          "samples": 3,
+          "min_ms": 19971.858944,
+          "max_ms": 20879.724985,
+          "p50_ms": 20559.019797,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:insert": {
+          "samples": 3,
+          "min_ms": 23289.625137,
+          "max_ms": 23914.771175,
+          "p50_ms": 23644.236206,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:update": {
+          "samples": 3,
+          "min_ms": 22716.175699,
+          "max_ms": 23829.920348,
+          "p50_ms": 23086.870592,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:delete": {
+          "samples": 3,
+          "min_ms": 20901.806191,
+          "max_ms": 21757.001383,
+          "p50_ms": 21626.784617,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:insert": {
+          "samples": 3,
+          "min_ms": 22550.415873,
+          "max_ms": 25505.840893,
+          "p50_ms": 23141.760411,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:update": {
+          "samples": 3,
+          "min_ms": 23245.070235,
+          "max_ms": 25237.529303,
+          "p50_ms": 23340.98171,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:delete": {
+          "samples": 3,
+          "min_ms": 20665.410316,
+          "max_ms": 23566.649324,
+          "p50_ms": 21094.870476,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:insert": {
+          "samples": 3,
+          "min_ms": 24385.602289,
+          "max_ms": 26637.530711,
+          "p50_ms": 24459.19336,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:update": {
+          "samples": 3,
+          "min_ms": 22484.045407,
+          "max_ms": 26129.171701,
+          "p50_ms": 22819.820867,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:delete": {
+          "samples": 3,
+          "min_ms": 20715.039997,
+          "max_ms": 24346.205434,
+          "p50_ms": 22805.279241,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "original_log_sha256": "668c67727cbd861aea7a0fe16e0089d6b12921a90306fa3b7dcc65016605ed61"
+    },
+    {
+      "name": "final-wire.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-wire.json.gz",
+      "raw_sha256": "b66b83db3b9e86b59f871d0927e5a8f4a84985f67d620f49760d9204d6cae92c",
+      "gzip_sha256": "19105ed0651b227480b1bdf9461d77c2d7b997af70651fa88820a0a6176d4fea",
+      "group": "final",
+      "status": "complete",
+      "samples": 436,
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "executables": {
+        "node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "catalog": "fcdeac743d99ae594a9ab22c90a148ded28f1331929b278b7a69452f950308f1",
+        "ledger": "b08bd69f1045c5a044eeb901a3add20d19d750df97c2df48536691fc0434b32b",
+        "host": "b568ff46b744435157e4c0ef51116daa7e6b3825ecb11eaa4065b1640567e41b",
+        "gateway": "2f52901cc392e226b2184d3a2fea7c4b1ecfd48c4ef43864d56bbb60beb9993c",
+        "configuration_host": "d2e16d0b7ab90c79cdd6f5decc12cec1068a3f8d6b4990ec69126f7dbdd254d7",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef"
+      },
+      "distributions": {
+        "postgres_literal:point": {
+          "samples": 20,
+          "min_ms": 1937.10509,
+          "max_ms": 2123.600537,
+          "p50_ms": 2011.503472,
+          "p95_ms": 2070.843931,
+          "p99_ms": null
+        },
+        "postgres_literal:range": {
+          "samples": 20,
+          "min_ms": 1907.729174,
+          "max_ms": 2094.936504,
+          "p50_ms": 2028.769329,
+          "p95_ms": 2082.442232,
+          "p99_ms": null
+        },
+        "postgres_literal:full": {
+          "samples": 20,
+          "min_ms": 1867.726624,
+          "max_ms": 2095.008245,
+          "p50_ms": 2025.526906,
+          "p95_ms": 2091.717712,
+          "p99_ms": null
+        },
+        "postgres_literal:empty": {
+          "samples": 20,
+          "min_ms": 1865.728548,
+          "max_ms": 2038.304756,
+          "p50_ms": 1989.969368,
+          "p95_ms": 2034.141205,
+          "p99_ms": null
+        },
+        "postgres_literal:limit_zero": {
+          "samples": 20,
+          "min_ms": 1853.001466,
+          "max_ms": 2099.974424,
+          "p50_ms": 1980.317009,
+          "p95_ms": 2059.020431,
+          "p99_ms": null
+        },
+        "postgres_prepared:point": {
+          "samples": 20,
+          "min_ms": 1613.639034,
+          "max_ms": 1800.735697,
+          "p50_ms": 1721.524677,
+          "p95_ms": 1794.039151,
+          "p99_ms": null
+        },
+        "postgres_prepared:range": {
+          "samples": 20,
+          "min_ms": 1571.907829,
+          "max_ms": 1856.890265,
+          "p50_ms": 1734.640312,
+          "p95_ms": 1825.274734,
+          "p99_ms": null
+        },
+        "postgres_prepared:full": {
+          "samples": 20,
+          "min_ms": 1582.979572,
+          "max_ms": 1797.861763,
+          "p50_ms": 1731.334278,
+          "p95_ms": 1784.419184,
+          "p99_ms": null
+        },
+        "postgres_prepared:empty": {
+          "samples": 20,
+          "min_ms": 1581.735298,
+          "max_ms": 1808.344895,
+          "p50_ms": 1689.777755,
+          "p95_ms": 1762.403265,
+          "p99_ms": null
+        },
+        "postgres_prepared:limit_zero": {
+          "samples": 20,
+          "min_ms": 1598.304787,
+          "max_ms": 1777.939633,
+          "p50_ms": 1702.369438,
+          "p95_ms": 1774.461253,
+          "p99_ms": null
+        },
+        "mysql_literal:point": {
+          "samples": 20,
+          "min_ms": 1352.541437,
+          "max_ms": 1521.003734,
+          "p50_ms": 1449.52672,
+          "p95_ms": 1491.214997,
+          "p99_ms": null
+        },
+        "mysql_literal:range": {
+          "samples": 20,
+          "min_ms": 1368.364277,
+          "max_ms": 1545.411208,
+          "p50_ms": 1432.552418,
+          "p95_ms": 1534.539915,
+          "p99_ms": null
+        },
+        "mysql_literal:full": {
+          "samples": 20,
+          "min_ms": 1356.828095,
+          "max_ms": 1539.727026,
+          "p50_ms": 1437.760579,
+          "p95_ms": 1523.087546,
+          "p99_ms": null
+        },
+        "mysql_literal:empty": {
+          "samples": 20,
+          "min_ms": 1341.610474,
+          "max_ms": 1543.017517,
+          "p50_ms": 1406.487731,
+          "p95_ms": 1498.660472,
+          "p99_ms": null
+        },
+        "mysql_literal:limit_zero": {
+          "samples": 20,
+          "min_ms": 1319.882027,
+          "max_ms": 1492.889768,
+          "p50_ms": 1399.81017,
+          "p95_ms": 1471.106846,
+          "p99_ms": null
+        },
+        "mysql_prepared:point": {
+          "samples": 20,
+          "min_ms": 2053.427943,
+          "max_ms": 2288.062293,
+          "p50_ms": 2167.966205,
+          "p95_ms": 2253.844156,
+          "p99_ms": null
+        },
+        "mysql_prepared:range": {
+          "samples": 20,
+          "min_ms": 1979.632446,
+          "max_ms": 2260.66809,
+          "p50_ms": 2142.365455,
+          "p95_ms": 2236.952487,
+          "p99_ms": null
+        },
+        "mysql_prepared:full": {
+          "samples": 20,
+          "min_ms": 2073.924916,
+          "max_ms": 2289.231595,
+          "p50_ms": 2158.912048,
+          "p95_ms": 2248.003304,
+          "p99_ms": null
+        },
+        "mysql_prepared:empty": {
+          "samples": 20,
+          "min_ms": 2103.216884,
+          "max_ms": 2195.483212,
+          "p50_ms": 2153.710322,
+          "p95_ms": 2191.41575,
+          "p99_ms": null
+        },
+        "mysql_prepared:limit_zero": {
+          "samples": 20,
+          "min_ms": 2031.228016,
+          "max_ms": 2202.384465,
+          "p50_ms": 2130.735584,
+          "p95_ms": 2189.253135,
+          "p99_ms": null
+        },
+        "postgres_literal:insert": {
+          "samples": 3,
+          "min_ms": 11899.096806,
+          "max_ms": 13630.974192,
+          "p50_ms": 13237.570454,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_literal:update": {
+          "samples": 3,
+          "min_ms": 12310.494165,
+          "max_ms": 12919.192992,
+          "p50_ms": 12815.552501,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_literal:delete": {
+          "samples": 3,
+          "min_ms": 11854.192899,
+          "max_ms": 13081.146879,
+          "p50_ms": 12807.7825,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:insert": {
+          "samples": 3,
+          "min_ms": 12556.543186,
+          "max_ms": 12905.219814,
+          "p50_ms": 12655.388526,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:update": {
+          "samples": 3,
+          "min_ms": 12884.072037,
+          "max_ms": 13785.211293,
+          "p50_ms": 13507.932762,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "postgres_prepared:delete": {
+          "samples": 3,
+          "min_ms": 12576.483437,
+          "max_ms": 13230.033096,
+          "p50_ms": 12592.23751,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:insert": {
+          "samples": 3,
+          "min_ms": 12707.374331,
+          "max_ms": 13033.362408,
+          "p50_ms": 13032.742706,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:update": {
+          "samples": 3,
+          "min_ms": 12467.63955,
+          "max_ms": 13612.560821,
+          "p50_ms": 13321.93901,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_literal:delete": {
+          "samples": 3,
+          "min_ms": 12584.469053,
+          "max_ms": 13454.479626,
+          "p50_ms": 13364.422325,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:insert": {
+          "samples": 3,
+          "min_ms": 13206.420436,
+          "max_ms": 14445.942023,
+          "p50_ms": 13382.730988,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:update": {
+          "samples": 3,
+          "min_ms": 13426.878488,
+          "max_ms": 13468.706307,
+          "p50_ms": 13466.20584,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "mysql_prepared:delete": {
+          "samples": 3,
+          "min_ms": 13063.592935,
+          "max_ms": 13311.097887,
+          "p50_ms": 13167.715503,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "original_log_sha256": "b66b83db3b9e86b59f871d0927e5a8f4a84985f67d620f49760d9204d6cae92c"
+    },
+    {
+      "name": "baseline-load.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/baseline-load.json.gz",
+      "raw_sha256": "75de8df1f57dfbd89abc0f5f0f854166337caac8214f42e0eface4c94e08657e",
+      "gzip_sha256": "1ac1700e274c9ae990af519f0c412b19a43a636f41ffbb2d3de4662e2ff67305",
+      "revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+      "dirty": true,
+      "binaries": {
+        "transit-node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "transit-growing-load-proof": "afb38629f29d77bede5c7ffdaba52eb37b88f20abb2c6f271652438a344711db"
+      },
+      "group": "baseline",
+      "status": "passed",
+      "samples": 0,
+      "read_samples": 0
+    },
+    {
+      "name": "final-load.json",
+      "kind": "measurement",
+      "path": "tests/mutation_latency/results/2026-10-19/final-load.json.gz",
+      "raw_sha256": "ebc3811734431c8ab3a378d258ac33ddd06c74289704290a552c96e312d0b578",
+      "gzip_sha256": "a530d1761fd3f7f6eff886cab0afa51769bdf0f6f061a8b98a733575c9b09cfe",
+      "revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "dirty": false,
+      "binaries": {
+        "transit-node": "70f9cd706cd6085446814c89234993754cf8fb85992ffd506251d27b65fc0298",
+        "transit-growing-load-proof": "e39a67b27ccc4b5e551c9d38a9a7699c8cc13bc2b8700a3d40a5d3f04727401c"
+      },
+      "group": "final",
+      "status": "passed",
+      "samples": 0,
+      "read_samples": 0
+    },
+    {
+      "name": "pages-packed-hot-64-2-batch8.json",
+      "kind": "focused storage proof",
+      "path": "tests/mutation_latency/results/2026-10-19/pages-packed-hot-64-2-batch8.json.gz",
+      "raw_sha256": "a5ea1ccf5c62f14b02a3f1c1df146d48ec43eba6511b526515a155e8fccdc8e2",
+      "gzip_sha256": "a33b14b49c61be44027764225fde6c1d0ae052c3f93de7d0ede4b50c7a33da83",
+      "status": "passed",
+      "source_revision": "796319de57148fb13023ffc65a74093f247c679b",
+      "source_dirty": true,
+      "binary_sha256": "f41da0665a516bea4e4a601b03d1a8598fb58168edb19394b9dc3e0a81611eed",
+      "limits": "Primitive disk/recovery evidence with pending source changes explicitly recorded. These timings are not an isolated end-to-end comparison or a clean-CI result."
+    },
+    {
+      "name": "pages-packed-s3-1024-2-batch8.json",
+      "kind": "focused storage proof",
+      "path": "tests/mutation_latency/results/2026-10-19/pages-packed-s3-1024-2-batch8.json.gz",
+      "raw_sha256": "189f2086ac9fecffb8c4448c4d4925ec03ee2b1d5341d57350c1e0143c9eb71f",
+      "gzip_sha256": "6fb81b7fa9aeea8b1d591b999dc894c8deed2f368b42feccab526055635e101c",
+      "status": "passed",
+      "source_revision": "001571a74137004b150c4458e7649bc8b2a63a84",
+      "source_dirty": true,
+      "binary_sha256": "6cb36f974759a1bf34f1d1f530abef3f78812e16d39d957af7822e73e5336156",
+      "limits": "Primitive disk/recovery evidence with pending source changes explicitly recorded. These timings are not an isolated end-to-end comparison or a clean-CI result."
+    },
+    {
+      "name": "failed-baseline-wire.log",
+      "kind": "failed-harness",
+      "path": "tests/mutation_latency/results/2026-10-19/failed-baseline-wire.log.gz",
+      "raw_sha256": "c531a29bfd7ec1b769f7eabb461f71121f567aa6de1ca916e54d5da202686752",
+      "gzip_sha256": "63019bbeff84a603a3e4b7d744208a29d14f4458640f3dcba9224b950a854a1c",
+      "status": "failed before measurement",
+      "reason": "The benchmark metadata environment variable TRANSIT_BENCH_BUILD_REVISION was rejected by the strict Transit configuration decoder; f423ed38 moves it outside that namespace."
+    },
+    {
+      "name": "failed-foundation-wire.log",
+      "kind": "failed-harness",
+      "path": "tests/mutation_latency/results/2026-10-19/failed-foundation-wire.log.gz",
+      "raw_sha256": "15bb656c258a98ed6a61e763b6a325cf116cb2698d83aa511094de17732c41e6",
+      "gzip_sha256": "8055d5699a060e86516da2499dd068eb08caf40c00bac3f2955a9db16219353b",
+      "status": "failed before measurement",
+      "reason": "The benchmark metadata environment variable TRANSIT_BENCH_BUILD_REVISION was rejected by the strict Transit configuration decoder; f423ed38 moves it outside that namespace."
+    },
+    {
+      "name": "baseline-wire-build-only.patch",
+      "kind": "build-only patch",
+      "path": "tests/mutation_latency/results/2026-10-19/baseline-wire-build-only.patch.gz",
+      "raw_sha256": "4d24ac55e8b16dede02520bbeb32414d965a51bc922cf12af01c0279dedc6bb3",
+      "gzip_sha256": "79d907f623803e7593e08ebb025a27446494da1608657af958f63710b65f448c",
+      "reason": "Adds the missing ConfigurationProbe gateway module import and the measurement installation target without changing runtime implementation."
+    },
+    {
+      "name": "foundation-campaign.py",
+      "kind": "reproduction script",
+      "path": "tests/mutation_latency/results/2026-10-19/foundation-campaign.py.gz",
+      "raw_sha256": "adc1cf58c6d15f702e00906011e6c3032d655112bb16767664a21d940dcc1c11",
+      "gzip_sha256": "710d218c5f78e3f71b52bce43d65eb516ccf8292bf92679f5f97285b24b7afc9"
+    },
+    {
+      "name": "foundation-reads-campaign.py",
+      "kind": "reproduction script",
+      "path": "tests/mutation_latency/results/2026-10-19/foundation-reads-campaign.py.gz",
+      "raw_sha256": "a5371410eab36f384ece7054cb40f151673c5b452b023c79bdfead281b6c0c0c",
+      "gzip_sha256": "08934f8ede9ba8502f6c3ac158c420f8c5c85d7d6a4b89f7a0bfd5bbafc9808b"
+    },
+    {
+      "name": "final-campaign.py",
+      "kind": "reproduction script",
+      "path": "tests/mutation_latency/results/2026-10-19/final-campaign.py.gz",
+      "raw_sha256": "ec3f4112e386cda46fbe7e284c852b78b4ecb7091afd1ff7bfd83871551ab0f5",
+      "gzip_sha256": "ab85e1860a1d6f6055526919e4ead56dc47e63a19fd0160bd6cb9cacf2a8fb04"
+    },
+    {
+      "name": "load-campaign.py",
+      "kind": "reproduction script",
+      "path": "tests/mutation_latency/results/2026-10-19/load-campaign.py.gz",
+      "raw_sha256": "0a9de0b364e0731728f4e2dfa1ed64b0c7bc73e508d9435dc1cb2b13203751db",
+      "gzip_sha256": "98c81e45bef7fe45cc0346da4ed92de8b09930d29f88c749bd3b7928a4e777a6",
+      "limits": "The historical orchestrator waits for the recorded timed-campaign PID. Reproduction uses the retained commands and working directories; that PID is not reusable."
+    },
+    {
+      "name": "consumer-typed-tables.log",
+      "kind": "consumer proof log",
+      "path": "tests/mutation_latency/results/2026-10-19/consumer-typed-tables.log.gz",
+      "raw_sha256": "fb33e84bf0d4c1f95ad8af06b9a370aea943fb0a06c48f07cf008d82455ba6c9",
+      "gzip_sha256": "cfb524b7e02f2910990627a6b81eba9540f9d9ba3499c4ab676653acd4c0936e",
+      "status": "passed",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e"
+    },
+    {
+      "name": "consumer-flight.log",
+      "kind": "consumer proof log",
+      "path": "tests/mutation_latency/results/2026-10-19/consumer-flight.log.gz",
+      "raw_sha256": "7e0570487b4ed8726cdc64b5590408f78a826a99aac9ef87d7c2b2f92ae28a1c",
+      "gzip_sha256": "66490668bf85fbd982f9a533c9061a734dd71c8316fe2624279a881354241522",
+      "status": "passed",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e"
+    },
+    {
+      "name": "consumer-flight-faults.log",
+      "kind": "consumer proof log",
+      "path": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults.log.gz",
+      "raw_sha256": "e6b588549258f879108b943bf169797e9446e93bd91b666d040e86b9bdc56020",
+      "gzip_sha256": "f4c0bf99ebff0bbc739bb5502ebb7c1303f39cab782b7a0c9b7e5b96d3db992d",
+      "status": "environment failure before proof",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e"
+    },
+    {
+      "name": "consumer-flight-faults-cache-retry.log",
+      "kind": "consumer proof log",
+      "path": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults-cache-retry.log.gz",
+      "raw_sha256": "b1a3a4aacb7645054127c3399f4e8fe30b627a2989c6d59edb97246ec061399b",
+      "gzip_sha256": "04ab691511cd1243a0185b1c2e82171bb0dcaf5d860b427873475e8fe303f403",
+      "status": "environment failure before proof",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e"
+    },
+    {
+      "name": "consumer-flight-faults-direct.log",
+      "kind": "consumer proof log",
+      "path": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults-direct.log.gz",
+      "raw_sha256": "f5bc96d5680ab80f3f73b5a6fc047b7e81fd8de3e1bd86f7f21f880267bb3e5f",
+      "gzip_sha256": "b455734452a2646ce84d84dfbfd17601da432ee78f7a8ee4d965000535348d5e",
+      "status": "passed",
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e"
+    }
+  ],
+  "campaigns": [
+    {
+      "name": "foundation-campaign",
+      "harness_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+      "runs": [
+        {
+          "name": "foundation-narrow",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-narrow.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "20"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-narrow.log"
+        },
+        {
+          "name": "foundation-wide",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-wide.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "3",
+            "--schema-profile",
+            "wide"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-wide.log"
+        },
+        {
+          "name": "foundation-nested",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-nested.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "3",
+            "--schema-profile",
+            "nested"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-nested.log"
+        },
+        {
+          "name": "foundation-retained",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-retained.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "3",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--readers",
+            "1"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-retained.log"
+        },
+        {
+          "name": "foundation-counts",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-counts.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "1",
+            "--instrument"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-counts.log"
+        },
+        {
+          "name": "baseline-reads",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-baseline-reads.json",
+            "--build-revision",
+            "ee88a131d6d76471683c2e6120a88907d7edf333",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "20"
+          ],
+          "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+          "code": 1,
+          "log": "/var/tmp/rey-storage-baseline-reads.log"
+        }
+      ]
+    },
+    {
+      "name": "foundation-reads-campaign",
+      "harness_revision": "70c58ffd827d227fffde2569122e03ee8ac5d52d",
+      "runs": [
+        {
+          "name": "baseline-reads-supported",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-baseline-reads-supported.json",
+            "--build-revision",
+            "ee88a131d6d76471683c2e6120a88907d7edf333",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "20"
+          ],
+          "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-baseline-reads-supported.log"
+        },
+        {
+          "name": "baseline-read-counts-supported",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-node",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-baseline-read-counts-supported.json",
+            "--build-revision",
+            "ee88a131d6d76471683c2e6120a88907d7edf333",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "1",
+            "--instrument"
+          ],
+          "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-baseline-read-counts-supported.log"
+        },
+        {
+          "name": "foundation-reads-supported",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-reads-supported.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "20"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-reads-supported.log"
+        },
+        {
+          "name": "foundation-read-counts-supported",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-foundation-read-counts-supported.json",
+            "--build-revision",
+            "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "1",
+            "--instrument"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-foundation-read-counts-supported.log"
+        },
+        {
+          "name": "baseline-wire",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/sql_wire/gateway.py",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-node",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-typed-table-proof",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-sql-gateway-proof",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-query-host",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-sql-gateway",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-configuration-probe",
+            "benchmark"
+          ],
+          "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+          "code": 1,
+          "log": "/var/tmp/rey-storage-baseline-wire.log"
+        },
+        {
+          "name": "foundation-wire",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/sql_wire/gateway.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-typed-table-proof",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-sql-gateway-proof",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-sql-gateway",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-configuration-probe",
+            "benchmark"
+          ],
+          "build_revision": "fc79844f053760ff22ff5ae8bd9ce95b3f41ab2b",
+          "code": 1,
+          "log": "/var/tmp/rey-storage-foundation-wire.log"
+        }
+      ]
+    },
+    {
+      "name": "final-campaign",
+      "harness_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "runs": [
+        {
+          "name": "final-reads",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-reads.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "20"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-reads.log"
+        },
+        {
+          "name": "final-read-counts",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-read-counts.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "1",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--read-repeat",
+            "1",
+            "--instrument"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-read-counts.log"
+        },
+        {
+          "name": "final-narrow",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-narrow.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "20"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-narrow.log"
+        },
+        {
+          "name": "final-wide",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-wide.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "3",
+            "--schema-profile",
+            "wide"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-wide.log"
+        },
+        {
+          "name": "final-nested",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-nested.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "3",
+            "--schema-profile",
+            "nested"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-nested.log"
+        },
+        {
+          "name": "final-retained",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-retained.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "3",
+            "--rows",
+            "32",
+            "--age",
+            "32",
+            "--readers",
+            "1"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-retained.log"
+        },
+        {
+          "name": "final-counts",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/mutation_latency.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "--output",
+            "/var/tmp/rey-storage-final-counts.json",
+            "--build-revision",
+            "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+            "--repeat",
+            "1",
+            "--instrument"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-counts.log"
+        },
+        {
+          "name": "baseline-wire-retry",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/sql_wire/gateway.py",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-node",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-typed-table-proof",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-sql-gateway-proof",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-query-host",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-sql-gateway",
+            "/var/tmp/rey-storage-baseline-ee88a131/.cache/storage-baseline/sql-wire/bin/transit-configuration-probe",
+            "benchmark"
+          ],
+          "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-baseline-wire-retry.log"
+        },
+        {
+          "name": "final-wire",
+          "command": [
+            "/nix/store/2j011wn25fpr77c3i274ghqcng3civb2-python3-3.13.15-env/bin/python3",
+            "tests/sql_wire/gateway.py",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-node",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-typed-table-proof",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-sql-gateway-proof",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-query-host",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-sql-gateway",
+            "/home/alex/workspace/rupurt/rey/.cache/storage-foundation/bin/transit-configuration-probe",
+            "benchmark"
+          ],
+          "build_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+          "code": 0,
+          "log": "/var/tmp/rey-storage-final-wire.log"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Builds finish before timed observations. Campaigns run sequentially on a shared host; unrelated services remain running.",
+    "Console and wire fixtures differ and cannot establish a direct transport-overhead comparison.",
+    "Read and narrow mutation p95 require twenty samples per case. Wide, nested and wire mutations have three; no p99 is claimed.",
+    "Instrumented attempts include overlapping background work and proxy overhead; they are not fsync counts or additive durations.",
+    "Resident samples use per-role maximum child VmHWM, not summed RSS or a provider-wide cardinality bound.",
+    "The baseline wire build uses only the retained build-graph patch; no baseline runtime implementation is changed.",
+    "The baseline retained-history campaign failed; its completed mutations do not make the concurrent-reader workload pass.",
+    "Empty and LIMIT 0 console reads remain slower in the final repeated control; no universal improvement or production SLO is claimed.",
+    "Clean committed-source CI is a separate qualification, reported with its exact revision in the PR.",
+    "Consumer command seconds include shell/build time where present and are not matched latency measurements. Two Flight fault attempts failed in Nix before execution; the direct cache-disabled retry is separately recorded."
+  ],
+  "offered_load_commands": [
+    {
+      "name": "baseline",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "zig",
+        "build",
+        "test-growing-load",
+        "-Doptimize=ReleaseSafe",
+        "--",
+        "--output",
+        "/var/tmp/rey-storage-baseline-load.json"
+      ],
+      "cwd": "/var/tmp/rey-storage-baseline-ee88a131",
+      "code": 0,
+      "log": "/var/tmp/rey-storage-baseline-load.log",
+      "output": "/var/tmp/rey-storage-baseline-load.json"
+    },
+    {
+      "name": "final",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "zig",
+        "build",
+        "test-growing-load",
+        "-Doptimize=ReleaseSafe",
+        "--",
+        "--output",
+        "/var/tmp/rey-storage-final-load.json"
+      ],
+      "cwd": "/home/alex/workspace/rupurt/rey",
+      "code": 0,
+      "log": "/var/tmp/rey-storage-final-load.log",
+      "output": "/var/tmp/rey-storage-final-load.json"
+    }
+  ],
+  "failed_experiments": [
+    {
+      "name": "baseline ordered reads",
+      "status": "failed",
+      "reason": "The first point read succeeded, then ORDER BY was rejected by the selected Table profile. No ordered-read capability or passed workload is claimed."
+    },
+    {
+      "name": "baseline ordered read counts",
+      "status": "interrupted",
+      "reason": "Stopped during setup to correct the same unsupported harness query; the raw report was written while running."
+    },
+    {
+      "name": "baseline and foundation first wire attempts",
+      "status": "failed before measurement",
+      "reason": "Benchmark metadata was placed under the reserved TRANSIT_ configuration prefix. Corrected by f423ed38; final reruns retain their own reports."
+    }
+  ],
+  "consumer_commands": [
+    {
+      "name": "typed-tables",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "just",
+        "test::typed-tables"
+      ],
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "code": 0,
+      "seconds": 683.875,
+      "log": "/var/tmp/rey-storage-final-typed-tables.log",
+      "artifact": "tests/mutation_latency/results/2026-10-19/consumer-typed-tables.log.gz"
+    },
+    {
+      "name": "flight",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "just",
+        "test::flight"
+      ],
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "code": 0,
+      "seconds": 516.104,
+      "log": "/var/tmp/rey-storage-final-flight.log",
+      "artifact": "tests/mutation_latency/results/2026-10-19/consumer-flight.log.gz"
+    },
+    {
+      "name": "flight-faults",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "just",
+        "test::flight-faults"
+      ],
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "code": 1,
+      "seconds": 3.602,
+      "log": "/var/tmp/rey-storage-final-flight-faults.log",
+      "artifact": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults.log.gz"
+    },
+    {
+      "name": "flight-faults-cache-retry",
+      "command": [
+        "nix",
+        "develop",
+        "--option",
+        "eval-cache",
+        "false",
+        "--command",
+        "just",
+        "test::flight-faults"
+      ],
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "code": 1,
+      "log": "/var/tmp/rey-storage-final-flight-faults-retry.log",
+      "limits": "The outer shell cache was disabled, but its nested Flight shell failed before the proof started.",
+      "artifact": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults-cache-retry.log.gz"
+    },
+    {
+      "name": "flight-faults-direct",
+      "command": [
+        "nix",
+        "develop",
+        ".#flight",
+        "--option",
+        "eval-cache",
+        "false",
+        "--command",
+        "zig",
+        "build",
+        "test-flight",
+        "-Doptimize=ReleaseSafe",
+        "-Dflight-faults=true"
+      ],
+      "source_revision": "29765ef0805d7e8a77dccbdc8e6af65f6650e85e",
+      "source_dirty": false,
+      "code": 0,
+      "log": "/var/tmp/rey-storage-final-flight-faults-direct.log",
+      "limits": "Clean source at launch/build. Subsequent edits touch only regression harnesses and documentation, outside this running proof. Equivalent task build with the evaluation cache disabled in the actual Flight shell.",
+      "artifact": "tests/mutation_latency/results/2026-10-19/consumer-flight-faults-direct.log.gz"
+    }
+  ]
+}

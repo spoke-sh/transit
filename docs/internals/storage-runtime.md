@@ -143,8 +143,16 @@ record envelopes, retained schemas and current read failures. Run
 `cd packages/zig/transit-station && zig build test` in the pinned shell. Native
 authority/storage schedules are recorded separately in the
 [proof ledger](../../tests/README.md). These checks do not establish scan pruning,
-columnar storage, horizontal write scaling or a latency improvement; matched
-service campaigns must measure the latter.
+columnar storage, horizontal write scaling or a latency improvement. The
+[matched service campaign](../../tests/mutation_latency/results/2026-10-19/README.md)
+measures the combined implementation separately: narrow INSERT/UPDATE and
+range/full scans improve, while empty and LIMIT 0 console reads regress. Its
+single instrumented INSERT uses one accepted turn instead of two, with fewer
+staged pages and provider attempts. This supports reduced publication work, but
+does not isolate batching from layout, cache capacity or concurrent ownership.
+The same configured page budget is now per lane; node HWM is higher. Retained
+raw reports include the earlier prefetch regression and failed baseline reader,
+and keep ordinary timings separate from instrumented attempt counts.
 
 ## Physical ownership, uncertainty and collection
 
