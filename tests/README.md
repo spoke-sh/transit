@@ -21268,3 +21268,38 @@ this is scoped local Linux x86_64 qualification, not a whole-suite or hosted CI
 claim. Functional durations do not establish latency or throughput guarantees.
 The tests use isolated disk-backed installations; the user's YAML and data are
 unchanged.
+
+## Default SQL gateway installation — 2026-10-18
+
+The local build investigation found that the default install target refreshed
+the CLI, node, query host and Board but omitted the SQL gateway. An existing
+`zig-out/bin/transit-sql-gateway` retained the preceding definition and rejected
+the current initializer configuration with `InvalidEnumTag`. The supervisor
+reported `GatewayOwnerUnavailable` and left the configured PostgreSQL port closed.
+The earlier direct-artifact and Nix-bundle proofs did not exercise this default
+source-installation dependency.
+
+`df810cf4` adds the gateway to the default and `apps` install targets.
+`just test::server-sql-local` now depends on the default installation and runs
+its binaries under `.cache/transit-sql-local` through `--source-install`.
+Transit dependencies use adjacent discovery; MinIO and Ursula retain explicit
+provider paths from the development shell. The separate `--bundle` proof still
+requires adjacent provider discovery as well. This distinguishes source builds
+from the complete Nix bundle without weakening either workflow's checks.
+
+The revised real-client workflow passes: first initialization, trust without TLS,
+shared Unicode/NULL CRUD, optional/required TLS, PostgreSQL SCRAM, MySQL password
+transport enforcement, current revocation and exact owner-binding recovery after
+reply loss and manager SIGKILL. `just check` passes with 613 CLI diagnostic cases.
+The default debug build also passes a real `psql` connection and `SELECT 1` on
+port 5434 after the operator explicitly requests deletion and fresh initialization
+of the mixed-binary installation. No stored definition or runtime code changes
+are required for this build correction; retained executable identity checks remain.
+The separate `apps` debug build installs the SQL gateway with the current
+definition into an independent prefix as well.
+
+At PR submission, `just ci-clean --lane experience` is running against committed
+`df810cf4`. Its first eight recipes pass, including both SQL workflows, Board
+inspection and Board query recovery. The local Station launcher is in progress.
+This partial lane is not a completed clean-checkout pass; the
+other ordinary lanes and separate browser lane are outside this run's scope.

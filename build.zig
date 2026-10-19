@@ -830,7 +830,7 @@ pub fn build(b: *std.Build) void {
         run.addFileArg(b.path(proof[1]));
         if (comptime std.mem.eql(u8, proof[0], "test-server-sql-local")) {
             // Exercise the default installation users run from zig-out/bin,
-            // including adjacent executable discovery and stale-file replacement.
+            // including adjacent executable discovery instead of cache artifacts.
             run.addArg("--source-install");
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
