@@ -16,7 +16,8 @@ import time
 
 from console_latency import digest, override
 from latency_probe import Probe
-from server import Fixture
+from server import Fixture, children
+from pages import metrics, sample_process
 from table_console import results as table_results, atom
 from storage import free_port
 
@@ -266,6 +267,19 @@ def main():
             shutil.copy2(fixture.config['executables'][role], frozen)
             fixture.config['executables'][role] = str(frozen)
         report['executables'] = {role: digest(path) for role, path in {'cli': fixture.cli, **fixture.config['executables']}.items()}
+        memory_targets = {str(Path(path).resolve()): role for role, path in fixture.config['executables'].items()}
+        def observe_memory():
+            # Read outside timed requests. HWM is a process lifetime observation,
+            # not an allocator bound or the sum of simultaneous process RSS.
+            observed = {}
+            for pid in children(fixture.process.pid):
+                try:
+                    role = memory_targets.get(str(Path(f'/proc/{pid}/exe').resolve(strict=True)))
+                except (FileNotFoundError, ProcessLookupError):
+                    continue
+                if role:
+                    sample_process(pid, observed.setdefault(role, metrics()))
+            return observed
         if args.client:
             frozen = fixture.root / 'mutation-client'
             shutil.copy2(args.client, frozen)
@@ -354,6 +368,7 @@ def main():
         idle_before = {name: probe.snapshot() for name, probe in probes.items()}
         time.sleep(1)
         report['idle_attempts'] = {name: dict(probe.snapshot() - idle_before[name]) for name, probe in probes.items()}
+        report['resident_before'] = observe_memory()
         reader_counts = report['reader_queries']
         def read(index):
             shell = None
@@ -436,6 +451,8 @@ def main():
         for sample in report['samples']:
             grouped[sample['case']].append(sample['elapsed_ns'])
         report['distributions'] = {key: distribution(values) for key, values in grouped.items()}
+        report['resident_after'] = observe_memory()
+        report['resident_limits'] = 'Outside timed requests: Linux process HWM and maxima across same-role children; not summed RSS, exact allocations or a cardinality-independent provider bound.'
         report['status'] = 'complete'
     except BaseException as error:
         report['status'] = 'failed'
