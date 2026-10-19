@@ -23,6 +23,7 @@ pub const Account = struct {
     role: []const u8,
     database: []const u8,
     schema: []const u8,
+    bootstrap_owner: bool,
     identity: [32]u8,
     principals: Principals,
     binding: g.Ledger.Binding,
@@ -98,8 +99,8 @@ pub fn administrator(installation: *Installation, allocator: std.mem.Allocator, 
     const key_path = try path(installation, allocator, "administrator.seed");
     var key = try q.wire.readKey(allocator, installation.init.io, key_path);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    // The operator has its own durable sequence; the supervisor never submits
-    // administrative work using this credential on the operator's behalf.
+    // The operator has its own durable sequence; supervisor bootstrap uses its
+    // separately journaled root requests, never this operator credential.
     try record.journal.authorize(installation, file, record, 0, .{ .create_role = .{ .name = try .init("local_sql_administrator"), .login = true } });
     try record.journal.authorize(installation, file, record, 1, .{ .bind_credential = .{ .principal = record.administrator, .role = record.journal.receipts[0].?, .public_key = key.public_key.toBytes() } });
     try record.journal.authorize(installation, file, record, 2, .{ .membership = .{ .member = record.journal.receipts[0].?, .role = p.Authorization.root_role, .inherit = true, .set = true } });
@@ -128,11 +129,11 @@ pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, 
         var identity: [32]u8 = undefined;
         try installation.init.io.randomSecure(&identity);
         const connection = installation.connection();
-        try Files.json(installation.init.io, allocator, try std.fs.path.join(allocator, &.{ pending, "account.json" }), Account{ .definition = n.current_definition, .installation = installation.record.installation, .name = desired.name, .role = desired.role, .database = desired.database, .schema = desired.schema, .identity = identity, .principals = principals, .binding = .{ .resource = connection.resource, .catalog = 1, .owner = connection.source }, .operation_quota = installation.config.sql.operation_quota, .byte_quota = installation.config.sql.byte_quota, .pending_quota = installation.config.sql.pending_quota });
+        try Files.json(installation.init.io, allocator, try std.fs.path.join(allocator, &.{ pending, "account.json" }), Account{ .definition = n.current_definition, .installation = installation.record.installation, .name = desired.name, .role = desired.role, .database = desired.database, .schema = desired.schema, .bootstrap_owner = desired.bootstrap_owner, .identity = identity, .principals = principals, .binding = .{ .resource = connection.resource, .catalog = 1, .owner = connection.source }, .operation_quota = installation.config.sql.operation_quota, .byte_quota = installation.config.sql.byte_quota, .pending_quota = installation.config.sql.pending_quota });
         try publish(installation, pending, directory);
     }
     const record = try loadAccount(installation, allocator, desired.name);
-    if (!std.mem.eql(u8, record.role, desired.role) or !std.mem.eql(u8, record.database, desired.database) or !std.mem.eql(u8, record.schema, desired.schema)) return error.GatewayConfigurationChanged;
+    if (record.bootstrap_owner != desired.bootstrap_owner or !std.mem.eql(u8, record.role, desired.role) or !std.mem.eql(u8, record.database, desired.database) or !std.mem.eql(u8, record.schema, desired.schema)) return error.GatewayConfigurationChanged;
     return record;
 }
 
@@ -208,11 +209,18 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
     if (!resolved.login or !resolved.enabled or resolved.retired or resolved.native or (record.login_role != null and record.login_role.? != resolved.id)) return .unavailable;
     var key = try q.wire.readKey(allocator, installation.init.io, try accountPath(installation, allocator, record.name, "table.seed"));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+    if (record.bootstrap_owner) {
+        // Bind only the original installation owner, never a recreated role
+        // with the same name. A recorded publication is never repeated after
+        // credential disable/rotation, even if its observation was interrupted.
+        if (resolved.id != installation.record.authorization_steps[0].?) return .unavailable;
+        try record.journal.authorize(installation, try accountPath(installation, allocator, record.name, "account.json"), record, 14, .{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } });
+    }
     const caller: q.wire.AuthorizationClient = .{ .transport = installation.wire, .realm = installation.config.realm, .principal = record.principals.table, .key = key };
     const observed = caller.read(.identity) catch |err| {
         if (installation.wire.last_rejection != .Unauthorized and installation.wire.last_rejection != .Forbidden and installation.wire.last_rejection != .AccessDenied) return err;
         // Once observed, loss of authority is never an instruction to rebind.
-        if (record.login_role != null) return .unavailable;
+        if (record.login_role != null or record.bootstrap_owner) return .unavailable;
         _ = try Files.jsonIfChanged(installation.init.io, allocator, try accountPath(installation, allocator, record.name, "bind-credential.json"), .{ .expected_revision = role.body.authorization.revision, .action = p.Authorization.Action{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } } });
         return .awaiting_binding;
     };
@@ -244,15 +252,18 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
             try Journal.save(installation, try accountPath(installation, allocator, record.name, "account.json"), record);
             return .bound;
         }
-        const password = try std.Io.Dir.cwd().readFileAlloc(installation.init.io, desired.password_file, allocator, .limited(g.Authentication.max_password_bytes + 1));
-        defer {
-            std.crypto.secureZero(u8, password);
-            allocator.free(password);
-        }
-        var salt: [16]u8 = undefined;
-        try installation.init.io.randomSecure(&salt);
-        var credential: g.Configuration.Credential = .{ .version = 1, .definition = n.current_definition, .account = record.identity, .revision = 1, .principal = record.principals.table, .login_role = identity.login_role, .credential_epoch = identity.credential_epoch, .enabled = true, .verifier = try g.Authentication.Verifier.create(password, salt, g.Authentication.default_iterations) };
+        var credential: g.Configuration.Credential = .{ .version = 1, .definition = n.current_definition, .account = record.identity, .revision = 1, .principal = record.principals.table, .login_role = identity.login_role, .credential_epoch = identity.credential_epoch, .enabled = true, .verifier = null };
         defer std.crypto.secureZero(u8, std.mem.asBytes(&credential));
+        if (desired.password_file) |password_file| {
+            const password = try std.Io.Dir.cwd().readFileAlloc(installation.init.io, password_file, allocator, .limited(g.Authentication.max_password_bytes + 1));
+            defer {
+                std.crypto.secureZero(u8, password);
+                allocator.free(password);
+            }
+            var salt: [16]u8 = undefined;
+            try installation.init.io.randomSecure(&salt);
+            credential.verifier = try g.Authentication.Verifier.create(password, salt, g.Authentication.default_iterations);
+        }
         try Files.json(installation.init.io, allocator, verifier_path, credential);
         record.credential_written = true;
         try Journal.save(installation, try accountPath(installation, allocator, record.name, "account.json"), record);

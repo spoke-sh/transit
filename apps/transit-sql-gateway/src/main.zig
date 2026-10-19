@@ -6,6 +6,7 @@ const tls = @import("transit_tls_server");
 const Host = @import("Host.zig");
 const Control = @import("Control.zig");
 const Stop = @import("Stop.zig");
+const Connection = @import("Connection.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const telemetry = g.query.wire.observability.telemetry;
@@ -134,13 +135,27 @@ const Server = struct {
             upgrade.deinit();
             upgrade = next;
         }
-        if (upgrade.code != pg.Frame.ssl_request) return error.TlsRequired;
-        try transport.writeAll("S");
-        var secure = try tls.Session.accept(self.tls_context orelse return error.TlsRequired, &transport);
-        defer secure.deinit();
-        var tx: Output = .{ .session = &secure, .write_ms = self.config.limits.write_ms };
-        var startup_frame = try pg.Startup.read(allocator, &secure);
-        defer startup_frame.deinit();
+        var channel: Connection = .{ .transport = &transport };
+        defer channel.deinit();
+        if (upgrade.code == pg.Frame.ssl_request) {
+            if (self.config.tls_mode == .disabled) {
+                try transport.writeAll("N");
+            } else {
+                try transport.writeAll("S");
+                try channel.upgrade(self.tls_context orelse return error.TlsRequired);
+            }
+            const next = try pg.Startup.read(allocator, &channel);
+            upgrade.deinit();
+            upgrade = next;
+        }
+        var tx: Output = .{ .session = &channel, .write_ms = self.config.limits.write_ms };
+        if (self.config.tls_mode == .required and channel.secure == null) {
+            var failure: pg.Backend = .{ .allocator = allocator, .maximum = self.config.limits.frame_bytes };
+            defer failure.deinit();
+            try tx.writeAll(try failure.failure(true, "28000".*, "TLS is required", null));
+            return error.TlsRequired;
+        }
+        const startup_frame = upgrade;
         if (startup_frame.code == pg.Frame.cancel_request) return self.cancel(startup_frame.payload);
         if (cancellation_only) return error.GatewayConnectionCapacity;
         const startup = try pg.Startup.decode(startup_frame.code, startup_frame.payload);
@@ -161,37 +176,44 @@ const Server = struct {
         };
         const account = &self.config.accounts[index];
         _ = try account.database(startup.database());
-        var credential = try Host.loadCredential(allocator, self.io, account);
-        defer std.crypto.secureZero(u8, std.mem.asBytes(&credential));
-        try tx.writeAll(try backend.authenticate(.mechanisms, ""));
-        var initial = try pg.Frame.read(allocator, &secure, 1024);
-        defer initial.deinit();
-        defer std.crypto.secureZero(u8, initial.payload);
-        if (initial.tag != 'p') return error.InvalidAuthentication;
-        var random: [18]u8 = undefined;
-        try self.io.randomSecure(&random);
-        var scram = try g.Authentication.Scram.init(credential.verifier, try pg.Frontend.saslInitial(initial.payload), random);
-        defer scram.deinit();
-        try tx.writeAll(try backend.authenticate(.challenge, scram.challenge()));
-        var final = try pg.Frame.read(allocator, &secure, 1024);
-        defer final.deinit();
-        defer std.crypto.secureZero(u8, final.payload);
-        if (final.tag != 'p') return error.InvalidAuthentication;
-        const proof = scram.finish(final.payload) catch {
+        var credential = Host.loadCredential(allocator, self.io, account) catch |err| {
             try tx.writeAll(try backend.failure(true, "28P01".*, "Authentication failed", null));
-            return error.InvalidAuthentication;
+            return err;
         };
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&credential));
+        var proof: [46]u8 = undefined;
+        if (account.authentication == .password) {
+            try tx.writeAll(try backend.authenticate(.mechanisms, ""));
+            var initial = try pg.Frame.read(allocator, &channel, 1024);
+            defer initial.deinit();
+            defer std.crypto.secureZero(u8, initial.payload);
+            if (initial.tag != 'p') return error.InvalidAuthentication;
+            var random: [18]u8 = undefined;
+            try self.io.randomSecure(&random);
+            var scram = try g.Authentication.Scram.init(credential.verifier.?, try pg.Frontend.saslInitial(initial.payload), random);
+            defer scram.deinit();
+            try tx.writeAll(try backend.authenticate(.challenge, scram.challenge()));
+            var final = try pg.Frame.read(allocator, &channel, 1024);
+            defer final.deinit();
+            defer std.crypto.secureZero(u8, final.payload);
+            if (final.tag != 'p') return error.InvalidAuthentication;
+            proof = scram.finish(final.payload) catch {
+                try tx.writeAll(try backend.failure(true, "28P01".*, "Authentication failed", null));
+                return error.InvalidAuthentication;
+            };
+        }
         if (!std.meta.eql(credential, try Host.loadCredential(allocator, self.io, account))) return error.GatewayCredentialChanged;
         try self.acquire(index);
         defer self.release(index);
-        const host = try Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, startup.database(), .transit, &slot.cancelled, &slot.active);
+        const host = Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, startup.database(), .transit, &slot.cancelled, &slot.active) catch |err| {
+            try tx.writeAll(try backend.failure(true, "28000".*, "Account or database access denied", null));
+            return err;
+        };
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
         defer host.deinit();
-        try tx.writeAll(try backend.authenticate(.final, &proof));
+        if (account.authentication == .password) try tx.writeAll(try backend.authenticate(.final, &proof));
         try tx.writeAll(try backend.authenticate(.ok, ""));
-        std.crypto.secureZero(u8, initial.payload);
-        std.crypto.secureZero(u8, final.payload);
         self.authenticated();
         authentication_pending = false;
         slot.authenticated.store(true, .release);
@@ -207,14 +229,14 @@ const Server = struct {
                 if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
                 try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
             }
-            var frame = try pg.Frame.read(allocator, &secure, self.config.limits.frame_bytes);
+            var frame = try pg.Frame.read(allocator, &channel, self.config.limits.frame_bytes);
             defer frame.deinit();
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.tag, frame.payload })) break;
         }
         try transport.resetDeadline(self.config.limits.write_ms);
-        try secure.finish();
+        try channel.finish();
     }
     fn mysqlConnection(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool) !void {
         if (cancellation_only) return error.GatewayConnectionCapacity;
@@ -227,18 +249,32 @@ const Server = struct {
         var nonce: [20]u8 = undefined;
         try self.io.randomSecure(&nonce);
         for (&nonce) |*byte| while (byte.* == 0) try self.io.randomSecure(std.mem.asBytes(byte));
-        try transport.writeAll(try backend.greeting(slot.id, nonce, mysql.Handshake.capabilities));
-        var upgrade = try mysql.Frame.read(allocator, &transport, 1, 32);
-        defer upgrade.deinit();
-        const prefix = try mysql.Handshake.upgrade(upgrade.payload);
-        var secure = try tls.Session.accept(self.tls_context orelse return error.TlsRequired, &transport);
-        defer secure.deinit();
-        var tx: Output = .{ .session = &secure, .write_ms = self.config.limits.write_ms };
-        var response = try mysql.Frame.read(allocator, &secure, 2, 8192);
+        const capabilities = if (self.config.tls_mode == .disabled) mysql.Handshake.capabilities & ~mysql.Handshake.ssl else mysql.Handshake.capabilities;
+        try transport.writeAll(try backend.greeting(slot.id, nonce, capabilities));
+        var response = try mysql.Frame.read(allocator, &transport, 1, 8192);
         defer response.deinit();
         defer std.crypto.secureZero(u8, response.payload);
+        var channel: Connection = .{ .transport = &transport };
+        defer channel.deinit();
+        var tx: Output = .{ .session = &channel, .write_ms = self.config.limits.write_ms };
+        const prefix = if (response.payload.len == 32) blk: {
+            const request = try mysql.Handshake.upgrade(response.payload);
+            if (self.config.tls_mode == .disabled) return error.TlsRequired;
+            try channel.upgrade(self.tls_context orelse return error.TlsRequired);
+            const next = try mysql.Frame.read(allocator, &channel, 2, 8192);
+            response.deinit();
+            response = next;
+            backend.sequence = 3;
+            break :blk request;
+        } else blk: {
+            backend.sequence = 2;
+            if (self.config.tls_mode == .required) {
+                try tx.writeAll(try backend.failure(1045, "28000".*, "TLS is required"));
+                return error.TlsRequired;
+            }
+            break :blk try mysql.Handshake.plaintext(response.payload);
+        };
         const handshake = try mysql.Handshake.response(response.payload, prefix);
-        backend.sequence = 3;
         const index = self.config.account(handshake.account) catch {
             try tx.writeAll(try backend.failure(1045, "28000".*, "Authentication failed"));
             return error.InvalidAuthentication;
@@ -246,22 +282,34 @@ const Server = struct {
         const account = &self.config.accounts[index];
         const database = handshake.database orelse return error.GatewayDatabaseDenied;
         _ = try account.database(database);
-        var credential = try Host.loadCredential(allocator, self.io, account);
-        defer std.crypto.secureZero(u8, std.mem.asBytes(&credential));
-        try tx.writeAll(try backend.fullAuthentication());
-        var password = try mysql.Frame.read(allocator, &secure, 4, g.Authentication.max_password_bytes + 1);
-        defer password.deinit();
-        defer std.crypto.secureZero(u8, password.payload);
-        backend.sequence = 5;
-        credential.verifier.verifyPassword(try mysql.Handshake.password(password.payload)) catch {
+        var credential = Host.loadCredential(allocator, self.io, account) catch |err| {
             try tx.writeAll(try backend.failure(1045, "28000".*, "Authentication failed"));
-            return error.InvalidAuthentication;
+            return err;
         };
-        std.crypto.secureZero(u8, password.payload);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&credential));
+        if (account.authentication == .password) {
+            // Full caching_sha2_password is never requested over plaintext.
+            if (channel.secure == null) {
+                try tx.writeAll(try backend.failure(1045, "28000".*, "Password authentication requires TLS"));
+                return error.TlsRequired;
+            }
+            try tx.writeAll(try backend.fullAuthentication());
+            var password = try mysql.Frame.read(allocator, &channel, backend.sequence, g.Authentication.max_password_bytes + 1);
+            defer password.deinit();
+            defer std.crypto.secureZero(u8, password.payload);
+            backend.sequence += 1;
+            credential.verifier.?.verifyPassword(try mysql.Handshake.password(password.payload)) catch {
+                try tx.writeAll(try backend.failure(1045, "28000".*, "Authentication failed"));
+                return error.InvalidAuthentication;
+            };
+        }
         if (!std.meta.eql(credential, try Host.loadCredential(allocator, self.io, account))) return error.GatewayCredentialChanged;
         try self.acquire(index);
         defer self.release(index);
-        const host = try Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, database, .mysql, &slot.cancelled, &slot.active);
+        const host = Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, database, .mysql, &slot.cancelled, &slot.active) catch |err| {
+            try tx.writeAll(try backend.failure(1045, "28000".*, "Account or database access denied"));
+            return err;
+        };
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
         defer host.deinit();
@@ -277,14 +325,14 @@ const Server = struct {
         slot.authenticated.store(true, .release);
         while (true) {
             try transport.resetDeadline(limits.idle_ms);
-            var frame = try mysql.Frame.read(allocator, &secure, 0, limits.frame_bytes);
+            var frame = try mysql.Frame.read(allocator, &channel, 0, limits.frame_bytes);
             defer frame.deinit();
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;
         }
         try transport.resetDeadline(limits.write_ms);
-        try secure.finish();
+        try channel.finish();
     }
     fn serve(self: *Server, listener: *std.Io.net.Server, protocol: Protocol) !void {
         while (true) {
@@ -352,7 +400,7 @@ fn boundedHandle(io: std.Io, deadline: std.Io.Timeout, comptime function: anytyp
     };
 }
 const Output = struct {
-    session: *tls.Session,
+    session: *Connection,
     write_ms: u32,
     pub fn writeAll(self: *Output, bytes: []const u8) !void {
         // Never extend the active handshake/command deadline for slow output.
@@ -395,7 +443,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return std.Io.File.stdout().writeStreamingAll(init.io, "transit-sql-gateway CONFIG.json\n" ++
             "transit-sql-gateway --initialize CONFIG.json\n" ++
             "transit-sql-gateway control CONTROL.json list|status|pending|prepare|submit|credential [arguments]\n" ++
-            "TLS database access and signed account recovery; see the configuration guide.\n");
+            "Database access and signed account recovery; see the configuration guide.\n");
     }
     if (args.len >= 2 and std.mem.eql(u8, args[1], "control")) return Control.run(init, args[2..]);
     const stop = try Stop.init();
@@ -411,7 +459,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     // Bootstrap and retained-operation recovery have no dependency on listener
     // credentials. In particular, expired or removed PEM files cannot prevent
     // a disabled listener's workers from resuming accepted operations.
-    var context: ?tls.Context = if (!initialize and config.listening()) blk: {
+    var context: ?tls.Context = if (!initialize and config.listening() and config.tls_mode != .disabled) blk: {
         const certificate = try init.gpa.dupeSentinel(u8, config.certificate_file, 0);
         defer init.gpa.free(certificate);
         const certificate_key = try init.gpa.dupeSentinel(u8, config.certificate_key_file, 0);

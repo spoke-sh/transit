@@ -12,7 +12,9 @@ const Files = @import("Files.zig");
 const Process = @import("Process.zig");
 const Provider = @import("Provider.zig");
 const Self = @This();
+const telemetry = q.wire.observability.telemetry;
 installation: *Installation,
+diagnostics: telemetry.Runtime,
 allocator: std.mem.Allocator,
 setup_arena: std.heap.ArenaAllocator,
 executable: []const u8,
@@ -58,7 +60,8 @@ pub fn recover(installation: *Installation) !void {
 pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8) !?*Self {
     const meta = (try E.open(installation, allocator)) orelse return null;
     const self = try allocator.create(Self);
-    self.* = .{ .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
+    self.* = .{ .diagnostics = telemetry.Runtime.init(installation.init.io, "transit-sql", try telemetry.Config.environment(installation.init.environ_map)), .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
+    self.diagnostics.start();
     errdefer self.destroy();
     try self.tick();
     return self;
@@ -93,7 +96,7 @@ fn prepare(self: *Self) !void {
         if (record.initialized) try E.controlProfile(installation, page.allocator(), record);
         const desired = self.configuredAccount(record.name);
         if (desired) |value| {
-            if (!std.mem.eql(u8, record.role, value.role) or !std.mem.eql(u8, record.database, value.database) or !std.mem.eql(u8, record.schema, value.schema)) return error.GatewayConfigurationChanged;
+            if (record.bootstrap_owner != value.bootstrap_owner or !std.mem.eql(u8, record.role, value.role) or !std.mem.eql(u8, record.database, value.database) or !std.mem.eql(u8, record.schema, value.schema)) return error.GatewayConfigurationChanged;
         }
         if (desired == null or !desired.?.enabled) {
             if (!record.initialized and record.initialization == null) continue;
@@ -107,13 +110,16 @@ fn prepare(self: *Self) !void {
         if (self.entries.items.len == g.Limits.max_accounts) return error.GatewayConnectionCapacity;
         try self.entries.append(self.allocator, .{ .record = try E.loadAccount(installation, allocator, record.name), .desired = desired });
     }
-    if (installation.config.sql.listening()) {
+    if (installation.config.sql.listening() and installation.config.sql.tls.mode != .disabled) {
         self.trust = Trust.prepare(installation, allocator, &self.meta) catch |err| blk: {
             if (installation.failed) return err;
             self.trust_error = @errorName(err);
             break :blk null;
         };
     }
+}
+fn transportReady(self: *const Self) bool {
+    return self.installation.config.sql.tls.mode == .disabled or self.trust != null;
 }
 fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
     for (self.installation.config.sql.accounts) |account| if (std.mem.eql(u8, account.name, name)) return account;
@@ -125,6 +131,7 @@ pub fn stop(self: *Self) void {
 }
 pub fn destroy(self: *Self) void {
     self.stop();
+    self.diagnostics.stop();
     self.setup_arena.deinit();
 }
 fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Configuration.Account {
@@ -132,11 +139,11 @@ fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Co
     var keys: g.Configuration.KeyFiles = undefined;
     inline for (@typeInfo(g.Configuration.KeyFiles).@"struct".field_names) |name| @field(keys, name) = try E.accountPath(self.installation, allocator, record.name, name ++ ".seed");
     const databases = try allocator.dupe(g.Configuration.Database, &.{.{ .name = record.database, .binding = record.binding }});
-    return .{ .name = record.name, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases };
+    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases };
 }
 fn configuration(self: *Self, allocator: std.mem.Allocator, accounts: []const g.Configuration.Account, admission: bool) !g.Configuration {
     const sql = self.installation.config.sql;
-    return .{ .version = 1, .definition = p.Growth.current_definition, .native_url = self.installation.wire.url, .certificate_file = if (self.trust) |trust| trust.certificate else "", .certificate_key_file = if (self.trust) |trust| trust.key else "", .activation_directory = try E.path(self.installation, allocator, "activations"), .spill_directory = try E.path(self.installation, allocator, "spill"), .postgres_port = if (admission and self.trust != null and sql.postgres != null) sql.postgres.?.port else null, .mysql_port = if (admission and self.trust != null and sql.mysql != null) sql.mysql.?.port else null, .health_port = if (admission) sql.health_port else null, .drain_ms = sql.drain_ms, .request_timeout_ms = sql.request_timeout_ms, .limits = .{ .connections = sql.connections, .connections_per_account = sql.connections_per_account, .authentications = sql.authentications, .command_ms = sql.command_ms, .idle_ms = sql.idle_ms }, .accounts = accounts, .settings = .{ .url = self.installation.record.endpoint, .binding = try Installation.settingsBinding(self.installation.record, self.installation.config.realm) } };
+    return .{ .version = 1, .definition = p.Growth.current_definition, .native_url = self.installation.wire.url, .tls_mode = sql.tls.mode, .certificate_file = if (self.trust) |trust| trust.certificate else "", .certificate_key_file = if (self.trust) |trust| trust.key else "", .activation_directory = try E.path(self.installation, allocator, "activations"), .spill_directory = try E.path(self.installation, allocator, "spill"), .postgres_port = if (admission and self.transportReady() and sql.postgres != null) sql.postgres.?.port else null, .mysql_port = if (admission and self.transportReady() and sql.mysql != null) sql.mysql.?.port else null, .health_port = if (admission) sql.health_port else null, .drain_ms = sql.drain_ms, .request_timeout_ms = sql.request_timeout_ms, .limits = .{ .connections = sql.connections, .connections_per_account = sql.connections_per_account, .authentications = sql.authentications, .command_ms = sql.command_ms, .idle_ms = sql.idle_ms }, .accounts = accounts, .settings = .{ .url = self.installation.record.endpoint, .binding = try Installation.settingsBinding(self.installation.record, self.installation.config.realm) } };
 }
 fn saveAccount(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !void {
     try Journal.save(self.installation, try E.accountPath(self.installation, allocator, record.name, "account.json"), record);
@@ -274,7 +281,7 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {
             self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
-            self.status = if (self.installation.config.sql.listening() and self.trust != null) .accepting else .recovery;
+            self.status = if (self.installation.config.sql.listening() and self.transportReady()) .accepting else .recovery;
             self.last_error = null;
         } else {
             self.status = .unavailable;
@@ -283,13 +290,28 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     }
 }
 pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
-    return .{ .state = @tagName(self.status), .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
+    return .{ .state = @tagName(self.status), .message = if (self.trust_error != null) "SQL TLS setup failed; inspect tls_error" else switch (self.status) {
+        .awaiting_authorization => "SQL awaits explicit role/credential enrollment; see accounts in status_file",
+        .initializing => "Initializing the SQL account ledger",
+        .starting => "Starting configured SQL listeners",
+        .accepting => "SQL listeners are accepting connections",
+        .recovery => "Retained SQL workers are running without listeners",
+        .unavailable => "SQL is unavailable; inspect error_type and account states",
+    }, .tls_mode = self.installation.config.sql.tls.mode, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
 }
-pub const Report = struct { state: []const u8, host: []const u8, postgres_port: ?u16, mysql_port: ?u16, ca_file: ?[]const u8, authorization_config: []const u8, catalog_config: []const u8, status_file: []const u8, tls_error: ?[]const u8, error_type: ?[]const u8 };
+pub const Report = struct { state: []const u8, message: []const u8, tls_mode: g.Configuration.TlsMode, configured_postgres_port: ?u16, configured_mysql_port: ?u16, host: []const u8, postgres_port: ?u16, mysql_port: ?u16, ca_file: ?[]const u8, authorization_config: []const u8, catalog_config: []const u8, status_file: []const u8, tls_error: ?[]const u8, error_type: ?[]const u8 };
 fn writeStatus(self: *Self, allocator: std.mem.Allocator) !void {
-    const AccountStatus = struct { name: []const u8, role: []const u8, database: []const u8, schema: []const u8, state: E.AuthorizationState, initialized: bool, enabled: bool, control_config: ?[]const u8 };
+    const AccountStatus = struct { name: []const u8, role: []const u8, database: []const u8, schema: []const u8, state: E.AuthorizationState, initialized: bool, enabled: bool, postgres_command: ?[]const u8, mysql_command: ?[]const u8, control_config: ?[]const u8 };
     var accounts: std.ArrayList(AccountStatus) = .empty;
-    for (self.entries.items) |entry| try accounts.append(allocator, .{ .name = entry.record.name, .role = entry.record.role, .database = entry.record.database, .schema = entry.record.schema, .state = entry.state, .initialized = entry.record.initialized, .enabled = entry.desired != null and entry.desired.?.enabled, .control_config = if (entry.record.initialized) try E.accountPath(self.installation, allocator, entry.record.name, "control.json") else null });
+    for (self.entries.items) |entry| try accounts.append(allocator, .{ .name = entry.record.name, .role = entry.record.role, .database = entry.record.database, .schema = entry.record.schema, .state = entry.state, .initialized = entry.record.initialized, .enabled = entry.desired != null and entry.desired.?.enabled, .postgres_command = if (self.status == .accepting and entry.state == .bound and self.installation.config.sql.postgres != null) try std.fmt.allocPrint(allocator, "psql -h localhost -p {d} -U {s} -d transit", .{ self.installation.config.sql.postgres.?.port, entry.record.name }) else null, .mysql_command = if (self.status == .accepting and entry.state == .bound and self.installation.config.sql.mysql != null) try std.fmt.allocPrint(allocator, "mysql --protocol=TCP -h localhost -P {d} -u {s} -D transit{s}{s}", .{ self.installation.config.sql.mysql.?.port, entry.record.name, if (self.installation.config.sql.tls.mode == .disabled) " --ssl-mode=DISABLED" else " --ssl-mode=REQUIRED", if (entry.desired.?.authentication == .password) " --password" else "" }) else null, .control_config = if (entry.record.initialized) try E.accountPath(self.installation, allocator, entry.record.name, "control.json") else null });
     const status = .{ .service = try self.report(allocator), .accounts = accounts.items };
-    _ = try Files.jsonIfChanged(self.installation.init.io, allocator, try E.path(self.installation, allocator, "status.json"), status);
+    if (try Files.jsonIfChanged(self.installation.init.io, allocator, try E.path(self.installation, allocator, "status.json"), status)) {
+        // Bounded nonblocking diagnostics never hold up authority/recovery.
+        // Complete observed state remains in status.json even if logs are lost.
+        self.diagnostics.event(.{ .name = "sql.status", .operation = status.service.message, .error_type = self.last_error orelse self.trust_error });
+        for (accounts.items) |account| {
+            if (account.postgres_command) |command| self.diagnostics.event(.{ .name = "sql.connect.postgres", .operation = command });
+            if (account.mysql_command) |command| self.diagnostics.event(.{ .name = "sql.connect.mysql", .operation = command });
+        }
+    }
 }

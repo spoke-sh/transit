@@ -106,8 +106,12 @@ Do not put keys, tokens, raw payloads or private data in logs, URLs or Git.
 
 ## Ingress and isolation profiles
 
-The [database gateway](../../apps/transit-sql-gateway/README.md) requires TLS,
-separate SQL password verifiers and explicit account/catalog bindings. SQL
+The [database gateway](../../apps/transit-sql-gateway/README.md) separates TLS policy,
+login authentication and native account/catalog bindings. Password logins use
+SCRAM for PostgreSQL and TLS-protected full caching_sha2_password for MySQL.
+Explicit trust logins are restricted to loopback and accept a claimed configured
+name without verifying the OS user. Local owner bootstrap records a one-time
+binding through ordinary authorization; restarting never restores revoked access. SQL
 credentials select a configured native principal; they do not grant resource or
 catalog rights. Sessions recheck credential revision and current authority before
 metadata, rows and terminal counts. Revocation can suppress a reply while an

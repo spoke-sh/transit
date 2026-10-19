@@ -129,7 +129,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("apps/transit-cli/SettingsReference.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_gateway", .module = sql_gateway.module("transit_sql_gateway") } },
     }) });
     b.step("settings-reference", "Export the typed configuration registry").dependOn(&b.addRunArtifact(settings_reference).step);
     b.step("configuration-contract", "Export reflected configuration operations").dependOn(&b.addRunArtifact(query.artifact("transit-configuration-contract")).step);
@@ -825,7 +825,7 @@ pub fn build(b: *std.Build) void {
     server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
-    inline for (.{ .{ "test-server-sql", "tests/server_sql.py" }, .{ "test-server-sql-faults", "tests/server_sql_faults.py" } }) |proof| {
+    inline for (.{ .{ "test-server-sql", "tests/server_sql.py" }, .{ "test-server-sql-faults", "tests/server_sql_faults.py" }, .{ "test-server-sql-local", "tests/server_sql_local.py" } }) |proof| {
         const run = b.addSystemCommand(&.{ "python3", "-B" });
         run.addFileArg(b.path(proof[1]));
         for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);

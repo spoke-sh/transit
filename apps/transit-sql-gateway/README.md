@@ -1,6 +1,6 @@
 # transit-sql-gateway
 
-An opt-in PostgreSQL and MySQL TLS endpoint over explicit Transit Table catalogs.
+An opt-in PostgreSQL and MySQL endpoint with configurable TLS over explicit Transit Table catalogs.
 The gateway composes the public Query, Catalog and Station clients; it has no
 storage-provider access. Each SQL account owns a native operation ledger and one
 Table principal independently of its network connections. A separate private
@@ -34,8 +34,10 @@ one execution followed by Sync; Flush after a pending write rejects before
 dispatch. Read portals may suspend and resume within that same cycle. MySQL
 connection reset clears prepared handles without cancelling durable work.
 
-Use verified TLS and explicit autocommit. PostgreSQL authenticates with
-SCRAM-SHA-256. MySQL uses full caching_sha2_password authentication inside TLS,
+Use explicit autocommit. TLS can be disabled, optional or required (the default).
+Explicit loopback trust logins need no password or certificate when TLS is disabled;
+they retain current native authorization. PostgreSQL password logins use
+SCRAM-SHA-256, with or without TLS. MySQL uses full caching_sha2_password authentication inside TLS,
 UTF8MB4, collation utf8mb4_0900_bin and SQL mode
 ANSI_QUOTES,NO_BACKSLASH_ESCAPES. Host settings, catalog SHOW and session SET/RESET use the shared [settings SQL](../../docs/reference/sql/settings.md) profile; host inspection/reload requires an explicit management binding. Other unknown settings reject. Compatibility version
 selectors choose driver codecs; the endpoint is a Transit adapter, not either

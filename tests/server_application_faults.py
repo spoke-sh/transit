@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='1f58b18465617d0a60a1ca4139d0ecf5c0dde7c4ed64d503d21267c21545ab10', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -179,7 +179,15 @@ def node(real, directory, args):
                         if armed.exists():
                             selection = json.loads(armed.read_text())
                             selected = selection['label']
-                            if selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']) and (selection.get('resource') is None or selection['resource'] == envelope['request']['command'][selection['command']].get('resource')):
+                            matches = selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']) and (selection.get('resource') is None or selection['resource'] == envelope['request']['command'][selection['command']].get('resource'))
+                            if matches and 'binding_role' in selection:
+                                authorization = envelope['request']['command']['authorization']
+                                binding = authorization.get('begin', {}).get('action', {}).get('bind_credential', {})
+                                if binding.get('role') == selection['binding_role']:
+                                    selection['change'] = json.loads(data)['position']
+                                    armed.write_text(json.dumps(selection))
+                                matches = selection.get('change') is not None and authorization.get('publish') == selection['change']
+                            if matches:
                                 frozen = dict(body=body.hex(), receipt=data.hex())
                                 (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(frozen))
                                 armed.unlink()

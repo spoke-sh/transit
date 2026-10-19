@@ -13,16 +13,85 @@ rejects before opening retained state. Keep the matching old bundle to resolve
 its accepted work; initializing a different directory is a separate operation.
 The server never deletes or resets an incompatible installation.
 
-## Configure and enroll an account
+## Start locally without TLS
 
-Run these commands from the installation's working directory. Use Linux x86_64,
-the [local bundle](../../../nix/README.md#transit-cli-packages), and ordinary
-`psql` and Oracle `mysql` clients. The development shell supplies both clients.
-Choose free loopback ports; the defaults below also require port 19108 for
-private SQL recovery/readiness checks.
+Use Linux x86_64, the [local bundle](../../../nix/README.md#transit-cli-packages),
+and ordinary `psql` and Oracle `mysql` clients. The development shell supplies
+both clients. Add this section to `transit.yaml`, selecting free ports:
 
-Create a private password file using Bash or Zsh. Enter 1–128 printable ASCII
-bytes; the file contains exactly those bytes, without a trailing newline.
+```yaml
+sql:
+  postgres:
+    port: 5434
+  mysql:
+    port: 13306
+  tls:
+    mode: disabled
+  accounts:
+    - name: owner
+      role: local_owner
+      authentication: trust
+      bootstrap_owner: true
+```
+
+For a deliberately new installation, run `transit server --initialize` once.
+For an existing compatible installation, run `transit server`. SQL setup creates
+its account ledger and records the owner credential binding automatically. Once
+SQL reports `accepting`, connect without certificates or password files:
+
+```sh
+psql -h localhost -p 5434 -U owner -d transit
+mysql --protocol=TCP -h localhost -P 13306 -u owner -D transit --ssl-mode=DISABLED
+```
+
+Both listeners bind IPv4 loopback. `trust` accepts a client's claimed configured
+SQL login: any local process able to connect can use that login's privileges.
+It does not verify the operating-system user. Unknown or disabled SQL names
+reject. Native role eligibility, database access, Table grants and current
+credential checks apply to every session and protected operation.
+
+`bootstrap_owner: true` explicitly binds a newly enrolled SQL account to the
+installation's original `local_owner` role. It uses the shared authorization
+operations and a saved request/receipt journal. It runs once per account;
+restart never rebinds a disabled credential or restores revoked privileges.
+Keep this declaration unchanged for that account. It cannot be enabled later on
+an account enrolled without it, or used with another role. A recreated role with
+the same name cannot replace the original owner. SQL workers never receive the
+installation's administrator credential.
+
+The local profile selects database `transit` and schema `public`; it does not
+create a database matching the OS username. Account names contain 1–63 ASCII
+letters, digits, underscores or hyphens. Both listeners remain opt-in. Configuring
+a listener without an enabled account fails validation before child startup.
+
+The core ready record includes `sql.state` and `sql.status_file`. SQL setup
+continues independently of core readiness. Status transitions, actual connection
+commands and failures are printed to stderr and saved in `.transit/sql/status.json`.
+Configured ports and accepting ports are distinct. The file is the supervisor's
+last observed snapshot and can remain after shutdown; the private `/health`
+probe checks admission readiness and `/recovery` checks worker readiness at
+`sql.health_port` (19108 by default).
+
+## Select TLS and password authentication
+
+Transport encryption and login authentication are independent settings:
+
+| Setting | Behavior |
+| --- | --- |
+| `sql.tls.mode: disabled` | No TLS files are created or opened; PostgreSQL and MySQL trust logins use plaintext |
+| `sql.tls.mode: optional` | One listener accepts plaintext or TLS; TLS setup must succeed before either is exposed |
+| `sql.tls.mode: required` | Default; plaintext connections receive a protocol error |
+| Account `authentication: trust` | No password file or password exchange; loopback only |
+| Account `authentication: password` | Default; an explicit `password_file` supplies the initial verifier |
+
+PostgreSQL password authentication uses SCRAM with or without TLS. MySQL's
+full `caching_sha2_password` exchange requires TLS. With optional TLS a plaintext
+MySQL password login rejects before requesting the password; a MySQL listener
+with disabled TLS and an enabled password account fails configuration validation.
+Trust works with any of the three TLS modes.
+
+For passwords, create a private file outside Git containing exactly 1–128
+printable ASCII bytes, without a trailing newline. For example, in Bash or Zsh:
 
 ```sh
 umask 077
@@ -31,81 +100,47 @@ printf '%s' "$sql_password" > sql-owner.password
 unset sql_password
 ```
 
-Add this section to `transit.yaml`:
+Set `sql.tls.mode: required` and replace the owner's `authentication: trust`
+with `authentication: password` and `password_file: ./sql-owner.password` **when
+first enrolling it**. Keep `bootstrap_owner: true` to record the owner binding
+automatically. Existing credential files are never silently regenerated by
+configuration changes; the rotation workflow below replaces password verifiers.
+A trust credential has no password verifier, and cannot authenticate a password
+login merely because its configuration changed.
 
-```yaml
-sql:
-  postgres: {port: 15432}
-  mysql: {port: 13306}
-  command_ms: 180s
-  accounts:
-    - name: owner
-      role: local_owner
-      password_file: ./sql-owner.password
-```
+## Enroll other roles explicitly
 
-`local_owner` is the existing local catalog owner. Binding this account to that
-role explicitly gives it the role's existing rights. A new role starts without
-data rights. The local profile selects database `transit` and schema `public`;
-other catalog mappings require the standalone gateway deployment interface.
-Account names contain 1–63 ASCII letters, digits, underscores or hyphens.
-
-The example explicitly allows a statement to wait up to three minutes for its
-durable result. The default is 30 seconds; the maximum is 270 seconds. Storage
-work can exceed a client wait. A timeout or lost connection does not establish
-that a write failed. Inspect its retained operation before considering new work.
-
-Start `transit server` for an existing installation, or add `--initialize` only
-for a deliberately new installation. The core ready record includes `sql.state`,
-the authorization/catalog profiles and `sql.status_file`. Read that status file
-while completing enrollment, for example with the default installation path:
-
-```sh
-cat .transit/sql/status.json
-```
-
-The status file is the supervisor's last observed snapshot and can remain after
-shutdown. Confirm that the server is running; use the live private `/health`
-probe for admission readiness or `/recovery` for worker readiness. Their port is
-`sql.health_port` (19108 by default).
-
-The core administration interfaces remain available while SQL awaits
-authorization. The status file lists account names, roles, database/schema,
-initialization state and control profiles. At `awaiting_binding`, the supervisor
-has published a reviewable credential-binding proposal. Prepare and explicitly
-apply it through the existing authorization commands:
+For an account with `bootstrap_owner: false` (the default), setup publishes
+reviewable proposals under `.transit/sql/accounts/<name>/`. At `awaiting_role`,
+prepare/apply `create-role.json`; at `awaiting_binding`, prepare/apply
+`bind-credential.json`. For example, for a separately configured `reader`:
 
 ```sh
 transit auth prepare --config .transit/sql/authorization.yaml \
-  --file .transit/sql/accounts/owner/bind-credential.json \
-  --output owner-binding.saved.json
+  --file .transit/sql/accounts/reader/bind-credential.json \
+  --output reader-binding.saved.json
 transit auth apply --config .transit/sql/authorization.yaml \
-  --file owner-binding.saved.json --steps 64
+  --file reader-binding.saved.json --steps 64
 ```
 
-Inspect the preparation preview. If apply reports `pending`, repeat **apply on
-the same saved file** until it reports a published terminal outcome. Do not
-prepare another change to recover a lost reply. If preparation rejects an unsent
-proposal with `StaleAuthorizationRevision`, wait for the supervisor to refresh
-that proposal, review it again, and prepare it. No command was submitted by the
-failed preparation. The [authorization guide](authorization.md) explains
-abandonment and exact recovery for saved work.
+Inspect the preparation preview. If apply reports `pending`, repeat apply on the
+same saved file until it reports a published terminal outcome. A rejected unsent
+proposal with `StaleAuthorizationRevision` needs a refreshed proposal and review.
+Do not prepare another operation to recover a lost reply. The
+[authorization guide](authorization.md) explains exact recovery.
 
-The generated `authorization.yaml` and `catalog.yaml` select a private local
-administrator with its own native command sequence and explicit root-role
-membership. Protect this profile and seed as full local administrative access.
-The SQL process receives separate worker, ingress, coordinator, Table and
-private-reader credentials; it receives neither the administrator nor the
-operator control credential.
-
-After binding, setup initializes the account's durable ledger in one fenced
-activation and starts admission in a new activation. Wait for `accepting` in the
-status file. It publishes the actual configured ports and CA path. A configured
-listener can be available while another account still awaits authorization.
+New roles start without data rights. Grant their database/schema access and
+Table privileges explicitly using the examples below. The generated
+`authorization.yaml` and `catalog.yaml` select a separate private administrator
+with root-role membership; protect their seed as full administrative access.
+SQL receives separate worker, ingress, coordinator, Table and private-reader
+credentials. Account initialization and normal admission use separate fenced
+activations. One initialized account can serve connections while others await
+authorization.
 
 ## Connect and share a Table
 
-With the managed local CA and default paths, use verified TLS:
+For the password configuration, use verified TLS (substitute your configured ports):
 
 ```sh
 PGSSLMODE=verify-full PGSSLROOTCERT="$PWD/.transit/sql/tls/ca.pem" \
@@ -118,7 +153,7 @@ mysql --protocol=TCP -h localhost -P 13306 -u owner -D transit --password \
 
 Substitute the status file's CA path and ports when using another installation
 path or supplied trust. Both listeners bind `127.0.0.1`. The certificate identifies
-`localhost` and `127.0.0.1`; there is no plaintext SQL authentication fallback.
+`localhost` and `127.0.0.1`. TLS policy is enforced before login.
 
 Run one statement at a time. In `psql`:
 
@@ -203,7 +238,7 @@ binding, preserving the old account's recovery identity.
 ## Trust and password rotation
 
 Without `sql.tls` file references, Transit generates an installation-local CA
-and server certificate through its pinned TLS library. The CA is valid for ten
+and server certificate through its pinned TLS library when TLS is optional or required. The CA is valid for ten
 years and the server certificate for one year. Their private checkpoint precedes
 PEM publication. Missing exported managed PEM files can be recreated from that
 checkpoint; missing retained trust state rejects rather than generating a new

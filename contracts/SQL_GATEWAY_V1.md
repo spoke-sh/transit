@@ -3,7 +3,7 @@
 This contract defines the shared gateway library, PostgreSQL/MySQL sessions,
 typed message/scalar codecs and signed account recovery. The
 [gateway application](../apps/transit-sql-gateway/README.md) composes those owners
-with authenticated TLS listeners. Codec acceptance alone cannot admit a durable
+with explicitly configured transport and login policies. Codec acceptance alone cannot admit a durable
 write. Executed evidence belongs to the
 [proof ledger](../tests/README.md).
 
@@ -61,6 +61,31 @@ native requests. Relational reads additionally bound resident/spill bytes to
 10000. Limits fail explicitly; a suspended portal retains its original snapshot
 and lease rather than opening a new cut. These per-query budgets are subordinate
 to the session allocator and the native snapshot owner's lease/resource quotas.
+
+## Transport and login policy
+
+`tls_mode` selects `disabled`, `optional` or `required` (default). Disabled TLS
+has no PEM dependency. Optional TLS requires valid TLS material before binding
+and accepts encrypted or plaintext startup on the same listener. Required TLS
+rejects plaintext before login; it never downgrades after TLS negotiation fails.
+
+Accounts select `password` (default) or explicit `trust`. Trust requires an IPv4
+loopback bind address and maps only a configured enabled SQL name to its native
+principal. It accepts the claimed name without checking an OS identity. Its
+credential record has a null verifier but still binds account fingerprint,
+native principal, login role, credential epoch and revision. Password accounts
+require a non-null verifier. Both methods perform the same current native login,
+database and disclosure checks. No network input selects another native identity.
+
+PostgreSQL rejects GSS encryption with `N`; SSLRequest receives `N` for disabled
+TLS or `S` followed by TLS negotiation otherwise. Plain StartupMessage is accepted
+only for disabled/optional TLS. Trust proceeds directly to AuthenticationOk after
+native admission; passwords use SCRAM-SHA-256 over either permitted transport.
+MySQL advertises CLIENT_SSL only when TLS is enabled. A plaintext response and a
+TLS SSLRequest have separate bounded parsers. Trust receives OK after native
+admission without a full-password request. MySQL password authentication requires
+TLS; with optional TLS an unencrypted password login fails before requesting the
+password. Configuring MySQL password accounts with disabled TLS rejects.
 
 ## Credential verification
 
@@ -207,7 +232,7 @@ and unsupported command layouts reject before execution. This includes the
 pinned Connector/Python's default multi-statement offer. UTF8MB4 negotiation accepts
 charset bytes 45, 46 and 255; logical comparisons and UTF-8 column metadata retain
 collation 309. Attributes are ignored only after validating at most 4096 bytes,
-32 pairs and 1024 bytes per name/value. Authentication proof length is zero or
+32 pairs and 1024 bytes per name/value. Authentication proof is empty, a single NUL for an absent password, or
 32 bytes; the full password follows only after TLS and an explicit auth request.
 
 `Backend` emits bounded HandshakeV10, prepare, metadata, text/binary rows,
