@@ -142,6 +142,20 @@ history trimming and the second collection. The two cycles reclaim 216,440
 accounted bytes with one decoded page. This fixture adds the checkpoint and is
 distinct from the earlier recorded collection run below.
 
+At `fe87e9a4`, root checks and the Flight fault schedule pass. Clean CI passes
+50 tasks, including the complete SQL wire and maintained-query schedules, then
+fails the exchange corruption fixture. Its injector changes an exchange chunk
+returned incidentally by a broader KV scan; the caller filters that entry out.
+With Table records now stored as blocks, the scan includes different neighboring
+entries. The injector now targets the explicit point read that consumes the
+segment bytes, retaining the digest-rejection and unchanged-acceptance checks.
+The focused rerun with that correction passes both one-partition/one-worker and
+seven-partition/three-worker layouts in 675.342 seconds of native execution.
+It verifies corruption, lost producer/acceptance replies, every recorded handoff
+boundary, missing/denied restore, source expiry and disk restart. The interrupted
+clean run remains partial qualification; the fixture correction changes no
+runtime behavior or proof limits.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,
