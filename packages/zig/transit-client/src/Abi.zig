@@ -68,6 +68,33 @@ fn parse(comptime T: type, bytes: []const u8) !T {
     defer parsed.deinit();
     return parsed.value;
 }
+
+/// Decode the signed request and optional body separately into owned storage.
+/// Parsing the whole Frozen union recursively copies its maximum body through
+/// every JSON stack frame in Debug, exceeding the promised foreign-thread stack.
+/// Public request/body decoders and canonical Frozen encoding remain authoritative.
+fn importSigned(alloc: std.mem.Allocator, value: std.json.Value, out: *Signed) !void {
+    if (value != .object or value.object.count() != 1) return error.InvalidArgument;
+    var iterator = value.object.iterator();
+    const entry = iterator.next().?;
+    if (std.mem.eql(u8, entry.key_ptr.*, "growing_command")) {
+        const envelope = entry.value_ptr.*;
+        if (envelope != .object) return error.InvalidArgument;
+        var request: std.json.ObjectMap = .{};
+        defer request.deinit(alloc);
+        var fields = envelope.object.iterator();
+        while (fields.next()) |field| {
+            if (!std.mem.eql(u8, field.key_ptr.*, "blocks")) try request.put(alloc, field.key_ptr.*, field.value_ptr.*);
+        }
+        const signed = try std.json.innerParseFromValue(p.Growth.SignedRequest, alloc, .{ .object = request }, .{});
+        out.* = .{ .growing_command = p.Growth.CommandEnvelope.init(signed) };
+        if (envelope.object.get("blocks")) |body| {
+            if (body != .null) out.growing_command.blocks = try std.json.innerParseFromValue(p.Blocks.Body, alloc, body, .{});
+        }
+    } else if (std.mem.eql(u8, entry.key_ptr.*, "growing_query")) {
+        out.* = .{ .growing_query = try std.json.innerParseFromValue(p.Growth.SignedQuery, alloc, entry.value_ptr.*, .{}) };
+    } else return error.InvalidArgument;
+}
 fn fail(err: anyerror) Status {
     return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
 }
@@ -260,16 +287,25 @@ pub const Api = struct {
     pub fn transit_operation_import(json: [*]const u8, json_len: usize, out: *?*Operation) callconv(.c) Status {
         out.* = null;
         if (json_len == 0 or json_len > p.max_body) return .invalid_argument;
-        const frozen = parse(Frozen, json[0..json_len]) catch |err| return fail(err);
-        if (frozen.version != version) return .incompatible_version;
-        const signed = frozen.operation;
-        validate(signed) catch |err| return fail(err);
-        const canonical = std.json.Stringify.valueAlloc(allocator, frozen, .{}) catch return .out_of_memory;
+        const tree = std.json.parseFromSlice(std.json.Value, allocator, json[0..json_len], .{}) catch |err| return fail(err);
+        defer tree.deinit();
+        const Header = struct {
+            version: @FieldType(Frozen, "version") = version,
+            definition: @FieldType(Frozen, "definition"),
+            operation: std.json.Value,
+        };
+        const header = std.json.innerParseFromValue(Header, tree.arena.allocator(), tree.value, .{}) catch |err| return fail(err);
+        if (header.version != version) return .incompatible_version;
+        const result = allocator.create(OperationImpl) catch return .out_of_memory;
+        var transferred = false;
+        defer if (!transferred) allocator.destroy(result);
+        importSigned(tree.arena.allocator(), header.operation, &result.signed) catch |err| return fail(err);
+        validate(result.signed) catch |err| return fail(err);
+        const canonical = std.json.Stringify.valueAlloc(allocator, Frozen{ .definition = header.definition, .operation = result.signed }, .{}) catch return .out_of_memory;
         defer allocator.free(canonical);
         if (!std.mem.eql(u8, canonical, json[0..json_len])) return .invalid_argument;
-        const result = allocator.create(OperationImpl) catch return .out_of_memory;
-        result.* = .{ .signed = signed };
         out.* = @ptrCast(result);
+        transferred = true;
         return .ok;
     }
     pub fn transit_operation_destroy(operation: ?*Operation) callconv(.c) void {
@@ -549,7 +585,7 @@ test "transport denial remains uncertain for commands and unavailable for reads"
     }
 }
 
-test "a maximum bulk pending operation round trips owned bytes within the HTTP bound" {
+test "a maximum bulk pending operation imports within the ABI worker stack and owns its bytes" {
     const t = std.testing;
     var batch: p.Blocks.Batch = .{};
     const bytes: [p.Blocks.max_block_bytes]u8 = @splat(215);
@@ -563,9 +599,20 @@ test "a maximum bulk pending operation round trips owned bytes within the HTTP b
     const bytes_json = try std.json.Stringify.valueAlloc(t.allocator, Frozen{ .definition = p.Growth.current_definition, .operation = .{ .growing_command = envelope } }, .{});
     defer t.allocator.free(bytes_json);
     try t.expect(bytes_json.len <= p.max_body);
-    var out: ?*Operation = null;
-    try t.expectEqual(.ok, Api.transit_operation_import(bytes_json.ptr, bytes_json.len, &out));
+    const Import = struct {
+        bytes: []const u8,
+        operation: ?*Operation = null,
+        status: Status = .invalid_argument,
+        fn run(self: *@This()) void {
+            self.status = Api.transit_operation_import(self.bytes.ptr, self.bytes.len, &self.operation);
+        }
+    };
+    var work: Import = .{ .bytes = bytes_json };
+    const thread = try std.Thread.spawn(.{ .stack_size = minimum_stack_bytes }, Import.run, .{&work});
+    thread.join();
+    const out = work.operation;
     defer Api.transit_operation_destroy(out);
+    try t.expectEqual(.ok, work.status);
     const imported = cast(OperationImpl, out.?).signed.growing_command;
     try p.Blocks.verify(imported.request.command.turn.blocks, &imported.blocks.?);
     try t.expectEqualDeep(signed, imported.signed());

@@ -70,6 +70,35 @@ those inputs makes the unchanged fixtures match; the independent comparison and
 shared gateway/PostgreSQL/MySQL package suites pass. This partial clean attempt
 also does not establish completion of the ordinary suite.
 
+The clean attempt at `569b71d2` passes its first 17 tasks, then detects a
+saved-command fixture that omits the new `blocks: null` field. The ABI export
+oracle now requires that field; the shared SDK recovery oracle compares the
+ordinary HTTP representation while still requiring byte-identical retries and
+unchanged saved bytes. Populated bodies remain part of the comparison.
+
+The installed Python Station schedule then exposes two Debug stack overflows
+on its declared 8 MiB worker. Recursive saved-envelope decoding copies the bulk
+body through typed JSON frames; block reads copy their response through the
+timeout selection queue. Import now decodes the signed request and body
+separately into owned operation storage, retaining public validation and exact
+canonical-byte checks. The transport keeps one bounded response slot and queues
+only completion status. Cancellation joins its producer before releasing any
+raced owned response. The maximum 128 KiB saved-operation regression executes
+import on an explicit 8 MiB thread; client package checks also cover nested
+response ownership, response budgets and timeout cleanup. Neither fix increases
+the advertised stack requirement or changes the current contract definition.
+
+With those pending fixes, the installed Python Station runner completes the
+shared schedule: 46 Table terminal outcomes, 219 queue drain turns, 41 logical
+query rows in six independently consumed Arrow streams (41,992 bytes), 275
+publication/receipt rounds, retained output after handle destruction, current
+denial, expiry and exact host/provider restart recovery. Two lost/unavailable
+outcomes reconcile with unchanged signed attempts and two unavailable reads
+repeat within the original progress budget. The subsequent `just test::client-abi`
+passes native/port ownership, malformed input, wide identities, lost/invalid
+replies, seedless host-loss retry, disk restart and revoked recovery. This focused
+installed-consumer run is separate from complete committed-source qualification.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

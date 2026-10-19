@@ -135,28 +135,36 @@ pub const Client = struct {
             .raw = .fromMilliseconds(self.timeout_ms),
             .clock = .awake,
         });
-        const Result = union(enum) { response: anyerror!ResponseType(T, owned), timeout: anyerror!void };
+        // Keep the bounded response in one caller-owned slot. Passing a bulk
+        // body by value through Select and Queue multiplies Debug stack use at
+        // every scheduling frame, exceeding a foreign worker's 8 MiB stack.
+        // Cancellation joins the producer before this slot is read or released.
+        var response: ?ResponseType(T, owned) = null;
+        defer if (owned) {
+            if (response) |parsed| parsed.deinit();
+        };
+        const Result = union(enum) { response: anyerror!void, timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(io, &results);
-        defer if (owned) {
-            while (select.cancel()) |result| switch (result) {
-                .response => |response| if (response) |parsed| parsed.deinit() else |_| {},
-                .timeout => {},
-            };
-        } else select.cancelDiscard();
+        defer select.cancelDiscard();
         try concurrentBefore(&select, .timeout, timeout, .{ io, deadline }, deadline);
         const Task = struct {
-            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits) anyerror!ResponseType(T, owned) {
+            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits, destination: *?ResponseType(T, owned)) anyerror!void {
                 if (until.durationFromNow(client.http.io).raw.nanoseconds <= 0) return error.AuthorityTimeout;
-                return client.perform(T, route, command, owned, bounds);
+                destination.* = try client.perform(T, route, command, owned, bounds);
             }
         };
         // async permits inline execution, which would defeat the timeout when
         // no async worker is available. Admission waits for real concurrency;
         // the transport itself is invoked at most once, with the same deadline.
-        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline, limits }, deadline);
+        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline, limits, &response }, deadline);
         return switch (try select.await()) {
-            .response => |result| result,
+            .response => |result| blk: {
+                try result;
+                const value = response.?;
+                response = null;
+                break :blk value;
+            },
             .timeout => error.AuthorityTimeout,
         };
     }

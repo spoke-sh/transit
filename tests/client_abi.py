@@ -212,7 +212,8 @@ def run(library, node, cli, c_proof):
             request = {"realm": 72, "principal": 0, "sequence": 1, "command": {"spawn": {}}}
             operation = native.prepare(6, seed, request)
             exported = native.export(operation)
-            assert json.loads(exported)["operation"]["growing_command"] == system.signed(request["command"], 1)
+            expected_command = system.signed(request["command"], 1) | {"blocks": None}
+            assert json.loads(exported)["operation"]["growing_command"] == expected_command
             saved = system.root / "pending.json"
             saved.write_bytes(exported)
             saved.chmod(0o600)
