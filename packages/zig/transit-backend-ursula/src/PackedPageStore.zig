@@ -3,9 +3,12 @@
 const std = @import("std");
 const adapter = @import("root.zig");
 const pages = @import("transit_core").pages;
+const blocks = @import("transit_core").blocks;
+const bulk = @import("transit_core").protocol.Blocks;
 const observations = @import("transit_observability");
 const Self = @This();
 const max_record_bytes = 2 + std.base64.standard.Encoder.calcSize(pages.max_encoded_bytes);
+const max_block_record_bytes = 2 + std.base64.standard.Encoder.calcSize(4 + bulk.max_block_bytes);
 const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 
 allocator: std.mem.Allocator,
@@ -18,6 +21,8 @@ misses: u64 = 0,
 created: u64 = 0,
 requests: u64 = 0,
 create_payload_bytes_attempted: u64 = 0,
+blocks_created: u64 = 0,
+block_payload_bytes_attempted: u64 = 0,
 
 pub fn init(allocator: std.mem.Allocator, authority: adapter.Journal, resident_pages: usize) !Self {
     if (resident_pages > 1024) return error.InvalidPageCacheBudget;
@@ -95,8 +100,122 @@ fn located(ref: pages.Reference, position: u64) pages.Reference {
     return result;
 }
 fn coordinate(ref: pages.Reference) !u64 {
-    if (ref.location[0] != 1 or !std.mem.allEqual(u8, ref.location[1..8], 0)) return error.UnsupportedPageLocation;
-    return std.mem.readInt(u64, ref.location[8..16], .big);
+    return coordinateLocation(ref.location);
+}
+fn coordinateLocation(location: [16]u8) !u64 {
+    if (location[0] != 1 or !std.mem.allEqual(u8, location[1..8], 0)) return error.UnsupportedPageLocation;
+    return std.mem.readInt(u64, location[8..16], .big);
+}
+
+/// Immutable bytes use their own domain and frame. Publication metadata owns
+/// the reference; a successful append alone grants no resource visibility.
+pub fn stageBlock(self: *Self, spec: bulk.Spec, bytes: []const u8) !blocks.Reference {
+    try spec.verify(bytes);
+    var observation = observations.begin(self.authority.observer, .storage_operation, "block.stage", self.authority.parent_context);
+    defer observation.finish();
+    return self.appendBlock(spec, bytes) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+fn appendBlock(self: *Self, spec: bulk.Spec, bytes: []const u8) !blocks.Reference {
+    const buffer = try self.allocator.alloc(u8, max_block_record_bytes);
+    defer self.allocator.free(buffer);
+    const body = try encodeBlock(bytes, buffer);
+    self.requests +|= 1;
+    self.block_payload_bytes_attempted +|= body.len;
+    var response = try self.authority.send(.{ .append = .{
+        .stream = self.journal().stream,
+        .body = body,
+        .options = .{ .content_type = "application/json" },
+    } });
+    defer response.deinit();
+    try response.head.requireSuccess();
+    const metadata = try response.head.metadata();
+    const position = try appendedAt(metadata.record_start, metadata.record_next);
+    const reference: blocks.Reference = .{ .value = spec, .location = located(.{ .digest = spec.digest }, position).location };
+    // Establish complete immutable availability before returning a publishable
+    // reference. Missing/corrupt readback never becomes an accepted empty block.
+    const verified = try self.allocator.alloc(u8, spec.bytes);
+    defer self.allocator.free(verified);
+    _ = try self.loadBlock(reference, verified);
+    self.blocks_created +|= 1;
+    return reference;
+}
+pub fn loadBlock(self: *Self, reference: blocks.Reference, output: []u8) ![]const u8 {
+    try reference.value.validate();
+    if (output.len < reference.value.bytes) return error.BlockBufferTooSmall;
+    const position = try coordinateLocation(reference.location);
+    var observation = observations.begin(self.authority.observer, .storage_operation, "block.load", self.authority.parent_context);
+    defer observation.finish();
+    return self.fetchBlock(reference, position, output) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+fn fetchBlock(self: *Self, reference: blocks.Reference, position: u64, output: []u8) ![]const u8 {
+    self.requests +|= 1;
+    var response = try self.authority.send(.{ .read = .{ .stream = self.journal().stream, .options = .{
+        .position = .{ .record = position },
+        .max_records = 1,
+    } } });
+    defer response.deinit();
+    if (response.head.status == .not_found or response.head.status == .gone) return error.BlockUnavailable;
+    try response.head.requireSuccess();
+    const metadata = try response.head.metadata();
+    if (metadata.record_start != position or metadata.record_next != try std.math.add(u64, position, 1)) return error.BlockUnavailable;
+    const body = response.body;
+    if (body.len == 0 or body[body.len - 1] != '\n') return error.CorruptBlock;
+    return decodeBlock(body[0 .. body.len - 1], reference.value, output);
+}
+fn encodeBlock(bytes: []const u8, output: []u8) ![]const u8 {
+    if (bytes.len > bulk.max_block_bytes) return error.BlockTooLarge;
+    var binary: [4 + bulk.max_block_bytes]u8 = undefined;
+    binary[0..4].* = "TBK1".*;
+    @memcpy(binary[4..][0..bytes.len], bytes);
+    const count = std.base64.standard.Encoder.calcSize(4 + bytes.len);
+    if (output.len < count + 2) return error.BlockBufferTooSmall;
+    output[0] = '"';
+    _ = std.base64.standard.Encoder.encode(output[1..][0..count], binary[0 .. 4 + bytes.len]);
+    output[count + 1] = '"';
+    return output[0 .. count + 2];
+}
+fn decodeBlock(body: []const u8, spec: bulk.Spec, output: []u8) ![]const u8 {
+    try spec.validate();
+    if (output.len < spec.bytes) return error.BlockBufferTooSmall;
+    if (body.len < 2 or body.len > max_block_record_bytes or body[0] != '"' or body[body.len - 1] != '"') return error.CorruptBlock;
+    const encoded = body[1 .. body.len - 1];
+    const size = std.base64.standard.Decoder.calcSizeForSlice(encoded) catch return error.CorruptBlock;
+    if (size != 4 + spec.bytes) return error.CorruptBlock;
+    var binary: [4 + bulk.max_block_bytes]u8 = undefined;
+    std.base64.standard.Decoder.decode(binary[0..size], encoded) catch return error.CorruptBlock;
+    if (!std.mem.eql(u8, binary[0..4], "TBK1")) return error.CorruptBlock;
+    const bytes = binary[4..size];
+    try spec.verify(bytes);
+    var canonical: [max_block_record_bytes]u8 = undefined;
+    if (!std.mem.eql(u8, body, try encodeBlock(bytes, &canonical))) return error.CorruptBlock;
+    @memcpy(output[0..bytes.len], bytes);
+    return output[0..bytes.len];
+}
+
+test "immutable block records separate page framing and verify complete bytes" {
+    const t = std.testing;
+    const bytes: [bulk.max_block_bytes]u8 = @splat(19);
+    const spec = try bulk.Spec.of(&bytes);
+    var encoded: [max_block_record_bytes]u8 = undefined;
+    const record = try encodeBlock(&bytes, &encoded);
+    var output: [bulk.max_block_bytes]u8 = undefined;
+    try t.expectEqualSlices(u8, &bytes, try decodeBlock(record, spec, &output));
+    var wrong = spec;
+    wrong.digest[0] ^= 1;
+    try t.expectError(error.CorruptBlock, decodeBlock(record, wrong, &output));
+    try t.expectError(error.BlockBufferTooSmall, decodeBlock(record, spec, output[0..1]));
+    const empty = try bulk.Spec.of("");
+    const empty_record = try encodeBlock("", &encoded);
+    try t.expectEqualStrings("", try decodeBlock(empty_record, empty, &output));
+    for ([_][]const u8{ "{}", "\"\"", "\"VFBHMQ==\"", "\"VEJL\"", "\"VEJLMR==\"" }) |invalid| {
+        try t.expectError(error.CorruptBlock, decodeBlock(invalid, empty, &output));
+    }
 }
 pub fn load(self: *Self, ref: pages.Reference) !pages.Page {
     const position = try coordinate(ref);

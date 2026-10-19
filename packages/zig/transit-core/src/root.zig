@@ -7,6 +7,7 @@ pub const Time = @import("Time.zig");
 pub const Runtime = protocol.Runtime;
 pub const pages = @import("pages.zig");
 pub const catalog = @import("catalog.zig");
+pub const blocks = @import("blocks.zig");
 pub const authorization = @import("authorization.zig");
 pub const authorization_store = @import("authorization_store.zig");
 pub const authorization_admin = @import("authorization_admin.zig");
@@ -31,6 +32,7 @@ pub const digest = protocol.digest;
 pub const Payload = protocol.Payload;
 test {
     _ = SnapshotLeases;
+    _ = @import("blocks_test.zig");
     _ = @import("pages_test.zig");
     _ = @import("catalog_test.zig");
     _ = @import("growing_test.zig");

@@ -14,6 +14,10 @@ unit:
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe
 
+# Primitive bytes/index proof; native authority and SQL integration are separate.
+block-storage:
+    zig build test-block-storage -Doptimize=ReleaseSafe
+
 # Independent pinned database clients, TLS/authentication and prepared cycles.
 sql-wire-reference:
     nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py

@@ -1,5 +1,19 @@
 # Validation and milestone evidence
 
+## Immutable block codec and index
+
+On October 18, 2026, protocol, core and Ursula backend package tests and
+`just test::block-storage` pass. The disk fixture publishes a full 128 KiB
+batch, retains old and successor roots with one resident metadata page, and
+checks both after provider SIGKILL/restart. Lost staging replies, corrupt
+readback and missing bytes prevent publication; subsequent good reads retain
+the original values. Unit schedules cover each block/page staging failure,
+canonical base64, owned parser bytes and independent digest vectors.
+
+This proof exercises the generic index and backend beneath a conditional test
+journal. Native resource authorization, Table integration and physical
+reclamation require separate proofs; this result does not establish them.
+
 ## Independently owned native execution
 
 On October 18, 2026, the core package suite and `just test::node-concurrency`

@@ -436,6 +436,18 @@ pub fn build(b: *std.Build) void {
     page_test.has_side_effects = true;
     page_test.stdio = .inherit;
     b.step("test-pages", "Qualify immutable pages and bounded cache over disk Ursula").dependOn(&page_test.step);
+    const block_proof = b.addExecutable(.{ .name = "transit-block-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/block_storage.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const block_test = b.addSystemCommand(&.{ "python3", "-B" });
+    block_test.addFileArg(b.path("tests/block_storage.py"));
+    block_test.addArtifactArg(block_proof);
+    block_test.has_side_effects = true;
+    block_test.stdio = .inherit;
+    b.step("test-block-storage", "Qualify bounded immutable blocks and retained roots over disk Ursula").dependOn(&block_test.step);
     const growth_proof = b.addExecutable(.{ .name = "transit-growth-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing.zig"),
         .target = target,

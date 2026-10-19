@@ -2,6 +2,7 @@
 const std = @import("std");
 pub const version = 1;
 pub const Value = @import("Value.zig");
+pub const Blocks = @import("Blocks.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Json = @import("Json.zig");
 pub const Schema = @import("Schema.zig");
@@ -51,6 +52,7 @@ test {
     _ = Schema;
     _ = Growth;
     _ = Value;
+    _ = Blocks;
     _ = Diagnostic;
     _ = EffectDiagnostic;
     _ = Authorization;
