@@ -69,8 +69,8 @@ reservation, and a fresh startup epoch prevents reuse after node restart.
 The [disk barrier proof](../../tests/node_concurrency.py) holds a provider
 response while requiring an independent signed read and commit to complete
 before release. A second schedule holds old evidence across revocation; a third
-races identical signed writes and checks exact receipt reconciliation. Run
-`just test::node-concurrency` in the pinned development shell. Core schedules
+races identical signed writes and checks exact receipt reconciliation. The
+[proof ledger](../../tests/README.md) provides its reproduction command. Core schedules
 exercise global/per-principal pending quotas, failed renewals, stale release and
 shared pins across independently owned engines. The proof ledger records runs.
 These finite schedules establish overlap and the checked authority outcomes,
@@ -201,9 +201,9 @@ these Transit bounds do not prove whole-provider resident independence. Physical
 segment quotas also exclude provider WAL, snapshots and work-ledger overhead.
 Those are explicit deployment and measurement obligations.
 
-Reproduce the disk schedules with `just test::storage-collection` and
-`just test::native-blocks`; the [proof ledger](../../tests/README.md) identifies
-executed revisions and limits. The collection fixture injects trusted time,
+The [proof ledger](../../tests/README.md) provides reproduction commands for the
+storage collection and native block schedules, with executed revisions and limits.
+The collection fixture injects trusted time,
 restarts processes/provider between phases, loses a deletion acknowledgement,
 corrupts a reachable block and checks retained read versions after relocation.
 These finite schedules do not prove arbitrary provider rollback safety, immediate

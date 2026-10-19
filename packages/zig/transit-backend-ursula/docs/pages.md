@@ -108,17 +108,8 @@ budget. No collection or quota pressure implicitly expires application data.
 
 ## Verification and limits
 
-Run these in the pinned development shell:
-
-```sh
-just test::pages
-just test::block-storage
-just test::native-blocks
-just test::storage-collection
-just test::pages-cold --keys 1024 --cache 2
-```
-
-The [proof ledger](../../../../tests/README.md) records executed scopes, failures
+The [proof ledger](../../../../tests/README.md) provides reproduction commands for
+pages, block storage, native blocks, storage collection and cold storage. It records executed scopes, failures
 and measurements. Page proofs retain both original and successor roots across
 provider SIGKILL, checkpoint/trim and cache-free recovery. Collection proofs use
 an injected trusted clock to exercise the full grace rule without wall-clock
