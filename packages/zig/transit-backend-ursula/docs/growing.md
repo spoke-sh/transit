@@ -72,7 +72,7 @@ fails; temporary clock samples are deterministic test inputs.
 Artifacts `.cache/verification/growing-<hot|s3>-<rows>-<cache>.json` record revision,
 dirty state, binary hash, cache/data/catalog sizes, page requests, elapsed time,
 client/provider memory and WAL file lengths. Optional cold storage uses the
-[owned S3 fixture](pages.md#cold-tier-qualification) and records its resource
+[owned S3 fixture](pages.md#verification-and-limits) and records its resource
 cost separately. The ordinary hot-only fixture is crash correctness evidence,
 not provider memory qualification. Timeouts/errors stay inconclusive.
 

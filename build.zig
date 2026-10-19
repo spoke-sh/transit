@@ -785,6 +785,13 @@ pub fn build(b: *std.Build) void {
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
+            // The native debug linker reserves large sparse section gaps in
+            // this executable. Pack ELF output with pinned LLVM/LLD while
+            // retaining debug information and the executable admission bound.
+            if (optimize == .debug and target.result.ofmt == .elf) {
+                app.use_llvm = true;
+                app.use_lld = true;
+            }
             app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
             app.root_module.addImport("transit_sql_gateway", sql_gateway.module("transit_sql_gateway"));
             app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
