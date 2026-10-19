@@ -15,7 +15,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
@@ -120,6 +120,12 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            if slice == 'benchmark':
+                with psycopg.connect(**options) as connection:
+                    connection.execute('INSERT INTO wire_rows (id) VALUES (101),(102),(103),(104)')
+                from measure import foundation
+                foundation(options,mysql_options,dict(node=node,catalog=catalog,ledger=ledger,host=host,gateway=gateway,configuration_host=configuration_host))
+                return
             from settings import run as settings_proof
             settings_proof(root,options,mysql_options,settings_source,lambda mode: call(ledger,mode))
             if slice == 'settings':

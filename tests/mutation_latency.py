@@ -233,10 +233,14 @@ def main():
     parser.add_argument('--native-metrics', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--build-revision', help='declared build source; binary hashes remain authoritative')
     parser.add_argument('--readers', type=int, default=0, choices=range(5))
+    parser.add_argument('--read-repeat', type=int, default=0, choices=range(1001),
+                        help='independently verified point/range/full/empty read controls after mutations')
     parser.add_argument('--client', help='persistent public Zig caller executable (no console rendering)')
     args = parser.parse_args()
     if args.client and args.schema_profile != 'narrow':
         parser.error('wide/nested profiles require the typed console verifier')
+    if args.read_repeat and not 8 <= args.rows <= 120:
+        parser.error('read controls require 8..120 seed rows within the owned console output budget')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     report = {'status': 'running', 'samples': [], 'errors': [], 'unknown_outcomes': 0,
               'reader_queries': [0] * args.readers, 'reader_failures': [],
@@ -403,6 +407,31 @@ def main():
             assert not thread.is_alive(), 'reader did not stop'
         assert not reader_errors, reader_errors
         report['reader_queries'] = reader_counts
+        if args.read_repeat:
+            report['read_samples'] = []
+            for _ in range(args.read_repeat):
+                for case, sql, keys in (
+                    ('point', 'SELECT * FROM items WHERE id=1', [1]),
+                    ('range', 'SELECT * FROM items WHERE id>=1 AND id<=8 ORDER BY id', list(range(1, 9))),
+                    ('full', 'SELECT * FROM items ORDER BY id', list(range(args.rows + 1))),
+                    ('empty', 'SELECT * FROM items WHERE id=-9', []),
+                    ('limit_zero', 'SELECT * FROM items LIMIT 0', []),
+                ):
+                    before = {name: probe.snapshot() for name, probe in probes.items()}
+                    value, measurement = verifier.call(sql)
+                    rows = value['rows']
+                    assert [int(row[0]['value']['atom']['signed']) for row in rows] == keys, value
+                    for key, row in zip(keys, rows, strict=True):
+                        expected_value = args.age - 1 if key == 0 and args.age else 100
+                        assert int(row[1]['value']['atom']['signed']) == expected_value, value
+                        assert row[2:] == expected_extra, value
+                    report['read_samples'].append({'case': case, **measurement,
+                        'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}})
+                    save()
+            reads = defaultdict(list)
+            for sample in report['read_samples']:
+                reads[sample['case']].append(sample['elapsed_ns'])
+            report['read_distributions'] = {key: distribution(values) for key, values in reads.items()}
         grouped = defaultdict(list)
         for sample in report['samples']:
             grouped[sample['case']].append(sample['elapsed_ns'])
