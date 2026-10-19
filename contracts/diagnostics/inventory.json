@@ -4986,7 +4986,7 @@
       "errors": {
         "AccessDenied": 2,
         "Conflict": 2,
-        "InvalidArgument": 8,
+        "InvalidArgument": 11,
         "InvalidAuthorityResponse": 1,
         "OutOfMemory": 1,
         "Rejected": 2,
@@ -5025,13 +5025,14 @@
         "bufferWithAllocator()": "<inferred>",
         "call()": "<inferred>",
         "extractJson()": "<inferred>",
+        "importSigned()": "<inferred>",
         "parse()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 14,
-        "catch": 35
+        "try": 18,
+        "catch": 37
       },
       "imports": [
         "Host.zig",
@@ -5791,7 +5792,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 10
       },
       "imports": [
