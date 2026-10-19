@@ -11,8 +11,10 @@ cleanup. The current v1 identifier and generated consumers are replaced together
 `just contract::check` passes after regeneration.
 
 The disk native-block proof also passes with the new definition and explicit
-`InvalidBlockBody` rejection before writes. Full Table/Station service
-qualification is still underway. Early runs exposed a saved pending request
+`InvalidBlockBody` rejection before writes. `test-growing-service` also passes
+the retained Station Table and query recovery schedules, including poisoned
+reads, cold storage, one resident page on recovery and quota/control reserves.
+The larger typed-Table deployment proof is still underway. Early runs exposed a saved pending request
 missing its body, an obsolete expectation of multiple recovered Table turns,
 and a supplied host treating a moving read cut as fatal. The fixtures retain
 the complete pending command and count the bulk successor; the host retains
@@ -54,6 +56,13 @@ journal. Native resource authorization, Table integration and physical
 reclamation require separate proofs; this result does not establish them.
 
 ## Independently owned native execution
+
+The subsequent `test-node-concurrency` run also passes with bounded reobservation
+of the same signed read: the held read succeeds at a cut after the independent
+commit, while revocation still rejects held old evidence. At most eight attempts
+are allowed; expired selectors and denial do not retry. Host contention handling
+retains pending command bodies and identities. This fixes the ordinary read
+conflict exposed by the supplied catalog host during the Table deployment proof.
 
 On October 18, 2026, the core package suite and `just test::node-concurrency`
 pass with independently owned native engines and a shared bounded snapshot

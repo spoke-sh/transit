@@ -289,6 +289,18 @@ const Server = struct {
         };
         return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });
     }
+    /// Reobserve only the same signed read after a moving authority cut. The
+    /// engine validates its signature, scope, source and current rights on every
+    /// attempt. This bound neither retries mutations nor changes read selectors.
+    fn readQuery(self: *Server, signed: g.SignedQuery, body: ?*wire.protocol.Blocks.Body) !g.Response {
+        for (0..8) |_| {
+            return (if (body) |output| self.engine.queryBlocks(signed, self, output) else self.engine.queryWithSnapshots(signed, self)) catch |err| {
+                if (err == error.Conflict) continue;
+                return err;
+            };
+        }
+        return error.Conflict;
+    }
     pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
         defer self.finishWork();
         const route: []const u8 = route: {
@@ -348,14 +360,14 @@ const Server = struct {
             if (hint != null or control) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             const acquired = try self.allocator.create(g.BlockRead.Response);
             defer self.allocator.destroy(acquired);
-            acquired.response = self.engine.queryBlocks(parsed.value, self, &acquired.blocks) catch |err| return self.failure(request, err);
+            acquired.response = self.readQuery(parsed.value, &acquired.blocks) catch |err| return self.failure(request, err);
             self.observation.protocol_outcome = .read;
             self.observation.realm = acquired.response.realm;
             self.observation.operation = @tagName(parsed.value.query.kind);
             self.observation.position = acquired.response.position;
             return self.json(request, .ok, acquired.*);
         }
-        var response = self.engine.queryWithSnapshots(parsed.value, self) catch |err| return self.failure(request, err);
+        var response = self.readQuery(parsed.value, null) catch |err| return self.failure(request, err);
         if (hint) |wait| {
             if (wait.after > response.position) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             if (wait.after == response.position) {
@@ -372,7 +384,7 @@ const Server = struct {
                 self.beginWork();
                 // Recheck signature, grants, scope, lifecycle and authority tail
                 // after every wake/timeout, including remote commits and revoke.
-                response = self.engine.queryWithSnapshots(parsed.value, self) catch |err| return self.failure(request, err);
+                response = self.readQuery(parsed.value, null) catch |err| return self.failure(request, err);
             }
         }
         self.observation.protocol_outcome = .read;

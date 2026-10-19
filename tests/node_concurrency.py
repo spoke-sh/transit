@@ -114,7 +114,8 @@ def run(node, signer):
                 finally:
                     released.set()
                 slow = stalled.result(timeout=5)
-                assert slow[0] in (200, 409), slow
+                assert slow[0] == 200, slow
+                assert slow[1]['position'] > written[1]['position'], slow
                 assert request('write') == written, 'exact retry changed receipt'
                 conflicting = request('competing')
                 assert conflicting[0] != 200 and conflicting[1]['err'] == 'ConflictingRetry', conflicting

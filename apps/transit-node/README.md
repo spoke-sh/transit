@@ -44,6 +44,14 @@ publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
 per-principal fairness.
 
+A read whose final authority cut races a publication may repeat the same signed
+selector at most eight times. Each attempt rechecks signature, current rights and
+source identity; sustained contention still returns `Conflict`. Expired cuts,
+revocation and other rejections return immediately. Mutations are not retried by
+this read loop. Hosts use `Client.contended` to distinguish an ordinary conflict
+from expiry, fencing or a conflicting request identity, while retaining exact
+pending commands through their own bounded scheduling policy.
+
 Run `--maintain` separately for authorized lifetime, collection and checkpoint
 work. The [courier](../transit-delivery/README.md) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
