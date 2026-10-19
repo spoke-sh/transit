@@ -58,7 +58,7 @@ def foundation(postgres, mysql_options, executables):
     report = dict(profile='storage_foundation_database_wire', status='running',
                   source_revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
                   source_dirty=bool(subprocess.check_output(['git','status','--porcelain'])),
-                  build_revision=os.environ.get('TRANSIT_BENCH_BUILD_REVISION'),
+                  build_revision=os.environ.get('STORAGE_FOUNDATION_BUILD_REVISION'),
                   rows=4, warmups=1, read_repetitions=20, mutation_repetitions=3,
                   read_order='Unordered selection; the oracle sorts rows after timing.',
                   samples=[], errors=[], executables={},
