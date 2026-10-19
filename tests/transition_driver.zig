@@ -12,6 +12,7 @@ const Store = struct {
     entries: std.ArrayList(core.Entry) = .empty,
     fault: Fault = .none,
     pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
+    blocks: @import("simulation_blocks.zig") = .{},
 
     pub fn stage(self: *Store, reference: core.pages.Reference, page: *const core.pages.Page) !core.pages.Reference {
         try self.pages.put(self.allocator, reference, page.*);
@@ -19,6 +20,12 @@ const Store = struct {
     }
     pub fn load(self: *Store, reference: core.pages.Reference) !core.pages.Page {
         return self.pages.get(reference) orelse error.PageUnavailable;
+    }
+    pub fn stageBlock(self: *Store, spec: p.Blocks.Spec, bytes: []const u8) !core.blocks.Reference {
+        return self.blocks.stage(self.allocator, spec, bytes);
+    }
+    pub fn loadBlock(self: *Store, reference: core.blocks.Reference, output: []u8) ![]const u8 {
+        return self.blocks.load(reference, output);
     }
 
     pub fn tail(self: *Store) !u64 {
@@ -176,6 +183,7 @@ pub fn main(init: std.process.Init) !void {
         var store: Store = .{ .allocator = init.gpa };
         defer store.entries.deinit(init.gpa);
         defer store.pages.deinit(init.gpa);
+        defer store.blocks.deinit(init.gpa);
         const genesis: core.Genesis = .{ .realm = 42, .root_key = (try key(0)).public_key.toBytes(), .max_clock_error_ms = 2 };
         var engine = try Engine.bootstrap(&store, &store, genesis);
         var now: core.Time.Sample = .{ .unix_ms = 10 };

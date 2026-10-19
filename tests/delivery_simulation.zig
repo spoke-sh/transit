@@ -12,6 +12,7 @@ const Store = struct {
     allocator: std.mem.Allocator,
     entries: std.ArrayList(core.Entry) = .empty,
     pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
+    blocks: @import("simulation_blocks.zig") = .{},
     fault: Fault = .none,
     stages: usize = 0,
 
@@ -22,6 +23,14 @@ const Store = struct {
     }
     pub fn load(self: *Store, reference: core.pages.Reference) !core.pages.Page {
         return self.pages.get(reference) orelse error.PageUnavailable;
+    }
+    pub fn stageBlock(self: *Store, spec: p.Blocks.Spec, bytes: []const u8) !core.blocks.Reference {
+        const reference = try self.blocks.stage(self.allocator, spec, bytes);
+        self.stages += 1;
+        return reference;
+    }
+    pub fn loadBlock(self: *Store, reference: core.blocks.Reference, output: []u8) ![]const u8 {
+        return self.blocks.load(reference, output);
     }
     pub fn tail(self: *Store) !u64 {
         return self.entries.items.len;
@@ -156,6 +165,7 @@ pub fn main(init: std.process.Init) !void {
         var store: Store = .{ .allocator = init.gpa };
         defer store.entries.deinit(init.gpa);
         defer store.pages.deinit(init.gpa);
+        defer store.blocks.deinit(init.gpa);
         const genesis: core.Genesis = .{ .realm = 42, .root_key = (try key(0)).public_key.toBytes() };
         var engine = try Engine.bootstrap(&store, &store, genesis);
         for (1..4) |principal| _ = try engine.submit(try request(&engine, 0, try grant(principal, core.all_permissions)));

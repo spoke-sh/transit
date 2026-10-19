@@ -63,7 +63,7 @@ fn activeView(engine: *Engine) !?g.View {
     }
 }
 fn act(engine: *Engine, saved: *[4]?Saved, now: *core.Time.Sample, action: Action) !?u64 {
-    engine.journal.begin(action.fault, action.fault_at);
+    engine.journal.beginFault(action.fault, action.fault_at);
     defer engine.journal.fault = .none;
     switch (action.kind) {
         .assert_drained => {
@@ -148,6 +148,7 @@ pub fn main(init: std.process.Init) !void {
         var store: Store = .{ .allocator = init.gpa };
         defer store.entries.deinit(init.gpa);
         defer store.pages.deinit(init.gpa);
+        defer store.blocks.deinit(init.gpa);
         const genesis: core.Genesis = .{ .realm = 42, .root_key = (try key(0)).public_key.toBytes(), .max_clock_error_ms = 2, .allow_history_trim = true };
         var engine = try Engine.bootstrap(&store, &store, genesis);
         var now: core.Time.Sample = .{ .unix_ms = 10 };

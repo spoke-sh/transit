@@ -50,6 +50,18 @@ Complete ordinary qualification runs separately with `just ci-clean` against
 committed HEAD; the PR records its exact revision and outcome. Focused proofs
 and matched measurements do not substitute for that gate.
 
+The first clean attempt at `321be45a` passes `check-core`, then fails to compile
+the transition-property driver because its test store lacks the new block
+interface. The delivery/storage simulation stores require the same update;
+the storage fixture's fault-injection `begin` also collides with the backend
+publication hook and is renamed `beginFault`. These test-only adapters now own
+and verify block bytes without changing production behavior. Their in-memory
+maps do not model physical segment placement or reclamation. The failed clean
+attempt does not establish completion of the ordinary suite. Focused reruns with
+the pending fixture changes pass 40 transition traces / 1,687 steps, 14 delivery
+traces / 749 events, six resource smoke traces / 112 events and eight scheduler
+traces / 542 events, including identical replay for the simulation schedules.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,
