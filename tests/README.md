@@ -62,6 +62,14 @@ the pending fixture changes pass 40 transition traces / 1,687 steps, 14 delivery
 traces / 749 events, six resource smoke traces / 112 events and eight scheduler
 traces / 542 events, including identical replay for the simulation schedules.
 
+The next clean attempt at `f3fee42f` passes its first 15 tasks, including the
+isolated Zig SDK and packaged runtime boundary, then detects SQL-wire fixture
+drift. The committed gateway bytes already use the current definition; two
+independent Python-oracle inputs still name the previous definition. Updating
+those inputs makes the unchanged fixtures match; the independent comparison and
+shared gateway/PostgreSQL/MySQL package suites pass. This partial clean attempt
+also does not establish completion of the ordinary suite.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,
