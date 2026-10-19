@@ -63,6 +63,11 @@ commit, while revocation still rejects held old evidence. At most eight attempts
 are allowed; expired selectors and denial do not retry. Host contention handling
 retains pending command bodies and identities. This fixes the ordinary read
 conflict exposed by the supplied catalog host during the Table deployment proof.
+The next run requires both simultaneously submitted identical commands to succeed
+with one equal receipt after bounded exact CAS repreparation. The native-block
+fault schedule still passes: lost staging and commit replies return uncertainty
+and reconcile the original signature; those failures are not hidden by the
+ordinary-contention retry loop.
 
 On October 18, 2026, the core package suite and `just test::node-concurrency`
 pass with independently owned native engines and a shared bounded snapshot

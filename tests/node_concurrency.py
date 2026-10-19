@@ -136,12 +136,12 @@ def run(node, signer):
                 assert request('snapshot')[0] == 403
 
                 # Two simultaneously prepared identical requests have one
-                # receipt. The losing CAS can conflict, then reconcile exactly.
+                # receipt. A bounded exact reprepare reconciles the losing CAS.
                 left = pool.submit(request, 'lost')
                 right = pool.submit(request, 'lost')
                 results = [left.result(timeout=5), right.result(timeout=5)]
-                assert any(status == 200 for status, _ in results), results
-                assert all(status in (200, 409) for status, _ in results), results
+                assert all(status == 200 for status, _ in results), results
+                assert results[0] == results[1], results
                 receipt = next(body for status, body in results if status == 200)
                 assert request('lost') == (200, receipt)
             assert not faults, faults

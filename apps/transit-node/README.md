@@ -47,8 +47,11 @@ per-principal fairness.
 A read whose final authority cut races a publication may repeat the same signed
 selector at most eight times. Each attempt rechecks signature, current rights and
 source identity; sustained contention still returns `Conflict`. Expired cuts,
-revocation and other rejections return immediately. Mutations are not retried by
-this read loop. Hosts use `Client.contended` to distinguish an ordinary conflict
+revocation and other rejections return immediately. A mutation that loses an
+ordinary publication CAS can likewise reprepare the exact signed identity and
+body at most eight times, revalidating every current grant, generation, sequence
+and expected resource revision. Transport/storage uncertainty returns to the
+caller without an implicit retry. Hosts use `Client.contended` to distinguish an ordinary conflict
 from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 

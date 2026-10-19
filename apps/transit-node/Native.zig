@@ -301,6 +301,19 @@ const Server = struct {
         }
         return error.Conflict;
     }
+    /// An ordinary CAS loss accepted no transition. Reprepare only this exact
+    /// signed identity/body at the new head; every grant, generation, sequence
+    /// and expected resource revision is validated again. Other failures leave
+    /// uncertainty/reconciliation with the caller.
+    fn submitCommand(self: *Server, signed: g.SignedRequest, body: ?*const wire.protocol.Blocks.Body) !u64 {
+        for (0..8) |_| {
+            return self.engine.submitWithBlocks(signed, body) catch |err| {
+                if (err == error.Conflict) continue;
+                return err;
+            };
+        }
+        return error.Conflict;
+    }
     pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
         defer self.finishWork();
         const route: []const u8 = route: {
@@ -333,7 +346,7 @@ const Server = struct {
             g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             self.beginWork();
             self.observation.protocol_outcome = .uncertain;
-            const position = self.engine.submitWithBlocks(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
+            const position = self.submitCommand(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
             // Coalesced local hints only. Reconciliation can also discover a
             // commit by another node; every waiter still revalidates its query.
             {
