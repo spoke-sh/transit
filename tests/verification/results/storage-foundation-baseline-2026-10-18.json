@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "date": "2026-10-18",
+  "source_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+  "source_dirty": false,
+  "optimization": "ReleaseSafe",
+  "toolchain": "Zig 0.17.0-dev.2267+48abf1a34 in the source revision pinned Nix shell",
+  "fixture_filesystem": "ext4 at /var/tmp",
+  "build_command": "nix develop --command bash -euc 'just transit-board::install; zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/storage-baseline'",
+  "command_template": "nix develop --command python tests/mutation_latency.py .cache/storage-baseline/bin/transit .cache/storage-baseline/bin/transit-node .cache/storage-baseline/bin/transit-query-host --output FILE --build-revision ee88a131d6d76471683c2e6120a88907d7edf333",
+  "runs": [
+    {
+      "name": "narrow",
+      "status": "complete",
+      "report": "tests/mutation_latency/results/2026-10-18/baseline-narrow.json.gz",
+      "raw_sha256": "1723eee915d9a2c6b916e276d1dd84efa432ea3b3ad0ac4a2360e757f881b8d0",
+      "gzip_sha256": "5420cfc4bd6a156e9c398dc7b97fb893b4cdfbcc2bfbde07f5611b5af37c91b5",
+      "controls": {
+        "cli": ".cache/storage-baseline/bin/transit",
+        "node": ".cache/storage-baseline/bin/transit-node",
+        "host": ".cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-narrow.json",
+        "repeat": 20,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "samples": 140,
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "distributions": {
+        "insert_1": {
+          "samples": 20,
+          "p50_ms": 1393.977873,
+          "p95_ms": 1499.854533,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 20,
+          "p50_ms": 1415.74083,
+          "p95_ms": 1549.376544,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 20,
+          "p50_ms": 843.800008,
+          "p95_ms": 915.435395,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 20,
+          "p50_ms": 798.637394,
+          "p95_ms": 869.845877,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 20,
+          "p50_ms": 836.110325,
+          "p95_ms": 917.525794,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 20,
+          "p50_ms": 809.204645,
+          "p95_ms": 868.139976,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 20,
+          "p50_ms": 2702.20413,
+          "p95_ms": 2945.764023,
+          "p99_ms": null
+        }
+      }
+    },
+    {
+      "name": "wide",
+      "status": "complete",
+      "report": "tests/mutation_latency/results/2026-10-18/baseline-wide.json.gz",
+      "raw_sha256": "b8feee8e562e9ab34d9c516b94f556b3f0e2c3c4f1f049c23687285f3194d51e",
+      "gzip_sha256": "b39db4684200d0d29a5927f35532054055a5a7a87e2f6713c9c6d3570a68a5f4",
+      "controls": {
+        "cli": ".cache/storage-baseline/bin/transit",
+        "node": ".cache/storage-baseline/bin/transit-node",
+        "host": ".cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-wide.json",
+        "repeat": 3,
+        "schema_profile": "wide",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "samples": 21,
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "p50_ms": 24638.150987,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "p50_ms": 5564.572098,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "p50_ms": 984.606129,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "p50_ms": 959.250437,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "p50_ms": 1027.370873,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "p50_ms": 976.205914,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "p50_ms": 69872.130272,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      }
+    },
+    {
+      "name": "nested",
+      "status": "complete",
+      "report": "tests/mutation_latency/results/2026-10-18/baseline-nested.json.gz",
+      "raw_sha256": "81f01ba9f7294292d982c7538c6fd8a5fa4cfb6f759c0be665cab00de3c154f4",
+      "gzip_sha256": "e8ce764bba0fc319c3b07a1636838ebaabc5e12c3d5a77f4eb5a9e8162fb1f81",
+      "controls": {
+        "cli": ".cache/storage-baseline/bin/transit",
+        "node": ".cache/storage-baseline/bin/transit-node",
+        "host": ".cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-nested.json",
+        "repeat": 3,
+        "schema_profile": "nested",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "samples": 21,
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "p50_ms": 20052.109411,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "p50_ms": 4275.709112,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "p50_ms": 920.910638,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "p50_ms": 866.89379,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "p50_ms": 903.862824,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "p50_ms": 902.571996,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "p50_ms": 52407.179049,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      }
+    },
+    {
+      "name": "retained",
+      "status": "failed",
+      "report": "tests/mutation_latency/results/2026-10-18/baseline-retained.json.gz",
+      "raw_sha256": "e08f47bf99d348854a0a397c4045b3ee00091af8575b66139930a1462a79fbd4",
+      "gzip_sha256": "dcbf41e1bfa3817b181ef8e945478cf008628567e6ae6818c01c5e89aaa9606a",
+      "controls": {
+        "cli": ".cache/storage-baseline/bin/transit",
+        "node": ".cache/storage-baseline/bin/transit-node",
+        "host": ".cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-retained.json",
+        "repeat": 3,
+        "schema_profile": "narrow",
+        "rows": 32,
+        "age": 32,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": false,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 1,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "samples": 21,
+      "unknown_outcomes": 0,
+      "errors": [
+        "AssertionError: ['query.transport_unavailable']"
+      ],
+      "reader_queries": [
+        124
+      ],
+      "reader_failures": [
+        {
+          "reader": 0,
+          "elapsed_ns": 1435214585,
+          "phase_ms": {
+            "prepare": 0,
+            "compile": 0,
+            "submit": 0,
+            "wait": 0,
+            "fetch": 1001,
+            "render": 0,
+            "persist": 0,
+            "open": 434,
+            "release": 0
+          },
+          "code": "query.transport_unavailable",
+          "cause": "AuthorityUnavailable",
+          "outcome": "not_applicable",
+          "stage": "read",
+          "native_cause": "HttpCapacity"
+        }
+      ],
+      "distributions": {
+        "insert_1": {
+          "samples": 3,
+          "p50_ms": 7645.10123,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 3,
+          "p50_ms": 6263.911385,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 3,
+          "p50_ms": 1505.054255,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 3,
+          "p50_ms": 1502.23714,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 3,
+          "p50_ms": 7705.123192,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 3,
+          "p50_ms": 1413.77317,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 3,
+          "p50_ms": 13210.341084,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      }
+    },
+    {
+      "name": "counts",
+      "status": "complete",
+      "report": "tests/mutation_latency/results/2026-10-18/baseline-counts.json.gz",
+      "raw_sha256": "9d556a00bb8ae7c1bb9807376b7e5761519d96cefa33957f648e540d22d101dd",
+      "gzip_sha256": "3279755a5a09ed936b063cf1d2fd4aef7f67dbc549bec2fa21f236a3a35b479c",
+      "controls": {
+        "cli": ".cache/storage-baseline/bin/transit",
+        "node": ".cache/storage-baseline/bin/transit-node",
+        "host": ".cache/storage-baseline/bin/transit-query-host",
+        "output": "/var/tmp/rey-storage-baseline-counts.json",
+        "repeat": 1,
+        "schema_profile": "narrow",
+        "rows": 0,
+        "age": 0,
+        "resident_pages": null,
+        "worker_interval_ms": null,
+        "idle_ms": 0,
+        "instrument": true,
+        "native_metrics": true,
+        "build_revision": "ee88a131d6d76471683c2e6120a88907d7edf333",
+        "readers": 0,
+        "client": null
+      },
+      "executables": {
+        "cli": "21a91f2fae2d537d92c9a442768e5fecfba8a8e67ac2da87e4a7a1cf4d4024be",
+        "minio": "46ae57b4d5a4530b2ef7e1a8f7d5d7a2aadbf90dec0e268224562bdcb0f51aef",
+        "ursula": "fbe7707f2fe52e5ae31cadf6a2f8b3a4079b6b25ec3f6ae2daf01ba0d55683e4",
+        "node": "36c86750073011ab16a1a5edc607ec082d07d6294a66bf4bcc3afc0c16d95fa6",
+        "query_host": "23519f05e3236c39ce5401fcf504537bba5c6d7ee428d3b10292b30a6f2df547",
+        "sql_gateway": "c39f7df1da65efcca99a2a72445640041b3b66288b13a31dffce07b2fcaa4bfd",
+        "board": "7736a38692a9397b72d9de5a2b757b4bfdfeaeebc26fe303c9c7a1fe57220dbb"
+      },
+      "samples": 7,
+      "unknown_outcomes": 0,
+      "errors": [],
+      "reader_queries": [],
+      "reader_failures": [],
+      "distributions": {
+        "insert_1": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_1": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_same": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "update_absent": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_1": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "delete_absent": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        },
+        "insert_3": {
+          "samples": 1,
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Builds completed before timing; campaigns ran sequentially.",
+    "The retained-history/concurrent-reader campaign failed because one reader received HttpCapacity; it is not a passed load qualification.",
+    "Small profiles have three samples per case; p95 and p99 are absent.",
+    "Attribution uses a separate instrumented run with one sample per case; overlapping attempts are not fsync counts or additive wall time.",
+    "No PostgreSQL/MySQL or improved-branch comparison is claimed by this baseline."
+  ]
+}
