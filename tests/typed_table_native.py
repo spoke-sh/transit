@@ -397,6 +397,17 @@ def run(node, proof, host, cli, station_host, *arguments):
             call('table-select', 'allow')
             call('pump')
 
+            disclosure_samples = []
+            for sql in ('SELECT v FROM rel_left', 'SELECT v FROM rel_left LIMIT 0', 'SELECT v FROM rel_left WHERE k = 999'):
+                single = call('select-batch', sql)
+                bulk = call('select-batch-disclosure', sql)
+                assert single['rows'] == bulk['rows'] and single['complete'] and bulk['complete']
+                if single['rows']:
+                    assert bulk['requests'] < single['requests'], (single, bulk)
+                else:
+                    assert bulk['requests'] == single['requests'], (single, bulk)
+                disclosure_samples.append(dict(sql=sql, rows=len(bulk['rows']), single_requests=single['requests'], batch_requests=bulk['requests']))
+
             joined = call('relational', 'SELECT l.v AS left_value, r.v AS right_value FROM rel_left l JOIN rel_right r ON l.k = r.k')
             assert relational_values(joined) == [[10,1],[10,2],[10,3],[20,1],[20,2],[20,3]], joined
             assert joined['cuts'][0]['revision'] == joined['cuts'][1]['revision']
@@ -792,7 +803,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 maximum_record_bytes=max(map(len, archived_heads.values())),
                 paired_changes=len(changes), restart=True, current_denial=True)
             print(json.dumps(dict(profile='table-history-native', **history_measurements)))
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), disclosure=dict(samples=disclosure_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

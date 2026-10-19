@@ -22,8 +22,8 @@ const Host = struct {
         }
     };
     pub const Read = struct {
-        pub fn next(_: *Read) !?[]const f.Types.Values.Cell {
-            return null;
+        pub fn nextBatch(_: *Read, _: u8) !m.gateway.ReadBatch {
+            return .{ .complete = true };
         }
     };
     pub fn prepare(self: *Host, sql: []const u8) !*Prepared {

@@ -19,8 +19,9 @@ const Name = struct {
 };
 /// Host.Prepared supplies parameters/fields/mutation/empty. Host methods prepare,
 /// destroy, validate, bind, openRead, closeRead, write, begin/end and diagnostic
-/// keep database/probe policy out of the protocol. Read.next borrows one row until
-/// its next call/close. write returns an attributed Backend completion and count.
+/// keep database/probe policy out of the protocol. Read.nextBatch borrows at most
+/// the requested rows until its next call/close. No batch crosses Execute.
+/// write returns an attributed Backend completion and count.
 pub fn Engine(comptime Host: type, comptime Transport: type) type {
     return struct {
         const Self = @This();
@@ -178,20 +179,25 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             const fields = try self.columns(prepared, &buffer);
             var emitted: u32 = 0;
             while (maximum == 0 or emitted < maximum) {
-                const cells = try portal.read.?.next() orelse {
-                    try self.host.validate(prepared);
+                const requested: u8 = @intCast(if (maximum == 0) g.ReadBatch.max_rows else @min(g.ReadBatch.max_rows, maximum - emitted));
+                const batch = try portal.read.?.nextBatch(requested);
+                try batch.validate(requested);
+                // Check the current account/statement after materialization and
+                // before any row in this bounded batch enters the transport.
+                try self.host.validate(prepared);
+                for (batch.rows[0..batch.len]) |cells| {
+                    try self.send(try self.backend.row(fields, &portal.formats, cells.?));
+                    portal.rows += 1;
+                }
+                if (batch.complete) {
                     portal.complete = true;
                     self.host.closeRead(portal.read.?);
                     portal.read = null;
                     try self.send(try self.backend.complete(.select, portal.rows));
                     return;
-                };
-                const bytes = try self.backend.row(fields, &portal.formats, cells);
-                try self.host.validate(prepared);
-                try self.send(bytes);
-                portal.rows += 1;
+                }
                 // Zero means unlimited-by-protocol, still bounded by query work.
-                if (maximum != 0) emitted += 1;
+                if (maximum != 0) emitted += batch.len;
             }
             try self.cycle.suspendRead();
             try self.send(try self.backend.empty(.suspended));

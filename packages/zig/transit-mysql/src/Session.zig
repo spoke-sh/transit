@@ -90,12 +90,13 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             try self.send(try self.backend.columns(fields.len));
             for (fields) |column| try self.send(try self.backend.describe(column));
             try self.metadataEnd();
-            while (try read.next()) |cells| {
-                const bytes = try self.backend.row(fields, cells, binary);
+            while (true) {
+                const batch = try read.nextBatch(g.ReadBatch.max_rows);
+                try batch.validate(g.ReadBatch.max_rows);
                 try self.host.validate(prepared);
-                try self.send(bytes);
+                for (batch.rows[0..batch.len]) |cells| try self.send(try self.backend.row(fields, cells.?, binary));
+                if (batch.complete) break;
             }
-            try self.host.validate(prepared);
             try self.resultEnd();
         }
         pub fn handle(self: *Self, payload: []const u8) !bool {

@@ -218,6 +218,17 @@ descriptors must match preparation before executor work. Parameters are confined
 to the shared single-Table SELECT/DML profile. MySQL quoting is handled by the
 shared lexer for SELECT, DML, CREATE and literal relational SQL.
 
+`Read.nextBatch(maximum)` borrows at most one to eight rows until its next call
+or close. The single-Table path owns at most 16 MiB of canonical cells per batch;
+other read owners may return a smaller batch. The host validates current account,
+statement and scoped query authority after materialization, before any row in
+that batch is transmitted. Empty and final output require the same validation.
+A batch is one bounded disclosure; later batches observe current rights again.
+PostgreSQL also limits the request to the remaining rows in this Execute. No
+authorized output batch survives portal suspension. MySQL repeats bounded pulls
+within the command deadline. Transport failure closes the exchange without
+replaying any partially transmitted batch.
+
 ## MySQL frame ownership
 
 `Handshake.upgrade` accepts exactly 32 Protocol 4.1 SSLRequest bytes. The full

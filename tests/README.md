@@ -14,13 +14,25 @@ The disk native-block proof also passes with the new definition and explicit
 `InvalidBlockBody` rejection before writes. `test-growing-service` also passes
 the retained Station Table and query recovery schedules, including poisoned
 reads, cold storage, one resident page on recovery and quota/control reserves.
-The larger typed-Table deployment proof is still underway. Early runs exposed a saved pending request
+The complete native typed-Table deployment proof passes in 524.664 seconds,
+including all 28 logical descriptors, supplied-host lost receipt recovery,
+original/replacement catalog identities, current denial, retained queries and
+node/provider restart. Early runs exposed a saved pending request
 missing its body, an obsolete expectation of multiple recovered Table turns,
 and a supplied host treating a moving read cut as fatal. The fixtures retain
 the complete pending command and count the bulk successor; the host retains
 exact pending bytes across ordinary contention. Those failed runs are not
-reported as completed service proofs. End-to-end latency, disclosure batching
-and physical reclamation require their separate remaining schedules.
+reported as completed service proofs. End-to-end latency and physical
+reclamation require their separate remaining schedules.
+
+The query, shared gateway, PostgreSQL and MySQL package suites pass with bounded
+result disclosure. The native four-row scan uses 19 requests through
+`nextBatch(8)`, versus 27 through independent row pulls; LIMIT 0 and empty
+predicates retain the same 17 and 19 requests. Buffered revocation rejects the
+next disclosure. PostgreSQL unit schedules cover one-row portal suspension,
+revocation before and after materialization, and malformed empty batches.
+The complete real SQL driver proof is still running; package tests are not a
+substitute for its network, authority and restart schedules.
 
 ## Native bulk resource publication
 

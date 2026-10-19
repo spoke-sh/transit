@@ -144,8 +144,11 @@ Finite query pages acquire at most eight row references together. Prefetch admit
 at most eight complete blocks and 128 KiB; larger records use successive bounded
 block reads. Each decoded row retains its schema, digest and identity checks. Interactive pull scans decode one row
 at a time from those references, so a selected LIMIT does not allocate the
-remaining values. Current authorization still precedes every output. This storage
-page size is separate from execution-vector design.
+remaining values. Explicit result batches contain at most eight rows and 16 MiB
+of canonical cells. Current authorization is checked after computation before
+each batch is disclosed, including empty output and completion. The single-row
+pull API uses the same check for its one row. Storage pages, execution vectors
+and result disclosure have independent bounds.
 
 Each [interactive query](queries.md) captures an explicit source basis and checks
 current authorization before disclosure. Durable query jobs separately retain

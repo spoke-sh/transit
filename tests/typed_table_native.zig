@@ -221,7 +221,7 @@ fn inspect(init: std.process.Init, wire: *s.client.Client, caller: *c.TableClien
     try out.interface.writeAll("]}\n");
     try out.interface.flush();
 }
-fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller: *c.TableClient, text: []const u8, held: bool, limits: q.TableQuery.Limits) !void {
+fn select(comptime batched: bool, buffered: bool, disclosure: bool, init: std.process.Init, caller: *c.TableClient, text: []const u8, held: bool, limits: q.TableQuery.Limits) !void {
     var nonce: [16]u8 = undefined;
     try init.io.randomSecure(&nonce);
     const cancelled = std.atomic.Value(bool).init(false);
@@ -259,26 +259,30 @@ fn select(comptime batched: bool, buffered: bool, init: std.process.Init, caller
     var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try out.interface.print("{{\"object\":{d},\"schema\":{s},\"rows\":[", .{ query.sourceObject(), schema_json });
     var count: usize = 0;
-    while (query.next() catch |err| {
-        if (query.native_rejection) |reason| std.debug.print("Query authority rejection: {s}\n", .{@tagName(reason)});
-        return err;
-    }) |value| {
-        var row = value;
-        defer row.deinit();
-        if (count == 128) return error.ProofRowLimit;
-        if (count != 0) try out.interface.writeByte(',');
-        try out.interface.writeByte('[');
-        for (row.cells, schema.structure, 0..) |cell, field, i| {
-            if (i != 0) try out.interface.writeByte(',');
-            const json = try c.fuze.LogicalJson.encode(init.gpa, cell, field);
-            defer init.gpa.free(json);
-            try out.interface.writeAll(json);
+    while (true) {
+        var batch = query.nextBatch(if (disclosure) 8 else 1) catch |err| {
+            if (query.native_rejection) |reason| std.debug.print("Query authority rejection: {s}\n", .{@tagName(reason)});
+            return err;
+        };
+        defer batch.deinit();
+        for (batch.rows[0..batch.len]) |value| {
+            const row = value.?;
+            if (count == 128) return error.ProofRowLimit;
+            if (count != 0) try out.interface.writeByte(',');
+            try out.interface.writeByte('[');
+            for (row.cells, schema.structure, 0..) |cell, field, i| {
+                if (i != 0) try out.interface.writeByte(',');
+                const json = try c.fuze.LogicalJson.encode(init.gpa, cell, field);
+                defer init.gpa.free(json);
+                try out.interface.writeAll(json);
+            }
+            try out.interface.writeByte(']');
+            count += 1;
         }
-        try out.interface.writeByte(']');
-        count += 1;
+        if (batch.complete) break;
     }
     if (!query.complete) return error.IncompleteSource;
-    try out.interface.print("],\"complete\":true,\"scanned\":{d}}}\n", .{query.execution.scanned});
+    try out.interface.print("],\"complete\":true,\"scanned\":{d},\"requests\":{d}}}\n", .{ query.execution.scanned, query.execution.scan.requests });
     try out.interface.flush();
 }
 fn relational(init: std.process.Init, directory: []const u8, caller: *c.TableClient, text: []const u8, held: bool, second_directory: ?[]const u8) !void {
@@ -500,8 +504,8 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.startsWith(u8, mode, "captured-") or std.mem.startsWith(u8, mode, "maintained-")) return @import("relational_captured_native.zig").run(@This(), init, &wire, directory, config, &caller, args);
     if (std.mem.startsWith(u8, mode, "history-")) return @import("table_changes_native.zig").run(@This(), init, &caller, directory, args);
     if (std.mem.startsWith(u8, mode, "relational")) return relational(init, directory, &caller, args[4], std.mem.eql(u8, mode, "relational-held"), if (args.len > 5) args[5] else null);
-    if (std.mem.startsWith(u8, mode, "select-batch")) return select(true, std.mem.eql(u8, mode, "select-batch-buffered"), init, &caller, args[4], std.mem.eql(u8, mode, "select-batch-held"), .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
-    if (std.mem.startsWith(u8, mode, "select")) return select(false, false, init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
+    if (std.mem.startsWith(u8, mode, "select-batch")) return select(true, std.mem.eql(u8, mode, "select-batch-buffered"), std.mem.eql(u8, mode, "select-batch-disclosure") or std.mem.eql(u8, mode, "select-batch-buffered"), init, &caller, args[4], std.mem.eql(u8, mode, "select-batch-held"), .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
+    if (std.mem.startsWith(u8, mode, "select")) return select(false, false, false, init, &caller, args[4], std.mem.eql(u8, mode, "select-held"), if (args.len == 8) .{ .requests = try std.fmt.parseInt(u64, args[5], 10), .rows = try std.fmt.parseInt(u64, args[6], 10), .result_bytes = try std.fmt.parseInt(u64, args[7], 10) } else .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 });
     if (std.mem.eql(u8, mode, "assist")) return print(init, try currentRead(init, &wire, q.TableAssistance.complete, .{ init.arena.allocator(), &caller, .{ .sql = args[4], .cursor = try std.fmt.parseInt(u16, args[5], 10), .generation = 7, .mode = .console } }));
     if (std.mem.eql(u8, mode, "table-select")) {
         var admin: Admin = .{ .wire = &wire, .key = try key(7) };

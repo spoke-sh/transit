@@ -44,4 +44,8 @@ default and matched rows with negotiated `CLIENT_FOUND_ROWS`. The
 transport policy, authentication and host. Full-password requests require TLS;
 explicit loopback trust uses the same native admission without a password exchange.
 
+Reads request at most eight rows per disclosure. The host checks current rights
+after materialization and before transmitting that batch. Empty results and
+completion use the same gate; later batches perform fresh checks.
+
 Build with `zig build test` or `zig build check` inside `nix develop`.
