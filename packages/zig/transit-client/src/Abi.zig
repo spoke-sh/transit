@@ -36,7 +36,7 @@ const ClientImpl = struct {
     busy: std.atomic.Value(bool) = .init(false),
 };
 const Signed = union(Kind) {
-    growing_command: p.Growth.SignedRequest,
+    growing_command: p.Growth.CommandEnvelope,
     growing_query: p.Growth.SignedQuery,
 };
 const OperationImpl = struct { signed: Signed };
@@ -106,7 +106,10 @@ pub fn extractJson(alloc: std.mem.Allocator, bytes: []const u8, path: []const u8
 }
 fn validate(signed: Signed) !void {
     switch (signed) {
-        .growing_command => |s| try p.Growth.validate(s.request),
+        .growing_command => |s| {
+            try p.Growth.validate(s.request);
+            if (s.blocks) |*body| try p.Blocks.verify(p.Growth.blockMutations(s.request.command), body);
+        },
         .growing_query => |s| try p.Growth.validateQuery(s.query),
     }
 }
@@ -207,7 +210,7 @@ pub const Api = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&pair));
         const bytes = json[0..json_len];
         const signed: Signed = switch (kind) {
-            .growing_command => .{ .growing_command = p.Growth.sign(parse(p.Growth.Request, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
+            .growing_command => .{ .growing_command = p.Growth.CommandEnvelope.init(p.Growth.sign(parse(p.Growth.Request, bytes) catch |err| return fail(err), pair) catch |err| return fail(err)) },
             .growing_query => .{ .growing_query = p.Growth.signQuery(parse(p.Growth.Query, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
         };
         validate(signed) catch |err| return fail(err);
@@ -349,7 +352,7 @@ fn exchange(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*B
 
 fn call(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffer) !void {
     switch (signed) {
-        .growing_command => |s| try bufferWithAllocator(alloc, try client.submit(s), out),
+        .growing_command => |s| try bufferWithAllocator(alloc, if (s.blocks) |*body| try client.submitWithBlocks(s.signed(), body) else try client.submit(s.signed()), out),
         .growing_query => |s| try bufferWithAllocator(alloc, try client.call(p.Growth.Response, "/v1/query", s), out),
     }
 }
@@ -376,7 +379,7 @@ test "independent JSON access bounds and owned string bytes" {
 
 test "saved v1 requests reject missing or foreign definitions without changing retry bytes" {
     const t = std.testing;
-    const signed: Signed = .{ .growing_command = try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7))) };
+    const signed: Signed = .{ .growing_command = p.Growth.CommandEnvelope.init(try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)))) };
     const canonical = try std.json.Stringify.valueAlloc(t.allocator, Frozen{ .definition = p.Growth.current_definition, .operation = signed }, .{});
     defer t.allocator.free(canonical);
     var out: ?*Operation = null;
@@ -408,6 +411,9 @@ test "every post-commit response allocation failure remains uncertain and releas
         fn submit(self: *@This(), _: p.Growth.SignedRequest) anyerror!p.Receipt {
             self.calls += 1;
             return .{ .position = 37 };
+        }
+        fn submitWithBlocks(self: *@This(), signed: p.Growth.SignedRequest, _: *const p.Blocks.Body) anyerror!p.Receipt {
+            return self.submit(signed);
         }
         fn call(_: *@This(), comptime T: type, _: []const u8, _: anytype) anyerror!T {
             return error.UnexpectedRead;
@@ -518,6 +524,9 @@ test "transport denial remains uncertain for commands and unavailable for reads"
         fn submit(_: *@This(), _: p.Growth.SignedRequest) anyerror!p.Receipt {
             return error.AuthorityTransportDenied;
         }
+        fn submitWithBlocks(self: *@This(), signed: p.Growth.SignedRequest, _: *const p.Blocks.Body) anyerror!p.Receipt {
+            return self.submit(signed);
+        }
         fn call(_: *@This(), comptime T: type, _: []const u8, _: anytype) anyerror!T {
             return error.AuthorityTransportDenied;
         }
@@ -538,4 +547,32 @@ test "transport denial remains uncertain for commands and unavailable for reads"
         try t.expectEqual(if (signed == .growing_command) Status.uncertain else Status.unavailable, status);
         try t.expectEqualStrings("{\"err\":\"AuthorityTransportDenied\"}", cast(BufferImpl, out.?).bytes);
     }
+}
+
+test "a maximum bulk pending operation round trips owned bytes within the HTTP bound" {
+    const t = std.testing;
+    var batch: p.Blocks.Batch = .{};
+    const bytes: [p.Blocks.max_block_bytes]u8 = @splat(215);
+    try batch.put(try .init("a"), &bytes);
+    try batch.put(try .init("b"), &bytes);
+    for (2..p.Blocks.max_records) |i| try batch.put(p.Value.integer(@intCast(i)), "");
+    const pair = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const signed = try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 1, .generation = 1, .input = 3, .expected_revision = 0, .blocks = batch.mutations } } }, pair);
+    var envelope = p.Growth.CommandEnvelope.init(signed);
+    envelope.blocks = batch.body;
+    const bytes_json = try std.json.Stringify.valueAlloc(t.allocator, Frozen{ .definition = p.Growth.current_definition, .operation = .{ .growing_command = envelope } }, .{});
+    defer t.allocator.free(bytes_json);
+    try t.expect(bytes_json.len <= p.max_body);
+    var out: ?*Operation = null;
+    try t.expectEqual(.ok, Api.transit_operation_import(bytes_json.ptr, bytes_json.len, &out));
+    defer Api.transit_operation_destroy(out);
+    const imported = cast(OperationImpl, out.?).signed.growing_command;
+    try p.Blocks.verify(imported.request.command.turn.blocks, &imported.blocks.?);
+    try t.expectEqualDeep(signed, imported.signed());
+    batch.body.data[0] = 0;
+    try t.expectEqual(@as(u8, 215), imported.blocks.?.data[0]);
+    var exported: ?*Buffer = null;
+    try t.expectEqual(.ok, Api.transit_operation_export(out.?, &exported));
+    defer Api.transit_buffer_destroy(exported);
+    try t.expectEqualStrings(bytes_json, cast(BufferImpl, exported.?).bytes);
 }

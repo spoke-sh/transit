@@ -152,6 +152,8 @@ const Server = struct {
     before_metrics: adapter.Metrics = .{},
     before_pages: u64 = 0,
     before_bytes: u64 = 0,
+    before_blocks: u64 = 0,
+    before_block_bytes: u64 = 0,
     metrics: ?Work = null,
     work_failure: ?[]const u8 = null,
 
@@ -162,6 +164,8 @@ const Server = struct {
         cache_misses: u64,
         staged_pages: u64,
         staged_bytes: u64,
+        staged_blocks: u64,
+        staged_block_bytes: u64,
         provider: adapter.Metrics,
         failure: ?[]const u8 = null,
     };
@@ -177,6 +181,8 @@ const Server = struct {
             self.before_metrics = metrics.*;
             self.before_pages = self.engine.page_store.created;
             self.before_bytes = self.engine.page_store.create_payload_bytes_attempted;
+            self.before_blocks = self.engine.page_store.blocks_created;
+            self.before_block_bytes = self.engine.page_store.block_payload_bytes_attempted;
         }
         self.engine.journal.journal.parent_context = self.observation.span.context;
         self.engine.page_store.authority.parent_context = self.observation.span.context;
@@ -199,11 +205,13 @@ const Server = struct {
                 .cache_misses = self.observation.cache_misses.?,
                 .staged_pages = self.engine.page_store.created - self.before_pages,
                 .staged_bytes = self.engine.page_store.create_payload_bytes_attempted - self.before_bytes,
+                .staged_blocks = self.engine.page_store.blocks_created - self.before_blocks,
+                .staged_block_bytes = self.engine.page_store.block_payload_bytes_attempted - self.before_block_bytes,
                 .provider = delta,
                 .failure = self.work_failure,
             };
             if (previous) |prior| {
-                inline for (.{ "wait_ns", "work_ns", "cache_hits", "cache_misses", "staged_pages", "staged_bytes" }) |field|
+                inline for (.{ "wait_ns", "work_ns", "cache_hits", "cache_misses", "staged_pages", "staged_bytes", "staged_blocks", "staged_block_bytes" }) |field|
                     @field(self.metrics.?, field) +|= @field(prior, field);
                 inline for (@typeInfo(adapter.Metrics).@"struct".field_names) |field|
                     @field(self.metrics.?.provider, field) +|= @field(prior.provider, field);
@@ -248,7 +256,7 @@ const Server = struct {
             self.observation.error_type = @tagName(value.err);
             self.observation.protocol_outcome = if (status == .service_unavailable) .uncertain else .rejected;
         }
-        var metric_buffer: [512]u8 = undefined;
+        var metric_buffer: [768]u8 = undefined;
         var metric_writer: std.Io.Writer = .fixed(&metric_buffer);
         var headers: [2]std.http.Header = undefined;
         headers[0] = .{ .name = "content-type", .value = "application/json" };
@@ -284,7 +292,7 @@ const Server = struct {
     pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
         defer self.finishWork();
         const route: []const u8 = route: {
-            inline for (.{ "/health", "/v1/command", "/v1/query" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
+            inline for (.{ "/health", "/v1/command", "/v1/query", "/v1/blocks" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
             break :route "unmatched";
         };
         self.observation.received(request, route, self.accept_trace_parent);
@@ -302,17 +310,18 @@ const Server = struct {
         else
             null;
         const mutation = std.mem.eql(u8, route, "/v1/command");
+        const bulk = std.mem.eql(u8, route, "/v1/blocks");
         if (hint != null and (mutation or control)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-        if (request.head.method != .POST or (!mutation and !std.mem.eql(u8, route, "/v1/query"))) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+        if (request.head.method != .POST or (!mutation and !bulk and !std.mem.eql(u8, route, "/v1/query"))) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
         defer self.allocator.free(bytes);
         if (mutation) {
-            const parsed = std.json.parseFromSlice(g.SignedRequest, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            const parsed = std.json.parseFromSlice(g.CommandEnvelope, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             defer parsed.deinit();
             g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             self.beginWork();
             self.observation.protocol_outcome = .uncertain;
-            const position = self.engine.submit(parsed.value) catch |err| return self.failure(request, err);
+            const position = self.engine.submitWithBlocks(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
             // Coalesced local hints only. Reconciliation can also discover a
             // commit by another node; every waiter still revalidates its query.
             {
@@ -335,6 +344,17 @@ const Server = struct {
         g.validateQuery(parsed.value.query) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         self.beginWork();
         if (hint != null and !wire.WaitHint.allows(parsed.value.query)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+        if (bulk) {
+            if (hint != null or control) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            const acquired = try self.allocator.create(g.BlockRead.Response);
+            defer self.allocator.destroy(acquired);
+            acquired.response = self.engine.queryBlocks(parsed.value, self, &acquired.blocks) catch |err| return self.failure(request, err);
+            self.observation.protocol_outcome = .read;
+            self.observation.realm = acquired.response.realm;
+            self.observation.operation = @tagName(parsed.value.query.kind);
+            self.observation.position = acquired.response.position;
+            return self.json(request, .ok, acquired.*);
+        }
         var response = self.engine.queryWithSnapshots(parsed.value, self) catch |err| return self.failure(request, err);
         if (hint) |wait| {
             if (wait.after > response.position) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });

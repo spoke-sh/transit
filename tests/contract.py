@@ -25,7 +25,13 @@ assert len(definition) == 64 and all(c in '0123456789abcdef' for c in definition
 for name in ("Request", "Query", "Response"):
     assert contract["$defs"][name]["properties"]["definition"]["enum"] == [definition]
 assert "definition" in contract["$defs"]["Response"]["required"]
-assert set(contract["$defs"]) == {"Request", "SignedRequest", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse"}
+assert set(contract["$defs"]) == {"Request", "SignedRequest", "CommandEnvelope", "BlockResponse", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse"}
+envelope = contract['$defs']['CommandEnvelope']['properties']
+assert 'definition' in envelope['request']['required']
+body = envelope['blocks']['anyOf'][0]
+assert body['type'] == 'string' and body['contentEncoding'] == 'base64'
+assert body['maxLength'] == 174764
+assert set(route['path'] for route in contract['x-transit']['routes']) == {'/v1/command', '/v1/query', '/v1/blocks'}
 principal = contract["$defs"]["Request"]["properties"]["principal"]
 assert principal["x-transit-bits"] == 64 and principal["maximum"] == 2**53 - 1
 print("Native v1 JSON Schema matches the Zig contract.")

@@ -4490,7 +4490,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                        "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                       ]
                     },
                     "code": {
@@ -5492,6 +5492,7 @@
                         "owner",
                         "revision",
                         "entries",
+                        "block_entries",
                         "history_ms",
                         "changed_ms",
                         "last_turn",
@@ -5536,6 +5537,13 @@
                           "x-transit-signed": false
                         },
                         "entries": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "block_entries": {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
@@ -5620,6 +5628,7 @@
                         "owner",
                         "revision",
                         "entries",
+                        "block_entries",
                         "history_ms",
                         "changed_ms",
                         "last_turn",
@@ -5629,6 +5638,7 @@
                       ],
                       "x-transit-defaults": {
                         "entries": 0,
+                        "block_entries": 0,
                         "history_ms": null,
                         "changed_ms": 0,
                         "last_turn": null,
@@ -6558,7 +6568,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                      "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                     ]
                   },
                   "code": {
@@ -8000,6 +8010,7 @@
                         "owner",
                         "revision",
                         "entries",
+                        "block_entries",
                         "history_ms",
                         "changed_ms",
                         "last_turn",
@@ -8044,6 +8055,13 @@
                           "x-transit-signed": false
                         },
                         "entries": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "block_entries": {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
@@ -8128,6 +8146,7 @@
                         "owner",
                         "revision",
                         "entries",
+                        "block_entries",
                         "history_ms",
                         "changed_ms",
                         "last_turn",
@@ -8137,6 +8156,7 @@
                       ],
                       "x-transit-defaults": {
                         "entries": 0,
+                        "block_entries": 0,
                         "history_ms": null,
                         "changed_ms": 0,
                         "last_turn": null,
@@ -8264,6 +8284,7 @@
               "owner",
               "revision",
               "entries",
+              "block_entries",
               "history_ms",
               "changed_ms",
               "last_turn",
@@ -8308,6 +8329,13 @@
                 "x-transit-signed": false
               },
               "entries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "block_entries": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
@@ -8392,6 +8420,7 @@
               "owner",
               "revision",
               "entries",
+              "block_entries",
               "history_ms",
               "changed_ms",
               "last_turn",
@@ -8401,6 +8430,7 @@
             ],
             "x-transit-defaults": {
               "entries": 0,
+              "block_entries": 0,
               "history_ms": null,
               "changed_ms": 0,
               "last_turn": null,
@@ -8585,6 +8615,7 @@
               "owner",
               "revision",
               "entries",
+              "block_entries",
               "history_ms",
               "changed_ms",
               "last_turn",
@@ -8629,6 +8660,13 @@
                 "x-transit-signed": false
               },
               "entries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "block_entries": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
@@ -8713,6 +8751,7 @@
               "owner",
               "revision",
               "entries",
+              "block_entries",
               "history_ms",
               "changed_ms",
               "last_turn",
@@ -8722,6 +8761,7 @@
             ],
             "x-transit-defaults": {
               "entries": 0,
+              "block_entries": 0,
               "history_ms": null,
               "changed_ms": 0,
               "last_turn": null,
@@ -17784,7 +17824,7 @@
           "T143": {
             "type": "string",
             "enum": [
-              "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+              "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
             ]
           },
           "T144": {
@@ -19631,7 +19671,7 @@
           "T10": {
             "type": "string",
             "enum": [
-              "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+              "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
             ]
           }
         }
@@ -19693,7 +19733,7 @@
             ],
             "x-transit-defaults": {
               "capabilities": {
-                "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+                "definition": "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78",
                 "sources": 2,
                 "active_queries": 1,
                 "page_rows": 1,
@@ -19754,7 +19794,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+              "definition": "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -19767,7 +19807,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+              "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
             ]
           },
           "T4": {
@@ -20055,7 +20095,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+              "definition": "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78",
               "executed": false
             }
           },

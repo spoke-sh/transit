@@ -37,6 +37,7 @@ pub fn WithTransport(comptime Transport: type) type {
             current_views: [g.turn_views]?u64 = @splat(null),
             write_view: ?u64 = null,
             mutations: [g.turn_mutations]?g.Mutation = @splat(null),
+            blocks: p.Blocks.Batch = .{},
             outputs: [g.turn_outputs]?g.Output = @splat(null),
             effect: ?p.Value = null,
             failed: bool = false,
@@ -47,8 +48,13 @@ pub fn WithTransport(comptime Transport: type) type {
         };
         pub const Pending = struct {
             signed: g.SignedRequest,
+            blocks: ?p.Blocks.Body = null,
             /// Retain this exact value across uncertain outcomes. No automatic retry.
             pub fn submit(self: *const Pending, client: *Transport) !p.Receipt {
+                if (self.blocks) |*body| {
+                    if (comptime @hasDecl(Transport, "submitWithBlocks")) return client.submitWithBlocks(self.signed, body);
+                    return error.UnsupportedBlockStorage;
+                }
                 return client.submit(self.signed);
             }
         };
@@ -108,6 +114,14 @@ pub fn WithTransport(comptime Transport: type) type {
             if (response.body.read_entries.view == null or !std.meta.eql(response.body.read_entries.view.?, view)) return error.InvalidAuthorityResponse;
             return response.body.read_entries.entries;
         }
+        pub fn readBlocks(self: *Self, selector: g.BlockRead.Query, body: *p.Blocks.Body) !g.BlockRead.Result {
+            body.* = .{};
+            errdefer body.* = .{};
+            if (comptime !@hasDecl(Transport, "queryBlocks")) return error.UnsupportedBlockStorage;
+            const acquired = try self.client.queryBlocks(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .block_entries = selector } }, self.key);
+            body.* = acquired.blocks;
+            return acquired.response.body.block_entries;
+        }
         pub fn prepareCloseView(self: *const Self, delivery: Delivery, view: u64) !Pending {
             return self.prepare(delivery, .{ .close_view = .{ .pid = self.pid, .view = view } });
         }
@@ -126,7 +140,7 @@ pub fn WithTransport(comptime Transport: type) type {
         }
         pub fn prepareCommit(self: *const Self, delivery: Delivery, decision: Decision) !Pending {
             if (delivery.needs_permit) return error.MissingTurnPermit;
-            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .current_views = decision.current_views, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed, .authorization = decision.authorization };
+            var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .current_views = decision.current_views, .write_view = decision.write_view, .mutations = decision.mutations, .blocks = decision.blocks.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed, .authorization = decision.authorization };
             for (decision.views, 0..) |slot, i| if (slot) |view| {
                 if (view.pid != self.pid or view.principal != self.principal or view.generation != self.generation or
                     view.input != delivery.input.position or view.process_revision != delivery.revision or view.closed_at != null) return error.InvalidStateView;
@@ -141,7 +155,12 @@ pub fn WithTransport(comptime Transport: type) type {
             const extended = for (decision.read_versions, decision.retain, decision.release) |read, retain, release| {
                 if (read != null or retain != null or release != null) break true;
             } else false;
-            return self.prepare(delivery, if (extended) .{ .turn_with_versions = .{ .turn = turn, .reads = decision.read_versions, .retain = decision.retain, .release = decision.release } } else .{ .turn = turn });
+            var pending = try self.prepare(delivery, if (extended) .{ .turn_with_versions = .{ .turn = turn, .reads = decision.read_versions, .retain = decision.retain, .release = decision.release } } else .{ .turn = turn });
+            if (turn.blocks[0] != null) {
+                try p.Blocks.verify(turn.blocks, &decision.blocks.body);
+                pending.blocks = decision.blocks.body;
+            }
+            return pending;
         }
 
         test "growing session preserves wide identities and freezes bounded proposals without I/O" {

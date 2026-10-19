@@ -61,7 +61,11 @@ the [storage measurements](../../../packages/zig/transit-backend-ursula/docs/gro
 
 ## Public surface and limits
 
-The listener provides `GET /health`, `POST /v1/command` and `POST /v1/query`.
+The listener provides `GET /health`, `POST /v1/command`, `POST /v1/query` and
+`POST /v1/blocks`. Bulk reads own at most 128 KiB of decoded bytes per admitted
+request, in addition to their normal metadata and transport buffers. Commands
+carry the same bounded body separately from signed logical descriptors; the
+authority journal does not copy it. See [block v1](../../../contracts/BLOCK_V1.md).
 The [contract](../../../contracts/TRANSIT_V1.md) owns signed types and semantics.
 Public queries require current inspection rights plus resource/PID scope where
 applicable. Values remain opaque application bytes. Computation runs in the

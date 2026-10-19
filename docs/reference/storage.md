@@ -53,6 +53,16 @@ The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass
 the public authorization boundary.
 
+Each state resource also owns a separate immutable block index. A turn can
+publish up to sixteen complete blocks and 128 KiB alongside its four small
+metadata mutations; each block is at most 64 KiB. Signed descriptors bind keys,
+lengths and content digests. The transport carries the bytes separately, and the
+authority journal retains only the signed logical request. The backend verifies
+durable bytes before the root can be accepted. Captured views, retained versions
+and leased snapshots resolve the block index at their original catalog cut.
+Public block reads materialize a bounded batch, then validate current authority
+before disclosure. Missing/corrupt data is a failure, never an absent value.
+
 Applications and Board use public clients, not backend journals or provider
 credentials. The node composes the core and backend; core remains deterministic
 and independent of Ursula/provider types. Pin the consuming backend's upstream

@@ -33,13 +33,41 @@ def generated():
 
         def current(body):
             body['definition'] = definition
+            def byte_arrays(value):
+                if isinstance(value, dict):
+                    for name, child in value.items():
+                        if name in ('public_key', 'signature', 'digest', 'context', 'epoch', 'nonce', 'instance', 'workload', 'incarnation', 'worker_incarnation') and isinstance(child, str):
+                            value[name] = list(child.encode())
+                        else:
+                            byte_arrays(child)
+                elif isinstance(value, list):
+                    for child in value:
+                        byte_arrays(child)
+            byte_arrays(body)
             command = body.get('command', {})
             if 'send' in command:
                 command['send']['role'] = None
-            if 'turn' in command:
-                command['turn']['authorization'] = None
-            if 'turn_with_versions' in command:
-                command['turn_with_versions']['turn']['authorization'] = None
+            for turn in [command.get('turn'), command.get('turn_with_versions', {}).get('turn')]:
+                if turn is not None:
+                    turn['authorization'] = None
+                    fields = dict(turn)
+                    turn.clear()
+                    for name, value in fields.items():
+                        if name == 'blocks':
+                            continue
+                        turn[name] = value
+                        if name == 'mutations':
+                            turn['blocks'] = fields.get('blocks', [None]*16)
+            snapshot = body.get('kind', {}).get('snapshot_read')
+            if snapshot is not None:
+                fields = dict(snapshot)
+                snapshot.clear()
+                for name, value in fields.items():
+                    if name == 'blocks':
+                        continue
+                    snapshot[name] = value
+                    if name == 'points':
+                        snapshot['blocks'] = fields.get('blocks', [None]*8)
 
         requests = json.loads((FIXTURES / 'requests-v1.json').read_text())
         assert requests['public_key'] == key.public
@@ -70,7 +98,7 @@ def generated():
         for filename in ('leased-snapshots.json', 'snapshot-read.json'):
             cases = json.loads((FIXTURES / filename).read_text())
             for case in cases:
-                case['query']['definition'] = definition
+                current(case['query'])
                 case['digest'] = hashlib.sha256(b'transit.query.v1\0' + compact(case['query'])).hexdigest()
             results[FIXTURES / filename] = cases
 
@@ -85,7 +113,7 @@ def generated():
         turn = dict(version=1, definition=definition, realm=42, principal=0, sequence=1,
                     command=dict(turn=dict(pid=2, generation=3, input=4, expected_revision=0,
                         permit=None, views=[None]*4, current_views=[None]*4, write_view=None,
-                        mutations=[None]*4, outputs=[None]*4, effect=None, failed=False, authorization=None)))
+                        mutations=[None]*4, blocks=[None]*16, outputs=[None]*4, effect=None, failed=False, authorization=None)))
         entries = dict(version=1, definition=definition, realm=42, principal=0,
                        kind=dict(entries=dict(view=5, resource=None, revision=None, key=None, after=None)))
         results[FIXTURES / 'authorization-v1.json'] = dict(version=1, public_key=key.public,

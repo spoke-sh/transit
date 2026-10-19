@@ -43,6 +43,7 @@
       "test::growing-service",
       "test::node-concurrency",
       "test::block-storage",
+      "test::native-blocks",
       "test::public-query",
       "test::publication",
       "test::table-query-writer",

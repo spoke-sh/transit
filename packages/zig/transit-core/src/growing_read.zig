@@ -94,6 +94,11 @@ pub fn withSnapshots(engine: anytype, signed: g.SignedQuery, hooks: anytype) any
             .view => |id| try viewPid(engine, id),
             .entries => |value| if (value.view) |id| try viewPid(engine, id) else null,
             .read_entries => |value| if (value.view) |id| try viewPid(engine, id) else null,
+            .block_entries => |value| switch (value.source) {
+                .view => |id| try viewPid(engine, id),
+                .version => |version| version.id.pid,
+                .resource => null,
+            },
             else => null,
         };
         if (!try @import("growing_authorization.zig").nativeHas(engine, principal, pid, needed)) return error.Forbidden;
@@ -124,7 +129,7 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query) anye
         },
         .inspection => |q| .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, q) },
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .declarative_authorization = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .immutable_blocks = @hasDecl(@TypeOf(engine.page_store.*), "stageBlock") and @hasDecl(@TypeOf(engine.page_store.*), "loadBlock"), .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .declarative_authorization = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .open_snapshot => |q| blk: {
             const now = try snapshotTime(engine);
             try snapshotAccess(engine, principal, q.resource, now);
@@ -230,6 +235,57 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query) anye
             };
             if (captured) |view| _ = try state.captured(engine, query.principal, try engine.process(view.pid), view.id, view.input, try sample(engine)) else try state.usable(engine, resource, try sample(engine));
             break :blk .{ .read_entries = .{ .resource = resource, .view = captured, .entries = result } };
+        },
+        .block_entries => |q| blk: {
+            const now = try sample(engine);
+            var basis = current;
+            var result: g.BlockRead.Result = .{ .resource = undefined, .entries = undefined };
+            const resource_id: u64 = switch (q.source) {
+                .resource => |value| captured: {
+                    try resourceScope(engine, principal, value.id);
+                    try state.allowed(engine, value.id, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
+                    const resource = try state.resource(engine, value.id);
+                    try state.usable(engine, resource, now);
+                    if (resource.revision != value.revision) return error.StaleStateResource;
+                    break :captured value.id;
+                },
+                .view => |id| captured: {
+                    const stored = try state.view(engine, id);
+                    try scope(principal, stored.meta.pid);
+                    const process = try engine.process(stored.meta.pid);
+                    try engine.executable(process, now, true);
+                    if (process.owner != query.principal) return error.StaleGeneration;
+                    const checked = try state.captured(engine, query.principal, process, id, stored.meta.input, now);
+                    basis = try @TypeOf(current).open(engine.page_store, checked.snapshot);
+                    result.view = checked.meta;
+                    break :captured checked.meta.resource;
+                },
+                .version => |value| captured: {
+                    try scope(principal, value.id.pid);
+                    const stored = try state.retained(engine, query.principal, value.id, value.generation, now);
+                    basis = try @TypeOf(current).open(engine.page_store, stored.snapshot);
+                    result.version = stored.meta;
+                    break :captured stored.meta.resource;
+                },
+            };
+            result.resource = (try basis.get(g.Resource, address(.resource, resource_id))) orelse return error.InvalidHistory;
+            if (q.keys[0] != null) {
+                result.entries = try blockEntries(engine, &basis, result.resource, q.keys);
+            } else {
+                const root = (try basis.get(c.Snapshot, address(.resource_blocks, resource_id))) orelse c.Snapshot{};
+                if (root.records != result.resource.block_entries) return error.InvalidHistory;
+                const index: core.blocks.Index(@TypeOf(engine.page_store.*)) = .{ .store = engine.page_store };
+                const page = try index.scan(root, q.after);
+                result.entries = page.entries;
+                result.next = page.next;
+            }
+            const after = try sample(engine);
+            switch (q.source) {
+                .resource => try state.usable(engine, result.resource, after),
+                .view => |id| _ = try state.captured(engine, query.principal, try engine.process(result.view.?.pid), id, result.view.?.input, after),
+                .version => |value| _ = try state.retained(engine, query.principal, value.id, value.generation, after),
+            }
+            break :blk .{ .block_entries = result };
         },
         .view => |id| blk: {
             const value = try state.view(engine, id);
@@ -416,4 +472,13 @@ fn entries(basis: anytype, resource: u64, point: ?p.Value, continuation: ?p.Valu
         if (batch.next) |cursor| result.next = try p.Value.init(cursor.slice()[17..]);
     }
     return result;
+}
+
+pub fn blockEntries(engine: anytype, basis: anytype, resource: g.Resource, keys: [g.page_size]?p.Value) ![g.page_size]?p.Blocks.Entry {
+    const snapshot = (try basis.get(c.Snapshot, address(.resource_blocks, resource.id))) orelse c.Snapshot{};
+    if (snapshot.records != resource.block_entries) return error.InvalidHistory;
+    const Store = @TypeOf(engine.page_store.*);
+    if (comptime !@hasDecl(Store, "loadBlock")) return error.UnsupportedBlockStorage;
+    const index: core.blocks.Index(Store) = .{ .store = engine.page_store };
+    return index.read(snapshot, keys, engine.block_output);
 }

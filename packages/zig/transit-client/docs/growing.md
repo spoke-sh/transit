@@ -30,6 +30,31 @@ Only a null cursor means completion. Filtered catalog pages may be empty with a
 non-null cursor. Returned fields own their bytes; pages do not borrow HTTP buffers.
 The library does not collect a whole resource or build a hidden resident queue.
 
+## Immutable blocks
+
+`Client.submitWithBlocks(signed, body)` sends one bounded block batch with its
+signed logical descriptors. A `Decision.blocks` batch contains up to sixteen
+keys and 128 KiB of complete values, each at most 64 KiB. `prepareCommit` freezes
+both descriptors and bytes in `Pending`; serialization and foreign saved
+operations retain them through an uncertain outcome. Application code must keep
+the complete pending operation. Keeping only its `.signed` field is insufficient
+for a proposal whose acceptance has not been established.
+
+`Client.queryBlocks(query, key)` uses `/v1/blocks` and returns an owned body plus
+validated response metadata. Select `block_entries` by exact resource revision,
+captured view or retained version, or use `snapshot_read.blocks` under a volatile
+snapshot. At most eight keys and 128 KiB are returned. Missing keys preserve
+slots; empty blocks remain present. The client checks every length/digest and
+rejects substituted, truncated or trailing bytes. `Session.readBlocks` supplies
+the activation's credentials without creating a new sequence or retaining a view.
+
+Block writes share the turn's one writable resource and commit atomically with
+small metadata, input progress, outputs and version changes. Staging alone grants
+no visibility. Old roots retain old bytes, while current grants and lifetimes
+still control every read and exact receipt. Logical deletion does not promise
+physical deletion; the [block contract](../../../../contracts/BLOCK_V1.md) owns
+that distinction.
+
 ## Activation helpers
 
 `Session` borrows a client and binds a full-width principal, PID and
@@ -61,8 +86,8 @@ association and a hidden target both return null. Association does not grant
 resource access or pin a revision. A concurrent authority change during the read
 still rejects the disclosure.
 
-A `Decision` contains at most four view metadata records, four mutations and
-four outputs, plus an optional effect. The helper binds input/generation/revision
+A `Decision` contains at most four view metadata records, four small mutations,
+a bounded immutable block batch and four outputs, plus an optional effect. The helper binds input/generation/revision
 from its delivery and rejects views belonging to another activation or input.
 There is no whole-resource snapshot or state array in `Delivery`. The authority
 still revalidates all of these fields; local preparation grants no rights.

@@ -28,7 +28,10 @@ SHA-256 digest. Include defaults/nulls, retain declaration order and use compact
 UTF-8 JSON with decimal integers and single-key union objects. Opaque values use
 the existing owned lowercase-hex encoding. Validators reject unknown versions,
 oversized integers, malformed values, duplicate mutation keys and ambiguous key/
-cursor queries before signing. Encoded requests are bounded at 8 KiB.
+cursor queries before signing. Canonical logical requests are bounded at 16 KiB,
+including the immutable block descriptors. Fixed byte arrays remain JSON arrays
+regardless of whether their contents happen to be UTF-8. Large block bodies use
+a separate transport budget and are excluded from authority journal records.
 
 Incompatible signatures, histories, checkpoints, cursors and saved operations
 reject; no fallback decoder, alternate route or automatic migration exists.
@@ -58,8 +61,11 @@ inspection profile does not acquire mutation authority.
 
 ## Bounded operations over growing collections
 
-A turn proposes up to four mutations in one writable associated resource, four
-view identities and four outputs, with optional captured effect intent. Keys and
+A turn proposes up to four small metadata mutations and sixteen immutable block
+mutations in one writable associated resource, four view identities and four
+outputs, with optional captured effect intent. The block batch contains at most
+128 KiB, with at most 64 KiB per block. The [block contract](BLOCK_V1.md) defines
+checksums, ownership, source-qualified reads and publication semantics. Keys and
 association names are 1–32 bytes; individual values retain their 256-byte bound.
 These are per-operation bounds, not limits on resource rows, processes, principals,
 retained calls or receipts. Large logical results require explicit segments and

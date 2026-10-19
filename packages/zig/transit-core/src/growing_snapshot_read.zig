@@ -57,6 +57,7 @@ pub fn read(engine: anytype, principal: growth.Principal, realm: u64, query: g.S
     for (query.points, 0..) |key, i| if (key) |value| {
         result.points[i] = try point(&basis, stored.meta.resource.id, value);
     };
+    if (query.blocks[0] != null) result.blocks = try reads.blockEntries(engine, &basis, stored.meta.resource, query.blocks);
     if (query.range) |range| try scan(&basis, stored.meta.resource.id, range, &result);
 
     // Unrelated writes while materializing immutable data need not restart it.

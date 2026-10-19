@@ -998,6 +998,12 @@ pub fn build(b: *std.Build) void {
     node_concurrency.has_side_effects = true;
     node_concurrency.stdio = .inherit;
     b.step("test-node-concurrency", "Qualify independent native I/O, publication races and revocation").dependOn(&node_concurrency.step);
+    const native_blocks = b.addSystemCommand(&.{ "python3", "-B" });
+    native_blocks.addFileArg(b.path("tests/block_native.py"));
+    native_blocks.addArtifactArg(node_artifact);
+    native_blocks.has_side_effects = true;
+    native_blocks.stdio = .inherit;
+    b.step("test-native-blocks", "Qualify atomic native bulk publication and current-authorized retained reads").dependOn(&native_blocks.step);
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);

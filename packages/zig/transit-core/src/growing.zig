@@ -111,6 +111,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         /// A host may lend one exclusively reserved slot while immutable I/O
         /// runs outside its registry lock. The host enforces aggregate quotas.
         snapshot_slots: ?[]?StoredSnapshot = null,
+        /// Borrowed only during this request-owned preparation; never persisted.
+        block_body: ?*const p.Blocks.Body = null,
+        block_output: ?*p.Blocks.Body = null,
         pub fn snapshotSlots(self: *Self) []?StoredSnapshot {
             return self.snapshot_slots orelse &self.snapshots;
         }
@@ -196,6 +199,15 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
             return @import("growing_read.zig").read(self, signed);
         }
+        pub fn queryBlocks(self: *Self, signed: g.SignedQuery, hooks: anytype, body: *p.Blocks.Body) !g.Response {
+            body.* = .{};
+            errdefer body.* = .{};
+            if (signed.query.kind != .block_entries and signed.query.kind != .snapshot_read) return error.InvalidRead;
+            if (signed.query.kind == .block_entries and signed.query.kind.block_entries.keys[0] == null) return error.InvalidRead;
+            self.block_output = body;
+            defer self.block_output = null;
+            return self.queryWithSnapshots(signed, hooks);
+        }
         pub fn queryWithSnapshots(self: *Self, signed: g.SignedQuery, hooks: anytype) !g.Response {
             return @import("growing_read.zig").withSnapshots(self, signed, hooks);
         }
@@ -260,6 +272,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         pub const Prepared = struct { record: Record };
         pub fn prepare(self: *Self, signed: g.SignedRequest) !Prepared {
+            return self.prepareWithBlocks(signed, null);
+        }
+        pub fn prepareWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !Prepared {
+            self.block_body = body;
+            defer self.block_body = null;
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value) != null) return error.AlreadyCommitted;
@@ -299,6 +316,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         fn prepareCurrent(self: *Self, request: g.Request) !Prepared {
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
             try self.checkCapacity(request.command);
+            const descriptors = g.blockMutations(request.command);
+            if (descriptors[0] != null) {
+                const empty: p.Blocks.Body = .{};
+                try p.Blocks.verify(descriptors, self.block_body orelse &empty);
+            } else if (self.block_body != null) return error.InvalidBlockBody;
             var candidate = try self.state();
             var pending: catalog.Candidate = .{};
             switch (request.command) {
@@ -356,6 +378,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return prepared.record.position;
         }
         pub fn submit(self: *Self, signed: g.SignedRequest) !u64 {
+            return self.submitWithBlocks(signed, null);
+        }
+        pub fn submitWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !u64 {
+            self.block_body = body;
+            defer self.block_body = null;
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value)) |receipt| return receipt;

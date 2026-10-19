@@ -25,15 +25,16 @@ pub fn main(init: std.process.Init) !void {
         .identity_maximum = p.max_counter,
         .canonical = "UTF-8 compact JSON; declared field order; include defaults and nulls; decimal integers; single-key tagged unions; reject unknown and duplicate fields",
         .signing = "Ed25519(SHA256(domain || canonical-json))",
-        .limits = .{ .record_bytes = p.max_entry_bytes, .key_bytes = g.key_bytes, .page_entries = g.page_size, .turn_mutations = g.turn_mutations, .turn_views = g.turn_views, .turn_outputs = g.turn_outputs },
+        .limits = .{ .record_bytes = p.max_entry_bytes, .key_bytes = g.key_bytes, .page_entries = g.page_size, .turn_mutations = g.turn_mutations, .turn_views = g.turn_views, .turn_outputs = g.turn_outputs, .block_records = p.Blocks.max_records, .block_bytes = p.Blocks.max_block_bytes, .block_batch_bytes = p.Blocks.max_batch_bytes },
         .routes = .{
-            .{ .path = "/v1/command", .method = "POST", .request = "SignedRequest", .response = "Receipt", .failure = "ErrorResponse" },
+            .{ .path = "/v1/command", .method = "POST", .request = "CommandEnvelope", .response = "Receipt", .failure = "ErrorResponse" },
             .{ .path = "/v1/query", .method = "POST", .request = "SignedQuery", .response = "Response", .failure = "ErrorResponse" },
+            .{ .path = "/v1/blocks", .method = "POST", .request = "SignedQuery", .response = "BlockResponse", .failure = "ErrorResponse" },
         },
     });
     try out.objectField("$defs");
     try out.beginObject();
-    inline for (.{ "Request", "SignedRequest", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse" }, .{ g.Request, g.SignedRequest, g.Query, g.SignedQuery, g.Response, p.Receipt, p.ErrorResponse }) |name, T| {
+    inline for (.{ "Request", "SignedRequest", "CommandEnvelope", "BlockResponse", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse" }, .{ g.Request, g.SignedRequest, g.CommandEnvelope, g.BlockRead.Response, g.Query, g.SignedQuery, g.Response, p.Receipt, p.ErrorResponse }) |name, T| {
         try out.objectField(name);
         try p.Schema.write(T, &out, .{ .safe_integers = true });
     }

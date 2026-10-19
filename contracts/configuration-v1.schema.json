@@ -122,7 +122,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+            "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
           ]
         },
         "T2": {
@@ -429,7 +429,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+            "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
           ]
         },
         "T3": {
@@ -705,7 +705,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                    "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                   ]
                 },
                 "realm": {
@@ -2043,7 +2043,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                                        "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                                       ]
                                                     },
                                                     "realm": {
@@ -2233,7 +2233,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                                            "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                                           ]
                                                         },
                                                         "realm": {
@@ -3092,7 +3092,7 @@
                                         "definition": {
                                           "type": "string",
                                           "enum": [
-                                            "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                            "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                           ]
                                         },
                                         "realm": {
@@ -4797,6 +4797,7 @@
                                                     "current_views",
                                                     "write_view",
                                                     "mutations",
+                                                    "blocks",
                                                     "outputs",
                                                     "effect",
                                                     "failed",
@@ -4943,6 +4944,80 @@
                                                         ]
                                                       }
                                                     },
+                                                    "blocks": {
+                                                      "type": "array",
+                                                      "minItems": 16,
+                                                      "maxItems": 16,
+                                                      "items": {
+                                                        "anyOf": [
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "x-transit-field-order": [
+                                                              "key",
+                                                              "value"
+                                                            ],
+                                                            "properties": {
+                                                              "key": {
+                                                                "type": "string",
+                                                                "pattern": "^(?:[0-9a-f]{2})*$",
+                                                                "maxLength": 512,
+                                                                "x-transit-encoding": "lowercase-hex"
+                                                              },
+                                                              "value": {
+                                                                "anyOf": [
+                                                                  {
+                                                                    "type": "object",
+                                                                    "additionalProperties": false,
+                                                                    "x-transit-field-order": [
+                                                                      "bytes",
+                                                                      "digest"
+                                                                    ],
+                                                                    "properties": {
+                                                                      "bytes": {
+                                                                        "type": "integer",
+                                                                        "minimum": 0,
+                                                                        "maximum": 4294967295,
+                                                                        "x-transit-bits": 32,
+                                                                        "x-transit-signed": false
+                                                                      },
+                                                                      "digest": {
+                                                                        "type": "array",
+                                                                        "minItems": 32,
+                                                                        "maxItems": 32,
+                                                                        "items": {
+                                                                          "type": "integer",
+                                                                          "minimum": 0,
+                                                                          "maximum": 255,
+                                                                          "x-transit-bits": 8,
+                                                                          "x-transit-signed": false
+                                                                        }
+                                                                      }
+                                                                    },
+                                                                    "required": [
+                                                                      "bytes",
+                                                                      "digest"
+                                                                    ],
+                                                                    "x-transit-defaults": {}
+                                                                  },
+                                                                  {
+                                                                    "type": "null"
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "key",
+                                                              "value"
+                                                            ],
+                                                            "x-transit-defaults": {}
+                                                          },
+                                                          {
+                                                            "type": "null"
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
                                                     "outputs": {
                                                       "type": "array",
                                                       "minItems": 4,
@@ -5043,7 +5118,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                                                                "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -5310,6 +5385,24 @@
                                                     ],
                                                     "write_view": null,
                                                     "mutations": [
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null
+                                                    ],
+                                                    "blocks": [
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
+                                                      null,
                                                       null,
                                                       null,
                                                       null,
@@ -5991,6 +6084,7 @@
                                                         "current_views",
                                                         "write_view",
                                                         "mutations",
+                                                        "blocks",
                                                         "outputs",
                                                         "effect",
                                                         "failed",
@@ -6137,6 +6231,80 @@
                                                             ]
                                                           }
                                                         },
+                                                        "blocks": {
+                                                          "type": "array",
+                                                          "minItems": 16,
+                                                          "maxItems": 16,
+                                                          "items": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "object",
+                                                                "additionalProperties": false,
+                                                                "x-transit-field-order": [
+                                                                  "key",
+                                                                  "value"
+                                                                ],
+                                                                "properties": {
+                                                                  "key": {
+                                                                    "type": "string",
+                                                                    "pattern": "^(?:[0-9a-f]{2})*$",
+                                                                    "maxLength": 512,
+                                                                    "x-transit-encoding": "lowercase-hex"
+                                                                  },
+                                                                  "value": {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "additionalProperties": false,
+                                                                        "x-transit-field-order": [
+                                                                          "bytes",
+                                                                          "digest"
+                                                                        ],
+                                                                        "properties": {
+                                                                          "bytes": {
+                                                                            "type": "integer",
+                                                                            "minimum": 0,
+                                                                            "maximum": 4294967295,
+                                                                            "x-transit-bits": 32,
+                                                                            "x-transit-signed": false
+                                                                          },
+                                                                          "digest": {
+                                                                            "type": "array",
+                                                                            "minItems": 32,
+                                                                            "maxItems": 32,
+                                                                            "items": {
+                                                                              "type": "integer",
+                                                                              "minimum": 0,
+                                                                              "maximum": 255,
+                                                                              "x-transit-bits": 8,
+                                                                              "x-transit-signed": false
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "bytes",
+                                                                          "digest"
+                                                                        ],
+                                                                        "x-transit-defaults": {}
+                                                                      },
+                                                                      {
+                                                                        "type": "null"
+                                                                      }
+                                                                    ]
+                                                                  }
+                                                                },
+                                                                "required": [
+                                                                  "key",
+                                                                  "value"
+                                                                ],
+                                                                "x-transit-defaults": {}
+                                                              },
+                                                              {
+                                                                "type": "null"
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
                                                         "outputs": {
                                                           "type": "array",
                                                           "minItems": 4,
@@ -6237,7 +6405,7 @@
                                                                                 "definition": {
                                                                                   "type": "string",
                                                                                   "enum": [
-                                                                                    "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                                                                    "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                                                                   ]
                                                                                 },
                                                                                 "realm": {
@@ -6504,6 +6672,24 @@
                                                         ],
                                                         "write_view": null,
                                                         "mutations": [
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null
+                                                        ],
+                                                        "blocks": [
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
+                                                          null,
                                                           null,
                                                           null,
                                                           null,
@@ -7636,7 +7822,7 @@
                                       ],
                                       "x-transit-defaults": {
                                         "version": 1,
-                                        "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+                                        "definition": "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
                                       }
                                     }
                                   }
@@ -8787,6 +8973,7 @@
                             "snapshot",
                             "current",
                             "points",
+                            "blocks",
                             "range",
                             "finish"
                           ],
@@ -8951,6 +9138,24 @@
                                 ]
                               }
                             },
+                            "blocks": {
+                              "type": "array",
+                              "minItems": 8,
+                              "maxItems": 8,
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^(?:[0-9a-f]{2})*$",
+                                    "maxLength": 512,
+                                    "x-transit-encoding": "lowercase-hex"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
                             "range": {
                               "anyOf": [
                                 {
@@ -9039,8 +9244,212 @@
                               null,
                               null
                             ],
+                            "blocks": [
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null
+                            ],
                             "range": null,
                             "finish": false
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "block_entries"
+                      ],
+                      "properties": {
+                        "block_entries": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "source",
+                            "keys",
+                            "after"
+                          ],
+                          "properties": {
+                            "source": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "resource"
+                                  ],
+                                  "properties": {
+                                    "resource": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "id",
+                                        "revision"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        "revision": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "revision"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "view"
+                                  ],
+                                  "properties": {
+                                    "view": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "version"
+                                  ],
+                                  "properties": {
+                                    "version": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "id",
+                                        "generation"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "x-transit-field-order": [
+                                            "pid",
+                                            "input",
+                                            "index"
+                                          ],
+                                          "properties": {
+                                            "pid": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "input": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "index": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255,
+                                              "x-transit-bits": 8,
+                                              "x-transit-signed": false
+                                            }
+                                          },
+                                          "required": [
+                                            "pid",
+                                            "input",
+                                            "index"
+                                          ],
+                                          "x-transit-defaults": {}
+                                        },
+                                        "generation": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "generation"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "keys": {
+                              "type": "array",
+                              "minItems": 8,
+                              "maxItems": 8,
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^(?:[0-9a-f]{2})*$",
+                                    "maxLength": 512,
+                                    "x-transit-encoding": "lowercase-hex"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "after": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^(?:[0-9a-f]{2})*$",
+                                  "maxLength": 512,
+                                  "x-transit-encoding": "lowercase-hex"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ],
+                          "x-transit-defaults": {
+                            "keys": [
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null
+                            ],
+                            "after": null
                           }
                         }
                       }
@@ -9116,7 +9525,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7"
+            "29b8121951b65ce46f042b08a8976f77c7dadb8831288d698cc92d3c6cca5f78"
           ]
         },
         "T2": {

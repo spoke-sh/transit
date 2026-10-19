@@ -55,6 +55,12 @@ pub fn reclaim(engine: anytype, candidate: anytype, id: u64, sample: ?core.Time.
         try candidate.remove(record.key);
         resource.entries -= 1;
     };
+    // A separately owned block root can be detached in constant catalog work.
+    // Historical roots remain protected by retention and physical collection.
+    if (resource.block_entries != 0) {
+        try candidate.remove(address(.resource_blocks, id));
+        resource.block_entries = 0;
+    }
     if (resource.entries == 0) resource.phase = .reclaimed;
     resource.revision = engine.head.position;
     try candidate.put(address(.resource, id), resource);

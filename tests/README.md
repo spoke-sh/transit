@@ -1,5 +1,24 @@
 # Validation and milestone evidence
 
+## Native bulk resource publication
+
+On October 18, 2026, `just test::native-blocks` passes with 16 records and 128 KiB
+in one turn over disk Ursula. The independent Python/OpenSSL peer drops a staging
+reply, then an accepted commit reply, kills the node and provider, and reconciles
+the original signature without a body or new provider writes. A second turn
+replaces/deletes values while a retained read version keeps the originals.
+Corrupt/missing bytes reject. A provider barrier holds a block read while a
+revocation commits; the read discloses no body. Restored rights and another
+node/provider restart preserve the retained data. The first attempt supplied a
+view deadline outside the native trusted-time lifetime bound and failed; the
+fixture now requests a valid 30-second view without changing authority limits.
+
+Core schedules additionally exercise complete-body validation before writes,
+private preparation without visible progress, atomic metadata/output acceptance,
+volatile snapshot and retained-version roots, failed read-body cleanup and
+current permissions on historical receipts. This evidence does not establish
+physical reclamation or Table performance; those require their own schedules.
+
 ## Immutable block codec and index
 
 On October 18, 2026, protocol, core and Ursula backend package tests and

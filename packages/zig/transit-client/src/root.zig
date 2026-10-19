@@ -90,7 +90,7 @@ pub const Client = struct {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
-            inline for (.{ "/v1/command", "/v1/query", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
+            inline for (.{ "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
@@ -258,6 +258,7 @@ pub const Client = struct {
             if (parsed.value.position == 0 or parsed.value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
         }
         if (T == protocol.Growth.Response) protocol.Growth.validateResponse(parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
+        if (T == protocol.Growth.BlockRead.Response) protocol.Growth.BlockRead.verify(&parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
         if (owned) return parsed;
         defer parsed.deinit();
         return parsed.value;
@@ -286,6 +287,11 @@ pub const Client = struct {
         try protocol.Growth.validate(signed.request);
         return self.call(Receipt, "/v1/command", signed);
     }
+    pub fn submitWithBlocks(self: *Client, signed: protocol.Growth.SignedRequest, body: *const protocol.Blocks.Body) !Receipt {
+        try protocol.Growth.validate(signed.request);
+        try protocol.Blocks.verify(protocol.Growth.blockMutations(signed.request.command), body);
+        return self.call(Receipt, "/v1/command", protocol.Growth.CommandEnvelope{ .request = signed.request, .signature = signed.signature, .blocks = body.* });
+    }
     /// Wait for an authority-position hint, then perform a fresh authorized
     /// read. Lost/coalesced wakeups and another node's commits are covered by
     /// the bounded timeout. This is neither a change log nor an execution grant.
@@ -295,6 +301,9 @@ pub const Client = struct {
         self.wait_hint = hint;
         defer self.wait_hint = null;
         return self.query(selector, key);
+    }
+    pub fn queryBlocks(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.BlockRead.Response {
+        return self.call(protocol.Growth.BlockRead.Response, "/v1/blocks", try protocol.Growth.signQuery(selector, key));
     }
     pub fn query(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
         return self.call(protocol.Growth.Response, "/v1/query", try protocol.Growth.signQuery(selector, key));

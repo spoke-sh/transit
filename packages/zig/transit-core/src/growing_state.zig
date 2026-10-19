@@ -405,7 +405,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         process.failure = command.input;
         try @import("growing_lifecycle.zig").fence(&process);
     } else {
-        var mutations: [g.turn_mutations + 1]@import("pages.zig").Mutation = undefined;
+        var mutations: [g.turn_mutations + 2]@import("pages.zig").Mutation = undefined;
         var mutation_count: usize = 0;
         for (command.mutations) |slot| if (slot) |mutation| {
             const data = if (write) |*value| value else return error.MissingWriteView;
@@ -421,6 +421,19 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
                 data.entries -= 1;
             }
         };
+        if (command.blocks[0] != null) {
+            const data = if (write) |*value| value else return error.MissingWriteView;
+            const root_key = address(.resource_blocks, data.id);
+            const previous = (try candidate.get(c.Snapshot, root_key)) orelse c.Snapshot{};
+            if (previous.records != data.block_entries) return error.InvalidHistory;
+            const empty: p.Blocks.Body = .{};
+            const PageStore = @TypeOf(engine.page_store.*);
+            if (comptime !@hasDecl(PageStore, "stageBlock")) return error.UnsupportedBlockStorage;
+            const successor = try @import("blocks.zig").Index(PageStore).publish(.{ .store = engine.page_store }, previous, command.blocks, engine.block_body orelse &empty, position);
+            data.block_entries = successor.records;
+            mutations[mutation_count] = try c.putMutation(root_key, successor);
+            mutation_count += 1;
+        }
         if (write) |*data| {
             // Validate the final atomic batch, not its intermediate cardinality:
             // replacing a key at the encoding ceiling must remain possible.

@@ -18,6 +18,10 @@ node-concurrency:
 block-storage:
     zig build test-block-storage -Doptimize=ReleaseSafe
 
+# Atomic native block roots, retained bytes and current authority through faults.
+native-blocks:
+    zig build test-native-blocks -Doptimize=ReleaseSafe
+
 # Independent pinned database clients, TLS/authentication and prepared cycles.
 sql-wire-reference:
     nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py

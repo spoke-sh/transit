@@ -68,6 +68,40 @@ Logical deletion does not physically erase bytes. Physical collection requires
 the complete owning root set and a publication fence; it is not an index method.
 Default unlimited retention is unchanged by this codec.
 
+## Native resource ownership and reads
+
+`turn.blocks` and `turn_with_versions.turn.blocks` bind the descriptors. A
+`CommandEnvelope` carries an optional owned `blocks` body alongside `request`
+and `signature`. The signature hashes the logical request, including descriptors;
+the body is verified against those descriptors. It never enters the authority
+journal record. A known exact receipt reconciles without restaging; fresh work
+with nonempty values requires its complete body. Frozen pending operations retain
+both parts. Missing/foreign definitions reject before execution or stored-root
+interpretation.
+
+The containing turn requires its current writable view and resource revision.
+Its successor catalog owns the separate block-index root and records
+`Resource.block_entries` independently of the small `entries` count. Metadata,
+block root, input progress, outputs and read-version changes share one conditional
+acceptance. A stale candidate conflicts; no partial data becomes visible.
+
+`block_entries` reads at most eight keys from `source.resource {id, revision}`,
+`source.view`, or `source.version {id, generation}`. The response identifies the
+exact resource and optional captured view/version. `snapshot_read.blocks` uses
+its snapshot's same catalog cut and final current-authorization validation.
+Ordinary `/v1/query` returns descriptors; `/v1/blocks` additionally returns a
+canonical body in populated-result order. Missing-key slots consume no bytes.
+With no keys, `block_entries` is a metadata-only ordered scan of at most eight
+records, optionally after an opaque key. Its `next` cursor advances within the
+same qualified source; only null means completion. `/v1/blocks` requires point
+keys, so scanning cannot accidentally materialize eight maximum-size values.
+Both paths require current inspection/read access. Snapshot renewal happens only
+after successful validation. Source identity is never a permission cache.
+
+Explicit opted-in resource reclamation can detach its current block root after
+its version/view gates pass. Retained historical roots still own their bytes.
+This logical operation alone does not erase physical storage.
+
 ## Backend framing and evidence
 
 The Ursula adapter encodes a block record as `TBK1` followed by its raw bytes,

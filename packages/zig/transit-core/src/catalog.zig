@@ -60,6 +60,7 @@ pub const Namespace = enum(u8) {
     authorization_binding,
     authorization_registration,
     authorization_origin,
+    resource_blocks,
 };
 pub const Snapshot = struct {
     version: u32 = version,
@@ -182,7 +183,8 @@ pub const RecordCache = struct {
 /// per-command protocol limits; it is independent of durable catalog size.
 pub const Candidate = struct {
     const g = @import("root.zig").protocol.Growth;
-    pub const capacity = g.turn_views * 3 + g.turn_mutations + 1 + g.turn_outputs * 6 + 3 + 1 + 2 + g.version_changes * 6;
+    // One resource metadata record and its independently paged block root.
+    pub const capacity = g.turn_views * 3 + g.turn_mutations + 2 + g.turn_outputs * 6 + 3 + 1 + 2 + g.version_changes * 6;
     mutations: [capacity]pages.Mutation = undefined,
     len: usize = 0,
     fn put(self: *Candidate, mutation: pages.Mutation) !void {
