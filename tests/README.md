@@ -99,6 +99,16 @@ passes native/port ownership, malformed input, wide identities, lost/invalid
 replies, seedless host-loss retry, disk restart and revoked recovery. This focused
 installed-consumer run is separate from complete committed-source qualification.
 
+At `067d40de`, `just check` passes and clean CI completes 35 tasks before
+`test::growing` fails to compile: its final corruption fixture still references
+the removed single-stream page-store name. It now derives the physical segment
+from the accepted catalog root, deletes that segment only after restart checks,
+independently verifies its absence and requires reopening to fail with
+`PageUnavailable` without changing journal position or creating pages. The
+focused rerun passes all four disk phases with 64 retained values, one decoded
+page (17,032 cache bytes), captured views, grants and exact receipts. The failed
+clean attempt is partial qualification, not a completed ordinary suite.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

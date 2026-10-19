@@ -348,16 +348,25 @@ pub fn main(init: std.process.Init) !void {
         try t.expect(std.meta.eql((try reopened.read(0)).?, (try journal.store.read(0)).?));
     }
     try incompatibleHistory(&journal, &page_store, genesis, writing);
-    // Remove page storage only in the disposable fixture, after all
-    // restart assertions. Missing required content must not become empty state.
+    // Remove the current catalog root's segment only in the disposable fixture,
+    // after all restart assertions. Missing content must not become empty state.
     if (trimmed) {
         var page_stream = journal.store.journal.stream;
-        page_stream.name = &page_store.name;
+        const address = try adapter.Segment.Address.decode(engine.head.catalog.root.?.location);
+        const name = try address.identity.name(page_stream.bucket, page_stream.name);
+        page_stream.name = &name;
         var deleted = try client.send(.{ .delete_stream = page_stream });
         defer deleted.deinit();
         try deleted.head.requireSuccess();
+        var missing = try client.send(.{ .head = .{ .stream = page_stream } });
+        defer missing.deinit();
+        try t.expectEqual(.not_found, missing.head.status);
+        const position = try journal.tail();
+        const writes = page_store.created;
         page_store.clearCache();
         try t.expectError(error.PageUnavailable, Engine.open(&journal, &page_store, genesis));
+        try t.expectEqual(position, try journal.tail());
+        try t.expectEqual(writes, page_store.created);
     }
     var bytes: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &bytes);
