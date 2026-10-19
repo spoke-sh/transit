@@ -108,6 +108,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         snapshot_serial: u64 = 0,
         snapshot_time_floor_ms: u64 = 0,
         snapshots: [g.snapshot_capacity]?StoredSnapshot = @splat(null),
+        /// A host may lend one exclusively reserved slot while immutable I/O
+        /// runs outside its registry lock. The host enforces aggregate quotas.
+        snapshot_slots: ?[]?StoredSnapshot = null,
+        pub fn snapshotSlots(self: *Self) []?StoredSnapshot {
+            return self.snapshot_slots orelse &self.snapshots;
+        }
 
         pub fn bootstrap(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
             const fingerprint = try genesisHash(genesis);
@@ -189,6 +195,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
             return @import("growing_read.zig").read(self, signed);
+        }
+        pub fn queryWithSnapshots(self: *Self, signed: g.SignedQuery, hooks: anytype) !g.Response {
+            return @import("growing_read.zig").withSnapshots(self, signed, hooks);
         }
         /// Privileged maintenance must reestablish current realm-wide admin
         /// authority before using the storage adapter. This publishes nothing.

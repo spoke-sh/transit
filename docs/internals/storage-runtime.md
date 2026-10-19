@@ -38,6 +38,51 @@ Actual latency and memory conclusions need measurements. The
 read/write amplification; a configured cache budget is not an observed RSS
 bound, and retained storage bytes are not resident memory.
 
+## Concurrent immutable work and conditional publication
+
+The question is whether one slow storage operation must block unrelated reads
+and controls. The model retains one conditional realm journal, immutable pages,
+bounded admitted requests and a trusted clock for expiring read pins. It assumes
+the provider implements atomic conditional append and does not roll back
+acknowledged history. Parallel preparation does not create another authority.
+
+The [native host](../../apps/transit-node/Native.zig) assigns each admitted
+request an exclusively owned execution lane: engine head, verified caches,
+transport client, working buffers and observation counters. Provider I/O runs
+without the host's shared registry mutex. Preparation validates at a published
+basis and stages a private successor. Core's conditional append requires that
+same position. Therefore any intervening grant, owner, resource or sequence
+change prevents acceptance of that candidate. Rejected candidates can leave
+unpublished bytes; parallelism does not itself reclaim them. Unknown append
+outcomes retain the original signed request identity.
+
+[Snapshot reservations](../../packages/zig/transit-core/src/SnapshotLeases.zig)
+solve a separate problem: independent engines cannot independently allocate all
+64 global pins. Under a short host mutex, an authenticated request reserves one
+slot and a unique ticket. Pending opens count toward both global and per-principal
+quotas. The engine borrows that slot while it materializes data and rechecks
+current authority. Only success installs a renewal/open/close; cancellation or
+failure releases the reservation while preserving the preceding pin. Conflicting
+operations on one pin fail explicitly. Stale releases cannot overwrite a newer
+reservation, and a fresh startup epoch prevents reuse after node restart.
+
+The [disk barrier proof](../../tests/node_concurrency.py) holds a provider
+response while requiring an independent signed read and commit to complete
+before release. A second schedule holds old evidence across revocation; a third
+races identical signed writes and checks exact receipt reconciliation. Run
+`just test::node-concurrency` in the pinned development shell. Core schedules
+exercise global/per-principal pending quotas, failed renewals, stale release and
+shared pins across independently owned engines. The proof ledger records runs.
+These finite schedules establish overlap and the checked authority outcomes,
+not throughput, fairness or a latency guarantee.
+
+The previous single-engine mutex made ownership simple but coupled unrelated
+provider delays. Per-request creation would discard useful caches after every
+operation. Bounded reusable lanes avoid both costs, at the expense of a cache
+budget per lane and potentially conflicting prepared candidates. The
+[node configuration](../../apps/transit-node/docs/growing.md) gives those bounds.
+Horizontal write partitioning and storage reclamation require separate contracts.
+
 ## Reducing durable mutation work
 
 The question is which work a short Table mutation can share or avoid while
@@ -67,7 +112,7 @@ The implementation combines three independent mechanisms:
   the published root. The private bound follows command quotas, never retained
   resource cardinality.
 - [Worker notifications](../../apps/transit-node/Notifications.zig) register under
-  the same mutex used by local publication, then release it while waiting.
+  the same short mutex used to publish local commit hints, then release it while waiting.
   Publication scopes reduce unrelated wakeups. Every wake or bounded timeout
   repeats current authorization and authority reads. Cancellation releases the
   slot; a different node's publication is found on timeout. Coalescing is safe

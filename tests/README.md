@@ -1,5 +1,31 @@
 # Validation and milestone evidence
 
+## Independently owned native execution
+
+On October 18, 2026, the core package suite and `just test::node-concurrency`
+pass with independently owned native engines and a shared bounded snapshot
+registry. The [disk schedule](node_concurrency.py) holds one provider response
+while an independent signed read and commit finish before its release. It also
+holds old provider evidence across revocation and requires denial, then races
+two identical commands and checks one original receipt after reconciliation.
+The fixture uses one decoded page per lane and the pinned disk Ursula provider.
+
+Core schedules cover pending-open quotas across all 64 global slots and eight
+per principal, failure without renewal/close, stale reservation release, clock
+rollback and reuse of one pin across independent engines. Authentication failure
+cannot reserve a slot. These are finite ownership/authority schedules, not
+throughput or memory-capacity measurements. The first external attempt timed
+out with delayed-ACK buffering in its Python proxy; enabling TCP_NODELAY in that
+peer passed with the original deadlines. No failed attempt is counted as passed.
+
+`zig build test-node-recovery test-growing-service -Doptimize=ReleaseSafe` also
+passes: retained startup remains read-only through transient and incompatible
+provider faults; original receipts survive node/provider replacement and
+revocation; Station retains calls and Tables beyond 32 keys; the 41-row captured
+query recovers staging/sealing/publication/partial consumption; admission quota
+and control reserve preserve pending work across disk restart. This focused run
+does not stand in for the complete clean-checkout suite.
+
 ## SDK source and runtime boundary
 
 The [SDK directory](../sdks/README.md) owns consumer APIs; shared runtime

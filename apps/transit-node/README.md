@@ -35,11 +35,14 @@ reads and receipt recovery; resource associations do not grant access.
 Incompatible histories and saved operations reject under the
 [hard-cutover policy](../../docs/reference/versioning.md).
 
-The listener allows 16 connections, four ordinary requests and two reserved
-control requests, with 64 sequential exchanges per connection. Authority work
-is serialized per realm; network reads and response writes run outside that
-lock. Conditional append fences competing authorities. It does not create
-independent write shards or establish per-principal fairness.
+The listener allows 16 connections, four ordinary requests, four notification
+waits and two reserved control requests, with 64 sequential exchanges per
+connection. Each admitted request owns an execution lane with its own engine,
+provider client and bounded caches. Immutable reads and preparation overlap;
+conditional journal append serializes accepted successors. A competing
+publication can return `Conflict`; uncertain outcomes still require the original
+request identity. This does not create independent write shards or establish
+per-principal fairness.
 
 Run `--maintain` separately for authorized lifetime, collection and checkpoint
 work. The [courier](../transit-delivery/README.md) delivers committed outputs via

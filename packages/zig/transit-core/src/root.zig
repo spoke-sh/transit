@@ -11,6 +11,7 @@ pub const authorization = @import("authorization.zig");
 pub const authorization_store = @import("authorization_store.zig");
 pub const authorization_admin = @import("authorization_admin.zig");
 pub const growing = @import("growing.zig");
+pub const SnapshotLeases = @import("SnapshotLeases.zig");
 pub const Engine = growing.Engine;
 pub const Genesis = growing.Genesis;
 pub const Record = growing.Record;
@@ -29,6 +30,7 @@ pub const sign = protocol.sign;
 pub const digest = protocol.digest;
 pub const Payload = protocol.Payload;
 test {
+    _ = SnapshotLeases;
     _ = @import("pages_test.zig");
     _ = @import("catalog_test.zig");
     _ = @import("growing_test.zig");

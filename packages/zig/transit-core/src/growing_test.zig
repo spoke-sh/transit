@@ -2485,3 +2485,63 @@ test "current-view guards fence policy revisions without changing ordinary snaps
     const accepted = try f.root(.{ .turn = turn });
     try t.expectEqual(accepted, (try state.view(&f.engine, fresh)).meta.closed_at.?);
 }
+
+test "request-owned engines share leased pins without sharing mutable catalogs" {
+    const Hooks = struct {
+        registry: *core.SnapshotLeases,
+        lease: ?core.SnapshotLeases.Lease = null,
+        pub fn begin(self: *@This(), engine: *Engine, principal: growing.Principal, kind: @FieldType(g.Query, "kind")) !void {
+            const selector = core.SnapshotLeases.Selector.from(kind) orelse return;
+            const now = try engine.clock.?.sample();
+            try engine.validateTime(now);
+            self.lease = try self.registry.acquire(principal.grant.subject, principal.epoch, selector, now);
+            engine.snapshot_slots = &self.lease.?.values;
+            engine.snapshot_serial = self.lease.?.serial;
+            engine.snapshot_time_floor_ms = self.registry.time_floor_ms;
+        }
+        pub fn end(self: *@This(), engine: *Engine, success: bool) void {
+            const lease = self.lease orelse return;
+            engine.snapshot_slots = null;
+            self.registry.release(lease, success, engine.snapshot_time_floor_ms) catch unreachable;
+            self.lease = null;
+        }
+    };
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(10) });
+    var registry: core.SnapshotLeases = .{ .epoch = @splat(1) };
+    var hooks: Hooks = .{ .registry = &registry };
+    var first = f.engine;
+    var second = f.engine;
+    const query = try g.signQuery(.{ .realm = 42, .principal = 0, .kind = .{ .snapshot_read = .{
+        .snapshot = .{ .open = .{ .resource = fixture.resource, .nonce = @splat(7) } },
+        .points = .{ try core.Value.init("row"), null, null, null, null, null, null, null },
+    } } }, f.root_key);
+    var invalid = query;
+    invalid.signature[0] ^= 1;
+    try t.expectError(error.Unauthorized, first.queryWithSnapshots(invalid, &hooks));
+    try t.expectEqual(0, registry.ticket);
+    const opened = (try first.queryWithSnapshots(query, &hooks)).body.snapshot_read;
+    try t.expectEqual(@as(i64, 10), try opened.points[0].?.value.asInteger());
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(20) });
+    const reused = (try second.queryWithSnapshots(query, &hooks)).body.snapshot_read;
+    try t.expectEqualDeep(opened.snapshot.id, reused.snapshot.id);
+    try t.expectEqual(@as(i64, 10), try reused.points[0].?.value.asInteger());
+    // A failed disclosure cannot install a successful close into the registry.
+    const close = try g.signQuery(.{ .realm = 42, .principal = 0, .kind = .{ .snapshot_read = .{
+        .snapshot = .{ .existing = opened.snapshot.id },
+        .finish = true,
+    } } }, f.root_key);
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Forbidden, second.queryWithSnapshots(close, &hooks));
+    try t.expect(registry.slots[0].value != null);
+    try t.expect(registry.slots[0].reservation == null);
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try first.queryWithSnapshots(close, &hooks);
+    try t.expectEqual(null, registry.slots[0].value);
+    try t.expectEqual(null, first.snapshot_slots);
+    try t.expectEqual(null, second.snapshot_slots);
+}

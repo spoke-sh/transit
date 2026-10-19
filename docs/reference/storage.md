@@ -25,6 +25,15 @@ checkpoint does not cache a SQL answer or remove the durable steps of a captured
 query. These distinctions also apply when Tables or Documents materialize
 application history into current state.
 
+The native host gives admitted requests independently owned engines, provider
+clients and bounded caches. Immutable reads and candidate preparation can
+overlap storage I/O. The conditional realm-journal append remains the acceptance
+boundary: an intervening publication conflicts rather than accepting stale
+permissions, ownership or resource versions. Snapshot reservations use a short
+shared registry operation and retain the global pin quotas. See the
+[node limits](../../apps/transit-node/docs/growing.md#public-surface-and-limits)
+for execution-lane and memory budgets.
+
 The [performance reference](performance.md) quantifies current small-page read
 and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy
 shared paths once, and the backend stages sibling immutable pages in groups.

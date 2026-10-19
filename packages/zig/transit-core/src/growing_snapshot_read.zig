@@ -18,7 +18,7 @@ pub fn read(engine: anytype, principal: growth.Principal, realm: u64, query: g.S
         .open => |opened| blk: {
             var free: ?*?growth.StoredSnapshot = null;
             var owned: usize = 0;
-            for (&engine.snapshots) |*candidate| {
+            for (engine.snapshotSlots()) |*candidate| {
                 if (candidate.*) |stored| {
                     if (stored.principal != principal.grant.subject) continue;
                     owned += 1;

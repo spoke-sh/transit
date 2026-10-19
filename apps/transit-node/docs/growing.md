@@ -19,7 +19,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `genesis` | Exact expected v1 genesis |
 | `ursula_url`, `bucket`, `journal` | Private provider location |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
-| `resident_pages` | Decoded page cache slots, default 16, configurable 0–1024; not retained cardinality |
+| `resident_pages` | Decoded page cache slots per execution lane, default 16, configurable 0–1024; ten lanes plus the bootstrap/maintenance context; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
@@ -75,12 +75,22 @@ operation must actually be `close_snapshot` or a finishing `snapshot_read`, and
 ordinary signed authorization still applies. The hint cannot grant access.
 Connections permit 64 sequential exchanges, with an idle/header deadline of
 the smaller of one second and `request_timeout_ms`. Body reads and response
-writes run outside the cancelable authority mutex; mutable engine, page-store
-and backend-client work has one owner at a time. These bounds isolate slow
-transports but do not establish per-principal fairness or a latency guarantee.
+writes belong to the admitted request. Ten execution lanes independently own
+mutable engines, page stores, control-record caches and provider clients. The
+shared mutex protects only lane admission, notifications and snapshot-slot
+reservations; it never covers provider I/O. Independent preparation can race;
+only a conditional journal append accepts a successor. These bounds do not
+establish per-principal fairness or a latency guarantee.
 
-Request diagnostics include `wait_ns` for authority-lock acquisition, `work_ns`
-for serialized authority work including provider I/O, and `cache_hits` /
+Snapshot slots remain globally bounded at 64 and eight per principal, including
+pending opens. Independent pins may read concurrently. Simultaneous operations
+on one pin return `Conflict`; a cancelled or failed read releases its reservation
+without publishing a renewal or successful close. Node restart invalidates all
+volatile pins through the fresh startup epoch. Each disclosure still checks
+current credentials, resource access and lifetime.
+
+Request diagnostics retain `wait_ns` as zero because there is no authority-work
+mutex, `work_ns` for request execution including provider I/O, and `cache_hits` /
 `cache_misses` for decoded page-cache access during that work. They count one
 attempt, not durable outcomes or total provider requests. The separate immutable
 control-record cache is described in [storage](../../../docs/reference/storage.md).
@@ -162,8 +172,8 @@ With `request_metrics: true`, native JSON responses that acquire authority acces
 include an unsigned `x-transit-work` JSON header. Its nullable `failure` field
 retains a compiler-defined error name for failed authorized work; access denials
 omit that cause. It includes no provider message, key, payload or credential,
-and never establishes a durable outcome. It contains lock wait and work
-nanoseconds, decoded cache hits/misses, staged pages/bytes, and provider request,
+and never establishes a durable outcome. It contains work nanoseconds, the zero
+authority-lock wait field, decoded cache hits/misses, staged pages/bytes, and provider request,
 transport failure, elapsed-time, append payload byte and response byte counters.
 Provider time is contained in work time; these durations must not be added.
 Append payload bytes exclude HTTP/framing and non-append operation bodies.

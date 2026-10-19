@@ -90,8 +90,10 @@ HTTP bodies and client response buffers are bounded at 256 KiB. Canonical mutati
 records are bounded at 8 KiB. The shared server allows 16 connections, four ordinary requests, four notification waits and two reserved
 control requests, with at most 64 requests per connection. Header timeout is the
 lesser of one second and the configured request timeout; it supports HTTP/1.1 keep-alive.
-Network parsing and response writes may overlap, while authority/backend access
-has one cancelable owner. The client does not follow redirects and defaults to
+Network parsing, immutable reads and candidate preparation may overlap. Each
+admitted request owns its mutable engine, caches and provider transport; a
+conditional journal append serializes accepted successors. A losing candidate
+returns `Conflict`; a lost acknowledgement remains uncertain. The client does not follow redirects and defaults to
 a five-second request timeout. These bounds do not promise rate fairness.
 
 `x-transit-control: snapshot` selects reserved control admission only for
@@ -108,8 +110,9 @@ normal response retain their existing definitions. The hint grants no rights.
 
 When the authorized query's position equals POSITION, the node waits for a local
 publication hint or the bounded timeout without holding authority/backend access.
-It registers against the publication lock, so a commit between observation and
-registration cannot be lost. Point sends and turns notify the affected process;
+It registers against the notification mutex and monotonic observed publication
+position, so a local commit between observation and registration cannot be lost.
+The mutex is not held across provider I/O. Point sends and turns notify the affected process;
 turns with outputs also notify delivery/output waiters. Grant and lifecycle
 changes conservatively notify all registered scopes. This reduces unrelated
 worker traffic without requiring a durable watch registry. After waking it runs the signed query again,

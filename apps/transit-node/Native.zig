@@ -10,6 +10,9 @@ const http = @import("transit_http_server");
 const Engine = core.growing.Engine(adapter.Store, adapter.PackedPageStore);
 const Notifications = @import("Notifications.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
+// Admission admits four reads, two controls and four long polls. Each admitted
+// request exclusively owns one lane; idle HTTP connections own no lane.
+const lane_count = 10;
 const Config = struct {
     profile: enum { native_v1 } = .native_v1,
     genesis: core.growing.Genesis,
@@ -63,10 +66,43 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
     var listener = try (try std.Io.net.IpAddress.parseIp4(config.listen, config.port)).listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
-    var context: Context = .{ .server = &server, .diagnostics = diagnostics };
+    const lanes = try init.gpa.alloc(Lane, lane_count);
+    defer init.gpa.free(lanes);
+    var initialized: usize = 0;
+    defer for (lanes[0..initialized]) |*lane| lane.deinit();
+    for (lanes) |*lane| {
+        try lane.init(init.gpa, init.io, config, engine, diagnostics);
+        initialized += 1;
+    }
+    var context: Context = .{ .server = &server, .diagnostics = diagnostics, .lanes = lanes, .snapshots = .{ .epoch = snapshot_epoch }, .position = engine.head.position };
     diagnostics.event(.{ .name = "service.ready" });
     try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
 }
+
+const Lane = struct {
+    client: adapter.ursula.Client,
+    metrics: adapter.Metrics,
+    journal: adapter.Store,
+    pages: adapter.PackedPageStore,
+    engine: Engine,
+    busy: bool = false,
+    fn init(self: *Lane, allocator: std.mem.Allocator, io: std.Io, config: Config, basis: Engine, diagnostics: *telemetry.Runtime) !void {
+        self.* = undefined;
+        self.busy = false;
+        self.client = try adapter.ursula.Client.init(allocator, io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
+        errdefer self.client.deinit();
+        self.metrics = .{};
+        self.journal = .{ .journal = .{ .client = &self.client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics, .metrics = if (config.request_metrics) &self.metrics else null } };
+        self.pages = try adapter.PackedPageStore.init(allocator, self.journal.journal, config.resident_pages);
+        self.engine = basis;
+        self.engine.journal = &self.journal;
+        self.engine.page_store = &self.pages;
+    }
+    fn deinit(self: *Lane) void {
+        self.pages.deinit();
+        self.client.deinit();
+    }
+};
 
 fn openRetained(io: std.Io, journal: *adapter.Store, pages: *adapter.PackedPageStore, genesis: core.growing.Genesis) !Engine {
     // Ordinary recovery only reads published history. A transient provider
@@ -104,8 +140,11 @@ const Server = struct {
     observation: telemetry.Http = .{},
     accept_trace_parent: bool,
     mutex: *std.Io.Mutex = undefined,
-    locked: bool = false,
+    working: bool = false,
     changed: *Notifications = undefined,
+    position: *u64 = undefined,
+    snapshots: *core.SnapshotLeases = undefined,
+    snapshot_lease: ?core.SnapshotLeases.Lease = null,
     lock_wait_ns: u64 = 0,
     work_started: ?std.Io.Clock.Timestamp = null,
     cache_hits: u64 = 0,
@@ -127,14 +166,10 @@ const Server = struct {
         failure: ?[]const u8 = null,
     };
 
-    fn acquire(self: *Server) !void {
-        const waiting = std.Io.Clock.Timestamp.now(self.io, .awake);
-        defer {
-            self.lock_wait_ns = @intCast(@max(0, waiting.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
-            self.observation.wait_ns = (self.observation.wait_ns orelse 0) +| self.lock_wait_ns;
-        }
-        try self.mutex.lock(self.io);
-        self.locked = true;
+    fn beginWork(self: *Server) void {
+        // Lane ownership was acquired before dispatch. There is no shared
+        // mutable engine or provider client to lock across storage I/O.
+        self.working = true;
         self.work_started = .now(self.io, .awake);
         self.cache_hits = self.engine.page_store.hits;
         self.cache_misses = self.engine.page_store.misses;
@@ -146,8 +181,8 @@ const Server = struct {
         self.engine.journal.journal.parent_context = self.observation.span.context;
         self.engine.page_store.authority.parent_context = self.observation.span.context;
     }
-    fn release(self: *Server) void {
-        if (!self.locked) return;
+    fn finishWork(self: *Server) void {
+        if (!self.working) return;
         const work_ns: u64 = @intCast(@max(0, self.work_started.?.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
         self.observation.work_ns = (self.observation.work_ns orelse 0) +| work_ns;
         self.observation.cache_hits = self.engine.page_store.hits - self.cache_hits;
@@ -176,12 +211,36 @@ const Server = struct {
         }
         self.engine.journal.journal.parent_context = null;
         self.engine.page_store.authority.parent_context = null;
-        self.locked = false;
-        self.mutex.unlock(self.io);
+        self.working = false;
+    }
+    /// Called by core only after signature and current native admission checks.
+    pub fn begin(self: *Server, engine: *Engine, principal: core.growing.Principal, kind: @FieldType(g.Query, "kind")) !void {
+        const selector = core.SnapshotLeases.Selector.from(kind) orelse return;
+        const clock = engine.clock orelse return error.ClockUnavailable;
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        // Sample under the short registry lock. An older sample waiting behind
+        // a newer reservation must not look like a trusted-clock rollback.
+        const now = try clock.sample();
+        try engine.validateTime(now);
+        self.snapshot_lease = try self.snapshots.acquire(principal.grant.subject, principal.epoch, selector, now);
+        engine.snapshot_time_floor_ms = self.snapshots.time_floor_ms;
+        engine.snapshot_serial = self.snapshot_lease.?.serial;
+        engine.snapshot_slots = &self.snapshot_lease.?.values;
+    }
+    pub fn end(self: *Server, engine: *Engine, success: bool) void {
+        const lease = self.snapshot_lease orelse return;
+        engine.snapshot_slots = null;
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        // No untrusted data enters release: core produced this exclusively
+        // reserved slot and the host owns its ticket through cancellation.
+        self.snapshots.release(lease, success, engine.snapshot_time_floor_ms) catch unreachable;
+        self.snapshot_lease = null;
     }
     fn json(self: *Server, request: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
         // The response owns its bytes. Slow peers must not hold authority access.
-        self.release();
+        self.finishWork();
         const bytes = try wire.protocol.Json.valueAlloc(self.allocator, value);
         defer self.allocator.free(bytes);
         self.observation.status = @backingInt(status);
@@ -223,7 +282,7 @@ const Server = struct {
         return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });
     }
     pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
-        defer self.release();
+        defer self.finishWork();
         const route: []const u8 = route: {
             inline for (.{ "/health", "/v1/command", "/v1/query" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
             break :route "unmatched";
@@ -234,7 +293,7 @@ const Server = struct {
             break :control true;
         } else false;
         if (request.head.method == .GET and std.mem.eql(u8, route, "/health")) {
-            try self.acquire();
+            self.beginWork();
             try self.engine.refresh();
             return self.json(request, .ok, .{ .ready = true, .profile = "native_v1" });
         }
@@ -251,12 +310,17 @@ const Server = struct {
             const parsed = std.json.parseFromSlice(g.SignedRequest, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             defer parsed.deinit();
             g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-            try self.acquire();
+            self.beginWork();
             self.observation.protocol_outcome = .uncertain;
             const position = self.engine.submit(parsed.value) catch |err| return self.failure(request, err);
             // Coalesced local hints only. Reconciliation can also discover a
             // commit by another node; every waiter still revalidates its query.
-            self.changed.publish(self.io, parsed.value.request.command);
+            {
+                self.mutex.lockUncancelable(self.io);
+                defer self.mutex.unlock(self.io);
+                self.position.* = @max(self.position.*, self.engine.head.position);
+                self.changed.publish(self.io, parsed.value.request.command);
+            }
             self.observation.protocol_outcome = .receipt;
             self.observation.realm = parsed.value.request.realm;
             self.observation.sequence = parsed.value.request.sequence;
@@ -269,26 +333,26 @@ const Server = struct {
         defer parsed.deinit();
         if (control and parsed.value.query.kind != .close_snapshot and !(parsed.value.query.kind == .snapshot_read and parsed.value.query.kind.snapshot_read.finish)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         g.validateQuery(parsed.value.query) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-        try self.acquire();
+        self.beginWork();
         if (hint != null and !wire.WaitHint.allows(parsed.value.query)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-        var response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
+        var response = self.engine.queryWithSnapshots(parsed.value, self) catch |err| return self.failure(request, err);
         if (hint) |wait| {
             if (wait.after > response.position) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             if (wait.after == response.position) {
-                self.release();
+                self.finishWork();
                 // Compare and register under the same lock used by publication;
                 // a commit between the read and registration cannot be missed.
                 {
                     try self.mutex.lock(self.io);
                     defer self.mutex.unlock(self.io);
-                    if (self.engine.head.position == wait.after) {
+                    if (self.position.* <= wait.after) {
                         try self.changed.wait(self.io, self.mutex, parsed.value.query, wait.milliseconds);
                     }
                 }
-                try self.acquire();
+                self.beginWork();
                 // Recheck signature, grants, scope, lifecycle and authority tail
                 // after every wake/timeout, including remote commits and revoke.
-                response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
+                response = self.engine.queryWithSnapshots(parsed.value, self) catch |err| return self.failure(request, err);
             }
         }
         self.observation.protocol_outcome = .read;
@@ -299,13 +363,30 @@ const Server = struct {
     }
 };
 
-/// Network parsing/writes are concurrent; mutable authority and backend clients
-/// have one cancelable owner at a time. Every request owns its observation.
+/// Bounded lanes own mutable execution/cache/transport state. The short shared
+/// mutex covers only admission, notification registration and volatile pin slots.
 const Context = struct {
     server: *Server,
     diagnostics: *telemetry.Runtime,
     mutex: std.Io.Mutex = .init,
     changed: Notifications = .{},
+    lanes: []Lane,
+    snapshots: core.SnapshotLeases,
+    position: u64,
+    fn acquire(self: *Context, io: std.Io) !*Lane {
+        try self.mutex.lock(io);
+        defer self.mutex.unlock(io);
+        for (self.lanes) |*lane| if (!lane.busy) {
+            lane.busy = true;
+            return lane;
+        };
+        return error.ControlCapacity;
+    }
+    fn release(self: *Context, io: std.Io, lane: *Lane) void {
+        self.mutex.lockUncancelable(io);
+        defer self.mutex.unlock(io);
+        lane.busy = false;
+    }
     pub fn isWait(_: *@This(), request: *std.http.Server.Request) bool {
         return (http.header(request, "x-transit-wait") catch null) != null;
     }
@@ -317,11 +398,16 @@ const Context = struct {
         if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
     }
     pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+        const lane = try self.acquire(io);
+        defer self.release(io, lane);
         var server = self.server.*;
         server.io = io;
         server.allocator = allocator;
         server.mutex = &self.mutex;
         server.changed = &self.changed;
+        server.engine = &lane.engine;
+        server.position = &self.position;
+        server.snapshots = &self.snapshots;
         server.observation = .{ .span = self.diagnostics.begin(.server, null) };
         var failure: ?anyerror = null;
         const read_only = !std.mem.eql(u8, request.head.target, "/v1/command");

@@ -10,6 +10,10 @@ _default:
 unit:
     zig build test
 
+# Independent provider stalls, exact publication races and current revocation.
+node-concurrency:
+    zig build test-node-concurrency -Doptimize=ReleaseSafe
+
 # Independent pinned database clients, TLS/authentication and prepared cycles.
 sql-wire-reference:
     nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py

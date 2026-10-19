@@ -973,6 +973,19 @@ pub fn build(b: *std.Build) void {
     node_recovery.has_side_effects = true;
     node_recovery.stdio = .inherit;
     b.step("test-node-recovery", "Qualify read-only retained startup through transient storage faults").dependOn(&node_recovery.step);
+    const node_concurrency_fixtures = b.addExecutable(.{ .name = "transit-node-concurrency-fixtures", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/node_concurrency.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    const node_concurrency = b.addSystemCommand(&.{ "python3", "-B" });
+    node_concurrency.addFileArg(b.path("tests/node_concurrency.py"));
+    node_concurrency.addArtifactArg(node_artifact);
+    node_concurrency.addArtifactArg(node_concurrency_fixtures);
+    node_concurrency.has_side_effects = true;
+    node_concurrency.stdio = .inherit;
+    b.step("test-node-concurrency", "Qualify independent native I/O, publication races and revocation").dependOn(&node_concurrency.step);
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);

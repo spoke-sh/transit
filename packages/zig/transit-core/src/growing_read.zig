@@ -54,14 +54,14 @@ fn snapshotRecheck(engine: anytype, principal: growth.Principal, resource: u64) 
     return now;
 }
 pub fn sweepSnapshots(engine: anytype, now: core.Time.Sample) void {
-    for (&engine.snapshots) |*slot| if (slot.*) |stored| {
+    for (engine.snapshotSlots()) |*slot| if (slot.*) |stored| {
         if (now.lower() >= stored.meta.deadline_ms) slot.* = null;
     };
 }
 pub fn snapshotSlot(engine: anytype, id: g.SnapshotId, principal: growth.Principal, now: core.Time.Sample) !?*?growth.StoredSnapshot {
     if (!std.mem.eql(u8, &id.epoch, &engine.snapshot_epoch.?)) return null;
     sweepSnapshots(engine, now);
-    for (&engine.snapshots) |*slot| if (slot.*) |stored| {
+    for (engine.snapshotSlots()) |*slot| if (slot.*) |stored| {
         if (stored.meta.id.serial != id.serial) continue;
         if (stored.principal != principal.grant.subject or stored.principal_epoch != principal.epoch) return error.Forbidden;
         try now.before(stored.meta.deadline_ms);
@@ -70,6 +70,11 @@ pub fn snapshotSlot(engine: anytype, id: g.SnapshotId, principal: growth.Princip
     return null;
 }
 pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
+    return withSnapshots(engine, signed, {});
+}
+/// Hooks reserve only volatile bookkeeping, after signed current admission.
+/// Every disclosure still executes the ordinary current-root checks below.
+pub fn withSnapshots(engine: anytype, signed: g.SignedQuery, hooks: anytype) anyerror!g.Response {
     try g.validateQuery(signed.query);
     if (signed.query.realm != engine.genesis.realm) return error.WrongProtocolRealm;
     try engine.refresh();
@@ -97,6 +102,14 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
         principal.grant.pid = pid;
         principal.grant.permissions |= p.permission(needed);
     }
+    if (comptime @TypeOf(hooks) != void) try hooks.begin(engine, principal, query.kind);
+    var success = false;
+    defer if (comptime @TypeOf(hooks) != void) hooks.end(engine, success);
+    const result = try authorized(engine, principal, query);
+    success = true;
+    return result;
+}
+fn authorized(engine: anytype, principal: growth.Principal, query: g.Query) anyerror!g.Response {
     if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
     const position = engine.head.position;
     var current = try engine.state();
@@ -118,7 +131,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             sweepSnapshots(engine, now);
             var free: ?*?growth.StoredSnapshot = null;
             var owned: usize = 0;
-            for (&engine.snapshots) |*slot| {
+            for (engine.snapshotSlots()) |*slot| {
                 if (slot.*) |stored| {
                     if (stored.principal != query.principal) continue;
                     owned += 1;
