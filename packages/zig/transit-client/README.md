@@ -62,6 +62,11 @@ default to 1 MiB each and cannot exceed 16 MiB. This path preserves shared JSON
 array shapes, rejects redirects, and drains/frees a response that races a timeout.
 It performs one HTTP attempt; it does not retry uncertain work.
 
+Each active exchange owns one bounded heap response slot. Observation and
+deadline handling borrow that slot instead of copying bulk values onto the
+handler's stack. Completion joins the transport before transferring the result;
+timeout or cancellation joins it before freeing a raced owned response.
+
 Each client is used by one operation at a time; sessions sharing a principal also
 share its mutation sequence. A client retains at most one free HTTP connection
 and discards it before a new exchange after 200 ms idle. This is below the growing

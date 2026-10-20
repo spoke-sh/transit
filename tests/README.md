@@ -156,6 +156,23 @@ boundary, missing/denied restore, source expiry and disk restart. The interrupte
 clean run remains partial qualification; the fixture correction changes no
 runtime behavior or proof limits.
 
+At `081170b0`, root checks and the complete clean `core`, `growth`, `experience`
+and `launchers` lanes pass (75 tasks across those four lanes). The two bindings
+lanes fail in installed C Station and Python catalog consumers with `SIGSEGV`;
+the ordinary qualification is incomplete. A retained C core dump identifies
+another Debug stack overflow during Table creation: the observation and deadline
+frames still copy the bounded block response by value. The client now gives
+those frames one heap-owned response slot, joining the transport before ownership
+transfer or error cleanup. Client package tests pass, including a maximum
+128 KiB response on an explicit 8 MiB thread, ownership across a subsequent
+exchange, corrupted-body rejection, owned nested responses and timeout cleanup.
+This changes neither the declared stack requirement nor the wire definition.
+The focused `just test::typed-tables --cold --sdk python` rerun passes with the
+response-slot correction: 538.710 seconds of fixture execution, installed
+synchronous and asynchronous catalog lifecycles, exact saved-intent recovery,
+nested values, prepared parameters, current denial and provider/owner restart.
+This SDK-selected run does not select the separate 28-type native matrix.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

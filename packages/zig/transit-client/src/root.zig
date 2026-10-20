@@ -74,7 +74,11 @@ pub const Client = struct {
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
-        return self.exchange(T, path, signed, false, .{ .request_bytes = max_body, .response_bytes = max_body });
+        const response = try self.http.allocator.create(?T);
+        defer self.http.allocator.destroy(response);
+        response.* = null;
+        try self.exchange(T, path, signed, false, .{ .request_bytes = max_body, .response_bytes = max_body }, response);
+        return response.*.?;
     }
     pub const OwnedLimits = struct {
         request_bytes: u32 = 1024 * 1024,
@@ -88,12 +92,16 @@ pub const Client = struct {
     /// The caller must deinit it. A timeout drains and frees any raced response.
     pub fn callOwned(self: *Client, comptime T: type, path: []const u8, signed: anytype, limits: OwnedLimits) !std.json.Parsed(T) {
         try limits.validate();
-        return self.exchange(T, path, signed, true, limits);
+        const response = try self.http.allocator.create(?std.json.Parsed(T));
+        defer self.http.allocator.destroy(response);
+        response.* = null;
+        try self.exchange(T, path, signed, true, limits, response);
+        return response.*.?;
     }
     fn ResponseType(comptime T: type, comptime owned: bool) type {
         return if (owned) std.json.Parsed(T) else T;
     }
-    fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) !ResponseType(T, owned) {
+    fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
@@ -107,7 +115,7 @@ pub const Client = struct {
         self.call_context = observation.span.context;
         defer self.call_context = null;
         self.last_status = null;
-        const value = self.boundedCall(T, path, signed, owned, limits) catch |err| {
+        self.boundedCall(T, path, signed, owned, limits, response) catch |err| {
             observation.fail(err);
             if (self.last_status) |status| observation.event.status = @backingInt(status);
             if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
@@ -124,25 +132,24 @@ pub const Client = struct {
             observation.event.realm = signed.query.realm;
             if (@hasField(@TypeOf(signed.query), "pid")) observation.event.pid = signed.query.pid;
         }
-        if (T == Receipt) observation.event.position = (if (owned) value.value else value).position;
-        return value;
+        if (T == Receipt) observation.event.position = (if (owned) response.*.?.value else response.*.?).position;
     }
 
-    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) !ResponseType(T, owned) {
+    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
         self.last_rejection = null;
         const io = self.http.io;
         const deadline = std.Io.Clock.Timestamp.fromNow(io, .{
             .raw = .fromMilliseconds(self.timeout_ms),
             .clock = .awake,
         });
-        // Keep the bounded response in one caller-owned slot. Passing a bulk
-        // body by value through Select and Queue multiplies Debug stack use at
-        // every scheduling frame, exceeding a foreign worker's 8 MiB stack.
+        // Keep the bounded response in one heap slot owned by the public call.
+        // Neither observation nor timeout frames copy the bulk response. Debug
+        // builds must leave room for handlers on the foreign worker's 8 MiB stack.
         // Cancellation joins the producer before this slot is read or released.
-        var response: ?ResponseType(T, owned) = null;
-        defer if (owned) {
-            if (response) |parsed| parsed.deinit();
-        };
+        errdefer {
+            if (owned) if (response.*) |parsed| parsed.deinit();
+            response.* = null;
+        }
         const Result = union(enum) { response: anyerror!void, timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(io, &results);
@@ -157,16 +164,11 @@ pub const Client = struct {
         // async permits inline execution, which would defeat the timeout when
         // no async worker is available. Admission waits for real concurrency;
         // the transport itself is invoked at most once, with the same deadline.
-        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline, limits, &response }, deadline);
-        return switch (try select.await()) {
-            .response => |result| blk: {
-                try result;
-                const value = response.?;
-                response = null;
-                break :blk value;
-            },
-            .timeout => error.AuthorityTimeout,
-        };
+        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline, limits, response }, deadline);
+        switch (try select.await()) {
+            .response => |result| try result,
+            .timeout => return error.AuthorityTimeout,
+        }
     }
 
     fn concurrentBefore(select: anytype, comptime field: anytype, function: anytype, args: std.meta.ArgsTuple(@TypeOf(function)), deadline: std.Io.Clock.Timestamp) !void {
