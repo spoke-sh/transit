@@ -5792,7 +5792,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 21,
+        "try": 25,
         "catch": 10
       },
       "imports": [
