@@ -41,6 +41,13 @@ the next call. Explicit
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
 
+Table scans own their bounded entry, index-node and block caches in heap storage.
+Moving a scan into its query owner transfers that storage; it does not copy bulk
+buffers through the calling stack. Destruction releases the caches, including
+after a partially acquired source fails. Relational queries charge those
+allocations to their resident budget. Aliases sharing a lease retain separate
+caches and only the owning scan closes the lease.
+
 Typed Table and file callers use the shared bounded column kernels. `ComputePool`
 provides optional host-owned workers over decoded batches; source reads and
 current-right checks stay serial. The [batch guide](../transit-fuze/docs/batches.md)

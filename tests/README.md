@@ -191,6 +191,19 @@ that local failures clear earlier wire diagnostics without contacting the peer.
 The client package suite passes with both corrections. The failed Flight run
 remains incomplete qualification; no workspace, stack or deadline is increased.
 
+At `efb7cee9`, root checks and Flight faults pass, but the clean Python relational
+consumer overflows its 8 MiB Debug calling stack while opening Table sources.
+A retained core identifies large scan copies in `RelationalTables.open`,
+`TableScan.open` and `TableScan.openResource`. Scan caches now have one owned heap
+allocation, charged through the supplied query allocator and released on failure
+or destruction. Shared-lease aliases retain independent caches. Query package
+tests and the durable query recovery schedule pass. The installed Python
+relational rerun passes in 56.066 seconds of fixture execution: synchronous and
+asynchronous clients, both source layouts, repeated opens/pages/closes, current
+denial, lost-host rejection and ordered overflow. The same clean attempt also
+exposes the probe trace synchronization race described above; neither failed
+lane establishes complete qualification.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,
