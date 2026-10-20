@@ -24,8 +24,10 @@ class Reuse(unittest.TestCase):
         probe = Probe(f'http://127.0.0.1:{server.server_port}', native=True)
         client = HTTPConnection('127.0.0.1', probe.server.server_port, timeout=3)
         try:
+            self.assertFalse(probe.wait_completed(1, timeout=0))
             client.request('POST', '/v1/blocks', json.dumps({'query': {'principal': 9, 'kind': {'block_entries': {}}}}))
             self.assertEqual(client.getresponse().read(), body)
+            self.assertTrue(probe.wait_completed(1, timeout=3))
             self.assertEqual(probe.snapshot()['read:block_entries'], 1)
             self.assertEqual(probe.trace()['retained'][0]['position'], 17)
             self.assertNotIn('UFJJVkFURQ', json.dumps(probe.trace()))
@@ -63,6 +65,7 @@ class Reuse(unittest.TestCase):
                 response = client.getresponse()
                 self.assertEqual(response.read(), b'{}')
                 self.assertEqual(response.will_close, index == 2)
+            self.assertTrue(probe.wait_completed(4, timeout=3))
             self.assertEqual(peers[0], peers[1])
             self.assertEqual(peers[1], peers[2])
             self.assertNotEqual(peers[2], peers[3])

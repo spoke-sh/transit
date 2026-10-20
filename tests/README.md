@@ -50,6 +50,12 @@ Complete ordinary qualification runs separately with `just ci-clean` against
 committed HEAD; the PR records its exact revision and outcome. Focused proofs
 and matched measurements do not substitute for that gate.
 
+The native latency probe records a completed trace after forwarding the response,
+including any downstream write failure. Its unit checks explicitly join that
+recording before inspecting the trace; receiving HTTP bytes alone does not join
+the proxy handler. Counts, retained-event bounds and payload exclusion remain
+unchanged.
+
 The first clean attempt at `321be45a` passes `check-core`, then fails to compile
 the transition-property driver because its test store lacks the new block
 interface. The delivery/storage simulation stores require the same update;

@@ -23,6 +23,7 @@ class Probe:
         self.started_ns = time.monotonic_ns()
         self.completed_events = 0
         self.lock = threading.Lock()
+        self.completion = threading.Condition(self.lock)
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -177,13 +178,14 @@ class Probe:
                 finally:
                     if native:
                         event['elapsed_ns'] = time.monotonic_ns() - started
-                        with owner.lock:
+                        with owner.completion:
                             owner.completed_events += 1
                             event['ordinal'] = owner.completed_events
                             owner.events.append(event)
                             if event.get('failure') is not None or event.get('status', 0) >= 400:
                                 owner.completed_failures += 1
                                 owner.failed_events.append(event)
+                            owner.completion.notify_all()
 
             do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = forward
 
@@ -196,6 +198,11 @@ class Probe:
     def snapshot(self):
         with self.lock:
             return self.counts.copy()
+
+    def wait_completed(self, count, timeout):
+        """Join native trace recording, which follows the downstream write."""
+        with self.completion:
+            return self.completion.wait_for(lambda: self.completed_events >= count, timeout)
 
     def trace(self):
         with self.lock:
