@@ -57,7 +57,7 @@ const Context = struct {
         if (wait_value != null and (control or !std.mem.eql(u8, request.head.target, "/v1/query"))) return http.respond(request, .bad_request, "{\"err\":\"InvalidRequest\"}");
         const configuration = self.configuration != null and std.mem.eql(u8, request.head.target, C.route);
         const health = request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health");
-        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query") or configuration)))
+        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query") or std.mem.eql(u8, request.head.target, "/v1/blocks") or configuration)))
             return http.respond(request, .not_found, "{\"err\":\"NotFound\"}");
         // Reading a request body invalidates Head string slices. Own the target
         // before that boundary, including for a bodyless health request.

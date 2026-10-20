@@ -10,6 +10,22 @@ _default:
 unit:
     zig build test
 
+# Independent provider stalls, exact publication races and current revocation.
+node-concurrency:
+    zig build test-node-concurrency -Doptimize=ReleaseSafe
+
+# Primitive bytes/index proof; native authority and SQL integration are separate.
+block-storage:
+    zig build test-block-storage -Doptimize=ReleaseSafe
+
+# Epoch fencing, retained roots, relocation and physical deletion across restart.
+storage-collection:
+    zig build test-storage-collection -Doptimize=ReleaseSafe
+
+# Atomic native block roots, retained bytes and current authority through faults.
+native-blocks:
+    zig build test-native-blocks -Doptimize=ReleaseSafe
+
 # Independent pinned database clients, TLS/authentication and prepared cycles.
 sql-wire-reference:
     nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py
@@ -239,7 +255,7 @@ capacity:
 
 # Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
 growing-capacity:
-    zig build growing-capacity-proof
+    zig build growing-capacity-proof -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof
 
 # Exercise bounded discovery and retained inspection through the public client.

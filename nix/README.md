@@ -23,6 +23,11 @@ The M9 Arrow integration uses Zig `0.17.0-dev.2267+48abf1a34`, matching
 the selected zarrow fork. The Zig overlay update is deliberate; Ursula and
 general development-package pins remain unchanged.
 
+The `transit` CLI uses this compiler's bundled LLVM/LLD for Debug ELF builds.
+This preserves debug information while packing sections within the unchanged
+256 MiB executable admission limit. Optimized builds retain the selected default
+backend. No toolchain or external dependency pin changes for this selection.
+
 M19 explicitly includes the existing locked nixpkgs OpenSSL in the default shell
 and toolchain check. This removes the serving peer's dependency on an ambient
 system executable; no lockfile input revision changes are required.

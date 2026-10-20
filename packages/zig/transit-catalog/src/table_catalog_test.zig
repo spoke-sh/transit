@@ -224,11 +224,15 @@ test "listing validates live identity without acquiring schema or row bytes" {
             if (key.eql(self.blocked)) return error.Unavailable;
             return self.turn.read(key);
         }
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            if (key.eql(self.blocked)) return error.Unavailable;
+            return self.turn.readBlock(key, output);
+        }
         pub fn page(self: *@This(), after: p.Value) !s.Turn.Page {
             return self.turn.page(after);
         }
     };
-    var source: Source = .{ .turn = &turn, .view = turn.view, .blocked = s.TablePages.key(1, 'i', head.schema.id) };
+    var source: Source = .{ .turn = &turn, .view = turn.view, .blocked = s.TablePages.key(1, 'c', head.schema.id) };
     const listed = try owner.list(&source, 17, null);
     try t.expectEqualStrings("people", listed.entries[0].?.metadata.name.slice());
     try t.expectEqualDeep(head, listed.entries[0].?.head);
@@ -594,7 +598,7 @@ test "cancel every ALTER phase preserves its old schema and permits later evolut
     }
     // Six existing preparation cuts plus the immutable predecessor staging cut.
     // Every one is independently cancelled, cleaned and followed by new DDL.
-    try t.expectEqual(@as(usize, 7), phases);
+    try t.expectEqual(@as(usize, 6), phases);
 }
 test "DDL conflicts bind original names schemas and absent DROP without retargeting" {
     var store: TestStore = .{};
@@ -1070,7 +1074,8 @@ test "saved DML references retain their route and cannot cancel catalog ALTER" {
     try t.expectEqual(@as(usize, 0), countWrites(turn));
     const pending = try owner.cancel(&turn, 17, 3, try alter.digest(owner.configuration.scope));
     try t.expect(!pending.terminal());
-    try t.expectEqual(@as(usize, 1), countWrites(turn));
+    try t.expectEqual(@as(usize, 0), countWrites(turn));
+    try t.expect(turn.decision.blocks.mutations[0] != null);
     try store.commit(turn);
     turn = try store.capture(17);
     const cancelled = try owner.cancel(&turn, 17, 3, try alter.digest(owner.configuration.scope));
@@ -1134,12 +1139,18 @@ test "command basis resolves accepted historical schema after DROP with current 
             for (self.keys[0..self.count]) |existing| if (existing.?.eql(key)) return self.store.state.get(key);
             return error.UnbatchedMetadataRead;
         }
+        pub fn readBlock(self: *@This(), key: p.Value, output: []u8) !?[]const u8 {
+            const value = self.store.blocks.records.get(key) orelse return null;
+            if (value.bytes.len > output.len) return error.BlockBufferTooSmall;
+            @memcpy(output[0..value.bytes.len], value.bytes);
+            return output[0..value.bytes.len];
+        }
     };
     var batched: Batched = .{ .store = &store, .view = .{ .revision = store.revision } };
     var original = (try owner.commandBasis(t.allocator, &batched, 17, body.header, .execute)).?;
     defer original.deinit();
-    try t.expectEqual(@as(usize, 3), batched.batches);
-    for (1..4) |failed| {
+    try t.expectEqual(@as(usize, 4), batched.batches);
+    for (1..5) |failed| {
         var unavailable: Batched = .{ .store = &store, .view = batched.view, .fail_batch = failed };
         try t.expectError(error.Unavailable, owner.commandBasis(t.allocator, &unavailable, 17, body.header, .execute));
     }
@@ -1218,17 +1229,14 @@ test "exact general definitions survive evolution retirement and name reuse with
         try t.expect(store.state.remove(receipt_key));
         try t.expectError(error.CatalogDefinitionMissing, owner.definition(t.allocator, &turn, 17, 10, 1));
         try store.state.put(t.allocator, receipt_key, receipt);
-        if (comptime name.len < 16) {
-            const inline_key = Records.key(10, 'i', 1);
-            const bytes = store.state.get(inline_key).?;
-            var changed = bytes;
-            changed.data[4] ^= 1;
-            try store.state.put(t.allocator, inline_key, changed);
-            try t.expectError(error.IncompatibleDefinition, owner.definition(t.allocator, &turn, 17, 10, 1));
-            try store.state.put(t.allocator, inline_key, bytes);
-            try store.state.put(t.allocator, Records.key(10, 'r', 1), try p.Value.init("conflicting publication"));
-            try t.expectError(error.InvalidCatalogDefinition, owner.definition(t.allocator, &turn, 17, 10, 1));
-        }
+        const block_key = Records.key(10, 'c', 1);
+        const bytes = try t.allocator.dupe(u8, store.blocks.records.get(block_key).?.bytes);
+        defer t.allocator.free(bytes);
+        store.blocks.records.get(block_key).?.bytes[44 + 4] ^= 1;
+        try t.expectError(error.CatalogDefinitionChanged, owner.definition(t.allocator, &turn, 17, 10, 1));
+        try store.blocks.put(t.allocator, block_key, bytes[0..10], store.revision);
+        try t.expectError(error.InvalidPublicationChunk, owner.definition(t.allocator, &turn, 17, 10, 1));
+        try store.blocks.put(t.allocator, block_key, bytes, store.revision);
     }
 }
 

@@ -436,6 +436,30 @@ pub fn build(b: *std.Build) void {
     page_test.has_side_effects = true;
     page_test.stdio = .inherit;
     b.step("test-pages", "Qualify immutable pages and bounded cache over disk Ursula").dependOn(&page_test.step);
+    const block_proof = b.addExecutable(.{ .name = "transit-block-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/block_storage.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const block_test = b.addSystemCommand(&.{ "python3", "-B" });
+    block_test.addFileArg(b.path("tests/block_storage.py"));
+    block_test.addArtifactArg(block_proof);
+    block_test.has_side_effects = true;
+    block_test.stdio = .inherit;
+    b.step("test-block-storage", "Qualify bounded immutable blocks and retained roots over disk Ursula").dependOn(&block_test.step);
+    const collection_proof = b.addExecutable(.{ .name = "transit-storage-collection-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage_collection.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const collection_test = b.addSystemCommand(&.{ "python3", "-B" });
+    collection_test.addFileArg(b.path("tests/storage_collection.py"));
+    collection_test.addArtifactArg(collection_proof);
+    collection_test.has_side_effects = true;
+    collection_test.stdio = .inherit;
+    b.step("test-storage-collection", "Qualify epoch-fenced physical reclamation and restart accounting").dependOn(&collection_test.step);
     const growth_proof = b.addExecutable(.{ .name = "transit-growth-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing.zig"),
         .target = target,
@@ -761,6 +785,13 @@ pub fn build(b: *std.Build) void {
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
+            // The native debug linker reserves large sparse section gaps in
+            // this executable. Pack ELF output with pinned LLVM/LLD while
+            // retaining debug information and the executable admission bound.
+            if (optimize == .debug and target.result.ofmt == .elf) {
+                app.use_llvm = true;
+                app.use_lld = true;
+            }
             app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
             app.root_module.addImport("transit_sql_gateway", sql_gateway.module("transit_sql_gateway"));
             app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
@@ -973,6 +1004,25 @@ pub fn build(b: *std.Build) void {
     node_recovery.has_side_effects = true;
     node_recovery.stdio = .inherit;
     b.step("test-node-recovery", "Qualify read-only retained startup through transient storage faults").dependOn(&node_recovery.step);
+    const node_concurrency_fixtures = b.addExecutable(.{ .name = "transit-node-concurrency-fixtures", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/node_concurrency.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    const node_concurrency = b.addSystemCommand(&.{ "python3", "-B" });
+    node_concurrency.addFileArg(b.path("tests/node_concurrency.py"));
+    node_concurrency.addArtifactArg(node_artifact);
+    node_concurrency.addArtifactArg(node_concurrency_fixtures);
+    node_concurrency.has_side_effects = true;
+    node_concurrency.stdio = .inherit;
+    b.step("test-node-concurrency", "Qualify independent native I/O, publication races and revocation").dependOn(&node_concurrency.step);
+    const native_blocks = b.addSystemCommand(&.{ "python3", "-B" });
+    native_blocks.addFileArg(b.path("tests/block_native.py"));
+    native_blocks.addArtifactArg(node_artifact);
+    native_blocks.has_side_effects = true;
+    native_blocks.stdio = .inherit;
+    b.step("test-native-blocks", "Qualify atomic native bulk publication and current-authorized retained reads").dependOn(&native_blocks.step);
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);
@@ -1165,12 +1215,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_gateway", .module = sql_gateway.module("transit_sql_gateway") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
     }) });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
+    const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| sql_wire_gateway.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| {
+        sql_wire_gateway.addArtifactArg(artifact);
+        sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
+    }
     sql_wire_gateway.addPassthruArgs();
     sql_wire_gateway.has_side_effects = true;
     sql_wire_gateway.stdio = .inherit;

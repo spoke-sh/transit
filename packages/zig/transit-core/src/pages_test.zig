@@ -5,11 +5,14 @@ const p = @import("pages.zig");
 pub const Store = struct {
     allocator: std.mem.Allocator = t.allocator,
     pages: std.AutoHashMapUnmanaged(p.Reference, p.Page) = .empty,
+    blocks: std.AutoHashMapUnmanaged(@import("blocks.zig").Reference, []u8) = .empty,
     writes: usize = 0,
     reads: usize = 0,
     fail_at: ?usize = null,
     lose_at: ?usize = null,
     missing: bool = false,
+    missing_blocks: bool = false,
+    corrupt_blocks: bool = false,
     corrupt: bool = false,
     missing_at: ?usize = null,
     pub fn stage(self: *Store, ref: p.Reference, page: *const p.Page) !p.Reference {
@@ -33,7 +36,33 @@ pub const Store = struct {
         }
         return error.PageUnavailable;
     }
+    pub fn stageBlock(self: *Store, spec: @import("root.zig").protocol.Blocks.Spec, bytes: []const u8) !@import("blocks.zig").Reference {
+        try spec.verify(bytes);
+        if (self.fail_at == self.writes) return error.StagingFailed;
+        self.writes += 1;
+        const ref: @import("blocks.zig").Reference = .{ .value = spec, .location = @splat(0) };
+        if (!self.blocks.contains(ref)) {
+            const owned = try self.allocator.dupe(u8, bytes);
+            errdefer self.allocator.free(owned);
+            try self.blocks.put(self.allocator, ref, owned);
+        }
+        if (self.lose_at == self.writes - 1) return error.StagingAcknowledgementLost;
+        return ref;
+    }
+    pub fn loadBlock(self: *Store, ref: @import("blocks.zig").Reference, buffer: []u8) ![]const u8 {
+        self.reads += 1;
+        if (self.missing or self.missing_blocks) return error.BlockUnavailable;
+        const bytes = self.blocks.get(ref) orelse return error.BlockUnavailable;
+        if (buffer.len < bytes.len) return error.BlockBufferTooSmall;
+        @memcpy(buffer[0..bytes.len], bytes);
+        if ((self.corrupt or self.corrupt_blocks) and bytes.len != 0) buffer[0] ^= 1;
+        try ref.value.verify(buffer[0..bytes.len]);
+        return buffer[0..bytes.len];
+    }
     pub fn deinit(self: *Store) void {
+        var iterator = self.blocks.valueIterator();
+        while (iterator.next()) |bytes| self.allocator.free(bytes.*);
+        self.blocks.deinit(self.allocator);
         self.pages.deinit(self.allocator);
     }
 };

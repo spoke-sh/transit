@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -100,6 +101,12 @@ done
         phases = []
 
         class ObserveAdapter(BaseHTTPRequestHandler):
+            def setup(self):
+                super().setup()
+                # This observer must not add a delayed-ACK round trip between
+                # separately flushed HTTP headers and the response body.
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
             def forward(self):
                 size = int(self.headers.get("Content-Length", "0"))
                 assert size <= 2*1024**2

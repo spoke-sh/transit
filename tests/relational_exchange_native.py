@@ -44,6 +44,7 @@ def run(node, proof, pressure=None):
                     data = response.read()
                     if self.path == '/v1/query' and response.status == 200 and fault['read']:
                         selected_read = fault['read']
+                        selection = json.loads(body)['query']['kind']
                         if selected_read in ('truncated', 'unavailable'):
                             if selected_read == 'truncated':
                                 fault['read'] = None
@@ -56,7 +57,10 @@ def run(node, proof, pressure=None):
                                 self.end_headers()
                                 self.wfile.write(data)
                                 return
-                        elif selected_read == 'segment':
+                        elif selected_read == 'segment' and selection.get('entries', {}).get('key') is not None:
+                            # A scan can include an unrelated exchange chunk
+                            # that the caller filters out. Poison the explicit
+                            # point read that consumes the publication bytes.
                             value = json.loads(data)
 
                             def corrupt(item):

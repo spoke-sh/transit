@@ -71,7 +71,7 @@ policy. Required checkpoints after history trimming remain recovery evidence.
 The kernel stays generic and Zig native. Station, Fuze and application policy
 remain above the public client. Adding a database engine dependency or moving
 query execution into authority is not part of this direction. The
-[measured improvement plan](performance.md#planned-improvements) connects these
+[remaining improvements](performance.md#remaining-improvements) connect these
 priorities to evidence and qualification criteria.
 
 ## Size history, state and active work separately

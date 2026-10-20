@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.local-sql-authentication.2026-10-18.
+/// SHA-256 of transit.native.v1.storage-foundation.segment-ownership.2026-10-18.
 pub const Definition = enum {
-    @"09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+    @"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -49,6 +49,7 @@ pub const snapshots_per_principal = 8;
 pub const snapshot_lifetime_ms = 300_000;
 pub const Inspection = @import("NativeInspection.zig");
 pub const SnapshotRead = @import("SnapshotRead.zig");
+pub const BlockRead = @import("BlockRead.zig");
 pub const SnapshotId = struct { epoch: [16]u8, serial: u64 };
 pub const Snapshot = struct {
     id: SnapshotId,
@@ -90,6 +91,7 @@ pub const Turn = struct {
     current_views: [turn_views]?Id = @splat(null),
     write_view: ?Id = null,
     mutations: [turn_mutations]?Mutation = @splat(null),
+    blocks: p.Blocks.Mutations = @splat(null),
     outputs: [turn_outputs]?Output = @splat(null),
     effect: ?p.Value = null,
     failed: bool = false,
@@ -122,6 +124,10 @@ pub const Command = union(enum) {
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
     cancel_effect: struct { pid: Id, effect: Id },
     checkpoint: void,
+    /// Fence immutable candidates before a physical root collection.
+    storage_fence: void,
+    /// Relocate one bounded portion of current state without logical changes.
+    storage_compact: void,
     // Additive variants preserve existing canonical request bytes and receipts.
     turn_with_versions: TurnWithVersions,
     /// Rotate one PID-scoped worker without renewing its permissions/resource
@@ -160,6 +166,36 @@ pub const SignedRequest = struct {
         return @import("SignedEnvelope.zig").fromValue(@This(), "request", allocator, value, options);
     }
 };
+/// Transport owns large bytes separately from the signed logical request and
+/// authority record. A historical receipt needs no new physical publication.
+pub const CommandEnvelope = struct {
+    request: Request,
+    signature: [64]u8,
+    blocks: ?p.Blocks.Body = null,
+    pub fn init(value: SignedRequest) @This() {
+        return .{ .request = value.request, .signature = value.signature };
+    }
+    pub fn signed(self: *const @This()) SignedRequest {
+        return .{ .request = self.request, .signature = self.signature };
+    }
+    pub fn jsonStringify(self: @This(), out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try @import("SignedEnvelope.zig").write(self, out);
+    }
+    pub const json_schema_type = @import("SignedEnvelope.zig").Wire(@This(), "request");
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").parse(@This(), "request", allocator, source, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, value: std.json.Value, options: std.json.ParseOptions) !@This() {
+        return @import("SignedEnvelope.zig").fromValue(@This(), "request", allocator, value, options);
+    }
+};
+pub fn blockMutations(command: Command) p.Blocks.Mutations {
+    return switch (command) {
+        .turn => |turn| turn.blocks,
+        .turn_with_versions => |extended| extended.turn.blocks,
+        else => @splat(null),
+    };
+}
 pub const Origin = union(enum) {
     external: struct { principal: Id, policy_revision: u64 },
     process: struct { pid: Id, turn: Id, output: Id },
@@ -190,6 +226,7 @@ pub const Resource = struct {
     owner: ?Id,
     revision: u64,
     entries: u64 = 0,
+    block_entries: u64 = 0,
     history_ms: ?u64 = null,
     changed_ms: u64 = 0,
     last_turn: ?Id = null,
@@ -291,6 +328,7 @@ pub const Query = struct {
         snapshot_entries: struct { id: SnapshotId, key: ?p.Value = null, after: ?p.Value = null },
         close_snapshot: SnapshotId,
         snapshot_read: SnapshotRead.Query,
+        block_entries: BlockRead.Query,
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
@@ -327,6 +365,9 @@ pub const Capabilities = struct {
     retained_read_versions: bool = false,
     resource_read_access: bool = false,
     resource_read_batch: bool = false,
+    immutable_blocks: bool = false,
+    block_record_budget: u16 = p.Blocks.max_records,
+    block_byte_budget: u32 = p.Blocks.max_batch_bytes,
     leased_snapshots: bool = false,
     snapshot_read: bool = false,
     worker_rotation: bool = false,
@@ -374,6 +415,7 @@ pub const Response = struct {
         snapshot_entries: struct { snapshot: Snapshot, page: Batch(Entry, p.Value) },
         close_snapshot: SnapshotId,
         snapshot_read: SnapshotRead.Result,
+        block_entries: BlockRead.Result,
     },
 };
 
@@ -430,6 +472,8 @@ pub fn validate(request: Request) !void {
     }
 }
 fn validateTurn(turn: Turn) !void {
+    _ = try p.Blocks.validate(turn.blocks);
+    if (turn.failed and turn.blocks[0] != null) return error.InvalidFailure;
     if (turn.authorization) |guard| try guard.validate();
     for (turn.current_views, 0..) |slot, i| if (slot) |id| {
         if (id == 0 or std.mem.indexOfScalar(?Id, &turn.views, id) == null) return error.InvalidStateView;
@@ -456,6 +500,7 @@ pub fn validateQuery(query: Query) !void {
         .authorization => |q| try p.Authorization.validateQuery(q),
         .inspection => |q| try Inspection.validate(q),
         .snapshot_read => |q| try SnapshotRead.validate(q),
+        .block_entries => |q| try BlockRead.validate(q),
         .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
         .snapshot_entries => |q| {
             if (q.id.serial == 0 or (q.key != null and q.after != null)) return error.InvalidRead;
@@ -512,6 +557,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
         .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
         .inspection => try Inspection.validatePage(response.body.inspection, query, response.position),
         .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
+        .block_entries => |q| try BlockRead.validateResult(response.body.block_entries, q),
         .open_snapshot => |q| {
             const snapshot = response.body.open_snapshot;
             try validateSnapshot(snapshot);
@@ -534,7 +580,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
             if (caps.version != version or caps.identity_maximum != p.max_counter or
                 caps.page_entries != page_size or caps.mutation_budget != turn_mutations or
                 caps.view_budget != turn_views or caps.output_budget != turn_outputs or
-                caps.version_change_budget != version_changes or
+                caps.version_change_budget != version_changes or caps.block_record_budget != p.Blocks.max_records or caps.block_byte_budget != p.Blocks.max_batch_bytes or
                 caps.required_resources_per_process == 0 or caps.dependency_validation_vertices == 0) return error.InvalidRead;
         },
         .process => |pid| {
@@ -895,7 +941,8 @@ pub fn commandPid(command: Command) ?Id {
 fn hash(domain: []const u8, value: anytype) ![32]u8 {
     var bytes: [p.max_entry_bytes]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
-    std.json.Stringify.value(value, .{}, &writer) catch return error.RecordTooLarge;
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    p.Json.write(value, &encoder) catch return error.RecordTooLarge;
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
     hasher.update(domain);
     hasher.update(writer.buffered());
@@ -1124,4 +1171,33 @@ pub fn validateEffect(value: Effect, position: u64) error{InvalidRead}!void {
         .observed => if (value.observations == 0) return error.InvalidRead,
         .closed_unknown => {},
     }
+}
+
+test "complete bulk descriptor and metadata budgets fit the bounded canonical request" {
+    var turn: Turn = .{ .pid = p.max_counter, .generation = p.max_counter, .input = p.max_counter, .expected_revision = p.max_counter };
+    for (&turn.mutations, 0..) |*slot, i| {
+        var key: [key_bytes]u8 = @splat(255);
+        key[0] = @intCast(i);
+        slot.* = .{ .key = try .init(&key), .value = try .init(&@as([p.Value.max_bytes]u8, @splat(255))) };
+    }
+    for (&turn.blocks, 0..) |*slot, i| {
+        var key: [key_bytes]u8 = @splat(255);
+        key[0] = @intCast(i);
+        slot.* = .{ .key = try .init(&key), .value = .{ .bytes = 0, .digest = @splat(255) } };
+    }
+    for (&turn.outputs) |*slot| slot.* = .{ .pid = p.max_counter, .value = try .init(&@as([p.Value.max_bytes]u8, @splat(255))) };
+    const request: Request = .{ .realm = p.max_counter, .principal = p.max_counter, .sequence = p.max_counter, .command = .{ .turn = turn } };
+    const bytes = try p.Json.valueAlloc(std.testing.allocator, request);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expect(bytes.len <= p.max_entry_bytes);
+    _ = try digest(request);
+    // An ASCII-compatible fixed array remains an array in canonical signing,
+    // just as in the generated wire schema and an independent implementation.
+    const query: Query = .{ .realm = 1, .principal = 0, .kind = .{ .open_snapshot = .{ .resource = 1, .nonce = "abcdefghijklmnop".* } } };
+    const canonical = try p.Json.valueAlloc(std.testing.allocator, query);
+    defer std.testing.allocator.free(canonical);
+    var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    hasher.update(query_domain);
+    hasher.update(canonical);
+    try std.testing.expectEqualDeep(hasher.finalResult(), try queryDigest(query));
 }

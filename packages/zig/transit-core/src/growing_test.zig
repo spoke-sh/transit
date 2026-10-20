@@ -2485,3 +2485,210 @@ test "current-view guards fence policy revisions without changing ordinary snaps
     const accepted = try f.root(.{ .turn = turn });
     try t.expectEqual(accepted, (try state.view(&f.engine, fresh)).meta.closed_at.?);
 }
+
+test "request-owned engines share leased pins without sharing mutable catalogs" {
+    const Hooks = struct {
+        registry: *core.SnapshotLeases,
+        lease: ?core.SnapshotLeases.Lease = null,
+        pub fn begin(self: *@This(), engine: *Engine, principal: growing.Principal, kind: @FieldType(g.Query, "kind")) !void {
+            const selector = core.SnapshotLeases.Selector.from(kind) orelse return;
+            const now = try engine.clock.?.sample();
+            try engine.validateTime(now);
+            self.lease = try self.registry.acquire(principal.grant.subject, principal.epoch, selector, now);
+            engine.snapshot_slots = &self.lease.?.values;
+            engine.snapshot_serial = self.lease.?.serial;
+            engine.snapshot_time_floor_ms = self.registry.time_floor_ms;
+        }
+        pub fn end(self: *@This(), engine: *Engine, success: bool) void {
+            const lease = self.lease orelse return;
+            engine.snapshot_slots = null;
+            self.registry.release(lease, success, engine.snapshot_time_floor_ms) catch unreachable;
+            self.lease = null;
+        }
+    };
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(10) });
+    var registry: core.SnapshotLeases = .{ .epoch = @splat(1) };
+    var hooks: Hooks = .{ .registry = &registry };
+    var first = f.engine;
+    var second = f.engine;
+    const query = try g.signQuery(.{ .realm = 42, .principal = 0, .kind = .{ .snapshot_read = .{
+        .snapshot = .{ .open = .{ .resource = fixture.resource, .nonce = @splat(7) } },
+        .points = .{ try core.Value.init("row"), null, null, null, null, null, null, null },
+    } } }, f.root_key);
+    var invalid = query;
+    invalid.signature[0] ^= 1;
+    try t.expectError(error.Unauthorized, first.queryWithSnapshots(invalid, &hooks));
+    try t.expectEqual(0, registry.ticket);
+    const opened = (try first.queryWithSnapshots(query, &hooks)).body.snapshot_read;
+    try t.expectEqual(@as(i64, 10), try opened.points[0].?.value.asInteger());
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(20) });
+    const reused = (try second.queryWithSnapshots(query, &hooks)).body.snapshot_read;
+    try t.expectEqualDeep(opened.snapshot.id, reused.snapshot.id);
+    try t.expectEqual(@as(i64, 10), try reused.points[0].?.value.asInteger());
+    // A failed disclosure cannot install a successful close into the registry.
+    const close = try g.signQuery(.{ .realm = 42, .principal = 0, .kind = .{ .snapshot_read = .{
+        .snapshot = .{ .existing = opened.snapshot.id },
+        .finish = true,
+    } } }, f.root_key);
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Forbidden, second.queryWithSnapshots(close, &hooks));
+    try t.expect(registry.slots[0].value != null);
+    try t.expect(registry.slots[0].reservation == null);
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try first.queryWithSnapshots(close, &hooks);
+    try t.expectEqual(null, registry.slots[0].value);
+    try t.expectEqual(null, first.snapshot_slots);
+    try t.expectEqual(null, second.snapshot_slots);
+}
+
+test "bulk resource publication keeps exact retries and captured bytes under current authority" {
+    const b = core.protocol.Blocks;
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    var first = try fixture.proposal(1);
+    var batch: b.Batch = .{};
+    const large: [b.max_block_bytes]u8 = @splat(213);
+    try batch.put(try .init("first"), &large);
+    try batch.put(try .init("second"), &large);
+    for (0..14) |i| try batch.put(core.Value.integer(@intCast(i)), "");
+    first.turn.blocks = batch.mutations;
+    first.turn.outputs[0] = .{ .pid = fixture.pid, .value = try .init("atomic output") };
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .turn_with_versions = first } }, f.root_key);
+    const before = f.engine.head;
+    const original_writes = f.pages.writes;
+    var damaged = batch.body;
+    damaged.data[0] ^= 1;
+    try t.expectError(error.InvalidBlockBody, f.engine.prepareWithBlocks(signed, &damaged));
+    try t.expectEqual(original_writes, f.pages.writes);
+    try t.expectError(error.InvalidBlockBody, f.engine.submit(signed));
+    f.pages.fail_at = f.pages.writes;
+    try t.expectError(error.StagingFailed, f.engine.prepareWithBlocks(signed, &batch.body));
+    f.pages.fail_at = null;
+    try t.expectEqualDeep(before, f.engine.head);
+    const prepared = try f.engine.prepareWithBlocks(signed, &batch.body);
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(fixture.pid)).consumed);
+    try t.expectEqual(@as(u64, 0), (try f.query(0, .{ .resource = fixture.resource })).body.resource.block_entries);
+    f.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, f.engine.commit(prepared));
+    f.journal.fail = .none;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+    f.engine.snapshot_epoch = @splat(71);
+    const staged = f.pages.writes;
+    try t.expectEqual(before.position, try f.engine.submit(signed)); // No new bytes required.
+    try t.expectEqual(staged, f.pages.writes);
+    f.root_sequence += 1;
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(fixture.pid)).consumed);
+    try t.expectEqual(@as(u64, 1), f.engine.head.outputs);
+    const data = (try f.query(0, .{ .resource = fixture.resource })).body.resource;
+    try t.expectEqual(@as(u64, 16), data.block_entries);
+    try t.expectEqual(@as(u64, 1), data.entries);
+    const keys: [g.page_size]?core.Value = .{ try .init("first"), try .init("second"), null, null, null, null, null, null };
+    const current: g.Query = .{ .realm = 42, .principal = 0, .kind = .{ .block_entries = .{ .source = .{ .resource = .{ .id = data.id, .revision = data.revision } }, .keys = keys } } };
+    var result: g.BlockRead.Response = undefined;
+    result.response = try f.engine.queryBlocks(try g.signQuery(current, f.root_key), {}, &result.blocks);
+    try g.BlockRead.verify(&result, current);
+    try t.expectEqual(b.max_batch_bytes, result.blocks.len);
+    try t.expect(std.mem.allEqual(u8, result.blocks.slice(), 213));
+    var scan = current;
+    scan.kind.block_entries.keys = @splat(null);
+    var metadata = try f.engine.query(try g.signQuery(scan, f.root_key));
+    try g.validateResponse(metadata, scan);
+    try t.expect(metadata.body.block_entries.next != null);
+    scan.kind.block_entries.after = metadata.body.block_entries.next;
+    metadata = try f.engine.query(try g.signQuery(scan, f.root_key));
+    try g.validateResponse(metadata, scan);
+    try t.expectEqual(null, metadata.body.block_entries.next);
+    try t.expectError(error.InvalidRead, f.engine.queryBlocks(try g.signQuery(scan, f.root_key), {}, &result.blocks));
+    const snapshot_query: g.Query = .{ .realm = 42, .principal = 0, .kind = .{ .snapshot_read = .{ .snapshot = .{ .open = .{ .resource = data.id, .nonce = @splat(2) } }, .blocks = keys } } };
+    result.response = try f.engine.queryBlocks(try g.signQuery(snapshot_query, f.root_key), {}, &result.blocks);
+    try g.BlockRead.verify(&result, snapshot_query);
+    const pin = result.response.body.snapshot_read.snapshot.id;
+    var second = try fixture.proposal(2);
+    var changed: b.Batch = .{};
+    try changed.put(keys[0].?, null);
+    try changed.put(keys[1].?, "new");
+    second.turn.blocks = changed.mutations;
+    const next_signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .turn_with_versions = second } }, f.root_key);
+    _ = try f.engine.submitWithBlocks(next_signed, &changed.body);
+    f.root_sequence += 1;
+    var retained = current;
+    retained.kind.block_entries.source = .{ .version = .{ .id = VersionFixture.id(second), .generation = second.turn.generation } };
+    result.response = try f.engine.queryBlocks(try g.signQuery(retained, f.root_key), {}, &result.blocks);
+    try g.BlockRead.verify(&result, retained);
+    try t.expect(std.mem.allEqual(u8, result.blocks.slice(), 213));
+    var pinned = snapshot_query;
+    pinned.kind.snapshot_read.snapshot = .{ .existing = pin };
+    result.response = try f.engine.queryBlocks(try g.signQuery(pinned, f.root_key), {}, &result.blocks);
+    try g.BlockRead.verify(&result, pinned);
+    try t.expectEqual(b.max_batch_bytes, result.blocks.len);
+    f.pages.missing_blocks = true;
+    try t.expectError(error.BlockUnavailable, f.engine.queryBlocks(try g.signQuery(retained, f.root_key), {}, &result.blocks));
+    try t.expectEqual(@as(u32, 0), result.blocks.len);
+    f.pages.missing_blocks = false;
+    f.pages.corrupt_blocks = true;
+    try t.expectError(error.CorruptBlock, f.engine.queryBlocks(try g.signQuery(retained, f.root_key), {}, &result.blocks));
+    try t.expectEqual(@as(u32, 0), result.blocks.len);
+    f.pages.corrupt_blocks = false;
+    _ = try f.root(.{ .grant_resource = .{ .resource = data.id, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Forbidden, f.engine.queryBlocks(try g.signQuery(retained, f.root_key), {}, &result.blocks));
+    try t.expectError(error.Forbidden, f.engine.queryBlocks(try g.signQuery(pinned, f.root_key), {}, &result.blocks));
+    try t.expectError(error.Forbidden, f.engine.submit(signed)); // Receipts do not retain read/write permission.
+    try t.expectEqual(@as(u32, 0), result.blocks.len);
+}
+
+test "physical epoch fences old candidates and rejects unavailable trusted time" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const request = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .spawn = .{} } }, f.root_key);
+    const prepared = try f.engine.prepare(request);
+    try t.expectError(error.ClockUnavailable, f.root(.{ .storage_fence = {} }));
+    try t.expectEqual(@as(u64, 1), f.engine.head.storage_epoch);
+    var now: u64 = 100;
+    const Clock = struct {
+        fn read(raw: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = @as(*u64, @ptrCast(@alignCast(raw))).* };
+        }
+    };
+    f.engine.clock = .{ .context = &now, .read = Clock.read };
+    _ = try f.root(.{ .storage_fence = {} });
+    try t.expectEqual(@as(u64, 2), f.engine.head.storage_epoch);
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    now = 99;
+    const before = f.engine.head;
+    try t.expectError(error.ClockRollback, f.root(.{ .storage_fence = {} }));
+    try t.expectEqualDeep(before, f.engine.head);
+}
+
+test "bounded physical rewriting preserves current data and independent retained roots" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    const first = try fixture.proposal(10);
+    _ = try f.root(.{ .turn_with_versions = first });
+    const second = try fixture.proposal(20);
+    _ = try f.root(.{ .turn_with_versions = second });
+    const original = (try f.query(0, .{ .resource = fixture.resource })).body.resource;
+    var steps: usize = 0;
+    while (f.engine.head.compaction.phase != .complete) : (steps += 1) {
+        if (steps == 256) return error.FixtureBudget;
+        _ = try f.root(.{ .storage_compact = {} });
+        try t.expectEqualDeep(original, (try f.query(0, .{ .resource = fixture.resource })).body.resource);
+        try t.expectEqual(@as(i64, 10), try (try fixture.query(VersionFixture.id(second), 0, second.turn.generation)).body.version_entries.page.entries[0].?.value.asInteger());
+    }
+    try t.expect(steps > 3);
+    _ = try f.root(.{ .checkpoint = {} });
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+    try t.expectEqualDeep(original, (try f.query(0, .{ .resource = fixture.resource })).body.resource);
+    try t.expectEqual(@as(i64, 10), try (try fixture.query(VersionFixture.id(second), 0, second.turn.generation)).body.version_entries.page.entries[0].?.value.asInteger());
+}

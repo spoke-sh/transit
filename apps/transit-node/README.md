@@ -35,11 +35,25 @@ reads and receipt recovery; resource associations do not grant access.
 Incompatible histories and saved operations reject under the
 [hard-cutover policy](../../docs/reference/versioning.md).
 
-The listener allows 16 connections, four ordinary requests and two reserved
-control requests, with 64 sequential exchanges per connection. Authority work
-is serialized per realm; network reads and response writes run outside that
-lock. Conditional append fences competing authorities. It does not create
-independent write shards or establish per-principal fairness.
+The listener allows 16 connections, four ordinary requests, four notification
+waits and two reserved control requests, with 64 sequential exchanges per
+connection. Each admitted request owns an execution lane with its own engine,
+provider client and bounded caches. Immutable reads and preparation overlap;
+conditional journal append serializes accepted successors. A competing
+publication can return `Conflict`; uncertain outcomes still require the original
+request identity. This does not create independent write shards or establish
+per-principal fairness.
+
+A read whose final authority cut races a publication may repeat the same signed
+selector at most eight times. Each attempt rechecks signature, current rights and
+source identity; sustained contention still returns `Conflict`. Expired cuts,
+revocation and other rejections return immediately. A mutation that loses an
+ordinary publication CAS can likewise reprepare the exact signed identity and
+body at most eight times, revalidating every current grant, generation, sequence
+and expected resource revision. Transport/storage uncertainty returns to the
+caller without an implicit retry. Hosts use `Client.contended` to distinguish an ordinary conflict
+from expiry, fencing or a conflicting request identity, while retaining exact
+pending commands through their own bounded scheduling policy.
 
 Run `--maintain` separately for authorized lifetime, collection and checkpoint
 work. The [courier](../transit-delivery/README.md) delivers committed outputs via

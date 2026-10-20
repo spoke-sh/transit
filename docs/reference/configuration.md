@@ -196,3 +196,27 @@ errors never initialize or clear the installation. A completed installation
 requires its retained configuration checkpoint before any child starts; missing
 state is not replaced with defaults. Keep the checkpoint and history together
 when restoring a trusted local backup.
+
+
+## Immutable storage
+
+`storage.limits.bytes`, `storage.limits.control_bytes` and
+`storage.limits.candidate_bytes` configure ordinary allocation quota, separate
+control/collection reserve and the private candidate buffer. Defaults are 8 GiB,
+64 MiB and 8 MiB. Byte quantities accept the same units as other byte settings.
+Changes require restart. `SHOW storage.limits.bytes` reports the configured quota,
+not current filesystem usage.
+
+All allocations use ordinary capacity when available. Eligible control and
+collection work can use the separate reserve when ordinary capacity is exhausted;
+routine eligible turns do not consume the reserve while they fit the ordinary
+budget. Each reservation records which budget owns its bytes until collection
+releases them. Neither quota pressure nor reserve exhaustion expires data.
+
+The existing maintenance process begins another physical pass after
+`storage.maintenance.collection_every_records` allocation-ledger records
+(default 1,024). `storage.maintenance.compact` enables bounded relocation before
+collection and defaults to false. Retention remains independent: unlimited
+history keeps its original roots, even after compaction. See
+[storage](storage.md#failure-and-maintenance) for ownership, recovery and the
+separate provider/disk costs excluded from these allocation counters.

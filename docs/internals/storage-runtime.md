@@ -38,6 +38,204 @@ Actual latency and memory conclusions need measurements. The
 read/write amplification; a configured cache budget is not an observed RSS
 bound, and retained storage bytes are not resident memory.
 
+## Concurrent immutable work and conditional publication
+
+The question is whether one slow storage operation must block unrelated reads
+and controls. The model retains one conditional realm journal, immutable pages,
+bounded admitted requests and a trusted clock for expiring read pins. It assumes
+the provider implements atomic conditional append and does not roll back
+acknowledged history. Parallel preparation does not create another authority.
+
+The [native host](../../apps/transit-node/Native.zig) assigns each admitted
+request an exclusively owned execution lane: engine head, verified caches,
+transport client, working buffers and observation counters. Provider I/O runs
+without the host's shared registry mutex. Preparation validates at a published
+basis and stages a private successor. Core's conditional append requires that
+same position. Therefore any intervening grant, owner, resource or sequence
+change prevents acceptance of that candidate. Rejected candidates can leave
+unpublished bytes; parallelism does not itself reclaim them. Unknown append
+outcomes retain the original signed request identity.
+
+[Snapshot reservations](../../packages/zig/transit-core/src/SnapshotLeases.zig)
+solve a separate problem: independent engines cannot independently allocate all
+64 global pins. Under a short host mutex, an authenticated request reserves one
+slot and a unique ticket. Pending opens count toward both global and per-principal
+quotas. The engine borrows that slot while it materializes data and rechecks
+current authority. Only success installs a renewal/open/close; cancellation or
+failure releases the reservation while preserving the preceding pin. Conflicting
+operations on one pin fail explicitly. Stale releases cannot overwrite a newer
+reservation, and a fresh startup epoch prevents reuse after node restart.
+
+The [disk barrier proof](../../tests/node_concurrency.py) holds a provider
+response while requiring an independent signed read and commit to complete
+before release. A second schedule holds old evidence across revocation; a third
+races identical signed writes and checks exact receipt reconciliation. The
+[proof ledger](../../tests/README.md) provides its reproduction command. Core schedules
+exercise global/per-principal pending quotas, failed renewals, stale release and
+shared pins across independently owned engines. The proof ledger records runs.
+These finite schedules establish overlap and the checked authority outcomes,
+not throughput, fairness or a latency guarantee.
+
+The previous single-engine mutex made ownership simple but coupled unrelated
+provider delays. Per-request creation would discard useful caches after every
+operation. Bounded reusable lanes avoid both costs, at the expense of a cache
+budget per lane and potentially conflicting prepared candidates. The
+[node configuration](../../apps/transit-node/docs/growing.md) gives those bounds.
+Horizontal write partitioning remains a separate contract; physical reclamation
+uses the root and epoch model below.
+
+## Complete blocks beneath Table records
+
+The question is whether immutable Table data must pay the control record's
+256-byte mutation cost. In the current native-v1 implementation, a resource has
+separate metadata and block indexes under the same accepted catalog root.
+Assume authenticated requests, collision-resistant digests, verified immutable
+storage and conditional authority publication. A prepared root is private until
+that conditional append accepts it. Bytes can survive a failed append without
+becoming accepted Table data.
+
+[Native blocks](../../contracts/BLOCK_V1.md) bind key, length and content digest
+in the signed logical request. Their body is separate from the authority journal
+record. The core checks the entire body before staging, and the backend reads
+back staged bytes before the complete candidate becomes publishable. One resource root change
+then accepts metadata, block edges, input progress and outputs together. Lost
+replies preserve the exact logical identity and owned bytes; an accepted receipt
+can reconcile without staging them again. This argument depends on the existing
+authority CAS and current-grant checks, not on the location of provider bytes.
+
+[BlockRecord](../../packages/zig/transit-station/src/BlockRecord.zig) maps typed
+Table records to these blocks. One envelope has 44 bytes of spec plus at most
+65,280 payload bytes. This makes its payload an integral number of the existing
+256-byte logical digest units. Larger rows retain quota-accounted descriptors
+and resume in complete blocks, so the row codec's larger value limit is preserved.
+Metadata definitions, index nodes and most schemas/rows fit one block. Predecessor
+history is another immutable block. Small point writes consequently need only
+head/outcome metadata mutations; they no longer stage a predecessor merely to
+free a control slot. This is a statement about operation structure, not measured
+end-to-end latency.
+
+The resident batch is bounded at sixteen mutations and 128 KiB. Reads acquire
+at most eight blocks with the same byte bound. Table lookahead combines known
+single-block row references; multi-block records fetch at most two parts per
+request. Eight verified index nodes can be cached at one exact cut. Cached bytes
+have no authority: hosts bind the source identity, propagate read failures and
+validate current rights before disclosure or commit.
+
+The [Table scan](../../packages/zig/transit-query/src/TableScan.zig) fetches a
+record's known metadata keys and first block in one snapshot request. Both
+indexes resolve at the same leased cut. This avoids adding separate round trips
+for the manifest, budget and immutable body when opening a small query. Missing
+bytes still reject, request budgets count the combined fetch, and cached data
+does not replace the later current-authority disclosure check.
+
+The alternative of increasing small-value size would enlarge every control
+record and authority journal entry. Sending each 256-byte part independently
+keeps messages small but couples logical record size to control transactions.
+The separate block index preserves small metadata while admitting bounded bulk
+I/O. Its costs are another resource index, larger bounded request buffers and
+an explicit ownership/reclamation obligation for staged bytes. Accepted history
+and failed candidate bytes still need distinct physical-liveness decisions.
+
+Reference-store checks in
+[Table tests](../../packages/zig/transit-station/src/table_pages_test.zig) cover
+lost private proposals, larger-record resumption, exact quota release, corrupted
+record envelopes, retained schemas and current read failures. Run
+`cd packages/zig/transit-station && zig build test` in the pinned shell. Native
+authority/storage schedules are recorded separately in the
+[proof ledger](../../tests/README.md). These checks do not establish scan pruning,
+columnar storage, horizontal write scaling or a latency improvement. The
+[matched service campaign](../../tests/mutation_latency/results/2026-10-19/README.md)
+measures the combined implementation separately: narrow INSERT/UPDATE and
+range/full scans improve, while empty and LIMIT 0 console reads regress. Its
+single instrumented INSERT uses one accepted turn instead of two, with fewer
+staged pages and provider attempts. This supports reduced publication work, but
+does not isolate batching from layout, cache capacity or concurrent ownership.
+The same configured page budget is now per lane; node HWM is higher. Retained
+raw reports include the earlier prefetch regression and failed baseline reader,
+and keep ordinary timings separate from instrumented attempt counts.
+
+## Physical ownership, uncertainty and collection
+
+The question is how to reclaim unreachable bytes while readers and candidate
+writers overlap, without making retained cardinality a resident-memory budget.
+The model assumes collision-resistant identities, atomic provider/authority
+conditional appends, durable non-rollback history, trusted bounded-error UTC and
+private provider credentials. It distinguishes accepted root ownership from
+physical allocation and from permission to disclose a value.
+
+[Candidate segments](../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig)
+assign private frame addresses before network I/O. The
+[allocation queue](../../packages/zig/transit-backend-ursula/src/AllocationQueue.zig)
+reserves the known normalized size before creation. Verification and a closing
+seal precede authority CAS. The seal matters beyond immutability: the creator
+has completed its single create attempt before issuing it. A collector may
+therefore delete a sealed orphan after fencing old publication. It cannot infer
+the same fact from absence after an unacknowledged create. Such allocations get
+a permanent closed-name fence, followed by data trimming. Releasing their name
+would allow a delayed create to resurrect unaccounted bytes.
+
+The queue's state transition consumes one item, carries a live item forward or
+releases a deleted item's charge, and advances its cursor in one conditional
+append. This makes repeated recovery idempotent without an in-memory allocation
+set. The consumed prefix can be checkpointed and trimmed. Mark pages themselves
+are accounted control allocations; a later completed pass can collect them.
+The queues and catalogs are durable state, while their operation buffers remain
+bounded independently of retained cardinality.
+
+Control eligibility grants access to recovery capacity; it does not select a
+separate allocation partition. The reservation CAS charges ordinary capacity
+first, falling back to the control reserve only for eligible work that cannot fit.
+The queued allocation records the actual charged class, so carry and reclamation
+release the same budget after restart or a quota change. This distinction matters
+because an ordinary turn with no new output or effect is recovery-eligible.
+Charging every such turn to the reserve exhausts recovery capacity during normal
+traffic even when the ordinary budget is mostly unused. The allocation unit test
+checks primary admission, fallback, reserve exhaustion and lowered quotas; the
+disk collection schedule checks refusal of new ordinary work alongside an
+accepted checkpoint charged to the reserve.
+
+[Root enumeration](../../packages/zig/transit-core/src/StorageRoots.zig) selects
+retained journal roots and current live captured roots.
+[Traversal](../../packages/zig/transit-core/src/StorageWalk.zig) follows typed
+catalog-to-block-index edges and verifies pages. Closed view records in old
+catalogs remain history rather than renewed ownership. A resource or read
+version's own root preserves data independently of another owner's lifetime.
+The [collector](../../packages/zig/transit-backend-ursula/src/StorageCollection.zig)
+records its exact cut, traversal cursor, verified mark index and delete intent.
+An epoch fence makes pre-cut candidates fail ordinary publication CAS. Later
+candidates either use protected accepted data or allocate in the new epoch.
+Incomplete root enumeration, including a racing trim, cannot authorize sweep.
+
+Volatile snapshots on other hosts are protected by their maximum lifetime plus
+the native request bound. After that grace, a durable authority time fence makes
+older clock observations fail. This does not replace the trusted-time assumption
+or grant new access. Deletion is separate from mark completion and quota release;
+a lost delete reply resumes the same intent and requires confirmed absence.
+
+[Relocation](../../packages/zig/transit-core/src/StorageCompact.zig) copies one
+block or one leaf/path per accepted command. Logical values and resource
+revisions stay unchanged, while physical root references change. Old captured
+roots and unlimited history continue owning their original placement. Thus
+compaction can free a partially live segment only after its last old ownership
+edge is released. It cannot manufacture permission to expire history.
+
+Alternatives have different costs. A single append-only page stream minimizes
+stream identities but cannot reclaim isolated orphans. One stream per page
+allows finer deletion but multiplies metadata and requests. Candidate segments
+amortize writes and account failures, while partly live segments can require
+relocation. Ursula still keeps stream metadata and record indexes in memory;
+these Transit bounds do not prove whole-provider resident independence. Physical
+segment quotas also exclude provider WAL, snapshots and work-ledger overhead.
+Those are explicit deployment and measurement obligations.
+
+The [proof ledger](../../tests/README.md) provides reproduction commands for the
+storage collection and native block schedules, with executed revisions and limits.
+The collection fixture injects trusted time,
+restarts processes/provider between phases, loses a deletion acknowledgement,
+corrupts a reachable block and checks retained read versions after relocation.
+These finite schedules do not prove arbitrary provider rollback safety, immediate
+filesystem/cold-object space return, distributed clock correctness or throughput.
+
 ## Reducing durable mutation work
 
 The question is which work a short Table mutation can share or avoid while
@@ -67,7 +265,7 @@ The implementation combines three independent mechanisms:
   the published root. The private bound follows command quotas, never retained
   resource cardinality.
 - [Worker notifications](../../apps/transit-node/Notifications.zig) register under
-  the same mutex used by local publication, then release it while waiting.
+  the same short mutex used to publish local commit hints, then release it while waiting.
   Publication scopes reduce unrelated wakeups. Every wake or bounded timeout
   repeats current authorization and authority reads. Cancellation releases the
   slot; a different node's publication is found on timeout. Coalescing is safe

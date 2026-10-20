@@ -44,6 +44,9 @@ pub const Head = struct {
     catalog: catalog.Snapshot,
     authorization: core.authorization_store.Snapshot,
     authorization_next_id: u64,
+    /// Required in every stored head; older definitions have no implied epoch.
+    storage_epoch: u64,
+    compaction: core.StorageCompact.Cursor,
     time_floor_ms: u64 = 0,
     outputs: u64 = 0,
     history_floor: u64 = 0,
@@ -108,20 +111,32 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         snapshot_serial: u64 = 0,
         snapshot_time_floor_ms: u64 = 0,
         snapshots: [g.snapshot_capacity]?StoredSnapshot = @splat(null),
+        /// A host may lend one exclusively reserved slot while immutable I/O
+        /// runs outside its registry lock. The host enforces aggregate quotas.
+        snapshot_slots: ?[]?StoredSnapshot = null,
+        /// Borrowed only during this request-owned preparation; never persisted.
+        block_body: ?*const p.Blocks.Body = null,
+        block_output: ?*p.Blocks.Body = null,
+        pub fn snapshotSlots(self: *Self) []?StoredSnapshot {
+            return self.snapshot_slots orelse &self.snapshots;
+        }
 
         pub fn bootstrap(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
             const fingerprint = try genesisHash(genesis);
             if (try journal.tail() == 0) {
+                if (@hasDecl(PageStore, "begin")) try page_store.begin(1, true);
+                defer if (@hasDecl(PageStore, "discard")) page_store.discard();
                 var candidate = try Catalog.open(page_store, .{});
                 try candidate.put(address(.principal, 0), Sequence{ .sequence = 0 });
                 const policy_root = try auth_ops.bootstrap(page_store, genesis.root_key);
-                const head: Head = .{ .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot, .authorization = policy_root, .authorization_next_id = policy_root.next_id };
+                const head: Head = .{ .storage_epoch = 1, .compaction = .{}, .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot, .authorization = policy_root, .authorization_next_id = policy_root.next_id };
+                if (@hasDecl(PageStore, "finish")) try page_store.finish();
                 _ = try journal.append(0, .{ .genesis = .{ .genesis = genesis, .head = head } });
             }
             return open(journal, page_store, genesis);
         }
         pub fn open(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
-            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .definition = g.current_definition, .position = 0, .genesis = try genesisHash(genesis), .catalog = .{}, .authorization = .{ .catalog = .{}, .revision = 0, .next_id = 1 }, .authorization_next_id = 1 } };
+            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .storage_epoch = 1, .compaction = .{}, .definition = g.current_definition, .position = 0, .genesis = try genesisHash(genesis), .catalog = .{}, .authorization = .{ .catalog = .{}, .revision = 0, .next_id = 1 }, .authorization_next_id = 1 } };
             try self.refresh();
             const root = try self.principal(0);
             if (!std.mem.eql(u8, &root.grant.public_key, &genesis.root_key)) return error.GenesisMismatch;
@@ -146,6 +161,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 },
             };
             if (next.version != g.version or next.position != tail or next.position > p.max_counter) return error.InvalidPosition;
+            if (next.storage_epoch == 0 or next.storage_epoch > p.max_counter or next.storage_epoch < self.head.storage_epoch) return error.InvalidHistory;
             if (next.history_floor >= next.position or next.history_floor < self.head.history_floor) return error.InvalidHistory;
             if (!std.mem.eql(u8, &next.genesis, &self.head.genesis)) return error.GenesisMismatch;
             try next.catalog.validate();
@@ -190,10 +206,22 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
             return @import("growing_read.zig").read(self, signed);
         }
+        pub fn queryBlocks(self: *Self, signed: g.SignedQuery, hooks: anytype, body: *p.Blocks.Body) !g.Response {
+            body.* = .{};
+            errdefer body.* = .{};
+            if (signed.query.kind != .block_entries and signed.query.kind != .snapshot_read) return error.InvalidRead;
+            if (signed.query.kind == .block_entries and signed.query.kind.block_entries.keys[0] == null) return error.InvalidRead;
+            self.block_output = body;
+            defer self.block_output = null;
+            return self.queryWithSnapshots(signed, hooks);
+        }
+        pub fn queryWithSnapshots(self: *Self, signed: g.SignedQuery, hooks: anytype) !g.Response {
+            return @import("growing_read.zig").withSnapshots(self, signed, hooks);
+        }
         /// Privileged maintenance must reestablish current realm-wide admin
         /// authority before using the storage adapter. This publishes nothing.
         pub fn authorizeMaintenance(self: *Self, signed: g.SignedRequest) !void {
-            if (signed.request.command != .checkpoint) return error.Forbidden;
+            if (signed.request.command != .checkpoint and signed.request.command != .storage_fence) return error.Forbidden;
             try self.refresh();
             _ = try self.authenticate(signed);
         }
@@ -251,6 +279,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         pub const Prepared = struct { record: Record };
         pub fn prepare(self: *Self, signed: g.SignedRequest) !Prepared {
+            return self.prepareWithBlocks(signed, null);
+        }
+        pub fn prepareWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !Prepared {
+            self.block_body = body;
+            defer self.block_body = null;
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value) != null) return error.AlreadyCommitted;
@@ -270,26 +303,40 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const ceiling = self.genesis.admission_ceiling orelse return;
             if (self.head.position < ceiling) return;
             if (self.head.position >= ceiling + self.genesis.control_reserve) return error.ControlCapacity;
-            switch (command) {
-                .authorization => |value| if (!try auth_ops.controlCommand(self, value)) return error.AdmissionClosed,
-                .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint, .payload_ready, .retire_payload, .payload_deleted, .collect => {},
-                .grant_resource => |c| if (c.permissions != 0) return error.AdmissionClosed,
-                .turn => |t| {
-                    if (t.effect != null) return error.AdmissionClosed;
-                    for (t.outputs) |o| if (o != null) return error.AdmissionClosed;
+            if (!try self.controlCommand(command)) return error.AdmissionClosed;
+        }
+        pub fn controlCommand(self: *Self, command: g.Command) !bool {
+            return switch (command) {
+                .authorization => |value| try auth_ops.controlCommand(self, value),
+                .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint, .storage_fence, .payload_ready, .retire_payload, .payload_deleted, .collect => true,
+                .grant_resource => |value| value.permissions == 0,
+                .turn => |turn| control: {
+                    if (turn.effect != null) break :control false;
+                    for (turn.outputs) |output| if (output != null) break :control false;
+                    break :control true;
                 },
-                .turn_with_versions => |tv| try self.checkCapacity(.{ .turn = tv.turn }),
-                .runtime_intent => |c| if (c.desired != .stopped) return error.AdmissionClosed,
-                .runtime_observe => {},
-                .@"suspend", .expire_suspension => {},
-                else => return error.AdmissionClosed,
-            }
+                .turn_with_versions => |value| try self.controlCommand(.{ .turn = value.turn }),
+                .runtime_intent => |value| value.desired == .stopped,
+                .runtime_observe, .@"suspend", .expire_suspension => true,
+                else => false,
+            };
         }
         /// Authentication, permission and retry validation must have completed
         /// at this head. Publication CAS rejects every intervening transition.
         fn prepareCurrent(self: *Self, request: g.Request) !Prepared {
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
             try self.checkCapacity(request.command);
+            const descriptors = g.blockMutations(request.command);
+            if (descriptors[0] != null) {
+                const empty: p.Blocks.Body = .{};
+                p.Blocks.verify(descriptors, self.block_body orelse &empty) catch return error.InvalidBlockBody;
+            } else if (self.block_body != null) return error.InvalidBlockBody;
+            var storage_control = try self.controlCommand(request.command);
+            for (descriptors) |slot| if (slot) |mutation| if (mutation.value != null) {
+                storage_control = false;
+            };
+            if (@hasDecl(PageStore, "begin")) try self.page_store.begin(self.head.storage_epoch + @as(u64, if (request.command == .storage_fence) 1 else 0), storage_control);
+            defer if (@hasDecl(PageStore, "discard")) self.page_store.discard();
             var candidate = try self.state();
             var pending: catalog.Candidate = .{};
             switch (request.command) {
@@ -298,7 +345,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             }
             var next = self.head;
             const needs_time = switch (request.command) {
-                .authorization, .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
+                .authorization, .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .storage_compact, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
                 .reclaim_resource => |id| ((try state_ops.resource(self, id)).history_ms orelse 0) > 0,
                 .runtime_intent => |c| c.desired == .running,
                 .close_effect => |c| c.reason == .deadline,
@@ -339,6 +386,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try candidate.flush();
             next.catalog = candidate.snapshot;
             next.position += 1;
+            if (@hasDecl(PageStore, "finish")) try self.page_store.finish();
             return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
         }
         pub fn commit(self: *Self, prepared: Prepared) !u64 {
@@ -347,6 +395,11 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return prepared.record.position;
         }
         pub fn submit(self: *Self, signed: g.SignedRequest) !u64 {
+            return self.submitWithBlocks(signed, null);
+        }
+        pub fn submitWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !u64 {
+            self.block_body = body;
+            defer self.block_body = null;
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value)) |receipt| return receipt;
@@ -477,6 +530,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 .collect => |command| {
                     try @import("growing_collection.zig").apply(self, candidate, next, command);
                     next.last_collection = position;
+                },
+                .storage_compact => try core.StorageCompact.step(self, candidate, next),
+                .storage_fence => {
+                    const now = sample orelse return error.ClockUnavailable;
+                    try self.validateTime(now);
+                    if (next.storage_epoch == p.max_counter) return error.InvalidPosition;
+                    next.storage_epoch += 1;
+                    next.compaction = .{};
                 },
                 .checkpoint => {
                     if (!self.genesis.allow_history_trim) return error.RetentionNotEnabled;

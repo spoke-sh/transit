@@ -10,6 +10,9 @@ const Host = struct {
     data: [2]i64 = .{ 1, 2 },
     denied: bool = false,
     allocation_failed: bool = false,
+    pulled: usize = 0,
+    deny_after_pull: bool = false,
+    invalid_batch: bool = false,
     pub const Prepared = struct {
         write: bool,
         parameter: bool = false,
@@ -30,13 +33,20 @@ const Host = struct {
         host: *Host,
         data: [2]i64,
         cursor: usize = 0,
-        cells: [1]f.Types.Values.Cell = undefined,
-        pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
+        cells: [g.ReadBatch.max_rows][1]f.Types.Values.Cell = undefined,
+        pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
             if (self.host.denied) return error.CatalogDenied;
-            if (self.cursor == self.data.len) return null;
-            self.cells[0] = .{ .value = .{ .atom = .{ .signed = self.data[self.cursor] } } };
-            self.cursor += 1;
-            return &self.cells;
+            if (self.host.invalid_batch) return .{};
+            var batch: g.ReadBatch = .{};
+            while (batch.len < maximum and self.cursor < self.data.len) : (self.cursor += 1) {
+                self.cells[batch.len][0] = .{ .value = .{ .atom = .{ .signed = self.data[self.cursor] } } };
+                batch.rows[batch.len] = &self.cells[batch.len];
+                batch.len += 1;
+                self.host.pulled += 1;
+            }
+            batch.complete = self.cursor == self.data.len;
+            if (self.host.deny_after_pull) self.host.denied = true;
+            return batch;
         }
     };
     pub fn prepare(self: *Host, sql: []const u8) !*Prepared {
@@ -195,4 +205,44 @@ test "closing a statement closes its portal and a failed socket never triggers a
     transport.fail = true;
     try t.expectError(error.ConnectionResetByPeer, engine.handle('Q', "WRITE\x00"));
     try t.expectEqual(@as(usize, 1), host.writes);
+}
+
+test "disclosure batches stop at Execute boundaries and recheck after buffering" {
+    const t = std.testing;
+    var host: Host = .{ .allocator = t.allocator };
+    var transport: Transport = .{ .allocator = t.allocator };
+    defer transport.bytes.deinit(t.allocator);
+    var engine = try Engine.init(t.allocator, &host, &transport, .{});
+    defer engine.deinit();
+    _ = try engine.handle('P', "s\x00READ\x00\x00\x00");
+    _ = try engine.handle('B', bind_body);
+    _ = try engine.handle('E', "\x00\x00\x00\x00\x01");
+    try t.expectEqual(@as(usize, 1), host.pulled);
+    transport.bytes.clearRetainingCapacity();
+    host.denied = true;
+    _ = try engine.handle('E', execute_all);
+    const revoked = try tags(t.allocator, transport.bytes.items);
+    defer t.allocator.free(revoked);
+    try t.expectEqualStrings("E", revoked);
+    try t.expectEqual(@as(usize, 1), host.pulled);
+    _ = try engine.handle('S', "");
+    host.denied = false;
+    host.deny_after_pull = true;
+    _ = try engine.handle('B', bind_body);
+    transport.bytes.clearRetainingCapacity();
+    _ = try engine.handle('E', execute_all);
+    const buffered = try tags(t.allocator, transport.bytes.items);
+    defer t.allocator.free(buffered);
+    try t.expectEqualStrings("E", buffered);
+    try t.expectEqual(@as(usize, 3), host.pulled);
+    _ = try engine.handle('S', "");
+    host.denied = false;
+    host.deny_after_pull = false;
+    host.invalid_batch = true;
+    _ = try engine.handle('B', bind_body);
+    transport.bytes.clearRetainingCapacity();
+    _ = try engine.handle('E', execute_all);
+    const malformed = try tags(t.allocator, transport.bytes.items);
+    defer t.allocator.free(malformed);
+    try t.expectEqualStrings("E", malformed);
 }

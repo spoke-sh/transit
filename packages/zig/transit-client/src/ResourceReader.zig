@@ -51,6 +51,15 @@ pub const Reader = struct {
     pub fn page(self: *Reader, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
         return self.fetch(null, after);
     }
+    pub fn prefetchBlocks(_: *Reader, _: []const p.Value) !void {}
+    pub fn readBlock(self: *Reader, key: p.Value, output: []u8) !?[]const u8 {
+        if (self.failed) |err| return err;
+        const batch = Batches.readBlocks(.{ .client = self.client }, self.view.resource, self.view.revision, &.{key}) catch |err| {
+            self.failed = err;
+            return err;
+        };
+        return batch.read(key, output);
+    }
     fn fetch(self: *Reader, address: ?p.Value, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
         if (self.failed) |err| return err;
         const response = self.client.query(.{ .entries = .{ .resource = self.view.resource, .revision = self.view.revision, .key = address, .after = after } }) catch |err| {
@@ -74,22 +83,30 @@ pub const Reader = struct {
 pub fn query(self: Self, kind: @FieldType(g.Query, "kind")) !g.Response {
     if (self.failure) |context| context.* = null;
     return self.wire.query(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key) catch |err| {
-        if (err == error.Rejected or err == error.Conflict or err == error.AccessDenied) {
-            if (self.wire.last_rejection) |cause| if (self.failure) |context| {
-                context.* = .{ .rejected = .{ .resource = switch (kind) {
-                    .resource, .read_access => |id| id,
-                    .entries => |input| input.resource orelse 0,
-                    .read_entries => |input| input.resource,
-                    else => 0,
-                }, .cause = cause } };
-            };
-        }
-        if (err == error.Rejected) switch (self.wire.last_rejection orelse return err) {
-            .StateResourceExpired, .UnknownStateResource, .RetiredProcess => return error.ResourceUnavailable,
-            else => {},
-        };
-        return err;
+        return self.mapFailure(kind, err);
     };
+}
+pub fn queryBlocks(self: Self, kind: @FieldType(g.Query, "kind")) !g.BlockRead.Response {
+    if (self.failure) |context| context.* = null;
+    return self.wire.queryBlocks(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key) catch |err| return self.mapFailure(kind, err);
+}
+fn mapFailure(self: Self, kind: @FieldType(g.Query, "kind"), err: anyerror) anyerror {
+    if (err == error.Rejected or err == error.Conflict or err == error.AccessDenied) {
+        if (self.wire.last_rejection) |cause| if (self.failure) |context| {
+            context.* = .{ .rejected = .{ .resource = switch (kind) {
+                .resource, .read_access => |id| id,
+                .entries => |input| input.resource orelse 0,
+                .read_entries => |input| input.resource,
+                .block_entries => |input| if (input.source == .resource) input.source.resource.id else 0,
+                else => 0,
+            }, .cause = cause } };
+        };
+    }
+    if (err == error.Rejected) switch (self.wire.last_rejection orelse return err) {
+        .StateResourceExpired, .UnknownStateResource, .RetiredProcess => return error.ResourceUnavailable,
+        else => {},
+    };
+    return err;
 }
 pub fn open(self: Self, resource: u64) !Reader {
     const response = try self.query(.{ .resource = resource });
@@ -134,6 +151,13 @@ pub fn batches(self: Self) !Batches {
 }
 pub const Batches = struct {
     client: Self,
+    pub fn readBlocks(self: Batches, resource: u64, revision: u64, keys: []const p.Value) !root.BlockBatch {
+        if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
+        var query_value: g.BlockRead.Query = .{ .source = .{ .resource = .{ .id = resource, .revision = revision } } };
+        for (keys, 0..) |key, i| query_value.keys[i] = key;
+        const result = try self.client.queryBlocks(.{ .block_entries = query_value });
+        return root.BlockBatch.init(query_value.keys, result.response.body.block_entries.entries, result.blocks);
+    }
     pub fn cached(self: Batches, seed: Batch) Cached(Batches) {
         return Cached(Batches).init(self, seed);
     }
@@ -165,6 +189,26 @@ pub fn Cached(comptime Backend: type) type {
         slots: [64]?struct { key: p.Value, entry: ?g.Entry } = @splat(null),
         next: usize = 0,
         failed: ?anyerror = null,
+        block_cache: ?root.BlockBatch = null,
+
+        pub fn prefetchBlocks(self: *Cache, keys: []const p.Value) !void {
+            if (self.failed) |err| return err;
+            if (keys.len == 0) return;
+            if (self.block_cache) |*cache| {
+                const all = for (keys) |key| {
+                    if (!cache.contains(key)) break false;
+                } else true;
+                if (all) return;
+            }
+            self.block_cache = self.backend.readBlocks(self.view.resource, self.view.revision, keys) catch |err| {
+                self.failed = err;
+                return err;
+            };
+        }
+        pub fn readBlock(self: *Cache, key: p.Value, output: []u8) !?[]const u8 {
+            try self.prefetchBlocks(&.{key});
+            return self.block_cache.?.read(key, output);
+        }
 
         pub fn init(backend: Backend, seed: Batch) Cache {
             var result: Cache = .{ .backend = backend, .view = seed.view, .resource = seed.resource };

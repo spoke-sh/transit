@@ -24,10 +24,10 @@ ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
 pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair, reader: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
-    return (err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource;
+    return client.contended(err) or ((err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource);
 }
 fn retryObservation(client: *s.client.Client, err: anyerror) bool {
-    return staleRead(client, err) or s.client.Client.unavailable(err);
+    return staleRead(client, err) or client.contended(err) or s.client.Client.unavailable(err);
 }
 /// Construction owns transports, but neither initializes an unprovisioned ledger
 /// nor assumes ownership. The operator provisions and initializes before start.
@@ -97,6 +97,10 @@ pub fn tick(self: *Self) !bool {
     errdefer self.ready.store(false, .release);
     const now: u64 = @intCast(std.Io.Clock.real.now(self.io).toMilliseconds());
     const result = self.server.step(self.behavior.interface(), now + 30000) catch |err| {
+        if (self.background.contended(err)) {
+            if (self.server.pending == null and self.server.ready != null) try self.server.discard();
+            return false;
+        }
         if (self.server.pending == null and (err == error.Conflict or err == error.Rejected) and (self.background.last_rejection == .StaleStateResource or self.background.last_rejection == .QueryExpired or self.background.last_rejection == .StateViewExpired)) {
             if (self.background.last_rejection == .StateViewExpired) self.server.view_id = null;
             return false;
@@ -282,6 +286,10 @@ test "observation retries unavailable transport without treating denial as trans
     try std.testing.expect(!retryObservation(&wire, error.Canceled));
     wire.last_rejection = .StaleStateResource;
     try std.testing.expect(retryObservation(&wire, error.Conflict));
+    wire.last_rejection = .Conflict;
+    try std.testing.expect(retryObservation(&wire, error.Conflict));
+    wire.last_rejection = .ConflictingRetry;
+    try std.testing.expect(!retryObservation(&wire, error.Conflict));
     try std.testing.expect(!retryObservation(&wire, error.InvalidGatewayRecord));
 }
 

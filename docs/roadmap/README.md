@@ -54,13 +54,14 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M44](M44.md) | Semantic declarative diagnostics | Complete for reviewed interfaces: durable witnesses, precise attribution, recovery guidance and semantic coverage gates; clean task inventory qualified |
 | [M45](M45.md) | Mutation completion and authority efficiency | Complete: bounded completion waits, leaf staging batches, attribution and finite load controls |
 | [M46](M46.md) | General typed Tables and schema lifecycle | Implemented and locally qualified: general Tables, CREATE/ALTER/DROP and typed DML; same-revision CI and integration pending |
-| [M47](M47.md) | General Table storage and query efficiency | Planned: reduce accepted schema, immutable-record and publication costs without blocking the qualified relational intake |
+| [M47](M47.md) | General Table storage and query efficiency | Shared block publication, metadata reuse and bounded disclosure implemented through M54; large ingress, read layouts and wider workload controls remain |
 | [M48](M48.md) | Vectorized query execution | Complete selected profile: integrated columns, guarded AVX2, bounded host compute, measured portable defaults and all 79 ordinary tasks plus focused caller/recovery proofs |
 | [M49](M49.md) | Declarative authorization | Implemented: shared roles/grants, current authority, trusted Table mediation and hard v1 cutover; committed-source qualification gates apply |
 | [M50](M50.md) | Consumer SDK source and handbook boundary | Implemented: language packages, shared Zig exports, runtime independence and dedicated SDK navigation; committed-source qualification gates apply |
 | [M51](M51.md) | Typed configuration and SQL settings | Implemented and locally qualified: YAML/env resolution, authorized reload generations and SQL/session controls; all 88 ordinary recipes pass with unchanged runtime source and the corrected SQL proof harness |
 | [M52](M52.md) | Configured local database access | Implemented and locally qualified: opt-in PostgreSQL/MySQL, explicit authorization, installed workflow and retained recovery |
 | [M53](M53.md) | Local SQL startup and authentication | Implemented: optional TLS, explicit loopback trust and recorded owner bootstrap; source/installed clients and clean experience lane pass |
+| [M54](M54.md) | Storage publication, concurrent access and reclamation | Implemented: shared block publication, concurrent native access and resumable reclamation; matched evidence and qualification gates recorded together |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

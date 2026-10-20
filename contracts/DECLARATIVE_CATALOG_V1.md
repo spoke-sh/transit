@@ -208,17 +208,17 @@ are never equality proof. This key does not impose name-order listing semantics.
 Metadata storage uses Publication domain 9 and namespace object. A 68-byte
 manifest at tag `d`, ID/index zero contains `TCB1`, raw shared definition, scope
 and object:u64le. Initialization verifies an existing exact manifest/quota or
-proves the namespace empty before creating them. Orphans and scope drift reject.
+proves both metadata and block namespaces empty before creating them. Orphans and scope drift reject.
 The budget permits one staged record of at most 444 bytes; no total historical
 record limit is imposed. Both initialization writes share the ordinary native
 turn limit and roll back together on failure.
 
-Records of at most 256 encoded bytes live directly under tag `i`, ID metadata
-revision, index zero. Larger records use Publication's `r`/`c` records with format
-`0x54434d01`. An exact reference commits format, length and Publication digest;
-its length selects the representation. Changes at the same immutable revision
-reject even when the new bytes would use a different representation. Published
-large records obey the existing committed-cursor rule and staging quota release.
+All metadata records use the native block index at tag `c`, metadata revision
+and index zero. The `BlockRecord` envelope carries format `0x54434d01`, complete
+length, Publication digest and the full encoded record (at most 444 bytes).
+An exact reference binds that spec. Changed content at the same revision rejects.
+One block can commit with catalog control metadata in the same native turn;
+private reads can verify it before publication. Captured reads exclude it.
 No storage helper publishes names, grants rights or performs physical historical
 cleanup. The [component guide](../packages/zig/transit-catalog/docs/table-metadata.md)
 defines ownership and the current integration boundary.

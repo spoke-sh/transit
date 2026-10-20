@@ -914,7 +914,7 @@ pub fn commandBasis(self: Self, allocator: std.mem.Allocator, source: anytype, w
         const keys = [_]p.Value{
             self.key('o', record.principal, record.operation),
             s.TablePages.key(record.object, 'd', 0),
-            s.TablePages.key(record.object, if (record.schema.spec.length <= s.TablePages.inline_bytes) 'i' else 'r', record.schema.id),
+            s.TablePages.key(record.object, 'b', 0),
         };
         try source.prefetch(keys[0..if (needs_schema) keys.len else 1]);
     }

@@ -184,10 +184,16 @@ and configuration, and checks both inspect and read rights. Its binding commits
 the current shared definition, realm/resource/catalog/owner, captured resource
 revision, stable Table object, metadata commitment and complete Table head.
 
-Each output row is independently owned and released with `deinit`. The query
-rechecks current native authorization and scoped catalog policy after computation,
-before returning that row or successful completion. The same gate applies to
-cached data, empty results, aggregates and LIMIT 0. Sixty-four cached native
+`next()` returns one independently owned row. `nextBatch(maximum)` returns an
+owned batch of at most the requested one to eight rows and 16 MiB of canonical
+cells. Release every returned row or batch with `deinit`. The query rechecks
+current native authorization and scoped catalog policy after computation and
+before returning the entire batch or successful completion. This observation
+authorizes that bounded disclosure; a later call performs a fresh observation.
+The same gate applies to cached data, empty results, aggregates and LIMIT 0.
+Byte-bound lookahead remains private, is included in query-wide accounting, and
+requires another current check before disclosure. Failure releases the proposed
+batch and poisons the query. Sixty-four cached native
 entries belong exclusively to the captured cut; they never establish current
 permission. Complete primary-key equality uses the typed key index and still
 evaluates the predicate. Other predicates scan stable row identities.

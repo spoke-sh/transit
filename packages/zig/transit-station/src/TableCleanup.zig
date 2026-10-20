@@ -11,7 +11,7 @@ pub const Cursor = struct {
     first: u64,
     end: u64,
     next: u64,
-    phase: enum(u8) { inline_pages = 1, publications = 2, complete = 3 } = .inline_pages,
+    phase: enum(u8) { blocks = 1, publications = 2, complete = 3 } = .blocks,
     pub fn key(reference: Write.Reference) p.Value {
         var result = reference.key();
         result.data[1] = 'X';
@@ -88,12 +88,12 @@ pub fn step(turn: *Turn, reference: Write.Reference) !bool {
         cursor.next = id + 1; // id < exclusive end, so this cannot overflow.
         turn.write(Cursor.key(reference), try cursor.encode()) catch |err| {
             if (err != error.MutationBudgetExceeded or writeCount(turn) == before_count) return err;
-            // A full four-write Publication collection commits first; the next
+            // A full metadata budget can leave block collection ahead of its cursor; the next
             // step sees its permanent closed descriptor and advances the cursor.
             return false;
         };
     } else {
-        cursor.phase = if (cursor.phase == .inline_pages) .publications else .complete;
+        cursor.phase = if (cursor.phase == .blocks) .publications else .complete;
         cursor.next = if (cursor.phase == .complete) cursor.end else cursor.first;
         try turn.write(Cursor.key(reference), try cursor.encode());
     }

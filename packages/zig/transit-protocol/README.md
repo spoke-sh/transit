@@ -9,6 +9,9 @@ including paged state, lifecycle, delivery, runtime bindings and inspection.
 The module root exports common request/command aliases, receipts, values,
 permission bits and rejection codes. `State` supplies state permission constants;
 [NativeInspection](src/NativeInspection.zig) owns bounded inspection selectors.
+[Blocks](src/Blocks.zig) owns immutable byte descriptors and the bounded owned
+batch codec; [its contract](../../../contracts/BLOCK_V1.md) separates content
+identity from resource authority and physical placement.
 
 ## Contract and generation
 

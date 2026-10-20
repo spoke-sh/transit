@@ -14,7 +14,8 @@ const QueryLimits = struct {
         if (self.requests == 0 or self.rows == 0 or self.result_bytes == 0) return error.InvalidQueryBudget;
     }
 };
-/// Experimental batching is selected only by proof/measurement callers.
+/// Vector execution and result disclosure have separate bounds. The reference
+/// scalar engine remains available to paired proof/measurement callers.
 pub fn Query(comptime batched: bool) type {
     return struct {
         const Self = @This();
@@ -26,6 +27,26 @@ pub fn Query(comptime batched: bool) type {
         complete: bool = false,
         failed: bool = false,
         native_rejection: ?p.ErrorCode = null,
+        pending_row: ?PreparedRow = null,
+        const PreparedRow = struct { row: logical.Row, bytes: u64 };
+        pub const Batch = struct {
+            pub const max_rows = 8;
+            pub const max_bytes = 16 * 1024 * 1024;
+            rows: [max_rows]?logical.Row = @splat(null),
+            len: u8 = 0,
+            bytes: u64 = 0,
+            complete: bool = false,
+            pub fn deinit(self: *Batch) void {
+                for (&self.rows) |*slot| if (slot.*) |*row| row.deinit();
+                self.* = .{};
+            }
+            pub fn take(self: *Batch, index: usize) logical.Row {
+                std.debug.assert(index < self.len);
+                const row = self.rows[index].?;
+                self.rows[index] = null;
+                return row;
+            }
+        };
 
         pub const Compute = struct { limits: f.Batch.Limits = .{}, runner: ?f.Batch.Runner = null };
         pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, nonce: [16]u8, limits: Limits, cancellation: ?*const std.atomic.Value(bool), location: ?*f.Sql.Location) !Self {
@@ -97,41 +118,66 @@ pub fn Query(comptime batched: bool) type {
         /// One independently owned output row. Completion is visible only after final
         /// current validation; callers must treat every earlier row as an incomplete prefix.
         pub fn next(self: *Self) !?logical.Row {
+            var batch = try self.nextBatch(1);
+            defer batch.deinit();
+            return if (batch.len == 0) null else batch.take(0);
+        }
+        /// Own up to maximum rows and 16 MiB of canonical cells. Materialize
+        /// first, then validate current authority once for the whole disclosure,
+        /// including empty/final output. No permission survives into another call.
+        /// A byte-bound lookahead stays private and is revalidated next time.
+        pub fn nextBatch(self: *Self, maximum: u8) !Batch {
+            if (maximum == 0 or maximum > Batch.max_rows) return error.InvalidQueryBudget;
             if (self.failed) return error.FailedQuery;
-            if (self.complete) return null;
+            if (self.complete) return .{ .complete = true };
             if (self.execution.scan.source.closed) return error.QueryClosed;
             self.execution.scan.rejection = null;
+            var result: Batch = .{};
+            errdefer result.deinit();
             errdefer {
                 self.failed = true;
                 self.native_rejection = self.execution.scan.rejection;
             }
             try self.execution.scan.checkCancellation();
-            var row = try self.execution.next();
-            errdefer if (row) |*value| value.deinit();
-            var bytes = self.result_bytes;
-            if (row) |value| {
-                if (self.execution.emitted > self.limits.rows) return error.QueryResultBudget;
-                var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-                const output = try self.compiled.plan.outputSchema(&fields);
-                var scratch: [256]u8 = undefined;
-                var count: std.Io.Writer.Discarding = .init(&scratch);
-                for (value.cells, output.structure) |cell, field| {
-                    try count.writer.writeInt(u32, 0, .little); // canonical cell-length prefix
-                    try f.Types.Codec.writeBound(cell, field, &count.writer);
-                }
-                bytes = std.math.add(u64, bytes, count.fullCount()) catch return error.QueryResultBudget;
-                if (bytes > self.limits.result_bytes) return error.QueryResultBudget;
+            while (result.len < maximum) {
+                const prepared = if (self.pending_row) |value| value else (try self.prepareRow()) orelse break;
+                self.pending_row = prepared;
+                if (prepared.bytes > Batch.max_bytes) return error.QueryResultBudget;
+                if (result.bytes + prepared.bytes > Batch.max_bytes) break;
+                result.rows[result.len] = prepared.row;
+                result.len += 1;
+                result.bytes += prepared.bytes;
+                self.pending_row = null;
             }
-            try self.execution.scan.validateCurrent(self.execution.complete);
+            result.complete = self.execution.complete and self.pending_row == null;
+            if (result.len == 0 and !result.complete) return error.IncompleteSource;
+            try self.execution.scan.validateCurrent(result.complete);
             try self.execution.scan.checkCancellation();
-            self.complete = self.execution.complete;
+            self.complete = result.complete;
+            return result;
+        }
+        fn prepareRow(self: *Self) !?PreparedRow {
+            var row = (try self.execution.next()) orelse return null;
+            errdefer row.deinit();
+            if (self.execution.emitted > self.limits.rows) return error.QueryResultBudget;
+            var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+            const output = try self.compiled.plan.outputSchema(&fields);
+            var scratch: [256]u8 = undefined;
+            var count: std.Io.Writer.Discarding = .init(&scratch);
+            for (row.cells, output.structure) |cell, field| {
+                try count.writer.writeInt(u32, 0, .little);
+                try f.Types.Codec.writeBound(cell, field, &count.writer);
+            }
+            const bytes = std.math.add(u64, self.result_bytes, count.fullCount()) catch return error.QueryResultBudget;
+            if (bytes > self.limits.result_bytes) return error.QueryResultBudget;
             self.result_bytes = bytes;
-            return row;
+            return .{ .row = row, .bytes = count.fullCount() };
         }
         pub fn close(self: *Self) !void {
             try self.execution.scan.source.close();
         }
         pub fn deinit(self: *Self) void {
+            if (self.pending_row) |*value| value.row.deinit();
             self.execution.deinit();
             self.compiled.deinit();
             self.* = undefined;

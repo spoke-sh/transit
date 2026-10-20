@@ -19,7 +19,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `genesis` | Exact expected v1 genesis |
 | `ursula_url`, `bucket`, `journal` | Private provider location |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
-| `resident_pages` | Decoded page cache slots, default 16, configurable 0–1024; not retained cardinality |
+| `resident_pages` | Decoded page cache slots per execution lane, default 16, configurable 0–1024; ten lanes plus the bootstrap/maintenance context; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
@@ -52,7 +52,7 @@ qualifies a finite 96-position admission / 96-position reserve workload in an
 owned ext4 fixture. A deployment must provision headroom for page/WAL amplification
 and provider housekeeping; the configured record band alone cannot ensure it.
 
-`--initialize` and `--bootstrap` explicitly create the authority and packed page
+`--initialize` and `--bootstrap` explicitly create a new authority and its allocation/collection
 journals. Ordinary startup requires existing history. Both use the same
 [clock and diagnostic boundary](operations.md#time-and-deadlines) used by the service. Finite
 views require a configured trusted clock bound even for unlimited-lifetime state.
@@ -61,7 +61,11 @@ the [storage measurements](../../../packages/zig/transit-backend-ursula/docs/gro
 
 ## Public surface and limits
 
-The listener provides `GET /health`, `POST /v1/command` and `POST /v1/query`.
+The listener provides `GET /health`, `POST /v1/command`, `POST /v1/query` and
+`POST /v1/blocks`. Bulk reads own at most 128 KiB of decoded bytes per admitted
+request, in addition to their normal metadata and transport buffers. Commands
+carry the same bounded body separately from signed logical descriptors; the
+authority journal does not copy it. See [block v1](../../../contracts/BLOCK_V1.md).
 The [contract](../../../contracts/TRANSIT_V1.md) owns signed types and semantics.
 Public queries require current inspection rights plus resource/PID scope where
 applicable. Values remain opaque application bytes. Computation runs in the
@@ -75,12 +79,22 @@ operation must actually be `close_snapshot` or a finishing `snapshot_read`, and
 ordinary signed authorization still applies. The hint cannot grant access.
 Connections permit 64 sequential exchanges, with an idle/header deadline of
 the smaller of one second and `request_timeout_ms`. Body reads and response
-writes run outside the cancelable authority mutex; mutable engine, page-store
-and backend-client work has one owner at a time. These bounds isolate slow
-transports but do not establish per-principal fairness or a latency guarantee.
+writes belong to the admitted request. Ten execution lanes independently own
+mutable engines, page stores, control-record caches and provider clients. The
+shared mutex protects only lane admission, notifications and snapshot-slot
+reservations; it never covers provider I/O. Independent preparation can race;
+only a conditional journal append accepts a successor. These bounds do not
+establish per-principal fairness or a latency guarantee.
 
-Request diagnostics include `wait_ns` for authority-lock acquisition, `work_ns`
-for serialized authority work including provider I/O, and `cache_hits` /
+Snapshot slots remain globally bounded at 64 and eight per principal, including
+pending opens. Independent pins may read concurrently. Simultaneous operations
+on one pin return `Conflict`; a cancelled or failed read releases its reservation
+without publishing a renewal or successful close. Node restart invalidates all
+volatile pins through the fresh startup epoch. Each disclosure still checks
+current credentials, resource access and lifetime.
+
+Request diagnostics retain `wait_ns` as zero because there is no authority-work
+mutex, `work_ns` for request execution including provider I/O, and `cache_hits` /
 `cache_misses` for decoded page-cache access during that work. They count one
 attempt, not durable outcomes or total provider requests. The separate immutable
 control-record cache is described in [storage](../../../docs/reference/storage.md).
@@ -162,8 +176,8 @@ With `request_metrics: true`, native JSON responses that acquire authority acces
 include an unsigned `x-transit-work` JSON header. Its nullable `failure` field
 retains a compiler-defined error name for failed authorized work; access denials
 omit that cause. It includes no provider message, key, payload or credential,
-and never establishes a durable outcome. It contains lock wait and work
-nanoseconds, decoded cache hits/misses, staged pages/bytes, and provider request,
+and never establishes a durable outcome. It contains work nanoseconds, the zero
+authority-lock wait field, decoded cache hits/misses, staged pages/bytes, and provider request,
 transport failure, elapsed-time, append payload byte and response byte counters.
 Provider time is contained in work time; these durations must not be added.
 Append payload bytes exclude HTTP/framing and non-append operation bodies.
@@ -173,3 +187,25 @@ Missing headers mean missing measurement, not zero work. Counters do not depend
 on sampled logs and retain no payloads, credentials or principal labels. Encoding
 failure omits diagnostics without changing the authority response. Metrics are
 opt-in to keep the default response and instrumentation work unchanged.
+
+
+## Physical storage budgets and maintenance
+
+The native configuration accepts `storage.limits.bytes` (default 8 GiB),
+`storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`
+(8 MiB maximum). These reserve encoded immutable segment bytes, including
+unpublished candidates. Control/collection allocations have a separate reserve;
+they use ordinary capacity first and fall back to that reserve only when an
+allocation cannot fit. The ledger retains each allocation's actual charged budget
+through collection and restart. Quota pressure does not expire accepted data.
+Provider metadata, ledgers, WAL,
+snapshots and filesystem headroom require separate budgets.
+
+`storage.maintenance.collection_every_records` defaults to 1,024 allocation
+records. The existing maintenance process performs bounded root traversal and
+resumable physical collection. `storage.maintenance.compact` defaults to false;
+when enabled it relocates current blocks/pages before collection. Unlimited
+history still owns old placement. The [backend guide](../../../packages/zig/transit-backend-ursula/docs/pages.md)
+defines the epoch, trusted-time grace, late-create fencing and quota contracts.
+The local server exposes these same YAML settings and starts its existing
+maintenance process; no additional CLI command is required.

@@ -40,7 +40,7 @@ errors and conflicts are rejected at every depth. A Table can store a type
 without supporting every comparison, aggregate or transport for it.
 
 Schemas are bounded by 64 KiB of encoded metadata and shared descriptor/default
-budgets. Variable values use bounded immutable chunks. Operation and resident
+budgets. Variable values use bounded immutable storage blocks. Operation and resident
 memory bounds do not impose a fixed total Table or catalog cardinality.
 
 ## Mutation and visibility
@@ -54,9 +54,10 @@ applicable Table grant. The native graph supplies the current decision, includin
 credential epoch and selected role, during execution and final publication.
 
 Each head replacement preserves its immutable predecessor and native commit
-position. Small point changes can publish their row, index, head and terminal
-outcome in four native writes when that predecessor is already staged; otherwise
-they use bounded staging. Larger changes also freeze the source basis.
+position. Point changes can publish row, index and predecessor blocks alongside
+the head and terminal outcome in one native turn. The turn admits sixteen blocks
+and 128 KiB of encoded block data separately from four small metadata mutations.
+Larger changes use bounded staging and freeze the source basis.
 Readers see the old head until the complete successor and original
 operation outcome publish atomically. A bad later row, duplicate key or failed
 constraint never exposes a successful statement prefix. Concurrent conflicting
@@ -139,12 +140,15 @@ finite scan; the complete Fuze predicate still runs. Rows are stored as immutabl
 row records and indexes, not columnar Arrow row groups. Arrow is an interchange
 format and does not itself supply scan pruning.
 
-Finite query pages acquire at most eight row references together. Publication
-headers are validated before bounded chunk prefetch, and each decoded row retains
-its schema, digest and identity checks. Interactive pull scans decode one row
+Finite query pages acquire at most eight row references together. Prefetch admits
+at most eight complete blocks and 128 KiB; larger records use successive bounded
+block reads. Each decoded row retains its schema, digest and identity checks. Interactive pull scans decode one row
 at a time from those references, so a selected LIMIT does not allocate the
-remaining values. Current authorization still precedes every output. This storage
-page size is separate from execution-vector design.
+remaining values. Explicit result batches contain at most eight rows and 16 MiB
+of canonical cells. Current authorization is checked after computation before
+each batch is disclosed, including empty output and completion. The single-row
+pull API uses the same check for its one row. Storage pages, execution vectors
+and result disclosure have independent bounds.
 
 Each [interactive query](queries.md) captures an explicit source basis and checks
 current authorization before disclosure. Durable query jobs separately retain

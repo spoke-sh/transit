@@ -2757,6 +2757,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 3,
         "InvalidAuthorityResponse": 1,
+        "InvalidQueryBudget": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
         "InvalidSqlSyntax": 1,
@@ -2798,7 +2799,7 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Read.next()": "<inferred>",
+        "Read.nextBatch()": "<inferred>",
         "begin()": "<inferred>",
         "bind()": "<inferred>",
         "current()": "<inferred>",
@@ -3823,7 +3824,9 @@
         "Source().<return>.finish()": "<inferred>",
         "Source().<return>.page()": "<inferred>",
         "Source().<return>.prefetch()": "<inferred>",
+        "Source().<return>.prefetchBlocks()": "<inferred>",
         "Source().<return>.read()": "<inferred>",
+        "Source().<return>.readBlock()": "<inferred>",
         "Source().<return>.requireAuthorization()": "<inferred>",
         "binding()": "<inferred>",
         "guard()": "<inferred>",
@@ -3834,7 +3837,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 34,
         "catch": 3
       },
       "imports": [
@@ -4302,7 +4305,9 @@
         "Source.finish()": "<inferred>",
         "Source.page()": "<inferred>",
         "Source.prefetch()": "<inferred>",
+        "Source.prefetchBlocks()": "<inferred>",
         "Source.read()": "<inferred>",
+        "Source.readBlock()": "<inferred>",
         "Source.requireAuthorization()": "<inferred>",
         "authorizationContext()": "<inferred>",
         "batch()": "<inferred>",
@@ -4648,19 +4653,22 @@
     },
     "packages/zig/transit-catalog/src/TableMetadataStore.zig": {
       "errors": {
-        "CatalogAlreadyPopulated": 2,
+        "CatalogAlreadyPopulated": 3,
         "CatalogDefinitionChanged": 3,
         "CatalogDefinitionMissing": 1,
-        "CatalogIdentityConflict": 6,
+        "CatalogIdentityConflict": 2,
         "CatalogScopeChanged": 1,
         "CatalogStorageNotFound": 1,
         "CrossResourceTransaction": 1,
         "IncompatibleDefinition": 1,
-        "InvalidCatalogDefinition": 4,
+        "InvalidCatalogDefinition": 1,
         "InvalidCatalogIdentity": 2,
+        "InvalidPublicationChunk": 1,
+        "InvalidPublicationDigest": 1,
+        "MissingPublicationChunk": 1,
         "PublicationIdentityConflict": 1,
         "PublicationLimitsChanged": 1,
-        "QueryAfterMutation": 1
+        "QueryAfterMutation": 2
       },
       "outcomes": {
         "Step": [
@@ -4683,8 +4691,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
-        "catch": 1
+        "try": 44,
+        "catch": 2
       },
       "imports": [
         "TableMetadata.zig",
@@ -4978,7 +4986,7 @@
       "errors": {
         "AccessDenied": 2,
         "Conflict": 2,
-        "InvalidArgument": 8,
+        "InvalidArgument": 11,
         "InvalidAuthorityResponse": 1,
         "OutOfMemory": 1,
         "Rejected": 2,
@@ -5017,13 +5025,14 @@
         "bufferWithAllocator()": "<inferred>",
         "call()": "<inferred>",
         "extractJson()": "<inferred>",
+        "importSigned()": "<inferred>",
         "parse()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 12,
-        "catch": 35
+        "try": 18,
+        "catch": 37
       },
       "imports": [
         "Host.zig",
@@ -5374,6 +5383,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-client/src/BlockBatch.zig": {
+      "errors": {
+        "BlockBufferTooSmall": 1,
+        "InvalidAuthorityResponse": 3,
+        "UncachedBlock": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/Host.zig": {
       "errors": {
         "InvalidSeed": 1,
@@ -5411,7 +5442,7 @@
       "errors": {
         "AccessDenied": 1,
         "Conflict": 1,
-        "InvalidResourceRead": 15,
+        "InvalidResourceRead": 16,
         "Rejected": 2,
         "ResourceReadBatchUnavailable": 1,
         "ResourceUnavailable": 2,
@@ -5429,23 +5460,30 @@
         "Batch.read()": "<inferred>",
         "Batches.init()": "<inferred>",
         "Batches.read()": "<inferred>",
+        "Batches.readBlocks()": "<inferred>",
         "Cached().<return>.entry()": "<inferred>",
         "Cached().<return>.fetch()": "<inferred>",
         "Cached().<return>.prefetch()": "<inferred>",
+        "Cached().<return>.prefetchBlocks()": "<inferred>",
         "Cached().<return>.read()": "<inferred>",
+        "Cached().<return>.readBlock()": "<inferred>",
         "Reader.entry()": "<inferred>",
         "Reader.fetch()": "<inferred>",
         "Reader.page()": "<inferred>",
+        "Reader.prefetchBlocks()": "<inferred>",
         "Reader.read()": "<inferred>",
+        "Reader.readBlock()": "<inferred>",
         "batches()": "<inferred>",
+        "mapFailure()": "anyerror",
         "open()": "<inferred>",
         "query()": "<inferred>",
+        "queryBlocks()": "<inferred>",
         "readBatch()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 4,
       "propagation": {
-        "try": 11,
-        "catch": 3
+        "try": 13,
+        "catch": 6
       },
       "imports": [
         "root.zig",
@@ -5464,6 +5502,7 @@
         "ProcessTerminated": 1,
         "ReadVersionReleased": 1,
         "StaleActivation": 1,
+        "UnsupportedBlockStorage": 2,
         "UnsupportedWait": 1,
         "WrongActivation": 3
       },
@@ -5477,6 +5516,7 @@
         "WithTransport().<return>.prepareCloseView()": "<inferred>",
         "WithTransport().<return>.prepareCommit()": "<inferred>",
         "WithTransport().<return>.prepareView()": "<inferred>",
+        "WithTransport().<return>.readBlocks()": "<inferred>",
         "WithTransport().<return>.readVersion()": "<inferred>",
         "WithTransport().<return>.readView()": "<inferred>",
         "WithTransport().<return>.readViewMany()": "<inferred>",
@@ -5485,7 +5525,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -5495,11 +5535,11 @@
     },
     "packages/zig/transit-client/src/SnapshotReader.zig": {
       "errors": {
-        "Cancelled": 3,
+        "Cancelled": 4,
         "Conflict": 3,
         "InteractiveQueriesUnavailable": 2,
-        "InvalidResourceRead": 4,
-        "QueryClosed": 2
+        "InvalidResourceRead": 7,
+        "QueryClosed": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -5508,19 +5548,22 @@
         "Support.init()": "<inferred>",
         "Support.open()": "<inferred>",
         "batch()": "<inferred>",
+        "blockBatch()": "<inferred>",
         "close()": "<inferred>",
         "entry()": "<inferred>",
         "fetch()": "<inferred>",
         "fetchOnce()": "<inferred>",
         "open()": "<inferred>",
         "page()": "<inferred>",
+        "prefetchBlocks()": "<inferred>",
         "read()": "<inferred>",
+        "readBlock()": "<inferred>",
         "support()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 8,
-        "catch": 2
+        "try": 10,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -5704,7 +5747,7 @@
         "AuthorityTransportDenied": 2,
         "AuthorityUnavailable": 2,
         "ConcurrencyUnavailable": 1,
-        "Conflict": 2,
+        "Conflict": 3,
         "ConnectionRefused": 1,
         "ConnectionResetByPeer": 1,
         "ConnectionTimedOut": 1,
@@ -5712,7 +5755,7 @@
         "HostUnreachable": 1,
         "HttpConnectionClosing": 1,
         "HttpRequestBudget": 1,
-        "InvalidAuthorityResponse": 4,
+        "InvalidAuthorityResponse": 5,
         "InvalidHttpBudget": 1,
         "InvalidSeed": 1,
         "InvalidWaitHint": 1,
@@ -5740,15 +5783,17 @@
         "Client.exchange()": "<inferred>",
         "Client.perform()": "anyerror",
         "Client.query()": "<inferred>",
+        "Client.queryBlocks()": "<inferred>",
         "Client.submit()": "<inferred>",
+        "Client.submitWithBlocks()": "<inferred>",
         "Client.timeout()": "anyerror",
         "Client.waitForChange()": "<inferred>",
         "readKey()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 16,
-        "catch": 9
+        "try": 25,
+        "catch": 10
       },
       "imports": [
         "Application.zig",
@@ -5756,6 +5801,7 @@
         "AuthorizationChange.zig",
         "AuthorizationClient.zig",
         "AuthorizationSet.zig",
+        "BlockBatch.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
@@ -11647,6 +11693,75 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/BlockRead.zig": {
+      "errors": {
+        "InvalidBlockBody": 2,
+        "InvalidRead": 17
+      },
+      "outcomes": {
+        "Query.source": [
+          "resource",
+          "view",
+          "version"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "entries()": "<inferred>",
+        "keys()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateResult()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/Blocks.zig": {
+      "errors": {
+        "BlockBatchTooLarge": 3,
+        "BlockTooLarge": 2,
+        "ConflictingBlockMutation": 1,
+        "CorruptBlock": 1,
+        "DuplicateBlockKey": 1,
+        "InvalidBlockBatch": 1,
+        "InvalidBlockBody": 7,
+        "InvalidCharacter": 2,
+        "UnexpectedToken": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Batch.put()": "<inferred>",
+        "Body.fromText()": "<inferred>",
+        "Body.jsonParse()": "<inferred>",
+        "Body.jsonParseFromValue()": "<inferred>",
+        "Body.jsonSchema()": "std . Io . Writer . Error",
+        "Body.jsonStringify()": "std . Io . Writer . Error",
+        "Body.validate()": "<inferred>",
+        "Spec.of()": "<inferred>",
+        "Spec.validate()": "<inferred>",
+        "Spec.verify()": "<inferred>",
+        "validate()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 5
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
         "DiagnosticCapacity": 4,
@@ -11910,7 +12025,7 @@
         "DuplicateStateKey": 1,
         "InvalidCounter": 1,
         "InvalidEnumTag": 3,
-        "InvalidFailure": 3,
+        "InvalidFailure": 4,
         "InvalidRead": 78,
         "InvalidReadVersion": 7,
         "InvalidSequence": 1,
@@ -11963,6 +12078,8 @@
           "close_effect",
           "cancel_effect",
           "checkpoint",
+          "storage_fence",
+          "storage_compact",
           "turn_with_versions",
           "rotate_worker",
           "create_principal",
@@ -11986,7 +12103,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7\""
+          "@\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\""
         ],
         "Effect.phase": [
           "pending",
@@ -12051,7 +12168,8 @@
           "open_snapshot",
           "snapshot_entries",
           "close_snapshot",
-          "snapshot_read"
+          "snapshot_read",
+          "block_entries"
         ],
         "Resource.phase": [
           "active",
@@ -12082,7 +12200,8 @@
           "open_snapshot",
           "snapshot_entries",
           "close_snapshot",
-          "snapshot_read"
+          "snapshot_read",
+          "block_entries"
         ]
       },
       "error_sets": {
@@ -12091,6 +12210,9 @@
         ]
       },
       "error_returns": {
+        "CommandEnvelope.jsonParse()": "<inferred>",
+        "CommandEnvelope.jsonParseFromValue()": "<inferred>",
+        "CommandEnvelope.jsonStringify()": "std . Io . Writer . Error",
         "Definition.jsonParse()": "<inferred>",
         "Definition.jsonParseFromValue()": "<inferred>",
         "Definition.spelling()": "<inferred>",
@@ -12119,10 +12241,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 58,
+        "try": 62,
         "catch": 1
       },
       "imports": [
+        "BlockRead.zig",
         "NativeInspection.zig",
         "SignedEnvelope.zig",
         "SnapshotRead.zig",
@@ -12329,7 +12452,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -12348,6 +12471,24 @@
       },
       "error_sets": {},
       "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-protocol/src/Storage.zig": {
+      "errors": {
+        "InvalidStorageBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>"
+      },
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
@@ -12472,6 +12613,8 @@
           "ConflictingRetry",
           "ControlAlreadyRecorded",
           "ControlCapacity",
+          "StorageQuota",
+          "StorageCandidateBudget",
           "DeadlineExpired",
           "DeadlineNotReached",
           "DeadlineUncertain",
@@ -12487,6 +12630,7 @@
           "InvalidAttempt",
           "InvalidBinding",
           "InvalidBody",
+          "InvalidBlockBody",
           "InvalidBudget",
           "InvalidEffect",
           "InvalidEncoding",
@@ -12569,6 +12713,7 @@
       },
       "imports": [
         "Authorization.zig",
+        "Blocks.zig",
         "Diagnostic.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
@@ -12577,6 +12722,7 @@
         "Runtime.zig",
         "Schema.zig",
         "State.zig",
+        "Storage.zig",
         "Value.zig",
         "std"
       ]
@@ -13105,14 +13251,16 @@
     },
     "packages/zig/transit-query/src/Interactive.zig": {
       "errors": {
-        "Cancelled": 3,
+        "Cancelled": 4,
         "InteractiveQueriesUnavailable": 1,
-        "InvalidResourceRead": 4,
+        "InvalidResourceRead": 5,
         "Overflow": 1,
         "QueryBudgetExceeded": 5,
+        "QueryClosed": 1,
         "QueryComplete": 1,
         "QueryDenied": 4,
-        "QuerySourceUnavailable": 1
+        "QuerySourceUnavailable": 1,
+        "SourceChanged": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -13120,7 +13268,9 @@
         "CachedReader.entry()": "<inferred>",
         "CachedReader.page()": "<inferred>",
         "CachedReader.prefetch()": "<inferred>",
+        "CachedReader.prefetchBlocks()": "<inferred>",
         "CachedReader.read()": "<inferred>",
+        "CachedReader.readBlock()": "<inferred>",
         "close()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
@@ -13130,7 +13280,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 50,
         "catch": 10
       },
       "imports": [
@@ -14808,25 +14958,28 @@
       "errors": {
         "Cancelled": 2,
         "FailedQuery": 2,
-        "InvalidQueryBudget": 1,
+        "IncompleteSource": 1,
+        "InvalidQueryBudget": 2,
         "QueryClosed": 1,
-        "QueryResultBudget": 4
+        "QueryResultBudget": 5
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Query().<return>.close()": "<inferred>",
         "Query().<return>.next()": "<inferred>",
+        "Query().<return>.nextBatch()": "<inferred>",
         "Query().<return>.open()": "<inferred>",
         "Query().<return>.openPrepared()": "<inferred>",
         "Query().<return>.openWith()": "<inferred>",
+        "Query().<return>.prepareRow()": "<inferred>",
         "Query().<return>.schema()": "<inferred>",
         "Query().<return>.start()": "<inferred>",
         "QueryLimits.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 30,
         "catch": 1
       },
       "imports": [
@@ -14845,7 +14998,8 @@
         "InvalidRelationalSourceOrder": 1,
         "InvalidResourceRead": 3,
         "InvalidTableIndex": 2,
-        "QueryPageBudget": 1,
+        "QueryClosed": 1,
+        "QueryPageBudget": 2,
         "RelationalSourceChanged": 1,
         "TableNotFound": 2
       },
@@ -14866,15 +15020,19 @@
         "openResource()": "<inferred>",
         "page()": "<inferred>",
         "prefetch()": "<inferred>",
+        "prefetchBlocks()": "<inferred>",
+        "prefetchRead()": "<inferred>",
+        "prefetchRecord()": "<inferred>",
         "read()": "<inferred>",
+        "readBlock()": "<inferred>",
         "request()": "<inferred>",
         "requireAuthorization()": "<inferred>",
         "validateCurrent()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
-        "catch": 4
+        "try": 45,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -17104,11 +17262,13 @@
       "error_sets": {},
       "error_returns": {
         "Reader.authorizationSubject()": "<inferred>",
+        "Reader.blockBatch()": "<inferred>",
         "Reader.check()": "<inferred>",
         "Reader.entry()": "<inferred>",
         "Reader.open()": "<inferred>",
         "Reader.page()": "<inferred>",
         "Reader.read()": "<inferred>",
+        "Reader.readBlock()": "<inferred>",
         "Reader.requireAuthorization()": "<inferred>",
         "create()": "<inferred>",
         "ddl()": "<inferred>",
@@ -17119,7 +17279,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 37,
         "catch": 1
       },
       "imports": [
@@ -17168,7 +17328,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
+        "try": 54,
         "catch": 11
       },
       "imports": [
@@ -17678,6 +17838,24 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-gateway/src/ReadBatch.zig": {
+      "errors": {
+        "InvalidReadBatch": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-sql-gateway/src/SavedStep.zig": {
       "errors": {
         "GatewayStepIdentityConflict": 2,
@@ -17887,6 +18065,7 @@
         "Limits.zig",
         "OperatorConfiguration.zig",
         "Probe.zig",
+        "ReadBatch.zig",
         "SavedStep.zig",
         "Statement.zig",
         "Terminal.zig",
@@ -20990,6 +21169,42 @@
         "transit_exchange"
       ]
     },
+    "packages/zig/transit-station/src/BlockRecord.zig": {
+      "errors": {
+        "InvalidPublicationBudget": 1,
+        "InvalidPublicationChunk": 3,
+        "InvalidPublicationDescriptor": 5,
+        "InvalidPublicationDigest": 2,
+        "InvalidPublicationIdentity": 1,
+        "MissingPublicationChunk": 1,
+        "MutationBudgetExceeded": 2,
+        "PublicationIdentityConflict": 1,
+        "PublicationNotFound": 1,
+        "PublicationNotPublished": 1,
+        "PublicationTooLarge": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "collect()": "<inferred>",
+        "encode()": "<inferred>",
+        "read()": "<inferred>",
+        "specification()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 5
+      },
+      "imports": [
+        "Publication.zig",
+        "Turn.zig",
+        "std",
+        "transit_client"
+      ]
+    },
     "packages/zig/transit-station/src/Controller.zig": {
       "errors": {
         "InvalidAuthorityResponse": 1,
@@ -21116,6 +21331,7 @@
         "preprocess()": "<inferred>",
         "readAuthorization()": "anyerror",
         "readAuthorizationBinding()": "anyerror",
+        "readBlocks()": "anyerror",
         "readKey()": "anyerror",
         "readMany()": "anyerror",
         "readPage()": "anyerror",
@@ -21125,9 +21341,9 @@
         "setReadResources()": "<inferred>",
         "step()": "<inferred>"
       },
-      "open_error_set_uses": 13,
+      "open_error_set_uses": 14,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 11
       },
       "imports": [
@@ -21882,7 +22098,7 @@
       },
       "outcomes": {
         "Cursor.phase": [
-          "inline_pages",
+          "blocks",
           "publications",
           "complete"
         ]
@@ -22054,7 +22270,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -22067,20 +22283,23 @@
     },
     "packages/zig/transit-station/src/TablePages.zig": {
       "errors": {
-        "CrossResourceTransaction": 2,
-        "IncompatibleTableStorage": 3,
-        "InvalidTablePage": 19,
+        "CrossResourceTransaction": 1,
+        "IncompatibleTableStorage": 4,
+        "InvalidPublicationChunk": 1,
+        "InvalidPublicationDigest": 1,
+        "InvalidTablePage": 9,
         "InvalidTablePageSize": 1,
         "InvalidTableReservation": 1,
         "InvalidTableStorage": 10,
+        "MissingPublicationChunk": 1,
         "PublicationClosed": 1,
         "PublicationIdentityConflict": 1,
         "PublicationLimitsChanged": 1,
         "PublicationTooLarge": 1,
-        "TablePageBufferTooSmall": 1,
+        "TablePageBufferTooSmall": 2,
         "TablePageClosed": 1,
-        "TablePageIdentityConflict": 7,
-        "TablePageNotFound": 3,
+        "TablePageIdentityConflict": 1,
+        "TablePageNotFound": 1,
         "TableStorageNotFound": 1
       },
       "outcomes": {
@@ -22099,20 +22318,19 @@
         "collect()": "<inferred>",
         "create()": "<inferred>",
         "emptyNamespace()": "<inferred>",
-        "encode()": "<inferred>",
         "nextRecord()": "<inferred>",
         "prefetch()": "<inferred>",
         "read()": "<inferred>",
         "stage()": "<inferred>",
-        "validate()": "<inferred>",
-        "validateInline()": "<inferred>"
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
-        "catch": 3
+        "try": 35,
+        "catch": 4
       },
       "imports": [
+        "BlockRecord.zig",
         "ImmutableIndex.zig",
         "Publication.zig",
         "TableData.zig",
@@ -22304,6 +22522,7 @@
         "catch": 14
       },
       "imports": [
+        "BlockRecord.zig",
         "Publication.zig",
         "TableCandidate.zig",
         "TableData.zig",
@@ -22319,20 +22538,23 @@
     "packages/zig/transit-station/src/Turn.zig": {
       "errors": {
         "AccessDenied": 3,
+        "BlockBatchTooLarge": 1,
+        "BlockBufferTooSmall": 1,
         "CorrelationAlreadyUsed": 1,
         "ExpectedCall": 1,
         "ExpectedReply": 1,
-        "InvalidAuthorityResponse": 2,
+        "InvalidAuthorityResponse": 6,
         "InvalidAuthorizationCredential": 5,
         "InvalidCommittedSource": 2,
         "InvalidDeadline": 1,
         "InvalidDestination": 1,
+        "InvalidRead": 2,
         "InvalidReadVersion": 2,
         "InvalidStateView": 6,
         "InvalidTimerObserver": 2,
         "InvalidWait": 3,
         "InvalidWaitLifetime": 1,
-        "MutationBudgetExceeded": 2,
+        "MutationBudgetExceeded": 3,
         "OutputBudgetExceeded": 1,
         "QueryAfterMutation": 1,
         "ReservedFrameworkKey": 1,
@@ -22342,12 +22564,17 @@
         "UnexpectedReplySource": 1,
         "UnknownCorrelation": 1,
         "UnsupportedAuthorization": 2,
+        "UnsupportedBlockStorage": 2,
         "UnsupportedReadVersion": 2,
         "UnsupportedStateScan": 2,
         "VersionBudgetExceeded": 2,
         "WrongActivation": 1
       },
       "outcomes": {
+        "BlockBasis": [
+          "view",
+          "version"
+        ],
         "Reply": [
           "accepted",
           "closed"
@@ -22362,50 +22589,67 @@
       "error_sets": {},
       "error_returns": {
         "Captured.authorizationSubject()": "<inferred>",
+        "Captured.blockPage()": "<inferred>",
         "Captured.check()": "<inferred>",
         "Captured.page()": "<inferred>",
+        "Captured.prefetchBlocks()": "<inferred>",
         "Captured.read()": "<inferred>",
+        "Captured.readBlock()": "<inferred>",
         "Captured.requireAuthorization()": "<inferred>",
         "Captured.requireCurrent()": "<inferred>",
         "Captured.retain()": "<inferred>",
         "Committed.authorizationBinding()": "<inferred>",
         "Committed.authorizationSubject()": "<inferred>",
+        "Committed.blockPage()": "<inferred>",
         "Committed.check()": "<inferred>",
         "Committed.page()": "<inferred>",
         "Committed.prefetch()": "<inferred>",
+        "Committed.prefetchBlocks()": "<inferred>",
         "Committed.read()": "<inferred>",
+        "Committed.readBlock()": "<inferred>",
         "Committed.requireAuthorization()": "<inferred>",
         "Reader.authorization()": "anyerror",
         "Reader.authorization_binding()": "anyerror",
+        "Reader.blocks()": "anyerror",
         "Reader.many()": "anyerror",
         "Reader.page()": "anyerror",
         "Reader.read()": "anyerror",
         "Reader.version()": "anyerror",
         "Reader.version_entries()": "anyerror",
         "Retained.authorizationSubject()": "<inferred>",
+        "Retained.blockPage()": "<inferred>",
         "Retained.fetch()": "<inferred>",
         "Retained.page()": "<inferred>",
+        "Retained.prefetchBlocks()": "<inferred>",
         "Retained.read()": "<inferred>",
+        "Retained.readBlock()": "<inferred>",
         "Retained.requireAuthorization()": "<inferred>",
         "Wait.decode()": "<inferred>",
         "acceptReply()": "<inferred>",
+        "acquireBlocks()": "<inferred>",
         "addView()": "<inferred>",
         "authorizationBinding()": "<inferred>",
         "authorizationSubject()": "<inferred>",
         "bindAuthorizationSubject()": "<inferred>",
+        "blockPageAt()": "<inferred>",
         "call()": "<inferred>",
         "callWithTimer()": "<inferred>",
         "captured()": "<inferred>",
         "cast()": "<inferred>",
         "delete()": "<inferred>",
         "dependVersion()": "<inferred>",
+        "fetchBlocks()": "<inferred>",
         "init()": "<inferred>",
         "openVersion()": "<inferred>",
         "page()": "<inferred>",
         "pageCommitted()": "<inferred>",
         "prefetch()": "<inferred>",
+        "prefetchBlocks()": "<inferred>",
+        "prefetchBlocksAt()": "<inferred>",
         "put()": "<inferred>",
         "read()": "<inferred>",
+        "readBlock()": "<inferred>",
+        "readBlockAt()": "<inferred>",
         "readCommitted()": "<inferred>",
         "readCommittedFresh()": "<inferred>",
         "release()": "<inferred>",
@@ -22418,12 +22662,13 @@
         "validate()": "<inferred>",
         "versionSlot()": "<inferred>",
         "waiting()": "<inferred>",
-        "write()": "<inferred>"
+        "write()": "<inferred>",
+        "writeBlock()": "<inferred>"
       },
-      "open_error_set_uses": 8,
+      "open_error_set_uses": 9,
       "propagation": {
-        "try": 50,
-        "catch": 11
+        "try": 73,
+        "catch": 15
       },
       "imports": [
         "Frame.zig",
@@ -22469,6 +22714,7 @@
         "catch": 0
       },
       "imports": [
+        "BlockRecord.zig",
         "Controller.zig",
         "Frame.zig",
         "GenServer.zig",
@@ -22493,8 +22739,10 @@
         "TableReader.zig",
         "TableStatement.zig",
         "TableWrite.zig",
+        "TestBlocks.zig",
         "Turn.zig",
         "Waiting.zig",
+        "builtin",
         "transit_client",
         "transit_fuze"
       ]

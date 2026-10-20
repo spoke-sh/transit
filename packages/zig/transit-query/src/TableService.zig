@@ -218,12 +218,15 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             var fields: [q.fuze.TableSchema.max_columns]q.fuze.Types.Field = undefined;
             const schema = try query.schema(&fields);
             var rows: std.ArrayList([]const q.Values.Cell) = .empty;
-            while (try query.next()) |row_value| {
-                var row = row_value;
-                defer row.deinit();
-                const cells = try alloc.alloc(q.Values.Cell, row.cells.len);
-                for (row.cells, schema.structure, cells) |cell, field, *out| out.* = try q.fuze.LogicalJson.foreignCell(alloc, cell, field.type);
-                try rows.append(alloc, cells);
+            while (true) {
+                var batch = try query.nextBatch(8);
+                defer batch.deinit();
+                for (batch.rows[0..batch.len]) |row| {
+                    const cells = try alloc.alloc(q.Values.Cell, row.?.cells.len);
+                    for (row.?.cells, schema.structure, cells) |cell, field, *out| out.* = try q.fuze.LogicalJson.foreignCell(alloc, cell, field.type);
+                    try rows.append(alloc, cells);
+                }
+                if (batch.complete) break;
             }
             try query.close();
             return .{ .query = .{ .columns = try q.Values.foreignColumns(alloc, schema), .rows = try rows.toOwnedSlice(alloc), .complete = true } };

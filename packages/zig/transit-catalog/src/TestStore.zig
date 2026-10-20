@@ -6,6 +6,8 @@ const t = std.testing;
 const Self = @This();
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 state: Map = .empty,
+blocks: c.station.testing.Blocks = .{},
+block_view: p.Growth.View = undefined,
 changed_at: std.AutoHashMapUnmanaged(p.Value, u64) = .empty,
 revision: u64 = 1,
 input: u64 = 1,
@@ -40,6 +42,7 @@ fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Obj
     return Authority.binding(&self.authority, domain, identity);
 }
 pub fn deinit(self: *Self) void {
+    self.blocks.deinit(t.allocator);
     self.state.deinit(t.allocator);
     self.changed_at.deinit(t.allocator);
     self.authority.deinit();
@@ -49,7 +52,7 @@ pub fn clone(self: *Self) !Self {
     errdefer state.deinit(t.allocator);
     var changed_at = try self.changed_at.clone(t.allocator);
     errdefer changed_at.deinit(t.allocator);
-    return .{ .state = state, .changed_at = changed_at, .authority = try self.authority.clone(), .revision = self.revision, .input = self.input };
+    return .{ .blocks = try self.blocks.clone(t.allocator), .state = state, .changed_at = changed_at, .authority = try self.authority.clone(), .revision = self.revision, .input = self.input };
 }
 fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
     const self: *Self = @ptrCast(@alignCast(raw));
@@ -89,7 +92,15 @@ fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) !c.station.Turn.Page
     return result;
 }
 pub fn capture(self: *Self, principal: u64) !c.station.Turn {
-    return c.station.Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .authorization = authorize, .authorization_binding = binding });
+    const turn = try c.station.Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .blocks = readBlocks, .authorization = authorize, .authorization_binding = binding });
+    try self.blocks.views.put(t.allocator, turn.view.id, turn.view);
+    return turn;
+}
+fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    self.reads += 1;
+    if (self.fail_at == self.reads) return error.Unavailable;
+    return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
 }
 pub fn commit(self: *Self, turn: c.station.Turn) !void {
     try turn.validate();
@@ -103,6 +114,7 @@ pub fn commit(self: *Self, turn: c.station.Turn) !void {
             _ = self.changed_at.remove(mutation.key);
         }
     };
+    try self.blocks.apply(t.allocator, &turn.decision.blocks, self.revision + 1);
     self.revision += 1;
     self.input += 1;
 }

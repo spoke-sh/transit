@@ -42,6 +42,11 @@ cut until completion, Close, error or Sync. Closing a statement closes dependent
 portals. Failed extended cycles drain through a valid Sync; transport failures
 close the connection without retrying a partial reply.
 
+Read execution requests at most eight rows at a time. Each batch checks current
+rights after materialization and before transmission. An Execute row limit also
+bounds the batch request; suspension retains no already authorized output batch.
+The next Execute checks rights again against the retained source cut.
+
 The [gateway application](../../../apps/transit-sql-gateway/README.md) supplies
 the listener and authenticated host. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) for limits and selected

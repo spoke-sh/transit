@@ -59,13 +59,17 @@ separate. Fuze executes in the client over generic leased native snapshots.
 [Query execution](queries.md#interactive-sessions) defines that
 distinction and the cancellation/cleanup contract.
 
-The architectural priorities are authorized snapshot sessions, lower shared
-read/write amplification, generic bulk immutable publication, and read structures
-suited to KV, Table and Document access patterns. Bound resident work independently
-of retained data, isolate background workloads from execution/control capacity,
-and preserve current authorization and atomic publication. The
-[performance evidence and improvement plan](performance.md) explain why these
-priorities precede SQL operator tuning and what remains unmeasured.
+Authorized snapshots, generic immutable block publication and independently
+owned native request engines provide the shared storage boundary. Table records
+use those blocks, and bounded result batches check current access before disclosure.
+Physical collection follows explicit roots, storage epochs and read-lifetime
+fences; quota pressure does not authorize expiry. See [storage](storage.md).
+
+Remaining priorities include larger statement ingress, read structures suited to
+each resource kind, and workload-specific indexing and statistics. Resident work
+must remain bounded independently of retained data, with separate execution and
+control capacity. The [performance reference](performance.md) records measured
+improvements, regressions and remaining limits.
 
 ## Source of truth
 

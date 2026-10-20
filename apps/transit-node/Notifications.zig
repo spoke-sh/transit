@@ -1,4 +1,4 @@
-//! Volatile scheduling hints, always used under the authority mutex.
+//! Volatile scheduling hints, used under the short notification registry mutex.
 const std = @import("std");
 const g = @import("transit_client").protocol.Growth;
 const Self = @This();

@@ -315,7 +315,7 @@ pub fn pending(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status {
     if (!lock(server)) return .busy;
     defer server.busy.store(false, .release);
     const frozen = server.behavior.pending orelse return .not_ready;
-    base.output(@import("client_abi").Frozen{ .definition = p.Growth.current_definition, .operation = .{ .growing_command = frozen.signed } }, out) catch |err| return base.status(err);
+    base.output(@import("client_abi").Frozen{ .definition = p.Growth.current_definition, .operation = .{ .growing_command = .{ .request = frozen.signed.request, .signature = frozen.signed.signature, .blocks = frozen.blocks } } }, out) catch |err| return base.status(err);
     return .ok;
 }
 

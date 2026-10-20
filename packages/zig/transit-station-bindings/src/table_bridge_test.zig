@@ -6,15 +6,24 @@ const f = s.fuze;
 const b = @import("TableBridge.zig");
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 const Store = struct {
+    blocks: s.testing.Blocks = .{},
     values: Map = .empty,
     position: u64 = 1,
     failure: ?anyerror = null,
     fn deinit(self: *Store) void {
+        self.blocks.deinit(t.allocator);
         self.values.deinit(t.allocator);
     }
     fn capture(self: *Store) !s.Turn {
         self.position += 1;
-        return s.Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 1, .sequence = self.position, .revision = self.position, .input = .{ .position = self.position, .ordinal = self.position, .value = try (s.Frame{ .kind = .cast }).encode(), .origin = .{ .process = .{ .pid = 2, .turn = self.position - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position + 100, .pid = 2, .principal = 65536, .generation = 1, .input = self.position, .process_revision = self.position, .resource = 7, .revision = self.position, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page });
+        const captured = try s.Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 1, .sequence = self.position, .revision = self.position, .input = .{ .position = self.position, .ordinal = self.position, .value = try (s.Frame{ .kind = .cast }).encode(), .origin = .{ .process = .{ .pid = 2, .turn = self.position - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position + 100, .pid = 2, .principal = 65536, .generation = 1, .input = self.position, .process_revision = self.position, .resource = 7, .revision = self.position, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .blocks = readBlocks });
+        try self.blocks.views.put(t.allocator, captured.view.id, captured.view);
+        return captured;
+    }
+    fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        if (self.failure) |err| return err;
+        return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -45,6 +54,7 @@ const Store = struct {
     }
     fn commit(self: *Store, turn: *s.Turn) !void {
         try turn.validate();
+        try self.blocks.apply(t.allocator, &turn.decision.blocks, self.position);
         for (turn.decision.mutations) |slot| if (slot) |mutation| {
             if (mutation.value) |value| try self.values.put(t.allocator, mutation.key, value) else _ = self.values.remove(mutation.key);
         };

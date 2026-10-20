@@ -96,13 +96,9 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
         try stream.flush();
     }
     var emitted: u64 = 0;
-    var batch: [8]q.fuze.LogicalQuery.Row = undefined;
-    var cells: [8][]const q.fuze.Types.Values.Cell = undefined;
-    var count: usize = 0;
-    defer for (batch[0..count]) |*row| row.deinit();
     while (true) {
         timing.enter(.fetch);
-        const next = query.next() catch |err| {
+        var batch = query.nextBatch(8) catch |err| {
             console.diagnostic.envelope = try q.ApiDiagnostic.attempt("table_select", .read, null, err, .{}, false, null);
             if (console.diagnostic.envelope) |*detail| {
                 try detail.fact(.emitted_rows, .execution, .{ .unsigned = .init(emitted) });
@@ -110,21 +106,18 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
             }
             return err;
         };
-        if (next) |row| {
-            batch[count] = row;
-            cells[count] = row.cells;
-            count += 1;
-        }
-        if (count < 8 and next != null and console.session.format == .table) continue;
+        defer batch.deinit();
+        var cells: [8][]const q.fuze.Types.Values.Cell = undefined;
+        for (batch.rows[0..batch.len], cells[0..batch.len]) |row, *value| value.* = row.?.cells;
         timing.enter(.render);
         var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
         defer arena.deinit();
         if (console.session.format == .table) {
-            if (count != 0 or emitted == 0) try @import("Results.zig").logicalTable(arena.allocator(), out, schema, cells[0..count]);
-        } else for (cells[0..count]) |row| {
+            if (batch.len != 0 or emitted == 0) try @import("Results.zig").logicalTable(arena.allocator(), out, schema, cells[0..batch.len]);
+        } else for (cells[0..batch.len]) |row| {
             try @import("Results.zig").logicalRow(arena.allocator(), out, schema, row);
         }
-        if (next == null) {
+        if (batch.complete) {
             if (!query.complete) return error.IncompleteSource;
             timing.enter(.release);
             try query.close();
@@ -140,10 +133,8 @@ fn sqlTo(console: *Console, catalog: *c.TableClient, request: @import("SqlInput.
         }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         try stream.flush();
-        emitted += count;
-        for (batch[0..count]) |*row| row.deinit();
-        count = 0;
-        if (next == null) break;
+        emitted += batch.len;
+        if (batch.complete) break;
     }
     if (console.writes) |writer| try writer.clearComplete();
     try @import("ConsoleSettings.zig").clearComplete(console);

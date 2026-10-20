@@ -9,8 +9,9 @@ cutover policy. Clients, workers and services use matching builds.
 
 | Route | Request | Success |
 | --- | --- | --- |
-| `POST /v1/command` | `SignedRequest { request, signature }` | `Receipt { position }` |
+| `POST /v1/command` | `CommandEnvelope { request, signature, blocks? }` | `Receipt { position }` |
 | `POST /v1/query` | `SignedQuery { query, signature }` | `Response { version, definition, realm, position, principal_sequence, body }` |
+| `POST /v1/blocks` | `SignedQuery` selecting `block_entries` or `snapshot_read` | `{ response: Response, blocks: BASE64 }` |
 | `GET /health` | No body or credential | `{ ready: true, profile: "native_v1" }` after authority refresh |
 
 The [generated schema](transit-v1.schema.json) owns complete fields, defaults,
@@ -31,6 +32,18 @@ signature binds it. Query responses require that exact identifier. The generated
 schema's `x-transit.definition` owns its value. The identifier distinguishes
 incompatible builds which share the public v1 label; it is not a negotiation
 offer. Old signatures cannot authenticate as current requests.
+
+The optional command body concatenates the complete immutable values bound by
+`turn.blocks` descriptors. Canonical padded base64 owns those bytes across parser
+disposal. A fresh publication verifies the entire body before staging and binds
+the successor block index to the same state/input/output acceptance decision.
+Only the signed logical request enters the authority journal. An already accepted
+identity can reconcile without a body; current authorization still applies.
+
+`/v1/query` returns block metadata without acquiring bytes. `/v1/blocks` returns
+a separately bounded complete body and validates current authority after private
+materialization. It does not accept wait or reserved snapshot-control hints.
+Missing/corrupt blocks fail without a success body. See [block v1](BLOCK_V1.md).
 
 A command receipt records durable native acceptance or an authorized duplicate.
 It does not prove that a worker completed domain computation. Preserve the exact
@@ -87,11 +100,14 @@ become `AuthorityUnavailable`. The client rejects unknown/malformed error bodies
 and invalid success responses instead of inventing a durable result.
 
 HTTP bodies and client response buffers are bounded at 256 KiB. Canonical mutation
-records are bounded at 8 KiB. The shared server allows 16 connections, four ordinary requests, four notification waits and two reserved
+records are bounded at 16 KiB. Bulk requests and responses remain inside the same
+256 KiB HTTP limit; their decoded data budget is 128 KiB. The shared server allows 16 connections, four ordinary requests, four notification waits and two reserved
 control requests, with at most 64 requests per connection. Header timeout is the
 lesser of one second and the configured request timeout; it supports HTTP/1.1 keep-alive.
-Network parsing and response writes may overlap, while authority/backend access
-has one cancelable owner. The client does not follow redirects and defaults to
+Network parsing, immutable reads and candidate preparation may overlap. Each
+admitted request owns its mutable engine, caches and provider transport; a
+conditional journal append serializes accepted successors. A losing candidate
+returns `Conflict`; a lost acknowledgement remains uncertain. The client does not follow redirects and defaults to
 a five-second request timeout. These bounds do not promise rate fairness.
 
 `x-transit-control: snapshot` selects reserved control admission only for
@@ -108,8 +124,9 @@ normal response retain their existing definitions. The hint grants no rights.
 
 When the authorized query's position equals POSITION, the node waits for a local
 publication hint or the bounded timeout without holding authority/backend access.
-It registers against the publication lock, so a commit between observation and
-registration cannot be lost. Point sends and turns notify the affected process;
+It registers against the notification mutex and monotonic observed publication
+position, so a local commit between observation and registration cannot be lost.
+The mutex is not held across provider I/O. Point sends and turns notify the affected process;
 turns with outputs also notify delivery/output waiters. Grant and lifecycle
 changes conservatively notify all registered scopes. This reduces unrelated
 worker traffic without requiring a durable watch registry. After waking it runs the signed query again,

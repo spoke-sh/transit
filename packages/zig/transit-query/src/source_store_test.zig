@@ -7,8 +7,9 @@ const Turn = q.station.Turn;
 const Self = @This();
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 const Revisions = std.AutoHashMapUnmanaged(p.Value, u64);
-const Version = struct { view: p.Growth.ReadVersion, state: Map, revisions: Revisions };
+const Version = struct { view: p.Growth.ReadVersion, state: Map, revisions: Revisions, blocks: q.station.testing.Blocks };
 state: Map = .empty,
+blocks: q.station.testing.Blocks = .{},
 revisions: Revisions = .empty,
 versions: std.AutoHashMapUnmanaged(p.Growth.ReadVersionId, Version) = .empty,
 resource: u64 = 7,
@@ -30,6 +31,12 @@ pub const Reader = struct {
     subject: ?p.Authorization.Subject = null,
     pub fn read(self: *Reader, key: p.Value) !?p.Value {
         return self.data.read(key);
+    }
+    pub fn readBlock(self: *Reader, key: p.Value, output: []u8) !?[]const u8 {
+        return self.data.readBlock(key, output);
+    }
+    pub fn prefetchBlocks(self: *Reader, keys: []const p.Value) !void {
+        return self.data.prefetchBlocks(keys);
     }
     pub fn currentReader(self: *Reader) *Turn {
         return &self.data;
@@ -97,10 +104,12 @@ fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization.Obj
 pub fn deinit(self: *Self) void {
     self.authority.deinit();
     self.state.deinit(t.allocator);
+    self.blocks.deinit(t.allocator);
     self.revisions.deinit(t.allocator);
     var versions = self.versions.valueIterator();
     while (versions.next()) |retained| {
         retained.state.deinit(t.allocator);
+        retained.blocks.deinit(t.allocator);
         retained.revisions.deinit(t.allocator);
     }
     self.versions.deinit(t.allocator);
@@ -110,6 +119,7 @@ pub fn clone(self: *Self) !Self {
     copy.authority = try self.authority.clone();
     errdefer copy.authority.deinit();
     copy.state = try self.state.clone(t.allocator);
+    copy.blocks = try self.blocks.clone(t.allocator);
     copy.revisions = try self.revisions.clone(t.allocator);
     return copy;
 }
@@ -160,15 +170,31 @@ fn versionEntries(raw: *anyopaque, view: p.Growth.ReadVersion, key: ?p.Value, af
     }
     return pageMap(&retained.state, &retained.revisions, after);
 }
+fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    if (self.denied) return error.AccessDenied;
+    if (query.source == .view) return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
+    const retained = self.versions.getPtr(query.source.version.id) orelse return error.InvalidReadVersion;
+    if (retained.view.released_at != null) return error.InvalidReadVersion;
+    const view: p.Growth.View = .{ .id = 1, .pid = self.pid, .principal = 2, .generation = 1, .input = 1, .process_revision = retained.view.revision, .resource = self.resource, .revision = retained.view.revision, .deadline_ms = 10000 };
+    var selected = query;
+    selected.source = .{ .view = 1 };
+    var result = try retained.blocks.read(selected, body, view);
+    result.view = null;
+    result.version = retained.view;
+    return result;
+}
 pub fn capture(self: *Self) !Turn {
-    return Turn.init(.{ .realm = 1, .principal = 2, .pid = self.pid, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .version = version, .version_entries = versionEntries, .authorization = authorize, .authorization_binding = binding });
+    const proposal = try Turn.init(.{ .realm = 1, .principal = 2, .pid = self.pid, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .blocks = readBlocks, .page = page, .version = version, .version_entries = versionEntries, .authorization = authorize, .authorization_binding = binding });
+    try self.blocks.views.put(t.allocator, proposal.view.id, proposal.view);
+    return proposal;
 }
 pub fn commit(self: *Self, turn: Turn) !void {
     try turn.validate();
     for (turn.decision.retain, 0..) |slot, index| if (slot) |id| {
         try t.expectEqual(turn.view.id, id);
         const identity: p.Growth.ReadVersionId = .{ .pid = turn.delivery.pid, .input = turn.delivery.input.position, .index = @intCast(index) };
-        try self.versions.put(t.allocator, identity, .{ .state = try self.state.clone(t.allocator), .revisions = try self.revisions.clone(t.allocator), .view = .{ .id = identity, .resource = self.resource, .revision = self.revision, .created_at = self.input } });
+        try self.versions.put(t.allocator, identity, .{ .blocks = try self.blocks.clone(t.allocator), .state = try self.state.clone(t.allocator), .revisions = try self.revisions.clone(t.allocator), .view = .{ .id = identity, .resource = self.resource, .revision = self.revision, .created_at = self.input } });
     };
     for (turn.decision.release) |slot| if (slot) |id| {
         const retained = self.versions.getPtr(id) orelse return error.InvalidReadVersion;
@@ -183,6 +209,7 @@ pub fn commit(self: *Self, turn: Turn) !void {
             _ = self.revisions.remove(mutation.key);
         }
     };
+    try self.blocks.apply(t.allocator, &turn.decision.blocks, self.revision + 1);
     self.revision += 1;
     self.input += 1;
 }

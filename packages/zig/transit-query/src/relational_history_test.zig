@@ -98,13 +98,12 @@ test "history vectors preserve consecutive transactions and one native cut acros
         previous = after;
         count += 1;
     }
-    try t.expect(count >= 4);
+    try t.expectEqual(@as(usize, 2), count);
     const address = s.TableHistory.key(100, initial.entries[0].record.head.revision);
-    const original = store.state.get(address).?;
-    _ = store.state.remove(address);
+    const original = store.blocks.records.fetchRemove(address).?.value;
     turn = try tables.turn(&store);
     try t.expectError(error.TableHistoryGap, History.open(&turn, t.allocator, bundle, 17, initial, 1));
-    try store.state.put(t.allocator, address, original);
+    try store.blocks.records.put(t.allocator, address, original);
     // A cached data root never grants continuing read permission.
     var policy = try q.catalog.testing.Authority.Rights.administrator(tables.configuration.scope, 17);
     policy.revision = 2;

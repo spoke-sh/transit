@@ -12,9 +12,10 @@ pub const Config = struct {
     interval_ms: u32 = 1000,
     operation_timeout_ms: u32 = 5000,
     checkpoint_every_records: ?u64 = null,
+    storage: core.protocol.Storage.Maintenance = .{},
 };
-const Progress = struct { scan: core.growing.Maintenance = .{}, maintained: u64 = 0 };
-const Outcome = enum { idle, transition, checkpointed, trimmed };
+const Progress = struct { scan: core.growing.Maintenance = .{}, maintained: u64 = 0, storage_turn: bool = false };
+const Outcome = enum { idle, transition, checkpointed, trimmed, storage };
 fn sample(engine: anytype) anyerror!?core.Time.Sample {
     const source = engine.clock orelse return null;
     return try source.sample();
@@ -39,6 +40,37 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, progress: *P
         try engine.journal.maintain(engine.head);
         progress.maintained = engine.head.history_floor;
         return .trimmed;
+    }
+    // Alternate background storage work with lifecycle/control scans. Each
+    // collection unit has its own durable cursor and shares this timeout budget.
+    progress.storage_turn = !progress.storage_turn;
+    if (progress.storage_turn and engine.clock != null) {
+        var collection = backend.StorageCollection.init(engine.journal.journal);
+        const saved = try collection.current();
+        if (saved != null and saved.?.phase != .complete) {
+            const now = (try sample(engine)).?;
+            if (saved.?.phase == .wait and now.lower() > saved.?.grace_until_ms and engine.head.time_floor_ms <= saved.?.grace_until_ms) {
+                request.command = .{ .storage_fence = {} };
+                _ = try engine.submit(try g.sign(request, key));
+                return .storage;
+            }
+            if (try collection.step(engine, now)) return .storage;
+        } else {
+            var queue = try engine.page_store.allocations();
+            const inventory = try queue.current();
+            const previous = if (saved) |value| value.inventory_end else 0;
+            if ((saved != null and saved.?.aborted) or inventory.position + 1 - previous >= config.storage.collection_every_records) {
+                if (config.storage.compact and engine.head.compaction.phase != .complete) {
+                    request.command = .{ .storage_compact = {} };
+                    _ = try engine.submit(try g.sign(request, key));
+                    return .storage;
+                }
+                request.command = .{ .storage_fence = {} };
+                const fence = try engine.submit(try g.sign(request, key));
+                try collection.start(engine, fence);
+                return .storage;
+            }
+        }
     }
     // Clock failure cannot disable already authorized physical maintenance or
     // terminal-source disposition. The scanner evaluates time only if needed.
@@ -95,7 +127,7 @@ fn boundedStep(io: std.Io, engine: anytype, config: Config, key: core.Ed25519.Ke
     };
 }
 pub fn run(init: std.process.Init, engine: anytype, config: Config, diagnostics: *observations.telemetry.Runtime) !void {
-    if (config.principal > core.protocol.max_counter or config.interval_ms == 0 or config.interval_ms > 60000 or
+    if (config.storage.collection_every_records == 0 or config.storage.collection_every_records > core.protocol.max_counter or config.principal > core.protocol.max_counter or config.interval_ms == 0 or config.interval_ms > 60000 or
         config.operation_timeout_ms == 0 or config.operation_timeout_ms > 60000 or
         (config.checkpoint_every_records != null and (config.checkpoint_every_records.? < 2 or !engine.genesis.allow_history_trim))) return error.InvalidMaintenanceConfig;
     const key = try wire.readKey(init.gpa, init.io, config.seed_file);

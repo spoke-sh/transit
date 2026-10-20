@@ -53,7 +53,8 @@ destruction. No callback enters the host through this ABI.
 
 One operation may execute per client at a time; another call returns `busy`.
 Sharing a principal across clients still requires application-level sequencing.
-The host schedules blocking calls on bounded runtime workers, joins them before
+The host supplies at least the generated `minimum_stack_bytes` (8 MiB) for each
+calling thread. It schedules blocking calls on bounded runtime workers, joins them before
 destroying the client, and does not block its event loop/BEAM scheduler. Dropping
 a host await does not cancel a native call, commit or remote operation. Deadline
 handling joins native I/O before returning. A future asynchronous adapter must
@@ -76,7 +77,10 @@ return immediately with no automatic retry.
 ## Recovery and errors
 
 `transit_operation_export` produces a versioned, canonical envelope containing
-the contract definition, operation kind, signed request/query and signature. It contains no private
+the contract definition, operation kind, signed request/query, signature and any
+owned block body. A command without a body retains `blocks: null` in this saved
+representation; its ordinary signed HTTP request omits the optional body field.
+The envelope contains no private
 seed, but can contain application data and must be protected. A host can persist
 those exact bytes and reconstruct the operation with `transit_operation_import`
 after losing every native handle. Import rejects a missing or different definition, unsupported version, malformed

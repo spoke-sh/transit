@@ -54,7 +54,7 @@ def run(node, caller):
                     upstream.request(self.command, self.path, body, headers)
                     response = upstream.getresponse()
                     data = response.read()
-                    if self.command == "POST" and "/q-" in self.path and fault["page"]:
+                    if self.command == "PUT" and "/s-" in self.path and fault["page"]:
                         assert 200 <= response.status < 300
                         assert self.headers.get("Stream-Record-Match") is None
                         fault["page"] = False

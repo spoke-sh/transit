@@ -60,8 +60,40 @@ pub fn close(self: *Self) !void {
     _ = try self.client.query(.{ .close_snapshot = self.snapshot.id });
     self.closed = true;
 }
+/// Complete bulk bytes at this same leased cut. Validation/renewal and failure
+/// poisoning match metadata reads; this never reacquires a different snapshot.
+pub fn blockBatch(self: *Self, request: g.SnapshotRead.Query, body: *p.Blocks.Body) !g.SnapshotRead.Result {
+    body.* = .{};
+    errdefer body.* = .{};
+    if (self.closed) return error.QueryClosed;
+    if (request.snapshot != .existing or !std.meta.eql(request.snapshot.existing, self.snapshot.id)) return error.InvalidResourceRead;
+    if (self.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+    if (self.failed) |err| return err;
+    const acquired = self.client.queryBlocks(.{ .snapshot_read = request }) catch |err| {
+        self.failed = err;
+        return err;
+    };
+    const result = acquired.response.body.snapshot_read;
+    if (!std.meta.eql(result.snapshot.resource, self.snapshot.resource) or result.snapshot.hard_deadline_ms != self.snapshot.hard_deadline_ms) {
+        self.failed = error.InvalidResourceRead;
+        return error.InvalidResourceRead;
+    }
+    self.snapshot = result.snapshot;
+    self.closed = result.finished;
+    body.* = acquired.blocks;
+    return result;
+}
 pub fn read(self: *Self, key: p.Value) !?p.Value {
     return if (try self.entry(key)) |value| value.value else null;
+}
+pub fn prefetchBlocks(_: *Self, _: []const p.Value) !void {}
+pub fn readBlock(self: *Self, key: p.Value, output: []u8) !?[]const u8 {
+    var request: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.snapshot.id } };
+    request.blocks[0] = key;
+    var body: p.Blocks.Body = .{};
+    const result = try self.blockBatch(request, &body);
+    const batch_value = try root.BlockBatch.init(request.blocks, result.blocks, body);
+    return batch_value.read(key, output);
 }
 pub fn entry(self: *Self, key: p.Value) !?g.Entry {
     return (try self.fetch(key, null)).entries[0];

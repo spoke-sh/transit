@@ -23,9 +23,8 @@ commitment nor authorization evidence: immutable nodes and row blobs retain
 their complete 256-bit SHA-256 commitments. Prefix collisions can add bounded
 per-candidate reads but cannot substitute a row or weaken uniqueness checking.
 The shorter entries reduce every keyed leaf's encoded size. Two small keyed
-rows need a 234-byte leaf, within the 246-byte inline page payload, allowing a
-changed point write to compose its row, index, head and receipt in four writes
-after its predecessor history record has been staged.
+rows need a 234-byte leaf. Immutable row/index/history blocks compose with head
+and receipt metadata within the separate native block and metadata budgets.
 Unkeyed Tables have no `K` entries and permit duplicate payloads. A row's identity
 does not change when its primary key changes.
 
@@ -74,42 +73,45 @@ the same candidate interval. The sealed overlay rejects further writes.
 An owner must keep its frozen input/root and reserved interval across staging
 turns; this helper supplies neither an admission record nor a transaction.
 
-## Captured KV page storage
+## Captured block storage
 
-`TablePages` stores records under Publication domain 8 and namespace equal to the
-stable Table object ID in one resource. It requires a namespace manifest before
-every read/write. The `d` key has ID/index zero and stores `STM1`, the exact
-32-byte shared native contract definition, and maximum record bytes:u32le.
-Missing, foreign or malformed definitions reject. Initialization never adopts a
-preexisting budget with a missing manifest. Manifest and Publication budget are
-initialized together; changing the configured limits rejects.
-When both records are absent, one bounded committed namespace page must prove
-there are no orphan records. Private namespace writes cannot hide or substitute
-for that check. Read failure rejects initialization.
+`TablePages` uses domain 8 and namespace equal to the stable Table object ID in
+one resource. The small metadata index retains a mandatory manifest at tag `d`,
+ID/index zero: `STM1`, raw 32-byte native definition and record limit:u32le.
+Manifest and Publication budget initialize together. Missing/foreign definitions,
+changed limits and orphan records reject; initialization checks both bounded
+metadata and block-index namespace pages. Private writes cannot hide that check.
 
-Records of 1–246 bytes use the `i` tag, record ID and index zero. Their value is
-`STP1`, format:u32le, payload length:u16le and payload. Larger records use the
-ordinary Publication descriptor/chunks in the same namespace. Record length
-determines the representation; there is no fallback decoder. A record ID cannot
-change representation or content. Reads verify the complete spec digest and
-namespace definition under the supplied current/retained source. Missing data,
-denial, altered bytes and cross-resource access reject. The known formats are
-index `0x53495801`, row `0x54525701`, and schema `0x54534301` containing `FTS1`.
+All immutable typed data lives in the resource block index at tag `c`, record ID
+and block index:u32be. A block contains `SBR1`, format:u32le, complete logical
+length:u32le, complete 32-byte Publication digest, then at most 65,280 payload
+bytes. This payload bound is 255 logical digest chunks of 256 bytes. Every part
+repeats the same spec. The final part has exactly the remaining payload length;
+there are no padding or alternate representations. Native block digests protect
+the complete envelope independently of the logical record digest.
 
-`stage` returns `ready` or `progress`. A small record prepares one private KV
-write. A larger record performs one Publication begin/append/publish step, using
-at most two private writes. `ready` means the record can be composed into the
-enclosing turn; it does not mean that turn committed or the Table accepted the
-statement. Errors roll back this call's private writes and preserve read-error
-poisoning. Replay compares the immutable identity/spec and cannot overwrite it.
+Known formats are index `0x53495801`, row `0x54525701` and schema `0x54534301`.
+A complete record of at most 65,280 bytes stages as one private block. Larger
+records retain Publication's quota/descriptor state machine in the metadata
+index, with `written` and `collected` counted in logical 256-byte digest units.
+Each stage appends complete bulk blocks, advances the digest chain and persists
+its exact descriptor. The last stage verifies the full digest and releases the
+unfinished-record quota. No old KV chunk/inline decoder is used.
 
-The per-record limit applies to both representations. Publication quotas bound
-unfinished large records; the Table owner separately reserves complete operation
-work and native deployment quotas apply to all retained records. Completed page
-storage alone does not grant permission for admission, head publication, cleanup
-or ID reuse. Cancellation/retirement and reference-safe collection remain owner
-operations. This storage adapter does not publish a native Table head or expose
-the general profile through SQL callers.
+`stage` returns `ready` or `progress`. Ready describes a private complete record,
+not a committed turn or accepted Table change. Errors restore the entire call's
+proposal without clearing failed-read poisoning. Retry verifies exact identity
+and content. A native turn permits sixteen block mutations and 128 KiB of block
+bytes separately from four small metadata mutations. It never accepts a partial
+block. Native quotas apply to retained storage; Publication limits bound the
+record and incomplete large-record reservations, not total Table cardinality.
+
+Reads verify the namespace, exact spec, complete length and logical digest at
+one captured/retained cut. Multi-block records require a published descriptor and
+fetch at most two blocks per request. Row lookahead admits eight single-block
+records only when their combined encoded size fits 128 KiB. Missing/corrupt data,
+denial and cross-resource access fail; no successful prefix is disclosed.
+Publication/cleanup admission and nonreused IDs remain the Table owner's duty.
 
 ## Table heads
 
@@ -136,10 +138,8 @@ record floor, and stages the predecessor before preparing the head write.
 The owner validates all successor
 records before replacement and publishes outcome/input progress atomically.
 These helpers do not manufacture current permissions or operation admission.
-Large schema Publication cursors require a committed source: finish their
-immutable publication before the head-validation turn. An inline schema can be
-read through private point writes. These rules preserve the existing prohibition
-on opening a Publication cursor after private mutations.
+Complete schema blocks can be verified through the private turn before the head
+is composed. Captured/retained readers exclude those private block mutations.
 
 A retired head is permanent and cannot have pending work. Neither creation nor
 replacement can reset it. Its schema and immutable data remain available to
@@ -149,7 +149,8 @@ dependencies, name removal/reuse and physical cleanup remain explicit owner work
 
 ## Complete committed head history
 
-`TableHistory` stores each predecessor under Table namespace tag `j`, record ID
+`TableHistory` stores each predecessor in the resource block index under Table
+namespace tag `j`, record ID
 equal to the head revision, chunk index zero. `STJ1` is magic (4 bytes), native
 entry revision:u64le, and the complete canonical `STH1` bytes, at most 241 bytes.
 The nested head's shared definition is mandatory. The native position comes
@@ -343,7 +344,8 @@ writes: changing coordinator or intent at an occupied identity rejects.
 
 Admission reserves a bounded immutable record interval and records the busy
 head, receipt and candidate progress with the predecessor archive atomically.
-The live schema/data root stays unchanged. Admission uses the four writes;
+The live schema/data root stays unchanged. Admission uses three small metadata
+mutations and one predecessor block;
 INSERT starts row staging on a continuation. Its saved cursor stays at the start
 until the complete batch is staged. Every later
 step verifies that exact head revision, pending identity,
@@ -365,8 +367,9 @@ their complete reachable pages before advancing the candidate root/cursor/counts
 and reserving a new interval. Each interval contains `TableCandidate.max_records`
 IDs; unused IDs stay consumed. This is a finite operation budget, not a collection
 cardinality bound. The candidate accumulates in durable immutable pages, not RAM.
-Native turns retain the four-mutation limit. A page-only turn may precede the
-four-write progress advance, including its predecessor. The last INSERT batch can complete directly once
+Native turns retain four metadata mutations plus sixteen block mutations and
+128 KiB of block bytes. A block-only turn may precede the progress advance;
+predecessors use the block budget. The last INSERT batch can complete directly once
 all its records are staged. Lost proposals repeat the same batch/row and reserved
 IDs; a saved cursor never points beyond unpublished candidate pages.
 
@@ -398,17 +401,17 @@ closed range, with no schema, root or pending identifier inside it. Cleanup does
 not traverse accepted graphs to guess liveness and cannot collect arbitrary IDs.
 Current owner authorization and native captured-turn fencing still apply.
 
-A bounded native page locates the next allocated inline record or Publication
-descriptor in the interval, skipping gaps. Cleanup validates representation before
-removal. It deletes inline candidate records, abandons staging Publications or
-retires published candidate Publications, then uses their existing bounded chunk
-collector. A full four-write collection commits before saving the cursor in a
-later turn. Permanent descriptors make that repeat exact; quota release occurs
-once through the Publication budget. Progress loss never skips incomplete cleanup.
+Bounded native block-index pages locate allocated records in the closed range,
+skipping unused IDs. A second metadata scan covers large-record descriptors,
+including closed records whose blocks are already removed. Single-block records
+lose their current edge; large records close and remove at most two block edges
+per collection step, persisting exact progress and releasing unfinished quota
+once. A full metadata budget can defer the cursor write. Retrying never skips
+incomplete collection or changes the accepted receipt.
 
 The separate cursor key is `00 58`, object/principal/operation:u64be. Its 93-byte
 `STX1` value holds magic, raw native definition, exact request digest, first/end/
-next record IDs:u64le and phase:u8 (inline=1, Publications=2, complete=3). Range,
+next record IDs:u64le and phase:u8 (blocks=1, descriptors=2, complete=3). Range,
 digest, phase and cursor bounds are checked on every continuation. Receipts,
 heads and ID floors never change. Completion is repeatable and performs no new
 writes. This removes current candidate storage; protected older provider roots

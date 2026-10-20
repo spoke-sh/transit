@@ -52,7 +52,7 @@ def run(node, cli, library, artifacts, report_path=None):
                 # Reject raw double slashes rather than letting the HTTP
                 # handler's normalized path conceal a native URL-joining bug.
                 path = self.requestline.split()[1]
-                if path not in ('/v1/command', '/v1/query'):
+                if path not in ('/v1/command', '/v1/query', '/v1/blocks'):
                     self.send_error(400)
                     return
                 body = self.rfile.read(int(self.headers['Content-Length']))

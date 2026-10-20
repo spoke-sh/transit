@@ -45,9 +45,10 @@ fn definition() [32]u8 {
 fn add(left: u64, right: u64) !u64 {
     return std.math.add(u64, left, right) catch return error.TableCapacity;
 }
-fn writeCount(turn: *const Turn) usize {
+fn progressCount(turn: *const Turn) usize {
     var count: usize = 0;
     for (turn.decision.mutations) |slot| count += @intFromBool(slot != null);
+    for (turn.decision.blocks.mutations) |slot| count += @intFromBool(slot != null);
     return count;
 }
 fn record(turn: *Turn, result: Write.Status) !void {
@@ -238,8 +239,8 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         head = reserved;
         break :blk admitted;
     };
-    // Admission publishes its predecessor, reservation, status and progress in
-    // four writes. Candidate staging starts from that accepted reservation.
+    // Admission publishes its predecessor block with reservation, status and
+    // progress metadata. Candidate staging starts from that accepted reservation.
     if (prior == null) return result;
     var progress = try Progress.load(turn, result, head);
     try validateCandidate(head, progress, request.plan);
@@ -315,9 +316,9 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         try progress.save(turn, reference);
         return result;
     }
-    const count_before = writeCount(turn);
+    const count_before = progressCount(turn);
     const ready = stageAll(turn, pages, &overlay) catch |err| {
-        if (err != error.MutationBudgetExceeded or (prior != null and writeCount(turn) == count_before)) return err;
+        if (err != error.MutationBudgetExceeded or (prior != null and progressCount(turn) == count_before)) return err;
         return result;
     };
     if (!ready) return result;
@@ -325,7 +326,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         const staged = turn.decision;
         return finish(turn, head, result, progress, request.plan.action) catch |err| {
             turn.decision = staged;
-            if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+            if (err != error.MutationBudgetExceeded or progressCount(turn) == count_before) return err;
             return result;
         };
     }
@@ -340,7 +341,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     result.end_record = reserved.next_record;
     advance(turn, head, reserved, result, progress) catch |err| {
         turn.decision = staged;
-        if (err != error.MutationBudgetExceeded or writeCount(turn) == count_before) return err;
+        if (err != error.MutationBudgetExceeded or progressCount(turn) == count_before) return err;
         return running;
     };
     return result;

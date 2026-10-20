@@ -2,28 +2,62 @@
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
         "open_snapshot": {
           "resource": 17,
-          "nonce": "\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007\u0007"
+          "nonce": [
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7
+          ]
         }
       }
     },
-    "digest": "633c67f59fa8201a125970353bb317e8466a4842795762982e82f0d5e796f985"
+    "digest": "27319613d6f4005f57184504da7fc863feb83f378b394676edbe4c35b9998e6c"
   },
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
         "snapshot_entries": {
           "id": {
-            "epoch": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f",
+            "epoch": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
             "serial": 23
           },
           "key": "726f77",
@@ -31,21 +65,38 @@
         }
       }
     },
-    "digest": "e58bcb21a1097eea7a83888e36538a0afe0211980a4723b36fd5e57b71e5b8ac"
+    "digest": "f1d93b7e39099d668bf7f5b1470ad24c4dc585db2c2ee803fd38448f920c652c"
   },
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
         "close_snapshot": {
-          "epoch": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f",
+          "epoch": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
           "serial": 23
         }
       }
     },
-    "digest": "4e5ffeff41fbca922e26ec48ec036c4ebeaf51a78cd71a93fd16533135aaeed3"
+    "digest": "b4d8fde4375cf3223276181cf048b701069afc6075ce6fe73cd428e34f237228"
   }
 ]

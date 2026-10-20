@@ -127,6 +127,14 @@ pub fn Source(comptime Reader: type) type {
             try self.authority.consume();
             return self.data.read(key);
         }
+        pub fn readBlock(self: *Self, key: p.Value, output: []u8) !?[]const u8 {
+            try self.authority.consume();
+            return self.data.readBlock(key, output);
+        }
+        pub fn prefetchBlocks(self: *Self, keys: []const p.Value) !void {
+            for (keys) |_| try self.authority.consume();
+            try self.data.prefetchBlocks(keys);
+        }
         pub fn entry(self: *Self, key: p.Value) !?p.Growth.Entry {
             try self.authority.consume();
             return self.data.entry(key);
@@ -145,7 +153,7 @@ pub fn Source(comptime Reader: type) type {
         }
         /// Preserve the caller's bounded immutable-node cache through authority
         /// decoration; readers without one retain the uncached profile.
-        pub fn tableIndexCache(self: *Self) ?*c.station.ImmutableIndex.Cache {
+        pub fn tableIndexCache(self: *Self) ?*c.station.TablePages.Cache {
             if (comptime @hasDecl(@typeInfo(Reader).pointer.child, "tableIndexCache")) return self.data.tableIndexCache();
             return null;
         }

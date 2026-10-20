@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import argparse
+import base64
 from contextlib import nullcontext
 import json
 import select
@@ -92,13 +93,23 @@ def run(node, proof, host, cli, station_host, *arguments):
                                     measurements['max_value_bytes'] = max(measurements['max_value_bytes'], len(encoded))
                                     if encoded.startswith(b'TCA1E'):
                                         measurements['dispositions'].append(encoded[-1])
-                                    if encoded.startswith(b'STJ1'):
-                                        # Head resource is inside STJ1 + STH1;
-                                        # exact native retries cannot count twice.
-                                        identity = encoded[48:56].hex(), entry['key']
-                                        if identity in archived_heads:
-                                            assert archived_heads[identity] == encoded
-                                        archived_heads[identity] = encoded
+                            block_bytes = base64.b64decode(json.loads(body).get('blocks') or '', validate=True)
+                            offset = 0
+                            for entry in turn.get('blocks', []):
+                                if entry is None or entry['value'] is None:
+                                    continue
+                                size = entry['value']['bytes']
+                                encoded = block_bytes[offset:offset + size]
+                                assert len(encoded) == size
+                                offset += size
+                                if encoded.startswith(b'STJ1'):
+                                    # The immutable predecessor now lives in the
+                                    # block index; exact native retries count once.
+                                    identity = encoded[48:56].hex(), entry['key']
+                                    if identity in archived_heads:
+                                        assert archived_heads[identity] == encoded
+                                    archived_heads[identity] = encoded
+                            assert offset == len(block_bytes)
                         for name, (original, receipt) in faults.items():
                             if body == original:
                                 assert data == receipt, 'Exact accepted request changed its receipt'
@@ -385,6 +396,25 @@ def run(node, proof, host, cli, station_host, *arguments):
             release(denied_buffer, 'CatalogDenied')
             call('table-select', 'allow')
             call('pump')
+
+            disclosure_samples = []
+            # Snapshot request ceilings from the complete four-row deployment
+            # control; preserve empty-result costs as well as batch savings.
+            for sql, single_limit, batch_limit in (
+                ('SELECT v FROM rel_left', 25, 17),
+                ('SELECT v FROM rel_left LIMIT 0', 15, 15),
+                ('SELECT v FROM rel_left WHERE k = 999', 17, 17),
+            ):
+                single = call('select-batch', sql)
+                bulk = call('select-batch-disclosure', sql)
+                assert single['rows'] == bulk['rows'] and single['complete'] and bulk['complete']
+                assert single['requests'] <= single_limit, (sql, single_limit, single)
+                assert bulk['requests'] <= batch_limit, (sql, batch_limit, bulk)
+                if single['rows']:
+                    assert bulk['requests'] < single['requests'], (single, bulk)
+                else:
+                    assert bulk['requests'] == single['requests'], (single, bulk)
+                disclosure_samples.append(dict(sql=sql, rows=len(bulk['rows']), single_requests=single['requests'], batch_requests=bulk['requests']))
 
             joined = call('relational', 'SELECT l.v AS left_value, r.v AS right_value FROM rel_left l JOIN rel_right r ON l.k = r.k')
             assert relational_values(joined) == [[10,1],[10,2],[10,3],[20,1],[20,2],[20,3]], joined
@@ -781,7 +811,7 @@ def run(node, proof, host, cli, station_host, *arguments):
                 maximum_record_bytes=max(map(len, archived_heads.values())),
                 paired_changes=len(changes), restart=True, current_denial=True)
             print(json.dumps(dict(profile='table-history-native', **history_measurements)))
-            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
+            print(json.dumps(dict(profile='typed-table-native', seconds=round(time.monotonic() - started, 3), held_snapshot_renewals=snapshot_renewals, lost_reply_replays=sorted(replays), supplied_host_lost_receipt='host_turn' in faults, measurements=measurements, bridge=bridge_result, catalog_cli=cli_result, installed=installed, logical_types=logical_types, prepared_parameters=prepared_parameters, growth=growth, maintained=maintained, vectorization=dict(paired_native_samples=vector_samples, buffered_denial=True), disclosure=dict(samples=disclosure_samples, buffered_denial=True), relational=dict(join_rows=len(joined['rows']), grouped_rows=len(grouped['rows']), shared_cut=True, retained_update=True, current_denial=True, console=True, requests=grouped['requests'], spill_bytes=grouped['spill_bytes'], heap_peak=grouped['heap_peak'], captured=dict(checkpoint_restart=True, exact_receipt_retry=True, fresh_owner=True, retained_source_change=True, current_result_denial=True, denied_source_cleanup=True)))))
         finally:
             release_host_reply.set()
             for worker in workers:

@@ -1,4 +1,4 @@
-//! Test-only atomic journal and immutable pages with a two-page volatile cache.
+//! Test-only atomic journal, immutable blocks and a two-page volatile cache.
 //! A trace injects one failure at a numbered I/O boundary; no real disk claim.
 const std = @import("std");
 const core = @import("transit_core");
@@ -8,6 +8,7 @@ pub const Counts = struct { stages: u32 = 0, loads: u32 = 0, appends: u32 = 0, t
 allocator: std.mem.Allocator,
 entries: std.ArrayList(?core.Entry) = .empty,
 pages: std.AutoHashMapUnmanaged(core.pages.Reference, core.pages.Page) = .empty,
+blocks: @import("simulation_blocks.zig") = .{},
 cache: [2]?struct { reference: core.pages.Reference, page: core.pages.Page } = @splat(null),
 next_cache: u1 = 0,
 fault: Fault = .none,
@@ -16,7 +17,7 @@ counts: Counts = .{},
 staged: u64 = 0,
 trimmed: u64 = 0,
 
-pub fn begin(self: *Self, fault: Fault, at: u16) void {
+pub fn beginFault(self: *Self, fault: Fault, at: u16) void {
     self.fault = fault;
     self.fault_at = at;
     self.counts = .{};
@@ -50,6 +51,19 @@ pub fn load(self: *Self, reference: core.pages.Reference) !core.pages.Page {
     self.cache[self.next_cache] = .{ .reference = reference, .page = page };
     self.next_cache +%= 1;
     return page;
+}
+pub fn stageBlock(self: *Self, spec: core.protocol.Blocks.Spec, bytes: []const u8) !core.blocks.Reference {
+    self.counts.stages += 1;
+    if (self.fail(.stage_before, self.counts.stages)) return error.StorageUnavailable;
+    const reference = try self.blocks.stage(self.allocator, spec, bytes);
+    self.staged += 1;
+    if (self.fail(.stage_after, self.counts.stages)) return error.LostStageAcknowledgement;
+    return reference;
+}
+pub fn loadBlock(self: *Self, reference: core.blocks.Reference, output: []u8) ![]const u8 {
+    self.counts.loads += 1;
+    if (self.fail(.load, self.counts.loads)) return error.BlockUnavailable;
+    return self.blocks.load(reference, output);
 }
 pub fn tail(self: *Self) !u64 {
     return self.entries.items.len;

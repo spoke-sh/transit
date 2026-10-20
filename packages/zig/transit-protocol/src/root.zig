@@ -2,6 +2,8 @@
 const std = @import("std");
 pub const version = 1;
 pub const Value = @import("Value.zig");
+pub const Storage = @import("Storage.zig");
+pub const Blocks = @import("Blocks.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Json = @import("Json.zig");
 pub const Schema = @import("Schema.zig");
@@ -18,7 +20,9 @@ pub const max_turn_outputs = Growth.turn_outputs;
 pub const max_counter = (1 << 53) - 1;
 pub const max_admission_ceiling = 65536;
 pub const max_control_reserve = 65536;
-pub const max_entry_bytes = 8192;
+// Bounded canonical logical request, including sixteen block descriptors.
+// Bulk bodies have a separate 128 KiB budget and never enter this record.
+pub const max_entry_bytes = 16 * 1024;
 pub const max_body = 256 * 1024;
 pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish, delivery };
 pub const all_permissions: u16 = 0xff;
@@ -51,6 +55,7 @@ test {
     _ = Schema;
     _ = Growth;
     _ = Value;
+    _ = Blocks;
     _ = Diagnostic;
     _ = EffectDiagnostic;
     _ = Authorization;
@@ -125,6 +130,8 @@ pub const ErrorCode = enum {
     ConflictingRetry,
     ControlAlreadyRecorded,
     ControlCapacity,
+    StorageQuota,
+    StorageCandidateBudget,
     DeadlineExpired,
     DeadlineNotReached,
     DeadlineUncertain,
@@ -140,6 +147,7 @@ pub const ErrorCode = enum {
     InvalidAttempt,
     InvalidBinding,
     InvalidBody,
+    InvalidBlockBody,
     InvalidBudget,
     InvalidEffect,
     InvalidEncoding,

@@ -8,7 +8,8 @@ within the [native v1 protocol](TRANSIT_V1.md). The current
 
 ## Compatibility and persistence
 
-All commands use the signed `/v1/command` envelope; reads use `/v1/query`.
+All commands use the signed `/v1/command` envelope; metadata reads use
+`/v1/query` and complete immutable block reads use `/v1/blocks`.
 They share the native contract definition identifier, signature domains and
 current authorization checks. The authority accepts only the current definition;
 it does not decode previous inline-state histories or translate saved operations.
@@ -30,7 +31,8 @@ application handlers or redispatching effects.
 | --- | --- |
 | Key or association name | 1–32 bytes, compared as opaque bytes |
 | Value | 0–256 bytes, canonical lowercase hexadecimal encoding |
-| Mutations | Four distinct keys in one resource per turn |
+| Small metadata mutations | Four distinct keys in one resource per turn |
+| Immutable block mutations | Sixteen distinct keys, 128 KiB total, at most 64 KiB per block |
 | Declared views | Four per turn |
 | Returned records | Eight per page |
 | Durable view lifetime | At most 60 seconds, requiring trusted authority time |
@@ -41,7 +43,10 @@ These bounds limit individual operations and resident work. There is no fixed
 realm-wide array of resource identities, keys, associations or views. Explicit
 admission quotas and dependency budgets remain enforceable. The native
 capabilities query reports configured limits. Large values require application
-segmentation or the owning bulk publication contract.
+segmentation or the [immutable block contract](BLOCK_V1.md). Blocks and metadata
+share the same one-resource revision, writer/view and acceptance boundary.
+`Resource.entries` counts small metadata; `block_entries` counts the separate
+resource-owned block index.
 
 ## Commands and rights
 

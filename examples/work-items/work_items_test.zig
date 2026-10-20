@@ -5,6 +5,7 @@ const p = W.app.protocol;
 const t = std.testing;
 const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
 const Store = struct {
+    blocks: s.testing.Blocks = .{},
     entries: std.AutoHashMap(p.Value, p.Value) = .init(t.allocator),
     changed_at: std.AutoHashMap(p.Value, u64) = .init(t.allocator),
     authority: W.query.catalog.testing.Authority = .{},
@@ -13,9 +14,15 @@ const Store = struct {
     fail_read: bool = false,
     missing_table_binding: bool = false,
     fn deinit(self: *@This()) void {
+        self.blocks.deinit(t.allocator);
         self.authority.deinit();
         self.entries.deinit();
         self.changed_at.deinit();
+    }
+    fn readBlocks(raw: *anyopaque, query: p.Growth.BlockRead.Query, body: *p.Blocks.Body) !p.Growth.BlockRead.Result {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.fail_read) return error.MigrationDenied;
+        return self.blocks.read(query, body, self.blocks.views.get(query.source.view) orelse return error.InvalidRead);
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) anyerror!?p.Value {
         const self: *@This() = @ptrCast(@alignCast(raw));
@@ -53,10 +60,13 @@ const Store = struct {
     fn turn(self: *@This(), principal: u64) !s.Turn {
         self.position += 1;
         if (!self.authority.rights.contains(33)) try self.authority.setRights(.{ .principal = 33 });
-        return s.Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page, .authorization = authorize, .authorization_binding = binding });
+        const captured = try s.Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page, .blocks = readBlocks, .authorization = authorize, .authorization_binding = binding });
+        try self.blocks.views.put(t.allocator, captured.view.id, captured.view);
+        return captured;
     }
     fn commit(self: *@This(), turn_value: *s.Turn) !void {
         try turn_value.validate();
+        try self.blocks.apply(t.allocator, &turn_value.decision.blocks, self.position);
         for (turn_value.decision.mutations) |slot| if (slot) |mutation| {
             if (mutation.value) |value| {
                 try self.entries.put(mutation.key, value);

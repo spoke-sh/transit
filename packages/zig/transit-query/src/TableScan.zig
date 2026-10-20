@@ -9,8 +9,18 @@ const p = q.protocol;
 const g = p.Growth;
 const logical = f.LogicalQuery;
 const Cached = struct { key: p.Value, entry: ?g.Entry };
+// Scan owners move through query construction. Keep their bounded caches at a
+// stable heap address instead of copying bulk bytes through each Debug frame.
+// The supplied allocator charges this storage to the query's resident budget.
+const Scratch = struct {
+    cache: [64]?Cached = @splat(null),
+    cache_slot: usize = 0,
+    table_nodes: s.TablePages.Cache = .{},
+    block_cache: ?q.wire.BlockBatch = null,
+};
 const Scan = @This();
 allocator: std.mem.Allocator,
+scratch: *Scratch,
 connection: c.TableClient.Connection,
 configuration: c.TableCatalogRecords.Configuration,
 authority: c.TableAuthority.Context,
@@ -19,9 +29,6 @@ history_object: ?u64 = null,
 source: q.wire.SnapshotReader,
 owns_lease: bool = true,
 view: @FieldType(q.wire.SnapshotReader, "view"),
-cache: [64]?Cached = @splat(null),
-cache_slot: usize = 0,
-table_nodes: s.ImmutableIndex.Cache = .{},
 requests: u64 = 1,
 request_limit: u64,
 after: ?f.TableRow.Identity = null,
@@ -63,6 +70,9 @@ pub fn open(allocator: std.mem.Allocator, client: *c.TableClient, name: c.TableM
 pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce: [16]u8, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Scan {
     if (request_limit == 0) return error.InvalidQueryBudget;
     try client.connection.validate();
+    const scratch = try allocator.create(Scratch);
+    errdefer allocator.destroy(scratch);
+    scratch.* = .{};
     const resources = client.resources();
     const support = try q.wire.SnapshotReader.support(resources);
     const requested = metadata(client.connection);
@@ -74,7 +84,7 @@ pub fn openResource(allocator: std.mem.Allocator, client: *c.TableClient, nonce:
     }
     if (acquired.reader.snapshot.resource.writer != client.connection.owner or acquired.reader.snapshot.resource.phase != .active) return error.CatalogOwnerChanged;
     var batch = try current(client.connection, acquired.result);
-    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .authority = try client.authorizationContext(), .source = acquired.reader, .view = acquired.reader.view, .request_limit = request_limit };
+    var self: Scan = .{ .allocator = allocator, .scratch = scratch, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .authority = try client.authorizationContext(), .source = acquired.reader, .view = acquired.reader.view, .request_limit = request_limit };
     self.source.cancellation = cancellation;
     for (requested[0].?.keys, acquired.result.points) |key, value| if (key) |address| self.remember(address, value);
     const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
@@ -123,6 +133,7 @@ pub fn deinit(self: *Scan) void {
     if (self.owns_lease) self.source.close() catch {};
     self.source.client.wire.last_rejection = rejection;
     if (self.definition) |*definition| definition.deinit();
+    self.allocator.destroy(self.scratch);
     self.* = undefined;
 }
 /// Reuse an already retained resource cut for another Table/alias. The
@@ -133,7 +144,11 @@ pub fn openAt(allocator: std.mem.Allocator, client: *c.TableClient, name: c.Tabl
     const requested = metadata(client.connection);
     const response = try retained.batch(.{ .snapshot = .{ .existing = source.snapshot.id }, .current = requested, .points = requested[0].?.keys });
     var batch = try current(client.connection, response);
-    var self: Scan = .{ .allocator = allocator, .connection = client.connection, .configuration = try configurationAt(client.connection, &batch), .authority = try client.authorizationContext(), .source = retained, .owns_lease = false, .view = retained.view, .request_limit = request_limit };
+    const configuration = try configurationAt(client.connection, &batch);
+    const authority = try client.authorizationContext();
+    const scratch = try allocator.create(Scratch);
+    scratch.* = .{};
+    var self: Scan = .{ .allocator = allocator, .scratch = scratch, .connection = client.connection, .configuration = configuration, .authority = authority, .source = retained, .owns_lease = false, .view = retained.view, .request_limit = request_limit };
     errdefer self.deinit();
     for (requested[0].?.keys, response.points) |key, value| if (key) |address| self.remember(address, value);
     const catalog: c.TableCatalog = .{ .configuration = self.configuration, .namespace = self.connection.namespace };
@@ -154,6 +169,7 @@ pub fn nextAfter(self: *Scan, after: ?f.TableRow.Identity) !?logical.Row {
     return self.next();
 }
 pub fn checkCancellation(self: *const Scan) !void {
+    if (self.source.failed) |err| return err;
     if (self.source.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
 }
 pub fn request(self: *Scan, value: g.SnapshotRead.Query) !g.SnapshotRead.Result {
@@ -172,29 +188,61 @@ pub fn validateCurrent(self: *Scan, finish: bool) !void {
     try self.checkRead();
 }
 fn remember(self: *Scan, key: p.Value, entry: ?g.Entry) void {
-    self.cache[self.cache_slot] = .{ .key = key, .entry = entry };
-    self.cache_slot = (self.cache_slot + 1) % self.cache.len;
+    self.scratch.cache[self.scratch.cache_slot] = .{ .key = key, .entry = entry };
+    self.scratch.cache_slot = (self.scratch.cache_slot + 1) % self.scratch.cache.len;
 }
 pub fn read(self: *Scan, key: p.Value) !?p.Value {
     try self.checkCancellation();
-    for (self.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) return if (cached.entry) |entry| entry.value else null;
+    for (self.scratch.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) return if (cached.entry) |entry| entry.value else null;
     try self.prefetch(&.{key});
-    for (self.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) return if (cached.entry) |entry| entry.value else null;
+    for (self.scratch.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) return if (cached.entry) |entry| entry.value else null;
     return error.InvalidResourceRead;
 }
 pub fn prefetch(self: *Scan, keys: []const p.Value) !void {
-    if (keys.len > g.page_size) return error.InvalidResourceRead;
+    return self.prefetchRead(keys, &.{});
+}
+pub fn prefetchBlocks(self: *Scan, keys: []const p.Value) !void {
+    return self.prefetchRead(&.{}, keys);
+}
+/// Resolve a record's bounded metadata and first block at the same leased cut.
+/// The ordinary current-authority disclosure gate still runs after computation.
+pub fn prefetchRecord(self: *Scan, keys: []const p.Value, block: p.Value) !void {
+    return self.prefetchRead(keys, &.{block});
+}
+fn prefetchRead(self: *Scan, keys: []const p.Value, blocks: []const p.Value) !void {
+    try self.checkCancellation();
+    if (self.source.closed) return error.QueryClosed;
+    if (keys.len > g.page_size or blocks.len > g.page_size) return error.InvalidResourceRead;
     var missing: g.SnapshotRead.Keys = @splat(null);
     var count: usize = 0;
     next_key: for (keys) |key| {
-        for (self.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) continue :next_key;
+        for (self.scratch.cache) |slot| if (slot) |cached| if (cached.key.eql(key)) continue :next_key;
         for (missing[0..count]) |earlier| if (earlier.?.eql(key)) continue :next_key;
         missing[count] = key;
         count += 1;
     }
-    if (count == 0) return;
-    const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .points = missing });
+    const cached_blocks = if (self.scratch.block_cache) |*cache| for (blocks) |key| {
+        if (!cache.contains(key)) break false;
+    } else true else blocks.len == 0;
+    if (count == 0 and cached_blocks) return;
+    var request_value: g.SnapshotRead.Query = .{ .snapshot = .{ .existing = self.source.snapshot.id }, .points = missing };
+    const result = if (cached_blocks) try self.request(request_value) else result: {
+        if (self.requests == self.request_limit) return error.QueryPageBudget;
+        self.requests += 1;
+        for (blocks, 0..) |key, i| request_value.blocks[i] = key;
+        var body: p.Blocks.Body = .{};
+        const found = self.source.blockBatch(request_value, &body) catch |err| {
+            self.rejection = self.source.client.wire.last_rejection;
+            return err;
+        };
+        self.scratch.block_cache = try q.wire.BlockBatch.init(request_value.blocks, found.blocks, body);
+        break :result found;
+    };
     for (missing[0..count], result.points[0..count]) |key, value| self.remember(key.?, value);
+}
+pub fn readBlock(self: *Scan, key: p.Value, output: []u8) !?[]const u8 {
+    try self.prefetchBlocks(&.{key});
+    return self.scratch.block_cache.?.read(key, output);
 }
 pub fn page(self: *Scan, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
     const result = try self.request(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .range = .{ .after = after, .limit = g.page_size } });
@@ -215,7 +263,7 @@ pub fn nextAllocated(self: *Scan, row_allocator: std.mem.Allocator) !?logical.Ro
     const definition = &self.definition.?;
     const data: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
     var pages: s.TablePages.Reader(*Scan) = .{ .pages = .{ .resource = self.view.resource, .object = definition.metadata.object }, .source = self };
-    pages.cache = &self.table_nodes;
+    pages.cache = &self.scratch.table_nodes;
     const selected = if (self.point) |key| point: {
         if (self.point_read) break :point null;
         self.point_read = true;

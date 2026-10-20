@@ -18,6 +18,7 @@ pub const Query = struct {
     snapshot: union(enum) { open: struct { resource: g.Id, nonce: [16]u8 }, existing: g.SnapshotId },
     current: [current_resources]?Current = @splat(null),
     points: Keys = @splat(null),
+    blocks: Keys = @splat(null),
     range: ?Range = null,
     finish: bool = false,
 };
@@ -25,6 +26,7 @@ pub const Result = struct {
     snapshot: g.Snapshot,
     current: [current_resources]?CurrentResult = @splat(null),
     points: [g.page_size]?g.Entry = @splat(null),
+    blocks: [g.page_size]?p.Blocks.Entry = @splat(null),
     entries: [range_entries]?g.Entry = @splat(null),
     next: ?p.Value = null,
     finished: bool = false,
@@ -50,7 +52,8 @@ pub fn validate(query: Query) !void {
         .existing => |id| if (id.serial == 0) return error.InvalidRead,
     }
     try keys(query.points);
-    if (query.finish and (query.points[0] != null or query.range != null)) return error.InvalidRead;
+    try keys(query.blocks);
+    if (query.finish and (query.points[0] != null or query.blocks[0] != null or query.range != null)) return error.InvalidRead;
     var ended = false;
     for (query.current, 0..) |slot, i| {
         const value = slot orelse {
@@ -91,6 +94,7 @@ pub fn validateResult(value: Result, query: Query) !void {
         }
     }
     try points(value.points, query.points, value.snapshot.resource.revision);
+    try g.BlockRead.entries(value.blocks, query.blocks, value.snapshot.resource.revision);
     var ended = false;
     var previous = if (query.range) |range| range.after else null;
     var count: usize = 0;

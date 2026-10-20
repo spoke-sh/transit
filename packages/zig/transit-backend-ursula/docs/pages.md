@@ -1,168 +1,130 @@
-# Immutable pages
+# Immutable pages and segments
 
-`PageStore` and `PackedPageStore` implement the
-[core page interface](../../transit-core/docs/pages.md).
-The native v1 node composes the packed mapping. Page persistence alone does not establish authority
-validation or application computation.
-
-Each store borrows a journal/client and owns a bounded decoded-page cache.
-`PackedPageStore` uses least-recently-used replacement; `PageStore` uses FIFO. Evicting a slot never removes durable bytes. Zero slots disables caching;
-the 1,024-slot configuration guard bounds this implementation's resident cache,
-not the number of retained pages. `residentBytes` reports cache allocation only;
-HTTP buffers, parsing, tree stack and the process runtime require additional memory.
-
-The original `PageStore` puts each page in a closed Ursula stream. Its location hashes the journal's
-bucket/name and domain-separated page digest. Staging first reconciles an existing
-stream, or creates it with its complete immutable body, then verifies closure,
-complete read and content identity before returning success. Corrupt or mutable
-content is an error, never an overwrite opportunity. Loading an absent page fails
-and cannot create a stream. Retrying creation after a lost acknowledgement can
-reconcile the same content; failure must never be interpreted as publication.
-
-The adapter does not discover or authorize roots. A conditional append to the
-authority journal must publish them; all candidate pages must be durable first.
-Pages are retained without TTL or GC, including unreachable candidates. No page
-deletion is authorized until retained-root and staging races are qualified.
-This mapping is deliberately measurable: one stream per page and small tree
-fanout can cause substantial metadata and write amplification. Provider scaling requires separate measurement.
+`PackedPageStore` implements the [core page interface](../../transit-core/docs/pages.md)
+and immutable block storage for the native node. It borrows a provider client,
+owns a bounded decoded-page cache, and owns at most one private candidate.
+Provider success cannot authorize a turn: the authority journal publishes roots.
 
 ## Packed mapping
 
-`PackedPageStore` appends immutable page records to one separate JSON journal
-scoped by the authority's bucket and stream name. Bootstrap explicitly creates
-that journal; loads never create missing history. A reference carries a digest
-plus an opaque format-tagged record locator. Core page/catalog format 1 includes
-the locator without interpreting Ursula coordinates. The adapter reads exactly
-one record, verifies returned coordinates and checks the page digest.
+A physical location has 32 opaque bytes: an eight-byte storage epoch, a secure
+16-byte candidate identity and an eight-byte record ordinal. The epoch and ordinal
+are big-endian. A domain-separated hash of the authority bucket/journal and
+candidate identity selects the segment stream. Identities are never intentionally
+reused. Page references bind the compact `TPG1` content; block references bind
+length and the block digest. Core treats placement bytes as opaque.
 
-Staging appends one immutable record and takes its locator from the verified
-single-record acknowledgement. It does not predict a tail or compete for an
-authority position. Independent node/maintenance candidates can interleave page
-records without spurious staging conflicts. Missing/malformed acknowledgements
-fail without a hidden retry or a usable locator; a caller's later retry may leave
-a duplicate unreachable page, which remains retained. Only the separate,
-conditional authority append publishes the root and fences concurrent changes.
-Packing changes placement, not the commit boundary.
+`begin` allocates one bounded private buffer. `stage`, `stageMany` and `stageBlock`
+write canonical base64 JSON strings into that buffer and assign ordinals. Private
+loads can read those frames while constructing their parent indexes. `stageMany`
+accepts at most eight pages; the complete candidate accepts at most 1,024 frames
+and eight MiB of normalized encoded data. These are operation bounds, not limits
+on retained collection cardinality. `discard` releases the private buffer.
 
-`stageMany` accepts at most eight immutable pages and sends a length-prefixed
-provider batch. Each frame is an independent append. The adapter validates every
-JSON acknowledgement, status and exact single-record coordinate before returning
-any reference; concurrent writers may create gaps between coordinates. A lost,
-partial or malformed acknowledgement fails the whole staging call without an
-automatic retry. Accepted records remain unreachable until the authority commits
-an enclosing root. Single-page and batched staging use the same format-1 locators.
+`finish` reserves the complete encoded allocation, including its closing seal,
+in `AllocationQueue` before creating any provider segment. It makes one open
+create attempt containing a JSON array. Ursula normalizes the array to records
+and returns newline-delimited JSON on reads. The backend verifies exact record
+coordinates and every frame in groups of at most 192 KiB, then appends one
+conditional closing seal. Only a successful finish can produce a prepared
+native command. Closure proves that this creator progressed beyond the create
+reply and verified the full candidate. There are no automatic create retries.
+A lost reply leaves discoverable, accounted storage; it cannot publish a partial
+root. Exact already-accepted native retries reconcile their original receipt.
 
-Tree mutation batches use this operation for sibling pages. The encoded staging
-buffer is bounded by eight times 32,770 bytes (a base64 JSON string for at most
-24 KiB of compact bytes); upstream request framing owns a second
-bounded copy. This primitive reduces provider requests and discarded path copies.
-It does not change application mutation quotas, expand inline values or replace
-the durable query result-publication protocol.
+Loads never create storage. They validate the locator, coordinate, complete
+canonical frame and digest. Missing or corrupt data fails. The LRU cache has
+zero to 1,024 slots; eviction cannot remove durable bytes. `residentBytes` reports
+its cache and active candidate buffer, excluding tree stacks, parsers, transport
+buffers and temporary JSON-array framing. That framing is separately bounded by
+the candidate limit. Each native execution lane owns these allocations.
 
-The page journal has no trimming, page GC or rotation yet. Root-journal trimming
-in the proof cannot remove referenced page records. Access is privileged storage
-infrastructure; application clients receive neither locators nor provider access.
-The authority remains a conditional serial journal. Batching reduces page work
-without establishing horizontal throughput.
+`PageStore` remains a closed-stream primitive used by the page-layout comparison
+proof. It stores raw compact page bytes and requires zero opaque locations. It
+is not a decoder or migration path for a preceding native installation.
 
-`page.stage`, `page.stage_batch` and `page.load` emit storage spans through the journal's borrowed
-observer. Expected absence during staging does not emit a failed-load warning.
-Cache hits are excluded from network-operation counts. No keys, values, stream
-names or page digests enter diagnostic events.
+## Allocation ownership and quotas
 
-## Disk proof and measurement
+The allocation ledger is a durable FIFO. Its latest record contains cumulative
+data/control charges and a consumption cursor. Each reservation enqueues its
+identity, encoded byte count, frame count and digest. Collection consumes one
+record and conditionally carries a protected allocation to the tail. Cursor
+advancement and quota release share one append, preventing double release after
+lost replies or restart. No resident set grows with allocation cardinality.
+Verified checkpoints permit trimming the consumed ledger prefix. Per-pass protected
+byte counters distinguish current, captured, history, newer-epoch and permanent
+fence ownership, in that precedence order. They describe the selected cut and
+completed work; a lost carry acknowledgement can omit a diagnostic count. The
+queue's conditional cumulative charge remains the quota authority after restart.
 
-```sh
-just test::pages
-just test::pages --keys 256 --cache 2
-just test::pages --keys 256 --cache 2 --mutation-batch 1
-just test::pages --keys 256 --cache 16
-just test::pages --layout closed --keys 64 --cache 2
-just test::pages-cold --keys 1024 --cache 2
-```
+`storage.limits.bytes` bounds ordinary reserved encoded allocations;
+`storage.limits.control_bytes` reserves independent capacity for control commands
+and collection marks. Defaults are eight GiB and 64 MiB. The candidate limit is
+configured by `storage.limits.candidate_bytes`, at most eight MiB. Quota includes
+unpublished candidates and temporary mark pages. Refusal leaves accepted roots
+and their receipts unchanged. Every allocation uses ordinary capacity when it
+fits. Eligible control commands and collection marks use the reserve only when
+ordinary capacity cannot hold the allocation. The conditional reservation records
+the actual charged budget; carry, release and restart preserve that choice.
+Relocation uses ordinary capacity, keeping the
+collection reserve separate. These counters describe segment records and seals,
+not provider metadata, work-ledger records, WAL replication, snapshots or disk
+filesystem allocation. Those require provider/disk quotas and headroom too.
 
-The proof creates owned disk-backed Ursula, publishes two competing-checked root
-versions, stages an unpublished candidate, and deletes keys only in the later
-root. It verifies both retained versions across SIGKILL/restart with a cold cache.
-It then publishes a root-only snapshot, trims the root journal, restarts again
-and recovers the same views without creating any page streams. This isolates
-page/root persistence; it does not claim process progress or authorization is
-yet included in that publication.
-Interleaved independent page writers each issue one append, obtain distinct
-verified locators and reload their exact content without advancing the authority.
-Competing root publication still admits exactly one successor.
-`just test::growing-service` also drops an actual accepted page append's reply
-and kills its staging worker before another request can pass. Authority stays
-unchanged; a fresh worker stages again and completes from committed roots.
-The orphan never becomes a discovered root or an implicit accepted operation.
+## Root collection and relocation
 
-The default applies mutations in groups of eight; `--mutation-batch 1` retains
-the single-key control using the same binary and cache. It also exercises lost,
-incomplete and failed per-frame replies after accepted provider appends; no
-locators or authority publication escape those failures.
+`StorageCollection` persists a root cut, bounded traversal cursor, paged mark
+index, allocation cursor and deletion intent in a private work ledger. A signed
+`storage_fence` advances the authority epoch before marking; old prepared roots
+cannot pass their publication CAS. The root set includes retained journal
+catalog/policy roots and the cut's current open views and unreleased read
+versions. Captured catalogs follow only their selected resource block index;
+mark reuse distinguishes resource scope and ownership class. Historical closed-view
+metadata does not recursively pin another historical catalog.
 
-The default exercises packed format-1 pages with 64 KiB of values and two decoded
-cache slots; the artifact reports their actual size. Evidence under
-`.cache/verification/pages-<layout>-<hot|s3>-<keys>-<cache>-batch<1|8>.json` records revision,
-dirty status, binary hash, tool/platform, elapsed time, cache statistics and page/stream creation counts. It also records page HTTP request attempts and
-attempted page payload bytes, including unsuccessful staging attempts; these omit batch framing, root-journal/bootstrap HTTP work, headers and the
-provider's internal replication/WAL amplification. Linux `/proc` sampling every
-20 ms reports both client and Ursula process metrics. RSS is the kernel's process
-high-water mark; thread/FD counts are sampled peaks that can miss short spikes.
-Unsupported or unavailable metrics remain null with an explicit sample count,
-never zero resource use. Provider startup/recovery precedes the measured client
-phase, but its memory high-water mark includes that work.
-WAL file bytes are logical file lengths sampled after each phase, not allocated
-blocks or a measurement of live application bytes. Exceptions and timeouts retain
-`inconclusive` status. The proof has a per-phase deadline, configurable with
-`--timeout`, and kills/joins its owned child on failure.
+All marking completes before deletion. Missing/corrupt reachable bytes prevent
+completion. A concurrent authorized history trim that removes an unvisited root
+record aborts the pass; a later fence starts a new cut. Volatile readers receive
+the maximum five-minute snapshot lifetime plus the native request bound as a
+trusted-time grace period. A later accepted time fence records elapsed grace
+before deletion, so hosts with an older clock fail their current check.
 
-Historical measurements and their execution limits live in the
-[proof ledger](../../../../tests/README.md).
-The [workload priorities](../../../../docs/reference/workloads.md) require
-measuring both Transit and provider memory. A fixed client cache does not bound
-provider memory, metadata, request amplification or recovery costs.
+Protected segments are carried forward. An unreachable sealed segment gets a
+durable deletion intent before provider deletion. Confirmed absence precedes
+quota release. An absent or unsealed creation instead receives a permanent closed
+stream-name fence and a verified retained-prefix trim. Delayed open creates
+then conflict. Its data charge is released, while its bounded fence/checkpoint
+charge remains owned in the queue; that name is never deleted. Restart repeats
+the recorded intent, including deletion whose acknowledgement was lost.
 
-## Cold-tier qualification
+`storage_compact` relocates one block or one tree leaf/path per signed transition.
+Its cursor lives in the accepted head. It preserves logical resource revisions,
+values, read versions and receipts; captured roots remain independent owners.
+Only an authorized later history trim/pin release and collection can retire old
+placement. `storage.maintenance.compact` enables this work before a collection;
+it defaults to false. Unlimited retained history still owns old roots. Copying
+current data alone cannot free that history, and may increase storage use.
 
-The ordinary proof deliberately disables Ursula cold storage and uses inline
-snapshots. It establishes disk-WAL correctness; its retained payloads remain in
-the provider's hot tier. A bounded Transit cache does not bound that provider
-memory. `just test::pages-cold` is an explicit Linux x86_64 qualification using
-an owned loopback MinIO process, built from pinned source in
-[minio.nix](../../../../nix/minio.nix) and managed by
-[cold_storage.py](../../../../tests/cold_storage.py). It uses synthetic temporary
-credentials and a temporary disk directory, with no cloud account. Failure is
-inconclusive; a missing provider executable is not a skipped success.
+The maintenance host alternates bounded storage work with lifecycle/control
+scans. `storage.maintenance.collection_every_records` defaults to 1,024 allocation
+ledger records. Provider delays remain subject to the maintenance operation
+budget. No collection or quota pressure implicitly expires application data.
 
-This profile configures Ursula's S3 cold tier with 256 KiB flushes, an 8 MiB
-per-group hot budget, an 8 MiB read cache and S3 snapshots. The evidence records
-Ursula and MinIO process peaks separately, plus WAL and object-store file lengths.
-Configured data/cache budgets do not bound whole-process RSS: allocator, indexes,
-queues and recovery need measurement too. Restart currently interrupts Ursula;
-it does not simulate an object-store crash, network partition or distributed S3
-replication. The pinned MinIO fixture is test infrastructure, not a deployment
-recommendation or an additional authority.
+## Verification and limits
 
-The first packed 1,024-key S3 run passed all four persistence phases. Write/full
-verification took 42.27 seconds; restart/full verification took 15.99 seconds.
-Ursula peaked at 86,436 KiB during write and 66,156 KiB after restart, compared
-with 1,141,696 KiB recovery RSS in the hot-only packed run. MinIO peaked at
-234,244 KiB during that recovery phase (its process spans all phases), and its
-file lengths totaled 18,620,141 bytes. WAL lengths after restart totaled
-3,594,617 bytes. These are single local Debug runs, not controlled performance
-comparisons or a bound for arbitrary dataset sizes. The unchanged roughly 32,000
-write-phase page requests still require amplification work. The S3 fixture now
-also requires persisted Ursula chunk objects; startup metadata alone cannot pass.
+The [proof ledger](../../../../tests/README.md) provides reproduction commands for
+pages, block storage, native blocks, storage collection and cold storage. It records executed scopes, failures
+and measurements. Page proofs retain both original and successor roots across
+provider SIGKILL, checkpoint/trim and cache-free recovery. Collection proofs use
+an injected trusted clock to exercise the full grace rule without wall-clock
+sleep; production uses its configured UTC source. They separately check root
+protection, corruption, publication fencing, relocation, actual segment absence,
+late-create fencing, quota release and restart boundaries.
 
-Core pages use the current compact `TPG1` encoding. The closed mapping stores
-raw `application/octet-stream` bodies. The packed mapping uses canonical base64
-JSON strings because the pinned provider exposes record coordinates for JSON
-streams. Reads remove exactly the provider's final newline delimiter, then
-reject whitespace, escapes, noncanonical base64 and old JSON page
-objects; the envelope belongs to the adapter, not the core tree. Eight-entry
-leaves and 32-child branches fit the 24 KiB binary bound; the packed envelope
-fits 32,770 bytes. Attempted provider payload counters include the envelope. A cache slot owns one decoded page (16,952 bytes on the
-measured 64-bit target), independent of the durable population. The current
-contract definition rejects pre-cutover heads before reading their catalogs;
-there is no old JSON decoder, conversion or empty-state fallback.
+Ursula retains stream metadata and JSON record indexes in resident provider
+state. Segment sizes bound each stream's record index; they do not establish a
+whole-provider memory bound independent of retained segment count. Measure both
+processes and configure provider headroom. Closed-name fences deliberately trade
+small persistent metadata for safety after uncertain creation. A provider delete
+or retention operation also does not prove erasure from backups, immediate WAL
+space return, or completed asynchronous cold-object cleanup.

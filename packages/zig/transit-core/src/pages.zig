@@ -12,7 +12,7 @@ pub const mutation_batch = 8;
 pub const Reference = struct {
     digest: [32]u8,
     /// Opaque storage address; core never interprets provider coordinates.
-    location: [16]u8 = @splat(0),
+    location: [32]u8 = @splat(0),
     pub fn verify(self: Reference, page: *const Page) !void {
         if (!std.mem.eql(u8, &self.digest, &(try page.reference()).digest)) return error.CorruptPage;
     }
@@ -59,7 +59,7 @@ pub const Key = Bytes(64);
 pub const Value = Bytes(2048);
 comptime {
     if (6 + leaf_entries * (3 + 64 + 2048) > max_encoded_bytes or
-        6 + branch_children * (1 + 64 + 32 + 16) > max_encoded_bytes)
+        6 + branch_children * (1 + 64 + 32 + 32) > max_encoded_bytes)
         @compileError("Page geometry exceeds its encoded byte budget");
 }
 pub const Entry = struct { key: Key, value: Value };
@@ -562,6 +562,39 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
         }
         pub fn scan(self: Self, root: ?Reference, after: ?Key) !Slice {
             return self.scanBound(root, after, false, null);
+        }
+
+        pub const Rewritten = struct { root: ?Reference, after: ?Key };
+        /// Relocate one leaf and its path without changing any logical entries.
+        /// A current-only cursor is a work hint, never a snapshot or authority.
+        /// Concurrent insertions behind it are visited by the next pass.
+        pub fn rewrite(self: Self, root: ?Reference, after: ?Key) !Rewritten {
+            const reference = root orelse return .{ .root = null, .after = null };
+            if (after) |key| try key.validate();
+            const result = try self.rewritePage(reference, null, after);
+            return .{ .root = result.reference, .after = result.after };
+        }
+        const Relocated = struct { reference: Reference, after: ?Key };
+        fn rewritePage(self: Self, reference: Reference, height: ?u8, after: ?Key) anyerror!Relocated {
+            var page = try self.load(reference, height);
+            switch (page.body) {
+                .leaf => |entries| {
+                    const last = entries[page.count - 1].?.key;
+                    if (after) |key| if (order(&last, &key) != .gt) return .{ .reference = reference, .after = null };
+                    return .{ .reference = try self.store.stage(try page.reference(), &page), .after = last };
+                },
+                .branch => |children| {
+                    for (children[0..page.count], 0..) |slot, i| {
+                        if (after) |key| if (i + 1 < page.count and order(&children[i + 1].?.minimum, &key) != .gt) continue;
+                        const child = try self.rewritePage(slot.?.reference, page.height - 1, after);
+                        if (child.after) |last| {
+                            page.body.branch[i].?.reference = child.reference;
+                            return .{ .reference = try self.store.stage(try page.reference(), &page), .after = last };
+                        }
+                    }
+                    return .{ .reference = reference, .after = null };
+                },
+            }
         }
         pub fn scanFrom(self: Self, root: ?Reference, first: Key) !Slice {
             return self.scanBound(root, first, true, null);

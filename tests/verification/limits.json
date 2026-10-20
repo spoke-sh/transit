@@ -47,9 +47,9 @@
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_entry_bytes",
-      "expression": "8192",
+      "expression": "16 * 1024",
       "classification": "operation",
-      "meaning": "Serialized journal entry bound."
+      "meaning": "Serialized logical request bound, including sixteen immutable block descriptors. Bulk bytes are separately bounded and excluded from the authority journal."
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
@@ -407,6 +407,76 @@
       "expression": "2 * p.Value.max_bytes",
       "classification": "operation",
       "meaning": "Frozen logical plan in at most two cells; job plus correlation index preserves four native admission writes. Larger accepted logical plans require a different explicit upload protocol."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Blocks.zig",
+      "symbol": "max_records",
+      "expression": "16",
+      "classification": "operation",
+      "meaning": "Immutable block mutations per atomic turn, separate from small metadata mutations."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Blocks.zig",
+      "symbol": "max_block_bytes",
+      "expression": "64 * 1024",
+      "classification": "operation",
+      "meaning": "One immutable body; independent of retained block count."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Blocks.zig",
+      "symbol": "max_batch_bytes",
+      "expression": "128 * 1024",
+      "classification": "working-set",
+      "meaning": "Owned immutable body bytes per publication or block read."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Blocks.zig",
+      "symbol": "max_encoded_bytes",
+      "expression": "std.base64.standard.Encoder.calcSize(max_batch_bytes)",
+      "classification": "encoding",
+      "meaning": "Canonical base64 bound for one owned bulk body."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Storage.zig",
+      "symbol": "max_candidate_bytes",
+      "expression": "8 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Encoded private segment candidate ceiling, enforced before physical allocation."
+    },
+    {
+      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+      "symbol": "max_frames",
+      "expression": "1024",
+      "classification": "operation",
+      "meaning": "Page/block frames in one immutable candidate, not retained storage cardinality."
+    },
+    {
+      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+      "symbol": "max_bytes",
+      "expression": "@import(\"transit_core\").protocol.Storage.max_candidate_bytes",
+      "classification": "working-set",
+      "meaning": "Private encoded segment buffer ceiling; transport/readback has separately bounded scratch."
+    },
+    {
+      "source": "packages/zig/transit-core/src/StorageWalk.zig",
+      "symbol": "max_depth",
+      "expression": "2 * (p.max_height + 1)",
+      "classification": "working-set",
+      "meaning": "One catalog traversal and its owned block index; durable root cardinality does not grow the stack."
+    },
+    {
+      "source": "packages/zig/transit-query/src/TableQuery.zig",
+      "symbol": "max_rows",
+      "expression": "8",
+      "classification": "working-set",
+      "meaning": "Owned rows per result disclosure batch; the row API requests one."
+    },
+    {
+      "source": "packages/zig/transit-query/src/TableQuery.zig",
+      "symbol": "max_bytes",
+      "expression": "16 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Canonical cell bytes per owned result disclosure batch; one bounded lookahead row is separate."
     }
   ],
   "identities": [

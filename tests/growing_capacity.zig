@@ -7,6 +7,8 @@ const t = std.testing;
 const Engine = core.growing.Engine(adapter.Store, adapter.PackedPageStore);
 const ceiling = 96;
 const reserve = 96;
+// Retained logical values exceed one decoded page in the current definition.
+const rows = 72;
 const Expected = struct { pid: u64, resource: u64, finite: u64, effect: u64, attempt: u64, last: g.SignedRequest, receipt: u64 };
 
 fn clock(context: *anyopaque) !core.Time.Sample {
@@ -36,7 +38,7 @@ fn write(engine: *Engine) !Expected {
     _ = try submit(engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
     var last: g.SignedRequest = undefined;
     var receipt: u64 = 0;
-    for (0..10) |batch| {
+    for (0..rows / 4) |batch| {
         const input = try submit(engine, .{ .send = .{ .pid = pid, .value = .{} } });
         const view = try submit(engine, .{ .open_view = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = (try engine.process(pid)).revision, .resource = resource, .revision = (try query(engine, .{ .resource = resource })).body.resource.revision, .deadline_ms = 1000 } });
         var turn: g.Turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = (try engine.process(pid)).revision, .views = .{ view, null, null, null }, .write_view = view };
@@ -66,7 +68,7 @@ fn verify(engine: *Engine, expected: Expected) !void {
     try t.expectEqual(before, engine.head.position);
     try t.expectEqual(created, engine.page_store.created);
     const resource = (try query(engine, .{ .resource = expected.resource })).body.resource;
-    try t.expectEqual(@as(u64, 40), resource.entries);
+    try t.expectEqual(@as(u64, rows), resource.entries);
     var after: ?core.Value = null;
     var count: u8 = 0;
     while (true) {
@@ -79,7 +81,7 @@ fn verify(engine: *Engine, expected: Expected) !void {
         after = page.next;
         if (after == null) break;
     }
-    try t.expectEqual(@as(u8, 40), count);
+    try t.expectEqual(@as(u8, rows), count);
     const process = try engine.process(expected.pid);
     try t.expectEqual(.running, process.lifecycle);
     try t.expectEqual(@as(u64, 0), process.cancelled);
@@ -146,14 +148,14 @@ pub fn main(init: std.process.Init) !void {
     } else if (!writing and !std.mem.eql(u8, args[2], "recover")) return error.UnknownPhase;
     pages.clearCache();
     try verify(&engine, expected);
-    try t.expect(40 * 256 > pages.residentBytes());
+    try t.expect(rows * 256 > pages.residentBytes());
     if (engine.head.position > ceiling) {
         try t.expectError(error.HistoryReclaimed, store.read(0));
         try store.maintain(engine.head);
     }
     var buffer: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .profile = "native_v1", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = 40, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_requests = pages.requests }, .{}, &stdout.interface);
+    try std.json.Stringify.value(.{ .profile = "native_v1", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = rows, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_requests = pages.requests }, .{}, &stdout.interface);
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
 }

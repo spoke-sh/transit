@@ -211,7 +211,13 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                             matching.append(body)
                     return matching
                 original = attempts()
-                assert original and json.loads(original[0]) == signed
+                # Frozen operations own an optional block body. The transport
+                # omits that field only when the saved envelope has no body;
+                # populated bodies must still match the attempted bytes.
+                expected_wire = signed.copy()
+                if expected_wire['blocks'] is None:
+                    del expected_wire['blocks']
+                assert original and json.loads(original[0]) == expected_wire
                 # A paused runner cannot silently advance or replace accepted
                 # work. Reconcile the saved operation through the host API.
                 assert one(child, deadline=deadline) == observed

@@ -31,11 +31,22 @@ source under current policy. Both execute in separately provisioned Station host
 through the catalog's signed connection, without a separately configured source
 or requester per Table. It owns a leased snapshot, typed plan and bounded native
 entry cache. Pull scans acquire at most eight immutable row references together,
-prefetch their bounded headers/chunks, and decode one owned row at a time.
-Stopping at LIMIT does not allocate the remaining row values. Each output is one owned logical row; current catalog and native
-authorization precede disclosure, including completion and empty output. Explicit
+prefetch their bounded blocks, and decode owned rows on demand.
+Stopping at LIMIT does not allocate the remaining row values. `next()` returns
+one owned logical row; `nextBatch(maximum)` returns up to eight owned rows and
+16 MiB of canonical cells. Current catalog and native authorization is checked
+after materializing each requested batch, including completion and empty output.
+Release the batch with `deinit`. Private lookahead carries no permission into
+the next call. Explicit
 request, row and canonical-byte budgets apply. The console's `catalog_v1` profile uses this adapter. Durable-query and
 foreign-language routes retain their separately admitted profiles.
+
+Table scans own their bounded entry, index-node and block caches in heap storage.
+Moving a scan into its query owner transfers that storage; it does not copy bulk
+buffers through the calling stack. Destruction releases the caches, including
+after a partially acquired source fails. Relational queries charge those
+allocations to their resident budget. Aliases sharing a lease retain separate
+caches and only the owning scan closes the lease.
 
 Typed Table and file callers use the shared bounded column kernels. `ComputePool`
 provides optional host-owned workers over decoded batches; source reads and

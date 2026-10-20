@@ -22,6 +22,8 @@ def fixtures():
     head += struct.pack('<QQQB', 3, 10, 0, 0)
     assert len(head) == 213
     payload = b'typed page'
+    chain = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x54534301, len(payload))).digest()
+    digest = hashlib.sha256(b'\1' + chain + struct.pack('<IH', 0, len(payload)) + payload).digest()
     status = b'STW1' + contract + struct.pack('<QQQQ', 7, 9, 1, 21) + bytes([51]) * 32
     status += struct.pack('<QQQQQQQBBB', 12, 15, 1, 2, 5, 1, 1, 2, 0, 1)
     status += bytes(95)  # mandatory empty execution witness
@@ -38,14 +40,14 @@ def fixtures():
     return {
         'native_definition': definition,
         'manifest_hex': (b'STM1' + contract + struct.pack('<I', 65536)).hex(),
-        'inline_hex': (b'STP1' + struct.pack('<IH', 0x54534301, len(payload)) + payload).hex(),
+        'block_hex': (b'SBR1' + struct.pack('<II', 0x54534301, len(payload)) + digest + payload).hex(),
         'creation_receipt_hex': (b'STC1' + contract + bytes([119]) * 32 + struct.pack('<QQ', 12, 15)).hex(),
         'creation_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('c'), 0, 0)).hex(),
         'head_hex': head.hex(),
         'head_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('h'), 0, 0)).hex(),
         'history_hex': (b'STJ1' + struct.pack('<Q', 27) + head).hex(),
         'history_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('j'), 4, 0)).hex(),
-        'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('i'), 7, 0)).hex(),
+        'page_key_hex': (b'\0P' + struct.pack('>IQBQI', 8, 9, ord('c'), 7, 0)).hex(),
         'write_key_hex': (b'\0W' + struct.pack('>QQQ', 9, 1, 21)).hex(),
         'write_status_hex': status.hex(),
         'write_rejection_hex': rejected.hex(),

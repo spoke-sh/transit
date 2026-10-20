@@ -1,5 +1,378 @@
 # Validation and milestone evidence
 
+## Integrated storage foundation
+
+The [matched campaign](mutation_latency/results/2026-10-19/README.md) compares
+`ee88a131` with runtime `29765ef0`, using ReleaseSafe and sequential disk fixtures
+after builds finish. Its [record](verification/results/storage-foundation-2026-10-19.json)
+preserves commands, source/binary hashes, raw reports, intermediate controls and
+failed attempts. Both real SQL wire campaigns complete 400 reads and 36 mutations
+with cross-protocol readback. The final console controls include narrow, wide and
+nested mutations, 100 reads, and retained history with 21 mutations plus 92 reader
+queries. Empty/LIMIT 0 reads regress and node HWM increases; see the report for
+sample sizes, cache differences and limits on attribution.
+
+At `29765ef0`, `just test::typed-tables` passes the complete native deployment
+schedule in 524.817 seconds: all 28 logical descriptors, typed defaults/NULLs,
+prepared parameters, catalog replacement, retained snapshots, exact lost-reply
+recovery, current denial and node/provider restart. Four-row disclosure takes
+17 requests through `nextBatch(8)` versus 25 through independent row pulls;
+LIMIT 0 and empty predicates use 15 and 17 respectively through either path.
+Those observed counts define explicit regression ceilings in the native harness.
+Buffered revocation still prevents the next disclosure. These counts apply to
+this fixture, not arbitrary query shapes or cardinality.
+
+Normal Flight/ADBC and the Flight fault schedule also pass against runtime
+`29765ef0`. They cover real finite statements, full-width/NULL rows, independent
+Python/C ADBC consumption, diagnostics, exact retry, delayed concurrent fetches,
+control progress, slow HTTP/2 clients, current SELECT denial after a returned
+batch, interrupted duplicate fetch, gateway/worker/node/store restart and
+permanent retirement. The record retains their logs and commands. Two fault-run
+attempts fail in Nix before execution because cached shell derivations cannot be
+recreated; the successful retry disables the evaluation cache in the actual
+Flight shell. These setup failures are not counted as executed fault proofs.
+
+The separate offered-load controls both admit two of 48 scheduled commands and
+explicitly refuse 46, with no uncertain outcomes. Initial revocation is also
+refused; its retry completes after the burst. Exact receipt retries, current
+denial, drain and restart pass. This evidence does not establish uninterrupted
+control admission at write saturation or a throughput SLO.
+
+The current-definition 1,024-key cold-storage proof passes with two decoded pages
+(34,064 resident cache bytes), 758 created pages and 195 segments. The
+[retained record](mutation_latency/results/2026-10-19/pages-packed-s3-1024-2-batch8.json.gz)
+includes checkpoint/trim, provider/process restart, 16 MinIO objects, adapter
+write-peak RSS of 18,436 KiB and separate recovery/provider observations. Pending
+source changes are recorded in its provenance. This is primitive storage/recovery
+evidence, not an isolated service benchmark or a whole-provider memory bound.
+
+Complete ordinary qualification runs separately with `just ci-clean` against
+committed HEAD; the PR records its exact revision and outcome. Focused proofs
+and matched measurements do not substitute for that gate.
+
+The native latency probe records a completed trace after forwarding the response,
+including any downstream write failure. Its unit checks explicitly join that
+recording before inspecting the trace; receiving HTTP bytes alone does not join
+the proxy handler. Counts, retained-event bounds and payload exclusion remain
+unchanged.
+
+The clean language-ring attempt at `799b2e6b` rejects a Table block read in its
+test proxy: its route allowlist omits `/v1/blocks`, so the installed Python worker
+correctly reports `InvalidAuthorityResponse` for the proxy's HTML error. The
+proxy now forwards all three current native routes while still rejecting raw
+double slashes. Lost-receipt, unavailable-read, exact-retry and cross-language
+value checks remain unchanged; the failed attempt is not a completed ring proof.
+
+The first clean attempt at `321be45a` passes `check-core`, then fails to compile
+the transition-property driver because its test store lacks the new block
+interface. The delivery/storage simulation stores require the same update;
+the storage fixture's fault-injection `begin` also collides with the backend
+publication hook and is renamed `beginFault`. These test-only adapters now own
+and verify block bytes without changing production behavior. Their in-memory
+maps do not model physical segment placement or reclamation. The failed clean
+attempt does not establish completion of the ordinary suite. Focused reruns with
+the pending fixture changes pass 40 transition traces / 1,687 steps, 14 delivery
+traces / 749 events, six resource smoke traces / 112 events and eight scheduler
+traces / 542 events, including identical replay for the simulation schedules.
+
+The next clean attempt at `f3fee42f` passes its first 15 tasks, including the
+isolated Zig SDK and packaged runtime boundary, then detects SQL-wire fixture
+drift. The committed gateway bytes already use the current definition; two
+independent Python-oracle inputs still name the previous definition. Updating
+those inputs makes the unchanged fixtures match; the independent comparison and
+shared gateway/PostgreSQL/MySQL package suites pass. This partial clean attempt
+also does not establish completion of the ordinary suite.
+
+The clean attempt at `569b71d2` passes its first 17 tasks, then detects a
+saved-command fixture that omits the new `blocks: null` field. The ABI export
+oracle now requires that field; the shared SDK recovery oracle compares the
+ordinary HTTP representation while still requiring byte-identical retries and
+unchanged saved bytes. Populated bodies remain part of the comparison.
+
+The installed Python Station schedule then exposes two Debug stack overflows
+on its declared 8 MiB worker. Recursive saved-envelope decoding copies the bulk
+body through typed JSON frames; block reads copy their response through the
+timeout selection queue. Import now decodes the signed request and body
+separately into owned operation storage, retaining public validation and exact
+canonical-byte checks. The transport keeps one bounded response slot and queues
+only completion status. Cancellation joins its producer before releasing any
+raced owned response. The maximum 128 KiB saved-operation regression executes
+import on an explicit 8 MiB thread; client package checks also cover nested
+response ownership, response budgets and timeout cleanup. Neither fix increases
+the advertised stack requirement or changes the current contract definition.
+
+With those pending fixes, the installed Python Station runner completes the
+shared schedule: 46 Table terminal outcomes, 219 queue drain turns, 41 logical
+query rows in six independently consumed Arrow streams (41,992 bytes), 275
+publication/receipt rounds, retained output after handle destruction, current
+denial, expiry and exact host/provider restart recovery. Two lost/unavailable
+outcomes reconcile with unchanged signed attempts and two unavailable reads
+repeat within the original progress budget. The subsequent `just test::client-abi`
+passes native/port ownership, malformed input, wide identities, lost/invalid
+replies, seedless host-loss retry, disk restart and revoked recovery. This focused
+installed-consumer run is separate from complete committed-source qualification.
+
+At `067d40de`, `just check` passes and clean CI completes 35 tasks before
+`test::growing` fails to compile: its final corruption fixture still references
+the removed single-stream page-store name. It now derives the physical segment
+from the accepted catalog root, deletes that segment only after restart checks,
+independently verifies its absence and requires reopening to fail with
+`PageUnavailable` without changing journal position or creating pages. The
+focused rerun passes all four disk phases with 64 retained values, one decoded
+page (17,032 cache bytes), captured views, grants and exact receipts. The failed
+clean attempt is partial qualification, not a completed ordinary suite.
+
+At `a3a61f8a`, `just check` and `just test::flight-faults` pass. Clean CI passes
+43 tasks, including all core checks, growing services, native concurrency, full
+block publication, physical collection and public queries. The combined Table
+writer then passes its console mutation/recovery schedule but fails when its
+manual delivery helper races the background courier: the observed pending output
+has already been delivered, so the authority returns `OutputAlreadyResolved`.
+The helper now treats only that validated rejection as a step with no delivery,
+matching the public courier; other errors still propagate. Accepted identities
+and unknown-outcome handling are unchanged. The new storage proof executables
+also use streaming stdout so redirected evidence cannot overwrite earlier log
+bytes. This interrupted clean run does not establish a complete ordinary pass.
+The focused `just test::table-query-writer` rerun with the corrected helper passes
+in 93.545 seconds: 116 turns, two recovered initialization receipts, interleaved
+durable/interactive snapshots, saved console recovery, cancellation races and
+current policy/native denial. Installed SDK variants are unselected in this run.
+
+At `15195190`, focused catalog, typed Table and SQL gateway schedules pass, but
+the full SQL wire schedule stalls during its 40 KiB row. The account worker first
+receives repeated `StorageQuota` refusals, then exceeds its captured turn deadline
+and stops with `StateViewExpired`. Routine turns eligible for recovery had been
+charged exclusively to the 64 MiB control reserve despite available ordinary
+capacity. Allocation now uses ordinary capacity first, reserving fallback access
+for eligible work when ordinary capacity cannot fit it. The ledger records the
+actual charged class for exact carry and release. Unit and disk regression cases
+cover this accounting without raising quotas or deadlines. The interrupted wire
+run is incomplete and does not establish a pass for its wide-row or later cases.
+The focused adapter unit suite and disk collection rerun pass with the accounting
+fix: the quota-pressure checkpoint reserves 3,223 control bytes, retains that
+charge through the first collection and provider restarts, then releases it after
+history trimming and the second collection. The two cycles reclaim 216,440
+accounted bytes with one decoded page. This fixture adds the checkpoint and is
+distinct from the earlier recorded collection run below.
+
+At `fe87e9a4`, root checks and the Flight fault schedule pass. Clean CI passes
+50 tasks, including the complete SQL wire and maintained-query schedules, then
+fails the exchange corruption fixture. Its injector changes an exchange chunk
+returned incidentally by a broader KV scan; the caller filters that entry out.
+With Table records now stored as blocks, the scan includes different neighboring
+entries. The injector now targets the explicit point read that consumes the
+segment bytes, retaining the digest-rejection and unchanged-acceptance checks.
+The focused rerun with that correction passes both one-partition/one-worker and
+seven-partition/three-worker layouts in 675.342 seconds of native execution.
+It verifies corruption, lost producer/acceptance replies, every recorded handoff
+boundary, missing/denied restore, source expiry and disk restart. The interrupted
+clean run remains partial qualification; the fixture correction changes no
+runtime behavior or proof limits.
+
+At `081170b0`, root checks and the complete clean `core`, `growth`, `experience`
+and `launchers` lanes pass (75 tasks across those four lanes). The two bindings
+lanes fail in installed C Station and Python catalog consumers with `SIGSEGV`;
+the ordinary qualification is incomplete. A retained C core dump identifies
+another Debug stack overflow during Table creation: the observation and deadline
+frames still copy the bounded block response by value. The client now gives
+those frames one heap-owned response slot, joining the transport before ownership
+transfer or error cleanup. Client package tests pass, including a maximum
+128 KiB response on an explicit 8 MiB thread, ownership across a subsequent
+exchange, corrupted-body rejection, owned nested responses and timeout cleanup.
+This changes neither the declared stack requirement nor the wire definition.
+The focused `just test::typed-tables --cold --sdk python` rerun passes with the
+response-slot correction: 538.710 seconds of fixture execution, installed
+synchronous and asynchronous catalog lifecycles, exact saved-intent recovery,
+nested values, prepared parameters, current denial and provider/owner restart.
+This SDK-selected run does not select the separate 28-type native matrix.
+
+At `1ed89190`, root checks pass but the Flight fault schedule exhausts its fixed
+8 MiB request workspace while reading a retained result. Replacing an idle HTTP
+connection can leave a per-call response slot behind a retained allocation;
+fixed allocators cannot reclaim that slot out of order. The client now reuses a
+response arena across exchanges and releases it on destruction. The regression
+fails before this correction, then passes 64 maximum-size block replies plus
+corruption rejection while replacing connections within the same 8 MiB workspace
+and 8 MiB calling stack. A separate failing-allocation/budget regression verifies
+that local failures clear earlier wire diagnostics without contacting the peer.
+The client package suite passes with both corrections. The failed Flight run
+remains incomplete qualification; no workspace, stack or deadline is increased.
+
+At `efb7cee9`, root checks and Flight faults pass, but the clean Python relational
+consumer overflows its 8 MiB Debug calling stack while opening Table sources.
+A retained core identifies large scan copies in `RelationalTables.open`,
+`TableScan.open` and `TableScan.openResource`. Scan caches now have one owned heap
+allocation, charged through the supplied query allocator and released on failure
+or destruction. Shared-lease aliases retain independent caches. Query package
+tests and the durable query recovery schedule pass. The installed Python
+relational rerun passes in 56.066 seconds of fixture execution: synchronous and
+asynchronous clients, both source layouts, repeated opens/pages/closes, current
+denial, lost-host rejection and ordered overflow. The same clean attempt also
+exposes the probe trace synchronization race described above; neither failed
+lane establishes complete qualification.
+
+## Segment storage and physical collection
+
+Reproduce the focused schedules with `just test::storage-collection`,
+`just test::native-blocks`, `just test::block-storage` and `just test::pages` in
+the pinned development shell. The native overlap schedule is
+`just test::node-concurrency`. Cold storage and actual disk pressure have separate
+tasks, `just test::pages-cold --keys 1024 --cache 2` and
+`just test::growing-capacity`.
+
+The disk segment, native block and concurrency proofs pass with current native
+v1 definition `1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f`.
+Segments privately group pages/blocks, reserve encoded bytes, verify provider
+readback and close before reference publication. Page fault schedules reject
+lost creation replies, incomplete coordinates and corrupt readback; old roots
+survive provider SIGKILL, root checkpoint and history trim. The 64-key fixture
+uses two cache slots and creates 48 pages in 15 segments. It reports adapter and
+provider RSS separately; this is not a whole-provider cardinality bound.
+
+`test-storage-collection` passes on disk Ursula with one resident page. Two
+collection cycles reclaim 217,905 accounted encoded bytes in the recorded run,
+including unreachable candidates and an old current segment after relocation.
+The harness independently observes that old segment's 404 response, then verifies
+both current and retained values after provider/process restarts. It injects
+corrupt reachable bytes during marking and loses a successful delete reply.
+Neither incomplete marks nor elapsed volatile-read grace without a durable time
+fence permits deletion. Absent and unsealed candidates receive permanent closed
+names; delayed creation conflicts and only their data charge is released.
+Quota and candidate-budget refusal preserve the accepted head and accounting.
+
+Core/backend unit checks exercise resource-scoped ownership traversal across
+branches and serialized resume, ownership-class mark reuse, exact quota release,
+epoch conflicts and relocation without logical revision changes. An early
+mark-key review found that shared captured catalogs must distinguish the selected
+resource and ownership class; those regressions now have explicit checks.
+These tests use an injected trusted clock to cross the full grace interval.
+They do not prove host power-loss behavior, backup erasure, immediate WAL shrink,
+or asynchronous cold-object deletion. The integrated measurements and native
+consumer proof above have separate scopes; committed-source clean CI remains
+the final integration gate.
+
+The [physical capacity record](verification/results/storage-foundation-capacity-2026-10-19.json)
+passes with 72 retained 256-byte values and one decoded page (17,032 resident
+bytes). Actual ext4 ENOSPC denies writes without advancing position 96. Releasing
+only the preallocated 1 GiB reserve permits revocation, expiry, effect closure,
+drain and checkpoint/trim through position 130. Provider SIGKILL/restart retains
+all values and the completed maintenance issues only GET/HEAD. The two preceding
+Debug setup attempts exceed the unchanged 120-second phase deadline; the task
+now selects ReleaseSafe, matching the service-load proofs. This run records its
+pending harness changes and is separate from committed-source clean CI.
+
+## Table records on native blocks
+
+The Station (120 tests), catalog (83 tests), query (138 tests), core and client
+package suites pass for Table rows, index nodes, schemas, metadata and immutable
+predecessors stored through the native block index. Schedules cover private
+visibility, exact retries, block/header/digest corruption, retained revisions,
+current denial after cached reads, large multi-turn records and reservation
+cleanup. The current v1 identifier and generated consumers are replaced together;
+`just contract::check` passes after regeneration.
+
+The disk native-block proof also passes with the new definition and explicit
+`InvalidBlockBody` rejection before writes. `test-growing-service` also passes
+the retained Station Table and query recovery schedules, including poisoned
+reads, cold storage, one resident page on recovery and quota/control reserves.
+The earlier Table/disclosure definition (`b61c36…`) completed the native
+typed-Table deployment proof in 524.664 seconds,
+including all 28 logical descriptors, supplied-host lost receipt recovery,
+original/replacement catalog identities, current denial, retained queries and
+node/provider restart. Early runs exposed a saved pending request
+missing its body, an obsolete expectation of multiple recovered Table turns,
+and a supplied host treating a moving read cut as fatal. The fixtures retain
+the complete pending command and count the bulk successor; the host retains
+exact pending bytes across ordinary contention. Those failed runs are not
+reported as completed service proofs. End-to-end latency and physical
+reclamation require their separate remaining schedules.
+
+The query, shared gateway, PostgreSQL and MySQL package suites pass with bounded
+result disclosure. At that earlier definition, the native four-row scan used 19 requests through
+`nextBatch(8)`, versus 27 through independent row pulls; LIMIT 0 and empty
+predicates retained the same 17 and 19 requests. These are historical counts;
+the current metadata/block prefetch changes that path. Buffered revocation rejects the
+next disclosure. PostgreSQL unit schedules cover one-row portal suspension,
+revocation before and after materialization, and malformed empty batches.
+The complete real SQL driver proof also passed at that earlier definition,
+including TLS, settings reload, role changes, credential rotation, detached
+writes, schema changes and drain. Its 40 KiB input exceeded the original wire
+wait, then completed under its original identity after 2,086.9 seconds. This
+exposes the remaining small-message ingress cost; it is not a passing latency
+budget. Current-definition full native/SQL qualification belongs to the separate
+committed-source CI result, not these earlier package/service observations.
+
+## Native bulk resource publication
+
+On October 18, 2026, `just test::native-blocks` passes with 16 records and 128 KiB
+in one turn over disk Ursula. The independent Python/OpenSSL peer drops a staging
+reply, then an accepted commit reply, kills the node and provider, and reconciles
+the original signature without a body or new provider writes. A second turn
+replaces/deletes values while a retained read version keeps the originals.
+Corrupt/missing bytes reject. A provider barrier holds a block read while a
+revocation commits; the read discloses no body. Restored rights and another
+node/provider restart preserve the retained data. The first attempt supplied a
+view deadline outside the native trusted-time lifetime bound and failed; the
+fixture now requests a valid 30-second view without changing authority limits.
+
+Core schedules additionally exercise complete-body validation before writes,
+private preparation without visible progress, atomic metadata/output acceptance,
+volatile snapshot and retained-version roots, failed read-body cleanup and
+current permissions on historical receipts. This evidence does not establish
+physical reclamation or Table performance; those require their own schedules.
+
+## Immutable block codec and index
+
+On October 18, 2026, protocol, core and Ursula backend package tests and
+`just test::block-storage` pass. The disk fixture publishes a full 128 KiB
+batch, retains old and successor roots with one resident metadata page, and
+checks both after provider SIGKILL/restart. Lost staging replies, corrupt
+readback and missing bytes prevent publication; subsequent good reads retain
+the original values. Unit schedules cover each block/page staging failure,
+canonical base64, owned parser bytes and independent digest vectors.
+
+This proof exercises the generic index and backend beneath a conditional test
+journal. Native resource authorization, Table integration and physical
+reclamation require separate proofs; this result does not establish them.
+
+## Independently owned native execution
+
+The subsequent `test-node-concurrency` run also passes with bounded reobservation
+of the same signed read: the held read succeeds at a cut after the independent
+commit, while revocation still rejects held old evidence. At most eight attempts
+are allowed; expired selectors and denial do not retry. Host contention handling
+retains pending command bodies and identities. This fixes the ordinary read
+conflict exposed by the supplied catalog host during the Table deployment proof.
+The next run requires both simultaneously submitted identical commands to succeed
+with one equal receipt after bounded exact CAS repreparation. The native-block
+fault schedule still passes: lost staging and commit replies return uncertainty
+and reconcile the original signature; those failures are not hidden by the
+ordinary-contention retry loop.
+
+On October 18, 2026, the core package suite and `just test::node-concurrency`
+pass with independently owned native engines and a shared bounded snapshot
+registry. The [disk schedule](node_concurrency.py) holds one provider response
+while an independent signed read and commit finish before its release. It also
+holds old provider evidence across revocation and requires denial, then races
+two identical commands and checks one original receipt after reconciliation.
+The fixture uses one decoded page per lane and the pinned disk Ursula provider.
+
+Core schedules cover pending-open quotas across all 64 global slots and eight
+per principal, failure without renewal/close, stale reservation release, clock
+rollback and reuse of one pin across independent engines. Authentication failure
+cannot reserve a slot. These are finite ownership/authority schedules, not
+throughput or memory-capacity measurements. The first external attempt timed
+out with delayed-ACK buffering in its Python proxy; enabling TCP_NODELAY in that
+peer passed with the original deadlines. No failed attempt is counted as passed.
+
+`zig build test-node-recovery test-growing-service -Doptimize=ReleaseSafe` also
+passes: retained startup remains read-only through transient and incompatible
+provider faults; original receipts survive node/provider replacement and
+revocation; Station retains calls and Tables beyond 32 keys; the 41-row captured
+query recovers staging/sealing/publication/partial consumption; admission quota
+and control reserve preserve pending work across disk restart. This focused run
+does not stand in for the complete clean-checkout suite.
+
 ## SDK source and runtime boundary
 
 The [SDK directory](../sdks/README.md) owns consumer APIs; shared runtime

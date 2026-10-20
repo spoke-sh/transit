@@ -53,7 +53,7 @@ test "general metadata owns UTF-8 names and complete immutable schema references
     try t.expectEqualSlices(u8, first.data[0..24], second.data[0..24]);
 }
 test "general catalog metadata matches independent Python layouts" {
-    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, upload_status_hex: []const u8, rename_intent_hex: []const u8, inline_key_hex: []const u8, controls: struct { configuration: []const u8, object: []const u8, operation: []const u8, restricted: []const u8, dependency: []const u8 } };
+    const Fixture = struct { definition: []const u8, record_hex: []const u8, name_digest_hex: []const u8, name_key_hex: []const u8, manifest_hex: []const u8, command_header_hex: []const u8, rename_command_hex: []const u8, upload_status_hex: []const u8, rename_intent_hex: []const u8, block_key_hex: []const u8, controls: struct { configuration: []const u8, object: []const u8, operation: []const u8, restricted: []const u8, dependency: []const u8 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-metadata.json"), .{});
     defer parsed.deinit();
     const expected = parsed.value;
@@ -67,7 +67,7 @@ test "general catalog metadata matches independent Python layouts" {
     try expectHex(expected.record_hex, try record.encode(&buffer));
     try expectHex(expected.name_digest_hex, &try record.name.digest());
     try expectHex(expected.name_key_hex, (try Meta.nameKey(scope.catalog, try record.name.digest(), record.object)).slice());
-    try expectHex(expected.inline_key_hex, Records.key(record.object, 'i', record.revision).slice());
+    try expectHex(expected.block_key_hex, Records.key(record.object, 'c', record.revision).slice());
     var store: Store = .{};
     defer store.deinit();
     var turn = try store.capture(17);
@@ -120,7 +120,7 @@ test "metadata encodings reject truncation foreign definitions and malformed ide
     invalid.admitted_input = 0;
     try t.expectError(error.InvalidCatalogDefinition, invalid.encode(&buffer));
 }
-test "metadata staging resumes large names and refuses same-revision content changes" {
+test "metadata blocks own large names and refuses same-revision content changes" {
     var store: Store = .{};
     defer store.deinit();
     const records: Records = .{ .scope = scope, .object = schema.object };
@@ -131,7 +131,8 @@ test "metadata staging resumes large names and refuses same-revision content cha
     var record = try metadata();
     turn = try store.capture(17);
     try t.expectEqual(.ready, try records.stage(&turn, record));
-    try t.expectEqual(@as(usize, 1), count(turn));
+    try t.expectEqual(@as(usize, 0), count(turn));
+    try t.expect(turn.decision.blocks.mutations[0] != null);
     const original_ref: Records.Reference = .{ .id = record.revision, .spec = try record.spec() };
     try t.expectEqualDeep(record, try records.read(&turn, original_ref));
     try store.commit(turn);
@@ -145,7 +146,7 @@ test "metadata staging resumes large names and refuses same-revision content cha
         turn = try store.capture(17);
         const result = try records.stage(&turn, renamed);
         try t.expect(count(turn) <= 4);
-        if (result == .ready) try t.expectError(error.PublicationReadAfterMutation, records.read(&turn, next_ref));
+        if (result == .ready) try t.expectEqualDeep(renamed, try records.read(&turn, next_ref));
         try store.commit(turn);
         if (result == .ready) break;
     }

@@ -62,22 +62,28 @@ pub const Prepared = union(enum) {
 pub const Read = struct {
     host: *Self,
     value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read },
-    row: ?f.LogicalQuery.Row = null,
+    batch: ?q.TableQuery.Batch = null,
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
-    pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
+    pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
+        if (maximum == 0 or maximum > g.ReadBatch.max_rows) return error.InvalidQueryBudget;
         try self.host.deadline.check(self.host.io);
         try self.host.current();
-        if (self.row) |*row| row.deinit();
-        self.row = null;
-        return switch (self.value) {
-            .single => |*query| blk: {
-                self.row = try query.next();
-                break :blk if (self.row) |row| row.cells else null;
-            },
+        if (self.batch) |*batch| batch.deinit();
+        self.batch = null;
+        var result: g.ReadBatch = .{};
+        if (self.value == .single) {
+            self.batch = try self.value.single.nextBatch(maximum);
+            result.len = self.batch.?.len;
+            result.complete = self.batch.?.complete;
+            for (self.batch.?.rows[0..result.len], result.rows[0..result.len]) |row, *cells| cells.* = row.?.cells;
+            return result;
+        }
+        const cells: ?[]const f.Types.Values.Cell = switch (self.value) {
+            .single => unreachable,
             .relational => |query| blk: {
-                self.output = try query.next() orelse return null;
+                self.output = try query.next() orelse break :blk null;
                 break :blk self.output.cells[0..self.output.len];
             },
             .settings => |*settings| try settings.next(),
@@ -88,6 +94,10 @@ pub const Read = struct {
                 break :blk self.probe_cells[0..probe.fields().len];
             },
         };
+        result.rows[0] = cells;
+        result.len = @intFromBool(cells != null);
+        result.complete = cells == null;
+        return result;
     }
 };
 pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const g.Configuration.Account) !g.Configuration.Credential {
@@ -162,7 +172,7 @@ fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@Type
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            const unavailable = g.station.client.Client.unavailable(err) or err == error.GatewayOwnerUnavailable;
+            const unavailable = g.station.client.Client.unavailable(err) or self.wire.contended(err) or err == error.GatewayOwnerUnavailable;
             if ((!stale and !unavailable) or attempts == 64) return err;
             attempts += 1;
             try self.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
@@ -253,7 +263,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
 pub fn closeRead(self: *Self, read: *Read) void {
     const rejection = self.wire.last_rejection;
     defer self.wire.last_rejection = rejection;
-    if (read.row) |*row| row.deinit();
+    if (read.batch) |*batch| batch.deinit();
     switch (read.value) {
         .single => |*query| {
             query.close() catch {};

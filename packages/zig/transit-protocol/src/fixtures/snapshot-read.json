@@ -2,7 +2,7 @@
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
@@ -10,7 +10,24 @@
           "snapshot": {
             "open": {
               "resource": 17,
-              "nonce": "abcdefghijklmnop"
+              "nonce": [
+                97,
+                98,
+                99,
+                100,
+                101,
+                102,
+                103,
+                104,
+                105,
+                106,
+                107,
+                108,
+                109,
+                110,
+                111,
+                112
+              ]
             }
           },
           "current": [
@@ -39,6 +56,16 @@
             null,
             null
           ],
+          "blocks": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
           "range": {
             "after": null,
             "prefix": "61",
@@ -49,19 +76,36 @@
         }
       }
     },
-    "digest": "ee9da6bcc5f6bf6ddeae8108db9f69a06e8035936614433fb8c5eac6826a729a"
+    "digest": "9cf9714a075854756cbdaa1bd73d3626148db7e84efb5f29f00e9be90bc9bd9c"
   },
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
         "snapshot_read": {
           "snapshot": {
             "existing": {
-              "epoch": "0123456789abcdef",
+              "epoch": [
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                97,
+                98,
+                99,
+                100,
+                101,
+                102
+              ],
               "serial": 9
             }
           },
@@ -70,6 +114,16 @@
             null
           ],
           "points": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "blocks": [
             null,
             null,
             null,
@@ -89,19 +143,36 @@
         }
       }
     },
-    "digest": "d3f7bb6f73911297524602213979fc14b5b73d7b49d4b3bda9ff2419dc56f0fc"
+    "digest": "0485cd0a3bdb080f24aee9f220e271475e5cc37bbc2e9ed04471f546e97851cc"
   },
   {
     "query": {
       "version": 1,
-      "definition": "09b5b3cb21c7ef242dc23f839a2fb31500c972092676ad3388c327c82faca0c7",
+      "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
       "realm": 42,
       "principal": 65536,
       "kind": {
         "snapshot_read": {
           "snapshot": {
             "existing": {
-              "epoch": "0123456789abcdef",
+              "epoch": [
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                97,
+                98,
+                99,
+                100,
+                101,
+                102
+              ],
               "serial": 9
             }
           },
@@ -143,11 +214,21 @@
             null,
             null
           ],
+          "blocks": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
           "range": null,
           "finish": true
         }
       }
     },
-    "digest": "769f05cab6c8a4ba1d64e8a3bc111538269e5844407ddb5fbee64801c7b13571"
+    "digest": "4f9ff75be9738d94e2a7d7c7a0c9f428c4cbfbb05a4f887bc9f7cf6807d33dbf"
   }
 ]

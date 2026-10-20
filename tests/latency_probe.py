@@ -23,6 +23,7 @@ class Probe:
         self.started_ns = time.monotonic_ns()
         self.completed_events = 0
         self.lock = threading.Lock()
+        self.completion = threading.Condition(self.lock)
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -52,7 +53,7 @@ class Probe:
                 if before:
                     before(self.path, body)
                 labels = [self.command, 'request_bytes']
-                if native and self.path in ('/v1/query', '/v1/command'):
+                if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     value = json.loads(body)
                     mutation = self.path.endswith('command')
                     envelope = value['request' if mutation else 'query']
@@ -74,7 +75,7 @@ class Probe:
                 started = time.monotonic_ns()
                 event = {'start_ns': started - owner.started_ns, 'method': self.command,
                          'wait_hint': self.headers.get('X-Transit-Wait') is not None}
-                if native and self.path in ('/v1/query', '/v1/command'):
+                if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     event.update(operation=classified, principal=envelope['principal'])
                     if mutation:
                         event['sequence'] = envelope['sequence']
@@ -99,8 +100,10 @@ class Probe:
                     if len(data) > 4 * 1024 * 1024:
                         raise ValueError('fixture response exceeds probe bound')
                     event['response_ns'] = time.monotonic_ns() - owner.started_ns
-                    if native and response.status == 200 and self.path in ('/v1/query', '/v1/command'):
+                    if native and response.status == 200 and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                         result = json.loads(data)
+                        if self.path == '/v1/blocks':
+                            result = result['response']
                         event['position'] = result['position']
                         if not mutation and operation == 'process':
                             head = result['body']['process']['input']
@@ -130,7 +133,7 @@ class Probe:
                                     raise ValueError('invalid provider counter')
                                 owner.counts['work:provider:' + field] += amount
                             owner.counts['work:responses'] += 1
-                        if native and self.path in ('/v1/query', '/v1/command'):
+                        if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                             owner.counts[classified + ':elapsed_ns'] += elapsed
                             owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
                         owner.counts['response_bytes'] += len(data)
@@ -175,13 +178,14 @@ class Probe:
                 finally:
                     if native:
                         event['elapsed_ns'] = time.monotonic_ns() - started
-                        with owner.lock:
+                        with owner.completion:
                             owner.completed_events += 1
                             event['ordinal'] = owner.completed_events
                             owner.events.append(event)
                             if event.get('failure') is not None or event.get('status', 0) >= 400:
                                 owner.completed_failures += 1
                                 owner.failed_events.append(event)
+                            owner.completion.notify_all()
 
             do_GET = do_POST = do_PUT = do_DELETE = do_HEAD = forward
 
@@ -194,6 +198,11 @@ class Probe:
     def snapshot(self):
         with self.lock:
             return self.counts.copy()
+
+    def wait_completed(self, count, timeout):
+        """Join native trace recording, which follows the downstream write."""
+        with self.completion:
+            return self.completion.wait_for(lambda: self.completed_events >= count, timeout)
 
     def trace(self):
         with self.lock:

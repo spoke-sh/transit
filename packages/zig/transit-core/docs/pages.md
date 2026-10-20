@@ -13,7 +13,7 @@ they do not change the caller's previously published root.
 ## Representation and access
 
 Each versioned page is either an ordered leaf or a branch with child minima and
-SHA-256 references. Page/catalog format v1 includes an opaque 16-byte storage locator
+SHA-256 references. Page/catalog format v1 includes an opaque 32-byte storage locator
 beside each digest. Core never interprets that address; the adapter verifies its
 mapping. The hash covers a domain-separated canonical encoding, including child
 locators. Unsupported page/catalog versions are rejected explicitly. Their layout is
@@ -25,7 +25,7 @@ There is no missing-page-as-empty fallback.
 Pages use canonical binary encoding: `TPG1`, one-byte height and count, then
 exactly the occupied entries. A leaf entry contains a one-byte key length,
 little-endian two-byte value length and those bytes. A branch entry contains a
-one-byte minimum-key length, key bytes, 32-byte digest and 16-byte opaque locator.
+one-byte minimum-key length, key bytes, 32-byte digest and 32-byte opaque locator.
 Height zero selects leaves; positive height selects branches. Counts, key/value
 bounds, ordering, height and exact end-of-input are validated. Missing entries,
 trailing bytes, old JSON pages and unknown magic reject. Decoding allocates no

@@ -109,6 +109,16 @@ defines their host ownership and dispatch rules.
 unless a private mutation already overrides it. `put`, `delete`, `cast`, `call`
 and `reply` only build a bounded private proposal. No operation publishes early.
 
+`writeBlock(key, bytes)` adds a complete immutable value to the separate bulk
+budget; null removes its current edge. A turn admits sixteen block mutations and
+128 KiB, with at most 64 KiB per block. `readBlock(key, output)` copies a verified
+complete block into caller-owned memory and sees private overrides.
+`prefetchBlocks(keys)` acquires at most eight keys within the same byte bound.
+The committed, captured and retained adapters exclude private block writes and
+bind caches to their exact source. `blockPage(after)` scans only block metadata.
+None of these buffers retains permission; reads and final commit use native
+authorization and lifetime checks. A failed block fetch poisons the turn.
+
 Read failures are sticky for that proposal, even when application code catches
 the error. `validate` refuses it. A host must discard private work and retry reads
 or stop; it must not convert missing read evidence into a successful proposal or

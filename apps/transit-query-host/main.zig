@@ -72,7 +72,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const starting = std.Io.Clock.awake.now(init.io);
     while (true) {
         _ = server.session.receive() catch |err| {
-            if (!q.wire.Client.unavailable(err) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
+            if ((!q.wire.Client.unavailable(err) and !wire.contended(err)) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
@@ -138,7 +138,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
                 // step, then reacquire the delivery's current sequence. The
                 // binding ledger reconstructs an identical in-flight retry.
                 const registration = registrar.registration(action.register_object) catch |failure| {
-                    if (!q.wire.Client.unavailable(failure)) return failure;
+                    if (!q.wire.Client.unavailable(failure) and !wire.contended(failure)) return failure;
                     try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                     continue;
                 };
@@ -160,7 +160,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             // Station retains every prepared mutation before dispatch and
             // discards poisoned, unsent private proposals. Temporary transport
             // loss can retry without replacing any uncertain signed command.
-            if (q.wire.Client.unavailable(err)) {
+            if (q.wire.Client.unavailable(err) or wire.contended(err)) {
                 if (server.pending == null and server.ready != null) try server.discard();
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
@@ -196,7 +196,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     while (true) {
         if (pending) |signed| {
             _ = wire.submit(signed) catch |err| {
-                if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) return err;
+                if (err == error.AccessDenied or err == error.Rejected or (err == error.Conflict and !wire.contended(err))) return err;
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
             };
@@ -206,13 +206,13 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             continue;
         }
         const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
-            if (!q.wire.Client.unavailable(err)) return err;
+            if (!q.wire.Client.unavailable(err) and !wire.contended(err)) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
         const page = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
             if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
-            if (q.wire.Client.unavailable(err)) {
+            if (q.wire.Client.unavailable(err) or wire.contended(err)) {
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
             }
