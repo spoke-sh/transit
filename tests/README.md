@@ -56,6 +56,13 @@ recording before inspecting the trace; receiving HTTP bytes alone does not join
 the proxy handler. Counts, retained-event bounds and payload exclusion remain
 unchanged.
 
+The clean language-ring attempt at `799b2e6b` rejects a Table block read in its
+test proxy: its route allowlist omits `/v1/blocks`, so the installed Python worker
+correctly reports `InvalidAuthorityResponse` for the proxy's HTML error. The
+proxy now forwards all three current native routes while still rejecting raw
+double slashes. Lost-receipt, unavailable-read, exact-retry and cross-language
+value checks remain unchanged; the failed attempt is not a completed ring proof.
+
 The first clean attempt at `321be45a` passes `check-core`, then fails to compile
 the transition-property driver because its test store lacks the new block
 interface. The delivery/storage simulation stores require the same update;
