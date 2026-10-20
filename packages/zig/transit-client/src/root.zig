@@ -53,6 +53,7 @@ pub const Client = struct {
         };
     }
     http: std.http.Client,
+    response_memory: std.heap.ArenaAllocator.State = .init,
     url: []const u8,
     timeout_ms: u32 = 5000,
     last_exchange_ms: ?i64 = null,
@@ -68,14 +69,23 @@ pub const Client = struct {
         return .{ .http = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } }, .url = std.mem.trimEnd(u8, url, "/") };
     }
     pub fn deinit(self: *Client) void {
+        const response_memory = self.response_memory.promote(self.http.allocator);
         self.http.deinit();
+        response_memory.deinit();
+        self.response_memory = .init;
     }
 
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
-        const response = try self.http.allocator.create(?T);
-        defer self.http.allocator.destroy(response);
+        self.last_status = null;
+        self.last_rejection = null;
+        var scratch = self.response_memory.promote(self.http.allocator);
+        defer {
+            _ = scratch.reset(.retain_capacity);
+            self.response_memory = scratch.state;
+        }
+        const response = try scratch.allocator().create(?T);
         response.* = null;
         try self.exchange(T, path, signed, false, .{ .request_bytes = max_body, .response_bytes = max_body }, response);
         return response.*.?;
@@ -91,9 +101,15 @@ pub const Client = struct {
     /// arena owns all of them independently from transport buffers and Client.
     /// The caller must deinit it. A timeout drains and frees any raced response.
     pub fn callOwned(self: *Client, comptime T: type, path: []const u8, signed: anytype, limits: OwnedLimits) !std.json.Parsed(T) {
+        self.last_status = null;
+        self.last_rejection = null;
         try limits.validate();
-        const response = try self.http.allocator.create(?std.json.Parsed(T));
-        defer self.http.allocator.destroy(response);
+        var scratch = self.response_memory.promote(self.http.allocator);
+        defer {
+            _ = scratch.reset(.retain_capacity);
+            self.response_memory = scratch.state;
+        }
+        const response = try scratch.allocator().create(?std.json.Parsed(T));
         response.* = null;
         try self.exchange(T, path, signed, true, limits, response);
         return response.*.?;
@@ -142,7 +158,9 @@ pub const Client = struct {
             .raw = .fromMilliseconds(self.timeout_ms),
             .clock = .awake,
         });
-        // Keep the bounded response in one heap slot owned by the public call.
+        // Keep the bounded response in reusable heap storage owned by Client.
+        // Repeated calls must not strand slots behind retained HTTP allocations
+        // in a caller's fixed workspace when an idle connection is replaced.
         // Neither observation nor timeout frames copy the bulk response. Debug
         // builds must leave room for handlers on the foreign worker's 8 MiB stack.
         // Cancellation joins the producer before this slot is read or released.

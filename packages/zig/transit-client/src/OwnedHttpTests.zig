@@ -79,7 +79,7 @@ test "owned HTTP rejects oversized serialization before contacting the endpoint"
     try t.expect(client.last_rejection == null);
 }
 
-test "maximum block responses own validated bytes on an eight MiB caller stack" {
+test "repeated maximum block responses fit a fixed workspace and eight MiB caller stack" {
     const t = std.testing;
     const p = wire.protocol;
     var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
@@ -116,7 +116,8 @@ test "maximum block responses own validated bytes on an eight MiB caller stack" 
     defer t.allocator.free(corrupt);
     const Server = struct {
         fn run(context: Io, server: *Io.net.Server, replies: [2][]const u8) !void {
-            for (replies) |reply| {
+            for (0..65) |index| {
+                const reply = replies[@intFromBool(index == 64)];
                 var stream = try server.accept(context);
                 defer stream.close(context);
                 var input: [4096]u8 = undefined;
@@ -125,7 +126,7 @@ test "maximum block responses own validated bytes on an eight MiB caller stack" 
                 var writer = stream.writer(context, &output);
                 var http = std.http.Server.init(&reader.interface, &writer.interface);
                 var request = try http.receiveHead();
-                request.head.keep_alive = false;
+                request.head.keep_alive = index != 64;
                 const bytes = try request.readerExpectNone(&.{}).allocRemaining(t.allocator, .limited(p.max_body));
                 defer t.allocator.free(bytes);
                 try request.respond(reply, .{ .status = .ok });
@@ -146,15 +147,26 @@ test "maximum block responses own validated bytes on an eight MiB caller stack" 
             const acquired = try self.client.queryBlocks(self.query, key);
             try t.expectEqual(p.Blocks.max_batch_bytes, acquired.blocks.len);
             try t.expect(std.mem.allEqual(u8, acquired.blocks.slice(), 213));
+            for (1..64) |_| {
+                // Real native reads can outlast the idle reuse window. Exercise
+                // connection replacement without adding a wall-clock delay.
+                self.client.last_exchange_ms = 0;
+                const repeated = try self.client.queryBlocks(self.query, key);
+                try t.expect(std.mem.allEqual(u8, repeated.blocks.slice(), 213));
+            }
+            self.client.last_exchange_ms = 0;
             try t.expectError(error.InvalidAuthorityResponse, self.client.queryBlocks(self.query, key));
             // The first result survives the next exchange and parser destruction.
             try t.expect(std.mem.allEqual(u8, acquired.blocks.slice(), 213));
         }
     };
-    var caller: Caller = .{ .client = .init(t.allocator, io, url), .query = query };
+    const workspace = try t.allocator.alloc(u8, 8 * 1024 * 1024);
+    defer t.allocator.free(workspace);
+    var bounded: std.heap.FixedBufferAllocator = .init(workspace);
+    var caller: Caller = .{ .client = .init(bounded.allocator(), io, url), .query = query };
     defer caller.client.deinit();
     const thread = try std.Thread.spawn(.{ .stack_size = 8 * 1024 * 1024 }, Caller.run, .{&caller});
     thread.join();
-    try caller.result;
+    try t.expectEqual(@as(anyerror!void, {}), caller.result);
     try server.await(io);
 }

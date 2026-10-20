@@ -173,6 +173,18 @@ synchronous and asynchronous catalog lifecycles, exact saved-intent recovery,
 nested values, prepared parameters, current denial and provider/owner restart.
 This SDK-selected run does not select the separate 28-type native matrix.
 
+At `1ed89190`, root checks pass but the Flight fault schedule exhausts its fixed
+8 MiB request workspace while reading a retained result. Replacing an idle HTTP
+connection can leave a per-call response slot behind a retained allocation;
+fixed allocators cannot reclaim that slot out of order. The client now reuses a
+response arena across exchanges and releases it on destruction. The regression
+fails before this correction, then passes 64 maximum-size block replies plus
+corruption rejection while replacing connections within the same 8 MiB workspace
+and 8 MiB calling stack. A separate failing-allocation/budget regression verifies
+that local failures clear earlier wire diagnostics without contacting the peer.
+The client package suite passes with both corrections. The failed Flight run
+remains incomplete qualification; no workspace, stack or deadline is increased.
+
 ## Segment storage and physical collection
 
 Reproduce the focused schedules with `just test::storage-collection`,

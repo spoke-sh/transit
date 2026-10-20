@@ -119,3 +119,26 @@ test "local connection denial cannot masquerade as an authority rejection" {
         try t.expect(!client.Client.unavailable(error.AccessDenied));
     }
 }
+
+test "local allocation and budget failures cannot retain an earlier wire rejection" {
+    const t = std.testing;
+    var admission: Admission = .init(0, 0);
+    defer admission.threaded.deinit();
+    var caller = client.Client.init(t.failing_allocator, admission.io(), "http://127.0.0.1:1");
+    defer caller.deinit();
+    inline for (.{ false, true }) |owned| {
+        caller.last_status = .conflict;
+        caller.last_rejection = .Conflict;
+        if (owned) {
+            try t.expectError(error.OutOfMemory, caller.callOwned(client.Receipt, "/table/v1", .{}, .{}));
+        } else {
+            try t.expectError(error.OutOfMemory, caller.call(client.Receipt, "/v1/command", .{}));
+        }
+        try t.expect(caller.last_status == null and caller.last_rejection == null);
+    }
+    caller.last_status = .conflict;
+    caller.last_rejection = .Conflict;
+    try t.expectError(error.InvalidHttpBudget, caller.callOwned(client.Receipt, "/table/v1", .{}, .{ .response_bytes = 0 }));
+    try t.expect(caller.last_status == null and caller.last_rejection == null);
+    try t.expectEqual(@as(usize, 0), admission.connections.load(.monotonic));
+}
