@@ -300,3 +300,46 @@ fn stage(store: *Store, ledger: g.Ledger, id: u64, generation: u64, step: c.Tabl
     }
     return record;
 }
+test "typed operation index binds tokens once and retains owner identities through quota release" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ledger: g.Ledger = .{ .configuration = configuration };
+    var turn = try store.capture();
+    try ledger.initialize(&turn, 0);
+    try store.commit(turn);
+    store.origin = configuration.ingress;
+    turn = try store.capture();
+    const request: g.SessionOperations.Begin = .{ .nonce = @splat(7), .fingerprint = @splat(8), .kind = .configuration, .binding = binding, .original = @splat(9), .source = @splat(10), .expected_generation = 3, .reservation = 8192 };
+    const original = try g.SessionOperations.begin(ledger, &turn, request);
+    try store.commit(turn);
+    turn = try store.capture();
+    var retry = request;
+    retry.original = @splat(99);
+    retry.expected_generation = 9;
+    try t.expectEqualDeep(original, try g.SessionOperations.begin(ledger, &turn, retry));
+    retry.fingerprint = @splat(77);
+    try t.expectError(error.SqlTokenConflict, g.SessionOperations.begin(ledger, &turn, retry));
+    try t.expectError(error.SqlTokenConflict, ledger.begin(&turn, request.nonce, binding, @splat(88)));
+    try t.expectError(error.InvalidSqlOperationReference, g.SessionOperations.complete(ledger, &turn, original.id, 1, .applied));
+    try g.SessionOperations.ready(ledger, &turn, original.id, 1, 1024, @splat(12));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.StaleGatewayCoordinator, g.SessionOperations.complete(ledger, &turn, original.id, 2, .applied));
+    try g.SessionOperations.complete(ledger, &turn, original.id, 1, .applied);
+    try store.commit(turn);
+    turn = try store.capture();
+    const result = try g.SessionOperations.external(ledger, &turn, original.id);
+    try t.expectEqual(.terminal, result.phase);
+    try t.expectEqual(request.original, result.original);
+    const head = try ledger.head(&turn);
+    try t.expectEqual(@as(u64, 0), head.unsettled);
+    try t.expectEqual(@as(u64, 8192), head.used_bytes);
+    try t.expectEqual(@as(u64, 0), head.reserved_bytes);
+    const all = try g.SessionOperations.list(ledger, &turn, 0, false);
+    try t.expectEqual(original.id, all.entries[0].?.id);
+    try t.expectEqual(@as(?g.SessionOperations.Reference, null), (try g.SessionOperations.list(ledger, &turn, 0, true)).entries[0]);
+    try t.expectEqual(original.id, (try g.SessionOperations.lookup(ledger, &turn, request.nonce, request.fingerprint)).?.id);
+    store.denied = true;
+    turn = try store.capture();
+    try t.expectError(error.AccessDenied, g.SessionOperations.lookup(ledger, &turn, request.nonce, request.fingerprint));
+}

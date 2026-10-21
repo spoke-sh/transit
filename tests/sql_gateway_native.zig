@@ -192,6 +192,13 @@ pub fn main(init: std.process.Init) !void {
         try support.save(init, directory, "configuration-binding.json", binding);
         return support.print(init, binding);
     }
+    if (std.mem.eql(u8, mode, "session-sources")) {
+        var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
+        admin.sequence = (try admin.query(.capabilities)).principal_sequence;
+        const role = try authorization.loginRole(c, &wire, 46, config.table_principal, try tableKey(config));
+        try @import("sql_session_sources.zig").provision(init, &wire, &admin, directory, role, config.binding.role);
+        return support.print(init, .{ .sources = true });
+    }
     if (std.mem.eql(u8, mode, "app-config")) {
         const keys = .{ .{ "worker", @as(u8, 21) }, .{ "ingress", @as(u8, 22) }, .{ "coordinator", @as(u8, 24) }, .{ "table", try tableSeed(config) }, .{ "reader", @as(u8, 25) } };
         var files: gateway.Configuration.KeyFiles = undefined;

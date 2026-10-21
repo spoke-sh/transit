@@ -29,6 +29,8 @@ pub const Connection = struct {
             if (std.os.linux.errno(result) != .SUCCESS or length != @sizeOf(Credentials)) return error.InvalidSqlPeer;
             self.peer.uid = credentials.uid;
         } else if (context.tls_context) |selected| {
+            if (!context.registry.acquireAuthentication()) return error.GatewayConnectionCapacity;
+            defer context.registry.releaseAuthentication();
             self.secure = try tls.Session.accept(selected, &self.transport);
             self.peer.tls = true;
         }

@@ -1,5 +1,5 @@
 {
-  "definition": "e3b20922c773d15bc1607d98d6ec3d631010bacb08ac29ca627be9a11c0fce0c",
+  "definition": "bb50169aa0b6038b180e8704ccb07fed3e869167e5294dbf468137424f9db06c",
   "settings": [
     {
       "name": "version",
@@ -575,7 +575,23 @@
       "minimum": 0,
       "maximum": 32,
       "values": [],
-      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\",\"peer\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"sources_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\",\"peer\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"sources_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"sources_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+    },
+    {
+      "name": "sql.native.sources_file",
+      "description": "Explicit source bindings for the local peer account",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "sql.tls.mode",
@@ -1298,6 +1314,15 @@
                 "x-transit-owner": "sql",
                 "x-transit-change": "restart",
                 "default": null
+              },
+              "sources_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Explicit source bindings for the local peer account",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart"
               }
             }
           },
@@ -1355,6 +1380,7 @@
                 "role",
                 "authentication",
                 "password_file",
+                "sources_file",
                 "bootstrap_owner",
                 "enabled",
                 "database",
@@ -1388,6 +1414,17 @@
                     }
                   ]
                 },
+                "sources_file": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4096
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "bootstrap_owner": {
                   "type": "boolean"
                 },
@@ -1410,6 +1447,7 @@
               "x-transit-defaults": {
                 "authentication": "password",
                 "password_file": null,
+                "sources_file": null,
                 "bootstrap_owner": false,
                 "enabled": true,
                 "database": "transit",

@@ -34,7 +34,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             processes.append(child)
             return child
         def call(binary, mode, *args, via=None):
-            result = subprocess.run([binary, via or url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=300)
+            result = subprocess.run([binary, via or url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=1800 if mode == 'session-sources' else 300)
             if result.returncode:
                 raise RuntimeError(f'{mode}: {result.stderr[-8000:]}')
             return json.loads(result.stdout)
@@ -65,6 +65,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             configuration['mysql_port'] = mysql_port
             if slice == 'sessions':
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text())
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
@@ -92,6 +93,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
 
             call(catalog, 'host')
+            if slice == 'sessions':
+                call(ledger, 'session-sources')
+                for source in ('kv', 'document'):
+                    for role in ('source', 'requester', 'courier'):
+                        start(host, root/f'session-{source}-{role}.json')
             configure()
             certificate()
             start(host, root/'host.json')

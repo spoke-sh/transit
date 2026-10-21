@@ -6,7 +6,7 @@ const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(46);
 const Combined = @import("table_query_writer_support.zig");
 const Catalog = @import("catalog_query_support.zig");
-const Kind = enum { kv, table, document };
+pub const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
@@ -19,7 +19,7 @@ const projections = [_]q.SourceDefinition.Projection{
     .{ .column = .{ .name = q.fuze.Unified.Name.init("replica") catch unreachable, .type = .uint64 }, .path = &.{}, .relative = true, .mode = .element_replica },
     .{ .column = .{ .name = q.fuze.Unified.Name.init("optional") catch unreachable, .type = .utf8 }, .path = &optional_path },
 };
-fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
+pub fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
     return .{ .resource = resource, .source = switch (kind) {
         .kv => .{ .kv = .{ .prefix = try p.Value.init("k"), .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } },
         .table => return error.CatalogDefinitionRequired,
@@ -38,14 +38,15 @@ fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
     const bytes: [128]u8 = @splat('x');
     return std.fmt.bufPrint(buffer, "東京🙂/{s}/{d:0>2}", .{ bytes[0..padding], index });
 }
-const Seed = struct {
+pub const Seed = struct {
+    initializer: u64 = 65536,
     kind: Kind,
     rows: usize = count,
     peer: u64,
     requests: u64,
     done: bool = false,
     freeze: bool = false,
-    fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
+    pub fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         switch (self.kind) {
             .kv => {},
@@ -68,7 +69,7 @@ const Seed = struct {
         }
         return out;
     }
-    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
+    pub fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         const command = try frame.payload.asInteger();
         self.done = false;
@@ -93,7 +94,7 @@ const Seed = struct {
         if (command == -2 or command == -3) {
             try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .target = .{ .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) } });
             if (command == -2) {
-                var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = 65536, .resources = undefined, .adapter = &.{}, .workspace = &.{}, .cancellation = undefined };
+                var source: q.UnifiedBehavior.Source = .{ .peer = self.peer, .initializer = self.initializer, .resources = undefined, .adapter = &.{}, .workspace = &.{}, .cancellation = undefined };
                 const handler = source.interface();
                 try handler.initialize.?(handler.context, turn);
             }

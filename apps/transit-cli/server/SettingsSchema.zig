@@ -40,6 +40,7 @@ pub const descriptors = [_]D{
     .{ .name = "sql.mysql", .default_json = "null", .description = "MySQL listener; null disables admission", .owner = "sql", .kind = .object, .change = .restart, .nullable = true },
     sqlNumber("mysql.port", "MySQL loopback port", "13306", .unsigned, 1024, 65535),
     .{ .name = "sql.accounts", .default_json = "[]", .description = "SQL logins, authentication and explicit one-time owner bootstrap", .owner = "sql", .kind = .records, .change = .restart, .sensitive = true, .maximum = 32, .items_schema = accountSchema() },
+    .{ .name = "sql.native.sources_file", .default_json = "null", .description = "Explicit source bindings for the local peer account", .owner = "sql", .kind = .string, .change = .restart, .nullable = true, .sensitive = true },
     .{ .name = "sql.tls.mode", .default_json = "\"required\"", .description = "SQL transport encryption policy, independent of login authentication", .owner = "sql", .kind = .enumeration, .change = .restart, .values = &.{ "disabled", "optional", "required" } },
     sqlPath("certificate_file"),
     sqlPath("key_file"),

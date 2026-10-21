@@ -18,7 +18,7 @@ authentications: u8 = 4,
 operation_quota: u64 = 1000000,
 byte_quota: u64 = 1073741824,
 pending_quota: u32 = 16,
-pub const Native = struct { local: bool = true, http: ?Http = null };
+pub const Native = struct { local: bool = true, sources_file: ?[]const u8 = null, http: ?Http = null };
 pub const Http = struct { address: []const u8 = "127.0.0.1", port: u16 = 19109, tls: bool = true, certificate_file: ?[]const u8 = null, key_file: ?[]const u8 = null };
 pub const local_account: Account = .{ .name = "local", .role = "local_owner", .authentication = .peer, .bootstrap_owner = true };
 pub const PostgresListener = struct { port: u16 = 15432 };
@@ -29,12 +29,14 @@ pub const Account = struct {
     role: []const u8,
     authentication: Gateway.Authentication = .password,
     password_file: ?[]const u8 = null,
+    sources_file: ?[]const u8 = null,
     bootstrap_owner: bool = false,
     enabled: bool = true,
     database: []const u8 = "transit",
     schema: []const u8 = "public",
-    pub const json_schema_text_bounds = .{ .name = 63, .role = 63, .password_file = 4096, .database = 63, .schema = 63 };
+    pub const json_schema_text_bounds = .{ .name = 63, .role = 63, .password_file = 4096, .sources_file = 4096, .database = 63, .schema = 63 };
 };
+pub const SourceFile = struct { version: u8, definition: @import("transit_query").protocol.Growth.Definition, sources: []const Gateway.Source };
 pub fn listening(self: Self) bool {
     return self.native.local or self.native.http != null or self.wireListening();
 }
@@ -42,6 +44,7 @@ pub fn wireListening(self: Self) bool {
     return self.postgres != null or self.mysql != null;
 }
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, base: []const u8, diagnostic: anytype) !void {
+    if (self.native.sources_file) |file| self.native.sources_file = try resolvePath(allocator, base, file, "sql.native.sources_file", diagnostic);
     if (self.connections_per_account > self.connections or self.authentications > self.connections) return diagnostic.invalidField("sql.connections", "must admit the configured per-account and authentication bounds", null);
     const supplied = @intFromBool(self.tls.certificate_file != null) + @as(u8, @intFromBool(self.tls.key_file != null)) + @intFromBool(self.tls.ca_file != null);
     if (supplied != 0 and supplied != 3) return diagnostic.invalidField("sql.tls", "requires certificate_file, key_file and ca_file together", null);
@@ -69,6 +72,7 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, base: []const u8, diag
         if ((account.authentication == .password) != (account.password_file != null)) return diagnostic.invalidField("sql.accounts", "password authentication requires password_file; trust does not use a password", null);
         if (self.mysql != null and self.tls.mode == .disabled and account.enabled and account.authentication == .password) return diagnostic.invalidField("sql.tls.mode", "MySQL password authentication requires optional or required TLS", null);
         if (account.password_file) |path| account.password_file = try resolvePath(allocator, base, path, "sql.accounts.password_file", diagnostic);
+        if (account.sources_file) |path| account.sources_file = try resolvePath(allocator, base, path, "sql.accounts.sources_file", diagnostic);
     }
     self.accounts = accounts;
     if ((self.wireListening() or self.native.http != null) and enabled == 0) return diagnostic.invalidField("sql.accounts", "a configured SQL listener requires an enabled account; select trust or password authentication", null);

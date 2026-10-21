@@ -42,6 +42,7 @@ pub const QueryAuthorization = @import("QueryAuthorization.zig");
 pub const ResultDisclosure = @import("ResultDisclosure.zig");
 pub const Basis = @import("Basis.zig");
 pub const SqlTemplate = @import("SqlTemplate.zig");
+pub const SavedSubmission = @import("SavedSubmission.zig");
 pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const Interactive = @import("Interactive.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");

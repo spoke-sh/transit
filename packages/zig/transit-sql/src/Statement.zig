@@ -72,7 +72,21 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 }
 /// This profile routes every relational target through the selected database's
 /// explicit catalog connection. SQL names never select another configured account.
-pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: enum { native, wire }, options: q.RelationalQuery.Options) !Self {
+pub const Profile = enum { native, wire };
+pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options) !Self {
+    return prepareDiagnostic(allocator, client, text, dialect, profile, options, null);
+}
+pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
+    if (detail) |value| value.* = .{};
+    var location: f.Sql.Location = .{};
+    return prepareInner(allocator, client, text, dialect, profile, options, detail, &location) catch |err| {
+        if (detail) |value| if (value.location == null and (location.offset != 0 or location.expected != null)) {
+            value.location = location;
+        };
+        return err;
+    };
+}
+fn prepareInner(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
     try f.Sql.validateText(text);
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
@@ -91,17 +105,17 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
             if (token.tag == .integer and token.text.len != 0 and (token.text[0] == '$' or token.text[0] == '?')) parameterized = true;
         }
         if (!parameterized and try f.RelationalSql.requiredDialect(text, dialect)) {
-            var syntax = try f.RelationalSql.parseDialect(allocator, text, null, dialect);
+            var syntax = try f.RelationalSql.parseDialect(allocator, text, location, dialect);
             defer syntax.deinit();
             var clients: [f.Relational.max_sources]*c.TableClient = @splat(client);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try q.RelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], text, .interactive, selected, null) };
-        } else plan = .{ .select = try q.TablePrepared.prepare(allocator, client, text, dialect, null) };
+            plan = .{ .relational = try q.RelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], text, .interactive, selected, location) };
+        } else plan = .{ .select = try q.TablePrepared.prepare(allocator, client, text, dialect, detail) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
-        plan = .{ .dml = try c.TablePreparedDml.prepare(allocator, client, text, dialect, null) };
+        plan = .{ .dml = try c.TablePreparedDml.prepare(allocator, client, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
-        var ddl = try f.TableDdl.compileDialect(allocator, text, null, null, dialect);
+        var ddl = try f.TableDdl.compileDialect(allocator, text, null, location, dialect);
         errdefer ddl.deinit();
         if (ddl.statement != .create) return error.UnsupportedGatewayStatement;
         _ = try client.requireObject(0, .create);
@@ -112,7 +126,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
         const target = try f.TableDdl.target(names.allocator(), text);
         var definition = try client.lookup(allocator, try c.TableMetadata.Name.init(target.name));
         errdefer if (definition) |*value| value.deinit();
-        var compiled = try f.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, null);
+        var compiled = try f.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, location);
         errdefer compiled.deinit();
         _ = try client.requireObject(if (definition) |value| value.metadata.object else 0, if (target.kind == .alter) .alter else .drop);
         plan = .{ .ddl = .{ .compiled = compiled, .definition = definition } };

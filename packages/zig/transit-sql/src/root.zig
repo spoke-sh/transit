@@ -8,7 +8,12 @@ pub const Authentication = session_protocol.Authentication;
 pub const Limits = @import("Limits.zig");
 pub const Client = @import("Client.zig");
 pub const ControlLane = @import("ControlLane.zig");
+pub const ConfigurationOperations = @import("ConfigurationOperations.zig");
+pub const CapturedOperations = @import("CapturedOperations.zig");
+pub const CapturedLedger = @import("CapturedLedger.zig");
+pub const SessionOperations = @import("SessionOperations.zig");
 pub const Registry = @import("Registry.zig");
+pub const SourceSession = @import("SourceSession.zig");
 pub const Session = @import("Session.zig");
 pub const Completion = session_protocol.Completion;
 pub const AccountRuntime = @import("AccountRuntime.zig");
@@ -30,6 +35,7 @@ pub const Bytes = @import("Bytes.zig");
 test {
     _ = @import("upload_test.zig");
     _ = @import("ledger_test.zig");
+    _ = @import("captured_test.zig");
     _ = @import("ledger_records_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

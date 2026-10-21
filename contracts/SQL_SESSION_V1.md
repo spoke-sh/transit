@@ -7,8 +7,8 @@ The shared [definition](../packages/zig/transit-protocol/src/Growth.zig) is
 mandatory on every request and response. Its exact spelling is checked before
 execution. A version number alone does not establish compatibility.
 
-The native transport implementation is in progress. The existing PostgreSQL and
-MySQL adapters use the shared SQL execution package; their wire contracts remain
+The native, PostgreSQL and MySQL adapters use the shared SQL execution package.
+The database wire contracts remain
 in [SQL gateways](SQL_GATEWAY_V1.md).
 
 ## Transport and authentication
@@ -99,6 +99,9 @@ Requesting its successor acknowledges that batch and advances the same iterator;
 all other ordinals reject. At most one unacknowledged batch is retained per
 cursor. A duplicate concurrent fetch cannot advance the iterator twice.
 The final batch remains repeatable until closed or expired.
+Each data result carries its source basis: an explicit source cut, a Table cut,
+or the ordered per-resource snapshot vector. Settings and inspection results
+have no retained data basis. A basis identifies observed data; it grants no access.
 
 Lost/expired session or cursor state reports an incomplete result. The server
 never reopens a snapshot or silently skips to a new cut. A new session cannot
@@ -136,8 +139,37 @@ account identity, owner kind and durable ID. `status` accepts a known operation
 or token. `operations` pages account-scoped history by its append-only ID.
 A caller that lost all correlation can inspect this history and select an
 operation explicitly. The server never matches operations by similar SQL.
-Settings reload and captured execution keep their own journals and authorities;
-the session API does not manufacture a cross-domain transaction.
+The index stores Table, configuration and captured-query references together.
+Configuration references retain the original 128-bit reload identity, selected
+binding and expected configuration generation. `owner_operation` exposes that
+identity; `configuration_phase` distinguishes applying, applied, pending restart,
+rejected and partial. Observation does not reload. Resume submits the original
+owner request; configuration cancellation is unsupported. This does not create a
+cross-domain transaction.
+
+Captured execution requires a service-owned source binding and a token. The
+ledger reserves its original query namespace and publishes the exact compiled
+bundle before native Query admission. Each signed upload/control request is
+published in paged ledger storage before dispatch. The service records receipt
+and processed-input evidence before releasing that source's sequence lane.
+Generation fencing rejects stale publication; a replacement resumes the same
+published bytes. An incomplete, unpublished step can be abandoned and prepared
+again; a published request cannot. An incomplete initial bundle is reported as
+blocked and can be cancelled, never recompiled from token reuse.
+
+`result` opens a new temporary result cursor for a complete captured operation in
+the selected source binding. Current Query-owner authorization and its complete
+manifest determine disclosure and coverage. Fetch acknowledgements are identical
+to interactive results. After disconnect/restart, a caller can authenticate again,
+inspect the original token and open the retained result from its beginning.
+Cancellation first settles any published request, then uses the Query owner's
+cancel operation; it does not continue an unfinished upload.
+
+`context` lists currently authorized service-owned source names for the selected
+database. Source bindings contain the server's connection, key reference, decoder
+or Table/Document definition, SQL alias and budgets. Clients supply only the name.
+The source caller has a dedicated principal sequence and the SQL account's login
+role and selected database role. A declaration alone grants no native access.
 
 Accepted work survives session closure, transport loss, idle expiry and service
 replacement. Cancellation follows the owning domain's publication rules and
@@ -159,6 +191,11 @@ sessions, per-account sessions, handshakes, in-flight data/control requests,
 resident memory, spill, execution time and idle leases have explicit bounds.
 Durable quotas reserve space before admission and do not bound collection size
 with resident arrays. Pressure cannot delete accepted operations.
+Each captured operation reserves 1 MiB of retained ledger content, with at most
+1024 finite publication attempts; incomplete proposals consume that reservation.
+This is an operation bound, not a bound on account history. Source declarations
+are limited to 32 per account. An account's capture lane serializes submission
+steps; query execution and result reads remain with their independent owners.
 
 Errors contain a bounded code, SQLSTATE, safe message, retry classification and
 optional original operation observation. They do not contain SQL, values,

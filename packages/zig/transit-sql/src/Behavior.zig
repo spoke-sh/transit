@@ -67,6 +67,12 @@ pub fn apply(self: *Self, turn: *s.Turn, command: g.Control.Command) !void {
     try command.validate();
     const ledger = self.ledger;
     switch (command) {
+        .captured => |value| try g.CapturedLedger.apply(ledger, turn, value),
+        .external_begin => |value| {
+            _ = try g.SessionOperations.begin(ledger, turn, value);
+        },
+        .external_ready => |value| try g.SessionOperations.ready(ledger, turn, value.operation, value.generation, value.length, value.digest),
+        .external_complete => |value| try g.SessionOperations.complete(ledger, turn, value.operation, value.generation, value.summary),
         .initialize => |sequence| try ledger.initialize(turn, sequence),
         .begin => |value| {
             _ = try ledger.begin(turn, value.nonce, value.binding, value.fingerprint);

@@ -107,7 +107,9 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
         try self.http.connection_pool.resize(self.io, 0);
         try self.http.connection_pool.resize(self.io, 1);
     };
-    defer self.last_call = std.Io.Clock.awake.now(self.io);
+    // Idle age starts when the response is received, before parsing/rendering.
+    // A failed exchange must replace its transport before a later explicit call.
+    errdefer self.last_call = .{ .nanoseconds = 0 };
     const input: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .session = self.session, .action = action };
     try input.validate();
     const body = try api.Json.valueAlloc(self.allocator, input);
@@ -133,6 +135,7 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
         },
     }
     selected.cancelDiscard();
+    self.last_call = std.Io.Clock.awake.now(self.io);
     const response = try api.parse(api.Response, self.allocator, output.buffered());
     errdefer response.deinit();
     if (self.instance) |instance| {

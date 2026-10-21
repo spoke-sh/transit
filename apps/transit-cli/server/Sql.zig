@@ -149,7 +149,23 @@ fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Co
     var keys: g.Configuration.KeyFiles = undefined;
     inline for (@typeInfo(g.Configuration.KeyFiles).@"struct".field_names) |name| @field(keys, name) = try E.accountPath(self.installation, allocator, record.name, name ++ ".seed");
     const databases = try allocator.dupe(g.Configuration.Database, &.{.{ .name = record.database, .binding = record.binding }});
-    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .peer_uid = if (entry.desired != null and entry.desired.?.authentication == .peer) try Discovery.uid() else null, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases };
+    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .peer_uid = if (entry.desired != null and entry.desired.?.authentication == .peer) try Discovery.uid() else null, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases, .sources = try self.sources(allocator, entry) };
+}
+fn sources(self: *Self, allocator: std.mem.Allocator, entry: Entry) ![]const g.Configuration.Source {
+    const desired = entry.desired orelse return &.{};
+    const file = (if (desired.authentication == .peer) self.installation.config.sql.native.sources_file else desired.sources_file) orelse return &.{};
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var init = self.installation.init;
+    init.arena = &arena;
+    var diagnostic: @import("../Diagnostic.zig") = .{};
+    const declaration = try q.settings.Input.readTyped(Settings.SourceFile, init, file, &diagnostic);
+    if (declaration.version != 1 or declaration.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    if (declaration.sources.len > 32) return error.InvalidGatewayConfiguration;
+    const json = try p.Json.valueAlloc(arena.allocator(), declaration.sources);
+    const result = try std.json.parseFromSliceLeaky([]g.Configuration.Source, allocator, json, .{ .allocate = .alloc_always });
+    for (result) |*source| source.key_file = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(file) orelse ".", source.key_file });
+    return result;
 }
 fn configuration(self: *Self, allocator: std.mem.Allocator, accounts: []const g.Configuration.Account, admission: bool) !g.Configuration {
     const sql = self.installation.config.sql;
@@ -291,7 +307,8 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {
             self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
-            self.status = if (self.installation.config.sql.listening() and self.transportReady()) .accepting else .recovery;
+            const native_ready = self.local != null or self.installation.config.sql.native.http != null;
+            self.status = if (native_ready or (self.installation.config.sql.wireListening() and self.transportReady())) .accepting else .recovery;
             self.last_error = null;
         } else {
             self.status = .unavailable;
@@ -307,7 +324,7 @@ pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
         .accepting => "SQL listeners are accepting connections",
         .recovery => "Retained SQL workers are running without listeners",
         .unavailable => "SQL is unavailable; inspect error_type and account states",
-    }, .tls_mode = self.installation.config.sql.tls.mode, .native_socket = if (self.status == .accepting and self.local != null) self.local.?.socket else null, .native_port = if (self.status == .accepting and self.installation.config.sql.native.http != null) self.installation.config.sql.native.http.?.port else null, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
+    }, .tls_mode = self.installation.config.sql.tls.mode, .native_socket = if (self.status == .accepting and self.local != null) self.local.?.socket else null, .native_port = if (self.status == .accepting and self.installation.config.sql.native.http != null) self.installation.config.sql.native.http.?.port else null, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.transportReady() and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.transportReady() and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
 }
 pub const Report = struct { state: []const u8, message: []const u8, tls_mode: g.Configuration.TlsMode, native_socket: ?[]const u8, native_port: ?u16, configured_postgres_port: ?u16, configured_mysql_port: ?u16, host: []const u8, postgres_port: ?u16, mysql_port: ?u16, ca_file: ?[]const u8, authorization_config: []const u8, catalog_config: []const u8, status_file: []const u8, tls_error: ?[]const u8, error_type: ?[]const u8 };
 fn writeStatus(self: *Self, allocator: std.mem.Allocator) !void {

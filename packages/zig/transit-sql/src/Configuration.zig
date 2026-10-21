@@ -34,6 +34,13 @@ pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
 pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
 pub const TlsMode = enum { disabled, optional, required };
 pub const Authentication = enum { password, trust, peer };
+pub const Source = struct {
+    name: []const u8,
+    database: []const u8,
+    connection: g.query.UnifiedClient.Connection,
+    key_file: []const u8,
+    workspace: g.query.Workspace.Config,
+};
 pub const Account = struct {
     name: []const u8,
     authentication: Authentication = .password,
@@ -45,9 +52,14 @@ pub const Account = struct {
     association: []const u8 = "state",
     keys: KeyFiles,
     databases: []const Database,
+    sources: []const Source = &.{},
     pub fn database(self: Account, name: []const u8) !g.Ledger.Binding {
         for (self.databases) |value| if (std.mem.eql(u8, value.name, name)) return value.binding;
         return error.GatewayDatabaseDenied;
+    }
+    pub fn source(self: Account, name: []const u8, selected_database: []const u8) !*const Source {
+        for (self.sources) |*value| if (std.mem.eql(u8, value.name, name) and std.mem.eql(u8, value.database, selected_database)) return value;
+        return error.UnknownSqlSource;
     }
 };
 pub fn account(self: Self, name: []const u8) !usize {
@@ -125,6 +137,26 @@ pub fn validate(self: Self) !void {
             try validateName(database.name);
             if (!std.meta.eql(database.binding, value.ledger.bindings[j])) return error.InvalidGatewayConfiguration;
             for (value.databases[0..j]) |other| if (std.mem.eql(u8, database.name, other.name)) return error.InvalidGatewayConfiguration;
+        }
+        if (value.sources.len > 32) return error.InvalidGatewayConfiguration;
+        for (value.sources, 0..) |source, j| {
+            try validateName(source.name);
+            try path(source.key_file);
+            const binding = try value.database(source.database);
+            if (source.connection.realm != value.ledger.realm or source.connection.role != binding.role) return error.InvalidGatewayConfiguration;
+            inline for (.{ "realm", "principal", "source", "resource", "requester", "requests" }) |field| {
+                const id = @field(source.connection, field);
+                if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
+            }
+            for (value.sources[0..j]) |other| if (std.mem.eql(u8, source.name, other.name)) return error.InvalidGatewayConfiguration;
+            // A source caller owns a separate durable submission sequence. It
+            // cannot alias a Table coordinator, worker, or another source lane.
+            for (self.accounts) |other| {
+                if (other.ledger.realm != source.connection.realm) continue;
+                const l = other.ledger;
+                for ([_]u64{ l.worker, l.ingress, l.control, l.coordinator, l.table_principal, l.reader }) |principal| if (principal == source.connection.principal) return error.InvalidGatewayConfiguration;
+                for (other.sources) |*candidate| if (candidate != &value.sources[j] and candidate.connection.principal == source.connection.principal) return error.InvalidGatewayConfiguration;
+            }
         }
     }
 }

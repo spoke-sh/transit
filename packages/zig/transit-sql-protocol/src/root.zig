@@ -63,11 +63,13 @@ pub const Action = union(enum) {
     close,
     touch,
     reset,
+    context,
     prepare: struct { sql: []const u8 },
     describe: Id,
     release: Id,
     execute: struct { sql: ?[]const u8 = null, statement: ?Id = null, parameters: []const []const u8 = &.{}, token: ?Token = null, captured: bool = false },
     fetch: struct { cursor: Id, batch: u64 },
+    result: OperationId,
     close_result: Id,
     cancel: Target,
     status: Target,
@@ -77,27 +79,35 @@ pub const Action = union(enum) {
 };
 pub const OperationId = struct { account: Account, id: u64, kind: enum { table, configuration, captured } = .table };
 pub const Target = union(enum) { query: Id, operation: OperationId, token: Token };
-pub const Error = struct { code: []const u8, sqlstate: [5]u8, message: []const u8, retry: enum { never, control, same_token, same_batch }, operation: ?Operation = null };
+pub const Error = struct { code: []const u8, sqlstate: [5]u8, message: []const u8, retry: enum { never, control, same_token, same_batch }, operation: ?Operation = null, diagnostic: ?@import("transit_protocol").Diagnostic = null };
 pub const Operation = struct {
     identity: OperationId,
     token: Token,
     phase: enum { reserved, uploading, ready, active, terminal, abandoned },
     blocked: bool = false,
     cancellation_requested: bool = false,
-    outcome: ?enum { applied, unchanged, rejected, cancelled } = null,
+    outcome: ?enum { applied, unchanged, rejected, cancelled, partial } = null,
     matched: u64 = 0,
     changed: u64 = 0,
+    owner_operation: ?[16]u8 = null,
+    configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
 };
 pub const Description = struct { statement: Id, schema: []const u8, parameters: []const []const u8, mutation: bool };
-pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool };
+pub const Basis = union(enum) {
+    source: struct { kind: fuze.Unified.SourceKind, resource: u64, revision: u64, head: [32]u8, contract: [32]u8, schema: [32]u8 },
+    table: struct { realm: u64, resource: u64, catalog: u64, owner: u64, object: u64, revision: u64, commitment: [32]u8, schema: [32]u8 },
+    per_resource_snapshot_vector: []const fuze.Relational.Cut,
+};
+pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, basis: ?Basis = null };
 pub const Response = struct {
     version: u8,
     definition: native.Definition,
     instance: Instance,
     result: union(enum) {
-        hello: struct { encoding: []const u8, session_lease_ms: u32, maximum_message: u32, maximum_batch: u32, maximum_rows: u8 },
+        hello: struct { encoding: []const u8, session_lease_ms: u32, maximum_message: u32, maximum_batch: u32, maximum_rows: u8, capabilities: []const []const u8 },
         challenge: struct { id: Id, message: []const u8 },
         opened: struct { session: Id, account: Account, database: []const u8, proof: []const u8 = "" },
+        context: struct { account: Account, database: []const u8, source: ?[]const u8, sources: []const struct { name: []const u8, sql_name: []const u8, kind: enum { kv, table, document }, resource: u64, revision: u64, contract: [32]u8 } },
         described: Description,
         batch: Batch,
         operation: Operation,

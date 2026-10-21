@@ -55,15 +55,15 @@ class Client:
             assert not isinstance(result, dict) or 'err' not in result, result
         return result
 
-    def open(self):
+    def open(self, source=None):
         assert self.call('hello')['hello']['encoding'] == 'transit.logical.v1.hex'
         nonce = base64.b64encode(os.urandom(18)).decode()
         bare = f'n=,r={nonce}'
-        challenge = self.call(dict(open=dict(account='proof', database='data', authentication='scram', first='n,,' + bare)))['challenge']
+        challenge = self.call(dict(open=dict(account='proof', database='data', source=source, authentication='scram', first='n,,' + bare)))['challenge']
         server = challenge['message']
         values = dict(field.split('=', 1) for field in server.split(','))
         assert values['r'].startswith(nonce) and len(values['r']) > len(nonce)
-        binding = json.dumps([self.definition, self.instance, 'proof', 'data', None], separators=(',', ':')).encode()
+        binding = json.dumps([self.definition, self.instance, 'proof', 'data', source], separators=(',', ':')).encode()
         assert values['b'] == hashlib.sha256(binding).hexdigest()
         salted = hashlib.pbkdf2_hmac('sha256', b'proof-password', base64.b64decode(values['s']), int(values['i']))
         client_key = mac(salted, 'Client Key')
@@ -80,7 +80,7 @@ class Client:
         return self.call(dict(execute=dict(sql=sql, token=token, **kwargs)))
 
     def terminal(self, operation):
-        deadline = time.monotonic() + 90
+        deadline = time.monotonic() + (270 if operation['identity']['kind'] == 'captured' else 90)
         while operation['phase'] != 'terminal':
             assert not operation['blocked'] and time.monotonic() < deadline, operation
             time.sleep(.03)
@@ -129,6 +129,27 @@ def run(root, port, postgres, restart, console):
     import psycopg
     with psycopg.connect(**postgres) as wire:
         assert wire.execute('SELECT id FROM native_sessions').fetchall() == [(1,)]
+    reload_token = list(os.urandom(16))
+    reload = first.terminal(first.execute('SELECT transit_reload_conf()', reload_token)['operation'])
+    assert reload['identity']['kind'] == 'configuration' and reload['owner_operation'] is not None
+    assert reload['configuration_phase'] in ('applied', 'pending_restart')
+    duplicate = second.execute('SELECT transit_reload_conf()', reload_token)['operation']
+    assert duplicate['identity'] == reload['identity'] and duplicate['owner_operation'] == reload['owner_operation']
+    second.call(dict(cancel=dict(operation=reload['identity'])), error='ConfigurationCancellationUnsupported')
+    captured = []
+    for name, count in (('kv', 41), ('document', 12)):
+        selected = Client(root, port).open(name)
+        context = selected.call('context')['context']
+        assert {source['name'] for source in context['sources']} == {'kv', 'document'}
+        batch = selected.execute('SELECT count(*) FROM items')['batch']
+        assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
+        assert batch['basis']['source']['kind'] == name
+        selected.call(dict(close_result=batch['cursor']))
+        token = list(os.urandom(16))
+        operation = selected.execute('SELECT value FROM items', token, captured=True)['operation']
+        assert operation['identity']['kind'] == 'captured' and operation['phase'] != 'reserved'
+        captured.append((name, count, token, operation['identity']))
+        selected.close()
     first.close()
     second.close()
     restart()
@@ -136,9 +157,28 @@ def run(root, port, postgres, restart, console):
     prior = restored.call(dict(status=dict(token=insert_token)))['operation']
     assert prior['phase'] == 'terminal' and prior['changed'] == 1
     assert restored.execute('INSERT INTO native_sessions VALUES (1, 170141183460469231731687303715884105727)', insert_token)['operation']['identity'] == prior['identity']
+    recovered_reload = restored.call(dict(status=dict(token=reload_token)))['operation']
+    assert recovered_reload['identity'] == reload['identity'] and recovered_reload['owner_operation'] == reload['owner_operation']
     inventory = restored.call(dict(operations=dict(after=0)))['operations']
     assert prior['identity'] in [entry['identity'] for entry in inventory['entries']]
     restored.close()
+    for name, count, token, identity in captured:
+        selected = Client(root, port).open(name)
+        original = selected.execute('SELECT value FROM items', token, captured=True)['operation']
+        assert original['identity'] == identity
+        selected.terminal(original)
+        result = selected.call(dict(result=identity))['batch']
+        rows = []
+        while True:
+            assert selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
+            assert result['basis']['source']['kind'] == name
+            rows.extend(result['rows'])
+            if result['complete']:
+                break
+            result = selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch']+1)))['batch']
+        assert len(rows) == count
+        selected.call(dict(close_result=result['cursor']))
+        selected.close()
     consumer = root/'consumer'
     consumer.mkdir()
     password = consumer/'password'

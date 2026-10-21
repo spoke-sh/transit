@@ -44,6 +44,10 @@ pub const Command = union(enum(u8)) {
     complete: struct { target: Qualified, outcome: g.Terminal } = 20,
     session_cancel: u64 = 21,
     session_resume: u64 = 22,
+    external_begin: g.SessionOperations.Begin = 23,
+    external_ready: struct { operation: u64, generation: u64, length: u32, digest: [32]u8 } = 24,
+    external_complete: struct { operation: u64, generation: u64, summary: @FieldType(g.SessionOperations.External, "summary") } = 25,
+    captured: g.CapturedLedger.Command = 26,
     pub fn validate(self: Command) !void {
         switch (self) {
             .intent_part => |value| try value.part.validate(),

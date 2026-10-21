@@ -68,7 +68,7 @@ pub const Configuration = struct {
 pub fn publication(self: Self, id: u64) Pub {
     return .{ .resource = self.configuration.resource, .domain = .sql_gateway, .namespace = id };
 }
-fn actor(self: Self, turn: *s.Turn, who: enum { ingress, control, coordinator }, generation: ?u64) !void {
+pub fn actor(self: Self, turn: *s.Turn, who: enum { ingress, control, coordinator }, generation: ?u64) !void {
     try self.configuration.validate();
     if (turn.delivery.realm != self.configuration.realm or turn.delivery.pid != self.configuration.owner or turn.delivery.principal != self.configuration.worker or turn.view.resource != self.configuration.resource) return error.GatewayOwnerChanged;
     if (generation) |expected| if (expected == 0 or expected != turn.delivery.generation) return error.StaleGatewayCoordinator;
@@ -88,7 +88,7 @@ pub fn head(self: Self, source: anytype) !r.Head {
     if (!std.mem.eql(u8, &result.configuration, &try self.configuration.digest())) return error.GatewayConfigurationChanged;
     return result;
 }
-fn admittedBinding(self: Self, binding: Binding) !void {
+pub fn admittedBinding(self: Self, binding: Binding) !void {
     for (self.configuration.bindings) |candidate| if (std.meta.eql(candidate, binding)) return;
     return error.GatewayCatalogDenied;
 }
@@ -236,17 +236,24 @@ pub fn list(self: Self, source: anytype, cursor: ?Cursor) !Page {
     try c.Inspection.validatePage(found, after, source.view.revision);
     var result: Page = .{ .revision = source.view.revision };
     var count: usize = 0;
+    var scanned: usize = 0;
+    var last_id: u64 = 0;
     for (found.entries) |slot| {
         const entry = slot orelse break;
         if (!std.mem.startsWith(u8, entry.key.slice(), "\x00GWo")) break;
         if (entry.key.len != 20 or std.mem.readInt(u64, entry.key.data[12..20], .big) != 0) return error.InvalidGatewayInventory;
+        const reference = try g.SessionOperations.decodeReference(entry.value);
+        if (reference.id != std.mem.readInt(u64, entry.key.data[4..12], .big)) return error.GatewayIdentityConflict;
+        scanned += 1;
+        last_id = reference.id;
+        if (reference.kind != .table) continue;
         const item = try r.decode(r.Operation, entry.value);
         if (item.id != std.mem.readInt(u64, entry.key.data[4..12], .big)) return error.GatewayIdentityConflict;
         try self.admittedBinding(.{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() });
         result.entries[count] = item;
         count += 1;
     }
-    if (count == p.Growth.page_size and found.next != null) result.next = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .configuration = header.configuration, .revision = result.revision, .after = result.entries[count - 1].?.id };
+    if (scanned == p.Growth.page_size and found.next != null) result.next = .{ .realm = self.configuration.realm, .resource = self.configuration.resource, .configuration = header.configuration, .revision = result.revision, .after = last_id };
     return result;
 }
 pub fn discover(self: Self, source: anytype, nonce: [16]u8) !?r.Operation {

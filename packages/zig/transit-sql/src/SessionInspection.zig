@@ -9,6 +9,7 @@ arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
 metadata: ?c.TableMetadata.Record = null,
 statement: ?g.Statement = null,
+source: bool = false,
 rows: []const []const f.Types.Values.Cell,
 output: []const f.Types.Field,
 const describe_fields = [_]f.Types.Field{
@@ -29,6 +30,7 @@ fn unsigned(value: u64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .unsigned = value } } };
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
+    if (host.source) |source| return prepareSource(host, source, sql);
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
@@ -90,12 +92,35 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     return null;
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
+    if (self.source) {
+        const source = host.source orelse return error.UnknownSqlSource;
+        try source.current();
+        _ = try source.client.describe(source.definition);
+    }
     if (self.name) |name| {
         var definition = (try host.table.lookup(host.allocator, name)) orelse return error.CatalogNameNotFound;
         defer definition.deinit();
         if (!std.meta.eql(definition.metadata, self.metadata.?)) return error.CatalogDefinitionChanged;
     }
     if (self.statement) |*statement| try statement.validate(&host.table);
+}
+fn prepareSource(host: *g.Session, source: *g.SourceSession, sql: []const u8) !?Self {
+    var arena: std.heap.ArenaAllocator = .init(host.allocator);
+    errdefer arena.deinit();
+    const a = arena.allocator();
+    var parser = try f.SqlTyped.init(a, sql, null);
+    const describe = try parser.takeWord("DESCRIBE");
+    const explain = if (!describe) try parser.takeWord("EXPLAIN") else false;
+    const tables = if (!describe and !explain) (try parser.takeWord("SHOW")) and (try parser.takeWord("TABLES")) else false;
+    if (!describe and !explain and !tables) {
+        arena.deinit();
+        return null;
+    }
+    const workspace = source.configuration.workspace;
+    const result = try g.query.SqlInspection.apply(a, &source.client, .{ .scope = .{ .name = workspace.name, .source = workspace.source, .limits = workspace.limits }, .sql = sql });
+    const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+    rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try g.query.protocol.Json.valueAlloc(a, result))});
+    return .{ .arena = arena, .source = true, .rows = rows, .output = &.{.{ .name = "source_inspection", .type = .utf8 }} };
 }
 pub fn deinit(self: *Self) void {
     if (self.statement) |*statement| statement.deinit();

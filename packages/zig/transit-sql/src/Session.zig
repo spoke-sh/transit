@@ -18,6 +18,7 @@ credential: g.Configuration.Credential,
 database: []const u8,
 dialect: f.Sql.Dialect,
 native_profile: bool = false,
+source: ?*g.SourceSession = null,
 wire: g.station.client.Client,
 settings_wire: ?g.station.client.Client = null,
 settings_session: q.SettingsSession = .{},
@@ -31,21 +32,28 @@ operation: ?u64 = null,
 terminal: ?g.Terminal = null,
 detail_buffer: [160]u8 = undefined,
 diagnostics: ?*telemetry.Runtime = null,
+sql_diagnostic: ?f.SqlDiagnostic = null,
+compile_binding: f.Sql.Binding = .{},
 pub const read_options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
     probe: g.Probe,
     settings: Settings.Prepared,
     inspection: Inspection,
+    source: g.SourceSession.Prepared,
+    captured: g.CapturedOperations.Prepared,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
-            .probe, .settings, .inspection => &.{},
+            .source => |*value| value.template.parameterTypes(),
+            .probe, .settings, .inspection, .captured => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
         return switch (self.*) {
             .native => |*value| value.fields(),
+            .source => |*value| value.output.type.structure,
+            .captured => |*value| value.output.type.structure,
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
             .settings => |value| if (value.output) |output| output.type.structure else &.{},
@@ -55,7 +63,7 @@ pub const Prepared = union(enum) {
         return switch (self.*) {
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
-            .inspection => false,
+            .inspection, .source, .captured => false,
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
@@ -65,11 +73,26 @@ pub const Prepared = union(enum) {
 };
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read },
+    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
     batch: ?q.TableQuery.Batch = null,
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
+    pub fn basis(self: *Read, allocator: std.mem.Allocator) !?g.session_protocol.Basis {
+        return switch (self.value) {
+            .single => |*query| blk: {
+                const scan = &query.execution.scan;
+                break :blk .{ .table = .{ .realm = scan.connection.scope.realm, .resource = scan.view.resource, .catalog = scan.connection.scope.catalog, .owner = scan.connection.owner, .object = scan.definition.?.metadata.object, .revision = scan.view.revision, .commitment = try scan.fingerprint(), .schema = try query.compiled.plan.schema.fingerprint() } };
+            },
+            .relational => |query| .{ .per_resource_snapshot_vector = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) },
+            .source => |source| sourceBasis(source.query.basis),
+            .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
+            else => null,
+        };
+    }
+    fn sourceBasis(value: q.Basis) g.session_protocol.Basis {
+        return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .revision = value.cut.revision, .head = value.cut.head, .contract = value.contract, .schema = value.schema } };
+    }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
         if (maximum == 0 or maximum > g.ReadBatch.max_rows) return error.InvalidQueryBudget;
         try self.host.deadline.check(self.host.io);
@@ -77,6 +100,8 @@ pub const Read = struct {
         if (self.batch) |*batch| batch.deinit();
         self.batch = null;
         var result: g.ReadBatch = .{};
+        if (self.value == .captured) return self.value.captured.next(maximum);
+        if (self.value == .source) return self.value.source.next(maximum);
         if (self.value == .single) {
             self.batch = try self.value.single.nextBatch(maximum);
             result.len = self.batch.?.len;
@@ -85,7 +110,7 @@ pub const Read = struct {
             return result;
         }
         const cells: ?[]const f.Types.Values.Cell = switch (self.value) {
-            .single => unreachable,
+            .single, .source, .captured => unreachable,
             .relational => |query| blk: {
                 self.output = try query.next() orelse break :blk null;
                 break :blk self.output.cells[0..self.output.len];
@@ -144,6 +169,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
 }
 pub fn deinit(self: *Self) void {
     self.active.store(false, .release);
+    if (self.source) |source| source.deinit();
     self.directory.close(self.io);
     self.wire.deinit();
     if (self.settings_wire) |*wire| wire.deinit();
@@ -167,6 +193,7 @@ fn currentOnce(self: *Self) !void {
     const process = state.body.process.process;
     if (process.generation != self.account.generation or process.owner != self.account.ledger.worker) return error.StaleGatewayCoordinator;
     if (process.lifecycle != .running or process.failure != null or !p.Growth.processReady(process)) return error.GatewayOwnerUnavailable;
+    if (self.source) |source| try source.current();
 }
 /// Exact-current metadata reads may race a concurrent committed catalog turn.
 /// Retry only pure preparation/validation, retaining the original statement on
@@ -202,6 +229,14 @@ pub fn reset(self: *Self) !void {
     self.operation = null;
     self.settings_session.reset();
 }
+pub fn selectSource(self: *Self, name: ?[]const u8) !void {
+    if (self.source) |source| source.deinit();
+    self.source = null;
+    if (name) |selected| self.source = try self.fresh(g.SourceSession.init, .{ self, try self.account.source(selected, self.database) });
+}
+pub fn sourceName(self: *const Self) ?[]const u8 {
+    return if (self.source) |source| source.configuration.name else null;
+}
 pub fn selectDatabase(self: *Self, name: []const u8) !void {
     try self.current();
     const binding = try self.account.database(name);
@@ -212,6 +247,7 @@ pub fn selectDatabase(self: *Self, name: []const u8) !void {
     candidate.connection.namespace = binding.namespace;
     candidate.connection.role = binding.role;
     _ = try candidate.describeDatabase();
+    try self.selectSource(null);
     self.table = candidate;
     for (self.account.databases) |selected| if (std.mem.eql(u8, selected.name, name)) {
         self.database = selected.name;
@@ -219,6 +255,14 @@ pub fn selectDatabase(self: *Self, name: []const u8) !void {
     };
 }
 pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
+    self.sql_diagnostic = null;
+    self.compile_binding = .{};
+    return self.prepareInner(sql) catch |err| {
+        self.sql_diagnostic = f.SqlDiagnostic.bound(sql, err, true, self.compile_binding);
+        return err;
+    };
+}
+fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
     try self.current();
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
@@ -228,11 +272,13 @@ pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
             return result;
         }
     }
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else result.* = .{ .native = try self.fresh(g.Statement.prepare, .{ self.allocator, &self.table, sql, self.dialect, if (self.native_profile) .native else .wire, read_options }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (prepared.* == .native) prepared.native.deinit();
+    if (prepared.* == .source) prepared.source.deinit();
+    if (prepared.* == .captured) prepared.captured.deinit();
     if (prepared.* == .settings) prepared.settings.deinit();
     if (prepared.* == .inspection) prepared.inspection.deinit();
     self.allocator.destroy(prepared);
@@ -242,6 +288,8 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
     switch (prepared.*) {
         .native => |*statement| try self.fresh(g.Statement.validate, .{ statement, &self.table }),
+        .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
+        .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
         .settings => |*settings| try self.fresh(Settings.authorize, .{ self, &settings.plan }),
         .probe => {}, // current() already validates the login and database.
@@ -250,7 +298,11 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
     switch (prepared.*) {
         .native => |*statement| try statement.checkValues(self.allocator, values),
-        .probe, .settings, .inspection => if (values.len != 0) return error.WireParameterCountMismatch,
+        .source => |*statement| {
+            var bound = try self.source.?.bind(statement, values);
+            bound.deinit();
+        },
+        .probe, .settings, .inspection, .captured => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -259,6 +311,8 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined };
     switch (prepared.*) {
+        .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
+        .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
         .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
@@ -287,6 +341,8 @@ pub fn closeRead(self: *Self, read: *Read) void {
             query.close() catch {};
             query.deinit();
         },
+        .source => |*source| source.deinit(),
+        .captured => |*captured| captured.deinit(),
         .probe, .inspection => {},
         .settings => |*settings| settings.deinit(),
     }

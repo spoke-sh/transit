@@ -35,7 +35,6 @@ const Server = struct {
     workers: []Worker,
     mutex: std.Io.Mutex = .init,
     accounts: [g.Limits.max_accounts]u16 = @splat(0),
-    authenticating: u16 = 0,
     next_id: u32 = 1,
     draining: std.atomic.Value(bool) = .init(false),
     pub fn handle(self: *Server, _: std.Io, _: std.mem.Allocator, request: *std.http.Server.Request) !void {
@@ -77,9 +76,7 @@ const Server = struct {
         self.accounts[account] -= 1;
     }
     fn authenticated(self: *Server) void {
-        self.mutex.lockUncancelable(self.io);
-        defer self.mutex.unlock(self.io);
-        self.authenticating -= 1;
+        self.registry.releaseAuthentication();
     }
     fn connection(self: *Server, slot: *Worker, stream: std.Io.net.Stream, cancellation_only: bool, protocol: Protocol) void {
         defer slot.done.store(true, .release);
@@ -356,7 +353,7 @@ const Server = struct {
         while (true) {
             const stream = try listener.accept(self.io);
             try self.mutex.lock(self.io);
-            const first: usize = if (self.authenticating >= self.config.limits.authentications) self.config.limits.connections else 0;
+            const first: usize = if (self.registry.authenticating.load(.acquire) >= self.config.limits.authentications) self.config.limits.connections else 0;
             const index = for (self.workers[first..], first..) |*worker, i| {
                 if (worker.done.load(.acquire)) break i;
             } else {
@@ -381,11 +378,16 @@ const Server = struct {
             slot.done.store(false, .release);
             slot.cancelled.store(false, .release);
             slot.authenticated.store(false, .release);
-            if (index < self.config.limits.connections) self.authenticating += 1;
+            if (index < self.config.limits.connections and !self.registry.acquireAuthentication()) {
+                slot.done.store(true, .release);
+                self.mutex.unlock(self.io);
+                stream.close(self.io);
+                continue;
+            }
             slot.future = self.io.concurrent(Server.connection, .{ self, slot, stream, index >= self.config.limits.connections, protocol }) catch |err| {
                 slot.done.store(true, .release);
                 slot.future = null;
-                if (index < self.config.limits.connections) self.authenticating -= 1;
+                if (index < self.config.limits.connections) self.registry.releaseAuthentication();
                 self.mutex.unlock(self.io);
                 stream.close(self.io);
                 self.diagnostics.event(.{ .name = "sql.connection.refused", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
@@ -552,8 +554,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer if (health) |*future| {
         _ = future.cancel(init.io) catch {};
     };
-    const Result = union(enum) { postgres: anyerror!void, mysql: anyerror!void, native: anyerror!void, local: anyerror!void, expiry: anyerror!void, stop: anyerror!void };
-    var results: [6]Result = undefined;
+    const Result = union(enum) { postgres: anyerror!void, mysql: anyerror!void, native: anyerror!void, local: anyerror!void, expiry: anyerror!void, recovery: anyerror!void, stop: anyerror!void };
+    var results: [7]Result = undefined;
     var listeners: std.Io.Select(Result) = .init(init.io, &results);
     defer listeners.cancelDiscard();
     if (postgres_listener) |*listener| try listeners.concurrent(.postgres, Server.serve, .{ &server, listener, .postgres });
@@ -561,6 +563,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (native_listener) |*listener| try listeners.concurrent(.native, Native.serve, .{ &native_api, init.io, init.gpa, listener });
     if (local_listener) |*listener| try listeners.concurrent(.local, Native.serve, .{ &local_api, init.io, init.gpa, listener });
     try listeners.concurrent(.expiry, expireSessions, .{ &registry, init.io });
+    try listeners.concurrent(.recovery, recoverSessions, .{ &registry, init.io, diagnostics });
     try listeners.concurrent(.stop, Stop.wait, .{init.io});
     diagnostics.event(.{ .name = if (config.listening()) "service.ready" else "sql.recovery.ready", .operation = "sql" });
     switch (try listeners.await()) {
@@ -585,5 +588,19 @@ fn expireSessions(registry: *g.Registry, io: std.Io) !void {
     while (true) {
         try io.sleep(.fromMilliseconds(100), .awake);
         registry.sweep();
+    }
+}
+
+fn recoverSessions(registry: *g.Registry, io: std.Io, diagnostics: *telemetry.Runtime) !void {
+    var previous: ?anyerror = null;
+    while (true) {
+        try io.sleep(.fromMilliseconds(100), .awake);
+        registry.recover() catch |err| {
+            if (err == error.Canceled or err == error.Cancelled) return err;
+            if (previous == null or previous.? != err) diagnostics.event(.{ .name = "sql.operation.recovery", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
+            previous = err;
+            continue;
+        };
+        previous = null;
     }
 }

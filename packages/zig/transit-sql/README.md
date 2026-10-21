@@ -1,7 +1,7 @@
 # transit-sql
 
-Shared database wire types, budgets and credential verification above the public
-query and catalog owners. The module is `transit_sql`; SQL compilation,
+Shared logical SQL sessions, account recovery, budgets and credential verification
+above the public query and catalog owners. The module is `transit_sql`; SQL compilation,
 source snapshots and mutation authority stay with Fuze, Query and Catalog.
 
 `Type.from` admits int64, uint64, finite float64, Boolean, UTF-8 and binary fields.
@@ -88,3 +88,15 @@ creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
 Session cleanup releases reads and transports; durable account operations remain
 in the ledger.
+
+`Registry` admits native HTTP/peer, PostgreSQL and MySQL sessions against shared
+account limits. `SourceSession` owns explicitly configured source reads.
+`SessionOperations` pages Table, configuration and captured-query references by
+account token. `CapturedLedger` freezes bundles and exact native submissions;
+`CapturedOperations` drives the existing Query owner and verifies retained results.
+`ConfigurationOperations` retains and resumes the configuration owner's original
+reload identity. The recovery task scans one pending reference per pass rather
+than loading the durable backlog into memory.
+
+See [source bindings and captured queries](docs/sources.md) and the
+[native session contract](../../../contracts/SQL_SESSION_V1.md).

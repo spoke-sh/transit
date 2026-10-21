@@ -85,6 +85,16 @@ pub fn deinit(self: *Self) void {
 pub fn parameterTypes(self: *const Self) []const t.Type {
     return self.types[0..self.count];
 }
+/// Describe a template without source acquisition or execution. Typed witnesses
+/// determine only the output shape; callers still bind the real values later.
+pub fn outputSchema(self: *const Self, allocator: std.mem.Allocator) !t.Decoded {
+    var values: [max_parameters]?t.Values.Atom = undefined;
+    for (self.parameterTypes(), values[0..self.count]) |kind, *value| value.* = try witness(kind);
+    var bound = try self.bind(allocator, self.name, self.descriptor.type, self.basis, values[0..self.count], null);
+    defer bound.deinit();
+    var fields: [128]t.Field = undefined;
+    return (try bound.plan.outputSchema(&fields)).clone(allocator);
+}
 fn at(self: *const Self, index: u32, diagnostic: ?*sql.Binding) void {
     const detail = diagnostic orelse return;
     detail.parameter = index;
