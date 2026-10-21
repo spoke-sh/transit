@@ -8,7 +8,16 @@ pub fn upgrade(self: *Self, context: *const tls.Context) !void {
     self.secure = try tls.Session.accept(context, self.transport);
 }
 pub fn readExact(self: *Self, bytes: []u8) !void {
-    if (self.secure) |*session| return session.readExact(bytes);
+    if (self.secure) |*session| {
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            const count = try session.read(bytes[offset..]);
+            if (count == 0) return error.EndOfStream;
+            try self.transport.inputStarted();
+            offset += count;
+        }
+        return;
+    }
     return self.transport.readExact(bytes);
 }
 pub fn writeAll(self: *Self, bytes: []const u8) !void {

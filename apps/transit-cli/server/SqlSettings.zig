@@ -11,14 +11,14 @@ health_port: u16 = 19108,
 drain_ms: u32 = 30000,
 request_timeout_ms: u32 = 5000,
 command_ms: u32 = 30000,
-idle_ms: u32 = 30000,
+idle_ms: u32 = 0,
 connections: u16 = 64,
 connections_per_account: u8 = 8,
 authentications: u8 = 4,
 operation_quota: u64 = 1000000,
 byte_quota: u64 = 1073741824,
 pending_quota: u32 = 16,
-pub const Native = struct { local: bool = true, sources_file: ?[]const u8 = null, http: ?Http = null };
+pub const Native = struct { session_lease_ms: u32 = 30000, local: bool = true, sources_file: ?[]const u8 = null, http: ?Http = null };
 pub const Http = struct { address: []const u8 = "127.0.0.1", port: u16 = 19109, tls: bool = true, certificate_file: ?[]const u8 = null, key_file: ?[]const u8 = null };
 pub const local_account: Account = .{ .name = "local", .role = "local_owner", .authentication = .peer, .bootstrap_owner = true };
 pub const PostgresListener = struct { port: u16 = 15432 };

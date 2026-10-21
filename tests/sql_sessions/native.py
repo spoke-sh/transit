@@ -309,7 +309,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(console_read, range(2)))
     if faults is not None:
-        restart(wire=False, idle_ms=1000)
+        restart(wire=False, session_lease_ms=1000)
         leased = Client(root, port).open()
         for _ in range(6):
             assert leased.call(dict(status=dict(operation=created['identity'])))['operation']['phase'] == 'terminal'

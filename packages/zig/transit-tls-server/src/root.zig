@@ -57,13 +57,31 @@ pub const Transport = struct {
     io: std.Io,
     stream: std.Io.net.Stream,
     deadline: std.Io.Timeout,
+    /// An idle connection can wait without a deadline, but the first network
+    /// bytes (including a partial TLS record) start a finite frame deadline.
+    input_timeout_ms: ?u32 = null,
+    pub fn idle(self: *Transport, milliseconds: u32, frame_ms: u32) !void {
+        if (frame_ms == 0 or frame_ms > 300000) return error.InvalidTimeout;
+        self.deadline = if (milliseconds == 0) .none else (std.Io.Timeout{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) } }).toDeadline(self.io);
+        self.input_timeout_ms = frame_ms;
+    }
+    /// Also called when OpenSSL returns application bytes already buffered from
+    /// a previous read. Neither fragmentation nor TLS buffering renews the bound.
+    pub fn inputStarted(self: *Transport) !void {
+        if (self.input_timeout_ms) |milliseconds| {
+            self.input_timeout_ms = null;
+            try self.resetDeadline(milliseconds);
+        }
+    }
     pub fn resetDeadline(self: *Transport, milliseconds: u32) !void {
         if (milliseconds == 0 or milliseconds > 300000) return error.InvalidTimeout;
         self.deadline = (std.Io.Timeout{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) } }).toDeadline(self.io);
     }
     pub fn read(self: *Transport, bytes: []u8) !usize {
         var vectors = [_][]u8{bytes};
-        return (try self.io.operateTimeout(.{ .net_read = .{ .socket_handle = self.stream.socket.handle, .data = &vectors } }, self.deadline)).net_read;
+        const count = try (try self.io.operateTimeout(.{ .net_read = .{ .socket_handle = self.stream.socket.handle, .data = &vectors } }, self.deadline)).net_read;
+        if (count != 0) try self.inputStarted();
+        return count;
     }
     pub fn readExact(self: *Transport, bytes: []u8) !void {
         var offset: usize = 0;

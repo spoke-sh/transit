@@ -84,7 +84,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
-            configuration['limits'] = dict(connections=8,connections_per_account=8,authentications=4,command_ms=270000,idle_ms=270000)
+            configuration['limits'] = dict(connections=8,connections_per_account=8,authentications=4,command_ms=270000,idle_ms=270000,session_lease_ms=270000)
             (root/'sql-gateway.json').write_text(json.dumps(configuration))
         def certificate():
             subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost', '-keyout', str(root/'key.pem'), '-out', str(root/'certificate.pem')], capture_output=True, check=True, timeout=30)
@@ -147,15 +147,15 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
                     if name is not None and name not in source_processes:
                         source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
-                def restart_sessions(peer=False, wire=True, idle_ms=None):
+                def restart_sessions(peer=False, wire=True, session_lease_ms=None):
                     nonlocal server
                     server.kill()
                     server.wait(timeout=10)
                     call(ledger, 'fence')
                     configure()
-                    if idle_ms is not None:
+                    if session_lease_ms is not None:
                         configuration = json.loads((root/'sql-gateway.json').read_text())
-                        configuration['limits']['idle_ms'] = idle_ms
+                        configuration['limits']['session_lease_ms'] = session_lease_ms
                         (root/'sql-gateway.json').write_text(json.dumps(configuration))
                     if not wire:
                         configuration = json.loads((root/'sql-gateway.json').read_text())

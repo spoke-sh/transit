@@ -148,7 +148,7 @@ pub fn sweep(self: *Self) void {
     for (self.slots) |*slot| {
         self.mutex.lockUncancelable(self.io);
         const expired = slot.present and !slot.opening and slot.native and slot.controls == 0 and
-            slot.last.durationTo(now).toMilliseconds() >= self.configuration.limits.idle_ms and slot.mutex.tryLock();
+            slot.last.durationTo(now).toMilliseconds() >= self.configuration.limits.session_lease_ms and slot.mutex.tryLock();
         if (expired) slot.present = false;
         self.mutex.unlock(self.io);
         if (!expired) continue;
@@ -175,7 +175,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]u8 {
 /// the request allocator and never borrow a result freed by another connection.
 pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, peer: Peer) ![]u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.idle_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery" } } });
+    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
@@ -189,7 +189,7 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
         self.mutex.unlock(self.io);
         return error.SqlSessionBusy;
     }
-    if (slot.controls == 0 and slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.idle_ms) {
+    if (slot.controls == 0 and slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.session_lease_ms) {
         slot.present = false;
         self.mutex.unlock(self.io);
         slot.clear();
@@ -519,7 +519,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
         return err;
     };
     if (slot.controls == 0 and !slot.active.load(.acquire) and
-        slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.idle_ms)
+        slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.session_lease_ms)
     {
         self.mutex.unlock(self.io);
         return error.SqlSessionExpired;

@@ -768,7 +768,23 @@
     },
     {
       "name": "sql.idle_ms",
-      "description": "Idle SQL session deadline",
+      "description": "PostgreSQL/MySQL idle timeout; zero keeps idle connections open",
+      "owner": "sql",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "0",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 4294967295,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.session_lease_ms",
+      "description": "Native HTTP SQL session lease, renewed by touch",
       "owner": "sql",
       "kind": "duration",
       "scope": "component",
@@ -1395,6 +1411,23 @@
                 "description": "Explicit source bindings for the local peer account",
                 "x-transit-owner": "sql",
                 "x-transit-change": "restart"
+              },
+              "session_lease_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 270000
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(ms|s|min|h)$"
+                  }
+                ],
+                "description": "Native HTTP SQL session lease, renewed by touch",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": 30000
               }
             }
           },
@@ -1641,18 +1674,18 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1,
-                "maximum": 270000
+                "minimum": 0,
+                "maximum": 4294967295
               },
               {
                 "type": "string",
                 "pattern": "^[0-9]+(ms|s|min|h)$"
               }
             ],
-            "description": "Idle SQL session deadline",
+            "description": "PostgreSQL/MySQL idle timeout; zero keeps idle connections open",
             "x-transit-owner": "sql",
             "x-transit-change": "restart",
-            "default": 30000
+            "default": 0
           },
           "connections": {
             "type": "integer",

@@ -231,12 +231,18 @@ const Server = struct {
         defer engine.deinit();
         while (true) {
             const idle = engine.cycle.state == .idle;
-            if (idle) try transport.resetDeadline(self.config.limits.idle_ms) else {
+            if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
                 const elapsed = host.deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
                 if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
                 try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
             }
-            var frame = try pg.Frame.read(allocator, &channel, self.config.limits.frame_bytes);
+            var frame = pg.Frame.read(allocator, &channel, self.config.limits.frame_bytes) catch |err| {
+                if (err == error.Timeout and idle and transport.input_timeout_ms != null) {
+                    try transport.resetDeadline(self.config.limits.write_ms);
+                    try tx.writeAll(try backend.failure(true, "57P05".*, "Terminating connection due to idle-session timeout", null));
+                }
+                return err;
+            };
             defer frame.deinit();
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
@@ -339,8 +345,15 @@ const Server = struct {
         authentication_pending = false;
         slot.authenticated.store(true, .release);
         while (true) {
-            try transport.resetDeadline(limits.idle_ms);
-            var frame = try mysql.Frame.read(allocator, &channel, 0, limits.frame_bytes);
+            try transport.idle(limits.idle_ms, host.commandMilliseconds());
+            var frame = mysql.Frame.read(allocator, &channel, 0, limits.frame_bytes) catch |err| {
+                if (err == error.Timeout and transport.input_timeout_ms != null) {
+                    try transport.resetDeadline(limits.write_ms);
+                    backend.sequence = 0;
+                    try tx.writeAll(try backend.failure(4031, "HY000".*, "Terminating connection due to idle-session timeout"));
+                }
+                return err;
+            };
             defer frame.deinit();
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
