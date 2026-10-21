@@ -14,6 +14,13 @@
 
 # Installation identity: choose before initialization; retain on every restart.
 version: 1
+
+# Operational logs use stderr. JSON is available for log collectors.
+# Overrides: TRANSIT_LOGGING__FORMAT=json, TRANSIT_LOGGING__LEVEL=debug.
+# Changes require restarting the server; SHOW logging.format exposes the setting.
+logging:
+  format: text # text | json
+  level: info # debug | info | warn | error | off
 installation: ./.transit
 realm: 1
 # Native accepted-work quotas; these do not expire history or reclaim storage.

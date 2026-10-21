@@ -596,7 +596,7 @@ fn startWorker(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record:
     const path_name = try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "{s}.bootstrap.json", .{config.role}));
     try Files.json(self.init.io, allocator, path_name, config);
     const worker = &app.workers[i];
-    try worker.process.start(self.init, self.executable, try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "{s}.launch.json", .{config.role})), .{ .argv = &.{ selected.artifact.path, "--transit-bootstrap-v1", path_name } }, true);
+    try worker.process.start(self.init, self.executable, try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "{s}.launch.json", .{config.role})), .{ .argv = &.{ selected.artifact.path, "--transit-bootstrap-v1", path_name }, .environment = &self.installation.config.logging.environment() }, true);
     worker.phase = .registration;
     worker.started = std.Io.Clock.awake.now(self.init.io);
     worker.registration = .{ .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = generation, .public_key = @splat(0) };

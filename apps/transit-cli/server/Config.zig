@@ -7,6 +7,7 @@ pub const settings = @import("SettingsSchema.zig").registry;
 version: u8,
 installation: []const u8,
 startup: Startup = .{},
+logging: @import("Logging.zig") = .{},
 realm: u64,
 admission_ceiling: u64 = 65536,
 control_reserve: u64 = 4096,
@@ -335,10 +336,15 @@ test "pinned optional source can appear once and never falls back after acceptan
     const inputs: Inputs = .{ .path = source, .optional = true, .defaults = defaults, .environment = Settings.object(a), .environment_names = &.{} };
     const missing = try resolve(init, inputs, &diagnostic, false);
     try t.expect(missing.inputs.optional);
+    try t.expectEqual(.text, missing.config.logging.format);
+    try t.expectEqual(.info, missing.config.logging.level);
     try t.expectEqual(@as(u64, 0), missing.config.query.statement_timeout);
-    try Files.write(t.io, source, "query:\n  statement_timeout: 5s\n");
+    try Files.write(t.io, source, "query:\n  statement_timeout: 5s\nlogging:\n  format: json\n  level: warn\n");
     const present = try resolve(init, missing.inputs, &diagnostic, false);
     try t.expect(!present.inputs.optional);
+    try t.expectEqual(.json, present.config.logging.format);
+    try t.expectEqual(.warn, present.config.logging.level);
+    try t.expectEqual(.restart, (try settings.lookup("logging.format")).change);
     try t.expectEqual(@as(u64, 5000), present.config.query.statement_timeout);
     var pinned = present.inputs;
     try @import("transit_query").settings.Registry.set(a, &pinned.environment, "query.statement_timeout", .{ .integer = 7000 });

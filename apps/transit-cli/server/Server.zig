@@ -1,6 +1,7 @@
 //! Foreground, explicitly configured local placement. OS liveness grants no authority.
 const std = @import("std");
 const q = @import("transit_query");
+const telemetry = q.wire.observability.telemetry;
 const Config = @import("Config.zig");
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
@@ -17,6 +18,7 @@ installation: *Installation,
 executable: []const u8,
 ui: bool,
 diagnostic: *Diagnostic,
+diagnostics: *telemetry.Runtime,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
@@ -62,15 +64,34 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     }
     if (!std.mem.eql(u8, &record.root_public, &installation.root.public_key.toBytes())) return error.InstallationIdentityMismatch;
     try installation.checkStorage();
-    diagnostic.serverStartup(init.io, if (created) .creating else if (record.complete) .opening else .resuming, config.installation);
+    var diagnostics = telemetry.Runtime.init(init.io, "transit", config.logging.config());
+    diagnostics.start();
+    defer diagnostics.stop();
+    diagnostics.event(.{ .name = "server.startup", .message = if (created) "creating installation" else if (record.complete) "opening installation" else "resuming installation", .location = config.installation });
+    supervise(init, options, diagnostic, loaded, executable, &installation, &diagnostics) catch |err| {
+        diagnostic.log(&diagnostics, "server.failed", err);
+        diagnostic.emitted = true;
+        return err;
+    };
+}
+fn supervise(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, executable: []const u8, installation: *Installation, diagnostics: *telemetry.Runtime) !void {
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
     var boot: [16]u8 = undefined;
     try init.io.randomSecure(&boot);
-    self.* = .{ .loaded = loaded, .boot = boot, .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
-    defer self.stop();
+    self.* = .{ .loaded = loaded, .boot = boot, .init = init, .installation = installation, .executable = executable, .diagnostic = diagnostic, .diagnostics = diagnostics, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+    defer {
+        self.stop();
+        if (Signals.interrupted()) diagnostics.event(.{ .name = "server.stopped", .message = "Server stopped" });
+    }
     var restarts: u8 = 0;
     while (!Signals.interrupted()) {
+        diagnostic.cause = null;
+        diagnostic.summary = null;
+        diagnostic.next = null;
+        diagnostic.role = null;
+        diagnostic.port = null;
+        diagnostic.field = null;
         self.cycle() catch |err| {
             self.stop();
             self.transportDiagnostic();
@@ -83,7 +104,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
             if (restarts == 3) return error.RestartBudgetExhausted;
             restarts += 1;
             diagnostic.setFailure(err, "server role failed; retrying the same installation", "Wait for a ready record or terminal failure. The server preserves installation history and allows at most three automatic restarts.");
-            diagnostic.emit(init.io, err);
+            diagnostic.log(diagnostics, "server.retry", err);
             try init.io.sleep(.fromMilliseconds(@as(u32, restarts) * 250), .awake);
             continue;
         };
@@ -107,7 +128,11 @@ fn allAlive(self: *Self) bool {
 fn start(self: *Self, allocator: std.mem.Allocator, role: Role, args: []const []const u8, environment: []const Process.Variable, registration: bool) !void {
     if (Signals.interrupted()) return error.ServerStopped;
     self.active_role = role;
-    try self.processes[@backingInt(role)].start(self.init, self.executable, try std.fmt.allocPrint(allocator, "{s}/{s}.launch.json", .{ self.installation.config.installation, @tagName(role) }), .{ .argv = args, .environment = environment }, registration);
+    var child_environment: [16]Process.Variable = undefined;
+    if (environment.len > child_environment.len - 2) return error.InvalidChildEnvironment;
+    @memcpy(child_environment[0..environment.len], environment);
+    @memcpy(child_environment[environment.len..][0..2], &self.installation.config.logging.environment());
+    try self.processes[@backingInt(role)].start(self.init, self.executable, try std.fmt.allocPrint(allocator, "{s}/{s}.launch.json", .{ self.installation.config.installation, @tagName(role) }), .{ .argv = args, .environment = child_environment[0 .. environment.len + 2] }, registration);
 }
 fn ready(self: *Self, address: []const u8) !void {
     const start_time = std.Io.Clock.awake.now(self.init.io);
@@ -195,7 +220,7 @@ fn cycle(self: *Self) !void {
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     self.active_role = .sql;
-    const sql = try Sql.create(installation, allocator, self.executable);
+    const sql = try Sql.create(installation, allocator, self.executable, self.diagnostics);
     defer if (sql) |manager| manager.destroy();
     if (self.ui) {
         const board_path = try Board.configuration(installation, allocator);
@@ -223,9 +248,15 @@ fn cycle(self: *Self) !void {
         .ui = if (self.ui) "ready" else "disabled",
         .sql = if (sql) |manager| try manager.report(allocator) else null,
     }, .{});
-    var output_buffer: [1024]u8 = undefined;
-    var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
-    try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
+    self.diagnostics.event(.{ .name = "server.ready", .message = "Server is ready", .endpoint = installation.record.endpoint, .location = config.installation });
+    if (self.ui) self.diagnostics.event(.{ .name = "board.ready", .message = "Board is ready", .endpoint = config.board.?.public_origin });
+    // Readiness receipts belong to stdout consumers; interactive users see the
+    // same lifecycle events as every other executable on stderr.
+    if (!(std.Io.File.stdout().isTty(self.init.io) catch false)) {
+        var output_buffer: [1024]u8 = undefined;
+        var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
+        try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
+    }
     var last = std.Io.Clock.awake.now(self.init.io);
     var unavailable_probes: u8 = 0;
     while (!Signals.interrupted()) {
@@ -299,11 +330,11 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
 
 fn transportDiagnostic(self: *Self) void {
     const log = &self.processes[@backingInt(Role.gateway)].stderr;
-    const prefix = "gateway transport: ";
+    const prefix = if (self.installation.config.logging.format == .json) "\"error_type\":\"" else "error_type=\"";
     const offset = std.mem.lastIndexOf(u8, log.bytes[0..log.length], prefix) orelse return;
     const tail = log.bytes[offset + prefix.len .. log.length];
-    const end = std.mem.indexOfScalar(u8, tail, '\n') orelse return;
+    const end = std.mem.indexOfScalar(u8, tail, '"') orelse return;
     if (end == 0 or end > 64) return;
     for (tail[0..end]) |byte| if (!std.ascii.isAlphanumeric(byte)) return;
-    std.debug.print("server gateway transport: {s}\n", .{tail[0..end]});
+    self.diagnostics.event(.{ .name = "gateway.transport", .level = .warn, .outcome = .failed, .error_type = tail[0..end] });
 }

@@ -7,6 +7,8 @@ pub const descriptors = [_]D{
     .{ .name = "version", .default_json = "1", .description = "Configuration definition version", .owner = "server", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 1, .maximum = 1 },
     .{ .name = "installation", .description = "Retained installation directory", .owner = "server", .kind = .string, .scope = .installation, .change = .initialization },
     .{ .name = "startup.require_existing", .default_json = "false", .description = "Refuse missing or empty installations instead of creating one at startup", .owner = "server", .kind = .boolean, .change = .restart },
+    .{ .name = "logging.format", .default_json = "\"text\"", .description = "Operational log rendering on stderr", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "text", "json" } },
+    .{ .name = "logging.level", .default_json = "\"info\"", .description = "Minimum operational log severity", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "debug", "info", "warn", "error", "off" } },
     .{ .name = "realm", .default_json = "1", .description = "Native security realm", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 1, .maximum = 9007199254740991 },
     .{ .name = "admission_ceiling", .default_json = "65536", .description = "Immutable ordinary admission quota", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 128, .maximum = 65536 },
     .{ .name = "control_reserve", .default_json = "4096", .description = "Immutable reserved control quota", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .maximum = 65536 },
