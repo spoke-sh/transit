@@ -178,6 +178,8 @@ to share SQL execution safely across native, PostgreSQL and MySQL clients. The
 source inspection is at `547b3fdf74b9` on 2026-10-20. The shared session layer
 below is a proposal, not an implemented interface or new qualification result.
 The preceding database sections describe the existing machinery it would reuse.
+The native SQL session API over HTTP/TLS is the selected design direction;
+protocol details and executable qualification remain outstanding.
 
 ### Observed split and its consequence
 
@@ -275,13 +277,70 @@ are unnecessary for either native connection. A local socket needs no TLS
 certificate. These are proposed transport policies requiring executable
 remote-authentication, peer-identity and discovery tests, not existing guarantees.
 
+### HTTP API design and the Quack comparison
+
+DuckDB's [Quack overview](https://duckdb.org/docs/current/quack/overview), read on
+2026-10-20, describes its DuckDB 1.5.3 profile: client-initiated HTTP messages,
+DuckDB-specific typed serialization, a short query request path and additional
+fetches for larger results. Its client supports both direct remote queries and
+remote catalog attachment. It also documents HTTP connection caching. These
+features are a reference for transport design, not evidence for Transit recovery
+or a commitment to Quack compatibility.
+
+The [Quack reference](https://duckdb.org/docs/current/quack/reference#fetch-batching-server-side)
+documents batching several data chunks into a fetch response. For Transit, the
+corresponding design question is how much useful work one bounded network
+exchange can perform without losing cancellation, result order or backpressure.
+The following choices are Transit design deductions and require measurement:
+
+- Treat a logical SQL session separately from an HTTP connection. A bounded
+  connection pool can serve multiple requests without repeating the TLS handshake
+  or resetting session settings. Neither a pooled socket nor a session handle
+  supplies permission; each request binds the authenticated account and instance.
+- Allow a simple execute request to carry SQL and typed parameters and return
+  schema plus an initial bounded result batch, or an accepted operation handle.
+  Separate prepare/bind operations remain available when useful. A short public
+  request path must not skip internal durable write admission or claim a write
+  finishes in one round trip.
+- Fetch ordered batches under byte, row, time and retained-buffer bounds.
+  Preserve a bounded retry window for an unacknowledged batch. Losing the fetch
+  response must not skip rows, silently restart the query or change its source
+  cut. A new logical session or service restart cannot resume an interactive read.
+- Specify a public typed codec using Transit's existing logical definitions;
+  preserve wide integers, decimals, nested values and distinct cell states for
+  supported sources. HTTP does not imply JSON rows or conversion to wire-gateway
+  scalar types. Physical storage pages and WAL records are not the public result
+  format. Generate schemas and endpoint documentation from the owning types.
+- Make HTTP intermediaries part of the protocol tests: sensitive responses are
+  not cacheable, redirects cannot forward credentials, cancelled responses remain
+  incomplete, and an intermediary retry cannot manufacture a new mutation.
+  Stateful sessions bind to the owning service instance. Ordinary HTTP routing
+  does not establish interchangeable replicas or distributed session ownership.
+
+Quack's [security reference](https://duckdb.org/docs/current/quack/security)
+describes a default shared-token check, replaceable authentication/authorization
+hooks and TLS termination at a reverse proxy. Transit retains its own account,
+current-grant and object-disclosure model and the proposed direct TLS endpoint.
+The session service must preserve admission-token recovery and saved native
+steps even when an HTTP response disappears. Neither a successful HTTP exchange
+nor a freshly authenticated session establishes a durable SQL outcome.
+
+This boundary can support future SDK, notebook, browser and Board consumers
+without another execution authority. Browser admission would additionally need
+an explicit origin/credential policy; HTTP availability alone does not establish
+that support. Remote catalog attachment would need separately defined source
+identity, permissions and consistency. Those consumers and federation remain
+future scope; the initial native client and gateways exercise the shared boundary.
+Compare cold and reused connections, request counts, first-batch and completion
+latency, wire bytes and bounded resident memory before claiming an improvement.
+
 ### Distinct lifetimes
 
 | Object | Owner and proposed lifetime | Consequence of connection loss |
 | --- | --- | --- |
 | Authentication exchange | Bounded adapter task | Discard transient secrets; no SQL authority inferred |
-| SQL session | Service; bounded settings, prepared handles and active statements | Close or idle-expire it; reauthenticate on reconnect |
-| Interactive read | Session; leased source cut, bounded compute and output | Cancel, release pins/spill and mark any prefix incomplete |
+| SQL session | Service; bounded settings, prepared handles and active statements | Native HTTP connection loss does not close it; explicit close, lease expiry or database-wire disconnect does |
+| Interactive read | Session; leased source cut, bounded compute and output | Native fetch loss permits only bounded same-cursor retry; session close releases pins/spill and leaves any prefix incomplete |
 | Explicit captured query | Existing durable query owner | Recover its original job identity under its existing contract |
 | Accepted mutation/control | Durable account operation plus its owning domain | Retain exact work and outcome independently of the session |
 | Admission token | Account-scoped durable mapping to frozen request/operation | Retry or discover the same identity under current permission |
@@ -291,6 +350,11 @@ account share its coordinator, but keep settings, preparations, reads and
 cancellation separate. Session expiry is cleanup of temporary work; it is not
 retention permission for accepted mutations. Successful admission, native input
 processing, domain completion and client observation remain separate events.
+Database-wire adapters associate their logical session with their socket. The
+native HTTP adapter uses an authenticated session handle across bounded requests
+and connections. Replacing a TCP connection with the same live session is not
+durable query resumption. Expired sessions require fresh authentication and new
+interactive work; accepted mutations retain their separate recovery identities.
 
 ### Admission before a reply can be trusted
 
