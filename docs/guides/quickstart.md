@@ -94,7 +94,9 @@ transit server
 After an interrupted write, use `.status`
 and `.resume` to recover the original operation; repeating SQL creates new work.
 Interactive SELECT statements run again against a fresh snapshot.
-If state or an artifact is missing, startup refuses to recreate its history.
+If an existing installation contains missing state or a changed artifact,
+startup refuses to recreate its history. Set `startup.require_existing: true`
+to also refuse a completely missing or empty installation directory.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
 Next, [connect with psql or mysql](../../apps/transit-cli/docs/sql.md) or
