@@ -232,7 +232,7 @@ execution. Aliases in one resource share its cut, while different resources may
 be captured at different times. This does not provide an atomic or causal shared
 snapshot. Every source's current rights still apply, including empty inputs.
 The [console configuration](../../apps/transit-cli/docs/console.md#finite-relational-queries)
-explicitly enables this interactive profile. Its private disk group index and
+describes this interactive profile. Its private disk group index and
 bounded operator state have separate resident, spill, work and result limits.
 Rows remain incomplete until terminal source/output checks succeed.
 
@@ -294,9 +294,11 @@ separate from the native Arrow batches used for execution and presentation.
 The [interactive query contract](../../contracts/INTERACTIVE_QUERY_V1.md) defines
 the leased snapshot, cancellation and bounded output boundary.
 
-The console opens a fresh query session and source snapshot for
-each SELECT. Completion releases that session; console exit cancels its active
-query. Reconnecting does not resume a previous interactive SELECT. This changes
+The SQL service opens a fresh result and source snapshot for each console
+SELECT. Completion releases the underlying read; the logical session retains
+its final bounded batch for exact fetch retries. Normal console exit closes the
+session. Abnormal disconnection falls back to its lease. A new logical session
+does not resume a previous interactive SELECT. This changes
 interactive query recovery, not the durability of accepted application state.
 Existing callers explicitly requesting durable captured jobs keep their recovery
 contract. A session does not require a new durable PID or principal.
@@ -329,7 +331,9 @@ failures computed from cached source rows. Diagnostic construction or disclosure
 failure preserves the primary computation error and does not create durable work.
 These local witnesses are not saved outcomes for a durable captured query.
 
-Fuze executes in the client over signed native snapshot reads. The authority
+Fuze executes outside kernel authority over signed native snapshot reads.
+For console connections, execution lives in the shared SQL service. Low-level
+Query SDK callers execute in their own process. The authority
 does not execute SQL. There are no durable upload, execution-progress or result
 publication turns in this profile. Table, KV and Document share the existing
 finite compiler, source adapters and Arrow codecs. The contract provides:
@@ -351,7 +355,7 @@ The authority admits 64 active snapshot slots, at most eight per principal.
 Each has a renewable 60-second lease and a five-minute hard lifetime. Expired
 slots are reclaimed on bounded snapshot operations, and restart invalidates
 tokens. These limits apply to snapshot bookkeeping, not underlying data retention.
-Client computation stops with the process. A failed release falls back to lease
+Computation stops with the process hosting the query. A failed release falls back to lease
 expiry. Current grants, principal epoch and source liveness still gate reads.
 
 With native `snapshot_read`, acquisition combines source/requester metadata,
@@ -368,15 +372,16 @@ final disclosure also checks current authority after computation, including
 empty results. No authorization decision carries into a later page or statement.
 Authority decoration preserves batched immutable-chunk reads and bounded caches.
 
-Console output keeps bounded Arrow batches, a 64-entry point cache and at most
+Source execution keeps bounded Arrow batches, a 64-entry point cache and at most
 64 prefetched range entries with a 32 KiB decoded-entry budget.
 Document index adapters fetch known immutable Publication chunk keys in groups
 of at most eight. Descriptor, chunk length, digest and index commitment checks
 still run; missing or invalid data fails instead of becoming an empty result.
 Cached bytes are checked against the live lease and current source policy before
 disclosure. A failed, interrupted or denied prefix has no successful completion
-footer. Reconnecting starts new statements; `execution: durable` explicitly
-selects the captured-query/recovery console behavior.
+footer. The native session API retains one bounded batch for fetch retries. Opening a
+new session starts new statements; `execution: captured` selects service-owned
+captured queries against an explicit source binding.
 [Workload priorities](workloads.md) and [measured costs](performance.md) explain
 the rationale and the shared storage work needed alongside this lifecycle.
 

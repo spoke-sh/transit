@@ -1,6 +1,7 @@
 # transit-sql-gateway
 
-An opt-in PostgreSQL and MySQL endpoint with configurable TLS over explicit Transit Table catalogs.
+A shared SQL service with native HTTP/TLS, private Unix peer, PostgreSQL and
+MySQL adapters over explicit Transit catalogs and source bindings.
 The gateway composes the public Query, Catalog and Station clients; it has no
 storage-provider access. Each SQL account owns a native operation ledger and one
 Table principal independently of its network connections. A separate private
@@ -18,7 +19,14 @@ describe provisioning, secrets, operator recovery and replacement. The
 the [proof ledger](../../tests/README.md#database-wire-gateway) records exercised
 clients and failure cases.
 
-The SQL profile is autocommit SELECT, CREATE TABLE, INSERT, UPDATE and DELETE.
+The [native session API](../../contracts/SQL_SESSION_V1.md) and
+[console](../transit-cli/docs/console.md) preserve full logical types, Table
+ALTER/DROP, explicit source reads and captured query operations. Native sessions
+live across HTTP connections; PG/MySQL sessions belong to their socket. The
+[shared runtime](../../packages/zig/transit-sql/README.md) owns settings,
+authorization, preparation, reads and account coordination for all adapters.
+
+The PostgreSQL/MySQL profile is autocommit SELECT, CREATE TABLE, INSERT, UPDATE and DELETE.
 Typed parameters apply to single-Table SELECT/DML. Literal relational SELECT
 uses the admitted shared int64 join/group profile. Core wire values are int64,
 uint64, finite float64, Boolean, UTF-8, binary and SQL NULL. PostgreSQL represents
@@ -27,7 +35,7 @@ Other projected types reject without opening a result stream.
 Each UTF-8 or binary bound parameter is limited to 4096 bytes. SQL text, complete
 intent size and session budgets have separate limits in the wire contract.
 
-Transactions, multi-statement requests, savepoints, autocommit-off, ALTER/DROP,
+For PostgreSQL/MySQL, transactions, multi-statement requests, savepoints, autocommit-off, ALTER/DROP,
 RETURNING, COPY, bulk/long-data uploads, cursors, replication and arbitrary system
 catalog emulation are unsupported. PostgreSQL extended writes require exactly
 one execution followed by Sync; Flush after a pending write rejects before

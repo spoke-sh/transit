@@ -20,6 +20,47 @@ and finite page/segment/result-byte budgets. The [Query reference](../../../../d
 describes the source and requester owners. These owners and their policies must
 already exist; loading a source declaration does not provision or grant them.
 
+A KV declaration has this shape (the numeric identities must be the observed
+identities of your already-provisioned owners and login role):
+
+```yaml
+version: 1
+definition: cbee25ed95ec3dc9b1e987f6f90a4f4b983bb828f60d772d6dbd4a75facf6731
+sources:
+  - name: counters
+    database: transit
+    key_file: counters-caller.seed
+    connection:
+      realm: 46
+      principal: 3002
+      source: 81
+      resource: 82
+      requester: 79
+      requests: 80
+      role: null
+    workspace:
+      name: items
+      source:
+        version: 1
+        resource: 82
+        source:
+          kv:
+            prefix: ""
+            key: {version: 1, type: utf8}
+            value: {version: 1, type: int64}
+      limits:
+        pages: "1000"
+        segments: "100"
+        result_bytes: "1048576"
+```
+
+The exact definition is also published in the generated
+[native contract schema](../../../../contracts/transit-v1.schema.json). A different
+build's definition is rejected. Table declarations include their catalog scope,
+metadata publication and full row type; Document declarations include an explicit
+reference, optional expansion path and scalar projections. Those shapes follow
+`Values.Source` in the [Query package](../../../zig/transit-query/README.md).
+
 A source caller uses a dedicated native principal and sequence. It cannot share
 any account worker, Table coordinator or other source's sequenced principal.
 Its login role must equal the SQL account's login role; its selected role must

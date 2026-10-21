@@ -62,9 +62,10 @@ transit console -c 'SELECT COUNT(*) FROM items;'
 ```
 
 Read the phase timings alongside the [performance reference](../reference/performance.md).
-The current console uses durable captured queries. Fresh interactive sessions
-and cancellation on exit are [planned behavior](../reference/queries.md#interactive-sessions).
-The commands above do not demonstrate that future lifecycle.
+The shared SQL service owns interactive snapshots and session cleanup.
+Explicit captured queries use service-owned source bindings and retain their
+operation identity after disconnection. See the
+[query lifecycle](../reference/queries.md#interactive-sessions).
 
 The [recoverable query example](../../examples/state-query/README.md) exercises
 populated Table, KV and Document sources in a disposable installation
@@ -203,7 +204,7 @@ idempotency policy because the handler's turn has not committed yet.
 
 The [Rust example guide](../../examples/station-sdk/rust/README.md) covers the
 installed crates and full runner. Its proof independently decodes the same IPC
-with PyArrow. This is an explicit durable query job, unlike the proposed console
+with PyArrow. This is an explicit durable query job, distinct from ordinary console
 session lifetime. A reproducible research application must additionally record
 dataset/source basis, plan, feature/model versions and application configuration;
 this small example is not a historical simulation engine.

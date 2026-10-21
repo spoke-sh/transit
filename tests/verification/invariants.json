@@ -1193,9 +1193,7 @@
       ],
       "profile": "Native SQL session console with Table catalogs and explicit KV/Table/Document bindings",
       "tasks": [
-        "test::unit",
-        "test::console-history",
-        "test::cli-diagnostics",
+        "check-core",
         "test::sql-sessions",
         "test::server",
         "test::unified-ingress"

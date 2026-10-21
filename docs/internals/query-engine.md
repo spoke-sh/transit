@@ -115,7 +115,7 @@ and gives up resumption of that computation after client loss. Captured queries
 pay for durable bookkeeping in exchange for their specified result recovery.
 These are distinct contracts, not interchangeable optimization settings.
 
-The proposed [shared SQL session boundary](service-interfaces.md#shared-sql-sessions-proposed-ownership-boundary)
+The proposed [shared SQL session boundary](service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
 moves ordinary console execution into the same service runtime as database wire
 sessions. It preserves the distinction above: a service-hosted interactive read
 still uses a temporary snapshot and does not become a durable query job. That
