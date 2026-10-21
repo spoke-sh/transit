@@ -72,14 +72,11 @@ class Fixture:
         # Keep retained artifact identity stable if another build updates zig-out.
         self.cli = str(self.root / "transit")
         shutil.copy2(Path(cli).resolve(), self.cli)
-        ports = []
-        while len(ports) < 5:
-            port = free_port()
-            if port not in ports:
-                ports.append(port)
+        self.reserved_ports = set()
+        ports = [self.reserve_port() for _ in range(6)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
-            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports)),
-            "sql": {"health_port": free_port()},
+            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports[:5])),
+            "sql": {"health_port": ports[5]},
             "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
                 "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
                 "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
@@ -93,7 +90,16 @@ class Fixture:
         self.activation = None
         self.markers = set()
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.url = f"http://127.0.0.1:{ports[-1]}"
+        self.url = f"http://127.0.0.1:{self.config['ports']['gateway']}"
+
+    def reserve_port(self):
+        # Closing an ephemeral bind can let the OS return that same port again.
+        # Keep every role in this fixture distinct, including later SQL roles.
+        while True:
+            port = free_port()
+            if port not in self.reserved_ports:
+                self.reserved_ports.add(port)
+                return port
 
     @property
     def installation(self):

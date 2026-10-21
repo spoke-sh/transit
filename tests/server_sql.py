@@ -12,7 +12,6 @@ import sys
 import time
 
 from server import Fixture, children, command, freeze_executables as freeze
-from storage import free_port
 
 
 def call(argv, *, env=None, timeout=300, retry_observation=False):
@@ -117,8 +116,8 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         freeze(fixture)
         gateway = fixture.config['executables']['sql_gateway']
     fixture.config['sql'] = {'native': {'local': False}}
-    fixture.config['applications'] = {'port': free_port()}
-    fixture.config['board'] = {'port': free_port()}
+    fixture.config['applications'] = {'port': fixture.reserve_port()}
+    fixture.config['board'] = {'port': fixture.reserve_port()}
     fixture.config['sql'] = {'native': {'local': False}, 'accounts': [dict(name='dormant', role='unused', password_file='absent.password')]}
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
@@ -138,7 +137,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             path.write_text(password)
             path.chmod(0o600)
             accounts.append(dict(name=name, role='local_owner' if name == 'owner' else name, password_file=str(path)))
-        pg_port, mysql_port, health_port = free_port(), free_port(), free_port()
+        pg_port, mysql_port, health_port = fixture.reserve_port(), fixture.reserve_port(), fixture.reserve_port()
         fixture.config['sql'] = {'native': {'local': False}, 'postgres': {'port': pg_port}, 'mysql': {'port': mysql_port},
             'health_port': health_port, 'request_timeout_ms': 30000, 'command_ms': 270000,
             'idle_ms': 270000, 'drain_ms': 1000, 'accounts': accounts}
