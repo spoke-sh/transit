@@ -160,7 +160,7 @@ fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Re
 pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]u8 {
     return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = switch (err) {
         error.AuthenticationFailed, error.InvalidAuthentication => "28000".*,
-        error.GatewayDenied, error.GatewayCatalogDenied, error.CatalogDenied, error.GatewayCredentialChanged => "42501".*,
+        error.GatewayDenied, error.GatewayDatabaseDenied, error.GatewayCatalogDenied, error.CatalogDenied, error.AccessDenied, error.QueryDenied, error.GatewayCredentialChanged => "42501".*,
         error.GatewayConnectionCapacity, error.SqlSessionBusy, error.OutOfMemory => "53000".*,
         error.GatewayDeadline, error.GatewayWaitCancelled => "57014".*,
         else => "HY000".*,
@@ -202,10 +202,11 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
     try host.begin();
     defer host.end();
     host.sql_diagnostic = null;
+    host.execution_diagnostic = null;
     const result = self.action(allocator, slot, input.action) catch |err| {
         slot.clearCursor();
         const info = host.diagnostic(err);
-        const diagnostic = if (host.sql_diagnostic) |value| try value.structured() else null;
+        const diagnostic = if (host.sql_diagnostic) |value| try value.structured() else host.execution_diagnostic;
         const state = if (host.sql_diagnostic) |value| switch (value.kind) {
             .syntax => "42601".*,
             .unsupported, .grammar_only, .interface => "0A000".*,

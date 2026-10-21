@@ -122,7 +122,10 @@ pub const Read = struct {
             }
             try self.source.host.deadline.check(self.source.host.io);
             var memory: std.heap.FixedBufferAllocator = .init(self.adapter);
-            const segment = try self.query.next(&self.source.client, memory.allocator(), self.workspace, self.arrow, self.source.host.cancellation);
+            const segment = self.query.next(&self.source.client, memory.allocator(), self.workspace, self.arrow, self.source.host.cancellation) catch |err| {
+                self.source.host.execution_diagnostic = self.query.diagnostic;
+                return err;
+            };
             if (segment) |part| {
                 var fields: [q.SourceDefinition.max_columns]f.Types.Field = undefined;
                 self.decoded = try f.LogicalInspect.decode(self.page_arena.allocator(), try self.query.schema(&fields), part.bytes, part.rows, self.workspace);

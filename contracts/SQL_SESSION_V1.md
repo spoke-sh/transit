@@ -164,6 +164,9 @@ to interactive results. After disconnect/restart, a caller can authenticate agai
 inspect the original token and open the retained result from its beginning.
 Cancellation first settles any published request, then uses the Query owner's
 cancel operation; it does not continue an unfinished upload.
+An operation can carry its currently authorized owner diagnostic, including the
+captured query's failure stage, source witness and budget dimension. This is
+recorded domain evidence, distinct from a transport error or a pending status.
 
 `context` lists currently authorized service-owned source names for the selected
 database. Source bindings contain the server's connection, key reference, decoder
@@ -198,7 +201,7 @@ are limited to 32 per account. An account's capture lane serializes submission
 steps; query execution and result reads remain with their independent owners.
 
 Errors contain a bounded code, SQLSTATE, safe message, retry classification and
-optional original operation observation. They do not contain SQL, values,
+optional original operation observation and structured owner diagnostic. They do not contain SQL text, stored value payloads,
 passwords, session secrets or private paths. A transport failure cannot establish
 whether a mutation was accepted. Clients recover by the original token on the
 same instance; arbitrary request retries are not a transport policy.

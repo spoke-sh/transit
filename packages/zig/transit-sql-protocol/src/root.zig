@@ -91,6 +91,7 @@ pub const Operation = struct {
     changed: u64 = 0,
     owner_operation: ?[16]u8 = null,
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
+    diagnostic: ?@import("transit_protocol").Diagnostic = null,
 };
 pub const Description = struct { statement: Id, schema: []const u8, parameters: []const []const u8, mutation: bool };
 pub const Basis = union(enum) {

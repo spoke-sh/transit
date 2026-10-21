@@ -33,6 +33,7 @@ terminal: ?g.Terminal = null,
 detail_buffer: [160]u8 = undefined,
 diagnostics: ?*telemetry.Runtime = null,
 sql_diagnostic: ?f.SqlDiagnostic = null,
+execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
 pub const read_options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
@@ -78,6 +79,7 @@ pub const Read = struct {
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
+    emitted_rows: u64 = 0,
     pub fn basis(self: *Read, allocator: std.mem.Allocator) !?g.session_protocol.Basis {
         return switch (self.value) {
             .single => |*query| blk: {
@@ -103,8 +105,16 @@ pub const Read = struct {
         if (self.value == .captured) return self.value.captured.next(maximum);
         if (self.value == .source) return self.value.source.next(maximum);
         if (self.value == .single) {
-            self.batch = try self.value.single.nextBatch(maximum);
+            self.batch = self.value.single.nextBatch(maximum) catch |err| {
+                self.host.execution_diagnostic = q.ApiDiagnostic.attempt("table_select", .read, null, err, .{}, false, null) catch null;
+                if (self.host.execution_diagnostic) |*detail| {
+                    detail.fact(.emitted_rows, .execution, .{ .unsigned = .init(self.emitted_rows) }) catch {};
+                    if (self.value.single.native_rejection) |native| detail.text(.native_cause, .authority, @tagName(native)) catch {};
+                }
+                return err;
+            };
             result.len = self.batch.?.len;
+            self.emitted_rows += result.len;
             result.complete = self.batch.?.complete;
             for (self.batch.?.rows[0..result.len], result.rows[0..result.len]) |row, *cells| cells.* = row.?.cells;
             return result;

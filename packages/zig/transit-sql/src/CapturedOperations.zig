@@ -105,7 +105,7 @@ pub fn status(host: *g.Session, id: u64) !api.Operation {
         .uploading => .uploading,
         .sealed => .ready,
         else => .active,
-    } else .ready, .blocked = item.phase == .reserved and outcome == null, .outcome = outcome, .cancellation_requested = local.cancel == 1, .owner_operation = item.original };
+    } else .ready, .blocked = item.phase == .reserved and outcome == null, .outcome = outcome, .cancellation_requested = local.cancel == 1, .owner_operation = item.original, .diagnostic = if (current) |value| if (value.failure) |failure| try failure.diagnostic(try namespace(item), value.phase) else null else null };
 }
 fn settle(host: *g.Session, id: u64, local: ledger.State) !void {
     const target: g.Control.Record = .{ .operation = id, .generation = host.account.generation, .record = local.pending };
