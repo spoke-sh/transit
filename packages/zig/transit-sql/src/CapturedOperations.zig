@@ -72,8 +72,8 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
     var original: [16]u8 = @splat(0);
     for (0..8) |_| {
         try host.io.randomSecure(original[0..8]);
-        original[7] &= 0x7f;
-        const id = std.mem.readInt(u64, original[0..8], .little);
+        const id = std.mem.readInt(u64, original[0..8], .little) & q.protocol.max_counter;
+        std.mem.writeInt(u64, original[0..8], id, .little);
         if (id != 0 and try source.client.status(id) == null) break;
     } else return error.QueryUploadIdentityConflict;
     try host.runtime.control(.{ .external_begin = .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 } }, host.deadline);
