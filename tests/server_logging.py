@@ -7,11 +7,12 @@ import pty
 import re
 import select
 import shutil
+import socket
 import subprocess
 import sys
 import time
 
-from server import Fixture, freeze_executables
+from server import Fixture, children, freeze_executables
 from server_sql import wait_status
 
 TEXT = re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (DEBUG|INFO|WARN|ERROR) \[[a-z-]+\] ')
@@ -62,6 +63,41 @@ def start(fixture, terminal, environment):
     return Path(log.name)
 
 
+def busy_observation(fixture, log):
+    """Exhaust data admission without killing the authority or SQL owner."""
+    before = children(fixture.process.pid)
+    notices = log.read_text().count('"name":"sql.connect.postgres"')
+    port = fixture.config['ports']['node']
+    observed = None
+    for _ in range(6):
+        peers = []
+        try:
+            for _ in range(4):
+                peer = socket.create_connection(('127.0.0.1', port), timeout=3)
+                peers.append(peer)
+                peer.sendall(f'POST /v1/query HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 100\r\n\r\nx'.encode())
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                observed = json.loads((fixture.installation / 'sql/status.json').read_text())['service']
+                if observed['state'] == 'busy':
+                    break
+                time.sleep(.025)
+        finally:
+            for peer in peers:
+                peer.close()
+        if observed['state'] == 'busy':
+            break
+    assert observed['state'] == 'busy' and observed['error_type'] == 'HttpCapacity', observed
+    assert observed['postgres_port'] is None, 'An incomplete observation claimed current readiness'
+    wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
+    assert children(fixture.process.pid) == before, 'Admission pressure restarted a role'
+    time.sleep(.1)
+    events = [json.loads(line)['event'] for line in log.read_text().splitlines()]
+    busy = [e for e in events if e.get('operation') == 'busy']
+    assert busy and all(e['level'] == 'warn' and e['error_type'] == 'HttpCapacity' for e in busy), busy
+    assert log.read_text().count('"name":"sql.connect.postgres"') == notices, 'Repeated hint without listener replacement'
+
+
 def run(cli, node, host, board, gateway):
     service_failures([node, host, board, gateway])
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
@@ -102,6 +138,7 @@ def run(cli, node, host, board, gateway):
                                  '-c', 'SHOW logging.format', '-c', 'SHOW logging.level'],
                                 env=os.environ | {'PGSSLMODE': 'disable'}, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0 and result.stdout.splitlines() == ['json', 'info'], result
+        busy_observation(fixture, json_path)
         fixture.kill_role('/sql/gateway.json')
         deadline = time.monotonic() + 60
         while not any(json.loads(line).get('event', {}).get('error_type') == 'GatewayOwnerUnavailable' for line in json_path.read_text().splitlines()):

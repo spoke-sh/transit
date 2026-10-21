@@ -31,7 +31,7 @@ service_started: ?std.Io.Timestamp = null,
 trust: ?Trust.Paths = null,
 local: ?Discovery.Location = null,
 trust_error: ?[]const u8 = null,
-status: enum { awaiting_authorization, initializing, starting, accepting, recovery, unavailable } = .awaiting_authorization,
+status: enum { awaiting_authorization, initializing, starting, accepting, recovery, busy, unavailable } = .awaiting_authorization,
 last: ?std.Io.Timestamp = null,
 failures: u8 = 0,
 last_error: ?[]const u8 = null,
@@ -248,6 +248,10 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     self.service_started = std.Io.Clock.awake.now(installation.init.io);
     self.status = .starting;
     self.service_was_ready = false;
+    for (self.entries.items) |*entry| {
+        entry.postgres_announced = false;
+        entry.mysql_announced = false;
+    }
 }
 pub fn tick(self: *Self) !void {
     if (self.installation.root_pending != null and !self.hasPending()) return;
@@ -259,8 +263,11 @@ pub fn tick(self: *Self) !void {
     self.advance(arena.allocator()) catch |err| {
         if (self.installation.failed or err == error.AuthorityRollback) return err;
         if (q.wire.Client.unavailable(err)) {
-            self.status = .unavailable;
-            self.last_error = @errorName(err);
+            // Admission pressure is an incomplete observation, not evidence
+            // that the SQL owner exited. Keep readiness unconfirmed and retain
+            // the process and exact pending work until the next bounded tick.
+            self.status = if (self.installation.wire.last_rejection == .HttpCapacity) .busy else .unavailable;
+            self.last_error = if (self.installation.wire.last_rejection) |cause| @tagName(cause) else @errorName(err);
             try self.writeStatus(arena.allocator());
             return; // Preserve exact pending work; suspend other root writers.
         }
@@ -274,7 +281,7 @@ pub fn tick(self: *Self) !void {
         self.last_error = if (self.installation.wire.last_rejection) |cause| @tagName(cause) else @errorName(err);
         self.failures += 1;
     };
-    if (self.status != .unavailable) self.last_error = null;
+    if (self.status != .unavailable and self.status != .busy) self.last_error = null;
     try self.writeStatus(arena.allocator());
 }
 pub fn hasPending(self: *Self) bool {
@@ -326,6 +333,7 @@ pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
         .starting => "Starting configured SQL listeners",
         .accepting => "SQL listeners are accepting connections",
         .recovery => "Retained SQL workers are running without listeners",
+        .busy => "SQL readiness check deferred; native request capacity is busy",
         .unavailable => "SQL is unavailable; inspect error_type and account states",
     }, .tls_mode = self.installation.config.sql.tls.mode, .native_socket = if (self.status == .accepting and self.local != null) self.local.?.socket else null, .native_port = if (self.status == .accepting and self.installation.config.sql.native.http != null) self.installation.config.sql.native.http.?.port else null, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.transportReady() and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.transportReady() and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
 }
@@ -351,16 +359,17 @@ fn writeStatus(self: *Self, allocator: std.mem.Allocator) !void {
     for (accounts.items, self.entries.items) |account, *entry| {
         if (account.postgres_command) |command| {
             if (!entry.postgres_announced) self.diagnostics.event(.{ .name = "sql.connect.postgres", .message = command, .role = "sql" });
+            entry.postgres_announced = true;
         }
         if (account.mysql_command) |command| {
             if (!entry.mysql_announced) self.diagnostics.event(.{ .name = "sql.connect.mysql", .message = command, .role = "sql" });
+            entry.mysql_announced = true;
         }
-        entry.postgres_announced = account.postgres_command != null;
-        entry.mysql_announced = account.mysql_command != null;
     }
 }
 fn statusEvent(status: Report) telemetry.Event {
     const failure = status.error_type orelse status.tls_error;
     const unavailable = std.mem.eql(u8, status.state, "unavailable");
-    return .{ .name = "sql.status", .message = status.message, .role = "sql", .operation = status.state, .level = if (failure != null) .err else if (unavailable or std.mem.eql(u8, status.state, "awaiting_authorization")) .warn else .info, .outcome = if (failure != null or unavailable) .failed else .ok, .error_type = failure };
+    const busy = std.mem.eql(u8, status.state, "busy");
+    return .{ .name = "sql.status", .message = status.message, .role = "sql", .operation = status.state, .level = if (busy) .warn else if (failure != null) .err else if (unavailable or std.mem.eql(u8, status.state, "awaiting_authorization")) .warn else .info, .outcome = if (failure != null or unavailable) .failed else .ok, .error_type = failure };
 }
