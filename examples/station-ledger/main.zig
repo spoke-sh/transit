@@ -91,8 +91,21 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
                 if (action != .register_object or behavior.pending != null) return err;
                 if (behavior.ready != null) try behavior.discard();
                 const registrar = (application.authority orelse return error.MissingApplicationAuthorization).client;
-                const next = try registrar.registration(action.register_object);
-                if (next == .submit) _ = try client.submit(next.submit);
+                // Registration's native binding ledger retains its original
+                // action and in-flight sequence. A transient observation or
+                // lost submission reply must not terminate the worker.
+                const next = registrar.registration(action.register_object) catch |failure| {
+                    if (!wire.Client.unavailable(failure) and !client.contended(failure)) return failure;
+                    diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .failed, .error_type = @errorName(failure) });
+                    try init.io.sleep(.fromMilliseconds(100), .awake);
+                    continue;
+                };
+                if (next == .submit) _ = client.submit(next.submit) catch |failure| {
+                    if (!wire.Client.unavailable(failure) and failure != error.Conflict) return failure;
+                    diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .uncertain, .error_type = @errorName(failure) });
+                    try init.io.sleep(.fromMilliseconds(100), .awake);
+                    continue;
+                };
                 continue;
             },
             error.AccessDenied, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
