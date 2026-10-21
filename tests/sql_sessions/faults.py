@@ -14,6 +14,7 @@ class Faults:
         self.fail_once = False
         self.fail_coordinator = None
         self.fail_source_once = None
+        self.fail_result_once = None
         self.failures = 0
         self.requests = 0
         self.response_bytes = 0
@@ -28,9 +29,12 @@ class Faults:
                 envelope = json.loads(content).get('query', {})
                 query = envelope.get('kind', {})
                 source_failure = owner.fail_source_once is not None and envelope.get('principal') == owner.fail_source_once
-                if source_failure or ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                result_failure = owner.fail_result_once == (envelope.get('principal'), query.get('block_entries', {}).get('source', {}).get('resource', {}).get('id'))
+                if source_failure or result_failure or ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
                     if source_failure:
                         owner.fail_source_once = None
+                    if result_failure:
+                        owner.fail_result_once = None
                     owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'

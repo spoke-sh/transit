@@ -17387,6 +17387,7 @@
       "error_returns": {
         "Read.init()": "<inferred>",
         "Read.next()": "<inferred>",
+        "Read.page()": "<inferred>",
         "admit()": "<inferred>",
         "bytes()": "<inferred>",
         "cancel()": "<inferred>",
@@ -17404,7 +17405,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 83,
+        "try": 84,
         "catch": 1
       },
       "imports": [

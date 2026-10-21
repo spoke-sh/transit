@@ -231,7 +231,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         original = selected.execute('SELECT value FROM items', token, captured=True)['operation']
         assert original['identity'] == identity
         selected.terminal(original)
+        if faults is not None and name == 'kv':
+            configured = next(source for source in json.loads((root / 'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
+            result_fault = faults.failures
+            faults.fail_result_once = (configured['connection']['principal'], configured['connection']['resource'])
         result = selected.call(dict(result=identity))['batch']
+        if faults is not None and name == 'kv':
+            assert faults.fail_result_once is None and faults.failures == result_fault + 1
+            print(json.dumps(dict(profile='native_sql_retained_page_recovery', refused_observations=1, operation=identity)), flush=True)
         batches = [dict(selected.sample, rows=len(result['rows']))]
         rows = []
         while True:

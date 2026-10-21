@@ -201,7 +201,7 @@ pub fn prepareResult(host: *g.Session, id: u64) !Prepared {
 }
 pub fn validateResult(host: *g.Session, prepared: *Prepared) !void {
     _ = try host.fresh(load, .{ host, prepared.id });
-    _ = try host.source.?.client.authorize(prepared.bundle.source);
+    _ = try host.fresh(q.UnifiedClient.authorize, .{ &host.source.?.client, prepared.bundle.source });
     const observed = try status(host, prepared.id);
     if (observed.phase != .terminal or observed.outcome != .applied) return error.IncompleteResult;
 }
@@ -230,6 +230,19 @@ pub const Read = struct {
         self.page_arena.deinit();
         self.arena.deinit();
     }
+    fn page(self: *Read) !q.UnifiedResult.Page {
+        // A retained page is addressed by the original manifest and cursor.
+        // Repeating its reads cannot execute SQL or advance that cursor. Drop
+        // all failed-attempt allocations before retrying current authorization
+        // and the same immutable page; publish progress only after validation.
+        _ = self.page_arena.reset(.free_all);
+        self.decoded = @as(f.LogicalInspect.Batch, undefined);
+        return self.host.source.?.client.page(self.prepared.namespace, self.cursor, self.page_arena.allocator(), self.workspace, self.arrow, &self.decoded.?) catch |err| {
+            // page owns error cleanup; only a successful decode is live.
+            self.decoded = null;
+            return err;
+        };
+    }
     pub fn next(self: *Read, maximum: u8) !g.ReadBatch {
         try validateResult(self.host, self.prepared);
         var result: g.ReadBatch = .{};
@@ -242,15 +255,10 @@ pub const Read = struct {
                 result.complete = true;
                 return result;
             }
-            self.decoded = @as(f.LogicalInspect.Batch, undefined);
-            const page = self.host.source.?.client.page(self.prepared.namespace, self.cursor, self.page_arena.allocator(), self.workspace, self.arrow, &self.decoded.?) catch |err| {
-                // page owns error cleanup; only a successful decode is live.
-                self.decoded = null;
-                return err;
-            };
-            self.cursor = page.next;
-            self.basis = page.basis;
-            self.complete = page.next == null;
+            const acquired = try self.host.fresh(page, .{self});
+            self.cursor = acquired.next;
+            self.basis = acquired.basis;
+            self.complete = acquired.next == null;
         }
         const count = @min(maximum, self.decoded.?.rows.len - self.index);
         for (result.rows[0..count], self.decoded.?.rows[self.index..][0..count]) |*to, row| to.* = row.cells;
