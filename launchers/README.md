@@ -440,6 +440,10 @@ persists settings for its selected roles; `up` applies them when starting a
 stopped installation. `restart` uses the saved configuration.
 The launcher maps them to each executable's `LOG_LEVEL` and `LOG_FORMAT`.
 Ursula and the process/container managers keep their upstream logging controls.
+The launcher's internal native read helper explicitly selects JSON error events.
+It retries only classified transient read failures within its existing deadline,
+keeping the same request; unknown, malformed or denied outcomes fail immediately.
+Human formatting and ambient log filtering do not determine this classification.
 
 Services write diagnostics to stderr; bootstrap and CLI results keep their
 machine-readable stdout. The native launcher merges each managed service's

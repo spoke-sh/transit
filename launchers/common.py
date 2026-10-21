@@ -27,6 +27,22 @@ HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()
 SERVICES = ("ursula", "node", "maintenance", "delivery", "counter", "board")
 
 
+def transient_read_failure(stderr):
+    """Only the CLI's structured terminal event classifies a retryable read."""
+    try:
+        records = [json.loads(line) for line in stderr.splitlines()]
+    except json.JSONDecodeError:
+        return False
+    if not records or not isinstance(records[-1], dict):
+        return False
+    record = records[-1]
+    event = record.get("event")
+    return (record.get("schema_version") == 1 and record.get("service_name") == "rey-cli"
+            and isinstance(event, dict) and event.get("name") == "service.failed"
+            and event.get("level") == "err" and event.get("outcome") == "failed"
+            and event.get("error_type") in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing"))
+
+
 def read_json(response, limit=256 * 1024):
     data = response.read(limit + 1)
     if len(data) > limit:
@@ -356,12 +372,13 @@ backend = "inline"
         command = list(map(str, [self.cli, "query", self.path / "operator/root.key", read, self.url]))
         deadline = time.monotonic() + 20
         while True:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10,
+                                    env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "error"})
             if result.returncode == 0:
                 return json.loads(result.stdout)
             # Concurrent workers can occupy the authority's finite read slots.
             # Retry only a read with a classified transient transport result.
-            transient = result.stderr.rstrip().endswith(("error: AuthorityUnavailable", "error: AuthorityTimeout", "error: HttpConnectionClosing"))
+            transient = transient_read_failure(result.stderr)
             if not transient or time.monotonic() >= deadline:
                 print(result.stderr, file=sys.stderr, end="")
                 result.check_returncode()

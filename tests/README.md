@@ -24,6 +24,12 @@ Executed during the logging change on Linux with the pinned Zig development shel
   and 555 real command failures retain error coordinates, privacy, recovery
   advice and uncontaminated stdout.
 
+The first clean experience-lane run passed nine tasks and exposed a launcher
+read-retry regression in its final Station task: the helper still matched Zig's
+old error-text suffix. The launcher now requests structured terminal error events.
+`tests/reference_launcher_state.py` checks exact-read retry, fixed JSON settings
+and rejection of malformed, denied, unknown or nonterminal classifications.
+
 `just test::server-logging` exercises real standalone failures, terminal output,
 piped readiness, logging-off receipts, YAML/environment precedence, SQL `SHOW`,
 supervised child environments and SQL service failure/recovery. It belongs to
