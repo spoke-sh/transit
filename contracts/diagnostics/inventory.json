@@ -17161,6 +17161,206 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-protocol/src/Authentication.zig": {
+      "errors": {
+        "AuthenticationFailed": 7,
+        "IncompatibleCredentialDefinition": 1,
+        "InvalidCredentialCost": 3,
+        "InvalidPasswordProfile": 2,
+        "InvalidScramMessage": 19
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "ClientProof.create()": "<inferred>",
+        "ClientProof.verify()": "<inferred>",
+        "Scram.finish()": "<inferred>",
+        "Scram.init()": "<inferred>",
+        "Scram.initBound()": "<inferred>",
+        "Verifier.create()": "<inferred>",
+        "Verifier.validate()": "<inferred>",
+        "Verifier.verifyPassword()": "<inferred>",
+        "password()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/Codec.zig": {
+      "errors": {
+        "InvalidSqlEncoding": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "cell()": "<inferred>",
+        "decodeCell()": "<inferred>",
+        "decodeParameter()": "<inferred>",
+        "decodeSchema()": "<inferred>",
+        "descriptor()": "<inferred>",
+        "hex()": "<inferred>",
+        "parameter()": "<inferred>",
+        "schema()": "<inferred>",
+        "unhex()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/root.zig": {
+      "errors": {
+        "IncompatibleSqlDefinition": 2,
+        "InvalidAuthentication": 1,
+        "InvalidScramMessage": 2,
+        "InvalidSqlCursor": 1,
+        "InvalidSqlExecution": 1,
+        "InvalidSqlName": 1,
+        "InvalidSqlText": 1,
+        "SqlInstanceRequired": 1,
+        "SqlMessageTooLarge": 1,
+        "SqlSessionRequired": 1,
+        "SqlTokenRequiresText": 1,
+        "TooManySqlParameters": 1
+      },
+      "outcomes": {
+        "Action": [
+          "hello",
+          "open",
+          "authenticate",
+          "close",
+          "reset",
+          "prepare",
+          "describe",
+          "release",
+          "execute",
+          "fetch",
+          "close_result",
+          "cancel",
+          "status",
+          "@\"resume\"",
+          "operations",
+          "assist"
+        ],
+        "Action.open.authentication": [
+          "peer",
+          "trust",
+          "scram"
+        ],
+        "Completion": [
+          "select",
+          "insert",
+          "update",
+          "delete",
+          "create_table",
+          "alter_table",
+          "drop_table",
+          "set",
+          "show",
+          "discard_all"
+        ],
+        "Error.retry": [
+          "never",
+          "control",
+          "same_token",
+          "same_batch"
+        ],
+        "Operation.outcome": [
+          "applied",
+          "unchanged",
+          "rejected",
+          "cancelled"
+        ],
+        "Operation.phase": [
+          "reserved",
+          "uploading",
+          "ready",
+          "active",
+          "terminal",
+          "abandoned"
+        ],
+        "OperationId.kind": [
+          "table",
+          "configuration",
+          "captured"
+        ],
+        "Response.result": [
+          "hello",
+          "challenge",
+          "opened",
+          "described",
+          "batch",
+          "operation",
+          "operations",
+          "completion",
+          "assistance",
+          "closed",
+          "err"
+        ],
+        "Response.result.assistance.<struct>.kind": [
+          "keyword",
+          "source",
+          "column",
+          "symbol",
+          "literal",
+          "meta"
+        ],
+        "Target": [
+          "query",
+          "operation",
+          "token"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "authenticationBinding()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "name()": "<inferred>",
+        "parse()": "<inferred>",
+        "sql()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "Authentication.zig",
+        "Codec.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/schema.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_sql_protocol"
+      ]
+    },
     "packages/zig/transit-sql/src/AccountRuntime.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
@@ -17204,34 +17404,6 @@
       "propagation": {
         "try": 54,
         "catch": 11
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/Authentication.zig": {
-      "errors": {
-        "AuthenticationFailed": 3,
-        "IncompatibleCredentialDefinition": 1,
-        "InvalidCredentialCost": 1,
-        "InvalidPasswordProfile": 2,
-        "InvalidScramMessage": 10
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Scram.finish()": "<inferred>",
-        "Scram.init()": "<inferred>",
-        "Verifier.create()": "<inferred>",
-        "Verifier.validate()": "<inferred>",
-        "Verifier.verifyPassword()": "<inferred>",
-        "password()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 9,
-        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -18066,7 +18238,6 @@
       },
       "imports": [
         "AccountRuntime.zig",
-        "Authentication.zig",
         "Behavior.zig",
         "Bytes.zig",
         "Client.zig",
@@ -18088,6 +18259,7 @@
         "Upload.zig",
         "transit_catalog",
         "transit_query",
+        "transit_sql_protocol",
         "transit_station"
       ]
     },

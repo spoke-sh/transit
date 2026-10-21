@@ -37,6 +37,7 @@ sql-wire-tls:
 # Shared byte/credential primitives; independent Python oracle and Zig owners.
 sql-wire-contracts:
     python3 -B tests/sql_wire/contracts.py
+    cd packages/zig/transit-sql-protocol && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
@@ -160,6 +161,7 @@ packages:
     cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
     cd packages/zig/transit-tls-server && zig build test
+    cd packages/zig/transit-sql-protocol && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
@@ -193,6 +195,7 @@ packages-build:
     cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check
     cd packages/zig/transit-tls-server && zig build check
+    cd packages/zig/transit-sql-protocol && zig build check
     cd packages/zig/transit-sql && zig build check
     cd packages/zig/transit-postgres && zig build check
     cd packages/zig/transit-mysql && zig build check

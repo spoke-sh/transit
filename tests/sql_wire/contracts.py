@@ -36,7 +36,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--write', action='store_true')
     args = parser.parse_args()
-    fixtures = {'transit-sql/src/fixtures/auth.json': authentication()}
+    fixtures = {'transit-sql-protocol/src/fixtures/auth.json': authentication()}
     fixtures['transit-sql/src/fixtures/records.json'] = records()
     fixtures['transit-sql/src/fixtures/controls.json'] = controls()
     fixtures['transit-postgres/src/fixtures/backend.json'] = postgres_backend()

@@ -2,7 +2,7 @@
 //! The transport/account owner supplies secure nonces, verified TLS, admission
 //! limits and current credential identity. This module performs no I/O.
 const std = @import("std");
-const g = @import("root.zig").query.protocol.Growth;
+const g = @import("root.zig").native;
 const Sha = std.crypto.hash.sha2.Sha256;
 const Hmac = std.crypto.auth.hmac.sha2.HmacSha256;
 const b64 = std.base64.standard;
@@ -79,6 +79,14 @@ pub const Scram = struct {
         result.server_len = @intCast(encoded_challenge.len);
         return result;
     }
+    /// Native sessions bind the authenticated transcript to the destination,
+    /// selected account/database/source and current contract definition.
+    pub fn initBound(verifier: Verifier, first: []const u8, random: [18]u8, binding: [32]u8) !Scram {
+        var result = try init(verifier, first, random);
+        const suffix = try std.fmt.bufPrint(result.server[result.server_len..], ",b={s}", .{std.fmt.bytesToHex(binding, .lower)});
+        result.server_len += @intCast(suffix.len);
+        return result;
+    }
     pub fn challenge(self: *const Scram) []const u8 {
         return self.server[0..self.server_len];
     }
@@ -140,4 +148,84 @@ test "SCRAM matches independent hashlib and consumes invalid and rotated attempt
     try t.expectError(error.AuthenticationFailed, broken.finish(fixture.final));
     try t.expectError(error.InvalidScramMessage, Scram.init(verifier, "p=tls-server-end-point,,n=,r=1234567890123456", fixture.random));
     try t.expectError(error.InvalidCredentialCost, Verifier.create("password", fixture.salt, 1));
+}
+
+/// One client exchange. Password-derived bytes are wiped before returning;
+/// retain only the expected server signature until it is verified once.
+pub const ClientProof = struct {
+    final: [512]u8,
+    length: u16,
+    expected: [32]u8,
+    pub fn message(self: *const ClientProof) []const u8 {
+        return self.final[0..self.length];
+    }
+    pub fn deinit(self: *ClientProof) void {
+        std.crypto.secureZero(u8, std.mem.asBytes(self));
+    }
+    pub fn verify(self: *ClientProof, final: []const u8) !void {
+        defer self.deinit();
+        if (final.len != 46 or !std.mem.startsWith(u8, final, "v=")) return error.AuthenticationFailed;
+        var actual: [32]u8 = undefined;
+        b64.Decoder.decode(&actual, final[2..]) catch return error.AuthenticationFailed;
+        if (!std.crypto.timing_safe.eql([32]u8, actual, self.expected)) return error.AuthenticationFailed;
+    }
+    pub fn create(secret: []const u8, first: []const u8, challenge: []const u8, binding: ?[32]u8) !ClientProof {
+        try password(secret);
+        if (first.len > 512 or !std.mem.startsWith(u8, first, "n,,n=")) return error.InvalidScramMessage;
+        const comma = std.mem.indexOf(u8, first, ",r=") orelse return error.InvalidScramMessage;
+        const client_nonce = first[comma + 3 ..];
+        var parts = std.mem.splitScalar(u8, challenge, ',');
+        const nonce = parts.next() orelse return error.InvalidScramMessage;
+        const salt = parts.next() orelse return error.InvalidScramMessage;
+        const iterations = parts.next() orelse return error.InvalidScramMessage;
+        if (!std.mem.startsWith(u8, nonce, "r=") or !std.mem.startsWith(u8, salt, "s=") or !std.mem.startsWith(u8, iterations, "i=") or !std.mem.startsWith(u8, nonce[2..], client_nonce) or nonce.len != client_nonce.len + 26) return error.InvalidScramMessage;
+        if (binding) |expected| {
+            const selected = parts.next() orelse return error.InvalidScramMessage;
+            var bound: [66]u8 = undefined;
+            if (!std.mem.eql(u8, selected, try std.fmt.bufPrint(&bound, "b={s}", .{std.fmt.bytesToHex(expected, .lower)}))) return error.AuthenticationFailed;
+        }
+        if (parts.next() != null or salt.len != 26) return error.InvalidScramMessage;
+        var raw_salt: [16]u8 = undefined;
+        b64.Decoder.decode(&raw_salt, salt[2..]) catch return error.InvalidScramMessage;
+        const cost = std.fmt.parseInt(u32, iterations[2..], 10) catch return error.InvalidCredentialCost;
+        if (cost < 4096 or cost > 262144) return error.InvalidCredentialCost;
+        var salted: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &salted);
+        try std.crypto.pwhash.pbkdf2(&salted, secret, &raw_salt, cost, Hmac);
+        var client_key: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &client_key);
+        Hmac.create(&client_key, "Client Key", &salted);
+        var stored: [32]u8 = undefined;
+        Sha.hash(&client_key, &stored, .{});
+        var server_key: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &server_key);
+        Hmac.create(&server_key, "Server Key", &salted);
+        var result: ClientProof = .{ .final = undefined, .length = 0, .expected = undefined };
+        const bare = try std.fmt.bufPrint(&result.final, "c=biws,{s}", .{nonce});
+        var scratch: [1536]u8 = undefined;
+        const transcript = try std.fmt.bufPrint(&scratch, "{s},{s},{s}", .{ first[3..], challenge, bare });
+        var proof: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &proof);
+        Hmac.create(&proof, transcript, &stored);
+        for (&proof, client_key) |*byte, mask| byte.* ^= mask;
+        Hmac.create(&result.expected, transcript, &server_key);
+        var encoded: [44]u8 = undefined;
+        const suffix = try std.fmt.bufPrint(result.final[bare.len..], ",p={s}", .{b64.Encoder.encode(&encoded, &proof)});
+        result.length = @intCast(bare.len + suffix.len);
+        return result;
+    }
+};
+test "native SCRAM verifies server proof and destination transcript binding" {
+    const t = std.testing;
+    const verifier = try Verifier.create("local secret", @splat(1), 4096);
+    const first = "n,,n=owner,r=123456789012345678901234";
+    var server = try Scram.initBound(verifier, first, @splat(2), @splat(3));
+    defer server.deinit();
+    try t.expectError(error.AuthenticationFailed, ClientProof.create("local secret", first, server.challenge(), @splat(4)));
+    var client = try ClientProof.create("local secret", first, server.challenge(), @splat(3));
+    defer client.deinit();
+    try client.verify(&try server.finish(client.message()));
+    var unbound = try Scram.init(verifier, first, @splat(2));
+    defer unbound.deinit();
+    try t.expectError(error.InvalidScramMessage, ClientProof.create("local secret", first, unbound.challenge(), @splat(3)));
 }

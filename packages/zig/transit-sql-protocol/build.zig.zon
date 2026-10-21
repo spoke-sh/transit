@@ -1,0 +1,8 @@
+.{
+    .name = .transit_sql_protocol,
+    .fingerprint = 0xa901343df4e8e1,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_fuze = .{ .path = "../transit-fuze" }, .transit_protocol = .{ .path = "../transit-protocol" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

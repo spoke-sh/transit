@@ -1,0 +1,157 @@
+# SQL session v1
+
+This contract defines the native SQL session interface above Fuze and public
+native clients. The [types](../packages/zig/transit-sql-protocol/src/root.zig)
+own message shapes; the generated description is derived from those types.
+The shared [definition](../packages/zig/transit-protocol/src/Growth.zig) is
+mandatory on every request and response. Its exact spelling is checked before
+execution. A version number alone does not establish compatibility.
+
+The native transport implementation is in progress. The existing PostgreSQL and
+MySQL adapters use the shared SQL execution package; their wire contracts remain
+in [SQL gateways](SQL_GATEWAY_V1.md).
+
+## Transport and authentication
+
+Requests use HTTP/1.1 POST with `application/json`, bounded Content-Length and
+no content encoding. `/v1/sql/session` admits data and authentication work;
+`/v1/sql/control` independently admits cancellation, observation, resume and
+closure. The body action must match the selected lane. Duplicate security or
+framing headers, ambiguous framing, redirects, browser Origin and forwarded
+identity headers are rejected. Responses carry `Cache-Control: no-store`.
+There is no cookie authentication, automatic redirect or automatic SQL replay.
+Connection reuse is an optimization, never a session identity.
+
+Remote exposure is explicitly configured. HTTPS uses verified certificates and
+system roots or a configured CA. Password accounts authenticate with
+SCRAM-SHA-256, using the existing printable-ASCII password/verifier profile.
+`hello` reports the exact definition, persistent server instance and bounds.
+`open` selects account, database and optional service-owned source binding.
+The SCRAM challenge includes `b=<lowercase SHA-256 hex>` in its server-first
+message. This commits the authenticated transcript to the canonical encoding
+of definition, instance, account name, database and source. The client verifies
+this binding and the server-final proof. Authentication challenges expire,
+consume bounded slots, and can be completed once. Credentials are revalidated
+before opening and on subsequent protected operations.
+
+Explicit trust authentication is restricted to configured loopback listeners.
+Local native carriage uses HTTP on a private Unix socket. Peer authentication
+uses the operating system's socket peer credential and the configured owner UID;
+request fields and forwarding headers cannot assert that UID. Peer accounts do
+not permit TCP trust or password login implicitly.
+
+`opened` returns a random 256-bit secret session handle, account identity and
+selected database. Handles are credentials and must not appear in logs, URLs or
+error text. Subsequent requests name the persistent instance and session.
+A mismatched instance rejects before account work. Restart invalidates temporary
+handles, even when it preserves the persistent instance and operation history.
+
+## Lifetimes and concurrency
+
+A logical session belongs to the SQL service, independently of any HTTP socket.
+Its settings, prepared metadata and read cursor survive transport replacement.
+Closing an HTTP socket does not close the session. Closing/resetting a session,
+its idle lease expiring or the service restarting releases temporary state.
+PostgreSQL and MySQL adapters tie logical session closure to their wire connection.
+
+Each enrolled account has one active fenced runtime, coordinated principal
+sequences and a durable ledger. Sessions share this owner, never its private keys.
+One session has one borrower of each native transport and at most one active
+interactive result. Concurrent commands on that session return busy; commands on
+other sessions retain their own bounded execution slots. A cancellation request
+can set the current query's cancellation flag without borrowing its transport.
+Tasks are joined before releasing their sockets, allocator, snapshot or spill.
+
+Preparation discloses authorized metadata without opening a snapshot. `prepare`
+returns a temporary statement handle, result schema and parameter descriptors;
+`describe` rechecks authority. `release` closes a prepared handle. `execute`
+accepts SQL directly or a prepared handle, and typed bound parameters. Native
+mutations require an admission token and SQL text so retries remain meaningful
+after a session disappears. The client can retain preparation for reads without
+making it durable. Adapter-specific admission restrictions remain in the wire
+adapters; the native codec preserves Fuze logical types.
+
+## Logical results and fetch acknowledgement
+
+The selected encoding is `transit.logical.v1.hex`. Schema fields contain
+lowercase hexadecimal of the existing FTY1 logical descriptor. Each row contains
+one lowercase hexadecimal canonical schema-bound cell per field. Parameters
+contain standalone FVL1 values with descriptors. Integer and decimal values do
+not pass through JSON floating-point conversion. Nested containers, binary,
+NULL, missing, type errors and conflicts retain their logical distinction.
+The schema descriptor and cell codecs validate their existing recursion, child
+and byte bounds. Unknown tags or noncanonical hexadecimal reject.
+
+An interactive execute returns its schema, cursor and initial batch numbered
+zero. Fetch requests name the next desired batch. Requesting the last returned
+batch repeats its exact retained data after a fresh authorization check.
+Requesting its successor acknowledges that batch and advances the same iterator;
+all other ordinals reject. At most one unacknowledged batch is retained per
+cursor. A duplicate concurrent fetch cannot advance the iterator twice.
+The final batch remains repeatable until closed or expired.
+
+Lost/expired session or cursor state reports an incomplete result. The server
+never reopens a snapshot or silently skips to a new cut. A new session cannot
+resume an ordinary interactive SELECT. Explicit captured execution uses its
+separate durable query owner and operation reference.
+
+## Durable admission and recovery
+
+The account-scoped token is a caller-generated 128-bit value. Its durable index
+commits the request fingerprint and original operation identity. The fingerprint
+covers instance, account, database/source binding, SQL text, canonical logical
+parameter encodings and execution mode. The account ledger fixes the signing
+principal and role; changing the binding does not inherit an existing operation.
+Concurrent identical tokens bind to one operation. Different content conflicts.
+SQL text equivalence is never inferred.
+
+Admission has distinct observations:
+
+- `reserved`: an identity and quota are durable; there is no complete intent.
+- `uploading`: immutable intent publication is incomplete or awaiting validation.
+- `ready`/`active`: complete validated intent is accepted for execution.
+- `terminal`: the original domain outcome is recorded and currently authorized.
+- `abandoned`: unpublished work was closed without executing it.
+
+Only a complete frozen intent can become accepted execution. Retries return the
+original identity and state; they never compile fresh SQL for an existing token.
+A reservation interrupted before publication can remain incomplete. Status does
+not turn incompleteness into absence or dispatch new work. Explicit resume and
+the recovery worker act only on the original published intent and exact saved
+steps. Saved-step-before-dispatch, receipt-before-sequence-advance and processed
+input evidence remain separate boundaries.
+
+Operation identity includes the persistent server instance in the envelope,
+account identity, owner kind and durable ID. `status` accepts a known operation
+or token. `operations` pages account-scoped history by its append-only ID.
+A caller that lost all correlation can inspect this history and select an
+operation explicitly. The server never matches operations by similar SQL.
+Settings reload and captured execution keep their own journals and authorities;
+the session API does not manufacture a cross-domain transaction.
+
+Accepted work survives session closure, transport loss, idle expiry and service
+replacement. Cancellation follows the owning domain's publication rules and
+does not promise rollback or external cancellation. Sending the same SQL again
+through PostgreSQL or MySQL creates new work; their wire protocols do not carry
+this native admission token.
+
+## Authority, bounds and failure
+
+Current account enablement, credential epoch, selected role and object rights
+are checked before protected metadata, each result batch (including repeats and
+empty results), and terminal counts. The service clears protected buffered state
+when validation fails. Knowledge of a handle does not transfer account authority.
+Session expiry does not retire the account or expire durable history.
+
+Messages are at most 4 MiB, SQL at most 64 KiB, batches at most 1 MiB of encoded
+logical payload and 32 rows, and parameters at most 65. Prepared handles, active
+sessions, per-account sessions, handshakes, in-flight data/control requests,
+resident memory, spill, execution time and idle leases have explicit bounds.
+Durable quotas reserve space before admission and do not bound collection size
+with resident arrays. Pressure cannot delete accepted operations.
+
+Errors contain a bounded code, SQLSTATE, safe message, retry classification and
+optional original operation observation. They do not contain SQL, values,
+passwords, session secrets or private paths. A transport failure cannot establish
+whether a mutation was accepted. Clients recover by the original token on the
+same instance; arbitrary request retries are not a transport policy.

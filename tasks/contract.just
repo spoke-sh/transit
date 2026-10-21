@@ -32,6 +32,7 @@ check:
     just contract::logical-check
     just contract::table-service-check
     just contract::configuration-check
+    just contract::sql-session-check
     python3 -B bindings/generate.py
     python3 -B tests/binding_schema_types.py
 
@@ -69,3 +70,11 @@ configuration-generate:
 configuration-check:
     zig build configuration-contract | python3 -B tests/configuration_contract.py
     zig build settings-reference | python3 -B tests/configuration_reference.py
+
+sql-session-generate:
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema --write
+    python3 -B tests/sql_sessions/contracts.py --write
+
+sql-session-check:
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema
+    python3 -B tests/sql_sessions/contracts.py
