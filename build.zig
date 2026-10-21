@@ -965,11 +965,6 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArtifactArg(query_shell);
     }
     if (b.option(bool, "unified-compound", "Recover a filtering Boolean program across installed callers") orelse false) unified_query_test.addArg("--compound");
-    if (b.option(bool, "unified-console", "Qualify the versioned Transit console and exact recovery") orelse false) {
-        unified_query_test.addArg("--console");
-        unified_query_test.addArtifactArg(query_shell);
-    }
-    if (b.option(bool, "unified-console-tls", "Qualify explicit console TLS trust through nginx") orelse false) unified_query_test.addArg("--console-tls");
     if (b.option(bool, "unified-board", "Include Board's v1 query API in unified recovery") orelse false) {
         unified_query_test.addArg("--board");
         unified_query_test.addArtifactArg(board);

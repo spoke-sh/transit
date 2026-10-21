@@ -117,7 +117,6 @@ def main():
         parser.add_argument(role)
     parser.add_argument('--resident-pages', type=int, choices=range(1025), metavar='0..1024')
     parser.add_argument('--worker-interval-ms', type=int, choices=range(1, 60001), metavar='1..60000')
-    parser.add_argument('--execution', choices=('interactive', 'durable'), default='interactive')
     parser.add_argument('--single', action='store_true', help='measure only the first empty SELECT')
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
@@ -149,7 +148,7 @@ def main():
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': 0, 'instrumented': args.instrument,
-              'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': args.execution,
+              'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
@@ -187,16 +186,13 @@ def main():
                                        for name, probe in probes.items()}}), flush=True)
 
         script = fixture.root / 'measurement.sql'
-        durable = fixture.root / 'durable-connection.yaml'
-        durable.write_text(json.dumps(fixture.console_config()))
-        def execute(mode, sql, execution=args.execution):
+        def execute(mode, sql):
             script.write_text('.timer on\n' + sql + '\n')
-            connection = ['--config', str(durable)] if execution == 'durable' else []
-            return measured_run([fixture.cli, 'console', '--no-rc', *connection, '--format', mode,
+            return measured_run([fixture.cli, 'console', '--no-rc', '--format', mode,
                                  '-f', str(script)], fixture.root, node=authority[0])
 
         for _ in range(args.age_queries):
-            code, _, stderr, _ = execute('table', 'SELECT * FROM items;', 'durable')
+            code, _, stderr, _ = execute('table', 'SELECT * FROM items;')
             assert code == 0, stderr
 
         # Sequential queries expose warm/history behavior as well as presentation.
@@ -212,9 +208,10 @@ def main():
             assert code == 0, stderr
             assert re.fullmatch(r'Time: \d+ ms \((?:[a-z]+ \d+ ms, )*[a-z]+ \d+ ms\)\n', stderr), stderr
             if mode == 'json':
-                assert json.loads(stdout)['complete_coverage']
+                from table_console import results
+                assert results(map(json.loads, stdout.splitlines()))[0]['complete']['rows'] == '0'
             else:
-                assert stdout.startswith('┌') and stdout.endswith(('0 rows\n', '1 row\n'))
+                assert stdout.startswith('┌') and stdout.endswith(('0 rows; complete coverage\n', '1 rows; complete coverage\n'))
             print(json.dumps({'phase': 'query', 'index': index, 'mode': mode, 'sql': sql, **measurements,
                               'node_cpu_seconds': cpu() - before_cpu,
                               'stdout_bytes': len(stdout.encode()), 'timing': stderr.strip(),

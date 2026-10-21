@@ -27,13 +27,17 @@ and invalid values reject. `TRANSIT_CONSOLE_CONFIG` is reserved for the console.
 The [server guide](../apps/transit-cli/docs/server.md#defaults-and-configuration)
 defines the default profile, data-only YAML subset, JSON and parsing bounds.
 
-The console derives its default connection from the local server's topology
-settings and retained installation record. Server discovery and environment
-precedence select the same installation, realm and gateway; built-in defaults
-use `./.transit` and `http://127.0.0.1:19105`. Allocated IDs and the scoped caller
-credential come from that installation, with a default private recovery record.
-There is no generated console configuration file, and the console never
-initializes or repairs server state. Incomplete installation records reject.
+The console discovers a server-owned SQL session endpoint. Server configuration
+and environment precedence select the installation path; its digest selects a
+nonsecret rendezvous under `$XDG_RUNTIME_DIR/transit`, or the owner-checked
+`/tmp/transit-<uid>` fallback. The Linux Unix socket authenticates the peer UID.
+The console reads no installation record or signing seed and holds no credential
+or recovery lock. Separate consoles have independent sessions. It never
+initializes or repairs server state. Explicit connection YAML selects an HTTP/TLS
+endpoint, account, database and optional source, with peer, loopback trust or
+SCRAM authentication. Remote access needs no server files or database-wire port.
+The [SQL session contract](SQL_SESSION_V1.md) owns authentication, bounded
+carriage, handles, admission tokens, current authorization and recovery.
 Console rc settings merge system `/etc/transit/transitrc`, home `~/.transitrc`
 and project `./.transitrc`, in that order. Only `.connect PATH`, `.mode` and `.timer`
 settings are allowed; no startup SQL or durable operations execute. Missing
@@ -67,14 +71,16 @@ never treats uncertainty as proof of rejection.
 
 Successful help, version, ordinary disconnect and joined server shutdown return
 0; invalid invocation/configuration returns 2; runtime failure returns 1. A
-console interrupted during SQL or `.resume` cancels execution and returns to an
-empty terminal prompt. Interactive execution stops local evaluation and releases
-its leased snapshot; durable execution requests recorded query cancellation. Batch interruption exits 130 after a
-resolved outcome, or 1 if cancellation fails. Interrupting metadata or idle batch
-input disconnects with 130 without cancellation. Server SIGINT/SIGTERM initiate joined shutdown. Machine records go
-to stdout and diagnostics to stderr; JSON mode has no banner or prompt. Broken
-stdout ends the local session and releases an interactive snapshot; durable
-accepted work remains recoverable.
+console interrupted during SQL stops its current request and returns to an empty
+terminal prompt. Interactive reads use independently admitted cancellation and
+release the service-owned snapshot. Accepted Table, configuration and captured
+operations remain recoverable; interrupting presentation does not undo them.
+Use `.cancel` for explicit operation cancellation under its owner's semantics.
+Batch interruption returns 130; a failed cleanup or unknown transport outcome
+remains a failure with the original token. Server SIGINT/SIGTERM initiate joined
+shutdown. Machine records go to stdout and diagnostics to stderr; JSON mode has
+no banner or prompt. Broken stdout ends presentation without deleting accepted
+work.
 
 `query`, `rey-cli`, `kubectl-transit` and the existing launcher commands
 retain their separate configuration and protocols. The query shell uses dot
@@ -84,33 +90,25 @@ changes a connection's authority or installs an application. These separate comm
 
 ## Explicit SQL bindings
 
-`transit console -c SQL --parameters FILE` executes one finite SELECT with an
-ordered JSON array of the existing exact query scalars. The flag requires `-c`;
-it cannot select a script, startup command, inspection or write route. The
-ordinary `-c` path retains its existing behavior when the flag is absent.
+`transit console -c SQL --parameters FILE` supplies an ordered JSON array of
+exact typed scalars. The flag requires `-c`. `.execute FILE` reads the shared
+`{sql, parameters?}` request shape. Omitted/null parameters select ordinary SQL;
+an explicit array supplies bindings. The service describes the prepared types,
+and the client encodes descriptor-bound logical values without SQL substitution.
+Native catalog/source profiles enforce their own parameter and statement limits.
+Files resolve against the working directory and are bounded to 131072 bytes;
+the input reader admits at most 65 scalars and 4096 SQL bytes. Unknown/duplicate
+fields and malformed scalar representations reject. Source templates retain the
+[parameter contract](SQL_PARAMETERS_V1.md), including their smaller admitted
+placeholder profile; catalog parameters use the shared Table compiler.
 
-Both the console and `transit query` shell accept `.execute FILE`. The JSON file
-has the shared workspace compilation shape `{sql, parameters?}`. Omitted/null
-parameters select ordinary SQL; an explicit empty array selects a template with
-no placeholders. The query shell requires its ordinary `.new ID` selection.
-The console uses the configured interactive or durable execution mode. These
-explicit query inputs do not route administrative or mutation statements.
-
-Files resolve against the process working directory and are bounded to 131072
-bytes. Parsed SQL and scalars belong to the current execution arena; at most
-three bindings and 4096 SQL bytes reach the shared compiler. Duplicate/unknown
-fields and malformed scalar representations reject. Comparison operands require
-exact types; LIMIT requires uint64. The [parameter contract](SQL_PARAMETERS_V1.md)
-defines the canonical scalar encodings and grammar sites. Values are never
-substituted into SQL text. Input files are new compilation requests, not saved
-prepared templates, source snapshots or recovery records.
-
-Compilation and execution preserve current access and budget checks. Durable
-admission checkpoints the ordinary bundle and signed operation before dispatch.
-After an unknown outcome, `.resume`, `.restore-bundle` and `.retry` use that
-original evidence without reopening input files or rebinding values. A changed
-or deleted parameter file cannot change the accepted query. No bindings persist
-as session defaults, and query values are not added to dot-command history.
+The separate `transit query` shell also accepts `.execute FILE`, requires its
+ordinary `.new ID` selection and retains its own upload/retry artifacts.
+Console captured execution uses the service-owned operation ledger instead.
+After admission, changing or deleting an input file cannot change that original
+work. `.status` and `.resume` select its token or operation identity; reconnect
+never recompiles or resubmits SQL automatically. Bindings are not session defaults
+and parameter values are not added to dot-command history.
 
 ## Local file queries
 
@@ -319,59 +317,40 @@ colons and escaped text values, independently of the query result format.
 Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`.
 It reports effective settings and their origins without changing settings,
 submitting queries or retrying saved work.
-`.connect` is terminal-only and refuses to abandon unresolved work. Unknown
-commands/arguments reject as a whole. Default interactive SQL uses a fresh leased
-snapshot and local evaluation, as defined by [interactive queries](INTERACTIVE_QUERY_V1.md).
-The upload and recovery behavior below applies to `execution: durable`.
-Durable SQL compiles before identity
-allocation, selects a nonzero unused random identity within the exact protocol
-counter range, persists its intent, advances the native upload and prints
-verified complete results one page at a time. It never substitutes new SQL for
-a retry. `.new`, `.retry` and manual upload/result controls are not exposed.
+`.connect` is terminal-only. It closes temporary session state; accepted work
+remains in the service ledger. Unknown commands/arguments reject as a whole.
+Default `execution: interactive` uses a fresh service-owned leased snapshot and
+Fuze execution. `execution: captured` selects an explicitly configured source
+binding and a retained query operation. The server freezes the compiled bundle,
+signed steps and original source binding before dispatch. Catalog DDL/DML and
+configuration reload use their corresponding durable operation owners in either
+mode. No console connection accepts private native identities or recovery paths.
 
-Automatic SQL requires an explicit `recovery_file` setting; generated local
-connections supply it. The private record stores the query bundle, exact signed
-pending request, admission and cursor, not keys or rows. It binds the configured
-realm/principal/requester/request resource and caller public key. Atomic replacement
-and synchronization precede dispatch and successor preparation. Persistence failure
-stops submission. Locks serialize recovery-file owners and users of the same local
-credential file. This does not coordinate copied credentials in other clients.
+Each submitted operation has a random 128-bit admission token. Exact token reuse
+returns the original operation; conflicting request content rejects. After an
+uncertain response the console prints that token. `.status token:HEX` finds its
+current outcome. `.status all` pages authorized account operations; recovery never
+matches by SQL text. `.resume [table:ID|configuration:ID|captured:ID]` advances the
+original operation, and `.cancel` requests cancellation where supported. Captured
+`.resume` on a completed operation streams its retained result from the beginning,
+so rows already presented may repeat. These commands accept `token:HEX` and the
+last observed operation/token. Configuration cancellation is unsupported.
 
-Opening a session loads recovery without dispatch. `.resume` reconciles that
-same signed intent and upload, waits and reads results from the beginning;
-previously printed rows may repeat. `.resume ID` selects an existing query only
-when no unresolved operation would be displaced. `.cancel` is an explicit native
-cancellation request; its admission does not promise completed cancellation.
-Ctrl-C during SQL or `.resume` settles only the frozen operation before preparing
-native cancellation. Repeated Ctrl-C coalesces during cleanup; SIGTERM still
-disconnects. The console observes the requester disposition and active-slot
-release before clearing saved intent and returning to an empty prompt. It
-discards remaining statements in the submitted draft. Cancellation closes the
-requester wait and withdraws the request publication; source work observes closure
-between bounded turns. A turn already in progress may finish. If completion won,
-the console reports completed execution with interrupted presentation, without
-claiming to undo the query. An incomplete prefix does not acquire a final coverage
-marker or row total through cancellation; output already emitted stays disclosed.
-Unconfirmed cancellation retains the original query and frozen operation, reports
-the failure, and prevents new SQL from replacing unresolved work. Persistence
-failure ends the session. Frozen-input settlement and active-slot cleanup each
-check a 30-second budget between bounded native operations. Current grants still
-apply. Ordinary disconnect, draft clearing, timeout, SIGTERM and output failure
-do not cancel accepted work. Compatibility query shells keep their own contracts.
+Closing a connection, expiring a session, changing clients or restarting the
+service invalidates temporary handles, while accepted operations remain durable.
+Reconnection never silently reopens a result snapshot. Current authorization gates
+metadata, every fetched batch (including retries), operation status and results.
 
-One session retains one prepared request, finite compiled bundle and result cursor.
-Each result page uses complete verified coverage and a current authorized reread.
-JSON output emits lossless page envelopes. Default table output consumes the
-verified native Arrow batch, shows column names/types and right-aligns numbers.
-Each bounded page has its own box borders and column widths. Table output quotes
-strings, escapes controls and preserves full-width integers and distinct cell
-states; binary values use hex and floats use decimal. JSON retains float bits.
-Results are not accumulated in memory. Waiting for completion checks a five-minute budget
-between native operations; upload advances and transport attempts retain their
-own finite deadlines and may settle after that budget. Output writes have a
-two-second deadline. Completed results stream under finite page limits and
-per-request deadlines, without the completion-wait budget. Bounds and supported source types belong in the
-[console guide](../apps/transit-cli/docs/console.md).
+JSON output starts with `profile: sql_session_v1`, logical schema and
+`complete_coverage: false`; each typed row remains provisional. The final record
+contains `complete_coverage: true`, the emitted row count and source basis.
+Missing completion means incomplete output. Native logical encoding preserves
+wide integers, float bits, nested values and distinct cell states. Human table
+output shows bounded batches with column names/types, escaped values and explicit
+truncation. The console does not accumulate the full result. Its operation wait
+checks a 270-second budget; transport, execution, memory and output deadlines
+remain independent. The [console guide](../apps/transit-cli/docs/console.md) owns
+configuration examples and presentation limits.
 
 Timing is off by default. `.timer on` reports monotonic wall milliseconds after
 SQL and resume attempts, including failures, to stderr. The timing line follows
@@ -387,8 +366,8 @@ interactive prompt; batch input stops with exit status 1. `.show` includes the
 current setting. Mode and timing
 survive an interactive connection change.
 
-Admission and verified completion remain distinct. Source-binding changes cannot
-remove inspection or exact recovery for original work. Current denial clears
+Admission and verified completion remain distinct. Source-binding changes reject mismatched recovery rather than redirecting original
+work; restoring the exact binding permits authorized recovery. Current denial clears
 protected metadata, editor recall/search history and result cursors for that
 connection; already saved local command history and emitted terminal bytes remain
 on the user's machine. Recovery preserves accepted identity through errors.
@@ -418,43 +397,27 @@ a separate API and does not satisfy this cursor-assistance contract.
 
 ### Console write routes and recovery
 
-An optional `writes` object contains `recovery_file`. The enclosing console
-configuration supplies `catalog: {scope: {realm, resource, catalog}, owner,
-principal}` for general typed Table reads and writes. The Table client uses the
-console transport and credential with matching realm/principal. The write file
-is distinct from query recovery. Automatic local configuration uses allocated
-catalog identities and `console-writes.json` in the installation directory.
-No route or configuration grants rights. CREATE/ALTER/DROP and INSERT/UPDATE/DELETE
-use the shared catalog Table client; `.help` and SQL topics describe the configured
-route without native I/O.
+The SQL service supplies enrolled account/database bindings. CREATE/ALTER/DROP
+and INSERT/UPDATE/DELETE share the Table compiler and account coordinator used by
+PostgreSQL and MySQL. Configuration never grants rights. Native and catalog
+permissions are checked independently; query access does not imply mutation
+access. One Table operation per account advances at a time through the bounded
+pending ledger. Independent read sessions do not own that ledger's recovery lock.
 
-Write recovery has a mutable JSON progress record bounded to 32768 bytes and
-an immutable committed intent file bounded by `TableIntent.max_bytes`. The progress
-record contains version 1, current `definition`, public `key`, catalog `connection`,
-optional `operation` (intent digest and byte length), optional exact `pending`
-command and admitted `input`, `complete` and `cancelling`. The intent binds the
-original object, schema and command; it is synced before the progress record.
-The definition, key, connections and prepared request binding
-are validated before native I/O. Exact canonical JSON equality rejects omitted
-nested compatibility fields, alternate formatting and unknown fields; a missing
-field cannot acquire a native type's convenience default. Writes use
-atomic 0600 replacement with file and parent synchronization; a persistence error
-stops further execution. Opening never submits. Each exact signed command is
-saved before sending; receipt position remains paired with it through processed
-observation and rejection checks. Terminal outcomes are read under current rights.
-
-`.status` observes the saved write, `.resume` reconciles it, and `.cancel` requests
-cancellation of the saved operation after reconciling its pending send.
-Interruptions preserve work; cancellation never undoes a published operation.
-Cancellation outcomes follow the shared Table client's current phase. Unresolved writes block replacement work and connection
-switching. A new durable query replaces completed write recovery only after SQL
-compilation. Query recovery keeps its own format and lifecycle.
+The ledger retains frozen intents, exact signed steps, receipts and outcomes
+before their dependent actions. A reply lost after admission is recovered by its
+original token, including from a new session. Retrying SQL with a new token creates
+new work. Cancellation does not undo published mutations, and quota pressure does
+not delete accepted work. The [SQL session contract](SQL_SESSION_V1.md) and
+[database gateway contract](SQL_GATEWAY_V1.md) define the durable boundaries.
 
 ## Configured local database access
 
 The installed bundle fingerprints its SQL gateway even when disabled. Nullable
 `sql.postgres` and `sql.mysql` settings independently select loopback listeners.
-With no retained enrollment and neither configured, startup creates no SQL-only
+The default `sql.native.local: true` starts the shared SQL service and provisions
+its local peer account once. With local native access disabled, no native HTTP
+listener, no wire listener and no retained enrollment, startup creates no SQL-only
 identity, credential, ledger or process. Listener/account/TLS settings require
 restart and use the shared configuration registry and environment precedence.
 

@@ -29,7 +29,9 @@ pub const Config = struct {
     }
 };
 fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic: *Diagnostic) !Config {
-    const installation = if (@import("server/Config.zig").forConsole(init, diagnostic)) |topology| topology.installation else |_| try std.fs.path.resolve(allocator, &.{ ".", ".transit" });
+    const installation = (try @import("server/Config.zig").forConsole(init, diagnostic)).installation;
+    diagnostic.file = null;
+    diagnostic.field = null;
     const location = sdk.Discovery.locate(allocator, init.io, init.environ_map.get("XDG_RUNTIME_DIR"), installation, false) catch |err| return diagnostic.fail(err, "local SQL discovery is unavailable", "Start transit server, or select a remote connection YAML file with --config.");
     const record = sdk.Discovery.read(allocator, init.io, location) catch |err| return diagnostic.fail(err, "cannot discover the local SQL service", "Wait for transit server to be ready, or select a connection YAML file with --config.");
     defer record.deinit();
@@ -44,7 +46,10 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
     const a = arena.allocator();
-    const parameters = if (options.parameters) |file| try Input.read(Input.Parameters, init, a, file) else null;
+    const parameters = if (options.parameters) |file| Input.read(Input.Parameters, init, a, file) catch |err| {
+        diagnostic.atFile(file);
+        return diagnostic.invalidFieldCause(err, "parameters", "cannot read SQL parameter input", null);
+    } else null;
     var config = if (preferences.connection) |file| blk: {
         diagnostic.atFile(file);
         var value = try @import("Settings.zig").readTyped(Config, init, file, diagnostic);
@@ -54,9 +59,11 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         };
         break :blk value;
     } else try localConfig(init, a, diagnostic);
-    var client = try sdk.Client.init(init.gpa, init.io, config.native());
+    if (config.version != 1) return diagnostic.invalidField("version", "must be 1", null);
+    if (config.request_timeout_ms == 0 or config.request_timeout_ms > 270000) return diagnostic.invalidField("request_timeout_ms", "must be between 1 and 270000", null);
+    var client = sdk.Client.init(init.gpa, init.io, config.native()) catch |err| return diagnostic.invalidFieldCause(err, if (err == error.InvalidSqlEndpoint) "endpoint / authentication" else "ca_file", if (err == error.InvalidSqlEndpoint) "invalid SQL endpoint or authentication policy" else if (err == error.FileNotFound) "cannot load CA certificates: file not found" else "cannot load CA certificates", null);
     defer client.deinit();
-    const password = if (config.password_file) |file| try std.Io.Dir.cwd().readFileAlloc(init.io, file, init.gpa, .limited(129)) else null;
+    const password = if (config.password_file) |file| std.Io.Dir.cwd().readFileAlloc(init.io, file, init.gpa, .limited(129)) catch |err| return diagnostic.invalidFieldCause(err, "password_file", "cannot read SQL password", null) else null;
     defer if (password) |bytes| {
         std.crypto.secureZero(u8, bytes);
         init.gpa.free(bytes);
@@ -133,12 +140,14 @@ pub const Console = struct {
         };
     }
     pub fn json(self: *Console, value: anytype) !void {
-        try std.json.Stringify.value(value, .{ .escape_unicode = true }, self.out);
+        var encoder: std.json.Stringify = .{ .writer = self.out, .options = .{ .escape_unicode = true } };
+        try api.Json.write(value, &encoder);
         try self.out.writeByte('\n');
     }
     fn checked(self: *Console, reply: api.Response) !void {
         if (reply.result != .err) return;
         const failure = reply.result.err;
+        self.diagnostic.envelope = failure.diagnostic;
         self.access_lost = std.mem.eql(u8, &failure.sqlstate, "42501") or std.mem.eql(u8, &failure.sqlstate, "28000");
         const summary = try std.fmt.allocPrint(self.init.arena.allocator(), "SQL service: {s} ({s})", .{ failure.code, failure.sqlstate });
         self.diagnostic.summary = summary;
@@ -166,6 +175,7 @@ pub const Console = struct {
         self.diagnostic.summary = null;
         self.diagnostic.next = null;
         self.diagnostic.sql = null;
+        self.diagnostic.envelope = null;
         self.perform(text, parameters) catch |err| {
             self.had_error = true;
             if (self.diagnostic.summary == null) {
@@ -184,7 +194,10 @@ pub const Console = struct {
         defer arena.deinit();
         const a = arena.allocator();
         if (try Input.commandPath(a, text)) |file| {
-            const request = try Input.read(Input.Request, self.init, a, file);
+            const request = Input.read(Input.Request, self.init, a, file) catch |err| {
+                self.diagnostic.atFile(file);
+                return self.diagnostic.invalidFieldCause(err, "request", "cannot read SQL request input", null);
+            };
             return self.query(request.sql, request.parameters);
         }
         if (isMeta(text)) return self.dispatch(text, a);
@@ -255,7 +268,12 @@ pub const Console = struct {
             var operation = reply.value.result.operation;
             self.last_operation = operation.identity;
             timing.enter(.wait);
+            const started = std.Io.Clock.awake.now(self.init.io);
             while (operation.phase != .terminal and operation.phase != .abandoned and !operation.blocked) {
+                if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 270000) {
+                    try self.showOperation(operation);
+                    return error.SqlOperationWaitEnded;
+                }
                 if (Signals.interrupted()) {
                     self.query_interrupted = true;
                     return error.ConsoleInterrupted;
@@ -267,16 +285,32 @@ pub const Console = struct {
                 if (status.value.result != .operation) return error.InvalidSqlResponse;
                 operation = status.value.result.operation;
             }
-            return self.showOperation(operation);
+            try self.showOperation(operation);
+            if (operation.phase != .terminal) return error.SqlOperationIncomplete;
+            if (operation.outcome == .rejected or operation.outcome == .cancelled or operation.outcome == .partial) return error.SqlOperationRejected;
+            if (operation.identity.kind != .captured or operation.outcome != .applied) return;
+            const result = try self.call(.{ .result = operation.identity });
+            reply.deinit();
+            reply = result;
+            try self.checked(reply.value);
         }
         if (reply.value.result == .completion) {
             self.last_token = null;
             if (self.session.format == .json) return self.json(reply.value.result);
             return self.out.print("{s}\n", .{@tagName(reply.value.result.completion.kind)});
         }
+        return self.consume(&reply, &timing);
+    }
+    fn consume(self: *Console, reply: *std.json.Parsed(api.Response), timing: *@import("Timing.zig")) !void {
         if (reply.value.result != .batch) return error.InvalidSqlResponse;
         self.last_token = null;
         const cursor = reply.value.result.batch.cursor;
+        if (self.session.format == .json) {
+            var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+            defer arena.deinit();
+            const schema = try api.Codec.decodeSchema(arena.allocator(), reply.value.result.batch.schema);
+            try self.json(.{ .profile = "sql_session_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .complete_coverage = false });
+        }
         defer {
             if (self.control.call(.{ .close_result = cursor })) |closed| closed.deinit() else |_| {}
         }
@@ -290,11 +324,11 @@ pub const Console = struct {
             timing.enter(.fetch);
             const next = try self.call(.{ .fetch = .{ .cursor = cursor, .batch = batch.batch + 1 } });
             reply.deinit();
-            reply = next;
+            reply.* = next;
             try self.checked(reply.value);
             if (reply.value.result != .batch) return error.InvalidSqlResponse;
         }
-        if (self.session.format == .json) try self.json(.{ .complete_coverage = true, .rows = rows }) else try self.out.print("{d} rows; complete coverage\n", .{rows});
+        if (self.session.format == .json) try self.json(.{ .complete_coverage = true, .rows = rows, .basis = reply.value.result.batch.basis }) else try self.out.print("{d} rows; complete coverage\n", .{rows});
     }
     fn render(self: *Console, batch: api.Batch) !void {
         var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
@@ -320,8 +354,9 @@ pub const Console = struct {
     fn showOperation(self: *Console, value: api.Operation) !void {
         self.last_token = value.token;
         self.last_operation = value.identity;
-        if (self.session.format == .json) try self.json(.{ .operation = value }) else try self.out.print("Operation {d}: {s}{s}; matched {d}, changed {d}; token {s}\n", .{ value.identity.id, @tagName(value.phase), if (value.outcome) |outcome| @tagName(outcome) else "", value.matched, value.changed, std.fmt.bytesToHex(value.token, .lower) });
-        if (value.outcome == .rejected or value.outcome == .cancelled) return error.SqlOperationRejected;
+        self.diagnostic.envelope = value.diagnostic;
+        if (self.session.format == .json) try self.json(.{ .operation = value }) else try self.out.print("Operation {s}:{d}: {s}/{s}; matched {d}, changed {d}; token {s}\n", .{ @tagName(value.identity.kind), value.identity.id, @tagName(value.phase), if (value.outcome) |outcome| @tagName(outcome) else "pending", value.matched, value.changed, std.fmt.bytesToHex(value.token, .lower) });
+        try self.out.flush();
     }
     fn target(self: *Console, text: []const u8) !api.Target {
         if (text.len == 0) {
@@ -335,7 +370,13 @@ pub const Console = struct {
             _ = std.fmt.hexToBytes(&token, text[6..]) catch return error.InvalidSqlToken;
             return .{ .token = token };
         }
-        return .{ .operation = .{ .account = self.client.account.?, .id = try std.fmt.parseInt(u64, text, 10) } };
+        var kind: @FieldType(api.OperationId, "kind") = .table;
+        var identifier = text;
+        if (std.mem.indexOfScalar(u8, text, ':')) |colon| {
+            kind = std.meta.stringToEnum(@FieldType(api.OperationId, "kind"), text[0..colon]) orelse return error.InvalidSqlOperationReference;
+            identifier = text[colon + 1 ..];
+        }
+        return .{ .operation = .{ .account = self.client.account.?, .kind = kind, .id = try std.fmt.parseInt(u64, identifier, 10) } };
     }
     fn dispatch(self: *Console, text: []const u8, a: std.mem.Allocator) !void {
         if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ")) return @import("ConsoleHelp.zig").write(self, std.mem.trim(u8, text[5..], " \t"));
@@ -346,8 +387,8 @@ pub const Console = struct {
         }
         if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .endpoint = self.client.endpoint, .format = self.session.format, .format_source = self.preferences.format_source, .timing = self.preferences.timing, .timing_source = self.preferences.timing_source });
         if (std.mem.eql(u8, text, ".timer")) return error.InvalidTimingCommand;
-        if (std.mem.startsWith(u8, text, ".timer ")) {
-            self.preferences.timing = try Preferences.onOff(text[7..]);
+        if (std.mem.startsWith(u8, text, ".timer ") or std.mem.startsWith(u8, text, ".timer\t")) {
+            self.preferences.timing = Preferences.onOff(text[7..]) catch return error.InvalidTimingCommand;
             self.preferences.timing_source = ".timer";
             return;
         }
@@ -359,7 +400,13 @@ pub const Console = struct {
         if (std.mem.eql(u8, text, ".tables")) return self.query("SHOW TABLES", null);
         if (std.mem.startsWith(u8, text, ".schema ")) return self.query(try std.fmt.allocPrint(a, "DESCRIBE {s}", .{text[8..]}), null);
         if (std.mem.eql(u8, text, ".schema")) return self.query("SHOW TABLES", null);
-        if (std.mem.eql(u8, text, ".info") or std.mem.eql(u8, text, ".sources")) return self.json(.{ .endpoint = self.client.endpoint, .instance = self.client.instance, .account = self.config.account, .database = self.config.database, .source = self.config.source, .execution = self.config.execution });
+        if (std.mem.eql(u8, text, ".info") or std.mem.eql(u8, text, ".sources")) {
+            const reply = try self.call(.context);
+            defer reply.deinit();
+            try self.checked(reply.value);
+            if (reply.value.result != .context) return error.InvalidSqlResponse;
+            return self.json(reply.value.result.context);
+        }
         inline for (.{ "status", "resume", "cancel" }) |command| {
             const prefix = "." ++ command;
             if (std.mem.eql(u8, text, prefix) or std.mem.startsWith(u8, text, prefix ++ " ")) {
@@ -391,7 +438,18 @@ pub const Console = struct {
                 defer reply.deinit();
                 try self.checked(reply.value);
                 if (reply.value.result != .operation) return error.InvalidSqlResponse;
-                return self.showOperation(reply.value.result.operation);
+                try self.showOperation(reply.value.result.operation);
+                if (comptime std.mem.eql(u8, command, "resume")) {
+                    const operation = reply.value.result.operation;
+                    if (operation.identity.kind == .captured and operation.outcome == .applied) {
+                        var result = try self.call(.{ .result = operation.identity });
+                        defer result.deinit();
+                        try self.checked(result.value);
+                        var timing = @import("Timing.zig").start(self.init, self.preferences.timing);
+                        try self.consume(&result, &timing);
+                    }
+                }
+                return;
             }
         }
         return error.UnknownConsoleCommand;

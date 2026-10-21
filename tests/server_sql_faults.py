@@ -20,6 +20,7 @@ def run(cli, node, host, board, gateway):
     fixture = Fixture(cli, node, host)
     freeze(fixture)
     install_peer(fixture)
+    fixture.config['sql'] = {'native': {'local': False}}
     fixture.config['applications'] = {'port': free_port()}
     fixture.config['board'] = {'port': free_port()}
     fixture.path.write_text(json.dumps(fixture.config))
@@ -33,7 +34,7 @@ def run(cli, node, host, board, gateway):
         fixture.start(); fixture.ready(); fixture.stop()
         password = fixture.root / 'owner.password'
         password.write_text('local-sql-isolated-fault-proof'); password.chmod(0o600)
-        fixture.config['sql'] = dict(postgres={'port': free_port()}, health_port=free_port(),
+        fixture.config['sql'] = dict(native={'local': False}, postgres={'port': free_port()}, health_port=free_port(),
             drain_ms=1000, accounts=[dict(name='owner', role='local_owner', password_file=str(password))])
         fixture.path.write_text(json.dumps(fixture.config))
         arm(fixture, 'create_resource', 'sql-resource', principal=0)

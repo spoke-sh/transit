@@ -27,10 +27,11 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
             fixture.config.pop('executables')  # Installed adjacent dependency discovery.
     else:
         freeze(fixture)
+    fixture.config['sql'] = {'native': {'local': False}}
     fixture.config['applications'] = {'port': free_port()}
     fixture.config['board'] = {'port': free_port()}
     pg_port, mysql_port = free_port(), free_port()
-    sql = dict(postgres={'port': pg_port}, mysql={'port': mysql_port},
+    sql = dict(native={'local': False}, postgres={'port': pg_port}, mysql={'port': mysql_port},
                health_port=free_port(), tls={'mode': 'disabled'}, accounts=[],
                drain_ms=1000, request_timeout_ms=30000, command_ms=270000, idle_ms=270000)
     fixture.config['sql'] = sql
@@ -192,7 +193,7 @@ def bootstrap_fault(cli, node, host, board, gateway):
     try:
         fixture.start(); fixture.ready(); fixture.stop()
         owner_role = fixture.record()['authorization_steps'][0]
-        fixture.config['sql'] = dict(postgres={'port': free_port()}, health_port=free_port(),
+        fixture.config['sql'] = dict(native={'local': False}, postgres={'port': free_port()}, health_port=free_port(),
             tls={'mode': 'disabled'}, drain_ms=1000,
             accounts=[dict(name='owner', role='local_owner', authentication='trust', bootstrap_owner=True)])
         fixture.path.write_text(json.dumps(fixture.config))

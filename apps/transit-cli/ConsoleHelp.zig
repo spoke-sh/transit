@@ -61,12 +61,13 @@ pub fn write(console: *Console, topic: []const u8) !void {
         \\  SELECT SUM(chosen.value) FROM (SELECT value FROM items LIMIT 8) AS chosen;
         \\SUM requires INT64 values. An outer aggregate LIMIT is not an input limit.
         \\General Table SQL is limited to 4096 UTF-8 bytes and 128 output columns.
-        \\Joins, grouped aggregates, expression assignments, RETURNING and transaction sessions are not admitted.
+        \\Finite relational SELECT supports the catalog query profile. Expression assignments, RETURNING and transaction sessions are not admitted.
         \\.help [SQL|SETTINGS|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|DROP TABLE]
         \\.tables .schema [name] .sources .mode table|json
         \\.timer on|off .connect PATH .show .info .quit
         \\.execute FILE runs one JSON query object; parameter admission depends on the query source.
-        \\Recovery: .status .resume [query ID] .cancel
+        \\Recovery: .status [all|token:HEX|KIND:ID] .resume [token:HEX|KIND:ID] .cancel [token:HEX|KIND:ID]
+        \\KIND is table, configuration or captured. Repeating SQL creates new work; exact recovery uses the original identity.
         \\General Table SELECT uses an interactive captured snapshot; its final completion marker verifies the emitted prefix.
         \\Table display truncates long cells explicitly; JSON output retains typed values.
         \\Ctrl-R searches SQL and dot-command history in ~/.transit_history. Enter accepts a match for editing.

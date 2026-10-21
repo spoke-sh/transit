@@ -1189,7 +1189,7 @@
         "packages/zig/transit-query/src/Assistance.zig",
         "packages/zig/transit-query/src/Workspace.zig",
         "packages/ts/transit-query-client/src/assistance.ts",
-        "tests/console.py"
+        "tests/sql_sessions/native.py"
       ],
       "profile": "M24 finite read-only KV/Table/Document console and shared Board cursor assistance",
       "tasks": [

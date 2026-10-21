@@ -48,16 +48,15 @@ class Evidence(unittest.TestCase):
             self.assertTrue(evidence['truncated'])
             self.assertEqual(evidence['restarts'], ['ChildExited'] * 4)
 
-    def test_typed_query_requires_matching_complete_cut_and_keeps_timing(self):
+    def test_typed_query_requires_complete_row_count_and_keeps_timing(self):
         for corrupt in (False, True):
             with self.subTest(corrupt=corrupt):
                 basis = dict(object='19', revision='7')
-                frames = [dict(profile='table_snapshot_v1', complete_coverage=False,
-                               basis=basis, plan='original', schema={'columns': []}),
+                frames = [dict(profile='sql_session_v1', complete_coverage=False,
+                               schema={'columns': []}),
                           dict(complete_coverage=False, row={'value': {'structure': [
                               {'value': {'atom': {'unsigned': '41'}}}]}}),
-                          dict(complete_coverage=True, complete=dict(rows='1', basis=basis,
-                               plan='changed' if corrupt else 'original'))]
+                          dict(complete_coverage=True, rows=2 if corrupt else 1, basis=basis)]
                 script = """import sys,time
 sys.stdin.readline()
 sys.stderr.write(%r);sys.stderr.flush()

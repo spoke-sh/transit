@@ -4,7 +4,6 @@ import json
 import os
 from pathlib import Path
 import select
-import socket
 import stat
 import subprocess
 import sys
@@ -13,6 +12,7 @@ import threading
 
 from console_terminal import Terminal, ANSI
 from console_signals import check as check_signals
+from sql_sessions.editor_peer import peer as session_peer
 
 
 def clear(terminal):
@@ -31,21 +31,12 @@ def search(terminal, query, result):
 
 
 def check(binary, signal_gate):
-    with tempfile.TemporaryDirectory(prefix='transit-history-') as directory, socket.socket() as trap:
+    with tempfile.TemporaryDirectory(prefix='transit-history-') as directory, session_peer() as (endpoint, actions):
         root = Path(directory)
         home = root / 'home'
         home.mkdir()
-        trap.bind(('127.0.0.1', 0))
-        trap.listen()
-        (root / 'caller.seed').write_text('2a' * 32)
         config = root / 'console.json'
-        config.write_text(json.dumps({
-            'version': 1, 'profile': 'unified_v1', 'transport': 'loopback',
-            'url': f'http://127.0.0.1:{trap.getsockname()[1]}', 'seed_file': 'caller.seed',
-            'connection': dict(zip(('realm', 'principal', 'source', 'resource', 'requester', 'requests'), range(1, 7))),
-            'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'kv': {'prefix': '6b', 'key': {'type': 'binary'}, 'value': {'type': 'utf8'}}}},
-                          'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}},
-        }))
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
         history = home / '.transit_history'
         terminal = Terminal(binary, config, home=home)
         multiline = "SELECT /* 東京\nsecond line */;"
@@ -181,7 +172,7 @@ def check(binary, signal_gate):
         saved = history.read_bytes()
         check_signals(binary, config, home, signal_gate)
         assert history.read_bytes() == saved, 'signal schedule executed an old draft'
-        assert not select.select([trap], [], [], 0)[0], 'history editing sent a native request'
+        assert [value['sql'] for action, value in actions if action == 'execute'] == [multiline, multiline], 'Editing dispatched an unsubmitted draft'
     print('Console history: PTY search/accept/cancel, dot commands, Unicode/multiline, restart, concurrent append, bounded malformed records, private permissions and unavailable-file fallback passed.')
 
 
