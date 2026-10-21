@@ -106,7 +106,7 @@ change the source's meaning.
 
 | Profile | Recovery evidence | Completion and cleanup |
 | --- | --- | --- |
-| Interactive session | Fresh leased source snapshot and bounded client execution | Complete/failed/cancelled result framing; release or lease expiry; reconnection starts new work |
+| Interactive session | Fresh leased source snapshot and bounded service execution | Complete/failed/cancelled result framing; release or lease expiry; a new logical session starts new work |
 | Durable captured query | Frozen query identity, captured basis, recorded progress and immutable result publication | Verified complete manifest and ordered segment coverage; recovery follows the original identity |
 
 Durability of application state does not require every read computation to become
@@ -115,11 +115,14 @@ and gives up resumption of that computation after client loss. Captured queries
 pay for durable bookkeeping in exchange for their specified result recovery.
 These are distinct contracts, not interchangeable optimization settings.
 
-The proposed [shared SQL session boundary](service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
+The [shared SQL session boundary](service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
 moves ordinary console execution into the same service runtime as database wire
 sessions. It preserves the distinction above: a service-hosted interactive read
-still uses a temporary snapshot and does not become a durable query job. That
-proposal has no new execution or performance qualification yet.
+still uses a temporary snapshot and does not become a durable query job. Replacing
+an HTTP connection preserves its logical session; losing that session cannot
+reopen the result. Explicit captured queries retain their original domain identity
+across SQL service replacement. The [proof ledger](../../tests/README.md)
+records the executed session and source recovery schedules and measurement limits.
 
 ## Frozen file interpretation
 

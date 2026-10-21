@@ -2,7 +2,8 @@
 
 This contract defines the native SQL session interface above Fuze and public
 native clients. The [types](../packages/zig/transit-sql-protocol/src/root.zig)
-own message shapes; the generated description is derived from those types.
+own message shapes; the [generated route and message description](sql-session-v1.schema.json)
+is derived from those types.
 The shared [definition](../packages/zig/transit-protocol/src/Growth.zig) is
 mandatory on every request and response. Its exact spelling is checked before
 execution. A version number alone does not establish compatibility.

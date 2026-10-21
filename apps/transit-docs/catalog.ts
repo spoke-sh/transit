@@ -101,6 +101,7 @@ export const sections: Section[] = [
   {
     label: "HTTP APIs / OpenAPI",
     pages: [
+      page("contracts/SQL_SESSION_V1.md", "reference/sql-session", "SQL session API"),
       reference("openapi", "Serving OpenAPI"),
       reference("serving", "Serve an application API"),
       reference("board-api", "Board OpenAPI"),

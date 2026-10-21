@@ -383,6 +383,26 @@ distinct in the proof ledger. These schedules do not establish every crash point
 constant latency, distributed SQL placement, transactions, browser admission,
 Board/Flight migration or resumable interactive queries.
 
+At source `3ceb1bb3`, the one-row native-session fixture measures 1.56–1.71 seconds
+to the first batch over a new TLS connection and 1.64–1.69 seconds over a reused
+connection (three samples each). Each uses one SQL request but observes 186–192
+internal native requests, including background recovery. Two simultaneous
+sessions finish in 1.93 seconds including result closure; their individual
+observation windows overlap and cannot be added as independent request counts.
+The service high-water mark at this observation is 105,404 KiB. The
+[measurement implementation](../../tests/sql_sessions/measurements.py) records
+body bytes, timings and process memory beside the exact source revision.
+
+These are same-host observations with other proofs/builds running, no warmup,
+no matched baseline and no throughput target. They establish that one public
+HTTP exchange still performs substantial native authority and snapshot work.
+They do not establish a speedup from the new placement. Acquisition may retry
+transient unavailable observations within the request deadline before publishing
+a cursor; advancing a disclosed iterator never retries by opening a new snapshot.
+Readiness remains fenced during an authority outage: the fault schedule observes
+a three-second outage and a 3.34-second successful login, rather than bypassing
+the account's readiness gate.
+
 ## Reactive consistency
 
 The implemented reactive profile combines int64 Table notifications with exact
