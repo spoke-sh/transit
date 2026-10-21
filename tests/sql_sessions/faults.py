@@ -29,7 +29,11 @@ class Faults:
                 envelope = json.loads(content).get('query', {})
                 query = envelope.get('kind', {})
                 source_failure = owner.fail_source_once is not None and envelope.get('principal') == owner.fail_source_once
-                result_failure = owner.fail_result_once == (envelope.get('principal'), query.get('block_entries', {}).get('source', {}).get('resource', {}).get('id'))
+                # Retained Query publications use authorized read_entries
+                # batches. 00 50 + big-endian domain 3 is Publication's
+                # query_result key prefix, distinct from policy/status reads.
+                publication = query.get('read_entries', {})
+                result_failure = owner.fail_result_once == (envelope.get('principal'), publication.get('resource')) and any(isinstance(key, str) and key.startswith('005000000003') for key in publication.get('keys', []))
                 if source_failure or result_failure or ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
                     if source_failure:
                         owner.fail_source_once = None
