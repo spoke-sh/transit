@@ -82,7 +82,7 @@ def lifecycle(cli, node, host, board, worker, operator):
     try:
         fixture.no_ui = True
         fixture.alias = 'serve'
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         initial = fixture.record()
         assert initial['board_receipts'] == [None] * 3
@@ -191,7 +191,7 @@ def interrupted(cli, node, host, board, worker=None, operator=None):
     success = False
     try:
         fixture.no_ui = True
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         fixture.stop()
         effect, index = 'board', 0
@@ -255,16 +255,16 @@ def preflight(cli, node, host, board):
         for port in [*original['ports'].values(), original['applications']['port']]:
             fixture.config['board'] = {'port': port}
             fixture.path.write_text(json.dumps(fixture.config))
-            fixture.refusal('must be different', initialize=True)
+            fixture.refusal('must be different')
             assert not fixture.installation.exists()
         fixture.config = json.loads(json.dumps(original))
         fixture.config['board']['public_origin'] = 'http://foreign.invalid'
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.refusal('board.public_origin must match the Board loopback listener', initialize=True)
+        fixture.refusal('board.public_origin must match the Board loopback listener')
         fixture.config = json.loads(json.dumps(original))
         fixture.config['executables']['board'] = str(fixture.root / 'absent')
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.refusal('file not found', initialize=True)
+        fixture.refusal('file not found')
         assert not fixture.installation.exists()
         fixture.config = original
         selected = fixture.root / 'selected-board'
@@ -272,7 +272,7 @@ def preflight(cli, node, host, board):
         selected.chmod(0o700)
         fixture.config['executables']['board'] = str(selected)
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         os.kill(fixture.process.pid, signal.SIGINT)
         assert fixture.process.wait(timeout=20) == 0
@@ -310,7 +310,7 @@ def incompatible(cli, node, host, board):
         peer.chmod(0o700)
         fixture.config['executables']['board'] = str(peer)
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=True)
+        fixture.start()
         assert fixture.process.wait(timeout=60) == 1
         assert fixture.process.stdout.read() == b''
         assert 'InvalidBoardResponse' in Path(fixture.logs[-1].name).read_text()

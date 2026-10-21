@@ -26,22 +26,22 @@ pub const root =
 pub const server =
     \\Run a local Transit server in the foreground.
     \\
-    \\Usage: transit server [--config PATH] [--initialize] [--no-ui]
+    \\Usage: transit server [--config PATH] [--no-ui]
     \\
     \\Options:
     \\  --config PATH  Server configuration file (overrides discovery)
-    \\  --initialize   Create a new installation; omit when restarting
     \\  --no-ui        Run without Board for this invocation
     \\  --help         Show this help
     \\
     \\The local bundle supplies defaults without a file. Override with the first transit.yaml found in
     \\the current directory, home directory or /etc/transit. TRANSIT_ environment
     \\variables override properties; use __ between nested field names.
-    \\Board starts by default with configuration version 3.
-    \\Versions 1 and 2 require --no-ui.
+    \\Board starts by default with configuration version 1; --no-ui disables it.
     \\Paths in the configuration resolve relative to its file.
     \\
     \\Alias: serve
+    \\Creates a missing or empty installation; otherwise opens or resumes it.
+    \\Set startup.require_existing: true to require retained installation data.
     \\Configuration: apps/transit-cli/docs/server.md
     \\
 ;

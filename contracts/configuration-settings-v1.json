@@ -1,5 +1,5 @@
 {
-  "definition": "1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f",
+  "definition": "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8",
   "settings": [
     {
       "name": "version",
@@ -25,6 +25,22 @@
       "scope": "installation",
       "change": "initialization",
       "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "startup.require_existing",
+      "description": "Refuse missing or empty installations instead of creating one at startup",
+      "owner": "server",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "false",
       "session_mutable": false,
       "nullable": false,
       "sensitive": false,
@@ -840,6 +856,19 @@
         "description": "Retained installation directory",
         "x-transit-owner": "server",
         "x-transit-change": "initialization"
+      },
+      "startup": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "require_existing": {
+            "type": "boolean",
+            "description": "Refuse missing or empty installations instead of creating one at startup",
+            "x-transit-owner": "server",
+            "x-transit-change": "restart",
+            "default": false
+          }
+        }
       },
       "realm": {
         "type": "integer",

@@ -60,11 +60,13 @@ for command in ('server', 'serve'):
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
-    for flag in ('--initialize', '--no-ui', '--help'):
+    for flag in ('--no-ui', '--help'):
         invoke([command, flag, flag], stderr=f'error: {flag} can only be specified once\n')
     invoke([command, '--format', 'json'], contains=('--format is not supported', f'transit {command} --help'))
     invoke([command, '--unknown=private-must-not-appear'], contains=('unexpected input at argument 2',))
-    invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', '--initialize', '--no-ui', 'Alias: serve'))
+    invoke([command, '--initialize'], contains=('unexpected input at argument 2',))
+    help_output = invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', 'startup.require_existing', '--no-ui', 'Alias: serve')).stdout
+    assert b'--initialize' not in help_output
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
 for args in ([], ['--help'], ['--version'], ['app'], ['app', '--help'], ['console', '--help'], ['query', '--help']):
     invoke(args, 0)

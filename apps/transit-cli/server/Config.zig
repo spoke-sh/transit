@@ -6,6 +6,7 @@ const Settings = @import("../Settings.zig");
 pub const settings = @import("SettingsSchema.zig").registry;
 version: u8,
 installation: []const u8,
+startup: Startup = .{},
 realm: u64,
 admission_ceiling: u64 = 65536,
 control_reserve: u64 = 4096,
@@ -18,6 +19,7 @@ board: ?Board = null,
 query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
+pub const Startup = struct { require_existing: bool = false };
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };

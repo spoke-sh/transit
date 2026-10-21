@@ -24,7 +24,7 @@ def inside(mount, cli, node, host, worker, operator):
     recovery = Path('/proof/put.json')
     writer, inspector = Path('/proof/writer.json'), Path('/proof/inspector.json')
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         manifest = fixture.root / 'application.json'
         manifest.write_bytes(subprocess.check_output([operator, 'manifest', worker]))

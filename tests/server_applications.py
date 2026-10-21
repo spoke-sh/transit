@@ -146,7 +146,7 @@ def run(cli, node, host, worker, operator):
         return json.loads(result.stdout)
 
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         courier = json.loads((fixture.installation / 'courier.json').read_text())['role']['courier']
         assert courier == {'destinations': [], 'all_destinations': True}, courier

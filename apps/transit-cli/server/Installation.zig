@@ -310,7 +310,32 @@ pub fn ensureDefaultTable(self: *Self, catalog: *q.catalog.TableClient) !void {
         },
     }
 }
-pub fn create(init: std.process.Init, config: Config, identity: Config.Identity) !void {
+pub const DirectoryState = enum { missing, empty, populated };
+/// Examine only the installation directory, never infer newness from a missing
+/// record inside it. In particular, dangling symlinks are not absent directories.
+pub fn directoryState(io: std.Io, path_name: []const u8) !DirectoryState {
+    const stat = std.Io.Dir.cwd().statFile(io, path_name, .{ .follow_symlinks = false }) catch |err| {
+        if (err == error.FileNotFound) return .missing;
+        return err;
+    };
+    if (stat.kind != .directory) return error.InvalidInstallationDirectory;
+    const directory = try std.Io.Dir.cwd().openDir(io, path_name, .{ .iterate = true, .follow_symlinks = false });
+    defer directory.close(io);
+    var entries = directory.iterate();
+    return if (try entries.next(io) == null) .empty else .populated;
+}
+
+/// Caller holds the sibling installation lock across selection, creation and
+/// recovery. No provider or authority starts before this record is published.
+pub fn prepare(init: std.process.Init, config: Config, identity: Config.Identity) !bool {
+    const state = try directoryState(init.io, config.installation);
+    if (state == .populated) return false;
+    if (config.startup.require_existing) return error.ExistingInstallationRequired;
+    try create(init, config, identity, state);
+    return true;
+}
+
+fn create(init: std.process.Init, config: Config, identity: Config.Identity, state: DirectoryState) !void {
     const allocator = init.arena.allocator();
     // A sibling private directory is never a live installation. An interrupted
     // assembly contains no accepted native work and is never silently adopted.
@@ -318,7 +343,6 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
     try init.io.randomSecure(&random);
     const temporary = try std.fmt.allocPrint(allocator, "{s}.creating-{s}", .{ config.installation, std.fmt.bytesToHex(random, .lower) });
     try std.Io.Dir.cwd().access(init.io, std.fs.path.dirname(config.installation).?, .{});
-    if (std.Io.Dir.cwd().access(init.io, config.installation, .{})) |_| return error.InstallationExists else |err| if (err != error.FileNotFound) return err;
     try std.Io.Dir.cwd().createDir(init.io, temporary, .fromMode(0o700));
     const directory = try std.Io.Dir.cwd().openDir(init.io, temporary, .{ .iterate = true });
     defer directory.close(init.io);
@@ -337,6 +361,11 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
     }
     try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .complete = false });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
+    // Remove only an empty directory, never its contents. If anything appeared
+    // since classification, rmdir refuses it. Nonreplacing publication also
+    // refuses a new destination racing with us. A crash in between leaves only
+    // unpublished staging files: no accepted work or active identity exists yet.
+    if (state == .empty) try std.Io.Dir.cwd().deleteDir(init.io, config.installation);
     try std.Io.Dir.cwd().renamePreserve(temporary, std.Io.Dir.cwd(), config.installation, init.io);
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(config.installation).?, .{ .iterate = true });
     defer parent.close(init.io);
@@ -352,4 +381,80 @@ pub fn checkStorage(self: *Self) !void {
 
 pub fn settingsBinding(record: Record, realm: u64) !q.settings.Contract.Binding {
     return .{ .realm = realm, .installation = record.installation, .object = .{ .kind = .domain, .id = record.authorization_steps[9] orelse return error.InvalidInstallationAuthority } };
+}
+
+test "startup creates only absent or empty directories and preserves recorded identities" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const directory = try temporary.dir.realPathFileAlloc(t.io, ".", a);
+    const init: std.process.Init = .{ .io = t.io, .gpa = a, .arena = &arena, .minimal = undefined, .environ_map = undefined, .preopens = undefined };
+    var config: Config = .{
+        .version = 1,
+        .realm = 1,
+        .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
+        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
+        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+    };
+    const identity = std.mem.zeroes(Config.Identity);
+    config.startup.require_existing = true;
+    try t.expectError(error.ExistingInstallationRequired, prepare(init, config, identity));
+    try t.expectEqual(.missing, try directoryState(t.io, config.installation));
+    try temporary.dir.createDir(t.io, "installation", .default_dir);
+    try t.expectError(error.ExistingInstallationRequired, prepare(init, config, identity));
+    try t.expectEqual(.empty, try directoryState(t.io, config.installation));
+    config.startup.require_existing = false;
+    try t.expect(try prepare(init, config, identity));
+    const record_path = try std.fs.path.join(a, &.{ config.installation, "installation.json" });
+    const before = try Files.read(Record, t.io, a, record_path);
+    try t.expect(!try prepare(init, config, identity));
+    config.startup.require_existing = true;
+    try t.expect(!try prepare(init, config, identity));
+    const after = try Files.read(Record, t.io, a, record_path);
+    try t.expectEqual(before.installation, after.installation);
+    try t.expectEqual(before.root_public, after.root_public);
+    try t.expect(!after.complete and !after.genesis_observed);
+    // Losing the record in a populated installation never makes it new.
+    try std.Io.Dir.cwd().deleteFile(t.io, record_path);
+    config.startup.require_existing = false;
+    try t.expect(!try prepare(init, config, identity));
+    try t.expectError(error.FileNotFound, Files.read(Record, t.io, a, record_path));
+    config.installation = try std.fs.path.join(a, &.{ directory, "new" });
+    try t.expect(try prepare(init, config, identity));
+    try t.expectEqual(.populated, try directoryState(t.io, config.installation));
+}
+
+test "initialization refuses links files and contents appearing before publication" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const directory = try temporary.dir.realPathFileAlloc(t.io, ".", a);
+    const target = try std.fs.path.join(a, &.{ directory, "target" });
+    try Files.write(t.io, target, "preserve");
+    try t.expectError(error.InvalidInstallationDirectory, directoryState(t.io, target));
+    try temporary.dir.symLink(t.io, "absent", "dangling", .{});
+    try t.expectError(error.InvalidInstallationDirectory, directoryState(t.io, try std.fs.path.join(a, &.{ directory, "dangling" })));
+    try temporary.dir.createDir(t.io, "installation", .default_dir);
+    try temporary.dir.symLink(t.io, "installation", "link", .{ .is_directory = true });
+    try t.expectError(error.InvalidInstallationDirectory, directoryState(t.io, try std.fs.path.join(a, &.{ directory, "link" })));
+    const init: std.process.Init = .{ .io = t.io, .gpa = a, .arena = &arena, .minimal = undefined, .environ_map = undefined, .preopens = undefined };
+    const config: Config = .{
+        .version = 1,
+        .realm = 1,
+        .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
+        .ports = .{ .cold = 19101, .cold_console = 19102, .store = 19103, .node = 19104, .gateway = 19105 },
+        .executables = .{ .minio = "unused", .ursula = "unused", .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+    };
+    const state = try directoryState(t.io, config.installation);
+    const marker = try std.fs.path.join(a, &.{ config.installation, "unrecognized" });
+    try Files.write(t.io, marker, "preserve");
+    try t.expectError(error.DirNotEmpty, create(init, config, std.mem.zeroes(Config.Identity), state));
+    try t.expectError(error.PathAlreadyExists, create(init, config, std.mem.zeroes(Config.Identity), .missing));
+    try t.expectEqualStrings("preserve", try std.Io.Dir.cwd().readFileAlloc(t.io, marker, a, .limited(8)));
 }
