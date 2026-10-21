@@ -1,6 +1,6 @@
 //! Local SQL placement over public native enrollment, ledger and authorization owners.
 const std = @import("std");
-const g = @import("transit_sql_gateway");
+const g = @import("transit_sql");
 const q = @import("transit_query");
 const p = q.protocol;
 const E = @import("SqlEnrollment.zig");

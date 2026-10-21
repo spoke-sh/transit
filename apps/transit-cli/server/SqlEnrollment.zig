@@ -1,7 +1,7 @@
 //! Recoverable local SQL identities and reviewable public authorization inputs.
 //! Configuration selects exposure; explicit authorization publishes login/data rights.
 const std = @import("std");
-const g = @import("transit_sql_gateway");
+const g = @import("transit_sql");
 const q = @import("transit_query");
 const p = q.protocol;
 const n = p.Growth;

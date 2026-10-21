@@ -1,9 +1,9 @@
 //! Wire adapter for the same settings plans used by the Transit console.
 const std = @import("std");
-const g = @import("transit_sql_gateway");
+const g = @import("root.zig");
 const q = g.query;
 const f = g.fuze;
-const Host = @import("Host.zig");
+const Host = @import("Session.zig");
 const C = q.settings.Contract;
 pub const Prepared = struct {
     plan: q.SettingsSql.Owned,

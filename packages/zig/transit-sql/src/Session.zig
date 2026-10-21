@@ -1,14 +1,13 @@
-//! Connection-owned SQL execution over the shared native account runtime.
+//! Protocol-neutral SQL session execution over the shared native account runtime.
 const std = @import("std");
-const g = @import("transit_sql_gateway");
-const pg = @import("transit_postgres");
+const g = @import("root.zig");
 const q = g.query;
 const c = g.catalog;
 const f = g.fuze;
 const p = c.protocol;
 const telemetry = q.wire.observability.telemetry;
 const Self = @This();
-const Settings = @import("Settings.zig");
+const Settings = @import("SessionSettings.zig");
 allocator: std.mem.Allocator,
 io: std.Io,
 config: *const g.Configuration,
@@ -278,7 +277,7 @@ pub fn closeRead(self: *Self, read: *Read) void {
     }
     self.allocator.destroy(read);
 }
-pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: pg.Backend.Completion, count: u64, changed: u64 } {
+pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: g.Completion, count: u64, changed: u64 } {
     try self.validate(prepared);
     if (prepared.* == .settings) {
         try Settings.mutate(self, &prepared.settings);

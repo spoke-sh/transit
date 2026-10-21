@@ -1,7 +1,7 @@
-# transit-sql-gateway
+# transit-sql
 
 Shared database wire types, budgets and credential verification above the public
-query and catalog owners. The module is `transit_sql_gateway`; SQL compilation,
+query and catalog owners. The module is `transit_sql`; SQL compilation,
 source snapshots and mutation authority stay with Fuze, Query and Catalog.
 
 `Type.from` admits int64, uint64, finite float64, Boolean, UTF-8 and binary fields.
@@ -81,3 +81,10 @@ execution independently captures a new authorized cut or creates an exact typed
 Table intent. Every relational target uses the selected database's explicit
 catalog mapping. Captured relational descriptors must still match preparation
 before any executor step. Parameterized relational SQL is excluded.
+
+`Session` owns preparation, result iteration, settings and current-authorization
+checks independently of a database wire protocol. The supervised SQL application
+creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
+MySQL retain their protocol admission and scalar encoding rules in their adapters.
+Session cleanup releases reads and transports; durable account operations remain
+in the ledger.

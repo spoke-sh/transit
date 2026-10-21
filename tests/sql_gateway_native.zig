@@ -1,6 +1,6 @@
 //! Isolated signed gateway controls and coordinator over real native owners.
 const std = @import("std");
-const gateway = @import("transit_sql_gateway");
+const gateway = @import("transit_sql");
 const c = gateway.catalog;
 const s = gateway.station;
 const p = c.protocol;

@@ -36,9 +36,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--write', action='store_true')
     args = parser.parse_args()
-    fixtures = {'transit-sql-gateway/src/fixtures/auth.json': authentication()}
-    fixtures['transit-sql-gateway/src/fixtures/records.json'] = records()
-    fixtures['transit-sql-gateway/src/fixtures/controls.json'] = controls()
+    fixtures = {'transit-sql/src/fixtures/auth.json': authentication()}
+    fixtures['transit-sql/src/fixtures/records.json'] = records()
+    fixtures['transit-sql/src/fixtures/controls.json'] = controls()
     fixtures['transit-postgres/src/fixtures/backend.json'] = postgres_backend()
     fixtures['transit-mysql/src/fixtures/backend.json'] = mysql_backend()
     for protocol in ('postgres', 'mysql'):

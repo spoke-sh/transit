@@ -1,6 +1,6 @@
 .{
-    .name = .transit_sql_gateway,
-    .fingerprint = 0xaa12254d84b68074,
+    .name = .transit_sql,
+    .fingerprint = 0x10699c4423eddfd2,
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_station = .{ .path = "../transit-station" }, .transit_query = .{ .path = "../transit-query" }, .transit_catalog = .{ .path = "../transit-catalog" } },

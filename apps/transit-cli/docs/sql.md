@@ -174,7 +174,7 @@ SELECT COUNT(*) FROM shared_rows WHERE label IS NULL;
 DELETE FROM shared_rows WHERE id = 1;
 ```
 
-The [SQL gateway reference](../../transit-sql-gateway/README.md) defines the
+The [SQL gateway reference](../../transit-sql/README.md) defines the
 supported autocommit SQL, scalar types, prepared statements and protocol limits.
 Transactions, general ORM compatibility and remote listener exposure are outside
 this local interface. Stop with Ctrl-C and resume with `transit server`; retained
@@ -309,7 +309,7 @@ transit-sql-gateway control .transit/sql/accounts/owner/control.json pending
 
 `list` returns a cursor when more records exist. `status` distinguishes current
 operation state from a confirmed Table outcome. Use the documented
-[reconcile/cancel controls](../../transit-sql-gateway/docs/configuration.md#signed-operator-controls)
+[reconcile/cancel controls](../../transit-sql/docs/configuration.md#signed-operator-controls)
 with the original ID where appropriate. Their saved pending file preserves exact
 control identity; neither closing a socket nor an empty result justifies blindly
 resubmitting SQL. Current authorization still governs operator inspection.

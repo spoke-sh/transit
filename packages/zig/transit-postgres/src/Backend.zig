@@ -8,7 +8,7 @@ allocator: std.mem.Allocator,
 maximum: u32 = g.Limits.max_frame_bytes,
 bytes: std.ArrayList(u8) = .empty,
 pub const Column = struct { name: []const u8, type: g.Type };
-pub const Completion = enum { select, insert, update, delete, create_table, set, show, discard_all };
+pub const Completion = g.Completion;
 pub fn deinit(self: *Self) void {
     self.bytes.deinit(self.allocator);
     self.* = undefined;

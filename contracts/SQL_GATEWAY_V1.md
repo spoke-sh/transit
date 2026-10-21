@@ -327,7 +327,7 @@ only published records from a supplied committed view, check the explicit finite
 allocation bound and verify the complete publication digest.
 
 Publication acknowledgement alone does not establish SQL admission or a terminal
-outcome. The [account ledger API](../packages/zig/transit-sql-gateway/docs/ledger.md)
+outcome. The [account ledger API](../packages/zig/transit-sql/docs/ledger.md)
 composes these records under native owner/generation checks. The running host and
 coordinator transport are separate from these deterministic library methods.
 
@@ -335,11 +335,11 @@ coordinator transport are separate from these deterministic library methods.
 
 Every metadata value starts with its four-byte record magic and the mandatory
 32-byte current native definition. Fields follow the declaration order in
-[`LedgerRecords`](../packages/zig/transit-sql-gateway/src/LedgerRecords.zig) and
-[`Terminal`](../packages/zig/transit-sql-gateway/src/Terminal.zig), using exact
+[`LedgerRecords`](../packages/zig/transit-sql/src/LedgerRecords.zig) and
+[`Terminal`](../packages/zig/transit-sql/src/Terminal.zig), using exact
 little-endian integer widths, one-byte enum tags and fixed byte arrays. Unknown
 tags, missing/foreign definitions, trailing bytes and inconsistent counters reject.
-The [independent fixture](../packages/zig/transit-sql-gateway/src/fixtures/records.json)
+The [independent fixture](../packages/zig/transit-sql/src/fixtures/records.json)
 fixes head, operation and terminal layouts including full-width u64 counts.
 
 | Magic | Contents |
@@ -386,7 +386,7 @@ or treats a disconnected session as cancellation.
 ## Signed native ledger controls
 
 A Station cast payload contains `GSQ1`, current definition:32, command tag:u8,
-then the fields of [`Control.Command`](../packages/zig/transit-sql-gateway/src/Control.zig)
+then the fields of [`Control.Command`](../packages/zig/transit-sql/src/Control.zig)
 in declaration order. Integers are little-endian, arrays have exact declared
 length, enums use their declared integer tag, and optional values start with
 zero (absent) or one (present). There are no omitted/defaulted wire fields.

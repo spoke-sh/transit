@@ -1,9 +1,9 @@
 const std = @import("std");
-const g = @import("transit_sql_gateway");
+const g = @import("transit_sql");
 const pg = @import("transit_postgres");
 const mysql = @import("transit_mysql");
 const tls = @import("transit_tls_server");
-const Host = @import("Host.zig");
+const Host = g.Session;
 const Control = @import("Control.zig");
 const Stop = @import("Stop.zig");
 const Connection = @import("Connection.zig");
@@ -11,7 +11,7 @@ const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const telemetry = g.query.wire.observability.telemetry;
 test {
-    _ = @import("Host.zig");
+    _ = g.Session;
 }
 const Worker = struct {
     done: std.atomic.Value(bool) = .init(true),

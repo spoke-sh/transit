@@ -49,8 +49,8 @@ coordinator and a Catalog worker. The account has a paged private ledger and a
 dedicated sequenced Table principal. Before dispatch, it freezes the operation's
 bound Table intent and then the exact signed native step. Native receipt,
 processed input and attributed Table terminal outcome are distinct observations.
-The [ledger](../../packages/zig/transit-sql-gateway/docs/ledger.md) defines the
-records and transition bounds; [AccountRuntime](../../packages/zig/transit-sql-gateway/src/AccountRuntime.zig)
+The [ledger](../../packages/zig/transit-sql/docs/ledger.md) defines the
+records and transition bounds; [AccountRuntime](../../packages/zig/transit-sql/src/AccountRuntime.zig)
 owns progress outside socket tasks.
 
 ```mermaid
@@ -201,8 +201,7 @@ the lock would also permit overwriting uncertain work. This is a deduction from
 the ownership rules, not a measured node concurrency limit.
 
 The wire gateway already separates account recovery from connection lifetime.
-However, [Host](../../apps/transit-sql-gateway/src/Host.zig) owns execution inside
-the gateway application, while the console composes Query, Catalog and local
+However, [Session](../../packages/zig/transit-sql/src/Session.zig) owns execution above the public query and catalog owners, while the console composes Query, Catalog and local
 recovery independently. Importing common parsers does not establish a common
 session owner. The proposed change makes the console another client of a
 service-owned runtime and makes all three adapters use that same runtime.
