@@ -14,11 +14,12 @@ import psycopg
 import mysql.connector
 
 
-def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark")
+def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
+        session_port = free_port()
         native_port, sql_port, mysql_port, health_port = free_port(), free_port(), free_port(), free_port()
         url = f'http://127.0.0.1:{native_port}'
         public = json.loads(subprocess.check_output([catalog, 'public'], timeout=10))
@@ -62,6 +63,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
             if settings_binding is not None:
                 configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
+            if slice == 'sessions':
+                configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
@@ -110,6 +113,44 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from clients import run as clients, run_cli, connection_options as client_options
+            if slice == 'sessions':
+                from sql_sessions.native import run as sessions
+                def restart_sessions(peer=False):
+                    nonlocal server
+                    server.kill()
+                    server.wait(timeout=10)
+                    call(ledger, 'fence')
+                    configure()
+                    if peer:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['native']['socket'] = str(root/'native.sock')
+                        configuration['native']['port'] = None
+                        configuration['native']['tls'] = None
+                        configuration['postgres_port'] = configuration['mysql_port'] = None
+                        configuration['accounts'][0]['authentication'] = 'peer'
+                        configuration['accounts'][0]['peer_uid'] = os.geteuid()
+                        credential_path = Path(configuration['accounts'][0]['verifier_file'])
+                        credential = json.loads(credential_path.read_text())
+                        credential['verifier'] = None
+                        credential['revision'] += 1
+                        credential_path.write_text(json.dumps(credential))
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
+                    server = start(gateway, root/'sql-gateway.json')
+                    deadline = time.monotonic() + 30
+                    while True:
+                        try:
+                            if peer:
+                                with socket.socket(socket.AF_UNIX) as connection:
+                                    connection.connect(str(root/'native.sock'))
+                            else:
+                                with socket.create_connection(('127.0.0.1', session_port), timeout=1):
+                                    pass
+                            break
+                        except (ConnectionRefusedError, FileNotFoundError):
+                            assert server.poll() is None and time.monotonic() < deadline
+                            time.sleep(.02)
+                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()))
+                return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
                 print(json.dumps(dict(profile='database_wire_cli',seconds=round(time.monotonic()-started,3),fresh_fixture=True,both_protocols=True)),flush=True)
@@ -266,7 +307,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
         # The CLI lifecycle has its own history so expanding it does not change
         # the existing wide-row measurement's retained state or observation bound.
         # Both schedules must pass for the complete gateway task to succeed.
-        run(node,catalog,ledger,host,gateway,configuration_host,'cli')
+        run(node,catalog,ledger,host,gateway,configuration_host,console,'cli')
 
 
 if __name__ == '__main__':

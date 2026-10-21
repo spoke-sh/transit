@@ -143,6 +143,8 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .update => try std.fmt.bufPrint(&buffer, "UPDATE {d}", .{count}),
         .delete => try std.fmt.bufPrint(&buffer, "DELETE {d}", .{count}),
         .create_table => "CREATE TABLE",
+        .alter_table => "ALTER TABLE",
+        .drop_table => "DROP TABLE",
         .set => "SET",
         .show => "SHOW",
         .discard_all => "DISCARD ALL",

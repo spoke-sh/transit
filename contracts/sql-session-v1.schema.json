@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8",
+  "definition": "e3b20922c773d15bc1607d98d6ec3d631010bacb08ac29ca627be9a11c0fce0c",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8"
+          "e3b20922c773d15bc1607d98d6ec3d631010bacb08ac29ca627be9a11c0fce0c"
         ]
       },
       "T3": {
@@ -129,6 +129,18 @@
             ],
             "properties": {
               "close": {
+                "$ref": "#/$defs/T8"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "touch"
+            ],
+            "properties": {
+              "touch": {
                 "$ref": "#/$defs/T8"
               }
             }
@@ -457,7 +469,7 @@
         "additionalProperties": false,
         "properties": {
           "account": {
-            "$ref": "#/$defs/T4"
+            "$ref": "#/$defs/T6"
           },
           "id": {
             "$ref": "#/$defs/T19"
@@ -547,7 +559,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8"
+          "e3b20922c773d15bc1607d98d6ec3d631010bacb08ac29ca627be9a11c0fce0c"
         ]
       },
       "T3": {
@@ -676,7 +688,7 @@
             ],
             "properties": {
               "closed": {
-                "$ref": "#/$defs/T35"
+                "$ref": "#/$defs/T36"
               }
             }
           },
@@ -688,7 +700,7 @@
             ],
             "properties": {
               "err": {
-                "$ref": "#/$defs/T36"
+                "$ref": "#/$defs/T37"
               }
             }
           }
@@ -763,7 +775,7 @@
             "$ref": "#/$defs/T9"
           },
           "account": {
-            "$ref": "#/$defs/T3"
+            "$ref": "#/$defs/T9"
           },
           "database": {
             "$ref": "#/$defs/T6"
@@ -892,7 +904,7 @@
         "additionalProperties": false,
         "properties": {
           "account": {
-            "$ref": "#/$defs/T3"
+            "$ref": "#/$defs/T9"
           },
           "id": {
             "$ref": "#/$defs/T15"
@@ -1014,37 +1026,65 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "range": {
+          "profile": {
             "$ref": "#/$defs/T29"
           },
+          "resource": {
+            "$ref": "#/$defs/T15"
+          },
+          "contract": {
+            "$ref": "#/$defs/T9"
+          },
+          "resource_revision": {
+            "$ref": "#/$defs/T15"
+          },
+          "policy_revision": {
+            "$ref": "#/$defs/T6"
+          },
+          "range": {
+            "$ref": "#/$defs/T30"
+          },
           "items": {
-            "$ref": "#/$defs/T32"
+            "$ref": "#/$defs/T33"
           }
         },
         "required": [
+          "profile",
+          "resource",
+          "contract",
+          "resource_revision",
+          "policy_revision",
           "range",
           "items"
         ]
       },
       "T29": {
+        "type": "string",
+        "enum": [
+          "unified_v1",
+          "catalog_v1",
+          "configuration_v1"
+        ]
+      },
+      "T30": {
         "anyOf": [
           {
-            "$ref": "#/$defs/T30"
+            "$ref": "#/$defs/T31"
           },
           {
             "type": "null"
           }
         ]
       },
-      "T30": {
+      "T31": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "start": {
-            "$ref": "#/$defs/T31"
+            "$ref": "#/$defs/T32"
           },
           "end": {
-            "$ref": "#/$defs/T31"
+            "$ref": "#/$defs/T32"
           },
           "quoted": {
             "$ref": "#/$defs/T13"
@@ -1055,19 +1095,19 @@
           "end"
         ]
       },
-      "T31": {
+      "T32": {
         "type": "integer",
         "minimum": 0,
         "maximum": 65535
       },
-      "T32": {
+      "T33": {
         "type": "array",
         "maxItems": 65536,
         "items": {
-          "$ref": "#/$defs/T33"
+          "$ref": "#/$defs/T34"
         }
       },
-      "T33": {
+      "T34": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -1075,7 +1115,7 @@
             "$ref": "#/$defs/T6"
           },
           "kind": {
-            "$ref": "#/$defs/T34"
+            "$ref": "#/$defs/T35"
           },
           "detail": {
             "$ref": "#/$defs/T6"
@@ -1087,7 +1127,7 @@
           "detail"
         ]
       },
-      "T34": {
+      "T35": {
         "type": "string",
         "enum": [
           "keyword",
@@ -1098,11 +1138,11 @@
           "meta"
         ]
       },
-      "T35": {
+      "T36": {
         "type": "object",
         "maxProperties": 0
       },
-      "T36": {
+      "T37": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -1110,16 +1150,16 @@
             "$ref": "#/$defs/T6"
           },
           "sqlstate": {
-            "$ref": "#/$defs/T37"
+            "$ref": "#/$defs/T38"
           },
           "message": {
             "$ref": "#/$defs/T6"
           },
           "retry": {
-            "$ref": "#/$defs/T38"
+            "$ref": "#/$defs/T39"
           },
           "operation": {
-            "$ref": "#/$defs/T39"
+            "$ref": "#/$defs/T40"
           }
         },
         "required": [
@@ -1129,7 +1169,7 @@
           "retry"
         ]
       },
-      "T37": {
+      "T38": {
         "type": "array",
         "minItems": 5,
         "maxItems": 5,
@@ -1137,7 +1177,7 @@
           "$ref": "#/$defs/T1"
         }
       },
-      "T38": {
+      "T39": {
         "type": "string",
         "enum": [
           "never",
@@ -1146,7 +1186,7 @@
           "same_batch"
         ]
       },
-      "T39": {
+      "T40": {
         "anyOf": [
           {
             "$ref": "#/$defs/T17"

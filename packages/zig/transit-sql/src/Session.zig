@@ -8,6 +8,7 @@ const p = c.protocol;
 const telemetry = q.wire.observability.telemetry;
 const Self = @This();
 const Settings = @import("SessionSettings.zig");
+const Inspection = @import("SessionInspection.zig");
 allocator: std.mem.Allocator,
 io: std.Io,
 config: *const g.Configuration,
@@ -16,6 +17,7 @@ runtime: *g.AccountRuntime,
 credential: g.Configuration.Credential,
 database: []const u8,
 dialect: f.Sql.Dialect,
+native_profile: bool = false,
 wire: g.station.client.Client,
 settings_wire: ?g.station.client.Client = null,
 settings_session: q.SettingsSession = .{},
@@ -34,16 +36,18 @@ pub const Prepared = union(enum) {
     native: g.Statement,
     probe: g.Probe,
     settings: Settings.Prepared,
+    inspection: Inspection,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
-            .probe, .settings => &.{},
+            .probe, .settings, .inspection => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
         return switch (self.*) {
             .native => |*value| value.fields(),
             .probe => |value| value.fields(),
+            .inspection => |value| value.output,
             .settings => |value| if (value.output) |output| output.type.structure else &.{},
         };
     }
@@ -51,6 +55,7 @@ pub const Prepared = union(enum) {
         return switch (self.*) {
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
+            .inspection => false,
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
@@ -60,7 +65,7 @@ pub const Prepared = union(enum) {
 };
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read },
+    value: union(enum) { single: q.TableQuery, relational: *q.RelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read },
     batch: ?q.TableQuery.Batch = null,
     output: f.RelationalExecution.Output = undefined,
     probe_cells: [3]f.Types.Values.Cell = undefined,
@@ -86,6 +91,7 @@ pub const Read = struct {
                 break :blk self.output.cells[0..self.output.len];
             },
             .settings => |*settings| try settings.next(),
+            .inspection => |*inspection| try inspection.next(),
             .probe => |probe| blk: {
                 if (self.emitted or probe.fields().len == 0) break :blk null;
                 self.emitted = true;
@@ -145,7 +151,7 @@ pub fn deinit(self: *Self) void {
     std.crypto.secureZero(u8, std.mem.asBytes(self));
     allocator.destroy(self);
 }
-fn current(self: *Self) !void {
+pub fn current(self: *Self) !void {
     return self.fresh(Self.currentOnce, .{self});
 }
 fn currentOnce(self: *Self) !void {
@@ -165,7 +171,7 @@ fn currentOnce(self: *Self) !void {
 /// Exact-current metadata reads may race a concurrent committed catalog turn.
 /// Retry only pure preparation/validation, retaining the original statement on
 /// validation. Never replay a query iterator, write, or signed native request.
-fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+pub fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     var attempts: u8 = 0;
     while (true) {
         try self.deadline.check(self.io);
@@ -216,12 +222,19 @@ pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
     try self.current();
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else result.* = .{ .native = try self.fresh(g.Statement.prepare, .{ self.allocator, &self.table, sql, self.dialect, read_options }) };
+    if (self.native_profile) {
+        if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
+            result.* = .{ .inspection = inspection };
+            return result;
+        }
+    }
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else result.* = .{ .native = try self.fresh(g.Statement.prepare, .{ self.allocator, &self.table, sql, self.dialect, if (self.native_profile) .native else .wire, read_options }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .settings) prepared.settings.deinit();
+    if (prepared.* == .inspection) prepared.inspection.deinit();
     self.allocator.destroy(prepared);
 }
 pub fn validate(self: *Self, prepared: *Prepared) !void {
@@ -229,14 +242,15 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
     switch (prepared.*) {
         .native => |*statement| try self.fresh(g.Statement.validate, .{ statement, &self.table }),
-        .settings => {},
+        .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
+        .settings => |*settings| try self.fresh(Settings.authorize, .{ self, &settings.plan }),
         .probe => {}, // current() already validates the login and database.
     }
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
     switch (prepared.*) {
         .native => |*statement| try statement.checkValues(self.allocator, values),
-        .probe, .settings => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -245,6 +259,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined };
     switch (prepared.*) {
+        .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
         .native => |*statement| {
@@ -272,7 +287,7 @@ pub fn closeRead(self: *Self, read: *Read) void {
             query.close() catch {};
             query.deinit();
         },
-        .probe => {},
+        .probe, .inspection => {},
         .settings => |*settings| settings.deinit(),
     }
     self.allocator.destroy(read);
@@ -300,6 +315,8 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
         .update => .update,
         .delete => .delete,
         .create => .create_table,
+        .alter => .alter_table,
+        .drop => .drop_table,
         .select => return error.ExpectedGatewayWrite,
     }, .count = terminal.matched, .changed = terminal.changed };
 }

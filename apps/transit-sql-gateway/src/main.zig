@@ -4,6 +4,7 @@ const pg = @import("transit_postgres");
 const mysql = @import("transit_mysql");
 const tls = @import("transit_tls_server");
 const Host = g.Session;
+const Native = @import("Native.zig");
 const Control = @import("Control.zig");
 const Stop = @import("Stop.zig");
 const Connection = @import("Connection.zig");
@@ -29,6 +30,7 @@ const Server = struct {
     config: *const g.Configuration,
     tls_context: ?*tls.Context,
     runtimes: []*g.AccountRuntime,
+    registry: *g.Registry,
     diagnostics: *telemetry.Runtime,
     workers: []Worker,
     mutex: std.Io.Mutex = .init,
@@ -175,6 +177,7 @@ const Server = struct {
             return error.InvalidAuthentication;
         };
         const account = &self.config.accounts[index];
+        if (account.authentication == .peer) return error.InvalidAuthentication;
         _ = try account.database(startup.database());
         var credential = Host.loadCredential(allocator, self.io, account) catch |err| {
             try tx.writeAll(try backend.failure(true, "28P01".*, "Authentication failed", null));
@@ -205,13 +208,20 @@ const Server = struct {
         if (!std.meta.eql(credential, try Host.loadCredential(allocator, self.io, account))) return error.GatewayCredentialChanged;
         try self.acquire(index);
         defer self.release(index);
-        const host = Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, startup.database(), .transit, &slot.cancelled, &slot.active) catch |err| {
+        const registered = self.registry.create(index, credential, startup.database(), .transit, false) catch |err| {
             try tx.writeAll(try backend.failure(true, "28000".*, "Account or database access denied", null));
             return err;
         };
+        defer {
+            self.registry.remove(registered);
+            registered.mutex.unlock(self.io);
+        }
+        const host = registered.host.?;
+        host.cancellation = &slot.cancelled;
+        host.deadline.cancellation = &slot.cancelled;
+        host.active = &slot.active;
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
-        defer host.deinit();
         if (account.authentication == .password) try tx.writeAll(try backend.authenticate(.final, &proof));
         try tx.writeAll(try backend.authenticate(.ok, ""));
         self.authenticated();
@@ -280,6 +290,7 @@ const Server = struct {
             return error.InvalidAuthentication;
         };
         const account = &self.config.accounts[index];
+        if (account.authentication == .peer) return error.InvalidAuthentication;
         const database = handshake.database orelse return error.GatewayDatabaseDenied;
         _ = try account.database(database);
         var credential = Host.loadCredential(allocator, self.io, account) catch |err| {
@@ -306,13 +317,20 @@ const Server = struct {
         if (!std.meta.eql(credential, try Host.loadCredential(allocator, self.io, account))) return error.GatewayCredentialChanged;
         try self.acquire(index);
         defer self.release(index);
-        const host = Host.init(allocator, self.io, self.config, index, self.runtimes[index], credential, database, .mysql, &slot.cancelled, &slot.active) catch |err| {
+        const registered = self.registry.create(index, credential, database, .mysql, false) catch |err| {
             try tx.writeAll(try backend.failure(1045, "28000".*, "Account or database access denied"));
             return err;
         };
+        defer {
+            self.registry.remove(registered);
+            registered.mutex.unlock(self.io);
+        }
+        const host = registered.host.?;
+        host.cancellation = &slot.cancelled;
+        host.deadline.cancellation = &slot.cancelled;
+        host.active = &slot.active;
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
-        defer host.deinit();
         std.crypto.secureZero(u8, response.payload);
         var limits = self.config.limits;
         if (prefix.maximum_packet != 0) limits.frame_bytes = @min(limits.frame_bytes, prefix.maximum_packet);
@@ -459,7 +477,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     // Bootstrap and retained-operation recovery have no dependency on listener
     // credentials. In particular, expired or removed PEM files cannot prevent
     // a disabled listener's workers from resuming accepted operations.
-    var context: ?tls.Context = if (!initialize and config.listening() and config.tls_mode != .disabled) blk: {
+    var context: ?tls.Context = if (!initialize and config.wireListening() and config.tls_mode != .disabled) blk: {
         const certificate = try init.gpa.dupeSentinel(u8, config.certificate_file, 0);
         defer init.gpa.free(certificate);
         const certificate_key = try init.gpa.dupeSentinel(u8, config.certificate_key_file, 0);
@@ -504,6 +522,21 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         diagnostics.event(.{ .name = "sql.account.initialized", .operation = "sql" });
         return;
     }
+    var registry = try g.Registry.init(init.gpa, init.io, config, runtimes.items, if (config.native) |native| native.instance else config.accounts[0].ledger.account[0..16].*);
+    defer registry.deinit();
+    var native_context: ?tls.Context = if (config.native) |native| if (native.tls) |selected| try tls.Context.init(try init.arena.allocator().dupeSentinel(u8, selected.certificate_file, 0), try init.arena.allocator().dupeSentinel(u8, selected.key_file, 0)) else null else null;
+    defer if (native_context) |*selected| selected.deinit();
+    var native_listener: ?std.Io.net.Server = if (config.native) |native| if (native.port) |port| try (try std.Io.net.IpAddress.parseIp4(native.address, port)).listen(init.io, .{ .reuse_address = true }) else null else null;
+    defer if (native_listener) |*listener| listener.deinit(init.io);
+    const socket_lock = if (config.native) |native| if (native.socket) |socket| try @import("transit_sql_client").Discovery.lockSocket(init.gpa, init.io, socket) else null else null;
+    defer if (socket_lock) |lock| lock.close(init.io);
+    var local_listener: ?std.Io.net.Server = if (config.native) |native| if (native.socket) |socket| try (try std.Io.net.UnixAddress.init(socket)).listen(init.io, .{}) else null else null;
+    defer if (local_listener) |*listener| {
+        listener.deinit(init.io);
+        std.Io.Dir.cwd().deleteFile(init.io, config.native.?.socket.?) catch {};
+    };
+    var native_api: Native = .{ .registry = &registry, .tls_context = if (native_context) |*selected| selected else null, .local = false, .loopback = if (config.native) |native| (try std.Io.net.IpAddress.parseIp4(native.address, 0)).ip4.bytes[0] == 127 else false };
+    var local_api: Native = .{ .registry = &registry, .tls_context = null, .local = true, .loopback = false };
     var postgres_listener: ?std.Io.net.Server = if (config.postgres_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.bind_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
     defer if (postgres_listener) |*listener| listener.deinit(init.io);
     var mysql_listener: ?std.Io.net.Server = if (config.mysql_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.bind_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
@@ -512,19 +545,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(workers);
     for (workers) |*worker| worker.* = .{};
     defer for (workers) |*worker| if (worker.future) |*future| future.cancel(init.io);
-    var server: Server = .{ .allocator = init.gpa, .io = init.io, .config = config, .tls_context = if (context) |*value| value else null, .runtimes = runtimes.items, .diagnostics = diagnostics, .workers = workers };
+    var server: Server = .{ .allocator = init.gpa, .io = init.io, .config = config, .tls_context = if (context) |*value| value else null, .runtimes = runtimes.items, .diagnostics = diagnostics, .workers = workers, .registry = &registry };
     var health_listener: ?std.Io.net.Server = if (config.health_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.health_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
     defer if (health_listener) |*listener| listener.deinit(init.io);
     var health: ?std.Io.Future(anyerror!void) = if (health_listener) |*listener| try init.io.concurrent(Server.serveHealth, .{ &server, listener }) else null;
     defer if (health) |*future| {
         _ = future.cancel(init.io) catch {};
     };
-    const Result = union(enum) { postgres: anyerror!void, mysql: anyerror!void, stop: anyerror!void };
-    var results: [3]Result = undefined;
+    const Result = union(enum) { postgres: anyerror!void, mysql: anyerror!void, native: anyerror!void, local: anyerror!void, expiry: anyerror!void, stop: anyerror!void };
+    var results: [6]Result = undefined;
     var listeners: std.Io.Select(Result) = .init(init.io, &results);
     defer listeners.cancelDiscard();
     if (postgres_listener) |*listener| try listeners.concurrent(.postgres, Server.serve, .{ &server, listener, .postgres });
     if (mysql_listener) |*listener| try listeners.concurrent(.mysql, Server.serve, .{ &server, listener, .mysql });
+    if (native_listener) |*listener| try listeners.concurrent(.native, Native.serve, .{ &native_api, init.io, init.gpa, listener });
+    if (local_listener) |*listener| try listeners.concurrent(.local, Native.serve, .{ &local_api, init.io, init.gpa, listener });
+    try listeners.concurrent(.expiry, expireSessions, .{ &registry, init.io });
     try listeners.concurrent(.stop, Stop.wait, .{init.io});
     diagnostics.event(.{ .name = if (config.listening()) "service.ready" else "sql.recovery.ready", .operation = "sql" });
     switch (try listeners.await()) {
@@ -542,5 +578,12 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             }
         },
         inline else => |result| try result,
+    }
+}
+
+fn expireSessions(registry: *g.Registry, io: std.Io) !void {
+    while (true) {
+        try io.sleep(.fromMilliseconds(100), .awake);
+        registry.sweep();
     }
 }

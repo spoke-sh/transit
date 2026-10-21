@@ -60,7 +60,7 @@ fn role(self: *Self, command: g.Control.Command) !void {
     const config = self.ledger.configuration;
     const expected = switch (command) {
         .initialize, .reconcile, .cancel, .capacity, .reserve => config.control,
-        .begin, .begin_intent, .intent_part, .seal_intent => config.ingress,
+        .begin, .begin_intent, .intent_part, .seal_intent, .session_cancel, .session_resume => config.ingress,
         else => config.coordinator,
     };
     if (self.principal != expected) return error.GatewayDenied;

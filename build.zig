@@ -46,6 +46,7 @@ pub fn build(b: *std.Build) void {
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const sql_client = b.dependency("transit_sql_client", .{ .target = target, .optimize = optimize });
     const sql_gateway = b.dependency("transit_sql", .{ .target = target, .optimize = optimize });
     const tls_server = b.dependency("transit_tls_server", .{ .target = target, .optimize = optimize });
     const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
@@ -794,6 +795,7 @@ pub fn build(b: *std.Build) void {
             }
             app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
             app.root_module.addImport("transit_sql", sql_gateway.module("transit_sql"));
+            app.root_module.addImport("transit_sql_client", sql_client.module("transit_sql_client"));
             app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
         }
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
@@ -805,6 +807,7 @@ pub fn build(b: *std.Build) void {
     }
     const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
         .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") },
+        .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
         .{ .name = "transit_tls_server", .module = tls_server.module("transit_tls_server") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
@@ -1215,13 +1218,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
     }) });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, typed_table_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, query_shell }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }

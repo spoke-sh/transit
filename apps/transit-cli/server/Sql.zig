@@ -6,6 +6,7 @@ const p = q.protocol;
 const E = @import("SqlEnrollment.zig");
 const Journal = @import("SqlJournal.zig");
 const Trust = @import("SqlTrust.zig");
+const Discovery = @import("transit_sql_client").Discovery;
 const Settings = @import("SqlSettings.zig");
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
@@ -26,6 +27,7 @@ service: Process = .{},
 service_count: usize = 0,
 service_started: ?std.Io.Timestamp = null,
 trust: ?Trust.Paths = null,
+local: ?Discovery.Location = null,
 trust_error: ?[]const u8 = null,
 status: enum { awaiting_authorization, initializing, starting, accepting, recovery, unavailable } = .awaiting_authorization,
 last: ?std.Io.Timestamp = null,
@@ -74,9 +76,16 @@ fn prepare(self: *Self) !void {
     self.entries.clearRetainingCapacity();
     self.provisioning = null;
     self.trust = null;
+    self.local = null;
     _ = self.setup_arena.reset(.free_all);
     const allocator = self.setup_arena.allocator();
     try E.administrator(installation, allocator, &self.meta);
+    if (installation.config.sql.native.local) {
+        self.local = try Discovery.locate(allocator, installation.init.io, installation.init.environ_map.get("XDG_RUNTIME_DIR"), installation.config.installation, true);
+        self.provisioning = try E.createAccount(installation, allocator, Settings.local_account);
+        try E.provision(installation, allocator, &self.provisioning.?);
+        self.provisioning = null;
+    }
     if (installation.config.sql.listening()) for (installation.config.sql.accounts) |desired| {
         if (!desired.enabled) continue;
         self.provisioning = try E.createAccount(installation, allocator, desired);
@@ -110,7 +119,7 @@ fn prepare(self: *Self) !void {
         if (self.entries.items.len == g.Limits.max_accounts) return error.GatewayConnectionCapacity;
         try self.entries.append(self.allocator, .{ .record = try E.loadAccount(installation, allocator, record.name), .desired = desired });
     }
-    if (installation.config.sql.listening() and installation.config.sql.tls.mode != .disabled) {
+    if (installation.config.sql.wireListening() and installation.config.sql.tls.mode != .disabled) {
         self.trust = Trust.prepare(installation, allocator, &self.meta) catch |err| blk: {
             if (installation.failed) return err;
             self.trust_error = @errorName(err);
@@ -119,9 +128,10 @@ fn prepare(self: *Self) !void {
     }
 }
 fn transportReady(self: *const Self) bool {
-    return self.installation.config.sql.tls.mode == .disabled or self.trust != null;
+    return !self.installation.config.sql.wireListening() or self.installation.config.sql.tls.mode == .disabled or self.trust != null;
 }
 fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
+    if (self.installation.config.sql.native.local and std.mem.eql(u8, name, Settings.local_account.name)) return Settings.local_account;
     for (self.installation.config.sql.accounts) |account| if (std.mem.eql(u8, account.name, name)) return account;
     return null;
 }
@@ -139,11 +149,11 @@ fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Co
     var keys: g.Configuration.KeyFiles = undefined;
     inline for (@typeInfo(g.Configuration.KeyFiles).@"struct".field_names) |name| @field(keys, name) = try E.accountPath(self.installation, allocator, record.name, name ++ ".seed");
     const databases = try allocator.dupe(g.Configuration.Database, &.{.{ .name = record.database, .binding = record.binding }});
-    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases };
+    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .peer_uid = if (entry.desired != null and entry.desired.?.authentication == .peer) try Discovery.uid() else null, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases };
 }
 fn configuration(self: *Self, allocator: std.mem.Allocator, accounts: []const g.Configuration.Account, admission: bool) !g.Configuration {
     const sql = self.installation.config.sql;
-    return .{ .version = 1, .definition = p.Growth.current_definition, .native_url = self.installation.wire.url, .tls_mode = sql.tls.mode, .certificate_file = if (self.trust) |trust| trust.certificate else "", .certificate_key_file = if (self.trust) |trust| trust.key else "", .activation_directory = try E.path(self.installation, allocator, "activations"), .spill_directory = try E.path(self.installation, allocator, "spill"), .postgres_port = if (admission and self.transportReady() and sql.postgres != null) sql.postgres.?.port else null, .mysql_port = if (admission and self.transportReady() and sql.mysql != null) sql.mysql.?.port else null, .health_port = if (admission) sql.health_port else null, .drain_ms = sql.drain_ms, .request_timeout_ms = sql.request_timeout_ms, .limits = .{ .connections = sql.connections, .connections_per_account = sql.connections_per_account, .authentications = sql.authentications, .command_ms = sql.command_ms, .idle_ms = sql.idle_ms }, .accounts = accounts, .settings = .{ .url = self.installation.record.endpoint, .binding = try Installation.settingsBinding(self.installation.record, self.installation.config.realm) } };
+    return .{ .version = 1, .definition = p.Growth.current_definition, .native_url = self.installation.wire.url, .native = if (admission and (self.local != null or sql.native.http != null)) .{ .instance = self.meta.installation, .socket = if (self.local) |local| local.socket else null, .address = if (sql.native.http) |http| http.address else "127.0.0.1", .port = if (sql.native.http) |http| http.port else null, .tls = if (sql.native.http) |http| if (http.tls) .{ .certificate_file = http.certificate_file.?, .key_file = http.key_file.? } else null else null } else null, .tls_mode = sql.tls.mode, .certificate_file = if (self.trust) |trust| trust.certificate else "", .certificate_key_file = if (self.trust) |trust| trust.key else "", .activation_directory = try E.path(self.installation, allocator, "activations"), .spill_directory = try E.path(self.installation, allocator, "spill"), .postgres_port = if (admission and self.transportReady() and sql.postgres != null) sql.postgres.?.port else null, .mysql_port = if (admission and self.transportReady() and sql.mysql != null) sql.mysql.?.port else null, .health_port = if (admission) sql.health_port else null, .drain_ms = sql.drain_ms, .request_timeout_ms = sql.request_timeout_ms, .limits = .{ .connections = sql.connections, .connections_per_account = sql.connections_per_account, .authentications = sql.authentications, .command_ms = sql.command_ms, .idle_ms = sql.idle_ms }, .accounts = accounts, .settings = .{ .url = self.installation.record.endpoint, .binding = try Installation.settingsBinding(self.installation.record, self.installation.config.realm) } };
 }
 fn saveAccount(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !void {
     try Journal.save(self.installation, try E.accountPath(self.installation, allocator, record.name, "account.json"), record);
@@ -297,13 +307,16 @@ pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
         .accepting => "SQL listeners are accepting connections",
         .recovery => "Retained SQL workers are running without listeners",
         .unavailable => "SQL is unavailable; inspect error_type and account states",
-    }, .tls_mode = self.installation.config.sql.tls.mode, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
+    }, .tls_mode = self.installation.config.sql.tls.mode, .native_socket = if (self.status == .accepting and self.local != null) self.local.?.socket else null, .native_port = if (self.status == .accepting and self.installation.config.sql.native.http != null) self.installation.config.sql.native.http.?.port else null, .configured_postgres_port = if (self.installation.config.sql.postgres) |listener| listener.port else null, .configured_mysql_port = if (self.installation.config.sql.mysql) |listener| listener.port else null, .host = "127.0.0.1", .postgres_port = if (self.status == .accepting and self.installation.config.sql.postgres != null) self.installation.config.sql.postgres.?.port else null, .mysql_port = if (self.status == .accepting and self.installation.config.sql.mysql != null) self.installation.config.sql.mysql.?.port else null, .ca_file = if (self.trust) |trust| trust.ca else null, .authorization_config = try E.path(self.installation, allocator, "authorization.yaml"), .catalog_config = try E.path(self.installation, allocator, "catalog.yaml"), .status_file = try E.path(self.installation, allocator, "status.json"), .tls_error = self.trust_error, .error_type = self.last_error };
 }
-pub const Report = struct { state: []const u8, message: []const u8, tls_mode: g.Configuration.TlsMode, configured_postgres_port: ?u16, configured_mysql_port: ?u16, host: []const u8, postgres_port: ?u16, mysql_port: ?u16, ca_file: ?[]const u8, authorization_config: []const u8, catalog_config: []const u8, status_file: []const u8, tls_error: ?[]const u8, error_type: ?[]const u8 };
+pub const Report = struct { state: []const u8, message: []const u8, tls_mode: g.Configuration.TlsMode, native_socket: ?[]const u8, native_port: ?u16, configured_postgres_port: ?u16, configured_mysql_port: ?u16, host: []const u8, postgres_port: ?u16, mysql_port: ?u16, ca_file: ?[]const u8, authorization_config: []const u8, catalog_config: []const u8, status_file: []const u8, tls_error: ?[]const u8, error_type: ?[]const u8 };
 fn writeStatus(self: *Self, allocator: std.mem.Allocator) !void {
     const AccountStatus = struct { name: []const u8, role: []const u8, database: []const u8, schema: []const u8, state: E.AuthorizationState, initialized: bool, enabled: bool, postgres_command: ?[]const u8, mysql_command: ?[]const u8, control_config: ?[]const u8 };
     var accounts: std.ArrayList(AccountStatus) = .empty;
-    for (self.entries.items) |entry| try accounts.append(allocator, .{ .name = entry.record.name, .role = entry.record.role, .database = entry.record.database, .schema = entry.record.schema, .state = entry.state, .initialized = entry.record.initialized, .enabled = entry.desired != null and entry.desired.?.enabled, .postgres_command = if (self.status == .accepting and entry.state == .bound and self.installation.config.sql.postgres != null) try std.fmt.allocPrint(allocator, "psql -h localhost -p {d} -U {s} -d transit", .{ self.installation.config.sql.postgres.?.port, entry.record.name }) else null, .mysql_command = if (self.status == .accepting and entry.state == .bound and self.installation.config.sql.mysql != null) try std.fmt.allocPrint(allocator, "mysql --protocol=TCP -h localhost -P {d} -u {s} -D transit{s}{s}", .{ self.installation.config.sql.mysql.?.port, entry.record.name, if (self.installation.config.sql.tls.mode == .disabled) " --ssl-mode=DISABLED" else " --ssl-mode=REQUIRED", if (entry.desired.?.authentication == .password) " --password" else "" }) else null, .control_config = if (entry.record.initialized) try E.accountPath(self.installation, allocator, entry.record.name, "control.json") else null });
+    for (self.entries.items) |entry| try accounts.append(allocator, .{ .name = entry.record.name, .role = entry.record.role, .database = entry.record.database, .schema = entry.record.schema, .state = entry.state, .initialized = entry.record.initialized, .enabled = entry.desired != null and entry.desired.?.enabled, .postgres_command = if (self.status == .accepting and entry.state == .bound and entry.desired != null and entry.desired.?.authentication != .peer and self.installation.config.sql.postgres != null) try std.fmt.allocPrint(allocator, "psql -h localhost -p {d} -U {s} -d transit", .{ self.installation.config.sql.postgres.?.port, entry.record.name }) else null, .mysql_command = if (self.status == .accepting and entry.state == .bound and entry.desired != null and entry.desired.?.authentication != .peer and self.installation.config.sql.mysql != null) try std.fmt.allocPrint(allocator, "mysql --protocol=TCP -h localhost -P {d} -u {s} -D transit{s}{s}", .{ self.installation.config.sql.mysql.?.port, entry.record.name, if (self.installation.config.sql.tls.mode == .disabled) " --ssl-mode=DISABLED" else " --ssl-mode=REQUIRED", if (entry.desired.?.authentication == .password) " --password" else "" }) else null, .control_config = if (entry.record.initialized) try E.accountPath(self.installation, allocator, entry.record.name, "control.json") else null });
+    if (self.status == .accepting) if (self.local) |local| {
+        _ = try Files.jsonIfChanged(self.installation.init.io, allocator, local.rendezvous, Discovery.Record{ .version = 1, .definition = p.Growth.current_definition, .instance = self.meta.installation, .socket = local.socket, .account = Settings.local_account.name, .database = Settings.local_account.database });
+    };
     const status = .{ .service = try self.report(allocator), .accounts = accounts.items };
     if (try Files.jsonIfChanged(self.installation.init.io, allocator, try E.path(self.installation, allocator, "status.json"), status)) {
         // Bounded nonblocking diagnostics never hold up authority/recovery.

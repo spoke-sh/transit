@@ -204,7 +204,7 @@ const Editor = struct {
     }
     fn complete(self: *Editor) !void {
         self.dismiss();
-        var response = (self.console.assist(self.arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
+        const response = (self.console.assist(self.arena.allocator(), .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console }) catch |err| {
             if (Console.denied(err)) self.erasePrivate();
             return err;
         });
@@ -214,16 +214,6 @@ const Editor = struct {
         if (Signals.pending()) {
             self.dismiss();
             return;
-        }
-        if (self.console.interactive and self.console.writes == null) {
-            const items = try self.arena.allocator().alloc(@TypeOf(response.items[0]), response.items.len);
-            var count: usize = 0;
-            for (response.items) |item| {
-                if (std.mem.startsWith(u8, item.text, ".resume") or std.mem.eql(u8, item.text, ".cancel") or std.mem.eql(u8, item.text, ".status")) continue;
-                items[count] = item;
-                count += 1;
-            }
-            response.items = items[0..count];
         }
         self.assistance = response;
         self.expires = self.now() + 5000;
@@ -348,6 +338,7 @@ const Editor = struct {
                 continue;
             };
             if (event == .timeout) {
+                try self.console.keepalive();
                 if ((self.assistance != null and self.now() >= self.expires) or self.width() != self.columns) {
                     self.dismiss();
                     try self.draw();
@@ -367,7 +358,6 @@ const Editor = struct {
                     continue;
                 }
                 if (err == error.ConsoleInterrupted or err == error.InteractiveQueryCancelled or err == error.ConsoleOutputTimeout or err == error.WriteFailed) return err;
-                if (self.console.recovery) |file| if (file.failed) return err;
                 self.dismiss();
                 try self.out.writeAll("\r\x1b[2K");
                 try self.console.diagnostic.style.text(self.out, .failure, "error:");

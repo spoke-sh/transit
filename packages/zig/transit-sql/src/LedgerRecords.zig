@@ -11,6 +11,7 @@ pub const Nonce = struct {
     pub const magic = "GSN1";
     id: u64,
     nonce: [16]u8,
+    fingerprint: [32]u8,
     pub fn validate(self: Nonce) !void {
         if (self.id == 0 or self.id > p.max_counter) return error.InvalidGatewayNonce;
     }

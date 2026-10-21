@@ -65,7 +65,7 @@ def length(n):
 
 
 def records():
-    definition = hashlib.sha256(b'transit.native.v1.automatic-installation-startup.2026-10-20').digest()
+    definition = hashlib.sha256(b'transit.native.v1.shared-sql-sessions.2026-10-20').digest()
     def record(magic, value, fields):
         encoded = magic.encode() + definition
         for name, layout in fields:
@@ -149,11 +149,11 @@ def mysql_backend():
 
 
 def controls():
-    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.automatic-installation-startup.2026-10-20').digest()
+    prefix = b'GSQ1' + hashlib.sha256(b'transit.native.v1.shared-sql-sessions.2026-10-20').digest()
     terminal = records()['terminal']
     cases = [
-        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None))),
-         b'\x02' + bytes(range(16)) + struct.pack('<QQQQB', 9, 2**64-1, 11, 1, 0)),
+        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None), fingerprint=[0]*32)),
+         b'\x02' + bytes(range(16)) + struct.pack('<QQQQB', 9, 2**64-1, 11, 1, 0) + bytes(32)),
         (dict(step_part=dict(target=dict(operation=99, generation=2, record=3),
                              part=dict(offset=128, length=3, bytes=[1, 2, 3]+[0]*125))),
          b'\x09' + struct.pack('<QQQIB', 99, 2, 3, 128, 3) + bytes([1, 2, 3])+bytes(125)),

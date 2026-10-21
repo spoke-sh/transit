@@ -1,4 +1,5 @@
 //! Native SQL session API. Pure contracts and codecs; no runtime or storage dependency.
+pub const Json = @import("Json.zig");
 const std = @import("std");
 pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
@@ -8,6 +9,7 @@ pub const Completion = enum { select, insert, update, delete, create_table, alte
 pub const Id = [32]u8;
 pub const Instance = [16]u8;
 pub const Token = [16]u8;
+pub const Account = [32]u8;
 pub const max_message_bytes = 4 * 1024 * 1024;
 pub const max_batch_bytes = 1024 * 1024;
 pub const max_sql_bytes = 65536;
@@ -44,7 +46,6 @@ pub const Request = struct {
                 if (value.parameters.len > max_parameters) return error.TooManySqlParameters;
                 for (value.parameters) |parameter| if (parameter.len > max_batch_bytes * 2) return error.SqlMessageTooLarge;
             },
-            .fetch => |value| if (value.batch == 0) return error.InvalidSqlCursor,
             else => {},
         }
     }
@@ -60,6 +61,7 @@ pub const Action = union(enum) {
     open: struct { account: []const u8, database: []const u8, source: ?[]const u8 = null, authentication: enum { peer, trust, scram }, first: []const u8 = "" },
     authenticate: struct { challenge: Id, final: []const u8 },
     close,
+    touch,
     reset,
     prepare: struct { sql: []const u8 },
     describe: Id,
@@ -73,7 +75,7 @@ pub const Action = union(enum) {
     operations: struct { after: u64 = 0 },
     assist: struct { text: []const u8, cursor: u32 },
 };
-pub const OperationId = struct { account: Token, id: u64, kind: enum { table, configuration, captured } = .table };
+pub const OperationId = struct { account: Account, id: u64, kind: enum { table, configuration, captured } = .table };
 pub const Target = union(enum) { query: Id, operation: OperationId, token: Token };
 pub const Error = struct { code: []const u8, sqlstate: [5]u8, message: []const u8, retry: enum { never, control, same_token, same_batch }, operation: ?Operation = null };
 pub const Operation = struct {
@@ -95,13 +97,13 @@ pub const Response = struct {
     result: union(enum) {
         hello: struct { encoding: []const u8, session_lease_ms: u32, maximum_message: u32, maximum_batch: u32, maximum_rows: u8 },
         challenge: struct { id: Id, message: []const u8 },
-        opened: struct { session: Id, account: Token, database: []const u8, proof: []const u8 = "" },
+        opened: struct { session: Id, account: Account, database: []const u8, proof: []const u8 = "" },
         described: Description,
         batch: Batch,
         operation: Operation,
         operations: struct { entries: []const Operation, next: ?u64 },
         completion: struct { kind: Completion, matched: u64 = 0, changed: u64 = 0 },
-        assistance: struct { range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
+        assistance: struct { profile: enum { unified_v1, catalog_v1, configuration_v1 }, resource: u64, contract: [32]u8, resource_revision: u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
         closed,
         err: Error,
     },
@@ -115,9 +117,9 @@ fn sql(value: []const u8) !void {
 }
 /// Fingerprint exact request meaning before compilation. Token equality never
 /// depends on JSON whitespace, current catalog contents or a later SQL parse.
-pub fn fingerprint(allocator: std.mem.Allocator, instance: Instance, account: Token, database: []const u8, source: ?[]const u8, execute: @FieldType(Action, "execute")) ![32]u8 {
+pub fn fingerprint(allocator: std.mem.Allocator, instance: Instance, account: Account, database: []const u8, source: ?[]const u8, execute: @FieldType(Action, "execute")) ![32]u8 {
     if (execute.sql == null or execute.statement != null) return error.SqlTokenRequiresText;
-    const bytes = try std.json.Stringify.valueAlloc(allocator, .{ instance, account, database, source, execute.sql.?, execute.parameters, execute.captured }, .{});
+    const bytes = try Json.encode(allocator, .{ instance, account, database, source, execute.sql.?, execute.parameters, execute.captured });
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -140,7 +142,7 @@ test {
     std.testing.refAllDecls(@This());
 }
 pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, account: []const u8, database: []const u8, source: ?[]const u8) ![32]u8 {
-    const bytes = try std.json.Stringify.valueAlloc(allocator, .{ native.current_definition, instance, account, database, source }, .{});
+    const bytes = try Json.encode(allocator, .{ native.current_definition, instance, account, database, source });
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -148,9 +150,22 @@ pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, a
 }
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
     try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
+    const shape = try std.json.parseFromSlice(std.json.Value, allocator, bytes, .{});
+    defer shape.deinit();
+    try Json.shape(T, shape.value);
     const parsed = try std.json.parseFromSlice(T, allocator, bytes, .{ .allocate = .alloc_always, .max_value_len = max_message_bytes });
     errdefer parsed.deinit();
     if (parsed.value.version != 1 or parsed.value.definition != native.current_definition) return error.IncompatibleSqlDefinition;
     if (T == Request) try parsed.value.validate();
     return parsed;
+}
+test "session JSON round trips fixed identities and void actions canonically" {
+    const a = std.testing.allocator;
+    const request: Request = .{ .version = 1, .definition = native.current_definition, .instance = @splat('A'), .session = @splat('B'), .action = .touch };
+    const bytes = try Json.encode(a, request);
+    defer a.free(bytes);
+    const restored = try parse(Request, a, bytes);
+    defer restored.deinit();
+    try std.testing.expectEqualDeep(request, restored.value);
+    try std.testing.expect(std.mem.indexOf(u8, bytes, "\"touch\":{}") != null);
 }

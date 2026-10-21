@@ -183,8 +183,8 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         };
     };
     try self.sql.resolve(allocator, base, diagnostic);
-    const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null };
-    const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port" };
+    const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null, if (self.sql.native.http) |http| http.port else null };
+    const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port", "sql.native.http.port" };
     for (sql_ports, 0..) |maybe, i| if (maybe) |port| {
         for (sql_ports[0..i]) |previous| if (previous == port) return diagnostic.invalidField(sql_fields[i], "requires distinct SQL listener and health ports", null);
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (port == @field(self.ports, name)) return diagnostic.invalidField(sql_fields[i], "must differ from ports." ++ name, null);
@@ -237,7 +237,7 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     return hash.finalResult();
 }
 pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !void {
-    var listeners: [10]?std.Io.net.Server = @splat(null);
+    var listeners: [11]?std.Io.net.Server = @splat(null);
     defer for (&listeners) |*listener| if (listener.*) |*server| server.deinit(io);
     inline for (@typeInfo(Ports).@"struct".field_names, 0..) |name, i| listeners[i] = try listen(io, @field(self.ports, name), "ports." ++ name, diagnostic);
     if (ui) if (self.board) |board| {
@@ -249,6 +249,7 @@ pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !voi
     const sql_directory = try std.fs.path.join(std.heap.page_allocator, &.{ self.installation, "sql" });
     defer std.heap.page_allocator.free(sql_directory);
     const retained_sql = if (std.Io.Dir.cwd().access(io, sql_directory, .{})) |_| true else |err| if (err == error.FileNotFound) false else return err;
+    if (self.sql.native.http) |http| listeners[10] = try listen(io, http.port, "sql.native.http.port", diagnostic);
     if (self.sql.listening() or retained_sql) listeners[9] = try listen(io, self.sql.health_port, "sql.health_port", diagnostic);
 }
 

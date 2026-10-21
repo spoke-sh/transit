@@ -117,7 +117,7 @@ pub fn initialize(self: Self, turn: *s.Turn, sequence: u64) !void {
 }
 /// The input position allocates the operation ID. A nonce permits discovery
 /// even if the caller loses the accepted begin receipt before seeing that ID.
-pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding) !r.Operation {
+pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding, fingerprint: [32]u8) !r.Operation {
     const before = turn.decision;
     errdefer turn.decision = before;
     try self.actor(turn, .ingress, null);
@@ -126,6 +126,7 @@ pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding) !r.Oper
     if (try turn.read(r.nonceKey(nonce))) |value| {
         const previous = try r.decode(r.Nonce, value);
         if (!std.mem.eql(u8, &previous.nonce, &nonce)) return error.GatewayIdentityConflict;
+        if (!std.mem.eql(u8, &previous.fingerprint, &fingerprint)) return error.SqlTokenConflict;
         const current = try self.operation(turn, previous.id);
         if (!std.mem.eql(u8, &current.nonce, &nonce) or current.resource != binding.resource or current.catalog != binding.catalog or current.owner != binding.owner or current.namespace != binding.namespace or current.selectedRole() != binding.role) return error.GatewayIdentityConflict;
         return current;
@@ -139,7 +140,7 @@ pub fn begin(self: Self, turn: *s.Turn, nonce: [16]u8, binding: Binding) !r.Oper
     header.reserved_bytes += reserve;
     try turn.write(r.key('h', 0, 0), try r.encode(header));
     try turn.write(r.key('o', result.id, 0), try r.encode(result));
-    try turn.write(r.nonceKey(nonce), try r.encode(r.Nonce{ .id = result.id, .nonce = nonce }));
+    try turn.write(r.nonceKey(nonce), try r.encode(r.Nonce{ .id = result.id, .nonce = nonce, .fingerprint = fingerprint }));
     try turn.write(r.key('u', result.id, 0), try p.Value.init("upload"));
     return result;
 }
@@ -194,10 +195,6 @@ pub fn admitIntent(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, id: 
     const connection: c.TableClient.Connection = .{ .scope = .{ .realm = self.configuration.realm, .resource = item.resource, .catalog = item.catalog }, .owner = item.owner, .principal = self.configuration.table_principal, .namespace = item.namespace, .role = item.selectedRole() };
     try connection.header(intent.header);
     if (intent.namespace != id or intent.header.operation != id or !std.meta.eql(try Pub.Digest.of(r.intent_format, bytes), item.spec())) return error.GatewayIdentityConflict;
-    switch (intent.header.kind) {
-        .create, .insert, .update, .delete => {},
-        else => return error.UnsupportedGatewayWrite,
-    }
     item.phase = .ready;
     item.staging = 0;
     item.stored_bytes = bytes.len;
@@ -441,6 +438,15 @@ pub fn recordProcessed(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, 
 /// receipts, signed steps or SQL outcomes. Inspection calls never invoke this.
 pub fn request(self: Self, turn: *s.Turn, id: u64, action: enum { reconcile, cancel }) !void {
     try self.actor(turn, .control, null);
+    return self.markRequest(turn, id, if (action == .cancel) .cancel else .reconcile);
+}
+/// Authenticated SQL ingress may control its own account's operations. It cannot
+/// alter quotas, publish coordinator evidence or choose a foreign signing owner.
+pub fn sessionRequest(self: Self, turn: *s.Turn, id: u64, action: enum { reconcile, cancel }) !void {
+    try self.actor(turn, .ingress, null);
+    return self.markRequest(turn, id, if (action == .cancel) .cancel else .reconcile);
+}
+fn markRequest(self: Self, turn: *s.Turn, id: u64, action: enum { reconcile, cancel }) !void {
     var item = try self.operation(turn, id);
     if (item.phase == .terminal or item.phase == .abandoned) return;
     switch (action) {

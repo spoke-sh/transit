@@ -38,6 +38,7 @@ sql-wire-tls:
 sql-wire-contracts:
     python3 -B tests/sql_wire/contracts.py
     cd packages/zig/transit-sql-protocol && zig build test
+    cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
@@ -45,6 +46,10 @@ sql-wire-contracts:
 # Signed ledger, exact Table steps and fenced replacement on disk-backed Ursula.
 sql-gateway:
     zig build test-sql-gateway -Doptimize=ReleaseSafe
+
+# Independent HTTPS/SCRAM sessions, logical values and token recovery.
+sql-sessions:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
 
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
@@ -162,6 +167,7 @@ packages:
     cd packages/zig/transit-tls && zig build test
     cd packages/zig/transit-tls-server && zig build test
     cd packages/zig/transit-sql-protocol && zig build test
+    cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test

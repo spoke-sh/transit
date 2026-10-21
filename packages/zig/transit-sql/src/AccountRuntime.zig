@@ -18,6 +18,7 @@ behavior: g.Behavior,
 coordinator: g.Coordinator,
 ingress_mutex: std.Io.Mutex = .init,
 settings_mutex: std.Io.Mutex = .init,
+admission_mutex: std.Io.Mutex = .init,
 ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
@@ -208,13 +209,51 @@ fn prepareControl(lane: *g.ControlLane, client: anytype, command: g.Control.Comm
 /// observer and table borrow the connection's own native transport; no HTTP
 /// client or mutable sequence state is shared between concurrent sessions.
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !g.Terminal {
+    var nonce: [16]u8 = undefined;
+    try self.io.randomSecure(&nonce);
+    const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
+    var source = try observer.source();
+    const bytes = try g.Upload.read(allocator, self.ledger.publication(item.id), &source, 1, self.ledger.configuration.intent_bytes);
+    defer allocator.free(bytes);
+    var intent = try c.TableIntent.restore(allocator, bytes);
+    defer intent.deinit();
+    while (true) {
+        try deadline.check(self.io);
+        const terminal = self.observe(observer, table, &intent, item.id) catch |err| {
+            if (!retryObservation(observer.transport, err)) return err;
+            try self.io.sleep(.fromMilliseconds(5), .awake);
+            continue;
+        };
+        if (terminal) |value| return value;
+        try self.io.sleep(.fromMilliseconds(5), .awake);
+    }
+}
+/// Look up before preparing SQL. Existing tokens never recompile or republish
+/// missing intent parts; an incomplete reservation remains explicitly incomplete.
+pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?g.LedgerRecords.Operation {
+    var source = try observer.source();
+    const item = (try self.ledger.discover(&source, nonce)) orelse return null;
+    const index = try g.LedgerRecords.decode(g.LedgerRecords.Nonce, (try source.read(g.LedgerRecords.nonceKey(nonce))) orelse return error.MissingGatewayOperation);
+    if (fingerprint) |expected| if (!std.mem.eql(u8, &expected, &index.fingerprint)) return error.SqlTokenConflict;
+    return item;
+}
+pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.LedgerRecords.Operation {
+    // This lock covers publication, never outcome waiting or client output.
+    // Read sessions and the independently reserved control lane remain separate.
+    while (!self.admission_mutex.tryLock()) {
+        try deadline.check(self.io);
+        try self.io.sleep(.fromMilliseconds(1), .awake);
+    }
+    defer self.admission_mutex.unlock(self.io);
+    if (try self.lookup(observer, nonce, fingerprint)) |existing| {
+        operation.* = existing.id;
+        return existing;
+    }
     try statement.checkValues(allocator, values);
     try statement.validate(table);
     if (observer.principal != self.ledger.configuration.ingress or !std.mem.eql(u8, &try observer.ledger.configuration.digest(), &try self.ledger.configuration.digest())) return error.GatewayIdentityConflict;
-    var nonce: [16]u8 = undefined;
-    try self.io.randomSecure(&nonce);
     const connection = table.connection;
-    try self.control(.{ .begin = .{ .nonce = nonce, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .namespace = connection.namespace, .role = connection.role } } }, deadline);
+    try self.control(.{ .begin = .{ .nonce = nonce, .fingerprint = fingerprint, .binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.owner, .namespace = connection.namespace, .role = connection.role } } }, deadline);
     const item = while (true) {
         try deadline.check(self.io);
         break self.discover(observer, nonce) catch |err| {
@@ -246,17 +285,44 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
         offset += count;
     }
     try self.control(.{ .seal_intent = item.id }, deadline);
-    while (true) {
-        try deadline.check(self.io);
-        const terminal = self.observe(observer, table, &intent, item.id) catch |err| {
-            if (!retryObservation(observer.transport, err)) return err;
-            try self.io.sleep(.fromMilliseconds(5), .awake);
-            continue;
-        };
-        if (terminal) |value| return value;
-        try self.io.sleep(.fromMilliseconds(5), .awake);
-    }
+    return try self.discover(observer, nonce);
 }
+/// A service-side status read reopens the frozen intent only to check current
+/// disclosure rights. It cannot dispatch, recompile or invent an outcome.
+pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.TableClient, id: u64) !g.session_protocol.Operation {
+    var source = try observer.source();
+    const item = try self.ledger.operation(&source, id);
+    const connection = table.connection;
+    if (item.resource != connection.scope.resource or item.catalog != connection.scope.catalog or item.owner != connection.owner or item.namespace != connection.namespace or item.selectedRole() != connection.role) return error.GatewayCatalogDenied;
+    _ = try table.describeDatabase();
+    var outcome: ?g.Terminal = null;
+    if (item.phase == .ready or item.phase == .active or item.phase == .terminal) {
+        const bytes = try g.Upload.read(allocator, self.ledger.publication(id), &source, 1, self.ledger.configuration.intent_bytes);
+        defer allocator.free(bytes);
+        var intent = try c.TableIntent.restore(allocator, bytes);
+        defer intent.deinit();
+        _ = try table.inspectIntent(&intent);
+        if (item.phase == .terminal) outcome = try self.observe(observer, table, &intent, id);
+    }
+    return .{
+        .identity = .{ .account = self.ledger.configuration.account, .id = id },
+        .token = item.nonce,
+        .phase = switch (item.phase) {
+            inline else => |phase| @field(@FieldType(g.session_protocol.Operation, "phase"), @tagName(phase)),
+        },
+        .blocked = item.blocked != 0,
+        .cancellation_requested = item.cancel != 0,
+        .outcome = if (outcome) |terminal| switch (terminal.state) {
+            .applied => .applied,
+            .unchanged => .unchanged,
+            .rejected => .rejected,
+            .cancelled, .upload_cancelled => .cancelled,
+        } else null,
+        .matched = if (outcome) |terminal| terminal.matched else 0,
+        .changed = if (outcome) |terminal| terminal.changed else 0,
+    };
+}
+
 fn discover(self: *Self, observer: *g.Client, nonce: [16]u8) !g.LedgerRecords.Operation {
     var source = try observer.source();
     return (try self.ledger.discover(&source, nonce)) orelse error.MissingGatewayOperation;

@@ -69,7 +69,7 @@ pub fn apply(self: *Self, turn: *s.Turn, command: g.Control.Command) !void {
     switch (command) {
         .initialize => |sequence| try ledger.initialize(turn, sequence),
         .begin => |value| {
-            _ = try ledger.begin(turn, value.nonce, value.binding);
+            _ = try ledger.begin(turn, value.nonce, value.binding, value.fingerprint);
         },
         .begin_intent => |value| try ledger.beginIntent(turn, value.operation, value.spec),
         .intent_part => |value| try ledger.intentPart(turn, value.operation, value.part.offset, value.part.bytes[0..value.part.length]),
@@ -87,6 +87,8 @@ pub fn apply(self: *Self, turn: *s.Turn, command: g.Control.Command) !void {
         .processed => |value| try ledger.recordProcessed(self.allocator, turn, value.target.operation, value.target.generation, value.target.record, value.disposition),
         .reconcile => |id| try ledger.request(turn, id, .reconcile),
         .cancel => |id| try ledger.request(turn, id, .cancel),
+        .session_cancel => |id| try ledger.sessionRequest(turn, id, .cancel),
+        .session_resume => |id| try ledger.sessionRequest(turn, id, .reconcile),
         .abandon_step => |value| try ledger.abandonStep(turn, value.operation, value.generation, value.record),
         .collect_step => |value| try ledger.collectAbandonedStep(turn, value.operation, value.generation, value.record),
         .cancel_unsent => |value| try ledger.cancelUnsent(turn, value.operation, value.generation),

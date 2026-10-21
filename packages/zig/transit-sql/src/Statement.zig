@@ -10,13 +10,22 @@ allocator: std.mem.Allocator,
 text: []const u8,
 connection: c.TableClient.Connection,
 dialect: f.Sql.Dialect,
-plan: union(enum) { select: q.TablePrepared, dml: c.TablePreparedDml, create: f.TableDdl.Owned, relational: *q.RelationalCompilation },
+plan: union(enum) { select: q.TablePrepared, dml: c.TablePreparedDml, create: f.TableDdl.Owned, ddl: Ddl, relational: *q.RelationalCompilation },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create };
+const Ddl = struct {
+    compiled: f.TableDdl.Owned,
+    definition: ?c.TableCatalog.Definition,
+    fn deinit(self: *Ddl) void {
+        self.compiled.deinit();
+        if (self.definition) |*value| value.deinit();
+    }
+};
+pub const Kind = enum { select, insert, update, delete, create, alter, drop };
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
         .create => .create,
+        .ddl => |value| if (value.compiled.statement == .alter) .alter else .drop,
         .dml => |value| switch (value.template.syntax.subject.kind) {
             .insert => .insert,
             .update => .update,
@@ -63,7 +72,7 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 }
 /// This profile routes every relational target through the selected database's
 /// explicit catalog connection. SQL names never select another configured account.
-pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, options: q.RelationalQuery.Options) !Self {
+pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: enum { native, wire }, options: q.RelationalQuery.Options) !Self {
     try f.Sql.validateText(text);
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
@@ -97,6 +106,16 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
         if (ddl.statement != .create) return error.UnsupportedGatewayStatement;
         _ = try client.requireObject(0, .create);
         plan = .{ .create = ddl };
+    } else if (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP"))) {
+        var names: std.heap.ArenaAllocator = .init(allocator);
+        defer names.deinit();
+        const target = try f.TableDdl.target(names.allocator(), text);
+        var definition = try client.lookup(allocator, try c.TableMetadata.Name.init(target.name));
+        errdefer if (definition) |*value| value.deinit();
+        var compiled = try f.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, null);
+        errdefer compiled.deinit();
+        _ = try client.requireObject(if (definition) |value| value.metadata.object else 0, if (target.kind == .alter) .alter else .drop);
+        plan = .{ .ddl = .{ .compiled = compiled, .definition = definition } };
     } else return error.UnsupportedGatewayStatement;
     errdefer switch (plan) {
         .relational => |value| value.deinit(),
@@ -108,12 +127,16 @@ pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []con
         .relational => |value| try value.plan.outputSchema(&output_fields),
         else => null,
     };
-    if (output) |schema| for (schema.structure) |field| {
-        _ = try g.Type.from(field);
-    };
+    if (profile == .wire) {
+        if (output) |schema| for (schema.structure) |field| {
+            _ = try g.Type.from(field);
+        };
+    }
     var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .dialect = dialect, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
     errdefer if (result.output) |*schema| schema.deinit();
-    for (result.parameters()) |parameter| _ = try g.Type.from(.{ .name = "", .type = parameter, .nullable = true });
+    if (profile == .wire) for (result.parameters()) |parameter| {
+        _ = try g.Type.from(.{ .name = "", .type = parameter, .nullable = true });
+    };
     return result;
 }
 /// Revalidate before disclosing cached descriptors. Data revisions can change;
@@ -127,6 +150,8 @@ pub fn validate(self: *const Self, client: *c.TableClient) !void {
         .update => .update,
         .delete => .delete,
         .create => .create,
+        .alter => .alter,
+        .drop => .drop,
     };
     switch (self.plan) {
         .select => |value| {
@@ -142,6 +167,17 @@ pub fn validate(self: *const Self, client: *c.TableClient) !void {
             try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.?.metadata));
         },
         .create => _ = try client.requireObject(0, .create),
+        .ddl => |value| {
+            const object = if (value.definition) |definition| definition.metadata.object else 0;
+            _ = try client.requireObject(object, right);
+            if (value.definition) |definition| {
+                try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.metadata));
+            } else {
+                var found = try client.lookup(self.allocator, try c.TableMetadata.Name.init(value.compiled.statement.drop.name));
+                defer if (found) |*definition| definition.deinit();
+                if (found != null) return error.CatalogDefinitionChanged;
+            }
+        },
     }
     if (!std.meta.eql(before, try client.describe())) return error.CatalogDefinitionChanged;
 }
@@ -160,6 +196,25 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Tab
             const create = value.statement.create;
             const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .namespace = client.connection.namespace, .object = operation, .expected_revision = 0, .name = try c.TableMetadata.Name.init(create.name), .action = .{ .create = .{ .schema = try create.bind(operation), .if_not_exists = create.if_not_exists } } };
             break :blk c.TableIntent.create(allocator, try c.TableCommand.fromDdl(client.connection.scope, client.connection.owner, request, null), operation);
+        },
+        .ddl => |value| blk: {
+            if (values.len != 0) return error.WireParameterCountMismatch;
+            const record = if (value.definition) |definition| definition.metadata else null;
+            const name = switch (value.compiled.statement) {
+                .alter => |alter| alter.name,
+                .drop => |drop| drop.name,
+                else => unreachable,
+            };
+            const action: @FieldType(c.TableDdlRequest, "action") = switch (value.compiled.statement) {
+                .alter => |alter| switch (alter.action) {
+                    .columns => |change| .{ .alter = .{ .schema = value.definition.?.schema.schema, .change = change } },
+                    .rename_table => |renamed| .{ .rename = try c.TableMetadata.Name.init(renamed) },
+                },
+                .drop => |drop| .{ .drop = .{ .if_exists = drop.if_exists } },
+                else => unreachable,
+            };
+            const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .namespace = client.connection.namespace, .object = if (record) |metadata| metadata.object else 0, .expected_revision = if (record) |metadata| metadata.revision else 0, .name = try c.TableMetadata.Name.init(name), .action = action };
+            break :blk c.TableIntent.create(allocator, try c.TableCommand.fromDdl(client.connection.scope, client.connection.owner, request, record), operation);
         },
         else => error.ExpectedGatewayWrite,
     };
@@ -191,8 +246,8 @@ test "gateway statements reject transaction controls and multi-command CREATE be
     const t = std.testing;
     var client: c.TableClient = undefined;
     const options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
-    for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN", "ALTER TABLE t ADD x BIGINT", "DROP TABLE t" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, sql, .transit, options));
-    if (prepare(t.allocator, &client, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, options)) |value| {
+    for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, sql, .transit, .wire, options));
+    if (prepare(t.allocator, &client, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, .wire, options)) |value| {
         var result = value;
         result.deinit();
         return error.ExpectedMultipleStatementRejection;

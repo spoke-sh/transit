@@ -21,22 +21,23 @@ test "ledger reserves identity and capacity before staged intent; only committed
     try store.commit(turn);
     store.origin = configuration.ingress;
     turn = try store.capture();
-    const item = try ledger.begin(&turn, @splat(11), binding);
+    const item = try ledger.begin(&turn, @splat(11), binding, @splat(0));
     try t.expectEqual(turn.delivery.input.position, item.id);
     try store.commit(turn);
     // Lost begin reply: nonce finds the original ID under a later input.
     turn = try store.capture();
     const before = turn.decision;
-    try t.expectEqualDeep(item, try ledger.begin(&turn, @splat(11), binding));
+    try t.expectEqualDeep(item, try ledger.begin(&turn, @splat(11), binding, @splat(0)));
+    try t.expectError(error.SqlTokenConflict, ledger.begin(&turn, @splat(11), binding, @splat(1)));
     try t.expectEqualDeep(before, turn.decision);
     try t.expectEqual(binding.namespace, item.namespace);
     try t.expectEqual(binding.role, item.selectedRole());
     var changed_binding = binding;
     changed_binding.role = null;
-    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding));
+    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding, @splat(0)));
     changed_binding = binding;
     changed_binding.namespace += 1;
-    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding));
+    try t.expectError(error.GatewayCatalogDenied, ledger.begin(&turn, @splat(11), changed_binding, @splat(0)));
     try t.expectEqualDeep(before, turn.decision);
     var saved = try intent(item.id);
     defer saved.deinit();
@@ -70,11 +71,11 @@ test "ledger reserves identity and capacity before staged intent; only committed
     // A second slot is available; a third admission cannot discard either one.
     store.origin = configuration.ingress;
     turn = try store.capture();
-    _ = try ledger.begin(&turn, @splat(12), binding);
+    _ = try ledger.begin(&turn, @splat(12), binding, @splat(0));
     try store.commit(turn);
     turn = try store.capture();
     const capacity_before = turn.decision;
-    try t.expectError(error.GatewayAdmissionCapacity, ledger.begin(&turn, @splat(13), binding));
+    try t.expectError(error.GatewayAdmissionCapacity, ledger.begin(&turn, @splat(13), binding, @splat(0)));
     try t.expectEqualDeep(capacity_before, turn.decision);
     try t.expectEqual(g.LedgerRecords.Phase.ready, (try ledger.operation(&turn, item.id)).phase);
     // Only the fenced active coordinator may publish a signed step, and the
@@ -199,7 +200,7 @@ test "ledger reserves identity and capacity before staged intent; only committed
     try store.commit(turn);
     store.origin = 99;
     turn = try store.capture();
-    try t.expectError(error.GatewayDenied, ledger.begin(&turn, @splat(14), binding));
+    try t.expectError(error.GatewayDenied, ledger.begin(&turn, @splat(14), binding, @splat(0)));
 }
 
 test "gateway discovery advances across appends with current authority and rejects foreign or backward cursors" {
@@ -215,7 +216,7 @@ test "gateway discovery advances across appends with current authority and rejec
     store.origin = config.ingress;
     for (0..27) |i| {
         turn = try store.capture();
-        _ = try ledger.begin(&turn, @splat(@intCast(i)), binding);
+        _ = try ledger.begin(&turn, @splat(@intCast(i)), binding, @splat(0));
         try store.commit(turn);
     }
     turn = try store.capture();
@@ -246,7 +247,7 @@ test "gateway discovery advances across appends with current authority and rejec
     const first = try ledger.list(&committed, null);
     try t.expect(first.next != null);
     turn = try store.capture();
-    _ = try ledger.begin(&turn, @splat(99), binding);
+    _ = try ledger.begin(&turn, @splat(99), binding, @splat(0));
     try store.commit(turn);
     turn = try store.capture();
     committed = turn.committed();

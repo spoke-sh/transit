@@ -20,7 +20,12 @@ closure. The body action must match the selected lane. Duplicate security or
 framing headers, ambiguous framing, redirects, browser Origin and forwarded
 identity headers are rejected. Responses carry `Cache-Control: no-store`.
 There is no cookie authentication, automatic redirect or automatic SQL replay.
-Connection reuse is an optimization, never a session identity.
+Connection reuse is an optimization, never a session identity. Idle HTTP headers
+have a one-second deadline; clients replace a quiescent transport before sending
+new work. This does not replay a request. Fixed byte identities and SQLSTATE use
+JSON integer arrays even when their bytes form printable text. Text fields use
+JSON strings. The canonical authentication binding uses a compact JSON array of
+its five fields with these same rules.
 
 Remote exposure is explicitly configured. HTTPS uses verified certificates and
 system roots or a configured CA. Password accounts authenticate with
@@ -50,6 +55,8 @@ handles, even when it preserves the persistent instance and operation history.
 
 A logical session belongs to the SQL service, independently of any HTTP socket.
 Its settings, prepared metadata and read cursor survive transport replacement.
+`touch` renews the idle lease after checking current credentials and database
+authority; it does not reset settings or replace an active result.
 Closing an HTTP socket does not close the session. Closing/resetting a session,
 its idle lease expiring or the service restarting releases temporary state.
 PostgreSQL and MySQL adapters tie logical session closure to their wire connection.
@@ -60,6 +67,9 @@ One session has one borrower of each native transport and at most one active
 interactive result. Concurrent commands on that session return busy; commands on
 other sessions retain their own bounded execution slots. A cancellation request
 can set the current query's cancellation flag without borrowing its transport.
+A query target of 32 zero bytes means the current request of this authenticated
+session, including execution before its first response. Other query targets
+identify that session's result cursor.
 Tasks are joined before releasing their sockets, allocator, snapshot or spill.
 
 Preparation discloses authorized metadata without opening a snapshot. `prepare`

@@ -23,7 +23,7 @@ pub const Part = struct {
 };
 pub const Command = union(enum(u8)) {
     initialize: u64 = 1,
-    begin: struct { nonce: [16]u8, binding: g.Ledger.Binding } = 2,
+    begin: struct { nonce: [16]u8, binding: g.Ledger.Binding, fingerprint: [32]u8 = @splat(0) } = 2,
     begin_intent: struct { operation: u64, spec: g.station.Publication.Spec } = 3,
     intent_part: struct { operation: u64, part: Part } = 4,
     seal_intent: u64 = 5,
@@ -42,6 +42,8 @@ pub const Command = union(enum(u8)) {
     capacity: struct { operations: u64, bytes: u64, pending: u32 } = 18,
     reserve: struct { operation: u64, bytes: u64 } = 19,
     complete: struct { target: Qualified, outcome: g.Terminal } = 20,
+    session_cancel: u64 = 21,
+    session_resume: u64 = 22,
     pub fn validate(self: Command) !void {
         switch (self) {
             .intent_part => |value| try value.part.validate(),

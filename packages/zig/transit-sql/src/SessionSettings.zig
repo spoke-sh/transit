@@ -21,6 +21,10 @@ pub fn client(host: *Host) !q.SettingsClient {
 pub fn prepare(host: *Host, sql: []const u8) !?Prepared {
     var plan = (try q.SettingsSql.parse(host.allocator, sql, host.dialect)) orelse return null;
     errdefer plan.deinit();
+    try authorize(host, &plan);
+    return .{ .plan = plan, .output = if (plan.statement == .set or plan.statement == .reset) null else try plan.output(host.allocator) };
+}
+pub fn authorize(host: *Host, plan: *const q.SettingsSql.Owned) !void {
     if (plan.statement != .catalog and plan.statement != .set and plan.statement != .reset) {
         const selected = try client(host);
         // Read-only authorization during preparation; reload never dispatches.
@@ -29,7 +33,6 @@ pub fn prepare(host: *Host, sql: []const u8) !?Prepared {
         const signed = try selected.prepare(if (plan.statement == .reload) .{ .reload = .{ .expected_generation = 1 } } else .{ .settings = .{} }, id);
         _ = try selected.transport.call(q.protocol.Growth.Response, "/v1/query", signed.authority);
     }
-    return .{ .plan = plan, .output = if (plan.statement == .set or plan.statement == .reset) null else try plan.output(host.allocator) };
 }
 pub fn mutate(host: *Host, prepared: *Prepared) !void {
     switch (prepared.plan.statement) {

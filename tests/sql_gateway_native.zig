@@ -249,7 +249,7 @@ pub fn main(init: std.process.Init) !void {
             if (waiting.cancel(init.io)) |_| return error.ExpectedCancelledWait else |err| if (err != error.Canceled and err != error.Cancelled) return err;
         }
         var table: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = config.table_principal, .namespace = config.binding.namespace, .role = config.binding.role }, .key = try tableKey(config), .reader = .{ .wire = &wire, .realm = 46, .principal = 2004, .key = try roleKey(2004) } };
-        var statement = try gateway.Statement.prepare(init.gpa, &table, args[4], .transit, read_options);
+        var statement = try gateway.Statement.prepare(init.gpa, &table, args[4], .transit, .wire, read_options);
         defer statement.deinit();
         var operation: ?u64 = null;
         const result = try runtime.execute(init.gpa, &observer, &table, &statement, &.{}, deadline, &operation);
@@ -260,7 +260,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "read")) {
         var caller: c.TableClient = .{ .transport = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .owner = config.binding.owner, .principal = config.table_principal, .namespace = config.binding.namespace, .role = config.binding.role }, .key = try tableKey(config), .reader = .{ .wire = &wire, .realm = 46, .principal = 2004, .key = try roleKey(2004) } };
         const dialect: c.fuze.Sql.Dialect = if (std.mem.eql(u8, args[4], "mysql")) .mysql else .transit;
-        var statement = try gateway.Statement.prepare(init.gpa, &caller, args[5], dialect, read_options);
+        var statement = try gateway.Statement.prepare(init.gpa, &caller, args[5], dialect, .wire, read_options);
         defer statement.deinit();
         var values: [1]?c.fuze.Types.Values.Atom = .{null};
         if (args.len > 6 and !std.mem.eql(u8, args[6], "null")) values[0] = .{ .signed = try std.fmt.parseInt(i64, args[6], 10) };
@@ -327,7 +327,7 @@ pub fn main(init: std.process.Init) !void {
         const item = (try registry.discover(&source, nonce)) orelse return error.MissingOperation;
         if (std.mem.eql(u8, mode, "begin")) return support.print(init, item);
         var table = coordinator.table(item);
-        var statement = try gateway.Statement.prepare(init.gpa, &table, args[5], .transit, read_options);
+        var statement = try gateway.Statement.prepare(init.gpa, &table, args[5], .transit, .wire, read_options);
         defer statement.deinit();
         var intent = try statement.bindWrite(init.gpa, &table, &.{}, item.id);
         defer intent.deinit();

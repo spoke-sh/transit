@@ -15,6 +15,7 @@ spill_directory: []const u8,
 bind_address: []const u8 = "127.0.0.1",
 postgres_port: ?u16 = null,
 mysql_port: ?u16 = null,
+native: ?Native = null,
 health_address: []const u8 = "127.0.0.1",
 health_port: ?u16 = null,
 drain_ms: u32 = 30000,
@@ -22,13 +23,21 @@ limits: g.Limits = .{},
 request_timeout_ms: u32 = 5000,
 accounts: []const Account,
 settings: ?struct { url: []const u8, binding: g.query.settings.Contract.Binding } = null,
+pub const Native = struct {
+    instance: g.session_protocol.Instance,
+    socket: ?[]const u8 = null,
+    address: []const u8 = "127.0.0.1",
+    port: ?u16 = null,
+    tls: ?struct { certificate_file: []const u8, key_file: []const u8 } = null,
+};
 pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
 pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8, reader: []const u8 };
 pub const TlsMode = enum { disabled, optional, required };
-pub const Authentication = enum { password, trust };
+pub const Authentication = enum { password, trust, peer };
 pub const Account = struct {
     name: []const u8,
     authentication: Authentication = .password,
+    peer_uid: ?u32 = null,
     enabled: bool = true,
     verifier_file: []const u8,
     ledger: g.Ledger.Configuration,
@@ -47,6 +56,9 @@ pub fn account(self: Self, name: []const u8) !usize {
 }
 /// Retained ledger workers may run without admitting any new SQL connections.
 pub fn listening(self: Self) bool {
+    return self.wireListening() or (if (self.native) |value| value.socket != null or value.port != null else false);
+}
+pub fn wireListening(self: Self) bool {
     return self.postgres_port != null or self.mysql_port != null;
 }
 fn validateName(value: []const u8) !void {
@@ -66,11 +78,25 @@ pub fn validate(self: Self) !void {
     try path(self.health_address);
     if (self.accounts.len == 0 or self.accounts.len > g.Limits.max_accounts or self.postgres_port == 0 or self.mysql_port == 0 or (self.postgres_port != null and self.postgres_port == self.mysql_port) or self.request_timeout_ms == 0 or self.request_timeout_ms > 60000) return error.InvalidGatewayConfiguration;
     for ([_][]const u8{ self.native_url, self.activation_directory, self.spill_directory, self.bind_address }) |value| try path(value);
-    if (self.listening() and self.tls_mode != .disabled) {
+    if (self.wireListening() and self.tls_mode != .disabled) {
         try path(self.certificate_file);
         try path(self.certificate_key_file);
     }
+    if (self.native) |value| {
+        if (std.mem.allEqual(u8, &value.instance, 0) or value.port == 0 or (value.port != null and (value.port == self.health_port or value.port == self.postgres_port or value.port == self.mysql_port))) return error.InvalidGatewayConfiguration;
+        if (value.socket) |socket| {
+            try path(socket);
+            _ = try std.Io.net.UnixAddress.init(socket);
+        }
+        const address = try std.Io.net.IpAddress.parseIp4(value.address, value.port orelse 0);
+        if (value.port != null and value.tls == null and address.ip4.bytes[0] != 127) return error.NativeSqlTlsRequired;
+        if (value.tls) |selected| {
+            try path(selected.certificate_file);
+            try path(selected.key_file);
+        }
+    }
     for (self.accounts, 0..) |value, i| {
+        if ((value.authentication == .peer) != (value.peer_uid != null)) return error.InvalidGatewayConfiguration;
         // Trust admits a claimed SQL identity only on an explicit loopback
         // listener. It never selects a native identity supplied by the client.
         if (value.authentication == .trust) {
