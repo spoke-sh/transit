@@ -327,12 +327,12 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             var sources: std.ArrayList(std.meta.Elem(@FieldType(T, "sources"))) = .empty;
             for (host.account.sources) |*configured| {
                 if (!std.mem.eql(u8, configured.database, host.database)) continue;
-                const selected = g.SourceSession.init(host, configured) catch |err| switch (err) {
+                const selected = host.fresh(g.SourceSession.init, .{ host, configured }) catch |err| switch (err) {
                     error.QueryDenied, error.AccessDenied, error.SqlSourceIdentityMismatch => continue,
                     else => return err,
                 };
                 defer selected.deinit();
-                const description = try selected.client.describe(selected.definition);
+                const description = try host.fresh(g.query.UnifiedClient.describe, .{ &selected.client, selected.definition });
                 try sources.append(allocator, .{ .name = configured.name, .sql_name = configured.workspace.name, .kind = std.meta.stringToEnum(@FieldType(std.meta.Elem(@FieldType(T, "sources")), "kind"), @tagName(selected.definition.source)).?, .resource = selected.definition.resource, .revision = description.resource_revision, .contract = try selected.definition.fingerprint() });
             }
             return .{ .context = .{ .account = host.account.ledger.account, .database = host.database, .source = host.sourceName(), .sources = sources.items } };

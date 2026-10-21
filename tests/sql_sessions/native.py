@@ -176,7 +176,17 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         print(json.dumps(dict(profile='native_sql_source', source=name, phase='interactive')), flush=True)
         select_source(name)
         selected = Client(root, port).open(name)
+        metadata_fault = None
+        if faults is not None and name == 'kv' and sources is None:
+            # Fail another binding's first authority read inside context, not
+            # the selected KV source's ordinary session authorization.
+            bindings = json.loads((root / 'sql-gateway.json').read_text())['accounts'][0]['sources']
+            faults.fail_source_once = next(binding['connection']['principal'] for binding in bindings if binding['name'] == 'document')
+            metadata_fault = faults.failures
         context = selected.call('context')['context']
+        if metadata_fault is not None:
+            assert faults.fail_source_once is None and faults.failures == metadata_fault + 1
+            print(json.dumps(dict(profile='native_sql_source_metadata_recovery', refused_observations=1)), flush=True)
         assert {source['name'] for source in context['sources']} == ({'kv', 'document', 'table'} if sources is None else {name for name, _ in sources})
         # This fixture deliberately leaves other captured owners paused. Native
         # capacity may refuse a new read; a fresh SELECT is explicit and safe

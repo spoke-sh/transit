@@ -13,6 +13,7 @@ class Faults:
         self.fail_open = False
         self.fail_once = False
         self.fail_coordinator = None
+        self.fail_source_once = None
         self.failures = 0
         self.requests = 0
         self.response_bytes = 0
@@ -26,7 +27,10 @@ class Faults:
                 content = self.rfile.read(int(self.headers['Content-Length']))
                 envelope = json.loads(content).get('query', {})
                 query = envelope.get('kind', {})
-                if ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                source_failure = owner.fail_source_once is not None and envelope.get('principal') == owner.fail_source_once
+                if source_failure or ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                    if source_failure:
+                        owner.fail_source_once = None
                     owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'
