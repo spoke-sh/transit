@@ -2,6 +2,7 @@
 const std = @import("std");
 pub const Context = @import("Context.zig");
 pub const Http = @import("Http.zig");
+pub const Text = @import("Text.zig");
 const Atomic = std.atomic.Value(u64);
 pub const Level = enum { debug, info, warn, err, off };
 pub const Format = enum { text, json };
@@ -20,10 +21,18 @@ pub const Config = struct {
     }
 };
 
-/// Only fixed vocabulary/static route templates and compiler error names belong
-/// in string fields. Never pass request data, configuration, payloads or secrets.
+/// Messages use reviewed vocabulary; operator locations/endpoints/hints contain
+/// only explicitly selected nonsecret connection details. Never pass arbitrary
+/// configuration, SQL, request bodies, credentials or application payloads.
 pub const Event = struct {
     name: []const u8,
+    message: ?[]const u8 = null,
+    hint: ?[]const u8 = null,
+    location: ?[]const u8 = null,
+    field: ?[]const u8 = null,
+    role: ?[]const u8 = null,
+    endpoint: ?[]const u8 = null,
+    port: ?u16 = null,
     operation: ?[]const u8 = null,
     level: Level = .info,
     outcome: Outcome = .ok,
@@ -186,12 +195,13 @@ pub const Runtime = struct {
         var record: Record = .{};
         var output: std.Io.Writer = .fixed(&record.bytes);
         const now = std.Io.Clock.real.now(self.io).toMilliseconds();
-        if (self.config.format == .text) output.print("[{s}] {s} {s} ", .{ self.service, @tagName(value.level), value.name }) catch {};
         const instance = std.fmt.bytesToHex(self.instance, .lower);
         const trace = if (context) |c| std.fmt.bytesToHex(c.trace_id, .lower) else @as([32]u8, @splat(0));
         const span = if (context) |c| std.fmt.bytesToHex(c.span_id, .lower) else @as([16]u8, @splat(0));
         const parent = if (context) |c| if (c.parent_span_id) |p| std.fmt.bytesToHex(p, .lower) else @as([16]u8, @splat(0)) else @as([16]u8, @splat(0));
-        std.json.Stringify.value(.{
+        const encoded = if (self.config.format == .text) text: {
+            break :text self.textEvent(&output, now, scope, duration_ns, context, value);
+        } else std.json.Stringify.value(.{
             .schema_version = 1,
             .service_name = self.service,
             .service_instance_id = instance[0..],
@@ -202,7 +212,8 @@ pub const Runtime = struct {
             .span_id = if (context != null) @as(?[]const u8, &span) else null,
             .parent_span_id = if (context != null and context.?.parent_span_id != null) @as(?[]const u8, &parent) else null,
             .event = value,
-        }, .{ .emit_null_optional_fields = false }, &output) catch {
+        }, .{ .emit_null_optional_fields = false }, &output);
+        encoded catch {
             _ = self.dropped.fetchAdd(1, .monotonic);
             return;
         };
@@ -212,6 +223,23 @@ pub const Runtime = struct {
         };
         record.len = output.end;
         self.enqueue(record, @backingInt(value.level) >= @backingInt(Level.warn));
+    }
+
+    fn textEvent(self: *Runtime, output: *std.Io.Writer, now: i64, scope: Scope, duration_ns: ?u64, context: ?Context, value: Event) !void {
+        try Text.prefix(output, now, self.service, value.level, value.name);
+        try Text.event(output, value);
+        if (scope != .service) try Text.fields(output, "scope", scope);
+        try Text.fields(output, "duration_ns", duration_ns);
+        if (context) |c| {
+            const trace = std.fmt.bytesToHex(c.trace_id, .lower);
+            const span = std.fmt.bytesToHex(c.span_id, .lower);
+            try Text.fields(output, "trace_id", @as([]const u8, &trace));
+            try Text.fields(output, "span_id", @as([]const u8, &span));
+            if (c.parent_span_id) |id| {
+                const parent = std.fmt.bytesToHex(id, .lower);
+                try Text.fields(output, "parent_span_id", @as([]const u8, &parent));
+            }
+        }
     }
 
     fn enqueue(self: *Runtime, record: Record, important: bool) void {
@@ -256,8 +284,10 @@ pub const Runtime = struct {
         var buffer: [2048]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         const instance = std.fmt.bytesToHex(self.instance, .lower);
-        if (self.config.format == .text) try writer.print("[{s}] {s} {s} ", .{ self.service, @tagName(level), name });
-        try std.json.Stringify.value(.{ .schema_version = @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
+        if (self.config.format == .text) {
+            try Text.prefix(&writer, std.Io.Clock.real.now(self.io).toMilliseconds(), self.service, level, name);
+            try Text.fields(&writer, "", value);
+        } else try std.json.Stringify.value(.{ .schema_version = @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
         try writer.writeByte('\n');
         try self.sink.writeStreamingAll(self.io, writer.buffered());
     }
@@ -410,7 +440,13 @@ test "periodic metrics honor log level while measurement continues" {
             try std.testing.expectEqual(level == .debug, std.mem.indexOf(u8, output, "telemetry.metrics") != null);
             try std.testing.expectEqual(level == .debug or level == .info or level == .warn, std.mem.indexOf(u8, output, "telemetry.loss") != null);
             if (level != .debug) continue;
-            if (format == .text) try std.testing.expect(std.mem.startsWith(u8, output, "[test] debug telemetry.metrics "));
+            if (format == .text) {
+                try std.testing.expect(std.mem.indexOf(u8, output, "DEBUG [test] telemetry.metrics ") != null);
+                try std.testing.expect(std.mem.indexOf(u8, output, "snapshot.active=0") != null);
+                try std.testing.expect(std.mem.indexOf(u8, output, "snapshot.outcomes.idle=1") != null);
+                try std.testing.expect(std.mem.indexOfScalar(u8, output, '{') == null);
+                continue;
+            }
             const json_start = std.mem.indexOfScalar(u8, output, '{').?;
             const json_end = std.mem.indexOfScalar(u8, output, '\n').?;
             var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, output[json_start..json_end], .{});

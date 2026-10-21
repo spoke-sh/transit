@@ -12,8 +12,9 @@ def run(binary):
     if hasattr(os, "sched_getaffinity"):
         command = ["taskset", "-c", str(min(os.sched_getaffinity(0))), *command]
     measured = {}
-    for mode in ("off", "drained", "stalled", "closed"):
-        env = os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "off" if mode == "off" else "info"}
+    for format, mode in ((format, mode) for format in ("text", "json")
+                         for mode in ("off", "drained", "stalled", "closed")):
+        env = os.environ | {"LOG_FORMAT": format, "LOG_LEVEL": "off" if mode == "off" else "info"}
         start = time.monotonic()
         with subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
             if mode == "stalled" and sys.platform == "linux":
@@ -42,10 +43,14 @@ def run(binary):
         if mode in ("drained", "stalled"):
             assert stderr, mode
         for line in stderr.splitlines():
+            assert len(line) < 2048
+            if format == "text":
+                assert b"Z " in line and b" [" in line and b"{" not in line, line
+                continue
             record = json.loads(line)
             assert record["schema_version"] == 1 and len(line) < 2048
             assert len(record["service_instance_id"]) == 32
-        measured[mode] = {"wall_seconds": round(time.monotonic() - start, 3), "emit_ms": round(value["emitted_ns"] / 1e6, 3)}
+        measured[format + "/" + mode] = {"wall_seconds": round(time.monotonic() - start, 3), "emit_ms": round(value["emitted_ns"] / 1e6, 3)}
     print("Telemetry: 10,000 completions, bounded queues, metrics despite log loss, and one-CPU pipe cancellation passed:", measured)
 
 
