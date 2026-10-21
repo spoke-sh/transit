@@ -12,7 +12,6 @@ pub const Options = struct {
     script: ?[]const u8 = null,
     rc: ?[]const u8 = null,
     no_rc: bool = false,
-    initialize: bool = false,
     no_ui: bool = false,
     help: bool = false,
 };
@@ -37,21 +36,18 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format", "-c", "-f", "--parameters", "--init", "--no-rc" }) |name| {
+        const known = for ([_][]const u8{ "--help", "--no-ui", "--config", "--format", "-c", "-f", "--parameters", "--init", "--no-rc" }) |name| {
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
         const option = known orelse return diagnostic.invalidArgument("unexpected input");
-        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and (std.mem.eql(u8, option, "--format") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "-f") or std.mem.eql(u8, option, "--parameters") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")))) {
+        if ((!server and std.mem.eql(u8, option, "--no-ui")) or (server and (std.mem.eql(u8, option, "--format") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "-f") or std.mem.eql(u8, option, "--parameters") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")))) {
             diagnostic.show_help = true;
             return diagnostic.invalidOption("is not supported by this command");
         }
         if (std.mem.eql(u8, option, "--help")) {
             if (result.help) return duplicate(diagnostic);
             result.help = true;
-        } else if (std.mem.eql(u8, option, "--initialize")) {
-            if (result.initialize) return duplicate(diagnostic);
-            result.initialize = true;
         } else if (std.mem.eql(u8, option, "--no-ui")) {
             if (result.no_ui) return duplicate(diagnostic);
             result.no_ui = true;
@@ -108,16 +104,16 @@ test "connection options override the environment and server discovery is indepe
     try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{ "console", "--config", "one", "--config", "two" }, "/local/console.json"));
     try std.testing.expect((try parseWithConsoleConfig(&.{"server"}, "/local/console.json")).path == null);
     try std.testing.expect((try parseWithConsoleConfig(&.{"serve"}, "/local/console.json")).path == null);
-    const server = try parse(&.{ "serve", "--config", "server.json", "--initialize" });
+    const server = try parse(&.{ "serve", "--config", "server.json" });
     try std.testing.expectEqual(.server, server.command);
-    try std.testing.expect(server.initialize);
     try std.testing.expect((try parseWithConsoleConfig(&.{ "console", "--help" }, null)).help);
 }
 
 test "both server aliases default to UI and accept only one opt-out" {
     for ([_][]const u8{ "server", "serve" }) |alias| {
         try std.testing.expect(!(try parse(&.{ alias, "--config", "server.json" })).no_ui);
-        try std.testing.expect((try parse(&.{ alias, "--config", "server.json", "--no-ui", "--initialize" })).no_ui);
+        try std.testing.expect((try parse(&.{ alias, "--config", "server.json", "--no-ui" })).no_ui);
+        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--initialize" }));
         try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--no-ui", "--no-ui" }));
         try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--ui" }));
     }

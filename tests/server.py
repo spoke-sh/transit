@@ -101,15 +101,13 @@ class Fixture:
     def record(self):
         return json.loads((self.installation / "installation.json").read_text())
 
-    def start(self, initialize=False):
+    def start(self):
         assert self.process is None
         log = (self.root / f"manager-{len(self.logs)}.stderr").open("wb")
         self.logs.append(log)
         args = [self.cli, self.alias, "--config", str(self.path)]
         if self.no_ui:
             args.append("--no-ui")
-        if initialize:
-            args.append("--initialize")
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
             cwd=self.root, env={"PATH": "/unavailable", "LANG": "C"})
 
@@ -155,12 +153,10 @@ class Fixture:
         self.process.stdout.close()
         self.process = None
 
-    def refusal(self, message, initialize=False):
+    def refusal(self, message):
         args = [self.cli, self.alias, "--config", str(self.path)]
         if self.no_ui:
             args.append("--no-ui")
-        if initialize:
-            args.append("--initialize")
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, env={"PATH": "/unavailable"})
         assert result.returncode != 0 and message in result.stderr, result
         assert not result.stdout, result
@@ -239,9 +235,11 @@ def run(cli, node, host):
     success = False
     print(f"Transit server proof: {fixture.root}", flush=True)
     try:
-        fixture.refusal("file not found")
-        fixture.start(initialize=True)
+        from server_startup import admission
+        admission(fixture)
+        fixture.start()
         fixture.ready()
+        assert 'creating installation' in Path(fixture.logs[-1].name).read_text()
         from server_configuration import run as configuration_proof
         configuration_proof(fixture)
         from server_faults import gateway_hosts, reusable_connections
@@ -340,7 +338,6 @@ def run(cli, node, host):
                 assert record_path.read_bytes() == encoded
         finally:
             record_path.write_bytes(saved)
-        fixture.refusal("this installation is already initialized", initialize=True)
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]

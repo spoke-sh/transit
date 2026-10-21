@@ -40,6 +40,7 @@ def run(fixture):
         return sql(f"SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE name = '{name}'")[0]
     try:
         assert sql('SHOW realm')[0]['value'] == str(original['realm'])
+        assert sql('SHOW startup.require_existing')[0]['value'] == 'false'
         assert sql('SHOW DATABASES')[0]['database'] == 'transit'
         assert sql('SHOW SCHEMAS')[0]['schema'] == 'public'
         assert len(sql('SHOW ALL')) > 20
@@ -106,11 +107,14 @@ def run(fixture):
         sql("SET query.statement_timeout = '11s'", ok=False)
         from storage import free_port
         fixture.config['ports']['gateway'] = free_port()
+        fixture.config['startup'] = {'require_existing': True}
         write()
         pending = sql('SELECT transit_reload_conf()')[0]
         assert pending['outcome']['phase'] == 'pending_restart', pending
         row = setting('ports.gateway')
         assert row['value'] == str(original['ports']['gateway']) and row['configured_value'] == str(fixture.config['ports']['gateway']) and row['pending_restart'], row
+        startup = setting('startup.require_existing')
+        assert startup['value'] == 'false' and startup['configured_value'] == 'true' and startup['pending_restart'], startup
         explicit = True
         fixture.path.write_text('private_unknown_setting: private-must-not-leak\n')
         rejected = sql('SELECT transit_reload_conf()', ok=False)[0]
@@ -139,6 +143,8 @@ def run(fixture):
         fixture.start(); fixture.ready()
         row = setting('ports.gateway')
         assert row['value']==str(fixture.config['ports']['gateway']) and not row['pending_restart'],row
+        startup = setting('startup.require_existing')
+        assert startup['value'] == 'true' and not startup['pending_restart'], startup
         assert fixture.record()['installation']==record['installation']
         assert sql('SELECT phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1')[0]['phase']=='rejected'
         fixture.stop()

@@ -153,7 +153,7 @@ def main():
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
-        fixture.start(initialize=True)
+        fixture.start()
         if gate:
             deadline = time.monotonic() + 90
             while not gate.exists():

@@ -6,7 +6,7 @@ Choose the owner that matches the job; a transport never grants authority.
 
 | Your task | Entry point | Supported boundary |
 | --- | --- | --- |
-| Start a neighborhood or install an app | [Transit CLI](../reference/cli.md) | Trusted local Linux supervisor; explicit initialization and exact recovery |
+| Start a neighborhood or install an app | [Transit CLI](../reference/cli.md) | Trusted local Linux supervisor; automatic first startup and exact recovery |
 | Implement a worker or durable caller | [Zig client and language SDKs](../reference/sdks.md) | Shared protocol/Station semantics with target-language types and ownership |
 | Integrate a native protocol client | [Signed HTTP protocol](../reference/native.md) | Versioned JSON envelopes, canonical signing, current grants and exact retry |
 | Run interactive queries | [Console](../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Explicit finite SELECT over configured KV/Table/Document sources |

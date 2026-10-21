@@ -36,7 +36,7 @@ fn localConfig(init: std.process.Init, directory: []const u8, diagnostic: *Diagn
     diagnostic.atFile(record_path);
     const record = @import("server/Files.zig").read(Installation.Record, init.io, allocator, record_path) catch |err| {
         return diagnostic.fail(error.InvalidConfiguration, "cannot read the local installation", if (err == error.FileNotFound)
-            "Start transit server --initialize for a new installation, or use --config with a connection YAML file."
+            "Start transit server, or use --config with a connection YAML file."
         else
             "Check the retained installation record; the console never creates or repairs server state.");
     };

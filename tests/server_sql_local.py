@@ -59,8 +59,8 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
             args.append('--ssl-ca='+str(fixture.installation / 'sql/tls/ca.pem'))
         return (denied if reject else call)([*args, '-e', query], env=selected)
 
-    def start(initialize=False):
-        if initialize:
+    def start(first=False):
+        if first:
             # Exercise the documented YAML shape, including duration strings.
             base = "\n".join(f'{key}: {json.dumps(value)}' for key, value in fixture.config.items() if key != 'sql')
             fixture.path.write_text(base + f'''
@@ -84,17 +84,17 @@ sql:
 ''')
         else:
             fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=initialize)
+        fixture.start()
         fixture.ready(timeout=300)
         return wait_status(fixture, lambda s: s['service']['state'] == 'accepting' and
                            all(item['initialized'] for item in s['accounts']))
 
     try:
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.refusal('sql.accounts', initialize=True)
+        fixture.refusal('sql.accounts')
         assert not fixture.installation.exists()
         sql['accounts'] = [dict(name='owner', role='local_owner', authentication='trust', bootstrap_owner=True)]
-        status = start(initialize=True)
+        status = start(first=True)
         folder = fixture.installation / 'sql/accounts/owner'
         retained = json.loads((folder / 'account.json').read_text())
         assert retained['bootstrap_owner'] and retained['journal']['receipts'][14] is not None
@@ -190,7 +190,7 @@ def bootstrap_fault(cli, node, host, board, gateway):
     success = False
     print(f'Owner bootstrap fault proof: {fixture.root}', flush=True)
     try:
-        fixture.start(initialize=True); fixture.ready(); fixture.stop()
+        fixture.start(); fixture.ready(); fixture.stop()
         owner_role = fixture.record()['authorization_steps'][0]
         fixture.config['sql'] = dict(postgres={'port': free_port()}, health_port=free_port(),
             tls={'mode': 'disabled'}, drain_ms=1000,

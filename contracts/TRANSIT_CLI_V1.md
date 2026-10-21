@@ -6,7 +6,7 @@ The local server runs on Linux x86_64.
 
 ## Command and compatibility boundary
 
-`transit server [--config PATH] [--initialize] [--no-ui]` runs one local installation in the
+`transit server [--config PATH] [--no-ui]` runs one local installation in the
 foreground; `serve` is an equivalent alias. `transit console [--config PATH] [--format table|json]` opens an
 explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
@@ -188,10 +188,20 @@ dependency; distribution must retain its license alongside the selected Transit
 artifacts. Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
-`--initialize` deliberately creates a new installation, refusing an existing
-initialized directory. Ordinary startup requires the recorded installation and
-storage. There is no automatic initialization, destructive reset, storage
-replacement, generation rollback or deletion of a stale activation marker.
+Startup initializes a missing or genuinely empty installation directory by
+publishing a complete private installation record before starting services.
+`startup.require_existing: true` refuses both cases before creation; its default
+is false. A populated directory always requires its recorded installation and
+storage. Files, symbolic links, unrecognized contents, missing or malformed
+records and incompatible definitions fail without replacement or reset.
+The sibling OS lock serializes inspection, creation and recovery. Creation
+assembles private files in a sibling directory, synchronizes them, removes only
+an empty destination directory and publishes with a nonreplacing rename followed
+by parent-directory sync. New contents appearing before publication cause a
+refusal. Unpublished staging directories contain no accepted work and are never
+adopted. Use a directory within a mounted volume rather than its mount point.
+There is no destructive reset, storage replacement, generation rollback or
+deletion of a stale activation marker.
 An interrupted initial creation resumes through its persisted bootstrap intent
 and exact receipts. First initialization must be distinguished from a completed
 installation whose storage has disappeared. A recorded monotonic authority

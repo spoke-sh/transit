@@ -60,11 +60,13 @@ for command in ('server', 'serve'):
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
-    for flag in ('--initialize', '--no-ui', '--help'):
+    for flag in ('--no-ui', '--help'):
         invoke([command, flag, flag], stderr=f'error: {flag} can only be specified once\n')
     invoke([command, '--format', 'json'], contains=('--format is not supported', f'transit {command} --help'))
     invoke([command, '--unknown=private-must-not-appear'], contains=('unexpected input at argument 2',))
-    invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', '--initialize', '--no-ui', 'Alias: serve'))
+    invoke([command, '--initialize'], contains=('unexpected input at argument 2',))
+    help_output = invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', 'startup.require_existing', '--no-ui', 'Alias: serve')).stdout
+    assert b'--initialize' not in help_output
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
 for args in ([], ['--help'], ['--version'], ['app'], ['app', '--help'], ['console', '--help'], ['query', '--help']):
     invoke(args, 0)
@@ -447,10 +449,11 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     ports = [listener.getsockname()[1] for listener in reserved]
     for listener in reserved: listener.close()
     discovery_config.write_text(json.dumps({'installation': str(root/'uninitialized'),
+        'startup': {'require_existing': True},
         'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), ports)),
         'applications': {'port': ports[5]}}))
     def convention(**values):
-        return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('retained installation record',),
+        return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('startup requires an existing installation',),
                       env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli))
     convention()  # No manifest or tools on PATH.
     for name in names: (search/name).touch(mode=0o700)

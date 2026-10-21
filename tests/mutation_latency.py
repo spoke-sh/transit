@@ -297,7 +297,7 @@ def main():
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                  'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=True)
+        fixture.start()
         if gate:
             deadline = time.monotonic() + 90
             while not gate.exists():

@@ -5,14 +5,51 @@ recovery contract. Commands assume the complete local bundle is installed with
 `transit` on `PATH`; see the [quickstart](../../../docs/guides/quickstart.md).
 The bundle supplies the CLI and matching native neighborhood artifacts.
 
-`transit server --initialize` deliberately creates a private
-installation and runs it in the foreground. Subsequent starts omit
-`--initialize`. Version 1 starts and supervises a separate `transit-board` process
+`transit server` creates a private installation when its directory is missing
+or empty, then runs it in the foreground. The same command opens an existing
+installation or resumes its recorded setup. Version 1 starts and supervises a
+separate `transit-board` process
 by default. Its frontend assets are bundled inside the Board executable. Add
 `--no-ui` to either command name for a headless invocation. The server runs on
 Linux x86_64 in a trusted single-user placement. Kubernetes/Substrate remains
 the reference isolation profile. Executed recovery and capacity evidence belongs
 in the [test guide](../../../tests/README.md).
+
+## First startup and recovery
+
+Use the same `transit server` command for every start. A missing or empty
+installation directory is initialized automatically. A valid existing record
+opens the same installation; an interrupted setup resumes its recorded operations
+and receipts. Files, symbolic links, unrecognized directory contents, malformed
+records and incompatible definitions reject without changing their contents.
+Missing storage or configuration checkpoints in an existing installation never
+trigger initialization. Executable fingerprints and authority rollback checks
+still apply.
+
+For a managed deployment that has already been provisioned, configure:
+
+```yaml
+startup:
+  require_existing: true
+```
+
+This refuses a missing or empty installation before creating data or starting
+services, including when a volume is absent or the installation path is wrong.
+It still permits resuming recorded incomplete setup. The equivalent environment
+override is `TRANSIT_STARTUP__REQUIRE_EXISTING=true`. `SHOW startup.require_existing`
+reports the active policy; reloading a changed value reports a pending restart.
+
+Creation holds the installation lock and assembles private files in a sibling
+directory before publishing them. An empty destination is removed with a
+nonrecursive directory operation; if contents appear, creation fails. Use a
+directory inside a mounted volume rather than the mount point itself, and ensure
+its parent is writable. Abandoned `.creating-*` directories are unpublished setup
+files and are never adopted as recovery evidence.
+
+Stderr reports `creating`, `resuming` or `opening` with the installation path.
+With `--diagnostics=json`, this is a JSON object with `event: "server.startup"`,
+`action` and `installation`. It describes the selected startup action, not
+readiness. Stdout retains the ready-record format.
 
 ## Defaults and configuration
 
@@ -59,8 +96,8 @@ Environment values override the selected file and defaults. Names start with
 A single underscore stays part of the field name:
 
 ```sh
-TRANSIT_PORTS__GATEWAY=10000 transit server --initialize
-TRANSIT_BOARD__PORT=10001 transit server --initialize
+TRANSIT_PORTS__GATEWAY=10000 transit server
+TRANSIT_BOARD__PORT=10001 transit server
 ```
 
 These commands illustrate separate new installations; restarts must retain their
@@ -72,7 +109,7 @@ environment iteration order. Lists replace as a unit. Unknown settings and
 invalid types reject; values are never printed. `TRANSIT_CONSOLE_CONFIG` is
 reserved for the console and ignored by the server; `TRANSIT_CONFIG` selects
 the server file and is not interpreted as a setting. Explicit invocation flags
-such as `--no-ui` and `--initialize` remain command-line actions, not YAML settings.
+such as `--no-ui` remain command-line actions, not YAML settings.
 The local profile has no configurable bind host or top-level `port`; its actual
 port fields are under `ports`, `applications` and `board`.
 
@@ -86,9 +123,11 @@ not a general YAML processor. `TRANSIT_` input has a combined 64 KiB limit.
 
 Explicit relative paths resolve against the selected file, or the working
 directory if no file is selected. The default installation always remains
-`./.transit` in the working directory. `--initialize` still deliberately creates
-the installation; an ordinary `transit server` restarts it and never recreates
-missing retained state. Initialization-only settings remain installation identity checks. Mutable settings use the [configuration lifecycle](../../../docs/reference/configuration.md); restart-required changes apply on normal startup.
+`./.transit` in the working directory. A populated installation requires its
+recorded identity and storage; startup never recreates missing retained state.
+Initialization-only settings remain installation identity checks. Mutable settings
+use the [configuration lifecycle](../../../docs/reference/configuration.md);
+restart-required changes apply on normal startup.
 
 A complete YAML configuration can override these defaults:
 
@@ -359,13 +398,13 @@ console or installer signing sequence. Query and operator workspaces remain
 separate opt-in contracts and are not enabled by this server profile.
 
 ```sh
-transit server --config transit.yaml --initialize
+transit server --config transit.yaml
 # After stopping, resume headlessly, then enable Board again:
 transit serve --config transit.yaml --no-ui
 transit serve --config transit.yaml
 ```
 
-For headless first initialization add `--no-ui --initialize`. The installation
+For headless operation add `--no-ui`, including on first startup. The installation
 still pins Board's executable/settings and creates its private seed; first UI
 enablement records principal creation and the built-in source/requester resource
 grants using the retained exact-operation journal. Disabling UI preserves that

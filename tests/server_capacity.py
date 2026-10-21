@@ -30,7 +30,7 @@ def inside(mount, cli, node, host):
     shell = None
     started = time.monotonic()
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         original = fixture.record()
         config = fixture.console_config()

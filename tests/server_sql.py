@@ -123,7 +123,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
     success = False
     print(f'Local SQL proof: {fixture.root}', flush=True)
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         report = fixture.ready()
         assert report['sql'] is None
         assert not (fixture.installation / 'sql').exists()

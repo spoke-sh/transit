@@ -36,11 +36,11 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     diagnostic.field = null;
     try config.preflight(init.io, !options.no_ui, diagnostic);
     diagnostic.atFile(config.installation);
-    if (options.initialize) try Installation.create(init, config, identity);
+    const created = try Installation.prepare(init, config, identity);
     const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
     diagnostic.atFile(record_path);
     const record = Files.read(Installation.Record, init.io, init.arena.allocator(), record_path) catch |err| {
-        return diagnostic.fail(err, "cannot read the retained installation record", "Verify the installation path and restore missing data from its recovery source. Use --initialize only for a deliberately new installation, never to repair missing retained storage.");
+        return diagnostic.fail(err, "cannot read the retained installation record", "This directory contains data and will not be initialized. Verify the installation path and restore missing data from its recovery source.");
     };
     if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
     if (record.complete) {
@@ -62,6 +62,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     }
     if (!std.mem.eql(u8, &record.root_public, &installation.root.public_key.toBytes())) return error.InstallationIdentityMismatch;
     try installation.checkStorage();
+    diagnostic.serverStartup(init.io, if (created) .creating else if (record.complete) .opening else .resuming, config.installation);
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
     var boot: [16]u8 = undefined;

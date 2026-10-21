@@ -185,13 +185,13 @@ def configured_hosts(cli, node, host):
         # Invalid policy fails before initialization creates any runtime state.
         for invalid, error in ((["*:19905"], "exact host:port authorities"), (["localhost:19905"] * 9, "at most eight")):
             fixture.path.write_text(json.dumps(dict(fixture.config, gateway_allowed_hosts=invalid)))
-            fixture.refusal(error, initialize=True)
+            fixture.refusal(error)
             assert not fixture.installation.exists()
         port = fixture.config["ports"]["gateway"]
         tunnel_port = 29905 if port != 29905 else 29906
         fixture.config["gateway_allowed_hosts"] = [f"bank.local.test:{port}", f"localhost:{tunnel_port}"]
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         gateway_hosts(fixture)
         # Only the explicitly selected host/port pair is added by tunnel config.
@@ -289,7 +289,7 @@ def partial_bootstrap(cli, node, host):
     fixture = Fixture(cli, node, host)
     success = False
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         deadline = time.monotonic() + 60
         frozen = None
         while time.monotonic() < deadline:
@@ -305,8 +305,13 @@ def partial_bootstrap(cli, node, host):
             time.sleep(.002)
         assert frozen, "Did not observe a persisted initial provisioning operation"
         fixture.stop(kill=True)
+        # Existing-only accepts a recorded partial bootstrap and preserves its
+        # exact pending operation, rather than requiring completed readiness.
+        fixture.config['startup'] = {'require_existing': True}
+        fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready()
+        assert 'resuming installation' in Path(fixture.logs[-1].name).read_text()
         after = fixture.record()
         assert after["installation"] == before["installation"] and after["root_public"] == before["root_public"]
         for expected, actual in zip(before["provision"], after["provision"]):
@@ -335,7 +340,7 @@ def rollback(cli, node, host):
         shutil.copy2(fixture.config["executables"]["node"], owned_node)
         fixture.config["executables"]["node"] = str(owned_node)
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         fixture.stop()
         old = fixture.record()
@@ -370,6 +375,8 @@ def rollback(cli, node, host):
 
 def run(cli, node, host):
     started = time.monotonic()
+    from server_startup import empty_installation
+    empty_installation(cli, node, host)
     configured_hosts(cli, node, host)
     partial_bootstrap(cli, node, host)
     rollback(cli, node, host)

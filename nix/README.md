@@ -62,7 +62,7 @@ also exposes a JSON executable map
 in `share/transit/local-executables.json` (including `board` and `sql_gateway`); downstream flakes can also use the
 `transit`, `transit-sql-gateway`, `ursula` and `minio` passthru packages to construct explicit server
 configuration. It does not initialize storage or start processes during a build
-or shell entry. Run `transit server --initialize` once, then `transit server` to resume.
+or shell entry. Run `transit server` for both first startup and subsequent starts.
 Optional `transit.yaml` settings overlay the current defaults;
 Board is enabled by default, with `--no-ui` for headless use. Retain the package
 output through a Nix profile or build-link GC root while installations use its

@@ -30,7 +30,7 @@ def run(cli, node, host, board, gateway):
         fixture.stop(kill=True)
         joined(owned)
     try:
-        fixture.start(initialize=True); fixture.ready(); fixture.stop()
+        fixture.start(); fixture.ready(); fixture.stop()
         password = fixture.root / 'owner.password'
         password.write_text('local-sql-isolated-fault-proof'); password.chmod(0o600)
         fixture.config['sql'] = dict(postgres={'port': free_port()}, health_port=free_port(),

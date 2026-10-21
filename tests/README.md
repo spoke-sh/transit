@@ -1,5 +1,49 @@
 # Validation and milestone evidence
 
+## Automatic local server startup
+
+The startup implementation and executable proofs at `d61f2e0d` use one
+`transit server` command for missing/empty installation creation, recorded
+bootstrap recovery and ordinary restart. The [server guide](../apps/transit-cli/docs/server.md#first-startup-and-recovery)
+owns the directory and recovery rules; [M55](../docs/roadmap/M55.md) records scope.
+
+Executed on 2026-10-20 with the pinned development shell:
+
+- `just check` passes, including Zig unit/protocol tests, generated contracts,
+  613 real CLI diagnostic cases, frontend checks and handbook build.
+- `just test::server-faults` passes the core lifecycle in 94.02 seconds and the
+  bootstrap/gateway/rollback schedule in 50.72 seconds. New coverage checks
+  existing-only YAML/environment settings; missing and empty directories;
+  preservation of files, symlinks, unknown contents and malformed records;
+  SQL inspection and restart-pending reload; and empty-directory startup.
+  Interrupted bootstrap resumes the original identity and exact receipt even
+  with `startup.require_existing` enabled. Existing lock, missing-checkpoint,
+  changed-artifact, rollback and missing-storage refusals remain covered.
+- `just test::server-board` passes in 40.24 seconds, including default/headless
+  startup, embedded assets, conflicts, application replacement, revocation and
+  owned process failures.
+- `just test::server-applications` passes in 453.834 seconds: 19 migrated rows,
+  19 row steps, 21 receipts, final ownership generation 9, 52,584,448-byte maximum
+  sampled manager RSS and a 3,060-byte maximum application checkpoint.
+
+Committed-source `just ci-clean --lane core` passes all 28 tasks in
+1989.02 seconds, and `just ci-clean --lane experience` passes all nine tasks in
+1171.57 seconds, both at `d61f2e0d`. Their completed inventories are retained in
+`.cache/ci/clean/d61f2e0de4ca-transit-ci-_78gffwf` and
+`.cache/ci/clean/d61f2e0de4ca-transit-ci-lra_irgl`. The experience lane includes
+real PostgreSQL/MySQL clients with required/optional/disabled TLS, owner bootstrap,
+credential rotation, persistent revocation and exact recovery after reply loss
+and SIGKILL. These two lanes cover 37 ordinary tasks; they are not a full-suite,
+all-language or browser qualification.
+
+The shared definition changes because the persisted settings registry changes.
+Independent signing and storage fixtures, schemas and SDK resources are
+regenerated together. Prior definitions reject without reset; this does not
+qualify history conversion or rolling upgrades. The operator's existing
+installation is untouched; lifecycle tests use disposable data. The final
+follow-up changes only documentation and this evidence record, not the runtime,
+contracts or test code qualified at `d61f2e0d`.
+
 ## Integrated storage foundation
 
 The [matched campaign](mutation_latency/results/2026-10-19/README.md) compares

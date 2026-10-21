@@ -23,12 +23,12 @@ your working directory. Keep that directory to resume the installation.
 
 The local bundle supplies executable paths and default ports. With no
 configuration file, the server uses `./.transit` for private state. Create a
-working directory and deliberately initialize it:
+working directory and start the server; it initializes new state automatically:
 
 ```sh
 mkdir -p .cache/docs-start
 cd .cache/docs-start
-transit server --initialize
+transit server
 ```
 
 Optional `transit.yaml` settings overlay these defaults. Discovery selects the
@@ -91,10 +91,12 @@ configuration and artifacts:
 transit server
 ```
 
-Do not add `--initialize` on restart. After an interrupted write, use `.status`
+After an interrupted write, use `.status`
 and `.resume` to recover the original operation; repeating SQL creates new work.
 Interactive SELECT statements run again against a fresh snapshot.
-If state or an artifact is missing, startup refuses to recreate its history.
+If an existing installation contains missing state or a changed artifact,
+startup refuses to recreate its history. Set `startup.require_existing: true`
+to also refuse a completely missing or empty installation directory.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
 Next, [connect with psql or mysql](../../apps/transit-cli/docs/sql.md) or

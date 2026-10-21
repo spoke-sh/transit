@@ -36,15 +36,14 @@ def defaults(package):
             (tools/name).symlink_to(package/'bin'/name)
         assert not (root/'share/transit/local-executables.json').exists()
         prior = None
-        for variant in ('initialize', 'defaults', 'yaml', 'environment'):
-            initialize = variant == 'initialize'
+        for variant in ('first-start', 'defaults', 'yaml', 'environment'):
             if variant == 'yaml':
                 (root/'transit.yaml').write_text('realm: 1\nports:\n'+''.join(f'  {key}: {value}\n' for key, value in ports.items()))
                 for key in ports: env.pop(f'TRANSIT_PORTS__{key.upper()}')
             if variant == 'environment':
                 env.update(TRANSIT_PORTS='{"gateway":10000}', TRANSIT_PORTS__GATEWAY=str(ports['gateway']))
             with (root/'stderr').open('wb') as log:
-                process = subprocess.Popen([str(cli), 'server', *(['--initialize'] if initialize else [])],
+                process = subprocess.Popen([str(cli), 'server'],
                                            cwd=root, env=env, stdout=subprocess.PIPE, stderr=log)
                 try:
                     deadline = time.monotonic()+120
@@ -91,7 +90,7 @@ def run(package):
     success = False
     try:
         fixture.alias = 'serve'
-        fixture.start(initialize=True)
+        fixture.start()
         report = fixture.ready()
         assert report['board_url'] == fixture.board_url
         assert b'<script' in fixture.get('/')

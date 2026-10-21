@@ -35,11 +35,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -298,7 +298,7 @@ def run(cli, node_binary, host, worker, operator):
         return json.loads(result.stdout)
 
     try:
-        fixture.start(initialize=True)
+        fixture.start()
         fixture.ready()
         activations = set((fixture.installation / 'activations').iterdir())
         (fixture.root / 'unavailable-probe').touch()

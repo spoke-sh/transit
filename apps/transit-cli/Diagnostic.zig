@@ -222,13 +222,14 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
     const advice: ?Advice = switch (err) {
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
         error.InstallationIdentityMismatch => .{ "the configuration or executable differs from the recorded installation", "Restore the recorded configuration and matching executables. Do not initialize or delete the installation to bypass this check." },
-        error.InstallationExists => .{ "this installation is already initialized", "Restart with the same configuration and omit --initialize. Preserve the existing installation directory." },
+        error.ExistingInstallationRequired => .{ "startup requires an existing installation", "startup.require_existing is enabled. Verify the installation path and storage mount; restore the intended installation before starting." },
+        error.InvalidInstallationDirectory => .{ "the installation path must be a directory, not a file or symbolic link", "Select the actual installation directory. Existing paths are never replaced to initialize a server." },
         error.StorageIdentityMismatch => .{ "retained storage does not match the installation's recovery evidence", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
         error.AuthorityRollback => .{ "retained authority is older than the recorded recovery position", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
         error.NoSpaceLeft => .{ "the filesystem has no space for this operation", "Free space outside retained Transit data or expand the filesystem, then recover the same installation or saved operation." },
-        error.RestartBudgetExhausted => .{ "server restart budget exhausted", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
-        error.RoleReadinessTimeout => .{ "a required server role did not become ready in time", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
-        error.ChildExited => .{ "a required server role exited", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
+        error.RestartBudgetExhausted => .{ "server restart budget exhausted", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
+        error.RoleReadinessTimeout => .{ "a required server role did not become ready in time", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
+        error.ChildExited => .{ "a required server role exited", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
         error.ConsoleRecoveryInUse, error.ManagementClientInUse => .{ "another client holds the recovery lock", "Close the other client using this recovery location, then reconnect with the same configuration." },
         error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
         error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
@@ -339,6 +340,37 @@ pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
     writer.interface.flush() catch {};
 }
 
+pub const StartupAction = enum { creating, resuming, opening };
+fn renderStartup(self: Self, writer: *std.Io.Writer, action: StartupAction, installation: []const u8) !void {
+    if (self.format == .json) {
+        try std.json.Stringify.value(.{ .event = "server.startup", .action = @tagName(action), .installation = installation }, .{}, writer);
+    } else {
+        try writer.print("info: {s} installation ", .{@tagName(action)});
+        try std.json.Stringify.value(installation, .{}, writer);
+    }
+    try writer.writeByte('\n');
+}
+/// Progress stays on stderr; stdout remains the existing ready-record stream.
+pub fn serverStartup(self: Self, io: std.Io, action: StartupAction, installation: []const u8) void {
+    var buffer: [4096]u8 = undefined;
+    var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
+    self.renderStartup(&writer.interface, action, installation) catch return;
+    writer.interface.flush() catch {};
+}
+
+test "startup notices distinguish creation recovery and opening without touching result output" {
+    for ([_]StartupAction{ .creating, .resuming, .opening }) |action| {
+        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        defer out.deinit();
+        try (Self{ .format = .json }).renderStartup(&out.writer, action, "/tmp/installation");
+        const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, out.written(), .{});
+        defer parsed.deinit();
+        try std.testing.expectEqualStrings("server.startup", parsed.value.object.get("event").?.string);
+        try std.testing.expectEqualStrings(@tagName(action), parsed.value.object.get("action").?.string);
+        try std.testing.expectEqualStrings("/tmp/installation", parsed.value.object.get("installation").?.string);
+    }
+}
+
 test "unknown failures retain identifiers and recovery advice retains exact identity" {
     const cases = .{
         .{ Self{ .command = "transit server", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
@@ -347,7 +379,7 @@ test "unknown failures retain identifiers and recovery advice retains exact iden
         .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", ".status", ".resume" } },
         .{ Self{ .command = "transit console" }, error.InteractiveQueryCancelled, &.{ "query cancelled", "fresh snapshot" } },
         // Exhaustion must replace a transient retry message and retain the cause.
-        .{ Self{ .summary = "server role failed; retrying the same installation", .next = "Wait for readiness.", .cause = error.ChildExited, .role = "courier" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "child process exited", "role courier", "without --initialize" } },
+        .{ Self{ .summary = "server role failed; retrying the same installation", .next = "Wait for readiness.", .cause = error.ChildExited, .role = "courier" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "child process exited", "role courier", "same configuration" } },
         .{ Self{ .cause = error.AddressInUse, .port = 8080, .field = "ports.gateway" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "address already in use", "ports.gateway", "listener 127.0.0.1:8080" } },
     };
     inline for (cases) |case| {
