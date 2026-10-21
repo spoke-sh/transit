@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import time
@@ -15,7 +16,7 @@ import mysql.connector
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
@@ -27,6 +28,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
         node_config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=store.url, bucket='sql-wire-gateway', journal='authority', port=native_port, resident_pages=8, request_timeout_ms=30000,request_metrics=True)))
         processes, logs = [], []
         probe = None
+        session_faults = None
         def start(binary, config, *before):
             log = (root / f'process-{len(logs)}.log').open('w+')
             logs.append(log)
@@ -63,9 +65,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice == 'sessions':
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
-                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text())
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv') else []
+                if session_faults is not None:
+                    configuration['native_url'] = session_faults.url
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
@@ -93,11 +97,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
 
             call(catalog, 'host')
-            if slice == 'sessions':
-                call(ledger, 'session-sources')
-                for source in ('kv', 'document'):
-                    for role in ('source', 'requester', 'courier'):
-                        start(host, root/f'session-{source}-{role}.json')
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+                from sql_sessions.faults import Faults
+                session_faults = Faults(url)
+            if slice in ('sessions', 'sessions-kv'):
+                call(ledger, 'session-sources', *(['kv'] if slice == 'sessions-kv' else []))
             configure()
             certificate()
             start(host, root/'host.json')
@@ -119,14 +123,33 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from clients import run as clients, run_cli, connection_options as client_options
-            if slice == 'sessions':
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
                 from sql_sessions.native import run as sessions
-                def restart_sessions(peer=False):
+                source_processes = {}
+                def select_source(name):
+                    # Run the selected owner/requester pair within the node's
+                    # four wait lanes. Pausing the other pairs also exercises
+                    # recovery while independent durable work cannot advance.
+                    for source, group in source_processes.items():
+                        for child in group:
+                            assert child.poll() is None
+                            child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
+                    if name is not None and name not in source_processes:
+                        source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
+                def restart_sessions(peer=False, wire=True, idle_ms=None):
                     nonlocal server
                     server.kill()
                     server.wait(timeout=10)
                     call(ledger, 'fence')
                     configure()
+                    if idle_ms is not None:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['limits']['idle_ms'] = idle_ms
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
+                    if not wire:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['postgres_port'] = configuration['mysql_port'] = None
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
                     if peer:
                         configuration = json.loads((root/'sql-gateway.json').read_text())
                         configuration['native']['socket'] = str(root/'native.sock')
@@ -155,7 +178,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                         except (ConnectionRefusedError, FileNotFoundError):
                             assert server.poll() is None and time.monotonic() < deadline
                             time.sleep(.02)
-                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()))
+                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, () if slice == 'sessions-basic' else (('kv', 41),) if slice == 'sessions-kv' else None, session_faults, lambda: server.pid)
                 return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
@@ -302,6 +325,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 child.wait(timeout=10)
             if probe:
                 probe.close()
+            if session_faults is not None:
+                session_faults.close()
             if sys.exc_info()[0]:
                 for log in logs:
                     log.flush()

@@ -489,7 +489,7 @@ console-history:
     zig build test-console-history
 
 # Real native-session console, independent HTTPS/SCRAM and captured recovery.
-# All configured sources run together to verify independent account source lanes.
+# Configured source owners are scheduled within the fixture's native wait budget.
 console:
     just test::sql-sessions
 

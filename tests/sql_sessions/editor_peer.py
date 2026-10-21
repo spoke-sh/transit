@@ -9,7 +9,7 @@ import threading
 
 @contextmanager
 def peer(*, structured=False):
-    definition = re.search(r'@"([a-f0-9]{64})"', (Path(__file__).resolve().parents[2]/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
+    definition = re.search(r'\b([a-f0-9]{64})\b', (Path(__file__).resolve().parents[2]/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     actions = []
     diagnostic = dict(version=1, definition=definition, code='sql.unknown_column', category='binding', stage='bind', outcome='not_submitted', evidence='local_before_dispatch', message='Unknown column in this scope', cause='UnknownColumn', identity=None,
                       location=dict(source=None, source_encoding='utf8', source_truncated=False, statement=None, offset='7', length='0', line='1', byte_column='8'),

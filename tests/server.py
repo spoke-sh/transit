@@ -318,7 +318,8 @@ def run(cli, node, host):
         os.kill(source_pid, signal.SIGSTOP)
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
                                     'INSERT INTO items (id, value) VALUES (3, 300)'],
-                                   cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                   cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env={'PATH': '/unavailable', 'LANG': 'C'})
         try:
             deadline = time.monotonic() + 20
             while True:
@@ -360,6 +361,11 @@ def run(cli, node, host):
         observed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
         assert observed['identity'] == saved_write['identity']
         resumed = fixture.console(f'.resume table:{operation}\n')[-1]['operation']
+        deadline = time.monotonic() + 90
+        while resumed['phase'] != 'terminal':
+            assert resumed['identity'] == saved_write['identity'] and time.monotonic() < deadline, resumed
+            time.sleep(.1)
+            resumed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
         assert resumed['phase'] == 'terminal' and resumed['outcome'] == 'applied' and resumed['matched'] == resumed['changed'] == 1, resumed
         assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
         fixture.stop(kill=True)

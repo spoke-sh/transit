@@ -196,7 +196,7 @@ pub fn main(init: std.process.Init) !void {
         var admin: Admin = .{ .wire = &wire, .key = try support.key(7) };
         admin.sequence = (try admin.query(.capabilities)).principal_sequence;
         const role = try authorization.loginRole(c, &wire, 46, config.table_principal, try tableKey(config));
-        try @import("sql_session_sources.zig").provision(init, &wire, &admin, directory, role, config.binding.role);
+        try @import("sql_session_sources.zig").provision(init, &wire, &admin, directory, role, config.binding.role, args.len > 4 and std.mem.eql(u8, args[4], "kv"));
         return support.print(init, .{ .sources = true });
     }
     if (std.mem.eql(u8, mode, "app-config")) {
