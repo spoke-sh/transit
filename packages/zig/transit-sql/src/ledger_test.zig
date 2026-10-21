@@ -10,6 +10,39 @@ fn intent(id: u64) !c.TableIntent {
     const request: c.TableDdlRequest = .{ .principal = configuration.table_principal, .namespace = binding.namespace, .operation = id, .object = id, .expected_revision = 0, .name = try c.TableMetadata.Name.init("people"), .action = .{ .create = .{ .schema = schema } } };
     return c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(.{ .realm = 1, .resource = binding.resource, .catalog = binding.catalog }, binding.owner, request, null), id);
 }
+test "ledger DDL bindings retain drop targets and delegated alteration outcomes" {
+    const scope: c.TableMetadata.Scope = .{ .realm = 1, .resource = 8, .catalog = 1 };
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    const name = try c.TableMetadata.Name.init("people");
+    var schema_buffer: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+    const basis: c.TableMetadata.Record = .{ .scope = scope, .object = 7, .revision = 1, .name = name, .schema = .{ .id = 1, .spec = try g.station.Publication.Digest.of(g.station.TablePages.schema_format, try schema.encode(&schema_buffer)) }, .schema_fingerprint = try schema.fingerprint(), .principal = 6, .operation = 1, .admitted_input = 2 };
+    const actions: []const @FieldType(c.TableDdlRequest, "action") = &.{ .{ .drop = .{} }, .{ .drop = .{ .if_exists = true } }, .{ .rename = try c.TableMetadata.Name.init("contacts") }, .{ .alter = .{ .schema = schema, .change = .{ .rename = .{ .column = 1, .name = "identifier" } } } } };
+    for (actions, 0..) |action, index| {
+        const missing = index == 1;
+        const request: c.TableDdlRequest = .{ .principal = 6, .operation = 20, .object = if (missing) 0 else 7, .expected_revision = if (missing) 0 else 1, .name = name, .action = action };
+        var saved = try c.TableIntent.create(t.allocator, try c.TableCommand.fromDdl(scope, 9, request, if (missing) null else basis), 20);
+        defer saved.deinit();
+        const encoded = try g.LedgerRecords.encode(try g.LedgerRecords.IntentBinding.from(&saved));
+        const bound = try (try g.LedgerRecords.decode(g.LedgerRecords.IntentBinding, encoded)).binding(20);
+        try t.expectEqualDeep(saved.header, bound.header);
+        try t.expectEqualDeep(saved.identity, bound.identity);
+        const altering = action == .alter;
+        const operation: c.TableCatalogRecords.Operation = .{ .scope = scope, .principal = 6, .operation = 20, .object = request.object, .actual_object = request.object, .digest = saved.identity.ddl.digest, .kind = action, .state = if (altering) .delegated else if (missing) .unchanged else .applied, .metadata = if (missing) c.TableCatalogRecords.empty_reference else .{ .id = 1, .spec = try basis.spec() }, .table_digest = if (altering) @splat(9) else @splat(0), .admitted_input = 21, .completed_input = if (altering) 0 else 22 };
+        var outcome: c.TableClient.Outcome = .{ .ddl = .{ .operation = operation, .table = if (altering) .{ .reference = try operation.tableReference(), .admitted_input = 21, .completed_input = 22, .basis_revision = 1, .first_record = 1, .end_record = 1, .route = .alter, .state = .applied } else null } };
+        var terminal = try g.Terminal.fromOutcome(outcome);
+        try terminal.matches(bound);
+        try t.expectEqualDeep(terminal, try g.LedgerRecords.decode(g.Terminal, try g.LedgerRecords.encode(terminal)));
+        if (altering) {
+            outcome.ddl.table.?.state = .rejected;
+            outcome.ddl.table.?.rejection = .null_not_allowed;
+            terminal = try g.Terminal.fromOutcome(outcome);
+            try terminal.matches(bound);
+            try t.expectEqual(.rejected, terminal.summary());
+            outcome.ddl.table.?.reference.digest[0] ^= 1;
+            try t.expectError(error.InvalidGatewayTerminal, g.Terminal.fromOutcome(outcome));
+        }
+    }
+}
 test "ledger reserves identity and capacity before staged intent; only committed intent is admitted" {
     var store: Store = .{};
     defer store.deinit();

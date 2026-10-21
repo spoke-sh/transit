@@ -317,6 +317,12 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
+    // Failed acquisition owns its cleanup and has not advanced an iterator or
+    // disclosed a cursor. Transient admission pressure may retry this boundary;
+    // nextBatch never reopens a snapshot or repeats a partially consumed read.
+    return self.fresh(Self.acquireRead, .{ self, prepared, values });
+}
+fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     try self.validate(prepared);
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
@@ -420,7 +426,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     6, 7 => .{ "22003".*, "Value is out of range or inexact" },
                     else => .{ "23000".*, "Table mutation rejected; inspect its recorded outcome" },
                 },
-                .ddl => switch (terminal.reason) {
+                .ddl => if (terminal.route == 3) .{ "23000".*, "Schema change rejected; inspect its recorded Table outcome" } else switch (terminal.reason) {
                     1 => .{ "42P07".*, "Table name already exists" },
                     3 => .{ "42P01".*, "Table does not exist" },
                     else => .{ "55000".*, "Table identity or schema changed" },

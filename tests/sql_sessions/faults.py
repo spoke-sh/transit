@@ -10,6 +10,7 @@ class Faults:
     def __init__(self, url):
         target = urlsplit(url)
         self.fail_open = False
+        self.fail_once = False
         self.failures = 0
         self.requests = 0
         self.response_bytes = 0
@@ -22,7 +23,8 @@ class Faults:
             def do_POST(self):
                 content = self.rfile.read(int(self.headers['Content-Length']))
                 query = json.loads(content).get('query', {}).get('kind', {})
-                if owner.fail_open and 'open' in query.get('snapshot_read', {}).get('snapshot', {}):
+                if (owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {}):
+                    owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'
                     content_type = 'application/json'
@@ -60,6 +62,11 @@ class Faults:
         self.thread.start()
 
     def check(self, client):
+        before = self.failures
+        self.fail_once = True
+        result = client.execute('SELECT id FROM native_sessions')['batch']
+        assert self.failures == before + 1 and result['rows']
+        client.call(dict(close_result=result['cursor']))
         self.fail_open = True
         try:
             client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')

@@ -413,6 +413,12 @@ def run(cli, node, host):
             assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
         # The initialized default is a real catalog object. Startup must not
         # manufacture it again after an intentional DROP/name reuse.
+        fixture.console('CREATE TABLE ddl_probe (id INT64);\n')
+        fixture.console('ALTER TABLE ddl_probe ADD COLUMN active BOOLEAN DEFAULT TRUE;\n')
+        fixture.console('ALTER TABLE ddl_probe RENAME TO ddl_renamed;\n')
+        assert [column['name'] for column in records(fixture.console('DESCRIBE ddl_renamed;\n')[-1])] == ['id', 'active']
+        fixture.console('DROP TABLE ddl_renamed;\n')
+        fixture.console('DROP TABLE IF EXISTS ddl_renamed;\n')
         fixture.console('DROP TABLE items;\n')
         fixture.stop()
         fixture.start()

@@ -349,7 +349,7 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
 | GSB1 | Original Table command header fields with nested TCQ1 magic/definition omitted, body offset/length, command/domain digests and DML route; exactly 222 bytes including the checked GSB1 definition prefix |
 | GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
-| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
+| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual DDL object and Table route |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
 
 Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
@@ -373,6 +373,14 @@ precedes dispatch; a native receipt precedes sequence advancement; processed
 input and SQL terminal facts remain distinct records. Current rights are required
 again before disclosing cached outcome facts. Operator controls and private
 coordinator observations have distinct native principals.
+
+DDL bindings cover CREATE, ALTER, rename and DROP. A missing-object
+`DROP IF EXISTS` retains object zero and the catalog's unchanged outcome.
+GST1 DDL route zero carries catalog reasons; route three carries a delegated
+ALTER's Table rejection reason and completion input. The latter retains the
+original catalog digest, checks the Table reference against its recorded
+delegation, and has zero row counts. Neither admission nor catalog delegation
+alone is terminal evidence.
 
 Configuration supports 1–8 frozen catalogs per account, a dedicated private
 ledger resource and five distinct nonzero worker/ingress/operator/coordinator/

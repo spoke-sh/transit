@@ -197,7 +197,7 @@ pub const IntentBinding = struct {
     pub fn validate(self: IntentBinding) !void {
         const h = try self.commandHeader();
         if (self.body_offset < g.catalog.TableIntent.prefix_bytes or self.body_length <= g.catalog.TableCommand.header_bytes or self.body_length > g.catalog.TableCommand.max_bytes or @as(u64, self.body_offset) + self.body_length > g.catalog.TableIntent.max_bytes) return error.InvalidGatewayIntent;
-        if (h.kind == .create) {
+        if (h.kind == .create or h.kind == .alter or h.kind == .rename or h.kind == .drop) {
             if (self.route != 0) return error.InvalidGatewayIntent;
         } else if ((h.kind != .insert and h.kind != .update and h.kind != .delete) or (self.route != 1 and self.route != 2)) return error.InvalidGatewayIntent;
     }

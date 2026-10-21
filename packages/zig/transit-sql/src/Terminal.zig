@@ -21,7 +21,7 @@ changed: u64 = 0,
 actual_object: u64 = 0,
 route: u8 = 0,
 pub fn validate(self: Self) !void {
-    if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or self.object == 0 or self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter or self.changed > self.matched) return error.InvalidGatewayTerminal;
+    if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or self.admitted_input == 0 or self.admitted_input > p.max_counter or self.completed_input > p.max_counter or self.changed > self.matched) return error.InvalidGatewayTerminal;
     if (self.kind == .upload) {
         if (self.state != .upload_cancelled or self.completed_input != 0 or self.reason != 0 or self.matched != 0 or self.changed != 0 or self.actual_object != 0 or self.route != 0) return error.InvalidGatewayTerminal;
         return;
@@ -29,10 +29,10 @@ pub fn validate(self: Self) !void {
     if (self.completed_input < self.admitted_input or (self.state == .rejected) != (self.reason != 0) or (self.state != .applied and (self.matched != 0 or self.changed != 0))) return error.InvalidGatewayTerminal;
     switch (self.kind) {
         .ddl => {
-            if (self.state == .upload_cancelled or self.route != 0 or self.matched != 0 or self.changed != 0 or self.reason > 5 or (self.state == .applied and self.actual_object != self.object)) return error.InvalidGatewayTerminal;
+            if (self.state == .upload_cancelled or (self.route != 0 and self.route != 3) or self.matched != 0 or self.changed != 0 or self.reason > @as(u8, if (self.route == 3) 7 else 5) or (self.state == .applied and (self.object == 0 or self.actual_object != self.object)) or (self.route == 3 and (self.object == 0 or self.state == .unchanged))) return error.InvalidGatewayTerminal;
         },
         .dml => {
-            if (self.state == .unchanged or self.state == .upload_cancelled or self.route < 1 or self.route > 2 or self.reason > 7 or self.actual_object != 0 or (self.route == 1 and self.matched > 1)) return error.InvalidGatewayTerminal;
+            if (self.object == 0 or self.state == .unchanged or self.state == .upload_cancelled or self.route < 1 or self.route > 2 or self.reason > 7 or self.actual_object != 0 or (self.route == 1 and self.matched > 1)) return error.InvalidGatewayTerminal;
         },
         .upload => unreachable,
     }
@@ -43,7 +43,16 @@ pub fn fromOutcome(outcome: c.TableClient.Outcome) !Self {
         .ddl => |v| blk: {
             const value = v.operation;
             try value.validate();
-            if (v.table != null or value.kind != .create) return error.UnsupportedGatewayWrite;
+            if (v.table) |table| {
+                try table.validate();
+                if (value.state != .delegated or table.route != .alter or !std.meta.eql(table.reference, try value.tableReference()) or table.admitted_input < value.admitted_input) return error.InvalidGatewayTerminal;
+                break :blk .{ .kind = .ddl, .identity = value.digest, .resource = value.scope.resource, .principal = value.principal, .operation = value.operation, .object = value.object, .admitted_input = value.admitted_input, .completed_input = table.completed_input, .state = switch (table.state) {
+                    .applied => .applied,
+                    .rejected => .rejected,
+                    .cancelled => .cancelled,
+                    .building => return error.GatewayOperationNotTerminal,
+                }, .reason = @backingInt(table.rejection), .actual_object = value.actual_object, .route = 3 };
+            }
             break :blk .{ .kind = .ddl, .identity = value.digest, .resource = value.scope.resource, .principal = value.principal, .operation = value.operation, .object = value.object, .admitted_input = value.admitted_input, .completed_input = value.completed_input, .state = switch (value.state) {
                 .applied => .applied,
                 .unchanged => .unchanged,
@@ -76,6 +85,7 @@ pub fn fromUpload(value: c.TableUpload.Status) !Self {
 pub fn matches(self: Self, binding: c.TableIntent.Binding) !void {
     try self.validate();
     const h = binding.header;
+    if ((self.object == 0 and h.kind != .drop) or (self.kind == .ddl and self.route == 3 and h.kind != .alter)) return error.GatewayIdentityConflict;
     if (self.operation != h.operation or self.principal != h.principal or self.resource != h.scope.resource or self.object != h.object or self.admitted_input <= self.operation) return error.GatewayIdentityConflict;
     const digest = switch (self.kind) {
         .ddl => if (binding.identity == .ddl) binding.identity.ddl.digest else return error.GatewayIdentityConflict,

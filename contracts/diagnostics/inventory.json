@@ -18080,6 +18080,7 @@
       "error_returns": {
         "Read.basis()": "<inferred>",
         "Read.nextBatch()": "<inferred>",
+        "acquireRead()": "<inferred>",
         "begin()": "<inferred>",
         "bind()": "<inferred>",
         "current()": "<inferred>",
@@ -18310,10 +18311,9 @@
     },
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
-        "GatewayIdentityConflict": 5,
-        "GatewayOperationNotTerminal": 4,
-        "InvalidGatewayTerminal": 5,
-        "UnsupportedGatewayWrite": 1
+        "GatewayIdentityConflict": 6,
+        "GatewayOperationNotTerminal": 5,
+        "InvalidGatewayTerminal": 6
       },
       "outcomes": {
         "kind": [
@@ -18338,7 +18338,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 8,
         "catch": 0
       },
       "imports": [

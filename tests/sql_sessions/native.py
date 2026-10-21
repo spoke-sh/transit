@@ -173,11 +173,27 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     second.call(dict(cancel=dict(operation=reload['identity'])), error='ConfigurationCancellationUnsupported')
     captured = []
     for name, count in ((('kv', 41), ('document', 12), ('table', 9)) if sources is None else sources):
+        print(json.dumps(dict(profile='native_sql_source', source=name, phase='interactive')), flush=True)
         select_source(name)
         selected = Client(root, port).open(name)
         context = selected.call('context')['context']
         assert {source['name'] for source in context['sources']} == ({'kv', 'document', 'table'} if sources is None else {name for name, _ in sources})
-        batch = selected.execute('SELECT count(*) FROM items')['batch']
+        # This fixture deliberately leaves other captured owners paused. Native
+        # capacity may refuse a new read; a fresh SELECT is explicit and safe
+        # only before any rows have been disclosed. Never retry a mutation or
+        # splice this attempt into an earlier cursor.
+        deadline = time.monotonic() + 60
+        refusals = 0
+        while True:
+            reply = selected.call(dict(execute=dict(sql='SELECT count(*) FROM items')), unavailable=True)
+            if reply is not None:
+                batch = reply['batch']
+                break
+            refusals += 1
+            assert time.monotonic() < deadline, (name, refusals)
+            time.sleep(.25)
+        if refusals:
+            print(json.dumps(dict(profile='native_sql_source_capacity', source=name, refused_reads=refusals)), flush=True)
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
         assert batch['basis']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
