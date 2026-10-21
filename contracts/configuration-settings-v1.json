@@ -50,6 +50,47 @@
       "items_schema": null
     },
     {
+      "name": "logging.format",
+      "description": "Operational log rendering on stderr",
+      "owner": "server",
+      "kind": "enumeration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "\"text\"",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [
+        "text",
+        "json"
+      ],
+      "items_schema": null
+    },
+    {
+      "name": "logging.level",
+      "description": "Minimum operational log severity",
+      "owner": "server",
+      "kind": "enumeration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "\"info\"",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [
+        "debug",
+        "info",
+        "warn",
+        "error",
+        "off"
+      ],
+      "items_schema": null
+    },
+    {
       "name": "realm",
       "description": "Native security realm",
       "owner": "node",
@@ -995,6 +1036,37 @@
             "x-transit-owner": "server",
             "x-transit-change": "restart",
             "default": false
+          }
+        }
+      },
+      "logging": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json"
+            ],
+            "description": "Operational log rendering on stderr",
+            "x-transit-owner": "server",
+            "x-transit-change": "restart",
+            "default": "text"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error",
+              "off"
+            ],
+            "description": "Minimum operational log severity",
+            "x-transit-owner": "server",
+            "x-transit-change": "restart",
+            "default": "info"
           }
         }
       },

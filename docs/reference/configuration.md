@@ -65,6 +65,12 @@ gateway_allowed_hosts:
   - transit.example:443
 ```
 
+`logging.format` defaults to `text`; `json` selects structured operational logs.
+`logging.level` defaults to `info` and accepts `debug`, `info`, `warn`, `error`
+and `off`. `TRANSIT_LOGGING__FORMAT=json` selects JSON through the same override
+rules. Both settings require restart, including for supervised Transit children.
+See [observability](observability.md) for stderr, terminal and machine output.
+
 The `sql.postgres` and `sql.mysql` objects are independently nullable and default
 to null. A configured object selects its loopback listener; its `port` defaults
 to 15432 or 13306 respectively. `TRANSIT_SQL__POSTGRES__PORT=15432` selects the

@@ -255,6 +255,16 @@ wildcards and malformed or duplicate Host headers reject. Matching never resolve
 DNS and never treats arbitrary loopback-resolving names as trusted. This policy
 does not change the listener's bind address, Origin/identity-header checks or
 native authorization. It is covered by the installation's configuration identity.
+Operational server events use the shared telemetry-v1 envelope with
+`logging.format` (`text` by default or `json`) and `logging.level` (`info` by
+default). These settings require restart and follow the conventional
+`TRANSIT_LOGGING__FORMAT` / `TRANSIT_LOGGING__LEVEL` overrides. They configure
+stderr independently of command diagnostics selected with `--diagnostics=json`.
+TTY stdout does not receive readiness JSON; readable readiness and endpoint
+events appear on stderr. Non-TTY stdout retains one JSON readiness record per
+successful startup/recovery cycle, even when logging is off. SQL readiness is
+reported separately and does not weaken the existing core/Board readiness gates.
+
 The ready JSON record includes `gateway_url` and the effective `allowed_hosts`
 alongside the installation path, after the complete neighborhood reaches readiness.
 

@@ -6,14 +6,8 @@ const telemetry = @import("transit_client").observability.telemetry;
 pub const std_options: std.Options = .{ .log_level = .err };
 
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-client-host", try telemetry.Config.environment(init.environ_map));
-    diagnostics.sink = .stderr();
-    diagnostics.start();
-    defer diagnostics.stop();
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .error_type = @errorName(err), .outcome = .failed });
-        return err;
-    };
+    const status = telemetry.runService(init, "transit-client-host", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

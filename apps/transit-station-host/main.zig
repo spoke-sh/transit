@@ -9,16 +9,8 @@ const telemetry = s.client.observability.telemetry;
 pub const std_options: std.Options = .{ .log_level = .err };
 
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-station-host", try telemetry.Config.environment(init.environ_map));
-    diagnostics.sink = .stderr();
-    diagnostics.start();
-    defer diagnostics.stop();
-    diagnostics.event(.{ .name = "service.starting", .level = .info });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .error_type = @errorName(err), .outcome = .failed });
-        return err;
-    };
-    diagnostics.event(.{ .name = "service.stopped", .level = .info });
+    const status = telemetry.runService(init, "transit-station-host", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 const readSeed = raw.host.readSeed;
 const respond = raw.host.respond;

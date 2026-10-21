@@ -452,10 +452,8 @@ fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void 
     }
 }
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-sql-gateway", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    try run(init, &diagnostics);
+    const status = telemetry.runService(init, "transit-sql-gateway", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -465,7 +463,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             "transit-sql-gateway control CONTROL.json list|status|pending|prepare|submit|credential [arguments]\n" ++
             "Database access and signed account recovery; see the configuration guide.\n");
     }
-    if (args.len >= 2 and std.mem.eql(u8, args[1], "control")) return Control.run(init, args[2..]);
+    if (args.len >= 2 and std.mem.eql(u8, args[1], "control")) return Control.run(init, args[2..], diagnostics);
     const stop = try Stop.init();
     defer stop.deinit();
     const initialize = args.len == 3 and std.mem.eql(u8, args[1], "--initialize");

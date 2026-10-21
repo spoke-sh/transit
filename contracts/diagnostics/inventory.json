@@ -137,8 +137,8 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 54,
-        "catch": 47
+        "try": 53,
+        "catch": 46
       },
       "imports": [
         "Growing.zig",
@@ -548,7 +548,7 @@
         "NoSpaceLeft": 2,
         "NotDir": 1,
         "RecoveryIdentityMismatch": 1,
-        "RestartBudgetExhausted": 4,
+        "RestartBudgetExhausted": 5,
         "RoleReadinessTimeout": 2,
         "StorageIdentityMismatch": 1,
         "StreamTooLong": 1,
@@ -557,11 +557,6 @@
         "UnknownField": 1
       },
       "outcomes": {
-        "StartupAction": [
-          "creating",
-          "resuming",
-          "opening"
-        ],
         "format": [
           "human",
           "json"
@@ -589,13 +584,12 @@
         "readJson()": "<inferred>",
         "render()": "<inferred>",
         "renderFailure()": "<inferred>",
-        "renderStartup()": "<inferred>",
         "structured()": "<inferred>"
       },
-      "open_error_set_uses": 16,
+      "open_error_set_uses": 19,
       "propagation": {
-        "try": 64,
-        "catch": 9
+        "try": 60,
+        "catch": 7
       },
       "imports": [
         "EnvelopeDiagnostic.zig",
@@ -1773,6 +1767,7 @@
         "../Settings.zig",
         "Files.zig",
         "Hosts.zig",
+        "Logging.zig",
         "SettingsSchema.zig",
         "SqlSettings.zig",
         "builtin",
@@ -1876,7 +1871,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 7
       },
       "imports": [
@@ -1976,6 +1971,29 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/Logging.zig": {
+      "errors": {},
+      "outcomes": {
+        "level": [
+          "debug",
+          "info",
+          "warn",
+          "@\"error\"",
+          "off"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Process.zig",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/server/Process.zig": {
       "errors": {
         "ChildExited": 2,
@@ -2041,6 +2059,7 @@
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
         "InvalidBoardResponse": 2,
+        "InvalidChildEnvironment": 1,
         "InvalidCredentialFile": 1,
         "InvalidRegistration": 1,
         "NoSpaceLeft": 1,
@@ -2075,13 +2094,14 @@
         "ready()": "<inferred>",
         "run()": "<inferred>",
         "start()": "<inferred>",
+        "supervise()": "<inferred>",
         "tableReady()": "<inferred>",
         "worker()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
         "try": 103,
-        "catch": 6
+        "catch": 8
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2160,7 +2180,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 97,
+        "try": 96,
         "catch": 4
       },
       "imports": [
@@ -2331,8 +2351,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
-        "catch": 1
+        "try": 14,
+        "catch": 0
       },
       "imports": [
         "std",
@@ -2534,7 +2554,7 @@
       },
       "open_error_set_uses": 19,
       "propagation": {
-        "try": 157,
+        "try": 155,
         "catch": 17
       },
       "imports": [
@@ -2615,8 +2635,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 114,
-        "catch": 14
+        "try": 113,
+        "catch": 13
       },
       "imports": [
         "std",
@@ -2641,8 +2661,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
-        "catch": 4
+        "try": 34,
+        "catch": 3
       },
       "imports": [
         "client_abi",
@@ -2722,8 +2742,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 115,
-        "catch": 16
+        "try": 114,
+        "catch": 15
       },
       "imports": [
         "std",

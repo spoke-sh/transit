@@ -1,5 +1,41 @@
 # Validation and milestone evidence
 
+## Unified service logging
+
+The [observability reference](../docs/reference/observability.md) owns text/JSON
+formats, configuration and stdout separation; the
+[Internals account](../docs/internals/storage-runtime.md#presenting-observations-consistently)
+explains the queue, supervision and readiness boundaries.
+
+Executed during the logging change on Linux with the pinned Zig development shell:
+
+- `just test::telemetry`: both text and JSON complete 10,000 operations with
+  drained, stalled and closed stderr and logging off, pinned to one CPU. All
+  eight cases exit within the four-second test bound; observed wall times are
+  0.12–0.42 seconds. These are single-run observations, not latency targets.
+- `just test::server-logging`: four standalone executables pass 24 format/level
+  failure cases. A real PTY defaults to text, a pipe retains readiness JSON,
+  SQL `SHOW` reports environment overrides, a killed SQL process reports a failed
+  error event and recovers, and logging off preserves the readiness receipt.
+  Current child launch files carry the selected logging policy.
+- `just test::observability`: real Board/client/node spans preserve parentage,
+  native receipt semantics, revoked reads and exclusion of private markers.
+- `zig build test-cli-lifecycle test-cli-diagnostics`: local process/unit tests
+  and 555 real command failures retain error coordinates, privacy, recovery
+  advice and uncontaminated stdout.
+
+The first clean experience-lane run passed nine tasks and exposed a launcher
+read-retry regression in its final Station task: the helper still matched Zig's
+old error-text suffix. The launcher now requests structured terminal error events.
+`tests/reference_launcher_state.py` checks exact-read retry, fixed JSON settings
+and rejection of malformed, denied, unknown or nonterminal classifications.
+
+`just test::server-logging` exercises real standalone failures, terminal output,
+piped readiness, logging-off receipts, YAML/environment precedence, SQL `SHOW`,
+supervised child environments and SQL service failure/recovery. It belongs to
+the experience lane. The fixture uses separate disk-backed installations and
+joins its children; it never starts or modifies the operator's installation.
+
 ## Shared server-managed SQL sessions
 
 The native console, PostgreSQL and MySQL adapters share the SQL service's

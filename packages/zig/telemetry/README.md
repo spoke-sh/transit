@@ -11,7 +11,12 @@ short spans, metric instruments and context. See the
 An executable owns a `Runtime`, initializes it with its service name, I/O and
 `Config`, then calls `start()` after placing it at its final address. Stop all
 instrumented operations before `stop()` and releasing the runtime. There are no
-global collectors or import-time threads. Libraries borrow an optional runtime;
+global collectors or import-time threads. Standalone executables can use
+`runService(init, name, lifecycle_level, body)`, which owns this lifetime,
+reports one terminal failure and returns an exit status after flushing. The
+executable exits with that status instead of returning the same error to Zig's
+unhandled-error renderer. Invalid logging configuration emits only its stable
+error name using a valid selected format or the default text format. Libraries borrow an optional runtime;
 `begin(null, ...)` is a no-op span. A failed writer never fails service startup.
 
 `Config.environment(init.environ_map)` reads only:
@@ -23,8 +28,10 @@ global collectors or import-time threads. Libraries borrow an optional runtime;
 
 Invalid values fail configuration without printing the supplied value. Executables
 read these once at startup. Environment changes require restart. Logs go to
-stderr; stdout remains owned by each application's machine interface. Text adds
-a readable service/severity/event prefix to the same JSON record. Filtering and
+stderr; stdout remains owned by each application's machine interface. Text renders a UTC timestamp, severity, service, stable event name, optional
+message and named fields without a JSON envelope. JSON emits one complete
+structured record per line. Both escape control characters and retain the same
+record and queue bounds. Filtering and
 log loss do not filter metric instruments. `off` starts no writer.
 
 ## Record schema v1 and spans
@@ -35,8 +42,10 @@ Operation records have `schema_version: 1`, `service_name`, a random per-start
 and an `event` object. Absent optional fields are omitted. Fields are described
 by [Event](src/root.zig); they include a stable name/operation, level/outcome,
 route template/method/status, local response-write outcome, and optional verified
-protocol identity/position. Only fixed vocabulary and compiler error names may
-enter string fields; opaque data, keys, URLs and query strings never do.
+protocol identity/position. Messages use reviewed vocabulary. Optional hints, operator locations and
+connection endpoints may contain nonsecret configuration references. Arbitrary
+configuration, opaque data, credentials, payloads and query strings never enter
+records.
 
 `Runtime.begin(scope, parent)` creates a distinct operation; `Span.finish(event)`
 records its completion once and owns a formatted copy of the event. Call finish
@@ -101,8 +110,9 @@ does not authorize mailbox loss, retries, or different protocol decisions.
 
 `just test::telemetry` launches the real writer with drained, blocked and closed
 stderr, including one-CPU affinity on Linux. It checks 10,000 operation completions,
-independent metrics, loss and bounded exit while stdout stays parseable. Unit tests
-cover reserved queue capacity, context validation/parentage and escaped JSON.
+independent metrics, loss and bounded exit while stdout stays parseable. Both formats run through these pipe tests. Unit tests
+cover reserved queue capacity, context validation/parentage, escaped JSON and
+text control-character escaping.
 Report tests cover text/JSON severity filtering, named histogram ranges and
 continued metric collection at every log level.
 The current proof qualifies the pinned Linux I/O runtime and pipes; arbitrary

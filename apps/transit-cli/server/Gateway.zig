@@ -5,10 +5,14 @@ const wire = @import("transit_query").wire;
 const Configuration = @import("Configuration.zig");
 const C = @import("transit_query").settings.Contract;
 const Hosts = @import("Hosts.zig");
+const telemetry = wire.observability.telemetry;
 pub const Config = struct { port: u16, upstream: []const u8, allowed_hosts: []const []const u8 = &.{}, configuration: ?Configuration.Deployment = null };
 pub fn run(init: std.process.Init, path: []const u8) !void {
     const config = try @import("Files.zig").read(Config, init.io, init.arena.allocator(), path);
-    var context: Context = .{ .config = config, .hosts = try Hosts.list(init.arena.allocator(), config.port, config.allowed_hosts) };
+    var diagnostics = telemetry.Runtime.init(init.io, "transit-gateway", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    var context: Context = .{ .diagnostics = &diagnostics, .config = config, .hosts = try Hosts.list(init.arena.allocator(), config.port, config.allowed_hosts) };
     if (config.configuration) |deployment| context.configuration = .{ .init = init, .deployment = deployment };
     for (&context.upstream) |*slot| slot.* = .{ .client = wire.Client.init(init.gpa, init.io, config.upstream) };
     defer for (&context.upstream) |*slot| slot.client.deinit();
@@ -18,13 +22,14 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
 }
 const Context = struct {
     config: Config,
+    diagnostics: ?*telemetry.Runtime = null,
     configuration: ?Configuration = null,
     hosts: []const []const u8,
     upstream: [10]Slot = undefined,
     const Slot = struct { client: wire.Client, busy: std.atomic.Value(bool) = .init(false) };
-    pub fn connectionError(_: *Context, err: anyerror, started: bool) void {
+    pub fn connectionError(self: *Context, err: anyerror, started: bool) void {
         const name = transportFailure(err, started) orelse return;
-        std.debug.print("gateway transport: {s}\n", .{name});
+        if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "gateway.transport", .level = .warn, .outcome = .failed, .error_type = name });
     }
     pub fn isWait(_: *Context, request: *std.http.Server.Request) bool {
         return (http.header(request, "x-transit-wait") catch null) != null;

@@ -14,15 +14,8 @@ fn print(io: std.Io, value: anytype) !void {
     try writer.interface.flush();
 }
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "rey-cli", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    defer diagnostics.event(.{ .name = "service.stopped", .level = .debug });
-    diagnostics.event(.{ .name = "service.starting", .level = .debug });
-    runMain(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = telemetry.runService(init, "rey-cli", .debug, runMain);
+    if (status != 0) std.process.exit(status);
 }
 fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

@@ -141,15 +141,8 @@ const Driver = struct {
     }
 };
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-station-document-worker", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    diagnostics.event(.{ .name = "service.starting" });
-    defer diagnostics.event(.{ .name = "service.stopped" });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = telemetry.runService(init, "transit-station-document-worker", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

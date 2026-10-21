@@ -493,6 +493,62 @@ Keeping bounded telemetry outside deterministic core prevents a slow or failed
 sink from altering protocol decisions. The tradeoff is lossy diagnostic evidence;
 operators must consult authorized durable state for exact execution facts.
 
+### Presenting observations consistently
+
+The logging boundary asks how a readable local server can share instrumentation
+with standalone services and collectors without making terminal I/O a condition
+of progress. In the implementation at this source revision,
+[`telemetry.Runtime`](../../packages/zig/telemetry/src/root.zig) formats each event
+into an owned buffer of at most 2 KiB and attempts a nonblocking enqueue. A
+separate cancelable writer drains the bounded 128-record queue; ordinary records
+use at most 112 slots, reserving capacity for warnings/errors. Shutdown attempts
+at most 200 ms of flushing before cancellation and join. These bounds assume
+the pinned I/O implementation supplies cancelable sink writes. They do not
+promise delivery of any particular diagnostic record.
+
+The same event has two projections: text renders a UTC timestamp, service,
+severity, stable name, message and fields; JSON preserves the full schema-v1
+resource envelope and optional span context. Both escape control characters.
+Formatting failure, filtering, queue contention and rate limits can lose events;
+metrics are updated independently. A service boundary logs an expected failure
+once, flushes and joins logging and returns a failure exit status. Returning that
+error again to Zig would produce a second, incompatible terminal format.
+
+The [local supervisor](../../apps/transit-cli/server/Server.zig) owns one runtime
+and lends it to the [SQL manager](../../apps/transit-cli/server/Sql.zig). Its
+[logging settings](../../apps/transit-cli/server/Logging.zig) translate explicitly
+into isolated child environments. Raw child stdout and provider stderr are not
+relayed: they may contain bootstrap records, payloads or upstream formats, and a
+blocked terminal must not backpressure child progress. Their finite capture
+remains disposable. This is an operational visibility tradeoff; adding a child
+log relay would require a bounded, validated event boundary of its own.
+
+SQL status persistence and log suppression have different purposes. The status
+file tracks all account observations; a bounded fingerprint of the service
+report suppresses unchanged notices, and per-active-account flags suppress
+unchanged connection hints. This is best-effort presentation, not deduplication
+of accepted work. Initial health polling remains `starting`; losing previously
+observed health becomes `unavailable`, retaining the same timeout/recovery gates.
+An error cause uses error severity and a failed outcome, not an informational
+success. Wall-clock timestamps help reading but do not establish causal order.
+
+Terminal detection changes presentation only: a TTY gets readiness events on
+stderr, while non-TTY stdout retains machine readiness receipts. Filtering can
+hide a human notice; scripts use the stdout record or probes. A synchronous
+terminal renderer would be simpler but could stall supervision. A separate
+handwritten server formatter would reintroduce format drift. Sharing bounded
+rendering preserves those constraints at the cost of lossy operational logs.
+
+The executable [pipe fixture](../../tests/telemetry.py) checks both formats
+under drained, blocked and closed pipes on one CPU. The
+[server fixture](../../tests/server_logging.py) uses a real PTY, a piped server,
+disk-backed providers, SQL settings and standalone executable failures. The
+[correlation fixture](../../tests/observability.py) checks span parentage and
+exclusion of credentials/payloads. Reproduction commands use the pinned
+development shell and are recorded with the executed results below. The [proof ledger](../../tests/README.md#unified-service-logging)
+records actual executions. These schedules do not prove arbitrary sinks, panics,
+crashes or lossless collection, and do not qualify provider log formats.
+
 ## Evidence and limits
 
 The [backend mapping](../../packages/zig/transit-backend-ursula/docs/storage.md),

@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launchers"))
 from kubernetes import Reference, infrastructure
 from station_reference import StationReference
+from common import Installation, transient_read_failure
 
 
 class ReferenceStateTest(unittest.TestCase):
@@ -161,6 +163,45 @@ class ReferenceStateTest(unittest.TestCase):
             Reference(self.installation).reset_missing_cluster()
         self.run.assert_not_called()
         self.assertTrue(self.identity.exists())
+
+
+class ReadObservationTest(unittest.TestCase):
+    @staticmethod
+    def failure(cause="AuthorityUnavailable"):
+        return {"schema_version": 1, "service_name": "rey-cli", "event": {
+            "name": "service.failed", "level": "err", "outcome": "failed", "error_type": cause}}
+
+    def test_read_retry_uses_json_and_preserves_the_same_request(self):
+        with tempfile.TemporaryDirectory() as directory:
+            installation = SimpleNamespace(path=Path(directory), cli="rey-cli", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
+            kind = {"open_snapshot": {"resource": 9, "nonce": [7] * 16}}
+            requests = []
+            def invoke(argv, **options):
+                self.assertEqual(options["env"]["LOG_FORMAT"], "json")
+                self.assertEqual(options["env"]["LOG_LEVEL"], "error")
+                requests.append((argv, (installation.path / "operator/read.json").read_bytes()))
+                if len(requests) == 1:
+                    return subprocess.CompletedProcess(argv, 1, "", json.dumps(self.failure()))
+                return subprocess.CompletedProcess(argv, 0, '{"body":{"accepted":true}}', "")
+            with patch("common.subprocess.run", side_effect=invoke), patch("common.time.sleep"):
+                self.assertEqual(Installation.native_query(installation, kind), {"body": {"accepted": True}})
+            self.assertEqual(len(requests), 2)
+            self.assertEqual(requests[0], requests[1])
+            self.assertEqual(json.loads(requests[0][1])["kind"], kind)
+
+    def test_unknown_denied_malformed_and_nonterminal_events_do_not_authorize_retry(self):
+        denied = self.failure("AccessDenied")
+        unknown = self.failure("UnexpectedFailure")
+        attempt = self.failure()
+        attempt["event"]["name"] = "transit.client.request"
+        foreign = self.failure()
+        foreign["service_name"] = "transit-node"
+        for record in (denied, unknown, attempt, foreign, [], None):
+            self.assertFalse(transient_read_failure(json.dumps(record)))
+        self.assertFalse(transient_read_failure("error: AuthorityUnavailable"))
+        self.assertFalse(transient_read_failure(json.dumps(self.failure()) + "\nnot-json"))
+        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing"):
+            self.assertTrue(transient_read_failure(json.dumps(self.failure(cause))))
 
 
 if __name__ == "__main__":

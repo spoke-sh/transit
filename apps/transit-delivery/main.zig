@@ -15,15 +15,8 @@ const Config = struct {
 };
 
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-delivery", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    defer diagnostics.event(.{ .name = "service.stopped", .level = .info });
-    diagnostics.event(.{ .name = "service.starting", .level = .info });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = telemetry.runService(init, "transit-delivery", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

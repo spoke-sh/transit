@@ -2,6 +2,7 @@
 const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
+emitted: bool = false,
 format: enum { human, json } = .human,
 argument_offset: usize = 0,
 style: @import("Style.zig") = .{},
@@ -218,27 +219,7 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         return;
     }
     if (err == error.InvalidTimingCommand) return self.style.hint(out, "Usage: .timer on|off\n");
-    const Advice = struct { []const u8, ?[]const u8 };
-    const advice: ?Advice = switch (err) {
-        error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
-        error.InstallationIdentityMismatch => .{ "the configuration or executable differs from the recorded installation", "Restore the recorded configuration and matching executables. Do not initialize or delete the installation to bypass this check." },
-        error.ExistingInstallationRequired => .{ "startup requires an existing installation", "startup.require_existing is enabled. Verify the installation path and storage mount; restore the intended installation before starting." },
-        error.InvalidInstallationDirectory => .{ "the installation path must be a directory, not a file or symbolic link", "Select the actual installation directory. Existing paths are never replaced to initialize a server." },
-        error.StorageIdentityMismatch => .{ "retained storage does not match the installation's recovery evidence", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
-        error.AuthorityRollback => .{ "retained authority is older than the recorded recovery position", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
-        error.NoSpaceLeft => .{ "the filesystem has no space for this operation", "Free space outside retained Transit data or expand the filesystem, then recover the same installation or saved operation." },
-        error.RestartBudgetExhausted => .{ "server restart budget exhausted", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
-        error.RoleReadinessTimeout => .{ "a required server role did not become ready in time", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
-        error.ChildExited => .{ "a required server role exited", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
-        error.ConsoleRecoveryInUse, error.ManagementClientInUse => .{ "another client holds the recovery lock", "Close the other client using this recovery location, then reconnect with the same configuration." },
-        error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
-        error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
-        error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Retry the saved request with the same configuration and operation ID:\n  transit app retry --config PATH --operation ID" },
-        error.InteractiveQueryCancelled => .{ "query cancelled", "Run the statement again to start a fresh snapshot." },
-        error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect .status or recover saved intent with .resume." },
-        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use .resume for pending signed intent; do not resubmit SQL after an uncertain outcome." },
-        else => null,
-    };
+    const advice = adviceFor(err);
     const cause = self.cause orelse err;
     try self.style.text(out, .failure, "error:");
     try out.writeByte(' ');
@@ -334,41 +315,54 @@ pub fn reportTiming(self: *Self) void {
 }
 pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
     defer self.reportTiming();
+    if (self.emitted) return;
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
     self.render(&writer.interface, err) catch return;
     writer.interface.flush() catch {};
 }
 
-pub const StartupAction = enum { creating, resuming, opening };
-fn renderStartup(self: Self, writer: *std.Io.Writer, action: StartupAction, installation: []const u8) !void {
-    if (self.format == .json) {
-        try std.json.Stringify.value(.{ .event = "server.startup", .action = @tagName(action), .installation = installation }, .{}, writer);
-    } else {
-        try writer.print("info: {s} installation ", .{@tagName(action)});
-        try std.json.Stringify.value(installation, .{}, writer);
-    }
-    try writer.writeByte('\n');
+const Advice = struct { []const u8, ?[]const u8 };
+fn adviceFor(err: anyerror) ?Advice {
+    return switch (err) {
+        error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
+        error.InstallationIdentityMismatch => .{ "the configuration or executable differs from the recorded installation", "Restore the recorded configuration and matching executables. Do not initialize or delete the installation to bypass this check." },
+        error.ExistingInstallationRequired => .{ "startup requires an existing installation", "startup.require_existing is enabled. Verify the installation path and storage mount; restore the intended installation before starting." },
+        error.InvalidInstallationDirectory => .{ "the installation path must be a directory, not a file or symbolic link", "Select the actual installation directory. Existing paths are never replaced to initialize a server." },
+        error.StorageIdentityMismatch => .{ "retained storage does not match the installation's recovery evidence", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
+        error.AuthorityRollback => .{ "retained authority is older than the recorded recovery position", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
+        error.NoSpaceLeft => .{ "the filesystem has no space for this operation", "Free space outside retained Transit data or expand the filesystem, then recover the same installation or saved operation." },
+        error.RestartBudgetExhausted => .{ "server restart budget exhausted", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
+        error.RoleReadinessTimeout => .{ "a required server role did not become ready in time", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
+        error.ChildExited => .{ "a required server role exited", "Check the named role's executable, port and storage permissions, then restart with the same configuration." },
+        error.ConsoleRecoveryInUse, error.ManagementClientInUse => .{ "another client holds the recovery lock", "Close the other client using this recovery location, then reconnect with the same configuration." },
+        error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
+        error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
+        error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Retry the saved request with the same configuration and operation ID:\n  transit app retry --config PATH --operation ID" },
+        error.InteractiveQueryCancelled => .{ "query cancelled", "Run the statement again to start a fresh snapshot." },
+        error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect .status or recover saved intent with .resume." },
+        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use .resume for pending signed intent; do not resubmit SQL after an uncertain outcome." },
+        else => null,
+    };
 }
-/// Progress stays on stderr; stdout remains the existing ready-record stream.
-pub fn serverStartup(self: Self, io: std.Io, action: StartupAction, installation: []const u8) void {
-    var buffer: [4096]u8 = undefined;
-    var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
-    self.renderStartup(&writer.interface, action, installation) catch return;
-    writer.interface.flush() catch {};
+/// Runtime failures use the same bounded sink as lifecycle records. Command/input
+/// failures before the runtime starts retain their detailed CLI diagnostic contract.
+pub fn log(self: Self, runtime: *@import("transit_query").wire.observability.telemetry.Runtime, name: []const u8, err: anyerror) void {
+    runtime.event(self.event(name, err));
+}
+pub fn event(self: Self, name: []const u8, err: anyerror) @import("transit_query").wire.observability.telemetry.Event {
+    const advice = adviceFor(err);
+    const exhausted = err == error.RestartBudgetExhausted;
+    return .{ .name = name, .level = .err, .outcome = .failed, .message = if (exhausted) advice.?[0] else self.summary orelse if (advice) |known| known[0] else "Server operation failed", .hint = if (exhausted) advice.?[1] else self.next orelse if (advice) |known| known[1] else null, .operation = @errorName(err), .error_type = @errorName(self.cause orelse err), .location = self.file, .field = self.field, .role = self.role, .port = self.port };
 }
 
-test "startup notices distinguish creation recovery and opening without touching result output" {
-    for ([_]StartupAction{ .creating, .resuming, .opening }) |action| {
-        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
-        defer out.deinit();
-        try (Self{ .format = .json }).renderStartup(&out.writer, action, "/tmp/installation");
-        const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, out.written(), .{});
-        defer parsed.deinit();
-        try std.testing.expectEqualStrings("server.startup", parsed.value.object.get("event").?.string);
-        try std.testing.expectEqualStrings(@tagName(action), parsed.value.object.get("action").?.string);
-        try std.testing.expectEqualStrings("/tmp/installation", parsed.value.object.get("installation").?.string);
-    }
+test "server failure events preserve terminal cause and recovery advice" {
+    const event_value = (Self{ .summary = "retrying", .next = "wait", .cause = error.ChildExited, .role = "board" }).event("server.failed", error.RestartBudgetExhausted);
+    try std.testing.expectEqualStrings("server restart budget exhausted", event_value.message.?);
+    try std.testing.expectEqualStrings("ChildExited", event_value.error_type.?);
+    try std.testing.expectEqualStrings("RestartBudgetExhausted", event_value.operation.?);
+    try std.testing.expectEqualStrings("board", event_value.role.?);
+    try std.testing.expect(std.mem.indexOf(u8, event_value.hint.?, "same configuration") != null);
 }
 
 test "unknown failures retain identifiers and recovery advice retains exact identity" {

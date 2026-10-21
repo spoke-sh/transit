@@ -53,6 +53,28 @@ preserving machine stdout for receipts and bootstrap JSON. Launchers display and
 route logs; they do not reinterpret them as execution authority. Metric accumulation
 is independent of whether a log was sampled or suppressed.
 
+`transit server` uses `logging.format: text` and `logging.level: info` by default.
+Set these in `transit.yaml` or override with `TRANSIT_LOGGING__FORMAT` and
+`TRANSIT_LOGGING__LEVEL`. Levels are `debug`, `info`, `warn`, `error` and `off`;
+formats are `text` and `json`. `SHOW logging.format` and `SHOW logging.level`
+report active values. Reload validates changes and marks them pending restart.
+
+Text records contain a UTC timestamp, severity, service, stable event name,
+optional message and named fields. JSON emits one schema-v1 envelope per line,
+including the service instance and trace context when present. Text includes
+trace/span/parent IDs for traced operations; the full service-instance envelope
+is available in JSON. Control characters are escaped in both formats.
+
+Standalone services use `LOG_FORMAT` and `LOG_LEVEL`. The server translates its
+own effective policy into each isolated Transit child's environment; it does
+not inherit arbitrary environment variables. The supervisor retains bounded
+child-output prefixes rather than forwarding raw provider or application output.
+See the [server logging guide](../../apps/transit-cli/docs/server.md#logging-and-readiness)
+for lifecycle, terminal and machine output behavior. Expected service failures
+emit one error event and exit unsuccessfully after a bounded flush. CLI argument,
+configuration and SQL errors retain their command-specific diagnostics. Panics
+and crashes are outside the normal service event path.
+
 Start with [launcher diagnostics](../../launchers/README.md#service-diagnostics)
 and [node operations](../../apps/transit-node/docs/operations.md) for exact options.
 Use [Board](../guides/inspect-board.md) to follow authorized durable evidence,

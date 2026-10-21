@@ -670,15 +670,8 @@ fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]cons
     return host;
 }
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-board", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    defer diagnostics.event(.{ .name = "service.stopped" });
-    diagnostics.event(.{ .name = "service.starting" });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = telemetry.runService(init, "transit-board", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

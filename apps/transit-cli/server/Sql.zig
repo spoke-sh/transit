@@ -15,7 +15,9 @@ const Provider = @import("Provider.zig");
 const Self = @This();
 const telemetry = q.wire.observability.telemetry;
 installation: *Installation,
-diagnostics: telemetry.Runtime,
+diagnostics: *telemetry.Runtime,
+last_notice: ?u64 = null,
+service_was_ready: bool = false,
 allocator: std.mem.Allocator,
 setup_arena: std.heap.ArenaAllocator,
 executable: []const u8,
@@ -35,7 +37,7 @@ failures: u8 = 0,
 last_error: ?[]const u8 = null,
 setup_complete: bool = false,
 provisioning: ?E.Account = null,
-const Entry = struct { record: E.Account, desired: ?Settings.Account, state: E.AuthorizationState = .unavailable };
+const Entry = struct { record: E.Account, desired: ?Settings.Account, state: E.AuthorizationState = .unavailable, postgres_announced: bool = false, mysql_announced: bool = false };
 
 /// Resolve all frozen root operations before another supervisor uses its sequence.
 pub fn recover(installation: *Installation) !void {
@@ -59,11 +61,10 @@ pub fn recover(installation: *Installation) !void {
         };
     }
 }
-pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8) !?*Self {
+pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8, diagnostics: *telemetry.Runtime) !?*Self {
     const meta = (try E.open(installation, allocator)) orelse return null;
     const self = try allocator.create(Self);
-    self.* = .{ .diagnostics = telemetry.Runtime.init(installation.init.io, "transit-sql", try telemetry.Config.environment(installation.init.environ_map)), .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
-    self.diagnostics.start();
+    self.* = .{ .diagnostics = diagnostics, .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
     errdefer self.destroy();
     try self.tick();
     return self;
@@ -141,7 +142,6 @@ pub fn stop(self: *Self) void {
 }
 pub fn destroy(self: *Self) void {
     self.stop();
-    self.diagnostics.stop();
     self.setup_arena.deinit();
 }
 fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Configuration.Account {
@@ -198,7 +198,7 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
         entry.record.initialization = .{ .prepared = prepared };
         try self.saveAccount(allocator, &entry.record);
     }
-    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file } }, false);
+    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file }, .environment = &installation.config.logging.environment() }, false);
     self.bootstrapping = index;
     if (entry.record.initialization.?.receipt == null) {
         const receipt = try client.submit(entry.record.initialization.?.prepared);
@@ -243,10 +243,11 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     if (accounts.items.len == 0) return;
     const file = try E.path(installation, allocator, "gateway.json");
     try Files.json(installation.init.io, allocator, file, try self.configuration(allocator, accounts.items, true));
-    try self.service.start(installation.init, self.executable, try E.path(installation, allocator, "gateway.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, file } }, false);
+    try self.service.start(installation.init, self.executable, try E.path(installation, allocator, "gateway.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, file }, .environment = &installation.config.logging.environment() }, false);
     self.service_count = accounts.items.len;
     self.service_started = std.Io.Clock.awake.now(installation.init.io);
     self.status = .starting;
+    self.service_was_ready = false;
 }
 pub fn tick(self: *Self) !void {
     if (self.installation.root_pending != null and !self.hasPending()) return;
@@ -273,6 +274,7 @@ pub fn tick(self: *Self) !void {
         self.last_error = if (self.installation.wire.last_rejection) |cause| @tagName(cause) else @errorName(err);
         self.failures += 1;
     };
+    if (self.status != .unavailable) self.last_error = null;
     try self.writeStatus(arena.allocator());
 }
 pub fn hasPending(self: *Self) bool {
@@ -307,11 +309,12 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {
             self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
+            self.service_was_ready = true;
             const native_ready = self.local != null or self.installation.config.sql.native.http != null;
             self.status = if (native_ready or (self.installation.config.sql.wireListening() and self.transportReady())) .accepting else .recovery;
             self.last_error = null;
         } else {
-            self.status = .unavailable;
+            self.status = if (self.service_was_ready) .unavailable else .starting;
             if (self.service_started.?.durationTo(std.Io.Clock.awake.now(self.installation.init.io)).toMilliseconds() > 30000) return error.GatewayOwnerUnavailable;
         }
     }
@@ -335,13 +338,29 @@ fn writeStatus(self: *Self, allocator: std.mem.Allocator) !void {
         _ = try Files.jsonIfChanged(self.installation.init.io, allocator, local.rendezvous, Discovery.Record{ .version = 1, .definition = p.Growth.current_definition, .instance = self.meta.installation, .socket = local.socket, .account = Settings.local_account.name, .database = Settings.local_account.database });
     };
     const status = .{ .service = try self.report(allocator), .accounts = accounts.items };
-    if (try Files.jsonIfChanged(self.installation.init.io, allocator, try E.path(self.installation, allocator, "status.json"), status)) {
-        // Bounded nonblocking diagnostics never hold up authority/recovery.
-        // Complete observed state remains in status.json even if logs are lost.
-        self.diagnostics.event(.{ .name = "sql.status", .operation = status.service.message, .error_type = self.last_error orelse self.trust_error });
-        for (accounts.items) |account| {
-            if (account.postgres_command) |command| self.diagnostics.event(.{ .name = "sql.connect.postgres", .operation = command });
-            if (account.mysql_command) |command| self.diagnostics.event(.{ .name = "sql.connect.mysql", .operation = command });
-        }
+    _ = try Files.jsonIfChanged(self.installation.init.io, allocator, try E.path(self.installation, allocator, "status.json"), status);
+    // Status persistence tracks every account. Logging tracks only the visible
+    // service transition; changing an account must not repeat the service notice.
+    var hasher = std.hash.Wyhash.init(0);
+    std.hash.autoHashStrat(&hasher, status.service, .Deep);
+    const notice = hasher.final();
+    if (self.last_notice == null or self.last_notice.? != notice) {
+        self.last_notice = notice;
+        self.diagnostics.event(statusEvent(status.service));
     }
+    for (accounts.items, self.entries.items) |account, *entry| {
+        if (account.postgres_command) |command| {
+            if (!entry.postgres_announced) self.diagnostics.event(.{ .name = "sql.connect.postgres", .message = command, .role = "sql" });
+        }
+        if (account.mysql_command) |command| {
+            if (!entry.mysql_announced) self.diagnostics.event(.{ .name = "sql.connect.mysql", .message = command, .role = "sql" });
+        }
+        entry.postgres_announced = account.postgres_command != null;
+        entry.mysql_announced = account.mysql_command != null;
+    }
+}
+fn statusEvent(status: Report) telemetry.Event {
+    const failure = status.error_type orelse status.tls_error;
+    const unavailable = std.mem.eql(u8, status.state, "unavailable");
+    return .{ .name = "sql.status", .message = status.message, .role = "sql", .operation = status.state, .level = if (failure != null) .err else if (unavailable or std.mem.eql(u8, status.state, "awaiting_authorization")) .warn else .info, .outcome = if (failure != null or unavailable) .failed else .ok, .error_type = failure };
 }

@@ -3,16 +3,8 @@ const telemetry = @import("transit_observability").telemetry;
 const wire = @import("transit_client");
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    const config = try telemetry.Config.environment(init.environ_map);
-    var diagnostics = if (args.len == 3 and std.mem.eql(u8, args[2], "--maintain")) telemetry.Runtime.init(init.io, "transit-maintenance", config) else telemetry.Runtime.init(init.io, "transit-node", config);
-    diagnostics.start();
-    defer diagnostics.stop();
-    defer diagnostics.event(.{ .name = "service.stopped" });
-    diagnostics.event(.{ .name = "service.starting" });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = if (args.len == 3 and std.mem.eql(u8, args[2], "--maintain")) telemetry.runService(init, "transit-maintenance", .info, run) else telemetry.runService(init, "transit-node", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
