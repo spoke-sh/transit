@@ -46,10 +46,39 @@ directory inside a mounted volume rather than the mount point itself, and ensure
 its parent is writable. Abandoned `.creating-*` directories are unpublished setup
 files and are never adopted as recovery evidence.
 
-Stderr reports `creating`, `resuming` or `opening` with the installation path.
-With `--diagnostics=json`, this is a JSON object with `event: "server.startup"`,
-`action` and `installation`. It describes the selected startup action, not
-readiness. Stdout retains the ready-record format.
+## Logging and readiness
+
+Stderr reports `creating`, `resuming` or `opening` with the installation path
+as a `server.startup` event. It describes the selected startup action, not
+readiness. Operational logs default to readable text:
+
+```text
+2026-10-21T12:00:00.000Z INFO [transit] server.startup creating installation location="/srv/transit"
+2026-10-21T12:00:02.000Z INFO [transit] server.ready Server is ready location="/srv/transit" endpoint="http://127.0.0.1:19105"
+2026-10-21T12:00:03.000Z INFO [transit] sql.status SQL listeners are accepting connections role="sql" operation="accepting"
+```
+
+Set `logging.format: json` for one structured JSON event per stderr line.
+`logging.level` accepts `debug`, `info` (default), `warn`, `error` and `off`.
+The conventional overrides are `TRANSIT_LOGGING__FORMAT` and
+`TRANSIT_LOGGING__LEVEL`. Both settings require restart; `SHOW logging.format`
+and `SHOW logging.level` expose active values. The server explicitly passes
+its effective policy to Transit children through `LOG_FORMAT` and `LOG_LEVEL`;
+ambient `LOG_*` variables configure standalone executables, not the supervisor.
+Provider tools keep their own logging conventions and bounded capture.
+
+Startup, readiness, retries, SQL transitions and shutdown share the same bounded
+logger. SQL waiting for its first health check reports `starting`; loss of a
+previously ready SQL service reports `unavailable`. Unchanged status and connection
+hints are suppressed. The SQL status file remains the complete observed account
+state. Core readiness does not imply that optional SQL listeners already accept
+connections; wait for `sql.status` with `operation="accepting"` or inspect the file.
+
+On a terminal, readiness appears in stderr logs. Redirected or piped stdout
+retains the JSON ready-record stream for scripts, independently of log format
+and level. `--diagnostics=json` selects structured command/input errors before
+the server starts; operational logs use `logging.format`. Log filtering or a
+failed sink can hide a readiness notice, so automation uses stdout or probes.
 
 ## Defaults and configuration
 
@@ -190,7 +219,7 @@ MinIO receives a private service home under `provider-home` and an explicit
 certificate directory, without inheriting the operator's home or credentials.
 Its browser is disabled; the separate cold-console port remains reserved.
 
-When the complete neighborhood is ready, stdout emits one JSON record naming
+When the complete neighborhood is ready, redirected or piped stdout emits one JSON record naming
 `installation`, optional `management_config` (a YAML file), `gateway_url`, the effective
 `allowed_hosts`, `board_url` and `ui`. For example,
 port 19105 reports `gateway_url: "http://127.0.0.1:19105"` and
