@@ -75,6 +75,7 @@ pub const Transport = struct {
     }
     pub fn resetDeadline(self: *Transport, milliseconds: u32) !void {
         if (milliseconds == 0 or milliseconds > 300000) return error.InvalidTimeout;
+        self.input_timeout_ms = null;
         self.deadline = (std.Io.Timeout{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) } }).toDeadline(self.io);
     }
     pub fn read(self: *Transport, bytes: []u8) !usize {

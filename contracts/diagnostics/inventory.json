@@ -2157,6 +2157,7 @@
           "starting",
           "accepting",
           "recovery",
+          "busy",
           "unavailable"
         ]
       },
@@ -2374,7 +2375,9 @@
       ]
     },
     "apps/transit-sql-gateway/src/Connection.zig": {
-      "errors": {},
+      "errors": {
+        "EndOfStream": 1
+      },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
@@ -2385,7 +2388,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -2504,6 +2507,7 @@
         "InvalidAuthentication": 8,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
+        "Timeout": 2,
         "TlsRequired": 6,
         "UnsupportedStartupSetting": 1,
         "WireSessionExhausted": 1
@@ -2554,8 +2558,8 @@
       },
       "open_error_set_uses": 19,
       "propagation": {
-        "try": 155,
-        "catch": 17
+        "try": 159,
+        "catch": 19
       },
       "imports": [
         "Connection.zig",
@@ -23216,7 +23220,7 @@
     "packages/zig/transit-tls-server/src/root.zig": {
       "errors": {
         "EndOfStream": 4,
-        "InvalidTimeout": 1,
+        "InvalidTimeout": 2,
         "InvalidTlsCredentials": 4,
         "InvalidTlsTrust": 2,
         "TlsAllocationFailed": 6,
@@ -23240,6 +23244,8 @@
         "Session.read()": "<inferred>",
         "Session.readExact()": "<inferred>",
         "Session.writeAll()": "<inferred>",
+        "Transport.idle()": "<inferred>",
+        "Transport.inputStarted()": "<inferred>",
         "Transport.read()": "<inferred>",
         "Transport.readExact()": "<inferred>",
         "Transport.resetDeadline()": "<inferred>",
@@ -23247,7 +23253,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 17,
         "catch": 0
       },
       "imports": [

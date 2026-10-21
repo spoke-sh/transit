@@ -76,6 +76,7 @@
       "bindings::node-check",
       "test::observability",
       "test::server-logging",
+      "test::server-sql-lifetimes",
       "test::server-sql",
       "test::server-sql-local",
       "transit-board::test",
