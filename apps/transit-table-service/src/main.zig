@@ -81,18 +81,19 @@ const Shared = struct {
         };
     }
 };
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) void {
+    const status = telemetry.runService(init, "transit-table-service", .info, run);
+    if (status != 0) std.process.exit(status);
+}
+fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedConfiguration;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.arena.allocator(), .limited(16384));
     const configuration = (try p.Json.parseFromSlice(Configuration, init.arena.allocator(), bytes)).value;
     try configuration.validate();
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-table-service", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
     const spill_directory = if (configuration.spill_directory) |path| try std.Io.Dir.cwd().openDir(init.io, path, .{}) else null;
     defer if (spill_directory) |directory| directory.close(init.io);
-    var shared: Shared = .{ .config = configuration, .key = try q.wire.readKey(init.gpa, init.io, configuration.seed_file), .diagnostics = &diagnostics, .spill_directory = spill_directory };
+    var shared: Shared = .{ .config = configuration, .key = try q.wire.readKey(init.gpa, init.io, configuration.seed_file), .diagnostics = diagnostics, .spill_directory = spill_directory };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&shared.key));
     var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", configuration.port)).listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

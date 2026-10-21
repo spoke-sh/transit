@@ -99,6 +99,32 @@ pub const Snapshot = struct {
 };
 const Record = struct { bytes: [2048]u8 = undefined, len: usize = 0 };
 
+/// Executable boundary: one failure record, then a bounded flush before exit.
+/// Returning a status lets the caller exit without Zig's second stderr format.
+pub fn runService(init: std.process.Init, comptime service: []const u8, lifecycle_level: Level, comptime body: anytype) u8 {
+    var configuration_error: ?anyerror = null;
+    const config = Config.environment(init.environ_map) catch |err| fallback: {
+        configuration_error = err;
+        // An invalid logging value cannot hide its own failure. Preserve a valid
+        // format selection without echoing any supplied configuration value.
+        break :fallback Config{ .format = if (init.environ_map.get("LOG_FORMAT")) |value| std.meta.stringToEnum(Format, value) orelse .text else .text };
+    };
+    var runtime = Runtime.init(init.io, service, config);
+    runtime.start();
+    defer runtime.stop();
+    if (configuration_error) |err| {
+        runtime.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return 1;
+    }
+    runtime.event(.{ .name = "service.starting", .level = lifecycle_level });
+    body(init, &runtime) catch |err| {
+        runtime.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return 1;
+    };
+    runtime.event(.{ .name = "service.stopped", .level = lifecycle_level });
+    return 0;
+}
+
 pub const Runtime = struct {
     io: std.Io,
     service: []const u8,

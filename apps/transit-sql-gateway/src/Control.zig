@@ -112,7 +112,7 @@ fn fresh(init: std.process.Init, client: *g.Client, timeout_ms: u32, comptime fu
         };
     }
 }
-pub fn run(init: std.process.Init, args: []const []const u8) !void {
+pub fn run(init: std.process.Init, args: []const []const u8, diagnostics: *g.query.wire.observability.telemetry.Runtime) !void {
     if (args.len < 2) return error.ExpectedControlArguments;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[0], init.gpa, .limited(65536));
     defer init.gpa.free(bytes);
@@ -130,7 +130,7 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
     defer std.crypto.secureZero(u8, std.mem.asBytes(&reader_key));
     var wire = g.station.client.Client.init(init.gpa, init.io, config.native_url);
     defer wire.deinit();
-    errdefer if (wire.last_rejection) |cause| std.debug.print("Native rejection: {s}\n", .{@tagName(cause)});
+    errdefer if (wire.last_rejection) |cause| diagnostics.event(.{ .name = "sql.control.rejected", .level = .err, .outcome = .rejected, .error_type = @tagName(cause) });
     var client: g.Client = .{ .transport = &wire, .ledger = .{ .configuration = config.ledger }, .principal = config.ledger.control, .key = control_key };
     const action = args[1];
     if (std.mem.eql(u8, action, "list") and (args.len == 2 or args.len == 3)) {

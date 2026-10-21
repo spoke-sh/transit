@@ -4,15 +4,8 @@ const wire = station.client;
 const telemetry = wire.observability.telemetry;
 const Config = struct { url: []const u8, realm: u64, principal: u64, seed_file: []const u8, mode: station.Controller.Mode, watches: []const station.Controller.Watch, interval_ms: u32 = 100, request_timeout_ms: u32 = 5000 };
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-station-controller", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    diagnostics.event(.{ .name = "service.starting", .level = .info });
-    run(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .error_type = @errorName(err), .outcome = .failed });
-        return err;
-    };
-    diagnostics.event(.{ .name = "service.stopped", .level = .info });
+    const status = telemetry.runService(init, "transit-station-controller", .info, run);
+    if (status != 0) std.process.exit(status);
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

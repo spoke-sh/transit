@@ -162,15 +162,8 @@ const Controller = struct {
     }
 };
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "transit-runtime-controller", try telemetry.Config.environment(init.environ_map));
-    diagnostics.start();
-    defer diagnostics.stop();
-    defer diagnostics.event(.{ .name = "service.stopped", .level = .info });
-    diagnostics.event(.{ .name = "service.starting", .level = .info });
-    runMain(init, &diagnostics) catch |err| {
-        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
-        return err;
-    };
+    const status = telemetry.runService(init, "transit-runtime-controller", .info, runMain);
+    if (status != 0) std.process.exit(status);
 }
 fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
