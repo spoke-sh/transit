@@ -110,7 +110,7 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
     defer self.last_call = std.Io.Clock.awake.now(self.io);
     const input: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .session = self.session, .action = action };
     try input.validate();
-    const body = try api.Json.encode(self.allocator, input);
+    const body = try api.Json.valueAlloc(self.allocator, input);
     defer {
         std.crypto.secureZero(u8, body);
         self.allocator.free(body);

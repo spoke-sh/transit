@@ -1,5 +1,5 @@
 //! Native SQL session API. Pure contracts and codecs; no runtime or storage dependency.
-pub const Json = @import("Json.zig");
+pub const Json = @import("transit_protocol").Json;
 const std = @import("std");
 pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
@@ -119,7 +119,7 @@ fn sql(value: []const u8) !void {
 /// depends on JSON whitespace, current catalog contents or a later SQL parse.
 pub fn fingerprint(allocator: std.mem.Allocator, instance: Instance, account: Account, database: []const u8, source: ?[]const u8, execute: @FieldType(Action, "execute")) ![32]u8 {
     if (execute.sql == null or execute.statement != null) return error.SqlTokenRequiresText;
-    const bytes = try Json.encode(allocator, .{ instance, account, database, source, execute.sql.?, execute.parameters, execute.captured });
+    const bytes = try Json.valueAlloc(allocator, .{ instance, account, database, source, execute.sql.?, execute.parameters, execute.captured });
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -142,7 +142,7 @@ test {
     std.testing.refAllDecls(@This());
 }
 pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, account: []const u8, database: []const u8, source: ?[]const u8) ![32]u8 {
-    const bytes = try Json.encode(allocator, .{ native.current_definition, instance, account, database, source });
+    const bytes = try Json.valueAlloc(allocator, .{ native.current_definition, instance, account, database, source });
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -150,10 +150,7 @@ pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, a
 }
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
     try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
-    const shape = try std.json.parseFromSlice(std.json.Value, allocator, bytes, .{});
-    defer shape.deinit();
-    try Json.shape(T, shape.value);
-    const parsed = try std.json.parseFromSlice(T, allocator, bytes, .{ .allocate = .alloc_always, .max_value_len = max_message_bytes });
+    const parsed = try Json.parseFromSliceOwned(T, allocator, bytes);
     errdefer parsed.deinit();
     if (parsed.value.version != 1 or parsed.value.definition != native.current_definition) return error.IncompatibleSqlDefinition;
     if (T == Request) try parsed.value.validate();
@@ -162,7 +159,7 @@ pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) 
 test "session JSON round trips fixed identities and void actions canonically" {
     const a = std.testing.allocator;
     const request: Request = .{ .version = 1, .definition = native.current_definition, .instance = @splat('A'), .session = @splat('B'), .action = .touch };
-    const bytes = try Json.encode(a, request);
+    const bytes = try Json.valueAlloc(a, request);
     defer a.free(bytes);
     const restored = try parse(Request, a, bytes);
     defer restored.deinit();

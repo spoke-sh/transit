@@ -134,7 +134,7 @@ pub fn sweep(self: *Self) void {
     }
 }
 fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Response, "result")) ![]u8 {
-    const bytes = try api.Json.encode(allocator, api.Response{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .result = result });
+    const bytes = try api.Json.valueAlloc(allocator, api.Response{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .result = result });
     errdefer allocator.free(bytes);
     if (bytes.len > api.max_message_bytes) return error.SqlMessageTooLarge;
     return bytes;
@@ -336,7 +336,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     if (input.captured) return error.UnknownSqlSource;
     if (slot.cursor != null) return error.SqlResultActive;
     const digest = if (input.token != null) try api.fingerprint(allocator, self.instance, host.account.ledger.account, host.database, null, input) else null;
-    if (input.token) |token| if (try host.fresh(g.AccountRuntime.lookup, .{ host.runtime, &host.observer, token, digest })) |item| return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, allocator, &host.observer, &host.table, item.id }) };
+    if (input.token) |token| if (try host.fresh(g.AccountRuntime.lookup, .{ host.runtime, &host.observer, token, digest })) |item| return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, item.id }) };
     const prepared = if (input.statement) |id| (try findStatement(slot, id)).prepared else try host.prepare(input.sql.?);
     var owned = input.statement == null;
     defer if (owned) host.destroy(prepared);
@@ -360,8 +360,8 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     if (prepared.mutation()) {
         if (prepared.* == .native) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
-            const item = try host.runtime.admit(allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
-            return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, allocator, &host.observer, &host.table, item.id }) };
+            const item = try host.runtime.admit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
+            return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, item.id }) };
         }
         const result = try host.write(prepared, values);
         return .{ .completion = .{ .kind = result.kind, .matched = result.count, .changed = result.changed } };
@@ -387,11 +387,13 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
     var complete = false;
     // Fetch one bounded engine batch. Source ownership remains with the cursor;
     // encoding copies it before the engine can reuse its output buffers.
+    const scratch = try host.allocator.alloc(u8, api.max_batch_bytes);
+    defer host.allocator.free(scratch);
     const result = try cursor.read.?.nextBatch(@min(api.max_rows, g.ReadBatch.max_rows));
     for (result.rows[0..result.len]) |row| {
         const cells = try allocator.alloc([]const u8, fields.len);
         for (row.?, fields, cells) |cell, field, *encoded| {
-            encoded.* = try api.Codec.cell(allocator, field, cell);
+            encoded.* = try api.Codec.hex(allocator, try f.Types.Codec.encodeBound(cell, field, scratch));
             used = try std.math.add(usize, used, encoded.*.len / 2);
             if (used > api.max_batch_bytes) return error.SqlBatchTooLarge;
         }
@@ -424,7 +426,8 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
     self.mutex.unlock(self.io);
     var cancelled: std.atomic.Value(bool) = .init(false);
     var active: std.atomic.Value(bool) = .init(false);
-    const host = try g.Session.init(allocator, self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active);
+    var memory: g.query.QueryMemory = .{ .parent = self.allocator, .limit = self.configuration.limits.session_bytes };
+    const host = try g.Session.init(memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active);
     defer host.deinit();
     try host.begin();
     defer host.end();
@@ -433,7 +436,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
         var source = try host.observer.source();
         const page = try runtime.ledger.list(&source, if (input.action.operations.after == 0) null else .{ .realm = runtime.ledger.configuration.realm, .resource = runtime.ledger.configuration.resource, .configuration = try runtime.ledger.configuration.digest(), .revision = source.view.revision, .after = input.action.operations.after });
         var entries: std.ArrayList(api.Operation) = .empty;
-        for (page.entries) |entry| if (entry) |item| try entries.append(allocator, try host.fresh(g.AccountRuntime.status, .{ runtime, allocator, &host.observer, &host.table, item.id }));
+        for (page.entries) |entry| if (entry) |item| try entries.append(allocator, try host.fresh(g.AccountRuntime.status, .{ runtime, host.allocator, &host.observer, &host.table, item.id }));
         return self.response(allocator, .{ .operations = .{ .entries = entries.items, .next = if (page.next) |next| next.after else null } });
     }
     const target: api.Target = switch (input.action) {
@@ -471,8 +474,8 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
         .token => |token| (try host.fresh(g.AccountRuntime.lookup, .{ runtime, &host.observer, token, @as(?[32]u8, null) }) orelse return error.MissingGatewayOperation).id,
         .query => unreachable,
     };
-    _ = try host.fresh(g.AccountRuntime.status, .{ runtime, allocator, &host.observer, &host.table, id });
+    _ = try host.fresh(g.AccountRuntime.status, .{ runtime, host.allocator, &host.observer, &host.table, id });
     if (input.action == .cancel) try runtime.control(.{ .session_cancel = id }, host.deadline);
     if (input.action == .@"resume") try runtime.control(.{ .session_resume = id }, host.deadline);
-    return self.response(allocator, .{ .operation = try host.fresh(g.AccountRuntime.status, .{ runtime, allocator, &host.observer, &host.table, id }) });
+    return self.response(allocator, .{ .operation = try host.fresh(g.AccountRuntime.status, .{ runtime, host.allocator, &host.observer, &host.table, id }) });
 }
