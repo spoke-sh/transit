@@ -228,15 +228,16 @@ def configured_hosts(cli, node, host):
 
 
 def gateway(fixture):
-    # A wrong private key reaches native authentication. The gateway must not
-    # replace it with its manager's root or the generated console's caller key.
-    config = fixture.console_config()
-    (fixture.root / "wrong.seed").write_text(os.urandom(32).hex())
-    invalid = dict(config, seed_file=str(fixture.root / "wrong.seed"), recovery_file=None)
-    (fixture.root / "wrong.json").write_text(json.dumps(invalid))
-    denied = subprocess.run([fixture.cli, "console", "--config", str(fixture.root / "wrong.json"), "--format", "json"],
-        input=".schema\n", capture_output=True, text=True, timeout=10)
-    assert denied.returncode == 1 and not denied.stdout and "permission denied" in denied.stderr, denied
+    # The signed-native gateway must preserve the caller's signature. Native
+    # SQL consoles no longer carry a signing key, so exercise this boundary
+    # directly with an independently signed request claiming the root identity.
+    from server_application_faults import ExistingKey, native
+    wrong_seed = fixture.root / "wrong.seed"
+    wrong_seed.write_text(os.urandom(32).hex())
+    wrong_key = ExistingKey(fixture.root, wrong_seed)
+    encoded = json.dumps(native(wrong_key, fixture.config['realm'], 0, {'capabilities': {}})).encode()
+    forwarded = response(fixture, '/v1/query', encoded)
+    assert forwarded[0] == 403 and forwarded == response(fixture, '/v1/query', encoded, direct=True), forwarded
     assert response(fixture, "/v1/query", b"{}")[0] == 400
     assert response(fixture, "/v1/query", b"{}") == response(fixture, "/v1/query", b"{}", direct=True)
     for header in ("origin", "authorization", "forwarded", "x-forwarded-for", "x-real-ip"):
