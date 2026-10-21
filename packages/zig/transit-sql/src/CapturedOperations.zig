@@ -74,7 +74,7 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
         try host.io.randomSecure(original[0..8]);
         const id = std.mem.readInt(u64, original[0..8], .little) & q.protocol.max_counter;
         std.mem.writeInt(u64, original[0..8], id, .little);
-        if (id != 0 and try source.client.status(id) == null) break;
+        if (id != 0 and try host.fresh(q.UnifiedClient.status, .{ &source.client, id }) == null) break;
     } else return error.QueryUploadIdentityConflict;
     try host.runtime.control(.{ .external_begin = .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 } }, host.deadline);
     const reference = (try host.fresh(g.ConfigurationOperations.find, .{ host, token, @as(?[32]u8, fingerprint) })) orelse return error.MissingGatewayOperation;
@@ -92,7 +92,7 @@ fn terminal(phase: q.UnifiedRequest.Phase) bool {
 pub fn status(host: *g.Session, id: u64) !api.Operation {
     const item = try host.fresh(load, .{ host, id });
     const local = try host.fresh(state, .{ host, id });
-    const current = try host.source.?.client.status(try namespace(item));
+    const current = try host.fresh(q.UnifiedClient.status, .{ &host.source.?.client, try namespace(item) });
     const cancelled_before_admission = local.cancel == 1 and local.pending == 0 and local.staging == 0 and current == null;
     const complete = cancelled_before_admission or local.rejected == 1 or (current != null and terminal(current.?.phase));
     const outcome: @FieldType(api.Operation, "outcome") = if (cancelled_before_admission) .cancelled else if (local.rejected == 1) .rejected else if (complete) switch (current.?.phase) {

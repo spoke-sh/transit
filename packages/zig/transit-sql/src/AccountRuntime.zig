@@ -213,8 +213,17 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
-    var source = try observer.source();
-    const bytes = try g.Upload.read(allocator, self.ledger.publication(item.id), &source, 1, self.ledger.configuration.intent_bytes);
+    // The coordinator can advance the ledger while the connection reopens its
+    // frozen intent. Restart only this pure observation at a fresh revision;
+    // never repeat admission or regenerate a signed step.
+    const bytes = while (true) {
+        try deadline.check(self.io);
+        break self.readIntent(allocator, observer, item.id) catch |err| {
+            if (!retryObservation(observer.transport, err)) return err;
+            try self.io.sleep(.fromMilliseconds(5), .awake);
+            continue;
+        };
+    };
     defer allocator.free(bytes);
     var intent = try c.TableIntent.restore(allocator, bytes);
     defer intent.deinit();
@@ -286,7 +295,18 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
         offset += count;
     }
     try self.control(.{ .seal_intent = item.id }, deadline);
-    return try self.discover(observer, nonce);
+    while (true) {
+        try deadline.check(self.io);
+        return self.discover(observer, nonce) catch |err| {
+            if (!retryObservation(observer.transport, err)) return err;
+            try self.io.sleep(.fromMilliseconds(5), .awake);
+            continue;
+        };
+    }
+}
+fn readIntent(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, id: u64) ![]u8 {
+    var source = try observer.source();
+    return g.Upload.read(allocator, self.ledger.publication(id), &source, 1, self.ledger.configuration.intent_bytes);
 }
 /// A service-side status read reopens the frozen intent only to check current
 /// disclosure rights. It cannot dispatch, recompile or invent an outcome.

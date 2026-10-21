@@ -17260,13 +17260,14 @@
         "lookup()": "<inferred>",
         "observe()": "<inferred>",
         "prepareControl()": "<inferred>",
+        "readIntent()": "<inferred>",
         "status()": "<inferred>",
         "tick()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 73,
-        "catch": 11
+        "try": 75,
+        "catch": 13
       },
       "imports": [
         "root.zig",
@@ -17934,7 +17935,7 @@
         "SqlResultActive": 3,
         "SqlResultIncomplete": 4,
         "SqlSessionBusy": 4,
-        "SqlSessionExpired": 2,
+        "SqlSessionExpired": 3,
         "SqlSourceIdentityMismatch": 1,
         "SqlStatementExpired": 1,
         "WireParameterCountMismatch": 1
