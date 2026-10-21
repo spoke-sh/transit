@@ -1,5 +1,85 @@
 # Validation and milestone evidence
 
+## Shared server-managed SQL sessions
+
+The native console, PostgreSQL and MySQL adapters share the SQL service's
+account coordinator. Local consoles authenticate through Unix peer credentials;
+explicit remote clients use the HTTPS session API and SCRAM. The
+[console guide](../apps/transit-cli/docs/console.md),
+[session contract](../contracts/SQL_SESSION_V1.md) and
+[Internals account](../docs/internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
+own behavior and reasoning. [M56](../docs/roadmap/M56.md) records delivery scope.
+
+The [evidence record](verification/results/sql-sessions-2026-10-21.json) preserves
+exact source/binary hashes, commands, raw structured
+reports and selected earlier failed or aborted attempts. The pinned Zig 0.17 development
+shell supplies ordinary checks; the `sql-wire` shell supplies real database
+clients. Fixtures use disposable disk-backed Ursula installations. The user's
+installation and server processes are untouched.
+
+Executed coverage includes:
+
+- `just check`: Zig unit/protocol checks, generated contracts, 555 actual CLI
+  diagnostic cases, terminal history/editor checks, frontend checks and handbook
+  generation. Logical codec fixtures remain independent of the HTTP client.
+- `just test::server`: automatic local discovery, independent console settings,
+  concurrent admission, lost replies and original-token recovery, reserved
+  control capacity, native transport/Host boundaries, real PTY output, catalog
+  DDL/DML, revocation across restart, process recovery and shutdown. The full
+  lifecycle at `3ceb1bb3` completes in 568.23 seconds.
+- `just test::server-faults`: bootstrap loss/SIGKILL preserves installation
+  identity and exact receipts; signed native denial, Host/framing limits, artifact
+  checks and rollback rejection pass at `41d75db4` in 95.48 seconds.
+- `just test::station`: object registration survives an injected unavailable
+  observation, refused submission and lost accepted reply through its native
+  binding ledger. An injected expired view renews at a fresh command sequence
+  for the same durable input. Typed Table/audit/reply publication, worker/store
+  recovery, query policy, lifetime and supervision checks also pass. The previous
+  worker fails the new expired-view schedule; that negative control is retained.
+- `just test::sql-sessions`: independent HTTPS/SCRAM client, local peer and real
+  remote console, typed parameters, current revocation, token conflict/identity,
+  service SIGKILL, configuration-owner recovery, lease/control isolation and
+  exact fetch retries. Explicit KV (41 rows), Document (12) and Table (9) results
+  survive replacement through their original captured operations. Injected
+  source-metadata and retained-page refusals recover without SQL replay.
+- `just test::sql-wire-gateway`: real psql/mysql and libpq/libmysqlclient,
+  PostgreSQL text/binary and MySQL text/binary types, preparation/admission,
+  settings, TLS rotation, authorization, detached writes, cancellation, oversized
+  values, relational reads, transport fragmentation and capacity/drain behavior.
+  The 40 KiB row is submitted once; the client wait ends before the original
+  operation completes. Operator discovery verifies its identity and affected
+  counts, then both wire clients verify all ten variable-size cells.
+
+Committed-source `just ci-clean --lane core` at `314c8d0d` passes all 28 tasks in
+2002.08 seconds; `just ci-clean --lane experience` at `74c18c41` passes all nine
+in 1168.46 seconds. Exact task times, source revisions and binary hashes are in
+the evidence record. The subsequent
+source-binding retry is covered by `just check`, the full source fixture and the
+experience lane at `74c18c41`. The full wire fixture builds at that revision.
+The source fixture builds at `7973cf1e`, whose only change corrects the
+retained-page fault target. The final documentation/evidence commit changes no
+runtime behavior.
+
+Planned matrix cases do not count as executed coverage. The measurements record
+first-batch latency, HTTP body bytes, internal requests and sampled process/WAL
+capacity. They include other host work and recovery. WAL capacity includes
+allocated segments; it does not isolate retained operation bytes or cold-store
+usage. The small sample does not establish a speedup or latency guarantee.
+
+The current definition is a hard cutover. Missing/foreign definitions reject
+without resetting installation history or accepted work. No conversion, rolling
+upgrade, transaction, automatic SQL replay or resumable interactive-query claim
+follows from these tests. Source owner groups are deliberately scheduled one at
+a time and captured admission occurs while owners are paused; the test does not
+qualify sustained simultaneous load from all three source types. The remote
+client uses a fresh HOME and only connection/trust
+credentials, but the test does not isolate its filesystem/network namespace or
+execute a different-OS-UID client. The host refuses user namespace creation
+(`uid_map: Operation not permitted`), and noninteractive privilege elevation is
+unavailable; the evidence records these capability probes as blocked deployment
+checks, not SQL test passes. Selected core/experience lanes do not replace
+the full language, growth, browser or Arrow/Flight inventories.
+
 ## Automatic local server startup
 
 The startup implementation and executable proofs at `d61f2e0d` use one

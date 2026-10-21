@@ -383,25 +383,54 @@ distinct in the proof ledger. These schedules do not establish every crash point
 constant latency, distributed SQL placement, transactions, browser admission,
 Board/Flight migration or resumable interactive queries.
 
-At source `3ceb1bb3`, the one-row native-session fixture measures 1.56–1.71 seconds
-to the first batch over a new TLS connection and 1.64–1.69 seconds over a reused
-connection (three samples each). Each uses one SQL request but observes 186–192
-internal native requests, including background recovery. Two simultaneous
-sessions finish in 1.93 seconds including result closure; their individual
-observation windows overlap and cannot be added as independent request counts.
-The service high-water mark at this observation is 105,404 KiB. The
+At implementation source `74c18c41`, the completed native-session fixture
+measures 1.55–1.63 seconds to the first one-row batch over a new TLS
+connection and 1.61–1.64 seconds over a reused connection (three samples each).
+Each uses one SQL request but observes 183–191 internal native requests,
+including background recovery. Two simultaneous sessions finish in
+2.63 seconds including result closure; their observation windows overlap
+and cannot be added as independent request counts. The service high-water mark
+at this observation is 116,236 KiB. The
 [measurement implementation](../../tests/sql_sessions/measurements.py) records
-body bytes, timings and process memory beside the exact source revision.
+body bytes, timings and process memory. The [evidence record](../../tests/verification/results/sql-sessions-2026-10-21.json)
+preserves exact source/binary hashes, structured observations and failed runs.
 
-These are same-host observations with other proofs/builds running, no warmup,
-no matched baseline and no throughput target. They establish that one public
-HTTP exchange still performs substantial native authority and snapshot work.
-They do not establish a speedup from the new placement. Acquisition may retry
+The full wire fixture uses eight resident pages and 8 MiB hot/cache budgets.
+It submits one row containing ten 4096-byte variable-size cells. Its original
+operation completes after 2,427.679 seconds, after the
+client's wait has ended. Operator discovery verifies the original identity and
+affected counts; PostgreSQL and MySQL both read back all ten cells. SQL is
+submitted once. This observation exposes a substantial remaining write cost;
+the session cutover does not establish a throughput improvement.
+In the subsequent phase sample from that same constrained fixture, five measured
+single-row writes per adapter (after one warmup) have median completion times of
+19.51 seconds for PostgreSQL and 18.93 seconds for MySQL. The respective ranges
+are 18.36–20.45 and 18.37–19.25 seconds.
+These observations include durable admission and completion under the fixture's
+retained history; they do not isolate wire encoding costs.
+
+The [resource sampler](../../tests/sql_sessions/resources.py) samples the
+native fixture during provisioning, execution and process replacement. Its largest
+sampled sum of direct child RSS is 884,404 KiB; the largest SQL-process
+high-water mark across incarnations is 126,612 KiB. WAL file capacity peaks
+at 105,259,960 bytes. RSS sums can count shared pages repeatedly and exclude
+subprocess descendants. WAL capacity includes allocated segments, excludes cold
+storage, and does not isolate retained operation bytes. To repeat that observer,
+run `python3 tests/sql_sessions/resources.py PID FIXTURE OUTPUT.json` while the
+source-session fixture's Python process is alive; use its PID and owned fixture
+directory. The integration fixture itself owns process cleanup.
+
+These are same-host observations with other proofs/builds running, no matched
+baseline and no throughput target. The native-session samples have no warmup;
+the wire phase samples exclude one warmup each. One public HTTP exchange still
+performs substantial native authority and snapshot work. Acquisition may retry
 transient unavailable observations within the request deadline before publishing
-a cursor; advancing a disclosed iterator never retries by opening a new snapshot.
-Readiness remains fenced during an authority outage: the fault schedule observes
-a three-second outage and a 3.34-second successful login, rather than bypassing
-the account's readiness gate.
+a cursor; advancing a disclosed interactive iterator never reopens a new snapshot.
+A retained captured result can repeat reads of the same immutable manifest/page,
+with current authorization and failed-attempt allocation cleanup; its cursor
+advances only after page validation succeeds. Readiness remains fenced during
+an authority outage: the fault schedule observes a three-second outage and a
+3.290-second successful login, preserving the account's readiness gate.
 
 ## Reactive consistency
 
