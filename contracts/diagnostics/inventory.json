@@ -21729,7 +21729,7 @@
       },
       "open_error_set_uses": 14,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 11
       },
       "imports": [
