@@ -1,0 +1,269 @@
+//! Gateway statement lifetime over shared metadata-only compilers. Preparation
+//! owns immutable metadata; execution opens a new authorized cut or typed intent.
+const std = @import("std");
+const g = @import("root.zig");
+const c = g.catalog;
+const q = g.query;
+const f = g.fuze;
+const Self = @This();
+allocator: std.mem.Allocator,
+text: []const u8,
+connection: c.TableClient.Connection,
+dialect: f.Sql.Dialect,
+plan: union(enum) { select: q.TablePrepared, dml: c.TablePreparedDml, create: f.TableDdl.Owned, ddl: Ddl, relational: *q.RelationalCompilation },
+output: ?f.Types.Decoded,
+const Ddl = struct {
+    compiled: f.TableDdl.Owned,
+    definition: ?c.TableCatalog.Definition,
+    fn deinit(self: *Ddl) void {
+        self.compiled.deinit();
+        if (self.definition) |*value| value.deinit();
+    }
+};
+pub const Kind = enum { select, insert, update, delete, create, alter, drop };
+pub fn kind(self: *const Self) Kind {
+    return switch (self.plan) {
+        .select, .relational => .select,
+        .create => .create,
+        .ddl => |value| if (value.compiled.statement == .alter) .alter else .drop,
+        .dml => |value| switch (value.template.syntax.subject.kind) {
+            .insert => .insert,
+            .update => .update,
+            .delete => .delete,
+        },
+    };
+}
+pub fn deinit(self: *Self) void {
+    if (self.output) |*output| output.deinit();
+    switch (self.plan) {
+        .relational => |value| value.deinit(),
+        inline else => |*value| value.deinit(),
+    }
+    self.allocator.free(self.text);
+    self.* = undefined;
+}
+pub fn parameters(self: *const Self) []const f.Types.Type {
+    return switch (self.plan) {
+        .select => |*value| value.parameterTypes(),
+        .dml => |*value| value.parameterTypes(),
+        else => &.{},
+    };
+}
+pub fn fields(self: *const Self) []const f.Types.Field {
+    return if (self.output) |output| output.type.structure else &.{};
+}
+/// Bind-time validation has no native input, upload or snapshot. Actual
+/// execution independently rechecks rights and immutable source identity.
+pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !void {
+    if (values.len != self.parameters().len) return error.WireParameterCountMismatch;
+    switch (self.plan) {
+        .select => |*value| {
+            const template = &value.template;
+            var bound = try template.bind(allocator, template.name, template.descriptor.type, template.basis, values, null);
+            defer bound.deinit();
+        },
+        .dml => |*value| {
+            const template = &value.template;
+            var bound = try template.bind(allocator, template.name, template.schema.schema, values, null);
+            defer bound.deinit();
+        },
+        else => {},
+    }
+}
+/// This profile routes every relational target through the selected database's
+/// explicit catalog connection. SQL names never select another configured account.
+pub const Profile = enum { native, wire };
+pub fn prepare(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options) !Self {
+    return prepareDiagnostic(allocator, client, text, dialect, profile, options, null);
+}
+pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
+    if (detail) |value| value.* = .{};
+    var location: f.Sql.Location = .{};
+    return prepareInner(allocator, client, text, dialect, profile, options, detail, &location) catch |err| {
+        if (detail) |value| if (value.location == null and (location.offset != 0 or location.expected != null)) {
+            value.location = location;
+        };
+        return err;
+    };
+}
+fn prepareInner(allocator: std.mem.Allocator, client: *c.TableClient, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.RelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+    try f.Sql.validateText(text);
+    var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
+    const first = try lexer.next();
+    if (first.tag != .word) return error.UnsupportedGatewayStatement;
+    const owned = try allocator.dupe(u8, text);
+    errdefer allocator.free(owned);
+    var plan: @FieldType(Self, "plan") = undefined;
+    if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
+        // Parameterized relational syntax is outside this profile. Parameter
+        // tokens belong to the shared single-Table compiler; strings/comments
+        // containing their spelling never change routing.
+        var parameterized = false;
+        while (true) {
+            const token = try lexer.next();
+            if (token.tag == .eof) break;
+            if (token.tag == .integer and token.text.len != 0 and (token.text[0] == '$' or token.text[0] == '?')) parameterized = true;
+        }
+        if (!parameterized and try f.RelationalSql.requiredDialect(text, dialect)) {
+            var syntax = try f.RelationalSql.parseDialect(allocator, text, location, dialect);
+            defer syntax.deinit();
+            var clients: [f.Relational.max_sources]*c.TableClient = @splat(client);
+            var selected = options;
+            selected.dialect = dialect;
+            plan = .{ .relational = try q.RelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], text, .interactive, selected, location) };
+        } else plan = .{ .select = try q.TablePrepared.prepare(allocator, client, text, dialect, detail) };
+    } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
+        plan = .{ .dml = try c.TablePreparedDml.prepare(allocator, client, text, dialect, location) };
+    } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE")) {
+        var ddl = try f.TableDdl.compileDialect(allocator, text, null, location, dialect);
+        errdefer ddl.deinit();
+        if (ddl.statement != .create) return error.UnsupportedGatewayStatement;
+        _ = try client.requireObject(0, .create);
+        plan = .{ .create = ddl };
+    } else if (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP"))) {
+        var names: std.heap.ArenaAllocator = .init(allocator);
+        defer names.deinit();
+        const target = try f.TableDdl.target(names.allocator(), text);
+        var definition = try client.lookup(allocator, try c.TableMetadata.Name.init(target.name));
+        errdefer if (definition) |*value| value.deinit();
+        var compiled = try f.TableDdl.compile(allocator, text, if (definition) |value| value.schema.schema else null, location);
+        errdefer compiled.deinit();
+        _ = try client.requireObject(if (definition) |value| value.metadata.object else 0, if (target.kind == .alter) .alter else .drop);
+        plan = .{ .ddl = .{ .compiled = compiled, .definition = definition } };
+    } else return error.UnsupportedGatewayStatement;
+    errdefer switch (plan) {
+        .relational => |value| value.deinit(),
+        inline else => |*value| value.deinit(),
+    };
+    var output_fields: [g.Limits.max_parameters]f.Types.Field = undefined;
+    const output: ?f.Types.Type = switch (plan) {
+        .select => |value| value.output.type,
+        .relational => |value| try value.plan.outputSchema(&output_fields),
+        else => null,
+    };
+    if (profile == .wire) {
+        if (output) |schema| for (schema.structure) |field| {
+            _ = try g.Type.from(field);
+        };
+    }
+    var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .dialect = dialect, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
+    errdefer if (result.output) |*schema| schema.deinit();
+    if (profile == .wire) for (result.parameters()) |parameter| {
+        _ = try g.Type.from(.{ .name = "", .type = parameter, .nullable = true });
+    };
+    return result;
+}
+/// Revalidate before disclosing cached descriptors. Data revisions can change;
+/// a replacement object, schema, name or connection cannot inherit this handle.
+pub fn validate(self: *const Self, client: *c.TableClient) !void {
+    if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    const before = try client.describe();
+    const right: c.TableCatalogRecords.Right = switch (self.kind()) {
+        .select => .read,
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        .create => .create,
+        .alter => .alter,
+        .drop => .drop,
+    };
+    switch (self.plan) {
+        .select => |value| {
+            _ = try client.requireObject(value.binding.metadata.object, right);
+            try checkBinding(self.allocator, client, value.binding);
+        },
+        .dml => |value| {
+            _ = try client.requireObject(value.binding.metadata.object, right);
+            try checkBinding(self.allocator, client, value.binding);
+        },
+        .relational => |value| for (value.definitions[0..value.syntax.targets.len]) |definition| {
+            _ = try client.requireObject(definition.?.metadata.object, .read);
+            try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.?.metadata));
+        },
+        .create => _ = try client.requireObject(0, .create),
+        .ddl => |value| {
+            const object = if (value.definition) |definition| definition.metadata.object else 0;
+            _ = try client.requireObject(object, right);
+            if (value.definition) |definition| {
+                try checkBinding(self.allocator, client, try c.TableBinding.init(self.connection, definition.metadata));
+            } else {
+                var found = try client.lookup(self.allocator, try c.TableMetadata.Name.init(value.compiled.statement.drop.name));
+                defer if (found) |*definition| definition.deinit();
+                if (found != null) return error.CatalogDefinitionChanged;
+            }
+        },
+    }
+    if (!std.meta.eql(before, try client.describe())) return error.CatalogDefinitionChanged;
+}
+fn checkBinding(allocator: std.mem.Allocator, client: *c.TableClient, binding: c.TableBinding) !void {
+    var definition = (try client.lookup(allocator, binding.metadata.name)) orelse return error.TableNotFound;
+    defer definition.deinit();
+    try binding.check(client.connection, definition.metadata);
+}
+pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.TableClient, values: []const ?f.Types.Values.Atom, operation: u64) !c.TableIntent {
+    try self.validate(client);
+    if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
+    return switch (self.plan) {
+        .dml => |*value| value.bind(allocator, client, values, .{ .operation = operation, .namespace = operation }, null),
+        .create => |value| blk: {
+            if (values.len != 0) return error.WireParameterCountMismatch;
+            const create = value.statement.create;
+            const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .namespace = client.connection.namespace, .object = operation, .expected_revision = 0, .name = try c.TableMetadata.Name.init(create.name), .action = .{ .create = .{ .schema = try create.bind(operation), .if_not_exists = create.if_not_exists } } };
+            break :blk c.TableIntent.create(allocator, try c.TableCommand.fromDdl(client.connection.scope, client.connection.owner, request, null), operation);
+        },
+        .ddl => |value| blk: {
+            if (values.len != 0) return error.WireParameterCountMismatch;
+            const record = if (value.definition) |definition| definition.metadata else null;
+            const name = switch (value.compiled.statement) {
+                .alter => |alter| alter.name,
+                .drop => |drop| drop.name,
+                else => unreachable,
+            };
+            const action: @FieldType(c.TableDdlRequest, "action") = switch (value.compiled.statement) {
+                .alter => |alter| switch (alter.action) {
+                    .columns => |change| .{ .alter = .{ .schema = value.definition.?.schema.schema, .change = change } },
+                    .rename_table => |renamed| .{ .rename = try c.TableMetadata.Name.init(renamed) },
+                },
+                .drop => |drop| .{ .drop = .{ .if_exists = drop.if_exists } },
+                else => unreachable,
+            };
+            const request: c.TableDdlRequest = .{ .principal = client.connection.principal, .operation = operation, .namespace = client.connection.namespace, .object = if (record) |metadata| metadata.object else 0, .expected_revision = if (record) |metadata| metadata.revision else 0, .name = try c.TableMetadata.Name.init(name), .action = action };
+            break :blk c.TableIntent.create(allocator, try c.TableCommand.fromDdl(client.connection.scope, client.connection.owner, request, record), operation);
+        },
+        else => error.ExpectedGatewayWrite,
+    };
+}
+pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.TableClient, values: []const ?f.Types.Values.Atom, nonce: [16]u8, limits: q.TableQuery.Limits, cancellation: ?*const std.atomic.Value(bool)) !q.TableQuery {
+    if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.plan != .select) return error.ExpectedSingleTableSelect;
+    return q.TableQuery.openPrepared(allocator, client, &self.plan.select, values, nonce, limits, cancellation, null, .{});
+}
+pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, spill_name: []const u8, client: *c.TableClient, nonces: [f.Relational.max_sources][16]u8, options: q.RelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*q.RelationalQuery {
+    try self.validate(client);
+    if (self.plan != .relational) return error.ExpectedRelationalSelect;
+    const prepared = self.plan.relational;
+    if (!std.meta.eql(prepared.plan.budgets, options.budgets)) return error.InvalidQueryBudget;
+    var selected = options;
+    selected.dialect = self.dialect;
+    var clients: [f.Relational.max_sources]*c.TableClient = @splat(client);
+    const result = try q.RelationalQuery.open(allocator, io, directory, spill_name, clients[0..prepared.syntax.targets.len], self.text, nonces, selected, cancellation, null);
+    errdefer result.deinit();
+    // Capture can race DDL after the metadata-only validation above. Check the
+    // actual captured descriptors before any executor step or output disclosure.
+    for (prepared.definitions[0..result.tables.count], result.tables.scans[0..result.tables.count]) |original, captured| {
+        const binding = try c.TableBinding.init(self.connection, original.?.metadata);
+        try binding.check(client.connection, captured.?.definition.?.metadata);
+    }
+    return result;
+}
+test "gateway statements reject transaction controls and multi-command CREATE before authority access" {
+    const t = std.testing;
+    var client: c.TableClient = undefined;
+    const options: q.RelationalQuery.Options = .{ .consistency = .per_resource_snapshot_vector, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+    for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, sql, .transit, .wire, options));
+    if (prepare(t.allocator, &client, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, .wire, options)) |value| {
+        var result = value;
+        result.deinit();
+        return error.ExpectedMultipleStatementRejection;
+    } else |_| {}
+}

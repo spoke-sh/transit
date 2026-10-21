@@ -92,6 +92,21 @@ query:
 # Restart never restores revoked privileges. Disabling listeners or accounts
 # preserves accepted operations and their recovery worker.
 sql:
+  # Local consoles use independent sessions over an OS-authenticated private
+  # Unix socket. No password, TLS or client recovery file is needed.
+  native:
+    local: true
+    sources_file: null  # Optional service-owned KV/Table/Document source bindings
+    http: null
+    # To enable remote native consoles, replace null with:
+    # http:
+    #   address: 0.0.0.0
+    #   port: 19109
+    #   tls: true
+    #   certificate_file: ../transit-secrets/tls/server.pem
+    #   key_file: ../transit-secrets/tls/server.key
+    # Configure a password account below. Its console uses SCRAM over HTTPS.
+    # This TLS configuration is independent of the PG/MySQL tls block.
   postgres: null
   mysql: null
 
@@ -110,6 +125,7 @@ sql:
   #     enabled: true
   #     database: transit
   #     schema: public
+  #     sources_file: ../transit-secrets/sources.yaml
   # For password authentication on a newly enrolled account, instead select:
   #     authentication: password
   #     password_file: ../transit-secrets/sql-owner.password

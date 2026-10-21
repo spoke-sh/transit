@@ -12,7 +12,6 @@ import sys
 import time
 
 from server import Fixture, children, command, freeze_executables as freeze
-from storage import free_port
 
 
 def call(argv, *, env=None, timeout=300, retry_observation=False):
@@ -116,9 +115,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
     else:
         freeze(fixture)
         gateway = fixture.config['executables']['sql_gateway']
-    fixture.config['applications'] = {'port': free_port()}
-    fixture.config['board'] = {'port': free_port()}
-    fixture.config['sql'] = {'accounts': [dict(name='dormant', role='unused', password_file='absent.password')]}
+    fixture.config['sql'] = {'native': {'local': False}}
+    fixture.config['applications'] = {'port': fixture.reserve_port()}
+    fixture.config['board'] = {'port': fixture.reserve_port()}
+    fixture.config['sql'] = {'native': {'local': False}, 'accounts': [dict(name='dormant', role='unused', password_file='absent.password')]}
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     print(f'Local SQL proof: {fixture.root}', flush=True)
@@ -137,8 +137,8 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             path.write_text(password)
             path.chmod(0o600)
             accounts.append(dict(name=name, role='local_owner' if name == 'owner' else name, password_file=str(path)))
-        pg_port, mysql_port, health_port = free_port(), free_port(), free_port()
-        fixture.config['sql'] = {'postgres': {'port': pg_port}, 'mysql': {'port': mysql_port},
+        pg_port, mysql_port, health_port = fixture.reserve_port(), fixture.reserve_port(), fixture.reserve_port()
+        fixture.config['sql'] = {'native': {'local': False}, 'postgres': {'port': pg_port}, 'mysql': {'port': mysql_port},
             'health_port': health_port, 'request_timeout_ms': 30000, 'command_ms': 270000,
             'idle_ms': 270000, 'drain_ms': 1000, 'accounts': accounts}
         fixture.path.write_text(json.dumps(fixture.config))
@@ -174,6 +174,25 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             args, env = pg_args(name)
             return (denied if reject else call)([*args, sql], env=env)
 
+        def pg_count(name, *, second_row=False):
+            # These fixed, finite observations can start a fresh query after an
+            # explicit capacity refusal with no disclosed rows. Never route
+            # mutations, reloads or a partially returned result through here.
+            sql = 'SELECT COUNT(*) FROM shared_rows' + (' WHERE id=2' if second_row else '')
+            args, env = pg_args(name)
+            deadline = time.monotonic() + 30
+            refused = 0
+            while True:
+                result = subprocess.run([*args, sql], env=env, capture_output=True, text=True,
+                                        timeout=max(1, deadline-time.monotonic()))
+                if result.returncode == 0:
+                    if refused:
+                        print(f'Local SQL: {refused} empty COUNT observations explicitly refused for capacity before recovery.', flush=True)
+                    return result.stdout.strip()
+                assert not result.stdout and 'Native request capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+                refused += 1
+                time.sleep(.2)
+
         def mysql(sql, name='owner', reject=False):
             return (denied if reject else call)([*mysql_args(name), sql])
 
@@ -207,7 +226,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.start()
         fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        assert pg('SELECT COUNT(*) FROM shared_rows', 'reader') == '1'
+        assert pg_count('reader') == '1'
         marker = fixture.root / 'stale-activation'
         marker.mkdir(mode=0o700)
         old['activation_directory'] = str(marker)
@@ -225,10 +244,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         closed(mysql_port)
-        assert pg('SELECT COUNT(*) FROM shared_rows', 'writer') == '1'
+        assert pg_count('writer') == '1'
         pg('SELECT * FROM shared_rows', 'reader', reject=True)
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-regrant')
-        assert pg('SELECT COUNT(*) FROM shared_rows', 'reader') == '1'
+        assert pg_count('reader') == '1'
         print('Local SQL: retained data, native fencing, PostgreSQL-only exposure and persistent revocation passed.', flush=True)
 
         # Rotate through the existing public credential control. The input file
@@ -298,7 +317,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        assert pg('SELECT COUNT(*) FROM shared_rows WHERE id=2', 'reader') == '1'
+        assert pg_count('reader', second_row=True) == '1'
         assert controls('status', operation)['terminal']['state'] == 'applied'
         print('Local SQL: lost response recovered by original operation identity with both listeners disabled and no PEM access.', flush=True)
 
@@ -328,7 +347,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         args, env = pg_args()
         denied([*args, 'SELECT 1'], env=env)  # The previous CA cannot authorize the new leaf.
         ca = str(cert)
-        assert pg('SELECT COUNT(*) FROM shared_rows WHERE id=2', 'reader') == '1'
+        assert pg_count('reader', second_row=True) == '1'
         print('Local SQL: expired trust blocks admission without blocking recovery; explicit TLS replacement and client CA update passed.', flush=True)
         print(json.dumps({'local_sql': 'passed', 'installed_bundle': bundle is not None, 'elapsed_seconds': round(time.monotonic()-started, 3)}), flush=True)
         success = True

@@ -66,6 +66,10 @@ data role, database CONNECT, schema USAGE and default SELECT/INSERT/UPDATE for
 the root-created Table. The ledger principal is its explicit domain registrar.
 Restart reads this binding and rotates credentials without reapplying data grants.
 Never put root credentials in this configuration.
+Table object registration recovers through the native binding ledger when an
+authority observation is unavailable or a submission reply is lost. The worker
+reobserves the original registration; transient capacity does not terminate it
+or allocate a replacement object. Denied authority remains an error.
 
 The provider form, `--bootstrap-json '<configuration>'`, omits `seed_file` and
 `generation`. It creates a fresh in-memory key, emits one public registration,

@@ -18,7 +18,7 @@ import urllib.request
 
 from cold_storage import minio_binary
 from storage import free_port
-from table_console import TableConsole, atom, results as table_results
+from table_console import TableConsole, atom, records, results as table_results
 
 
 def children(pid):
@@ -72,13 +72,11 @@ class Fixture:
         # Keep retained artifact identity stable if another build updates zig-out.
         self.cli = str(self.root / "transit")
         shutil.copy2(Path(cli).resolve(), self.cli)
-        ports = []
-        while len(ports) < 5:
-            port = free_port()
-            if port not in ports:
-                ports.append(port)
+        self.reserved_ports = set()
+        ports = [self.reserve_port() for _ in range(6)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
-            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports)),
+            "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports[:5])),
+            "sql": {"health_port": ports[5]},
             "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
                 "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
                 "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
@@ -92,7 +90,16 @@ class Fixture:
         self.activation = None
         self.markers = set()
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.url = f"http://127.0.0.1:{ports[-1]}"
+        self.url = f"http://127.0.0.1:{self.config['ports']['gateway']}"
+
+    def reserve_port(self):
+        # Closing an ephemeral bind can let the OS return that same port again.
+        # Keep every role in this fixture distinct, including later SQL roles.
+        while True:
+            port = free_port()
+            if port not in self.reserved_ports:
+                self.reserved_ports.add(port)
+                return port
 
     @property
     def installation(self):
@@ -136,6 +143,15 @@ class Fixture:
                 self.activation, self.markers = activation, markers
                 with self.http.open(self.url + "/health", timeout=5) as response:
                     assert response.status == 200
+                if self.config.get('sql', {}).get('native', {}).get('local', True):
+                    status_file = self.installation / 'sql/status.json'
+                    while True:
+                        if status_file.exists():
+                            status = json.loads(status_file.read_text())
+                            if status.get('service', {}).get('state') == 'accepting':
+                                break
+                        assert self.process.poll() is None and time.monotonic() < deadline, 'Local SQL did not become ready'
+                        time.sleep(.05)
                 return report
         raise TimeoutError(f"Server readiness at {self.root}")
 
@@ -162,12 +178,14 @@ class Fixture:
         assert not result.stdout, result
 
     def console_config(self):
-        # Explicit remote-connection fixture from the observed allocation receipts.
-        done = self.record()['provision']
-        return dict(version=1, profile='catalog_v1', execution='interactive', transport='loopback', url=self.url,
-                    seed_file=str(self.installation/'caller.seed'),
-                    catalog=dict(scope=dict(realm=self.config['realm'], resource=done[5], catalog=1),
-                                 owner=done[4], principal=10))
+        # Public rendezvous is sufficient; never read a client signing key.
+        import hashlib
+        uid = os.geteuid()
+        runtime = Path(f'/tmp/transit-{uid}')
+        digest = hashlib.sha256(str(self.installation).encode()).hexdigest()
+        rendezvous = json.loads((runtime / (digest[:32] + '.json')).read_text())
+        return dict(version=1, endpoint='unix:'+rendezvous['socket'],
+                    account=rendezvous['account'], database=rendezvous['database'], authentication='peer')
 
     def console(self, text, expected=0):
         result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
@@ -251,7 +269,7 @@ def run(cli, node, host):
         fixture.refusal("another server manages this installation")
         shell = TableConsole(fixture.cli, cwd=fixture.root)
         try:
-            assert shell.call('.schema')['tables'] == ['items']
+            assert [row['table'] for row in records(shell.call('.schema'))] == ['items']
             page = shell.call('SELECT COUNT(*) FROM items;')
             assert page['complete']['rows'] == '1' and atom(page, 'unsigned') == '0', page
             # Reuse protocol support, but retire idle transport sockets and open
@@ -275,7 +293,7 @@ def run(cli, node, host):
                                   'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;\n'
                                   'UPDATE items SET value = 101 WHERE id = 1;\n'
                                   'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
-        assert [row['table_operation']['counts'] for row in results if 'table_operation' in row] == [dict(matched='2', changed='2'), dict(matched='1', changed='1'), dict(matched='1', changed='1')], results
+        assert [(row['operation']['matched'], row['operation']['changed']) for row in results if 'operation' in row] == [(2, 2), (1, 1), (1, 1)], results
         assert len(results) == 9, results
         for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
             assert page['complete']['rows'] == '1', page
@@ -283,36 +301,39 @@ def run(cli, node, host):
             assert atom(page, 'unsigned') == count, page
         assert atom(results[-1], 'signed') == '101', results
         print("Transit server independent console: nullable value/row counts, aliases and derived LIMIT/zero counts passed", flush=True)
-        recovery = fixture.installation / 'console-writes.json'
-        assert recovery.stat().st_mode & 0o777 == 0o600
-        # Explicit read-only connections retain their configured scope.
-        readonly = fixture.root / 'readonly.json'
-        readonly.write_text(json.dumps(dict(fixture.console_config(), execution='interactive')))
-        denied = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '-c',
-                                 'INSERT INTO items (id, value) VALUES (9, 900)'], capture_output=True, text=True, timeout=15)
-        assert denied.returncode == 1 and 'ConsoleWriterRequired' in denied.stderr, denied
-        read = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json',
-                               '-c', 'SELECT * FROM items'], capture_output=True, text=True, timeout=15)
-        assert read.returncode == 0, read
-        rows = table_results(json.loads(line) for line in read.stdout.splitlines())
-        assert rows and rows[0]['rows'], rows
-        info = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '--format', 'json'],
-                              input='.info\n', capture_output=True, text=True, timeout=15)
-        assert info.returncode == 0 and json.loads(info.stdout)['profile'] == 'catalog_v1', info
-        assert json.loads(info.stdout)['writes_configured'] is False
+        assert not list(fixture.installation.glob('console-*')), 'Console created private recovery state'
+        # Two independent local sessions work concurrently without shared locks.
+        first = TableConsole(fixture.cli, cwd=fixture.root)
+        second = TableConsole(fixture.cli, cwd=fixture.root)
+        try:
+            assert atom(first.call('SELECT COUNT(*) FROM items;'), 'unsigned') == '1'
+            assert atom(second.call('SELECT COUNT(*) FROM items;'), 'unsigned') == '1'
+        finally:
+            first.close(); second.close()
+        explicit = fixture.root / 'connection.json'
+        explicit.write_text(json.dumps(fixture.console_config()))
+        read = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(explicit), '--format', 'json',
+                               '-c', 'SELECT * FROM items'], capture_output=True, text=True, timeout=30)
+        assert read.returncode == 0 and table_results(map(json.loads, read.stdout.splitlines()))[0]['rows'], read
+        info = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(explicit), '--format', 'json'],
+                              input='.info\n', capture_output=True, text=True, timeout=30)
+        assert info.returncode == 0 and json.loads(info.stdout)['database'] == 'transit', info
         # Kill a console after native admission while the owner cannot process
         # its input. A new console must resume the same saved operation.
         source_pid = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))
         os.kill(source_pid, signal.SIGSTOP)
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
                                     'INSERT INTO items (id, value) VALUES (3, 300)'],
-                                   cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                   cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env={'PATH': '/unavailable', 'LANG': 'C'})
         try:
             deadline = time.monotonic() + 20
             while True:
-                saved_write = json.loads(recovery.read_text())
-                operation = saved_write['operation']
-                if not saved_write['complete'] and saved_write['input'] is not None:
+                inventory = fixture.console('.status all\n')
+                unfinished = [entry['operation'] for entry in inventory if entry['operation']['phase'] not in ('terminal', 'abandoned')]
+                if unfinished:
+                    saved_write = unfinished[-1]
+                    operation = saved_write['identity']['id']
                     break
                 assert pending.poll() is None and time.monotonic() < deadline, 'write was not admitted'
                 time.sleep(.05)
@@ -333,19 +354,25 @@ def run(cli, node, host):
                 encoded = json.dumps(record).encode()
                 record_path.write_bytes(encoded)
                 fixture.refusal("cannot read the retained installation record")
-                rejected = fixture.console('SELECT COUNT(*) FROM items;\n', expected=2)
-                assert 'cannot read the local installation' in rejected.stderr, rejected
+                # The console has no authority to read installation.json. A stopped
+                # service is reported through local discovery/transport instead.
+                rejected = fixture.console('SELECT COUNT(*) FROM items;\n', expected=1)
+                assert rejected.stderr and not rejected.stdout, rejected
                 assert record_path.read_bytes() == encoded
         finally:
             record_path.write_bytes(saved)
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        fixture.console('.status\n')
-        assert json.loads(recovery.read_text())['operation'] == saved_write['operation']
-        resumed = fixture.console('.resume\n')[-1]['table_operation']
-        assert json.loads(recovery.read_text())['operation'] == operation
-        assert resumed['phase'] == 'applied' and resumed['counts'] == dict(matched='1', changed='1'), resumed
+        observed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
+        assert observed['identity'] == saved_write['identity']
+        resumed = fixture.console(f'.resume table:{operation}\n')[-1]['operation']
+        deadline = time.monotonic() + 90
+        while resumed['phase'] != 'terminal':
+            assert resumed['identity'] == saved_write['identity'] and time.monotonic() < deadline, resumed
+            time.sleep(.1)
+            resumed = fixture.console(f'.status table:{operation}\n')[-1]['operation']
+        assert resumed['phase'] == 'terminal' and resumed['outcome'] == 'applied' and resumed['matched'] == resumed['changed'] == 1, resumed
         assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
         fixture.stop(kill=True)
         fixture.start()
@@ -357,7 +384,7 @@ def run(cli, node, host):
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
             assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
-            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['table_operation']['counts'] == dict(matched='1', changed='0')
+            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['operation']['changed'] == 0
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
@@ -386,25 +413,30 @@ def run(cli, node, host):
                 fixture.stop()
                 fixture.start()
                 fixture.ready()
-            prior_recovery = recovery.read_bytes()
             denied = fixture.console('INSERT INTO items (id, value) VALUES (4, 400);\n', expected=1)
             assert 'CatalogDenied' in denied.stderr and not denied.stdout, denied
-            assert recovery.read_bytes() == prior_recovery, 'Preparation denial installed active saved work'
+            assert not list(fixture.installation.glob('console-*'))
             assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
         # The initialized default is a real catalog object. Startup must not
         # manufacture it again after an intentional DROP/name reuse.
+        fixture.console('CREATE TABLE ddl_probe (id INT64);\n')
+        fixture.console('ALTER TABLE ddl_probe ADD COLUMN active BOOLEAN DEFAULT TRUE;\n')
+        fixture.console('ALTER TABLE ddl_probe RENAME TO ddl_renamed;\n')
+        assert [column['name'] for column in records(fixture.console('DESCRIBE ddl_renamed;\n')[-1])] == ['id', 'active']
+        fixture.console('DROP TABLE ddl_renamed;\n')
+        fixture.console('DROP TABLE IF EXISTS ddl_renamed;\n')
         fixture.console('DROP TABLE items;\n')
         fixture.stop()
         fixture.start()
         fixture.ready()
-        assert all('items' not in page['tables'] for page in fixture.console('SHOW TABLES;\n'))
+        assert all(row['table'] != 'items' for page in fixture.console('SHOW TABLES;\n') for row in records(page))
         fixture.console('CREATE TABLE items (name TEXT);\n')
-        schema = fixture.console('DESCRIBE items;\n')[-1]['table']
-        assert [column['name'] for column in schema['columns']] == ['name'], schema
+        schema = records(fixture.console('DESCRIBE items;\n')[-1])
+        assert [column['name'] for column in schema] == ['name'], schema
         fixture.stop()
         fixture.start()
         fixture.ready()
-        assert fixture.console('DESCRIBE items;\n')[-1]['table'] == schema
+        assert records(fixture.console('DESCRIBE items;\n')[-1]) == schema
         # A stopped child cannot process SIGTERM. Force the supervisor's timed
         # SIGKILL path and join its pipe drainers before closing their handles.
         source = next(pid for pid in children(fixture.process.pid) if '"catalog":' in command(pid))

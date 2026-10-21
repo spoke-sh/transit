@@ -1,10 +1,46 @@
 # Local PostgreSQL and MySQL access
 
-The local bundle includes `transit-sql-gateway`. PostgreSQL and MySQL are
-independently disabled by default. A server that has never enabled either
-protocol creates no SQL accounts, credentials, operation ledgers or gateway
-process. Enabling a listener selects exposure; native authorization controls
-login, database access and each Table operation.
+The local bundle runs a shared SQL service. Its private Unix socket provides
+independent console sessions by default, using an OS peer check and a managed
+`local` login. PostgreSQL, MySQL and native HTTP/TLS listeners are independently
+opt-in. All adapters share account coordination and current authorization.
+
+## Native HTTP/TLS sessions
+
+For remote consoles, configure the native listener and an enabled account:
+
+```yaml
+sql:
+  native:
+    local: true
+    http:
+      address: 0.0.0.0
+      port: 19109
+      tls: true
+      certificate_file: ./secrets/server.pem
+      key_file: ./secrets/server.key
+  accounts:
+    - name: developer
+      role: local_owner
+      authentication: password
+      password_file: ./secrets/developer.password
+      bootstrap_owner: true
+```
+
+The certificate must cover the hostname used by clients. The
+[console connection file](console.md#configuration-and-trust) supplies the HTTPS
+endpoint, SQL account/database and password/CA references. No server signing key,
+installation record or filesystem mount is needed. Native HTTP uses the same
+shared runtime with both database-wire listeners disabled. Native TLS uses its
+explicit certificate/key independently of `sql.tls`, which governs PG/MySQL.
+Plain HTTP is admitted only for an explicitly configured loopback trust profile.
+
+`sql.native.local: false` disables local admission. It does not delete accepted
+work. The reserved `local` account cannot be redeclared in `sql.accounts`.
+Source bindings use `sql.native.sources_file` for local sessions or
+`sql.accounts[].sources_file` for network accounts; see
+[source declarations](../../../packages/zig/transit-sql/docs/sources.md).
+The configured sources are service-owned identities, never supplied by a console.
 
 Use the same installed bundle throughout an installation's lifetime. A
 compatible installation can enable SQL by changing its YAML configuration and

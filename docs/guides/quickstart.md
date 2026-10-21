@@ -81,6 +81,11 @@ transit console -c 'SELECT COUNT(*) FROM items'
 See the [console guide](../../apps/transit-cli/docs/console.md) for output and
 recovery details, and the [SQL reference](../reference/sql.md) for admitted syntax.
 
+Open another `transit console` from the same directory to use an independent
+session. The server owns mutation recovery; neither console locks a client
+recovery file. Remote consoles use a connection YAML file pointing at the native
+HTTP/TLS listener, as described in the console guide.
+
 ## Stop and resume
 
 Ctrl-C in the server terminal stops its owned children and preserves disk state.

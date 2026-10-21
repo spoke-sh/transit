@@ -1,7 +1,7 @@
 # Gateway configuration and controls
 
 The executable accepts a private JSON configuration matching
-[`Configuration`](../../../packages/zig/transit-sql-gateway/src/Configuration.zig).
+[`Configuration`](../../../packages/zig/transit-sql/src/Configuration.zig).
 `version: 1` and the exact native `definition` are mandatory. An incompatible
 configuration or persisted operation rejects before execution. Use generated
 current contracts from the same build; a v1 label alone does not identify a

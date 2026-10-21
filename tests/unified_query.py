@@ -16,10 +16,10 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False, compound=False, counts=False):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, compound=False, counts=False):
     if compound and counts:
         raise ValueError('compound and value-count recovery use separate fixture profiles')
-    if compound and any((board, browser, lifecycle, example, console, console_tls)):
+    if compound and any((board, browser, lifecycle, example)):
         raise ValueError('compound recovery selects installed SDKs and the SQL shell; other profiles have separate schedules')
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
@@ -358,11 +358,6 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 if board:
                     from unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
-                if console:
-                    from console import check
-                    console_config = json.loads((root / 'shell.json').read_text())
-                    console_config['url'] = proxy_url
-                    check(console, root, kind, invoke, expected, fault, console_config, tls=console_tls)
                 if lifecycle:
                     from unified_failures import check as failure_check
                     failure_check(native, port_client, callers, root, invoke, restart, fault, kind)
@@ -444,8 +439,6 @@ if __name__ == "__main__":
     parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'))
     parser.add_argument('--shell')
     parser.add_argument('--compound', action='store_true')
-    parser.add_argument('--console')
-    parser.add_argument('--console-tls', action='store_true')
     parser.add_argument('--board')
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--lifecycle', action='store_true')
@@ -461,4 +454,4 @@ if __name__ == "__main__":
         raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls, compound=args.compound, counts=args.counts)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, compound=args.compound, counts=args.counts)

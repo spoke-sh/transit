@@ -73,11 +73,14 @@ fn submit(init: std.process.Init, directory: []const u8, caller: *c.TableClient,
 // Retry only fresh read/preparation operations, never submit or captured scans.
 fn currentRead(init: std.process.Init, wire: *s.client.Client, comptime function: anytype, arguments: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     var attempts: u8 = 0;
+    const started = std.Io.Clock.awake.now(init.io);
     while (true) {
         return @call(.auto, function, arguments) catch |err| {
-            if (attempts == 64 or (err != error.Rejected and err != error.Conflict) or wire.last_rejection != .StaleStateResource) return err;
-            attempts += 1;
-            try init.io.sleep(.fromMilliseconds(1), .awake);
+            const unavailable = s.client.Client.unavailable(err) or wire.contended(err);
+            const stale = (err == error.Rejected or err == error.Conflict) and wire.last_rejection == .StaleStateResource;
+            if ((!unavailable and !stale) or (unavailable and started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 30) or (!unavailable and attempts == 64)) return err;
+            if (!unavailable) attempts += 1;
+            try init.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
             continue;
         };
     }
@@ -464,7 +467,7 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.eql(u8, mode, "external-ddl") or std.mem.eql(u8, mode, "external-ddl-admin")) {
         const operator: s.client.AuthorizationClient = .{ .transport = &wire, .realm = owner.scope.realm, .principal = 1234, .key = try key(10) };
-        caller.connection.role = (try operator.read(.{ .resolve = try p.Value.init("gateway-caller") })).body.authorization.body.resolve.id;
+        caller.connection.role = (try currentRead(init, &wire, s.client.AuthorizationClient.read, .{ operator, @FieldType(p.Authorization.Query, "kind"){ .resolve = try p.Value.init("gateway-caller") } })).body.authorization.body.resolve.id;
         if (std.mem.eql(u8, mode, "external-ddl")) {
             caller.connection.principal = 1235;
             caller.key = try key(11);
@@ -480,7 +483,15 @@ pub fn main(init: std.process.Init) !void {
                     const saved = try request.save(init.gpa);
                     defer init.gpa.free(saved);
                     try saveBytes(init, directory, "external-prepared.json", saved);
-                    const receipt = try caller.submit(request);
+                    const receipt = while (true) {
+                        // The proposal was saved above. Retry only these exact
+                        // signed bytes, never compilation or a new sequence.
+                        break caller.submit(request) catch |err| {
+                            if ((!s.client.Client.unavailable(err) and !wire.contended(err)) or started.durationTo(std.Io.Clock.awake.now(init.io)).toSeconds() >= 120) return err;
+                            try init.io.sleep(.fromMilliseconds(20), .awake);
+                            continue;
+                        };
+                    };
                     while (true) {
                         const progress = try currentRead(init, &wire, c.TableClient.waitProgress, .{ &caller, &work, request, receipt.position });
                         if (progress != .pending) break;

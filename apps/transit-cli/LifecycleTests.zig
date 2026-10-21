@@ -8,7 +8,6 @@ test {
     _ = @import("Results.zig");
     _ = @import("Output.zig");
     _ = @import("Style.zig");
-    _ = @import("ConsoleWrites.zig");
     _ = @import("TableRecovery.zig");
     _ = @import("server/Gateway.zig");
     _ = @import("server/Config.zig");

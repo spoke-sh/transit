@@ -117,6 +117,22 @@ fn receive(server: *std.http.Server, request: *?std.http.Server.Request) anyerro
 /// Context.connectionError(error, handler_started) observes failed transports, without payloads.
 pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, options: Options, context: anytype) !void {
     try options.validate();
+    const Plain = struct {
+        input: Io.net.Stream.Reader,
+        output: Io.net.Stream.Writer,
+        fn init(self: *@This(), _: @TypeOf(context), worker_io: Io, _: std.mem.Allocator, stream: Io.net.Stream, input: []u8, output: []u8) !void {
+            self.* = .{ .input = stream.reader(worker_io, input), .output = stream.writer(worker_io, output) };
+        }
+        fn reader(self: *@This()) *Io.Reader {
+            return &self.input.interface;
+        }
+        fn writer(self: *@This()) *Io.Writer {
+            return &self.output.interface;
+        }
+        fn deinit(_: *@This()) void {}
+    };
+    const Context = @typeInfo(@TypeOf(context)).pointer.child;
+    const Transport = if (@hasDecl(Context, "Connection")) Context.Connection else Plain;
     const Worker = struct {
         done: std.atomic.Value(bool) = .init(true),
         future: ?Io.Future(void) = null,
@@ -130,9 +146,10 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
         fn connection(worker_io: Io, alloc: std.mem.Allocator, stream: Io.net.Stream, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) !void {
             var input: [8192]u8 = undefined;
             var output: [4096]u8 = undefined;
-            var reader = stream.reader(worker_io, &input);
-            var writer = stream.writer(worker_io, &output);
-            var server = std.http.Server.init(&reader.interface, &writer.interface);
+            var transport: Transport = undefined;
+            try transport.init(ctx, worker_io, alloc, stream, &input, &output);
+            defer transport.deinit();
+            var server = std.http.Server.init(transport.reader(), transport.writer());
             for (0..limits.requests_per_connection) |index| {
                 handler_started.* = false;
                 const started = Io.Clock.awake.now(worker_io);
@@ -143,11 +160,11 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
                 if (index + 1 == limits.requests_per_connection) request.?.head.keep_alive = false;
                 const elapsed = started.durationTo(Io.Clock.awake.now(worker_io)).toMilliseconds();
                 const remaining: u32 = @intCast(@max(1, @as(i64, limits.request_timeout_ms) - elapsed));
-                try deadline(worker_io, remaining, dispatch, .{ worker_io, alloc, &request.?, limits, admission, ctx, handler_started });
+                try deadline(worker_io, remaining, dispatch, .{ worker_io, alloc, &request.?, limits, admission, ctx, &transport, handler_started });
                 if (!request.?.head.keep_alive or server.reader.state != .ready) return;
             }
         }
-        fn dispatch(worker_io: Io, alloc: std.mem.Allocator, request: *std.http.Server.Request, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) anyerror!void {
+        fn dispatch(worker_io: Io, alloc: std.mem.Allocator, request: *std.http.Server.Request, limits: Options, admission: *Admission, ctx: @TypeOf(context), transport: *Transport, handler_started: *bool) anyerror!void {
             validateHead(request) catch return respond(request, .bad_request, "{\"err\":\"InvalidHttpRequest\"}");
             const control = (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) or
                 (if (@hasDecl(@typeInfo(@TypeOf(ctx)).pointer.child, "isControl")) ctx.isControl(request) else false);
@@ -160,7 +177,10 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
             // Each consumer enforces its own parse/output/compute allocation
             // budget; the neutral server allocates no request-body collection.
             handler_started.* = true;
-            try ctx.handle(worker_io, alloc, request);
+            if (@hasDecl(@typeInfo(@TypeOf(ctx)).pointer.child, "handleConnection"))
+                try ctx.handleConnection(worker_io, alloc, transport, request)
+            else
+                try ctx.handle(worker_io, alloc, request);
         }
     };
     const slots = try allocator.alloc(Worker, options.connections);

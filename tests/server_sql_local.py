@@ -9,7 +9,6 @@ import sys
 
 from server import Fixture
 from server_sql import account, apply, call, denied, freeze, wait_status
-from storage import free_port
 
 
 def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
@@ -27,11 +26,12 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
             fixture.config.pop('executables')  # Installed adjacent dependency discovery.
     else:
         freeze(fixture)
-    fixture.config['applications'] = {'port': free_port()}
-    fixture.config['board'] = {'port': free_port()}
-    pg_port, mysql_port = free_port(), free_port()
-    sql = dict(postgres={'port': pg_port}, mysql={'port': mysql_port},
-               health_port=free_port(), tls={'mode': 'disabled'}, accounts=[],
+    fixture.config['sql'] = {'native': {'local': False}}
+    fixture.config['applications'] = {'port': fixture.reserve_port()}
+    fixture.config['board'] = {'port': fixture.reserve_port()}
+    pg_port, mysql_port = fixture.reserve_port(), fixture.reserve_port()
+    sql = dict(native={'local': False}, postgres={'port': pg_port}, mysql={'port': mysql_port},
+               health_port=fixture.reserve_port(), tls={'mode': 'disabled'}, accounts=[],
                drain_ms=1000, request_timeout_ms=30000, command_ms=270000, idle_ms=270000)
     fixture.config['sql'] = sql
     success = False
@@ -184,15 +184,15 @@ def bootstrap_fault(cli, node, host, board, gateway):
     fixture = Fixture(cli, node, host)
     freeze(fixture)
     install_peer(fixture)
-    fixture.config['applications'] = {'port': free_port()}
-    fixture.config['board'] = {'port': free_port()}
+    fixture.config['applications'] = {'port': fixture.reserve_port()}
+    fixture.config['board'] = {'port': fixture.reserve_port()}
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     print(f'Owner bootstrap fault proof: {fixture.root}', flush=True)
     try:
         fixture.start(); fixture.ready(); fixture.stop()
         owner_role = fixture.record()['authorization_steps'][0]
-        fixture.config['sql'] = dict(postgres={'port': free_port()}, health_port=free_port(),
+        fixture.config['sql'] = dict(native={'local': False}, postgres={'port': fixture.reserve_port()}, health_port=fixture.reserve_port(),
             tls={'mode': 'disabled'}, drain_ms=1000,
             accounts=[dict(name='owner', role='local_owner', authentication='trust', bootstrap_owner=True)])
         fixture.path.write_text(json.dumps(fixture.config))

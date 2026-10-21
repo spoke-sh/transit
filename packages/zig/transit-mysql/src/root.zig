@@ -1,4 +1,4 @@
-pub const gateway = @import("transit_sql_gateway");
+pub const gateway = @import("transit_sql");
 pub const Frame = @import("Frame.zig");
 pub const Codec = @import("Codec.zig");
 pub const Scalar = @import("Scalar.zig");

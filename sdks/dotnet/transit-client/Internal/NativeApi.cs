@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Transit.Client.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
-    internal const string Definition = "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8";
+    internal const string Definition = "cbee25ed95ec3dc9b1e987f6f90a4f4b983bb828f60d772d6dbd4a75facf6731";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint transit_authorization_applyDelegate(IntPtr arg0, [In] byte[] arg1, [In] byte[] arg2, nuint arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);

@@ -20,19 +20,21 @@ The [performance reference](performance.md) supplies measurements and their limi
 | Trading execution and other external actions | Fenced workers and authorized recorded connector attempts | Explicit ordering domains and isolated execution/control budgets | Event-to-send tails, remote acknowledgement, reconciliation and control response |
 
 These are workload categories, not complete applications supplied by Transit.
-General joins, grouping, sorting, continuous SQL and arbitrary cross-resource
-transactions are unsupported. The [example gallery](../guides/workload-examples.md)
+Finite joins, grouping and sorting follow the bounded
+[relational profile](queries.md). Continuous SQL and
+arbitrary cross-resource transactions are unsupported. The [example gallery](../guides/workload-examples.md)
 shows executable starting points and identifies what each leaves to the application.
 
 ## Interactive reads have a session lifetime
 
-The selected design is a **fresh query session and source snapshot for every
-interactive SELECT**. Completion releases the session's resources. Exiting the
-console cancels its active query; reconnecting starts new work rather than
-resuming that interactive query. A session is not a new durable PID or principal.
+Each interactive SELECT acquires a fresh source snapshot. Completion releases
+its read resources. The SQL service retains the last bounded response batch for
+explicit fetch retries until cursor close, session close or expiry. Reconnecting
+can continue an unexpired logical session; opening a new session does not resume
+an old interactive query. A session is not a new durable PID or principal.
 
-This lifecycle is implemented by the console. Explicit captured durable queries
-retain saved recovery intent; disconnecting does not cancel them. The precise
+The SQL service owns console execution and cleanup. Explicit captured queries
+retain recovery intent in the account ledger; disconnecting does not cancel them. The precise
 [query lifecycle contract](queries.md#interactive-sessions) defines the
 required boundaries, including server cleanup after an abnormal disconnect.
 Existing explicit durable jobs retain their own recovery contract.

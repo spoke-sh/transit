@@ -32,8 +32,10 @@ The [authorization guide](docs/authorization.md) describes `transit auth`
 preview, saved changes, explicit bounded apply and receipt recovery. Catalog SQL
 resolves role, privilege and schema statements to the same shared typed actions.
 
-Bare `transit console` derives its connection from the local installation without
-a generated configuration file. Server, explicit connection and management
+Bare `transit console` discovers a local peer-authenticated SQL session without
+reading private installation files. Multiple consoles share the service and have
+independent settings and cursors. Explicit connection YAML also supports remote
+HTTP/TLS sessions. Server, explicit connection and management
 configuration use YAML by default; `.transitrc` remains a DuckDB-style startup
 file containing dot commands.
 
@@ -41,8 +43,8 @@ The console runs `-c 'SELECT COUNT(*) FROM items'`, `-f queries.sql` or interact
 SQL with automatic query progress and verified results. The local connection
 also executes INSERT/UPDATE/DELETE against `items` without extra configuration.
 CREATE/ALTER/DROP and typed DML share the configured general catalog; new
-Tables are discoverable and queryable through that catalog. Separate connections
-require their provisioned catalog route;
+Tables are discoverable and queryable through that catalog. Connections select
+an enrolled account and database, or an authorized service-owned source binding;
 `.help INSERT` and `.help CREATE TABLE` explain syntax, configuration and
 recovery inside the shell. Its `.transitrc` hierarchy
 configures `.connect`, `.mode` and `.timer`; server `transit.yaml` settings overlay the

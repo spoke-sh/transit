@@ -47,6 +47,12 @@ associations or a captured view, the next poll restarts the complete page read.
 No handler sees a partial snapshot. This read retry preserves the captured view;
 it does not retry or discard a conflicting mutation or renew an expired view.
 
+When the host separately observes that a captured view has expired, it discards
+the private proposal and renews the view only after resolving any outstanding
+signed operation. Renewal reobserves the same durable input and current command
+sequence; an earlier accepted view-open command has already consumed its sequence.
+This worker recovery rule does not reopen an interrupted SQL result cursor.
+
 An unresolved operation stays ahead of the next handler as an exact signed
 proposal. The same host retries those bytes. After host loss, acquire fresh
 ownership before recomputation: the previous activation is fenced and the

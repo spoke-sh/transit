@@ -75,8 +75,6 @@ def run(node, cli, worker, courier):
         once(ledger_config)
         once(requester_config)
         assert total() == 0
-        s.command({'send': {'pid': ledger, 'value': frame(b'prepare-table')}})
-        once(ledger_config)
         assert value(ledger_resource, b"\x00station") == b"station.genserver.v1"
 
         delivery_seed, public = s.key("courier")
@@ -92,7 +90,9 @@ def run(node, cli, worker, courier):
                 time.sleep(.025)
             raise AssertionError(("no delivered input", pid))
 
-        control = {"mode": "drop", "bodies": [], "changed_basis": 0}
+        control = {"mode": "drop", "bodies": [], "changed_basis": 0,
+                   "registration_reads_refused": 0, "registration_bodies": [],
+                   "registration_replies_lost": 0, "expired_view": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -109,6 +109,31 @@ def run(node, cli, worker, courier):
                     assert len(writes) == 4 and any(item['value'] is None for item in writes), writes
                     assert any(item and bytes.fromhex(item['value'])[4] == 3 for item in turn['outputs']), 'Terminal publication lost its call reply'
                 query = envelope.get("query", {})
+                if query.get('kind', {}).get('entries', {}).get('view') and not control['expired_view']:
+                    # The preceding open already consumed its signed sequence.
+                    # A new view for the same input must observe a new sequence.
+                    control['expired_view'] += 1
+                    expired = b'{"err":"StateViewExpired"}'
+                    self.send_response(422)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(expired)))
+                    self.end_headers()
+                    self.wfile.write(expired)
+                    return
+                registration_read = 'registration' in query.get('kind', {}).get('authorization', {}).get('kind', {})
+                registration_write = 'authorization' in command
+                if registration_write:
+                    control['registration_bodies'].append(body)
+                if (registration_read and not control['registration_reads_refused']) or (registration_write and len(control['registration_bodies']) == 1):
+                    if registration_read:
+                        control['registration_reads_refused'] += 1
+                    refused = b'{"err":"HttpCapacity"}'
+                    self.send_response(503)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(refused)))
+                    self.end_headers()
+                    self.wfile.write(refused)
+                    return
                 if query.get('kind', {}).get('entries', {}).get('view') and not control['changed_basis']:
                     # Advance authority policy after capture without replacing
                     # the view's resource root or revoking its current rights.
@@ -121,6 +146,10 @@ def run(node, cli, worker, courier):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
+                    if registration_write and response.status == 200 and not control['registration_replies_lost']:
+                        control['registration_replies_lost'] += 1
+                        self.close_connection = True
+                        return
                     if is_turn and response.status == 200 and control["mode"] != "pass":
                         mode, control["mode"] = control["mode"], "pass"
                         committed.set()
@@ -140,6 +169,8 @@ def run(node, cli, worker, courier):
         proxied = {**ledger_config, "url": f"http://127.0.0.1:{proxy.server_port}"}
         requester_config["url"] = proxied["url"]
         try:
+            s.command({'send': {'pid': ledger, 'value': frame(b'prepare-table')}})
+            once(proxied)
             s.command({"send": {"pid": requester, "value": frame(b"7")}})
             once(requester_config)
             writer = launch(proxied, once=False)
@@ -147,6 +178,12 @@ def run(node, cli, worker, courier):
             writer.terminate(); writer.wait(timeout=10)
             assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1]
             assert total() == 7
+            assert control['expired_view'] == 1
+            assert control['registration_reads_refused'] == 1
+            assert control['registration_replies_lost'] == 1
+            assert len(control['registration_bodies']) >= 2
+            assert control['registration_bodies'][0] == control['registration_bodies'][1]
+            print('Station recovery: expired view renews at a fresh sequence; refused registration reads/submissions and lost accepted reply retain the original binding.', flush=True)
 
             # The held turn publishes the typed Table head, exact outcome, audit
             # and reply together; queue admission alone cannot satisfy this fault.

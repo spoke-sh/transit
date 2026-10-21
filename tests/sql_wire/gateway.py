@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import time
@@ -14,11 +15,12 @@ import psycopg
 import mysql.connector
 
 
-def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark")
+def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","sessions","sessions-basic","sessions-kv")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     with ColdStore() as cold, Fixture(cold.config()) as store:
         root = store.root
+        session_port = free_port()
         native_port, sql_port, mysql_port, health_port = free_port(), free_port(), free_port(), free_port()
         url = f'http://127.0.0.1:{native_port}'
         public = json.loads(subprocess.check_output([catalog, 'public'], timeout=10))
@@ -26,6 +28,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
         node_config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=store.url, bucket='sql-wire-gateway', journal='authority', port=native_port, resident_pages=8, request_timeout_ms=30000,request_metrics=True)))
         processes, logs = [], []
         probe = None
+        session_faults = None
         def start(binary, config, *before):
             log = (root / f'process-{len(logs)}.log').open('w+')
             logs.append(log)
@@ -33,12 +36,23 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
             processes.append(child)
             return child
         def call(binary, mode, *args, via=None):
-            result = subprocess.run([binary, via or url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=300)
+            result = subprocess.run([binary, via or url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=1800 if mode == 'session-sources' else 300)
             if result.returncode:
                 raise RuntimeError(f'{mode}: {result.stderr[-8000:]}')
             return json.loads(result.stdout)
         def controls(*args):
-            result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
+            deadline, refusals = time.monotonic()+30, 0
+            while True:
+                result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
+                # Repeat only pure inspection when native capacity refuses it.
+                # Never prepare/submit another control or replay SQL here.
+                if not result.returncode or args[0] not in ('list', 'status') or not any(cause in result.stderr for cause in ('HttpCapacity', 'StaleStateResource')) or time.monotonic() >= deadline:
+                    break
+                assert not result.stdout, 'Failed control inspection disclosed output'
+                refusals += 1
+                time.sleep(.05)
+            if refusals:
+                print(json.dumps(dict(profile='database_wire_control_observation_retry', operation=args[0], refused_reads=refusals)), flush=True)
             if result.returncode:
                 assert not result.stdout, 'Failed control inspection disclosed output'
             assert result.returncode == 0, result.stderr
@@ -62,6 +76,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
             if settings_binding is not None:
                 configuration['settings'] = dict(url=f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+                configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv') else []
+                if session_faults is not None:
+                    configuration['native_url'] = session_faults.url
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
@@ -89,6 +108,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
             settings_source = start_configuration(root,configuration_host,settings_port,url,settings_binding,start)
 
             call(catalog, 'host')
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+                from sql_sessions.faults import Faults
+                session_faults = Faults(url)
+            if slice in ('sessions', 'sessions-kv'):
+                call(ledger, 'session-sources', *(['kv'] if slice == 'sessions-kv' else []))
             configure()
             certificate()
             start(host, root/'host.json')
@@ -110,6 +134,63 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from clients import run as clients, run_cli, connection_options as client_options
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv'):
+                from sql_sessions.native import run as sessions
+                source_processes = {}
+                def select_source(name):
+                    # Run the selected owner/requester pair within the node's
+                    # four wait lanes. Pausing the other pairs also exercises
+                    # recovery while independent durable work cannot advance.
+                    for source, group in source_processes.items():
+                        for child in group:
+                            assert child.poll() is None
+                            child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
+                    if name is not None and name not in source_processes:
+                        source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
+                def restart_sessions(peer=False, wire=True, idle_ms=None):
+                    nonlocal server
+                    server.kill()
+                    server.wait(timeout=10)
+                    call(ledger, 'fence')
+                    configure()
+                    if idle_ms is not None:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['limits']['idle_ms'] = idle_ms
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
+                    if not wire:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['postgres_port'] = configuration['mysql_port'] = None
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
+                    if peer:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['native']['socket'] = str(root/'native.sock')
+                        configuration['native']['port'] = None
+                        configuration['native']['tls'] = None
+                        configuration['postgres_port'] = configuration['mysql_port'] = None
+                        configuration['accounts'][0]['authentication'] = 'peer'
+                        configuration['accounts'][0]['peer_uid'] = os.geteuid()
+                        credential_path = Path(configuration['accounts'][0]['verifier_file'])
+                        credential = json.loads(credential_path.read_text())
+                        credential['verifier'] = None
+                        credential['revision'] += 1
+                        credential_path.write_text(json.dumps(credential))
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
+                    server = start(gateway, root/'sql-gateway.json')
+                    deadline = time.monotonic() + 30
+                    while True:
+                        try:
+                            if peer:
+                                with socket.socket(socket.AF_UNIX) as connection:
+                                    connection.connect(str(root/'native.sock'))
+                            else:
+                                with socket.create_connection(('127.0.0.1', session_port), timeout=1):
+                                    pass
+                            break
+                        except (ConnectionRefusedError, FileNotFoundError):
+                            assert server.poll() is None and time.monotonic() < deadline
+                            time.sleep(.02)
+                sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, () if slice == 'sessions-basic' else (('kv', 41),) if slice == 'sessions-kv' else None, session_faults, lambda: server.pid)
+                return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
                 print(json.dumps(dict(profile='database_wire_cli',seconds=round(time.monotonic()-started,3),fresh_fixture=True,both_protocols=True)),flush=True)
@@ -255,6 +336,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
                 child.wait(timeout=10)
             if probe:
                 probe.close()
+            if session_faults is not None:
+                session_faults.close()
             if sys.exc_info()[0]:
                 for log in logs:
                     log.flush()
@@ -266,7 +349,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, slice="all"):
         # The CLI lifecycle has its own history so expanding it does not change
         # the existing wide-row measurement's retained state or observation bound.
         # Both schedules must pass for the complete gateway task to succeed.
-        run(node,catalog,ledger,host,gateway,configuration_host,'cli')
+        run(node,catalog,ledger,host,gateway,configuration_host,console,'cli')
 
 
 if __name__ == '__main__':

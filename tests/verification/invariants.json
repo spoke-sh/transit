@@ -1181,7 +1181,7 @@
     },
     {
       "id": "CLI-01",
-      "claim": "Terminal editing and authorized cursor assistance never submit implicitly, and lost replies retain the exact accepted query identity",
+      "claim": "Terminal editing and authorized cursor assistance never submit implicitly; the console renders shared-session results and retained operation identities",
       "owner": "contracts/TRANSIT_CLI_V1.md",
       "implementation": [
         "apps/transit-cli/Console.zig",
@@ -1189,21 +1189,22 @@
         "packages/zig/transit-query/src/Assistance.zig",
         "packages/zig/transit-query/src/Workspace.zig",
         "packages/ts/transit-query-client/src/assistance.ts",
-        "tests/console.py"
+        "tests/sql_sessions/native.py"
       ],
-      "profile": "M24 finite read-only KV/Table/Document console and shared Board cursor assistance",
+      "profile": "Native SQL session console with Table catalogs and explicit KV/Table/Document bindings",
       "tasks": [
-        "test::unit",
-        "test::console",
+        "check-core",
+        "test::sql-sessions",
+        "test::server",
         "test::unified-ingress"
       ],
       "scenarios": [
-        "Real controlling terminal and pipes: multiline comments/quotes, bracketed paste, UTF-8 boundaries, replacement/accept/undo, EOF, resize and signals",
-        "Current scoped metadata, stale-input/catalog rejection, one pending request and current denial clearing",
-        "Lost accepted reply followed by process loss and locked private recovery, exact retry, verified result pages and safe terminal rendering",
-        "Explicit private-CA TLS succeeds; wrong root/hostname fails; stalled stdout ends through a joined deadline"
+        "Real terminal editing, history and safe rendering use a bounded test peer; actual SQL execution is covered by the deployment suites",
+        "Current scoped metadata, stale-input/catalog rejection, explicit submission and current denial clearing",
+        "Lost admitted reply and process loss recover the server operation by token or paged discovery without a client credential/recovery lock",
+        "Fresh client home, verified remote TLS, wrong CA/hostname/password refusal and no redirected credentials"
       ],
-      "limits": "One configured source, one finite bundle/pending request/cursor, 4096-byte SQL draft, eight suggestions and bounded in-memory history. Completion latency/RSS are single-run fixture measurements. No writes, administrative SQL, continuous terminal execution or implicit persistent history.",
+      "limits": "One interactive cursor per logical session, bounded preparations/history and finite explicit submissions. Editor peers prove presentation only. Source deployment uses real owners scheduled within native admission limits. No implicit SQL execution, transactions or resumable interactive snapshots.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
@@ -1901,6 +1902,42 @@
       "limits": "Injected trusted clock in collection fixtures. Encoded allocation counters exclude provider metadata, work ledgers, snapshots and WAL. Provider deletion/trim does not prove erasure from backups or immediate asynchronous cold-object cleanup.",
       "model": null,
       "qualification": "Executed disk/core scopes are recorded in tests/README.md; broader service and clean-CI gates are separate."
+    },
+    {
+      "id": "SQL-SESSION-01",
+      "claim": "Authenticated native and database-wire sessions share account ownership while durable operations outlive session/transport loss and every protected disclosure rechecks current rights",
+      "owner": "contracts/SQL_SESSION_V1.md",
+      "implementation": [
+        "packages/zig/transit-sql/src/Registry.zig",
+        "packages/zig/transit-sql/src/SessionOperations.zig",
+        "packages/zig/transit-sql/src/CapturedOperations.zig",
+        "packages/zig/transit-sql/src/ConfigurationOperations.zig",
+        "packages/zig/transit-sql-client/src/Client.zig",
+        "apps/transit-sql-gateway/src/Native.zig",
+        "tests/sql_sessions/native.py",
+        "tests/server_write_observation.py"
+      ],
+      "profile": "Current-v1 HTTP/TLS and Linux Unix peer SQL sessions",
+      "tasks": [
+        "test::sql-wire-contracts",
+        "test::sql-sessions",
+        "test::sql-wire-gateway",
+        "test::server",
+        "test::server-sql",
+        "test::server-sql-local",
+        "test::server-sql-faults"
+      ],
+      "scenarios": [
+        "Independent destination-bound SCRAM, native logical cells and prepared parameters, wrong instance/definition/handles, header and redirect refusal",
+        "Two consoles, independent settings across HTTP replacement, shared capacity with independently admitted controls, idle expiry and no cross-session cancellation",
+        "Exact last-batch retry, invalid ordinal interruption, cached-batch revocation and failed snapshot acquisition without publishing a partial cursor",
+        "Table/configuration/captured tokens survive SQL service replacement, conflicting content rejects, original retained source results are verified, and captured cancellation settles published steps",
+        "Lost execute reply discovers the original operation, rejected ingress creates no operation, paused owner or client output does not hold another console",
+        "Local enrollment and recovery preserve authority across restart; optional wire listeners are independent of native admission"
+      ],
+      "limits": "Linux x86_64 process and disk-backed Ursula fixtures, independent Python HTTPS client and actual console/PG/MySQL clients. Source workers are selected within four native wait lanes; no claim of unbounded simultaneous source workers, exhaustive crash schedules, host power-loss recovery, browser admission, transactions or latency SLO. Fresh client home is not a separate security sandbox.",
+      "model": null,
+      "qualification": "Required current-v1 scenarios; tests/README.md records executed outcomes separately from the implementation and this inventory."
     }
   ]
 }

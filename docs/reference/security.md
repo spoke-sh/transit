@@ -120,6 +120,16 @@ reconciliation uses a separate signed control identity. Verifier rotation and
 fenced replacement are described in its
 [configuration guide](../../apps/transit-sql-gateway/docs/configuration.md).
 
+The native [SQL session API](../../contracts/SQL_SESSION_V1.md) uses the same
+account authorization and recovery owner. Remote SCRAM binds the definition,
+server instance, account, database and source over verified TLS. Local Linux
+sessions map socket peer credentials to the configured account; a forwarded UID
+header grants nothing. The default local account is provisioned once through
+ordinary authorization. A nonsecret rendezvous locates its private socket;
+consoles need neither the installation record nor native signing keys. Session
+secrets expire, while operation tokens identify retained work and confer no
+access independently of the current account and object grants.
+
 Board admits viewers through its private deployment boundary. Everyone who can
 reach it sees the configured shared scope; there is no per-viewer login or
 credential session. Its upstream identity remains read-only. Optional query and

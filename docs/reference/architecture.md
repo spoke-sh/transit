@@ -53,9 +53,11 @@ latency, freshness and recovery needs. The [workload model](workloads.md) record
 those requirements and their [multilanguage examples](../guides/workload-examples.md).
 Durable accepted data does not require every reader to be a recoverable job.
 
-The console gives each SELECT a fresh query session and
-snapshot, cancels active work on console exit, and keeps explicit durable jobs
-separate. Fuze executes in the client over generic leased native snapshots.
+The shared SQL service gives each console SELECT a fresh result and source
+snapshot. Closing the logical session releases active reads; a lease handles
+abnormal disconnection. Explicit captured jobs survive session loss. Fuze runs
+in the SQL service over generic leased native snapshots; low-level Query SDK
+callers can also execute Fuze in their own process.
 [Query execution](queries.md#interactive-sessions) defines that
 distinction and the cancellation/cleanup contract.
 

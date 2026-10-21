@@ -1,7 +1,7 @@
 //! Private operator CLI over the same signed native controls as the runtime.
 //! Inspection never submits. One locked recovery file owns the control sequence.
 const std = @import("std");
-const g = @import("transit_sql_gateway");
+const g = @import("transit_sql");
 const p = g.catalog.protocol;
 const native = p.Growth;
 const Config = g.OperatorConfiguration;

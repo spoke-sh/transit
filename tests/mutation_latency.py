@@ -69,7 +69,7 @@ class Console:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
                             value = json.loads(line)
-                            if query_frames or value.get('profile') == 'table_snapshot_v1':
+                            if query_frames or value.get('profile') == 'sql_session_v1':
                                 query_frames.append(value)
                                 if len(query_frames) > 130:
                                     raise ValueError('benchmark query row budget exceeded')
@@ -315,7 +315,7 @@ def main():
         if args.client:
             writer_config = fixture.root / 'client.json'
             writer_config.write_text(json.dumps({'url': fixture.url, 'seed_file': str(fixture.installation / 'caller.seed'),
-                'connection': fixture.console_config()['catalog']}))
+                'connection': dict(scope=dict(realm=fixture.config['realm'], resource=fixture.record()['provision'][5], catalog=1), owner=fixture.record()['provision'][4], principal=10)}))
         writer = Console(fixture, writer_config, args.client)
         shells.append(writer)
         creation, expected_extra = schema_profile(args.schema_profile)
@@ -346,11 +346,15 @@ def main():
                 report['failed_sample'] = {'case': case, **writer.last_measurement, 'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}}
                 raise
             completed = time.monotonic_ns() - native.started_ns if native else None
-            outcome = result['table_operation']
-            assert outcome['phase'] == 'applied' and outcome['diagnostic']['outcome'] == 'applied', result
-            if not args.client: assert not outcome['uncertain'], result
             changed = 0 if case == 'update_same' else affected
-            assert outcome['counts'] == dict(matched=str(affected), changed=str(changed)), result
+            if args.client:
+                outcome = result['table_operation']
+                assert outcome['phase'] == 'applied' and outcome['diagnostic']['outcome'] == 'applied', result
+                assert outcome['counts'] == dict(matched=str(affected), changed=str(changed)), result
+            else:
+                outcome = result['operation']
+                assert outcome['phase'] == 'terminal' and outcome['outcome'] in ('applied', 'unchanged'), result
+                assert (outcome['matched'], outcome['changed']) == (affected, changed), result
             if case:
                 if native:
                     measurement['completion_timeline'] = completion_timeline(native.trace()['retained'], started, completed)

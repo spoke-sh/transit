@@ -1,9 +1,9 @@
 # SQL reference
 
 Transit executes finite `SELECT` queries through Fuze and bounded Table writes
-through configured console catalog routes or the optional PostgreSQL/MySQL
-gateway. The automatic local connection
-supplies a catalog owner; other connections configure their own routes. Table
+through the shared SQL service, accessed by native console sessions or optional
+PostgreSQL/MySQL adapters. The service maps accounts and databases to catalogs;
+explicit source bindings expose KV, Document and captured Table queries. Table
 DDL creates, changes and drops named typed schemas through that owner. SQL
 compiles to shared typed plans and never grants access. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
@@ -71,11 +71,12 @@ capabilities. Each operation has an explicit support boundary:
 | Zig integration   | An application explicitly invokes a typed helper inside its authorized Station turn   |
 | Unsupported       | The form has no accepted SQL grammar or execution contract                            |
 
-The console dispatches each supported SQL family to its configured execution owner. Console SELECT statements
-compile in Fuze and run through authorized query snapshots; Flight adapts its
-finite query client. Table mutations instead use the separately configured writer
-and its saved-command/result protocol. The local native gateway carries signed
-operations, not a general SQL session with implicit write routing.
+The shared SQL runtime dispatches each supported SQL family to its owning
+compiler and execution interface. Console SELECT runs in that service through
+authorized snapshots; captured source SELECT uses the durable Query owner.
+Table mutations and configuration reloads retain their domain identities. Flight
+keeps its separate finite query adapter. The kernel native gateway still carries
+signed operations; the SQL session API is a distinct service boundary.
 
 ### Diagnosing rejected SQL
 
@@ -86,8 +87,8 @@ submitted statement or establish execution support. Valid syntax can still fail
 source binding, type checks, budgets or current authorization.
 
 Console parse errors include statement-relative line and byte-column coordinates,
-a caret and correction guidance. Context is bounded; literals, quoted identifiers
-and comments are masked, and control bytes are escaped. Flight returns a compact
+and structured correction guidance when the compiler supplies them. Context is
+bounded and no additional stored-value read is performed for diagnostics. Flight returns a compact
 message with coordinates where available and a next step, without SQL excerpts.
 Syntax/binding failures use INVALID_ARGUMENT; unavailable syntax or interfaces
 use UNIMPLEMENTED. The [console guide](../../apps/transit-cli/docs/console.md#sql-errors)

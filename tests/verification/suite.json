@@ -52,6 +52,7 @@
       "test::typed-tables",
       "test::sql-gateway",
       "test::sql-wire-gateway",
+      "test::sql-sessions",
       "test::relational-callers",
       "test::relational-maintenance",
       "test::relational-exchanges",

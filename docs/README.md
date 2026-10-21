@@ -18,7 +18,7 @@ and operations remain shared references below those entry points.
 | CLI | [Configuration](reference/configuration.md), [Commands](reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md), [psql/mysql](../apps/transit-cli/docs/sql.md) |
 | SQL | [Statements and support](reference/sql.md), [implemented and planned grammar](reference/sql/grammar-surface.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
 | SDKs | [Language SDKs](reference/sdks.md), [caller semantics](reference/callers.md) |
-| HTTP APIs | [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
+| HTTP APIs | [SQL session API](../contracts/SQL_SESSION_V1.md), [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
 | Reactive APIs | [AsyncAPI](reference/asyncapi.md), [sessions and watches](reference/reactive.md) |
 | Analytical clients | [Flight SQL and ADBC](reference/flight.md) |
 | Native protocol | [Signed operations](reference/native.md) |

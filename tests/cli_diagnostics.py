@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Real CLI failures: actionable coordinates, privacy, streams and no startup effects."""
 import copy
+import atexit
+from sql_sessions.editor_peer import peer as session_peer
 import json
 import os
 import re
@@ -16,6 +18,9 @@ from console_settings import parse_show, read_show
 CLI = str(Path(sys.argv[1]).resolve())
 ENV = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
 CASES = 0
+SESSION_PEER = session_peer(structured=True)
+SQL_ENDPOINT, SESSION_ACTIONS = SESSION_PEER.__enter__()
+atexit.register(SESSION_PEER.__exit__, None, None, None)
 ISOLATED = tempfile.TemporaryDirectory(prefix='transit-cli-environment-')
 ENV['HOME'] = ISOLATED.name
 # Dependency absence is a controlled fixture, independent of developer tools.
@@ -74,7 +79,7 @@ root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands
 assert b'--initialize' not in root_help and b'--config' not in root_help
 invoke(['private-must-not-appear'], contains=('unknown command', 'argument 1', 'transit --help'))
 invoke(['--help', 'extra'], contains=('argument 1',))
-invoke(['console', '--no-rc'], contains=('cannot read the local installation', 'installation.json'))
+invoke(['console', '--no-rc'], 1, contains=('local SQL',))
 invoke(['console', '--config', 'missing', '--format', 'csv'], stderr='error: --format must be table or json\n')
 invoke(['console', '--format'], stderr='error: --format must be table or json\n')
 invoke(['console', '--config', 'missing', '--no-ui'], contains=('--no-ui is not supported',))
@@ -343,99 +348,31 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
             server(dict(config, sql={protocol: {'port': port}, 'accounts': [dict(name='owner', role='local_owner', authentication='trust')]}), ('cannot bind', f'sql.{protocol}.port', 'address already in use'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
 
-    console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',
-               'seed_file': 'missing.seed', 'connection': dict(zip(('realm', 'principal', 'source', 'resource', 'requester', 'requests'), range(1, 7))),
-               'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'scope': {'realm': 1, 'resource': 4, 'catalog': '1'}, 'owner': 3, 'object': '1', 'metadata': {'id': '1', 'spec': {'format': 0x54434d01, 'length': 200, 'digest': [1]*32}}, 'row_type': {'structure': [{'name': 'key', 'type': {'int64': {}}}, {'name': 'value', 'type': {'int64': {}}, 'nullable': True}]}}}},
-                             'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}}}
+    # Client-file validation and server-diagnostic forwarding. The peer is an
+    # explicit rendering fixture; real compilation is tested by sql-sessions.
+    console = dict(version=1, endpoint=SQL_ENDPOINT, authentication='trust')
     path = root / 'console.json'
-    catalog_console = dict(version=1, profile='catalog_v1', url=console['url'], transport='loopback',
-                           seed_file='missing.seed', catalog=dict(scope=dict(realm=1, resource=4, catalog=1), owner=3, principal=2))
-    for patch, field in (({'connection': console['connection']}, 'catalog'),
-                         ({'workspace': console['workspace']}, 'catalog'),
-                         ({'catalog': None}, 'catalog'),
-                         ({'execution': 'durable'}, 'execution'),
-                         ({'writes': {'recovery_file': ''}}, 'writes.recovery_file')):
-        path.write_text(json.dumps(dict(catalog_console, **patch)))
-        invoke(['console', '--config', path], contains=(field, 'invalid console configuration'))
-    path.write_text(json.dumps(catalog_console))
-    invoke(['console', '--config', path], contains=('seed_file', 'signing credential'))
-    for patch, field in (({'version': 2}, 'version'), ({'request_timeout_ms': 0}, 'request_timeout_ms'), ({'url': 'http://user:private-must-not-appear@127.0.0.1:19105'}, 'url / transport / ca_file')):
+    for patch, field in (({'version': 2}, 'version'), ({'request_timeout_ms': 0}, 'request_timeout_ms'),
+                         ({'endpoint': 'http://user:private-must-not-appear@127.0.0.1:1'}, 'endpoint'),
+                         ({'recovery_file': 'old.json'}, 'unknown field'),
+                         ({'catalog': {}}, 'unknown field'), ({'seed_file': 'old.seed'}, 'unknown field'),
+                         ({'execution': 'durable'}, 'configuration')):
         path.write_text(json.dumps(dict(console, **patch)))
-        invoke(['console', '--config', path, '--format', 'json'], contains=(field,))
-    missing = copy.deepcopy(console)
-    del missing['workspace']['source']['source']['table']['object']
-    path.write_text(json.dumps(missing))
-    invoke(['console', '--config', path], contains=('missing required field workspace.source.source.table.object',))
-    path.write_text(json.dumps(dict(console, url='https://localhost:19105', transport='tls_ca', ca_file='missing.pem')))
+        invoke(['console', '--no-rc', '--config', path], contains=(field,))
+    path.write_text(json.dumps(dict(console, endpoint='https://localhost:19109', authentication='scram', ca_file='missing.pem')))
     invoke(['console', '--config', path], contains=('ca_file', 'file not found', 'CA certificates'))
     path.write_text(json.dumps(console))
-    invoke(['console', '--config', path], contains=('seed_file', 'file not found', 'signing credential'))
-    invoke(['console'], contains=('seed_file',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
+    shown = invoke(['console'], 0, env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)), data=b'.show\n')
+    assert parse_show(shown.stdout)['endpoint'] == SQL_ENDPOINT
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['server'], contains=('cannot find minio beside transit or on PATH',),
            env=dict(ENV, PATH=str(NO_TOOLS), TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
-    # Compiler failures need no running authority, even in JSON result mode.
-    # A listening trap proves invalid SQL never opens a snapshot or sends work.
-    seed = root/'sql.seed'
-    seed.write_text('2a' * 32)
-    with socket.socket() as trap:
-        trap.bind(('127.0.0.1', 0)); trap.listen(); trap.settimeout(.1)
-        sql_config = dict(console, seed_file=seed.name, url=f'http://127.0.0.1:{trap.getsockname()[1]}')
-        path.write_text(json.dumps(sql_config))
-        for statement, fragments in (
-            ('SELECT;', ('SQL parse error', 'line 1, column 7', '  SELECT;\n        ^--- error here')),
-            ('SELECT *\nFROM', ('SQL parse error', 'line 2, column 5', 'expected an identifier')),
-            ('INSERT INTO items VALUES (1, 100);', ('no Table catalog is configured', '.help INSERT')),
-            ('INSERT INTO items (id, value) VALUES (1, 100);', ('no Table catalog is configured', '.help INSERT')),
-            ('SELECT * FROM items WHERE value = \'private-must-not-appear', ('SQL parse error', '^--- error here')),
-            ('SELECT * /* private-must-not-appear', ('SQL parse error', '^--- error here')),
-            ('CREATE KV items (UTF8);', ('[interface]', 'SQL publication of KV and Document definitions is unavailable', '.help SQL')),
-            ('CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);', ('no Table catalog is configured', '.help CREATE TABLE')),
-            ('CREATE TABLE items (id INT64, value INT64);', ('no Table catalog is configured', '.help CREATE TABLE')),
-            ('CREATE TABLE items (id BOOLEAN);', ('no Table catalog is configured', '.help CREATE TABLE')),
-            ('INSERT INTO items (id,value) VALUES (1,1),(2,2),(3,3),(4,4);', ('no Table catalog is configured', '.help INSERT')),
-            ('CREATE CONNECTION unfinished', ('[grammar_only]', 'syntax has not been validated')),
-            ('SELEC * FROM items;', ('[unsupported]', 'supported syntax')),
-            ('SELECT absent FROM items;', ('[binding]', 'Subject: \"absent\"', 'scope: \"items\"', 'column 8')),
-            ('SELECT wrong.value FROM items AS i;', ('UnknownQualifier', 'Subject: \"wrong\"', 'scope: \"i\"')),
-            ("SELECT * FROM items WHERE key=1 AND value='wrong';", ('TypeMismatch', 'Subject: \"value\"', 'Expected int64; supplied utf8')),
-            ('SELECT AVG(value) FROM items;', ('Unsupported aggregate', 'COUNT(*)', 'SUM')),
-            ('SHOW SOURCES;', ('[grammar_only]', 'SHOW SOURCES')),
-            ('SHOW SINKS;', ('[grammar_only]', 'SHOW SINKS')),
-            ('SHOW CONNECTIONS;', ('[grammar_only]', 'SHOW CONNECTIONS')),
-            ('SELECT value AS;', ('[syntax]', 'line 1, column 16', 'expected an identifier')),
-            ('SELECT value AS copy, value AS copy FROM items;', ('[binding]', 'DuplicateProjection', 'distinct result names', 'AS')),
-            ('SELECT key AS copy, value AS copy FROM items;', ('[binding]', 'DuplicateColumn', 'distinct result names', 'AS')),
-            ('SELECT * FROM items WHERE value = NULL;', ('[binding]', 'IS NULL', 'IS MISSING')),
-        ):
-            invoke(['console', '--no-rc', '--config', path, '--format', 'json', '-c', statement], 1, fragments)
-        invoke(['console', '--no-rc', '--config', path], 1, ('no Table catalog is configured', '.help INSERT'), data=b'.schema writer\n')
-        script = root/'bad.sql'
-        script.write_text('SELECT *\nFROM;')
-        invoke(['console', '--no-rc', '--config', path, '-f', script], 1, ('line 2, column 5', '^--- error here'))
-        script.write_text('-- 東京\r\n\r\n.show\r\n  SELECT absent FROM items;')
-        invoke(['console', '--no-rc', '--config', path, '-f', script], 1,
-               ('bad.sql', 'statement 2', 'line 4, column 10', 'Previously completed commands: 1'),
-               stdout_contains=('format',))
-        invoke(['console', '--no-rc', '--config', path], 1,
-               ('<stdin>', 'statement 2', 'line 2, column 8', 'Previously completed commands: 1'),
-               data=b'.show\nSELECT absent FROM items;', stdout_contains=('format',))
-        byte_path = Path(os.fsdecode(os.fsencode(root) + b'/script-\xff.sql'))
-        byte_path.write_bytes(b'.show\nSELECT absent FROM items;')
-        invoke(['console', '--no-rc', '--config', path, '-f', byte_path], 1,
-               ('script-\\xff.sql', '[escaped byte path]', 'statement 2', 'line 2, column 8'),
-               stdout_contains=('format',))
-        invoke(['console', '--no-rc', '--config', path], 1, ('line 1, column 7',), data=b'SELECT;')
-        for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
-            invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error', '^--- error here'), data=data)
-        invoke(['console', '--no-rc', '--config', path], 1, ('4096-byte statement limit',), data=b'SELECT '+b'x'*4096)
-        try:
-            connection, _ = trap.accept()
-        except TimeoutError:
-            pass
-        else:
-            connection.close()
-            raise AssertionError('invalid SQL contacted authority')
+    invoke(['console', '--no-rc', '--config', path, '-c', 'SELECT typo FROM items'], 1, ('Unknown column',))
+    for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
+        before = len(SESSION_ACTIONS)
+        invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error',), data=data)
+        assert all(action != 'execute' for action, _ in SESSION_ACTIONS[before:]), 'Unclosed batch input reached SQL execution'
+    invoke(['console', '--no-rc', '--config', path], 1, ('4096-byte statement limit',), data=b'SELECT '+b'x'*4096)
     # The executable's physical directory precedes PATH, independent of cwd.
     adjacent, search = root/'bin', root/'search'
     adjacent.mkdir(); search.mkdir()
@@ -515,7 +452,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     connection = project/'console.yaml'
     (project/'caller.key').write_text('11'*32)
-    connection.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in dict(console, seed_file='caller.key').items()))
+    connection.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in console.items()))
     (home/'.transitrc').write_text('.connect missing.json\n.mode json\n')
     (project/'.transitrc').write_text('.connect console.yaml\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
@@ -552,8 +489,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     # Both early declaration validation and query compilation report timing
     # after the entire diagnostic, in one-shot and streamed batch input.
     timed_errors = (
-        ('CREATE TABLE people (id INT64, name BINARY);', '.help CREATE TABLE'),
-        ('SELECT;', '.help SQL'),
+        ('CREATE TABLE people (id INT64, name BINARY);', 'Unknown column'),
+        ('SELECT;', 'Unknown column'),
     )
     for format in ('table', 'json'):
         for statement, hint in timed_errors:
@@ -593,132 +530,23 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         finally:
             terminal.close()
         CASES += 1
-    # Inspect the committed scrollback echo, not the editor's transient redraws.
-    # SQL errors retain the same text and caret with and without presentation.
-    def committed_display(terminal, statement):
-        expected = ('transit> '+statement.replace('\n', '\r\n   ...> ')+'\r\n').encode()
-        for redraw in terminal.screen.split(b'\r\x1b[2K'):
-            if ANSI.sub(b'', redraw).startswith(expected):
-                lines = redraw.split(b'\r\n')
-                count = statement.count('\n')+1
-                return b'\r\n'.join(lines[:count])+b'\r\n', b'\r\n'.join(lines[count:])
-        raise AssertionError(('missing submitted echo', expected, terminal.screen))
-
-    sgr = re.compile(rb'\x1b\[[0-9;]*m')
-    reset = b'\x1b[0m'
-    def assert_sql_colors(rendered, text, tokens):
-        # Assert every visible byte, including plain names and punctuation.
-        plain, actual, active, offset = bytearray(), [], None, 0
-        for escape in ANSI.finditer(rendered):
-            part = rendered[offset:escape.start()]
-            plain.extend(part)
-            actual.extend([active] * len(part))
-            code = escape.group()
-            if code.endswith(b'm'):
-                active = None if code == reset else code
-            offset = escape.end()
-        plain.extend(rendered[offset:])
-        actual.extend([active] * (len(rendered)-offset))
-        assert bytes(plain) == text, (plain, text)
-        expected, offset = [None] * len(text), 0
-        for token, code in tokens:
-            start = text.index(token, offset)
-            offset = start + len(token)
-            expected[start:offset] = [code] * len(token)
-        assert actual == expected, (rendered, tokens)
-
-    plain_diagnostics = {}
-    for format in ('table', 'json'):
-        for color_env, colored in (
-            ({'TERM': 'xterm-256color', 'NO_COLOR': '', 'CLICOLOR_FORCE': ''}, True),
-            ({'TERM': 'xterm-256color', 'NO_COLOR': '1', 'CLICOLOR_FORCE': '1'}, False),
-            ({'TERM': 'dumb', 'NO_COLOR': '', 'CLICOLOR_FORCE': '1'}, False),
-        ):
-            terminal = Terminal(CLI, connection, format=format, cwd=project, env=color_env)
-            try:
-                terminal.send('.timer on\r')
-                terminal.expect('transit> .timer on\r\n')
-                echo, _ = committed_display(terminal, '.timer on')
-                assert (b'\x1b[36mtimer'+reset in echo) == colored, echo
-                for statement, hint, category, cause in (
-                    ('.unknown', '.help', None, 'UnknownConsoleCommand'),
-                    ('CREATE TABLE people (id INT64, id BINARY);', '.help CREATE TABLE', 'binding', 'DuplicateColumn'),
-                    ('CREATE TABLE people (id , name TEXT);', '.help CREATE TABLE', 'syntax', 'InvalidSqlSyntax'),
-                    ("SELECT /* private-comment */\n'private-literal', 12;", '.help SQL', 'syntax', 'InvalidSqlSyntax'),
-                ):
-                    terminal.send('\x1b[200~'+statement+'\x1b[201~\r')
-                    terminal.expect(hint)
-                    if category is not None:
-                        terminal.expect('ms)\r\n')
-                    echo, diagnostic = committed_display(terminal, statement)
-                    plain = ANSI.sub(b'', diagnostic)
-                    # Timing values vary; all other diagnostic bytes must agree.
-                    content = plain.split(b'Time: ')[0]
-                    if statement in plain_diagnostics:
-                        assert content == plain_diagnostics[statement], (content, plain_diagnostics[statement])
-                    else:
-                        plain_diagnostics[statement] = content
-                    assert b'private-' not in diagnostic, diagnostic
-                    if category is not None:
-                        assert plain.count(b'Time: ') == 1 and plain.splitlines()[-1].startswith(b'Time: '), plain
-                    if colored:
-                        assert b'\x1b[36m'+statement.lstrip('.').split()[0].encode()+reset in echo, echo
-                        assert b'\x1b[1;31merror:'+reset in diagnostic, diagnostic
-                        assert b'\x1b[1;31m'+cause.encode()+reset in diagnostic, diagnostic
-                        assert b'\x1b[36m.help'+reset in diagnostic, diagnostic
-                        if category:
-                            assert b'[\x1b[33m'+category.encode()+reset+b']' in diagnostic, diagnostic
-                        if category == 'syntax':
-                            assert b'\x1b[1;31m^--- error here'+reset in diagnostic, diagnostic
-                            location = b'line 1, column 25' if statement.startswith('CREATE') else b'line 2, column 1'
-                            assert b'\x1b[36m'+location+reset in diagnostic, diagnostic
-                        if '\n' in statement:
-                            for token in (b'\x1b[2m/* private-comment */'+reset, b"\x1b[32m'private-literal'"+reset, b'\x1b[35m12'+reset):
-                                assert token in echo, echo
-                        assert echo.endswith(reset+b'\r\n'), echo
-                    else:
-                        assert not sgr.search(terminal.screen), terminal.screen
-                    assert not select.select([terminal.process.stdout], [], [], .05)[0], 'diagnostic leaked to stdout'
-                cyan, green = b'\x1b[36m', b'\x1b[32m'
-                for statement, hint, tokens in (
-                    ('SELECT value FROM items WHERE value IS VALUE LIMIT;', '.help SQL',
-                     ((b'SELECT', cyan), (b'FROM', cyan), (b'WHERE', cyan), (b'IS', cyan), (b'VALUE', cyan), (b'LIMIT', cyan))),
-                    ('EXPLAIN SELECT value AS explain FROM update WHERE value IS VALUE LIMIT;', '.help SQL',
-                     ((b'EXPLAIN', cyan), (b'SELECT', cyan), (b'AS', cyan), (b'FROM', cyan), (b'WHERE', cyan), (b'IS', cyan), (b'VALUE', cyan), (b'LIMIT', cyan))),
-                    ('INSERT INTO update (id, value) VALUES (1, TRUE) trailing;', '.help INSERT',
-                     ((b'INSERT', cyan), (b'INTO', cyan), (b'VALUES', cyan), (b'1', b'\x1b[35m'), (b'TRUE', green))),
-                ):
-                    # These fail locally, after the contextual tokens. No server
-                    # or binding success is needed to color an editable draft.
-                    terminal.resize(160)
-                    terminal.send('\x1b[200~'+statement+'\x1b[201~')
-                    terminal.expect('transit> '+statement)
-                    draft = terminal.screen.split(b'\r\x1b[2K')[-1]
-                    # The editor appends cursor movement after its text.
-                    assert_sql_colors(draft, ('transit> '+statement+'\r').encode(), tokens if colored else ())
-                    terminal.send('\r')
-                    terminal.expect(hint)
-                    terminal.expect('ms)\r\n')
-                    echo, diagnostic = committed_display(terminal, statement)
-                    assert_sql_colors(echo, ('transit> '+statement+'\r\n').encode(), tokens if colored else ())
-                    content = ANSI.sub(b'', diagnostic).split(b'Time: ')[0]
-                    if statement in plain_diagnostics:
-                        assert content == plain_diagnostics[statement], (content, plain_diagnostics[statement])
-                    else:
-                        plain_diagnostics[statement] = content
-                    if colored and b'IS VALUE' in statement.encode():
-                        assert cyan+b'VALUE'+reset in diagnostic, diagnostic
-                        assert cyan+b'value'+reset not in diagnostic, diagnostic
-                    if not colored:
-                        assert not sgr.search(terminal.screen), terminal.screen
-                    assert not select.select([terminal.process.stdout], [], [], .05)[0], 'highlighting sent a query or leaked a diagnostic'
-                    CASES += 1
-                terminal.send('.show\r')
-                assert read_show(terminal)['timing'] == 'on'
-                assert b'Time: ' not in terminal.screen, terminal.screen
-            finally:
-                terminal.close()
-            CASES += 1
+    # Draft highlighting stays local. Result/diagnostic transport adds no
+    # terminal escapes to redirected output; editor history has its own proof.
+    for color_env, colored in (({'TERM':'xterm-256color','NO_COLOR':''}, True),
+                               ({'TERM':'xterm-256color','NO_COLOR':'1'}, False),
+                               ({'TERM':'dumb','NO_COLOR':''}, False)):
+        terminal = Terminal(CLI, connection, cwd=project, env=color_env)
+        try:
+            before = len(SESSION_ACTIONS)
+            terminal.send("SELECT /* comment */ 'literal', 12")
+            terminal.expect('literal')
+            assert (b'\x1b[36mSELECT' in terminal.screen) == colored, terminal.screen
+            assert all(action != 'execute' for action, _ in SESSION_ACTIONS[before:])
+            terminal.send('\x03')
+            terminal.expect('transit> ')
+        finally:
+            terminal.close()
+        CASES += 1
     # Color forcing inherited from a build runner must not decorate redirected
     # diagnostics or either machine result format.
     for format in ('table', 'json'):
@@ -746,34 +574,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['connection'] == json.dumps(str(escaped_connection))[1:-1]
     for arguments in (['-c', 'select 1', '-f', 'x'], ['--init', chosen, '--no-rc'], ['-c'], ['-f'], ['-c', '-f']):
         invoke(['console', *arguments], env=environment, cwd=project)
+    # A forged private installation record cannot supply console credentials.
+    # Actual rendezvous/peer discovery is exercised by the installed server proof.
     local = project/'.transit'; local.mkdir()
-    (local/'caller.seed').write_text('11'*32)
+    (local/'installation.json').write_text('{"complete":true}')
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
-    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host', 'sql_gateway'), [0]*32)
+    invoke(['console'], 1, env=environment, cwd=project, contains=('local SQL',))
+    assert (local/'installation.json').read_text() == '{"complete":true}'
     definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
-    record = dict(definition=definition, identity=identity, installation=[1]*16, root_public=[0]*32,
-                  realm=1, endpoint="http://127.0.0.1:19105", authorization_steps=list(range(1, 11)),
-                  complete=True, genesis_observed=True, default_table_complete=True, provision=list(range(1, 15)))
-    (local/'installation.json').write_text(json.dumps(record))
-    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    settings = parse_show(shown.stdout)
-    assert settings['connection'] == '(automatic)' and settings['connection_source'] == 'local installation'
-    assert settings['url'] == 'http://127.0.0.1:19105'
-    assert not (local/'console.json').exists() and not (local/'console.yaml').exists()
-    (home/'.transitrc').write_text('.mode json\n')
-    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['format'] == 'json'
-    project_server.write_text('ports:\n  gateway: 29305\n')
-    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'  # Desired/environment topology cannot redirect the retained endpoint.
-    shown = invoke(['console'], 0, env=dict(environment, TRANSIT_PORTS__GATEWAY='29306'), cwd=project, data=b'.show\n')
-    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:19105'
-    record['complete'] = False
-    (local/'installation.json').write_text(json.dumps(record))
-    invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))
     # Leading SQL comments are values, not CLI flags.
     invoke(['console', '--no-rc', '--config', connection, '-c', '-- comment\nSELECT COUNT(*) FROM items'], 1,
-           env=environment, cwd=project, contains=('query could not complete',))
+           env=environment, cwd=project, contains=('Unknown column',))
     assert not installation.exists()
 # Structured stderr is independent of result format. These are real binaries,
 # including byte paths, late failures, nested source positions and output loss.
@@ -809,7 +620,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-json-') as directory:
     root = Path(directory)
     config = root/'console.json'
     seed = root/'caller.seed'; seed.write_text('2a'*32)
-    config.write_text(json.dumps(dict(console,seed_file=str(seed))))
+    config.write_text(json.dumps(console))
     args = ['console','--no-rc','--config',config,'--format','json']
     _,detail,_ = machine([*args,'-c','SELECT typo FROM items'])
     assert detail['code'] == 'sql.unknown_column' and facts(detail)['column'] == {'text':'typo'}

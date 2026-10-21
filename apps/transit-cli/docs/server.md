@@ -200,7 +200,7 @@ protocol gateway; use `/health` for a readiness check.
 invocations report `"disabled"` and `board_url: null`. Recovery emits a fresh
 ready record after the replacement neighborhood passes its checks. Open an independent
 terminal in the same working directory with the same topology configuration and
-environment. The console derives its connection from the local installation;
+environment. The console discovers the private SQL socket from a nonsecret runtime-directory record;
 the server does not generate a console configuration file:
 
 ```sh
@@ -210,8 +210,8 @@ transit console
 The server initializes an authorized general Table catalog and creates the empty
 `items(id INT64 PRIMARY KEY, value INT64)` Table through a saved catalog operation.
 `.schema items` describes it. `SELECT COUNT(*) FROM items;` prints the verified
-count automatically. Bare `transit console` derives the catalog route and private
-`console-writes.json` recovery path from the installation. For example:
+count automatically. Each `transit console` opens an independent service-owned
+session. It reads no installation record or signing key and needs no recovery file. For example:
 
 ```sql
 INSERT INTO items (id, value) VALUES (1, 100);
@@ -223,7 +223,7 @@ DELETE FROM items WHERE id = 1;
 These writes retain the [bounded Table mutation syntax](console.md#writing-tables-and-catalogs).
 SELECT opens a fresh snapshot; `.status` and `.resume` observe and recover a saved
 write after interruption. CREATE, ALTER and DROP use the same catalog route.
-The caller retains native inspect/send and resource read grants; only the fenced
+The SQL service retains scoped native identities; only the fenced
 catalog owner commits changes under separate current inspect/create/read/insert/
 update/delete/alter/drop policies. The default-table completion marker prevents
 startup from recreating a deliberately dropped Table or altering its replacement.
@@ -329,7 +329,8 @@ Source, requester and courier idle intervals start at 100 ms and double up to
 one second, resetting on activity. Idle receives wait for bounded authorized
 process/output notifications, then revalidate current state. Timeouts reconcile
 missed and other-node publications; unavailable waits use the bounded interval.
-Interactive console SELECT executes directly over native snapshots.
+The shared SQL service executes interactive SELECT over native snapshots;
+consoles fetch bounded logical batches.
 
 Once genesis has been observed, recovery never enables node bootstrap or creates
 a replacement cold bucket. Missing storage markers and an authority position
@@ -352,7 +353,7 @@ ownership and live disaster recovery are outside this profile.
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
-| Console | Realm-scoped inspect/send caller key, specific resource read grants and separate catalog action policies | Its separate [console bounds](console.md), immutable intent files, bounded progress record and credential lock |
+| Console | OS-authenticated local peer or SQL account over verified HTTPS | Its separate [console bounds](console.md); session handles, bounded batches and original operation tokens |
 
 Each child has two independent 64 KiB in-memory log prefixes. After each prefix
 fills, the drain continues and discards additional diagnostics; there is no

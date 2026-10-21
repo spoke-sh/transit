@@ -37,13 +37,19 @@ sql-wire-tls:
 # Shared byte/credential primitives; independent Python oracle and Zig owners.
 sql-wire-contracts:
     python3 -B tests/sql_wire/contracts.py
-    cd packages/zig/transit-sql-gateway && zig build test
+    cd packages/zig/transit-sql-protocol && zig build test
+    cd packages/zig/transit-sql-client && zig build test
+    cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
 
 # Signed ledger, exact Table steps and fenced replacement on disk-backed Ursula.
 sql-gateway:
     zig build test-sql-gateway -Doptimize=ReleaseSafe
+
+# Independent HTTPS/SCRAM sessions, logical values and token recovery.
+sql-sessions:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
 
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
@@ -160,7 +166,9 @@ packages:
     cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
     cd packages/zig/transit-tls-server && zig build test
-    cd packages/zig/transit-sql-gateway && zig build test
+    cd packages/zig/transit-sql-protocol && zig build test
+    cd packages/zig/transit-sql-client && zig build test
+    cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
     cd packages/zig/transit-station-bindings && zig build test
@@ -193,7 +201,9 @@ packages-build:
     cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check
     cd packages/zig/transit-tls-server && zig build check
-    cd packages/zig/transit-sql-gateway && zig build check
+    cd packages/zig/transit-sql-protocol && zig build check
+    cd packages/zig/transit-sql-client && zig build check
+    cd packages/zig/transit-sql && zig build check
     cd packages/zig/transit-postgres && zig build check
     cd packages/zig/transit-mysql && zig build check
     cd packages/zig/transit-station-bindings && zig build check
@@ -478,9 +488,10 @@ unified-ingress source="table":
 console-history:
     zig build test-console-history
 
-# Actual versioned console on disk-backed native query workers.
-console source="table":
-    nix develop .#serving --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-console=true -Dunified-console-tls=true
+# Real native-session console, independent HTTPS/SCRAM and captured recovery.
+# Configured source owners are scheduled within the fixture's native wait budget.
+console:
+    just test::sql-sessions
 
 # Real command diagnostics, configuration locations and stderr/privacy boundaries.
 cli-diagnostics:
@@ -517,10 +528,9 @@ mutation-latency *args:
     zig build transit transit-node transit-query-host transit-board mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
-# Leased native snapshots and real finite Fuze/Arrow execution for all sources.
-interactive-query *args:
-    zig build transit transit-node unified-query-proof -Doptimize=ReleaseSafe --prefix .cache/transit-interactive
-    python3 -B tests/interactive_query.py .cache/transit-interactive/bin/transit-node .cache/transit-interactive/bin/transit-unified-query-proof .cache/transit-interactive/bin/transit {{args}}
+# Native-session snapshot execution, typed values and retained source basis.
+interactive-query:
+    just test::sql-sessions
 
 # Actual native server with independent console and owned process failures.
 server:

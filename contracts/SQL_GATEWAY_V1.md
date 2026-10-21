@@ -327,7 +327,7 @@ only published records from a supplied committed view, check the explicit finite
 allocation bound and verify the complete publication digest.
 
 Publication acknowledgement alone does not establish SQL admission or a terminal
-outcome. The [account ledger API](../packages/zig/transit-sql-gateway/docs/ledger.md)
+outcome. The [account ledger API](../packages/zig/transit-sql/docs/ledger.md)
 composes these records under native owner/generation checks. The running host and
 coordinator transport are separate from these deterministic library methods.
 
@@ -335,11 +335,11 @@ coordinator transport are separate from these deterministic library methods.
 
 Every metadata value starts with its four-byte record magic and the mandatory
 32-byte current native definition. Fields follow the declaration order in
-[`LedgerRecords`](../packages/zig/transit-sql-gateway/src/LedgerRecords.zig) and
-[`Terminal`](../packages/zig/transit-sql-gateway/src/Terminal.zig), using exact
+[`LedgerRecords`](../packages/zig/transit-sql/src/LedgerRecords.zig) and
+[`Terminal`](../packages/zig/transit-sql/src/Terminal.zig), using exact
 little-endian integer widths, one-byte enum tags and fixed byte arrays. Unknown
 tags, missing/foreign definitions, trailing bytes and inconsistent counters reject.
-The [independent fixture](../packages/zig/transit-sql-gateway/src/fixtures/records.json)
+The [independent fixture](../packages/zig/transit-sql/src/fixtures/records.json)
 fixes head, operation and terminal layouts including full-width u64 counts.
 
 | Magic | Contents |
@@ -349,7 +349,7 @@ fixes head, operation and terminal layouts including full-width u64 counts.
 | GSO1 | Frozen target, preparation phase, intent commitment, record/pending identities, sequence/input observations, conservative content reservation, requested controls and terminal summary/counts |
 | GSB1 | Original Table command header fields with nested TCQ1 magic/definition omitted, body offset/length, command/domain digests and DML route; exactly 222 bytes including the checked GSB1 definition prefix |
 | GSE1 | Signed-step record/sequence, native input, processed flag and optional exact disposition commitment |
-| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual CREATE object and DML route |
+| GST1 | Attributed native kind/identity, resource/principal/operation/object, input positions, state/reason, full matched/changed counts, actual DDL object and Table route |
 | GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
 
 Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
@@ -374,6 +374,14 @@ input and SQL terminal facts remain distinct records. Current rights are require
 again before disclosing cached outcome facts. Operator controls and private
 coordinator observations have distinct native principals.
 
+DDL bindings cover CREATE, ALTER, rename and DROP. A missing-object
+`DROP IF EXISTS` retains object zero and the catalog's unchanged outcome.
+GST1 DDL route zero carries catalog reasons; route three carries a delegated
+ALTER's Table rejection reason and completion input. The latter retains the
+original catalog digest, checks the Table reference against its recorded
+delegation, and has zero row counts. Neither admission nor catalog delegation
+alone is terminal evidence.
+
 Configuration supports 1–8 frozen catalogs per account, a dedicated private
 ledger resource and five distinct nonzero worker/ingress/operator/coordinator/
 Table principals. Native grants remain explicit. Initial retained-count/content
@@ -386,7 +394,7 @@ or treats a disconnected session as cancellation.
 ## Signed native ledger controls
 
 A Station cast payload contains `GSQ1`, current definition:32, command tag:u8,
-then the fields of [`Control.Command`](../packages/zig/transit-sql-gateway/src/Control.zig)
+then the fields of [`Control.Command`](../packages/zig/transit-sql/src/Control.zig)
 in declaration order. Integers are little-endian, arrays have exact declared
 length, enums use their declared integer tag, and optional values start with
 zero (absent) or one (present). There are no omitted/defaulted wire fields.

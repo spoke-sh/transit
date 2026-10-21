@@ -1,5 +1,5 @@
 {
-  "definition": "5a0608a0d3df04337e2d28c9d75f901a4d77e3b3720f11378ec6bf112bbf62f8",
+  "definition": "cbee25ed95ec3dc9b1e987f6f90a4f4b983bb828f60d772d6dbd4a75facf6731",
   "settings": [
     {
       "name": "version",
@@ -386,6 +386,118 @@
       "items_schema": null
     },
     {
+      "name": "sql.native.local",
+      "description": "Private Unix SQL listener and once-enrolled local peer account",
+      "owner": "sql",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "true",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http",
+      "description": "Native SQL HTTP listener; independent of database wire listeners",
+      "owner": "sql",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http.address",
+      "description": "Native SQL HTTP bind address",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "\"127.0.0.1\"",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http.port",
+      "description": "Native SQL HTTP port",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "19109",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1024,
+      "maximum": 65535,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http.tls",
+      "description": "Require TLS on the native HTTP listener",
+      "owner": "sql",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "true",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http.certificate_file",
+      "description": "Native HTTPS certificate reference",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "sql.native.http.key_file",
+      "description": "Native HTTPS private key reference",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "sql.postgres",
       "description": "PostgreSQL listener; null disables admission",
       "owner": "sql",
@@ -463,7 +575,23 @@
       "minimum": 0,
       "maximum": 32,
       "values": [],
-      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"sources_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\",\"peer\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"sources_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"sources_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+    },
+    {
+      "name": "sql.native.sources_file",
+      "description": "Explicit source bindings for the local peer account",
+      "owner": "sql",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "sql.tls.mode",
@@ -1122,6 +1250,82 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "native": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "local": {
+                "type": "boolean",
+                "description": "Private Unix SQL listener and once-enrolled local peer account",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": true
+              },
+              "http": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "description": "Native SQL HTTP bind address",
+                    "x-transit-owner": "sql",
+                    "x-transit-change": "restart",
+                    "default": "127.0.0.1"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65535,
+                    "description": "Native SQL HTTP port",
+                    "x-transit-owner": "sql",
+                    "x-transit-change": "restart",
+                    "default": 19109
+                  },
+                  "tls": {
+                    "type": "boolean",
+                    "description": "Require TLS on the native HTTP listener",
+                    "x-transit-owner": "sql",
+                    "x-transit-change": "restart",
+                    "default": true
+                  },
+                  "certificate_file": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Native HTTPS certificate reference",
+                    "x-transit-owner": "sql",
+                    "x-transit-change": "restart"
+                  },
+                  "key_file": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Native HTTPS private key reference",
+                    "x-transit-owner": "sql",
+                    "x-transit-change": "restart"
+                  }
+                },
+                "description": "Native SQL HTTP listener; independent of database wire listeners",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": null
+              },
+              "sources_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Explicit source bindings for the local peer account",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart"
+              }
+            }
+          },
           "postgres": {
             "type": [
               "object",
@@ -1176,6 +1380,7 @@
                 "role",
                 "authentication",
                 "password_file",
+                "sources_file",
                 "bootstrap_owner",
                 "enabled",
                 "database",
@@ -1194,10 +1399,22 @@
                   "type": "string",
                   "enum": [
                     "password",
-                    "trust"
+                    "trust",
+                    "peer"
                   ]
                 },
                 "password_file": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4096
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sources_file": {
                   "anyOf": [
                     {
                       "type": "string",
@@ -1230,6 +1447,7 @@
               "x-transit-defaults": {
                 "authentication": "password",
                 "password_file": null,
+                "sources_file": null,
                 "bootstrap_owner": false,
                 "enabled": true,
                 "database": "transit",

@@ -1,9 +1,9 @@
-"""Read the Table console's typed streaming result contract in native proofs."""
+"""Decode the console's native typed result stream for deployment assertions."""
 from console import Console
 
 
 def result(first, read):
-    if first.get('profile') != 'table_snapshot_v1':
+    if first.get('profile') != 'sql_session_v1':
         return first
     assert not first['complete_coverage'], first
     rows = []
@@ -13,11 +13,9 @@ def result(first, read):
             assert not value['complete_coverage'], value
             rows.append(value['row']['value']['structure'])
             continue
-        assert value['complete_coverage'] and 'complete' in value, value
-        complete = value['complete']
-        assert complete['basis'] == first['basis'] and complete['plan'] == first['plan'], (first, value)
-        assert int(complete['rows']) == len(rows), (rows, value)
-        return dict(schema=first['schema'], rows=rows, complete=complete)
+        assert value['complete_coverage'], value
+        assert value['rows'] == len(rows), (rows, value)
+        return dict(schema=first['schema'], rows=rows, complete=dict(rows=str(value['rows']), basis=value['basis']))
 
 
 def results(envelopes):
@@ -27,6 +25,18 @@ def results(envelopes):
 
 def atom(value, kind):
     return value['rows'][0][0]['value']['atom'][kind]
+
+
+def records(value):
+    """Named scalar rows used by settings and inspection assertions."""
+    names = [column['name'] for column in value['schema']['type']['structure']]
+    def cell(value):
+        if 'null' in value:
+            return None
+        atom = value['value']['atom']
+        assert len(atom) == 1, atom
+        return next(iter(atom.values()))
+    return [dict(zip(names, map(cell, row), strict=True)) for row in value['rows']]
 
 
 class TableConsole(Console):

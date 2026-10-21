@@ -6,6 +6,7 @@ import subprocess
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from table_console import results, records
 
 
 def yaml_config(value, indent=0):
@@ -29,13 +30,24 @@ def run(fixture):
     connection_path = fixture.root / 'configuration-console.yaml'
     connection = fixture.console_config()
     record = fixture.record()
-    connection['settings'] = dict(binding=dict(realm=record['realm'], installation=record['installation'], object=dict(kind='domain', id=record['authorization_steps'][9])), recovery_file=str(fixture.installation / 'console-configuration.json'))
+    binding = dict(realm=record['realm'], installation=record['installation'], object=dict(kind='domain', id=record['authorization_steps'][9]))
     connection_path.write_text(json.dumps(connection))
     def sql(statement, ok=True):
         result = subprocess.run([fixture.cli, 'console', '--format', 'json', '-c', statement] + (['--config', str(connection_path)] if explicit else []), cwd=fixture.root,
                                 env={'PATH': '/unavailable'}, text=True, capture_output=True, timeout=30)
         assert (result.returncode == 0) == ok, (statement, result)
-        return [json.loads(line) for line in result.stdout.splitlines()]
+        output = []
+        for value in results(map(json.loads, result.stdout.splitlines())):
+            if 'schema' in value:
+                output.extend(records(value))
+            elif 'operation' in value:
+                operation = value['operation']
+                assert operation['identity']['kind'] == 'configuration', operation
+                owner = bytes(operation['owner_operation']).hex()
+                row = sql(f"SELECT * FROM transit_config_reloads() WHERE operation = '{owner}'")[0]
+                assert row['phase'] == operation['configuration_phase'], (row, operation)
+                output.append(dict(outcome=row))
+        return output
     def setting(name):
         return sql(f"SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE name = '{name}'")[0]
     try:
@@ -50,7 +62,6 @@ def run(fixture):
         port = fixture.config['ports']['gateway']
         realm = record['realm']
         identity = post(port, '/v1/query', native(key, realm, 10, dict(authorization=dict(role=None, kind=dict(identity={})))) )['body']['authorization']['body']['identity']
-        binding = connection['settings']['binding']
         def signed(action, privilege, operation=None):
             request = dict(definition=record['definition'],binding=binding,operation=operation or list(os.urandom(16)),action=action)
             proof = subject_proof(key,10,binding['object']['id'],hashlib.sha256(b'transit.configuration.request.v1\0'+compact(request)).digest(),credential_epoch=identity['credential_epoch'],realm=realm)
@@ -103,7 +114,7 @@ def run(fixture):
             assert response.status == 200
         settings = subprocess.run([fixture.cli, 'console', '--format', 'json'], input="SET query.statement_timeout = '2s';\nSHOW query.statement_timeout;\nRESET ALL;\nSHOW query.statement_timeout;\n", cwd=fixture.root, env={'PATH': '/unavailable'}, text=True, capture_output=True, timeout=30)
         assert settings.returncode == 0, settings
-        assert [row['value'] for row in map(json.loads, settings.stdout.splitlines()) if 'value' in row] == ['2000', '5000'], settings
+        assert [row['value'] for value in results(map(json.loads, settings.stdout.splitlines())) if 'schema' in value for row in records(value) if 'value' in row] == ['2000', '5000'], settings
         sql("SET query.statement_timeout = '11s'", ok=False)
         from storage import free_port
         fixture.config['ports']['gateway'] = free_port()
