@@ -526,11 +526,17 @@ log relay would require a bounded, validated event boundary of its own.
 SQL status persistence and log suppression have different purposes. The status
 file tracks all account observations; a bounded fingerprint of the service
 report suppresses unchanged notices, and per-active-account flags suppress
-unchanged connection hints. This is best-effort presentation, not deduplication
-of accepted work. Initial health polling remains `starting`; losing previously
+connection hints for the same listener process. This is best-effort presentation,
+not deduplication of accepted work. Native `HttpCapacity` produces `busy`: the
+account observation is deferred, so readiness remains unconfirmed, but the
+supervisor retains the process and exact pending work. The specific rejection
+is preserved instead of being flattened to `AuthorityUnavailable`. The
+[logging proof](../../tests/server_logging.py) fills native data admission,
+observes this state, and checks that recovery changes neither process IDs nor
+connection-hint counts. Initial health polling remains `starting`; losing previously
 observed health becomes `unavailable`, retaining the same timeout/recovery gates.
-An error cause uses error severity and a failed outcome, not an informational
-success. Wall-clock timestamps help reading but do not establish causal order.
+Admission pressure uses warning severity; other error causes use error severity.
+Both carry a failed observation outcome. Wall-clock timestamps help reading but do not establish causal order.
 
 Terminal detection changes presentation only: a TTY gets readiness events on
 stderr, while non-TTY stdout retains machine readiness receipts. Filtering can

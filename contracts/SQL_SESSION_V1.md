@@ -56,6 +56,9 @@ handles, even when it preserves the persistent instance and operation history.
 
 A logical session belongs to the SQL service, independently of any HTTP socket.
 Its settings, prepared metadata and read cursor survive transport replacement.
+The finite idle lease uses the gateway's `limits.session_lease_ms` (30 seconds
+by default), configured locally as `sql.native.session_lease_ms`. It is independent
+of `sql.idle_ms`, which controls PostgreSQL/MySQL wire connections.
 `touch` renews the idle lease after checking current credentials and database
 authority; it does not reset settings or replace an active result.
 Closing an HTTP socket does not close the session. Closing/resetting a session,

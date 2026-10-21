@@ -92,8 +92,21 @@ are disabled, so enabling a listener does not change its immutable artifact
 identity. Listener settings do not grant native, catalog or data access. The
 [local database guide](../../apps/transit-cli/docs/sql.md) describes enrollment,
 trust and retained-worker lifecycle. `sql.command_ms` bounds each SQL statement
-and `sql.idle_ms` bounds an idle session; both default to 30 seconds and permit
-at most 270 seconds. A session statement timeout can further shorten the wait.
+and defaults to 30 seconds, with a maximum of 270 seconds. A session statement
+timeout can further shorten the wait.
+
+`sql.idle_ms` controls idle PostgreSQL/MySQL connections. Its default is `0`,
+which keeps an idle connection open. A positive duration enables automatic
+closure, up to 4294967295 milliseconds. Existing files with `idle_ms: 30s` still
+request a 30-second timeout; set `idle_ms: 0` to disable it. An expired PostgreSQL
+connection receives SQLSTATE `57P05`; MySQL receives error `4031` (`HY000`).
+
+`sql.native.session_lease_ms` independently bounds a native HTTP session between
+requests or authorized `touch` renewals. It defaults to 30 seconds and permits
+1–270000 milliseconds. A native session can survive an HTTP socket closing,
+so its lease remains finite. Idle wire connections remain subject to connection
+and memory quotas. Incoming partial frames, TLS records, handshakes, execution
+and output retain finite deadlines.
 
 ## Startup policy
 

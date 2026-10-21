@@ -103,6 +103,7 @@ sql:
   # Unix socket. No password, TLS or client recovery file is needed.
   native:
     local: true
+    session_lease_ms: 30s  # Renewable native HTTP session lease; 1ms..270s
     sources_file: null  # Optional service-owned KV/Table/Document source bindings
     http: null
     # To enable remote native consoles, replace null with:
@@ -157,7 +158,7 @@ sql:
   drain_ms: 30s            # Joined connection drain; 1ms..270s
   request_timeout_ms: 5s   # Native request wait; 1ms..60s
   command_ms: 30s          # SQL statement wait; 1ms..270s (e.g. 180s for local use)
-  idle_ms: 30s             # Idle session wait; 1ms..270s
+  idle_ms: 0               # PG/MySQL idle timeout; 0 disables it (default)
   # A timeout does not undo an accepted write. Inspect its original operation
   # before submitting new SQL; the local database guide covers lost responses.
   connections: 64              # 1..256 total

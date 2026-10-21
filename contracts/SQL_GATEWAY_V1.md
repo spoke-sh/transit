@@ -37,10 +37,12 @@ and allocation boundary; constructing a Limits value does not reserve capacity.
 | Extended-cycle bytes | 4 MiB + 8192 bytes | Twice the frame ceiling |
 | Extended-cycle messages | 64 | 256 |
 | Session allocator budget | 16 MiB | 64 MiB |
-| Handshake / command / idle / write deadline | 5 / 30 / 30 / 5 seconds | 270 seconds each |
+| Handshake / command / write deadline | 5 / 30 / 5 seconds | 270 seconds each |
+| PostgreSQL/MySQL idle timeout (`idle_ms`) | 0 (disabled) | 4294967295 milliseconds |
+| Native HTTP session lease (`session_lease_ms`) | 30 seconds | 270 seconds |
 
-Every configured bound is positive. A cycle accommodates at least one frame and
-fits the session budget. SQL text remains at most 4096 bytes. The common maximum
+Every configured bound except the wire idle timeout is positive. A cycle
+accommodates at least one frame and fits the session budget. SQL text remains at most 4096 bytes. The common maximum
 parameter count is 256; the owning SELECT/DML compiler can impose a tighter
 syntax/plan bound. The constants reserve at most 63 bytes for account/database/statement/portal
 names and 32 configured accounts. Their owning session/configuration APIs must
@@ -54,6 +56,16 @@ authenticate ordinary sessions. Absolute command deadlines join native and socke
 work before freeing borrowed state. Metadata-only preparation/validation retries
 at most 64 exact-current revision races within the same deadline; query iteration
 and SQL mutations are never transparently replayed.
+
+Idle wire connections remain open by default. A positive `idle_ms` starts an
+idle timeout between complete command cycles. Expiry sends PostgreSQL FATAL
+SQLSTATE `57P05`, or MySQL error `4031` with SQLSTATE `HY000`, then closes the
+connection. This ends the session, not previously admitted account work.
+The first incoming network bytes start a finite frame deadline using the command
+budget, including an incomplete TLS record. Buffered TLS application bytes also
+start this bound; later fragments do not renew it. Handshake, frame, command and
+output deadlines remain finite when idle expiry is disabled. Native HTTP session
+leases are independent of this wire timeout.
 
 Interactive reads admit at most 10000 output rows, 16 MiB result bytes and 10000
 native requests. Relational reads additionally bound resident/spill bytes to
