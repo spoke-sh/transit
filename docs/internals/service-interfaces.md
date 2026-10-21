@@ -171,6 +171,224 @@ disconnect, restart, revocation and trust failures on disk-backed Ursula. The
 distinguishes executed results from this reasoning. These schedules do not cover every interruption point, sustained
 maximum-account load or arbitrary filesystem/storage corruption.
 
+## Shared SQL sessions: proposed ownership boundary
+
+This section asks why a second local console cannot connect and what must change
+to share SQL execution safely across native, PostgreSQL and MySQL clients. The
+source inspection is at `547b3fdf74b9` on 2026-10-20. The shared session layer
+below is a proposal, not an implemented interface or new qualification result.
+The preceding database sections describe the existing machinery it would reuse.
+
+### Observed split and its consequence
+
+[Console.localConfig](../../apps/transit-cli/Console.zig) reads the installation
+record and selects `caller.seed`, `console-writes.json` and
+`console-configuration.json`. `connection` holds an exclusive credential-file
+lock for the lifetime of any console configured for writes, settings or durable
+queries. An idle default console consequently excludes another default console,
+even though interactive SELECT has its own leased snapshot and no durable query
+job. The lock error retains the installation record's diagnostic location; the
+actual credential lock is `caller.seed.console.lock`.
+
+The lock protects two shared resources: native command sequence ownership and
+exact recovery records. [TableClient.sign](../../packages/zig/transit-catalog/src/TableClient.zig)
+reads the principal's current sequence and prepares its successor. Independent
+callers cannot safely allocate that successor concurrently. Random recovery
+filenames alone would separate files without coordinating that sequence. Removing
+the lock would also permit overwriting uncertain work. This is a deduction from
+the ownership rules, not a measured node concurrency limit.
+
+The wire gateway already separates account recovery from connection lifetime.
+However, [Host](../../apps/transit-sql-gateway/src/Host.zig) owns execution inside
+the gateway application, while the console composes Query, Catalog and local
+recovery independently. Importing common parsers does not establish a common
+session owner. The proposed change makes the console another client of a
+service-owned runtime and makes all three adapters use that same runtime.
+
+### Actors, placement and authentication
+
+```mermaid
+flowchart TD
+    Console[Local or remote Transit console] --> Client[Native SQL session client]
+    Client --> Native[Native SQL adapter: TCP/TLS or local socket]
+    Pg[PostgreSQL clients] --> PgAdapter[PostgreSQL adapter]
+    My[MySQL clients] --> MyAdapter[MySQL adapter]
+    Native --> Runtime[Shared SQL runtime]
+    PgAdapter --> Runtime
+    MyAdapter --> Runtime
+    Runtime --> Query[Fuze and authorized source adapters]
+    Runtime --> Account[Account coordination and durable operation ledger]
+    Query --> Authority[Public Transit authority operations]
+    Account --> Authority
+```
+
+The intended placement is one supervised SQL service hosting these adapters,
+with exactly one active runtime owner for each enrolled account in that
+deployment. It is not a separate microservice per adapter. Registry identity is
+the enrolled account, not the listener, socket or claimed username. Native
+generation fencing still prevents a replaced owner from dispatching. Another
+deployment cannot obtain ownership merely by loading the same configuration.
+
+The runtime owns authenticated sessions, selected roles and database/source
+bindings, shared statement preparation, query execution and durable coordination.
+Adapters own protocol framing, authentication exchanges and result codecs. A
+protocol capability check may reject an unsupported type or statement before
+admission; it cannot reinterpret the common operation. Fuze remains outside the
+kernel. The runtime uses public clients and has no storage-provider access.
+
+The missing client/server boundary is a network-accessible native SQL session
+protocol. It is distinct from the kernel's signed native command protocol: it
+authenticates an SQL account, opens a session, resolves authorized database/source
+names and exchanges typed statements, results and operation identities. Both
+local and remote console connections are requirements of the same proposal.
+A remote console needs an endpoint, account, database and trust/credential
+settings; it needs no installation directory, copied server seed, mount or tunnel.
+Server-side admission and recovery must not depend on the client's filesystem.
+
+The recommended remote transport is a bounded HTTP session API over verified
+TLS, implemented by the SQL service's native adapter. A shared Zig client owns
+framing, authentication exchange, typed result decoding and uncertainty reporting.
+It must reject redirects that could move credentials, incompatible definitions
+and an unexpected server instance during operation recovery. Authentication uses
+the configured account's SCRAM verifier; the authenticated session carries current
+account/role authority, not the server's private signing credential. The endpoint
+and protocol capability exchange replace local resource-ID discovery.
+
+For local use, an additional transport is a native Unix-domain socket in a
+private user runtime directory. Socket permissions and verified OS peer identity
+map the installation owner's UID to its explicitly provisioned local login
+binding. The peer identity does not restore a revoked grant, select an arbitrary
+claimed role, or authorize another user's installation. The binding is enrolled
+once through the existing authorization owner. A live session still checks the
+current account, credential and selected-role permissions.
+
+The local socket path is selected by conventional configuration or a nonsecret
+rendezvous record, not by reading `installation.json` or `caller.seed`. It must
+distinguish local instances and validate directory ownership, socket replacement
+and stale discovery. An explicitly selected connection never silently falls
+back to another instance. Local and remote transports carry the same native SQL
+contract and reach the same session registry; a socket path is not part of the
+logical session identity. Explicit loopback trust remains a separate policy.
+Remote exposure is configured, while implementation and qualification of remote
+console support are required. PostgreSQL and MySQL listeners remain opt-in and
+are unnecessary for either native connection. A local socket needs no TLS
+certificate. These are proposed transport policies requiring executable
+remote-authentication, peer-identity and discovery tests, not existing guarantees.
+
+### Distinct lifetimes
+
+| Object | Owner and proposed lifetime | Consequence of connection loss |
+| --- | --- | --- |
+| Authentication exchange | Bounded adapter task | Discard transient secrets; no SQL authority inferred |
+| SQL session | Service; bounded settings, prepared handles and active statements | Close or idle-expire it; reauthenticate on reconnect |
+| Interactive read | Session; leased source cut, bounded compute and output | Cancel, release pins/spill and mark any prefix incomplete |
+| Explicit captured query | Existing durable query owner | Recover its original job identity under its existing contract |
+| Accepted mutation/control | Durable account operation plus its owning domain | Retain exact work and outcome independently of the session |
+| Admission token | Account-scoped durable mapping to frozen request/operation | Retry or discover the same identity under current permission |
+
+A session is not a durable PID or a newly granted principal. Sessions sharing an
+account share its coordinator, but keep settings, preparations, reads and
+cancellation separate. Session expiry is cleanup of temporary work; it is not
+retention permission for accepted mutations. Successful admission, native input
+processing, domain completion and client observation remain separate events.
+
+### Admission before a reply can be trusted
+
+Moving recovery to the server is insufficient if the caller loses the reply
+which first identifies its operation. The native proposal supplies a random
+request token before mutating admission. The account durably binds that token to
+the request fingerprint, authenticated scope, selected role, frozen typed intent
+and eventual operation identity. The lookup must be paged and quota-accounted.
+The same token and request returns the original identity; conflicting reuse
+rejects. A retry cannot recompile against a new schema and become different work.
+Current permission is required again for retry and disclosure.
+
+The service reports accepted execution only after complete intent publication
+and durable admission. A reservation or partially uploaded intent is not that
+receipt. Exact signed native steps are saved before dispatch, then native receipt,
+processed-input evidence and domain outcome are reconciled in their existing
+order. Account coordination, not a terminal process, allocates successor native
+sequences. Settings reload and authorization controls preserve their own domain
+journals and expected revisions; a shared operation registry indexes them without
+claiming a transaction across those owners.
+
+Ordinary PostgreSQL/MySQL executions have no stable client-supplied request token.
+Their adapters allocate an internal identity and retain accepted work, but
+resubmitting the same SQL is new work. Native reconnect also cannot identify a
+particular interrupted command after losing all local correlation information
+merely by comparing SQL text. Authorized paged operation discovery supplies the
+recovery path; it must not choose one of several similar operations silently.
+No mandatory client recovery file is needed to protect accepted work, but the
+design does not promise automatic identification after complete client-state loss.
+
+### Concurrency, bounds and invariants
+
+Read execution runs in independently owned bounded tasks. Short ingress critical
+sections and account write coordination do not hold a lock while a user edits
+SQL, a socket stalls or a SELECT scans. One active Table operation per account is
+the starting scheduler profile inherited from the ledger. This permits multiple
+connected writers with durable bounded pending admission; it does not establish
+parallel mutation execution within that account. Cross-account parallelism still
+depends on catalog ownership, authority capacity and available storage.
+
+Per-deployment and per-account limits cover authentication, sessions, active
+reads, prepared handles, native requests, buffers and spill. Durable pending
+admission reserves operation/content quotas before acceptance. A full lane
+rejects new work explicitly without discarding old work. Cancellation, status,
+recovery and shutdown have reserved bounded capacity so stalled output cannot
+occupy every path needed for progress. Growing history is paged on disk; session
+arrays cannot become total-operation-cardinality limits. Retention stays opt-in.
+
+The proposal depends on the following falsifiable invariants:
+
+- Two idle sessions under one account do not exclude one another. Reads never
+  acquire a credential-wide terminal-lifetime lock.
+- Every dispatched mutating native step has exact earlier durable recovery
+  evidence, and at most one eligible owner allocates that account's sequence.
+- Admission-token reuse cannot dispatch another operation or disclose another
+  account's result. Missing or incompatible definitions reject before execution.
+- Revocation prevents subsequent protected metadata, row and outcome disclosure,
+  including prepared handles and buffered results. A session ID grants no rights.
+- Disconnect, timeout and session reset do not roll back a published write.
+  Cancelling an operation uses its owning domain's explicit cancellation rules.
+- Saturated reads or disconnected clients cannot consume reserved recovery
+  capacity. Progress remains conditional on storage, permissions and scheduling;
+  no finite latency claim follows from bounded admission alone.
+
+### Alternatives, evidence and remaining limits
+
+Per-console credentials would require provisioning and retirement for ephemeral
+terminals while leaving recovery discovery unresolved. File locks around each
+write could permit concurrent local reads, but would still couple remote clients
+to private files and fail to share wire-account recovery. Making the console a
+PostgreSQL client would reuse socket sessions, but would require that listener and
+restrict native types/commands to its current wire profile. A shared library
+instantiated in separate uncoordinated processes would preserve the sequence
+race. The service-owned runtime is the recommended tradeoff; its costs include
+native protocol work, moving query compute into the service's memory budget and
+making SQL service availability part of console availability.
+
+Inspect the linked console, Host, TableClient and AccountRuntime owners at the
+stated revision to reproduce the ownership analysis. The console guide's ordinary
+connection command run in two terminals against one installation exposes the
+current lock. The [existing console test](../../tests/console.py) also asserts
+exclusion for an explicitly durable configuration; it is not evidence that
+ordinary sessions must remain exclusive. Existing wire/installation fault
+results are recorded in the [proof ledger](../../tests/README.md#database-wire-gateway).
+They do not qualify the proposed native session transport.
+
+The discriminating future experiments are simultaneous native/wire connections
+under one account, a remote native client with no server files and both wire
+listeners disabled, loss on both sides of durable admission, service restart after
+dispatch, revocation during buffered output, slow-reader saturation and more
+retained operations than resident cache entries. Record complete/unknown/rejected
+outcomes, original identities, resident bytes and recovery progress separately.
+Compare one connection with several under the same workload before claiming a
+performance improvement. Moving code alone cannot eliminate the ledger's
+publication cost. Full transactions, broad wire type compatibility, automatic
+distributed SQL service placement, Board/Flight migration and resumable
+interactive reads remain outside this proposal.
+
 ## Reactive consistency
 
 The implemented reactive profile combines int64 Table notifications with exact

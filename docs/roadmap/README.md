@@ -63,6 +63,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M53](M53.md) | Local SQL startup and authentication | Implemented: optional TLS, explicit loopback trust and recorded owner bootstrap; source/installed clients and clean experience lane pass |
 | [M54](M54.md) | Storage publication, concurrent access and reclamation | Implemented: shared block publication, concurrent native access and resumable reclamation; matched evidence and qualification gates recorded together |
 | [M55](M55.md) | Automatic local server startup | Implemented and locally qualified: one startup command, existing-only deployment policy, preserved recovery gates and 37 clean-checkout tasks |
+| [M56](M56.md) | Shared server-managed SQL sessions | Proposed for review: native console and database adapters share session execution, account coordination and durable recovery |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

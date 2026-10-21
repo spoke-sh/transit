@@ -20,7 +20,7 @@ operate Transit; exact interface and wire definitions remain with their owners.
 | [Clients, SDKs and Station](client-framework.md) | How do language APIs preserve shared protocol and ownership semantics? |
 | [Query planning, snapshots and results](query-engine.md) | What makes a finite result attributable and complete, and how can standards and additional data models fit that boundary? |
 | [External effects and uncertain outcomes](effect-lifecycle.md) | What can durable execution establish about an external operation? |
-| [Serving, reactive views and Board](service-interfaces.md) | How do network and visual interfaces preserve authority and result truth? |
+| [Serving, reactive views and Board](service-interfaces.md) | How do network and visual interfaces preserve authority and result truth, and how would shared SQL sessions separate connections from durable work? |
 
 ## Runtime and evidence
 
