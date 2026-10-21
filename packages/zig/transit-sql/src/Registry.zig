@@ -40,6 +40,9 @@ pub const Slot = struct {
     memory: g.query.QueryMemory = undefined,
     host: ?*g.Session = null,
     last: std.Io.Timestamp = .{ .nanoseconds = 0 },
+    // Protected by Registry.mutex. Independent controls borrow immutable
+    // identity, and keep this slot from expiring or being reused until joined.
+    controls: u16 = 0,
     statements: [api.max_prepared]?Statement = @splat(null),
     cursor: ?Cursor = null,
     fn clearCursor(self: *Slot) void {
@@ -94,7 +97,7 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
     var free: ?*Slot = null;
     for (self.slots) |*slot| {
         if (slot.present and slot.account == account) count += 1;
-        if (!slot.present and free == null and slot.mutex.tryLock()) free = slot;
+        if (!slot.present and slot.controls == 0 and free == null and slot.mutex.tryLock()) free = slot;
     }
     if (count >= self.configuration.limits.connections_per_account or free == null) {
         if (free) |slot| slot.mutex.unlock(self.io);
@@ -144,11 +147,13 @@ pub fn sweep(self: *Self) void {
     self.mutex.unlock(self.io);
     for (self.slots) |*slot| {
         self.mutex.lockUncancelable(self.io);
-        const expired = slot.present and slot.native and slot.mutex.tryLock();
+        const expired = slot.present and !slot.opening and slot.native and slot.controls == 0 and
+            slot.last.durationTo(now).toMilliseconds() >= self.configuration.limits.idle_ms and slot.mutex.tryLock();
+        if (expired) slot.present = false;
         self.mutex.unlock(self.io);
         if (!expired) continue;
         defer slot.mutex.unlock(self.io);
-        if (slot.last.durationTo(now).toMilliseconds() >= self.configuration.limits.idle_ms) self.remove(slot);
+        slot.clear();
     }
 }
 fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Response, "result")) ![]u8 {
@@ -184,13 +189,21 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
         self.mutex.unlock(self.io);
         return error.SqlSessionBusy;
     }
-    self.mutex.unlock(self.io);
-    defer slot.mutex.unlock(self.io);
-    if (slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.idle_ms) {
-        self.remove(slot);
+    if (slot.controls == 0 and slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.idle_ms) {
+        slot.present = false;
+        self.mutex.unlock(self.io);
+        slot.clear();
+        slot.mutex.unlock(self.io);
         return error.SqlSessionExpired;
     }
     slot.last = std.Io.Clock.awake.now(self.io);
+    self.mutex.unlock(self.io);
+    defer slot.mutex.unlock(self.io);
+    defer {
+        self.mutex.lockUncancelable(self.io);
+        slot.last = std.Io.Clock.awake.now(self.io);
+        self.mutex.unlock(self.io);
+    }
     const host = slot.host.?;
     errdefer slot.clearCursor();
     if (input.action == .close) {
@@ -369,7 +382,8 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             errdefer if (owned) prepared.captured.deinit();
             var id: api.Id = undefined;
             try self.io.randomSecure(&id);
-            slot.cursor = .{ .id = id, .prepared = prepared, .owned = true, .read = try host.openRead(prepared, &.{}), .arena = .init(slot.memory.allocator()), .batch_arena = .init(slot.memory.allocator()) };
+            const read = try host.openRead(prepared, &.{});
+            slot.cursor = .{ .id = id, .prepared = prepared, .owned = true, .read = read, .arena = .init(slot.memory.allocator()), .batch_arena = .init(slot.memory.allocator()) };
             owned = false;
             return .{ .batch = try self.batch(slot, 0) };
         },
@@ -451,7 +465,11 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     }
     var id: api.Id = undefined;
     try self.io.randomSecure(&id);
-    slot.cursor = .{ .id = id, .prepared = prepared, .owned = owned, .read = try host.openRead(prepared, values), .arena = arena, .batch_arena = .init(slot.memory.allocator()) };
+    // Finish every fallible acquisition before publishing the cursor. Struct
+    // result-location semantics may initialize destination fields before a
+    // later `try` fails; request cleanup must never see such a partial owner.
+    const read = try host.openRead(prepared, values);
+    slot.cursor = .{ .id = id, .prepared = prepared, .owned = owned, .read = read, .arena = arena, .batch_arena = .init(slot.memory.allocator()) };
     retained = true;
     owned = false;
     return .{ .batch = try self.batch(slot, 0) };
@@ -500,6 +518,12 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
         self.mutex.unlock(self.io);
         return err;
     };
+    if (slot.controls == 0 and !slot.active.load(.acquire) and
+        slot.last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.configuration.limits.idle_ms)
+    {
+        self.mutex.unlock(self.io);
+        return error.SqlSessionExpired;
+    }
     const account = slot.account;
     const credential = if (slot.host) |host| host.credential else {
         self.mutex.unlock(self.io);
@@ -507,7 +531,14 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 
     };
     const database = slot.host.?.database;
     const source_name = slot.host.?.sourceName();
+    slot.controls += 1;
     self.mutex.unlock(self.io);
+    defer {
+        self.mutex.lockUncancelable(self.io);
+        slot.last = std.Io.Clock.awake.now(self.io);
+        slot.controls -= 1;
+        self.mutex.unlock(self.io);
+    }
     var cancelled: std.atomic.Value(bool) = .init(false);
     var active: std.atomic.Value(bool) = .init(false);
     var memory: g.query.QueryMemory = .{ .parent = self.allocator, .limit = self.configuration.limits.session_bytes };

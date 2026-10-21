@@ -229,6 +229,7 @@ pub fn begin(self: *Self) !void {
     self.deadline.start = std.Io.Clock.awake.now(self.io);
     self.deadline.milliseconds = self.commandMilliseconds();
     self.active.store(true, .release);
+    errdefer self.active.store(false, .release);
     try self.current();
 }
 pub fn end(self: *Self) void {
