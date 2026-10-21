@@ -449,10 +449,11 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     ports = [listener.getsockname()[1] for listener in reserved]
     for listener in reserved: listener.close()
     discovery_config.write_text(json.dumps({'installation': str(root/'uninitialized'),
+        'startup': {'require_existing': True},
         'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), ports)),
         'applications': {'port': ports[5]}}))
     def convention(**values):
-        return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('retained installation record',),
+        return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('startup requires an existing installation',),
                       env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli))
     convention()  # No manifest or tools on PATH.
     for name in names: (search/name).touch(mode=0o700)
