@@ -70,6 +70,9 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     if (!std.mem.eql(u8, &prepared.template.definition, &try self.definition.fingerprint())) return error.QuerySourceChanged;
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !q.SqlTemplate.Bound {
+    return self.host.fresh(bindOnce, .{ self, prepared, values });
+}
+fn bindOnce(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !q.SqlTemplate.Bound {
     try self.validate(prepared);
     var atoms: [f.LogicalPrepared.max_parameters]f.Types.Values.Atom = undefined;
     if (values.len > atoms.len) return error.ParameterCountMismatch;

@@ -207,6 +207,10 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
         assert batch['basis']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
+        # Capture admission belongs to the SQL account, not a running source
+        # worker. Keep owners paused until after service replacement, so this
+        # schedule proves durable admission before any query can complete.
+        select_source(None)
         token = list(os.urandom(16))
         operation = selected.execute('SELECT value FROM items', token, captured=True)['operation']
         assert operation['identity']['kind'] == 'captured' and operation['phase'] != 'reserved'

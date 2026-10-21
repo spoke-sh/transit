@@ -18237,6 +18237,7 @@
         "Read.init()": "<inferred>",
         "Read.next()": "<inferred>",
         "bind()": "<inferred>",
+        "bindOnce()": "<inferred>",
         "bindingFingerprint()": "<inferred>",
         "current()": "<inferred>",
         "init()": "<inferred>",
