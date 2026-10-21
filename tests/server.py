@@ -387,9 +387,9 @@ def run(cli, node, host):
             assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['operation']['changed'] == 0
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
-        failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
-        assert "restart budget exhausted" in failure and "child process exited" in failure, failure
-        assert "role courier" in failure and "retrying" not in failure, failure
+        failure = Path(fixture.logs[-1].name).read_text().rsplit("server.failed ", 1)[-1]
+        assert "restart budget exhausted" in failure and "ChildExited" in failure, failure
+        assert 'role="courier"' in failure and "retrying" not in failure, failure
         fixture.stop()
         for name in ("wal", "cold"):
             old = fixture.installation / name

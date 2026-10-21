@@ -536,6 +536,10 @@ interactive-query:
 server:
     zig build test-server -Doptimize=ReleaseSafe
 
+# Terminal text, JSON collectors, settings propagation and standalone failures.
+server-logging:
+    zig build test-server-logging -Doptimize=ReleaseSafe
+
 server-faults:
     zig build test-server -Doptimize=ReleaseSafe -Dserver-faults=true
 
