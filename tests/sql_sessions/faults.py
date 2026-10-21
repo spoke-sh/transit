@@ -3,6 +3,7 @@ import http.client
 import http.server
 import json
 import threading
+import time
 from urllib.parse import urlsplit
 
 
@@ -11,6 +12,7 @@ class Faults:
         target = urlsplit(url)
         self.fail_open = False
         self.fail_once = False
+        self.fail_coordinator = None
         self.failures = 0
         self.requests = 0
         self.response_bytes = 0
@@ -22,8 +24,9 @@ class Faults:
             wbufsize = 65536
             def do_POST(self):
                 content = self.rfile.read(int(self.headers['Content-Length']))
-                query = json.loads(content).get('query', {}).get('kind', {})
-                if (owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {}):
+                envelope = json.loads(content).get('query', {})
+                query = envelope.get('kind', {})
+                if ((owner.fail_open or owner.fail_once) and 'open' in query.get('snapshot_read', {}).get('snapshot', {})) or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
                     owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'
@@ -67,6 +70,40 @@ class Faults:
         result = client.execute('SELECT id FROM native_sessions')['batch']
         assert self.failures == before + 1 and result['rows']
         client.call(dict(close_result=result['cursor']))
+
+        # A real failed coordinator fence withdraws readiness. Login waits for
+        # its recovery inside the configured request window, not 64 short polls.
+        configuration = json.loads((client.root / 'sql-gateway.json').read_text())
+        self.fail_coordinator = configuration['accounts'][0]['ledger']['coordinator']
+        release = None
+        try:
+            deadline = time.monotonic() + 15
+            while True:
+                health = http.client.HTTPConnection('127.0.0.1', configuration['health_port'], timeout=3)
+                try:
+                    health.request('GET', '/recovery')
+                    response = health.getresponse()
+                    response.read()
+                    if response.status == 503:
+                        break
+                finally:
+                    health.close()
+                assert time.monotonic() < deadline, 'coordinator fault did not withdraw readiness'
+                time.sleep(.05)
+            release = threading.Timer(3, lambda: setattr(self, 'fail_coordinator', None))
+            release.start()
+            started = time.monotonic()
+            recovered = type(client)(client.root, client.port).open()
+            recovered.close()
+            elapsed = time.monotonic() - started
+            assert elapsed >= 2, elapsed
+            print(json.dumps(dict(profile='native_sql_readiness_recovery', unavailable_seconds=3,
+                                  login_seconds=round(elapsed, 3), preserved_fence=True)), flush=True)
+        finally:
+            self.fail_coordinator = None
+            if release is not None:
+                release.cancel()
+                release.join()
         self.fail_open = True
         try:
             client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')

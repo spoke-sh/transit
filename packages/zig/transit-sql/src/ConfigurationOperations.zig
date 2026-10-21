@@ -30,7 +30,7 @@ pub fn admit(host: *g.Session, token: api.Token, fingerprint: [32]u8) !api.Opera
     defer host.runtime.settings_mutex.unlock(host.io);
     if (try host.fresh(find, .{ host, token, @as(?[32]u8, fingerprint) })) |ref| return status(host, ref.id);
     const selected = try Settings.client(host);
-    const current = try selected.read(.{ .settings = .{ .name = "version" } });
+    const current = try host.fresh(q.SettingsClient.read, .{ selected, C.Action{ .settings = .{ .name = "version" } } });
     defer current.deinit();
     var original: [16]u8 = undefined;
     try host.io.randomSecure(&original);
@@ -69,7 +69,7 @@ fn publish(host: *g.Session, item: ops.External) !void {
 pub fn status(host: *g.Session, id: u64) !api.Operation {
     const item = try host.fresh(load, .{ host, id });
     const selected = try Settings.client(host);
-    const result = try selected.read(.{ .reloads = .{ .operation = item.original } });
+    const result = try host.fresh(q.SettingsClient.read, .{ selected, C.Action{ .reloads = .{ .operation = item.original } } });
     defer result.deinit();
     if (result.value.result != .reloads or result.value.result.reloads.rows.len > 1) return error.InvalidConfigurationResponse;
     const outcome: ?C.Outcome = if (result.value.result.reloads.rows.len == 0) null else result.value.result.reloads.rows[0];

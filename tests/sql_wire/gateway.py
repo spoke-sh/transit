@@ -41,7 +41,18 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 raise RuntimeError(f'{mode}: {result.stderr[-8000:]}')
             return json.loads(result.stdout)
         def controls(*args):
-            result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
+            deadline, refusals = time.monotonic()+30, 0
+            while True:
+                result = subprocess.run([gateway, 'control', str(root/'sql-control.json'), *map(str,args)], capture_output=True, text=True, timeout=40)
+                # Repeat only pure inspection when native capacity refuses it.
+                # Never prepare/submit another control or replay SQL here.
+                if not result.returncode or args[0] not in ('list', 'status') or not any(cause in result.stderr for cause in ('HttpCapacity', 'StaleStateResource')) or time.monotonic() >= deadline:
+                    break
+                assert not result.stdout, 'Failed control inspection disclosed output'
+                refusals += 1
+                time.sleep(.05)
+            if refusals:
+                print(json.dumps(dict(profile='database_wire_control_observation_retry', operation=args[0], refused_reads=refusals)), flush=True)
             if result.returncode:
                 assert not result.stdout, 'Failed control inspection disclosed output'
             assert result.returncode == 0, result.stderr

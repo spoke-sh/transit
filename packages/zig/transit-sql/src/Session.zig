@@ -210,13 +210,17 @@ fn currentOnce(self: *Self) !void {
 /// validation. Never replay a query iterator, write, or signed native request.
 pub fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     var attempts: u8 = 0;
+    const started = std.Io.Clock.awake.now(self.io);
     while (true) {
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
             const unavailable = g.station.client.Client.unavailable(err) or self.wire.contended(err) or err == error.GatewayOwnerUnavailable;
-            if ((!stale and !unavailable) or attempts == 64) return err;
-            attempts += 1;
+            // Recovery and native admission may need more than 64 short polls.
+            // Bound those waits by both configured time budgets; retain the
+            // conflict-attempt limit for repeatedly changing metadata.
+            if ((!stale and !unavailable) or (unavailable and started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.config.request_timeout_ms) or (!unavailable and attempts == 64)) return err;
+            if (!unavailable) attempts += 1;
             try self.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
             continue;
         };
@@ -475,6 +479,9 @@ test "pure preparation retries transport loss within its budget but never retrie
     };
     var host: Self = undefined;
     host.io = t.io;
+    var config: g.Configuration = undefined;
+    config.request_timeout_ms = 5000;
+    host.config = &config;
     host.wire.last_rejection = null;
     host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
     var read: Observation = .{};
@@ -483,8 +490,15 @@ test "pure preparation retries transport loss within its budget but never retrie
     read = .{ .failure = error.AccessDenied };
     try t.expectError(error.AccessDenied, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 1), read.attempts);
+    config.request_timeout_ms = 30;
     read = .{ .failures = 100 };
     try t.expectError(error.AuthorityUnavailable, host.fresh(Observation.run, .{&read}));
+    try t.expect(read.attempts > 0 and read.attempts < read.failures);
+    read = .{ .failures = 100, .failure = error.GatewayOwnerUnavailable };
+    try t.expectError(error.GatewayOwnerUnavailable, host.fresh(Observation.run, .{&read}));
+    try t.expect(read.attempts > 0 and read.attempts < read.failures);
+    read = .{ .failures = 100, .failure = error.CatalogDefinitionChanged };
+    try t.expectError(error.CatalogDefinitionChanged, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 65), read.attempts);
     host.deadline.milliseconds = 0;
     read = .{};
