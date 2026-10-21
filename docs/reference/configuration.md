@@ -89,6 +89,20 @@ trust and retained-worker lifecycle. `sql.command_ms` bounds each SQL statement
 and `sql.idle_ms` bounds an idle session; both default to 30 seconds and permit
 at most 270 seconds. A session statement timeout can further shorten the wait.
 
+## Startup policy
+
+`transit server` initializes a missing or empty installation directory and opens
+or resumes an existing installation. `startup.require_existing` defaults to
+false. Set it to true after provisioning a managed deployment to refuse a missing
+or empty installation, including a missing volume or mistaken path. Its
+environment override is `TRANSIT_STARTUP__REQUIRE_EXISTING=true`; changes require
+restart and are visible through `SHOW startup.require_existing`.
+
+A populated directory never becomes a new installation because a record or
+storage file is missing. Invalid contents, files, symbolic links and incompatible
+definitions reject without automatic repair. The [server guide](../../apps/transit-cli/docs/server.md#first-startup-and-recovery)
+describes creation, interrupted setup, storage layout and startup notices.
+
 ## Inspect, change and reload
 
 ```sql

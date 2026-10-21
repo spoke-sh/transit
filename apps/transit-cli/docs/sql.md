@@ -34,8 +34,7 @@ sql:
       bootstrap_owner: true
 ```
 
-For a deliberately new installation, run `transit server --initialize` once.
-For an existing compatible installation, run `transit server`. SQL setup creates
+Run `transit server` for both a new installation and an existing compatible one. SQL setup creates
 its account ledger and records the owner credential binding automatically. Once
 SQL reports `accepting`, connect without certificates or password files:
 

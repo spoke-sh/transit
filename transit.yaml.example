@@ -2,8 +2,7 @@
 # The repository ignores /transit.yaml; this example is not loaded automatically.
 # Use the matching local bundle with transit on PATH.
 #
-# Start a deliberately new installation: transit server --initialize
-# Resume an existing installation:      transit server
+# Start or resume the installation:    transit server
 # Inspect active settings in SQL:       SHOW ALL;
 # Reload the selected file in SQL:      SELECT transit_reload_conf();
 #
@@ -20,6 +19,12 @@ realm: 1
 # Native accepted-work quotas; these do not expire history or reclaim storage.
 admission_ceiling: 65536
 control_reserve: 4096
+
+# Automatic first startup creates a missing or empty installation directory.
+# Enable this after provisioning a managed deployment to catch missing volumes
+# or a mistaken installation path. Changes take effect on the next startup.
+startup:
+  require_existing: false
 
 # Physical immutable allocations, including staged candidates. Provider metadata,
 # work ledgers, WAL, snapshots and filesystem headroom have separate costs.

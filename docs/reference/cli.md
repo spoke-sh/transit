@@ -10,8 +10,8 @@ Use the [local quickstart](../guides/quickstart.md) for prerequisites and startu
 ```text
 transit --help
 transit --version
-transit serve [--config FILE] [--initialize] [--no-ui]
-transit server [--config FILE] [--initialize] [--no-ui]
+transit serve [--config FILE] [--no-ui]
+transit server [--config FILE] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
 transit catalog COMMAND [OPTIONS]
@@ -25,7 +25,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 
 | Command | Input and outcome |
 | --- | --- |
-| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. The local profile starts Board by default; `--no-ui` runs headlessly |
+| `serve`, `server` | Aliases. Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../apps/transit-cli/docs/catalog.md) |
@@ -175,9 +175,9 @@ human interfaces, not a stable machine schema.
 Recovery advice respects durable identity. An uncertain operation calls for
 inspection or retry of its saved signed intent. It does not imply rejection,
 suggest fresh SQL as a retry, or recommend deleting history. A server identity
-mismatch asks for the recorded configuration and matching executables. The
-`--initialize` option is only for deliberately creating an installation; ordinary
-restarts omit it.
+mismatch asks for the recorded configuration and matching executables. Use the same server command
+for first startup and restarts. Set
+`startup.require_existing: true` to refuse a missing or empty installation.
 
 ### Streams, privacy and limits
 

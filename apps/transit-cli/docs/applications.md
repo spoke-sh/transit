@@ -16,8 +16,8 @@ Use the version-1 configuration and executable paths in
 ```
 
 The five service ports, application management port and Board port must differ. Start with
-`transit serve --config transit.yaml --initialize`; subsequent starts omit
-`--initialize`. The ready record includes `management_config`. Management configuration,
+`transit serve --config transit.yaml` for both first startup and restarts. The ready record includes
+`management_config`. Management configuration,
 installation declarations and replacements accept YAML by default; explicit
 `.json` inputs remain supported. Connection exports use YAML except when
 `--output` names a `.json` file. The example application consumes the neutral
@@ -139,8 +139,8 @@ also detect rollback across an interrupted local checkpoint. Ordinary startup
 never deletes history, resets grants, or creates replacement resources.
 
 SIGINT/SIGTERM stop and join owned children; manager SIGKILL triggers the Linux
-parent-death contract. Restart the same server configuration without
-`--initialize`. Worker-only interruption restarts its required dependency closure.
+parent-death contract. Restart with the same server command and configuration.
+Worker-only interruption restarts its required dependency closure.
 Storage/authority interruption restarts the pinned neighborhood on retained disk.
 Temporary authority liveness-read failures require three consecutive failed
 observations before restarting live roles; current denials fail immediately.

@@ -100,6 +100,12 @@ worker, CLI and SDK builds are required. No automatic converter, fallback
 decoder or installation reset is supplied. Recover earlier pending work with
 its matching build before an explicit cutover.
 
+The local configuration checkpoint also includes the startup policy registry.
+Installations from before this definition are rejected; automatic first startup
+applies only to missing or empty directories and never converts retained history.
+Keep existing installations with their matching artifacts, or deliberately select
+a separate new installation directory.
+
 Station query delivery includes authenticated typed terminal failures, distinct
 from complete or partial Arrow results. The native handler input ABI includes
 that failure value. Earlier handler libraries and port contracts reject at
