@@ -125,12 +125,16 @@ pub fn prepare(self: *GenServer, read_deadline_ms: u64) !Poll {
         self.resource = resource;
     }
     if (self.view_id == null) {
+        // An expired view may already have consumed a principal sequence.
+        // Reobserve this same durable input before preparing a new view;
+        // unresolved signed opens still take dispatchPending above.
+        const delivery = try self.freshDelivery();
         var deadline = read_deadline_ms;
         if (self.resource.?.deadline_ms) |limit| deadline = @min(deadline, limit);
-        if (self.delivery.?.settle_before_ms) |limit| {
+        if (delivery.settle_before_ms) |limit| {
             deadline = @min(deadline, limit);
         }
-        self.pending = try self.session.prepareView(self.delivery.?, self.resource.?, deadline);
+        self.pending = try self.session.prepareView(delivery, self.resource.?, deadline);
         self.pending_kind = .open;
         self.opening_read = null;
         return .progress;

@@ -92,7 +92,7 @@ def run(node, cli, worker, courier):
 
         control = {"mode": "drop", "bodies": [], "changed_basis": 0,
                    "registration_reads_refused": 0, "registration_bodies": [],
-                   "registration_replies_lost": 0}
+                   "registration_replies_lost": 0, "expired_view": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -109,6 +109,17 @@ def run(node, cli, worker, courier):
                     assert len(writes) == 4 and any(item['value'] is None for item in writes), writes
                     assert any(item and bytes.fromhex(item['value'])[4] == 3 for item in turn['outputs']), 'Terminal publication lost its call reply'
                 query = envelope.get("query", {})
+                if query.get('kind', {}).get('entries', {}).get('view') and not control['expired_view']:
+                    # The preceding open already consumed its signed sequence.
+                    # A new view for the same input must observe a new sequence.
+                    control['expired_view'] += 1
+                    expired = b'{"err":"StateViewExpired"}'
+                    self.send_response(422)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(expired)))
+                    self.end_headers()
+                    self.wfile.write(expired)
+                    return
                 registration_read = 'registration' in query.get('kind', {}).get('authorization', {}).get('kind', {})
                 registration_write = 'authorization' in command
                 if registration_write:
@@ -167,11 +178,12 @@ def run(node, cli, worker, courier):
             writer.terminate(); writer.wait(timeout=10)
             assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1]
             assert total() == 7
+            assert control['expired_view'] == 1
             assert control['registration_reads_refused'] == 1
             assert control['registration_replies_lost'] == 1
             assert len(control['registration_bodies']) >= 2
             assert control['registration_bodies'][0] == control['registration_bodies'][1]
-            print('Station registration: refused observation/submission and lost accepted reply recover through the original binding ledger.', flush=True)
+            print('Station recovery: expired view renews at a fresh sequence; refused registration reads/submissions and lost accepted reply retain the original binding.', flush=True)
 
             # The held turn publishes the typed Table head, exact outcome, audit
             # and reply together; queue admission alone cannot satisfy this fault.
