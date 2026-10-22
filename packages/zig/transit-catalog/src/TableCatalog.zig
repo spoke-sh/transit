@@ -153,7 +153,7 @@ pub fn initialize(self: Self, turn: *s.Turn) !void {
     const namespace: c.TableAuthority.Schema = .{ .scope = self.configuration.scope, .id = profile.initial_schema, .authorization = profile.initial_schema_authority, .name = try .init("public"), .revision = 1 };
     try turn.write(self.key('S', namespace.id, 0), try r.encode('S', namespace));
 }
-fn object(self: Self, source: anytype, id: u64) !?m.Object {
+pub fn object(self: Self, source: anytype, id: u64) !?m.Object {
     const Source = @typeInfo(@TypeOf(source)).pointer.child;
     if (comptime @hasDecl(Source, "prefetch")) try source.prefetch(&.{self.key('O', id, 0)});
     if (id == 0) return error.InvalidCatalogIdentity;
@@ -167,8 +167,8 @@ fn metadata(self: Self, source: anytype, value: m.Object) !Meta.Record {
     if (value.state == .initializing) return error.CatalogDefinitionMissing;
     return (Store{ .scope = value.scope, .object = value.object }).read(source, value.metadata);
 }
-const Bound = struct { object: m.Object, metadata: Meta.Record };
-fn binding(self: Self, source: anytype, name: Meta.Name) !?Bound {
+pub const Bound = struct { object: m.Object, metadata: Meta.Record };
+pub fn binding(self: Self, source: anytype, name: Meta.Name) !?Bound {
     try name.validate();
     const digest = try name.digestIn(self.namespaceId());
     const full = try Meta.nameKey(self.configuration.scope.catalog, digest, 1);
@@ -265,8 +265,12 @@ pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, presen
     try self.check(turn);
     try dependency.validate();
     try self.scope(dependency.scope);
-    const current = (try self.object(turn, dependency.object)) orelse return error.TableNotFound;
-    if (present and (current.state != .live or current.pending_operation != 0)) return error.TableBusy;
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try self.object(turn, dependency.object)) |current| {
+        if (present and (current.state != .live or current.pending_operation != 0)) return error.TableBusy;
+    } else if (try decl.record(turn, dependency.object)) |current_decl| {
+        if (present and (current_decl.state != .live or current_decl.pending_operation != 0)) return error.TableBusy;
+    } else return error.TableNotFound;
     const location = self.key('B', dependency.object, dependency.identity);
     const index_key = self.key('J', dependency.object, dependency.identity);
     const bytes = try r.encode('B', dependency);
@@ -287,7 +291,7 @@ pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, presen
         }
     }
 }
-fn restrict(self: Self, source: anytype, id: u64) !?m.Dependency {
+pub fn restrict(self: Self, source: anytype, id: u64) !?m.Dependency {
     const full = self.key('J', id, 0);
     const prefix = try p.Value.init(full.data[0..19]);
     const page = try source.page(prefix);
@@ -303,13 +307,19 @@ fn restrict(self: Self, source: anytype, id: u64) !?m.Dependency {
     return dependency;
 }
 pub fn blockingDependency(self: Self, source: anytype, who: u64, id: u64) !?m.Dependency {
-    _ = try self.authorizeObject(source, who, id, .inspect);
-    _ = (try self.object(source, id)) orelse return error.TableNotFound;
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try self.object(source, id) != null) {
+        _ = try self.authorizeObject(source, who, id, .inspect);
+    } else if (try decl.record(source, id) != null) {
+        _ = try decl.authorizeObject(source, who, id, .inspect);
+    } else return error.TableNotFound;
     return self.restrict(source, id);
 }
 pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
     _ = try self.authorizeDatabase(source, who);
-    const current = (try self.object(source, id)) orelse return null;
+    const current = (try self.object(source, id)) orelse {
+        return (c.DeclarativeCatalog{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration }).inspectLifecycle(source, who, id);
+    };
     _ = try self.authorizeObject(source, who, id, .inspect);
     if (current.state == .initializing) {
         const pending = if (current.pending_operation != 0) try self.operation(source, current.pending_principal, current.pending_operation) else null;
@@ -380,6 +390,7 @@ pub fn previewDdl(self: Self, source: anytype, who: u64, request: DdlRequest) !m
     const bound = try scoped.binding(source, request.name);
     switch (request.action) {
         .create => |creation| {
+            const decl: c.DeclarativeCatalog = .{ .configuration = scoped.configuration, .namespace = scoped.namespace, .registration = scoped.registration };
             const fp = try creation.schema.fingerprint();
             if (bound) |existing| {
                 _ = try scoped.authorizeObject(source, request.principal, existing.object.object, .inspect);
@@ -395,7 +406,21 @@ pub fn previewDdl(self: Self, source: anytype, who: u64, request: DdlRequest) !m
                     .resource_revision = source.view.revision,
                 };
             }
-            if (try scoped.object(source, request.object) != null) {
+            if (try decl.boundMeta(source, scoped.namespaceId(), request.name)) |decl_existing| {
+                _ = try decl.authorizeObject(source, request.principal, decl_existing.object, .inspect);
+                return .{
+                    .kind = .table,
+                    .action = .create,
+                    .name = request.name,
+                    .object = decl_existing.object,
+                    .expected_revision = decl_existing.revision,
+                    .disposition = .rejected,
+                    .reason = .name_conflict,
+                    .definition_digest = fp,
+                    .resource_revision = source.view.revision,
+                };
+            }
+            if (try scoped.object(source, request.object) != null or try decl.record(source, request.object) != null) {
                 return .{
                     .kind = .table,
                     .action = .create,
@@ -513,6 +538,20 @@ pub fn previewDdl(self: Self, source: anytype, who: u64, request: DdlRequest) !m
                             .action = .rename,
                             .name = target_name,
                             .object = occupied.object.object,
+                            .expected_revision = existing.metadata.revision,
+                            .disposition = .rejected,
+                            .reason = .name_conflict,
+                            .definition_digest = existing.metadata.schema_fingerprint,
+                            .resource_revision = source.view.revision,
+                        };
+                    }
+                    const decl: c.DeclarativeCatalog = .{ .configuration = scoped.configuration, .namespace = scoped.namespace, .registration = scoped.registration };
+                    if (try decl.boundMeta(source, scoped.namespaceId(), target_name)) |decl_occupied| {
+                        return .{
+                            .kind = .table,
+                            .action = .rename,
+                            .name = target_name,
+                            .object = decl_occupied.object,
                             .expected_revision = existing.metadata.revision,
                             .disposition = .rejected,
                             .reason = .name_conflict,
@@ -681,11 +720,16 @@ fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcom
     const bound = try self.binding(turn, request.name);
     switch (request.action) {
         .create => |creation| {
+            const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
             if (bound) |existing| {
                 _ = try self.authorizeObject(turn, request.principal, existing.object.object, .inspect);
                 return self.close(turn, pending, null, if (creation.if_not_exists) .unchanged else .rejected, if (creation.if_not_exists) .none else .name_conflict, existing.object.object);
             }
-            if (try self.object(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .object_conflict, request.object);
+            if (try decl.boundMeta(turn, self.namespaceId(), request.name)) |decl_existing| {
+                _ = try decl.authorizeObject(turn, request.principal, decl_existing.object, .inspect);
+                return self.close(turn, pending, null, .rejected, .name_conflict, decl_existing.object);
+            }
+            if (try self.object(turn, request.object) != null or try decl.record(turn, request.object) != null) return self.close(turn, pending, null, .rejected, .object_conflict, request.object);
             try emptyObjectNamespace(turn, request.object);
             const namespace = try self.namespaceRecord(turn, self.namespaceId());
             const identity = try c.TableAuthority.binding(pending.scope, .table, request.object);
@@ -721,6 +765,8 @@ fn admit(self: Self, turn: *s.Turn, request: DdlRequest, digest: [32]u8) !Outcom
             if (request.action == .rename) {
                 if (request.action.rename.eql(&request.name)) return self.close(turn, pending, null, .unchanged, .none, request.object);
                 if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, null, .rejected, .name_conflict, occupied.object.object);
+                const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+                if (try decl.boundMeta(turn, self.namespaceId(), request.action.rename)) |decl_occupied| return self.close(turn, pending, null, .rejected, .name_conflict, decl_occupied.object);
             }
             if (request.action == .drop) if (try self.restrict(turn, request.object)) |dependency| return self.closeRestricted(turn, pending, null, dependency);
             var next = existing.object;
@@ -772,6 +818,8 @@ fn publishObject(self: Self, turn: *s.Turn, old: m.Object, record: Meta.Record, 
 }
 fn createStep(self: Self, allocator: std.mem.Allocator, turn: *s.Turn, request: DdlRequest, pending: m.Operation, current: m.Object) !Outcome {
     if (try self.binding(turn, request.name)) |existing| return self.close(turn, pending, current, if (request.action.create.if_not_exists) .unchanged else .rejected, if (request.action.create.if_not_exists) .none else .name_conflict, existing.object.object);
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try decl.boundMeta(turn, self.namespaceId(), request.name)) |decl_existing| return self.close(turn, pending, current, .rejected, .name_conflict, decl_existing.object);
     if (current.state != .initializing or try turn.read(s.TableHead.key(current.object)) != null) return error.CatalogDefinitionChanged;
     const before = writes(turn);
     const pages = try s.TablePages.create(turn, request.object, self.configuration.table_limits);
@@ -800,6 +848,8 @@ fn boundStep(self: Self, turn: *s.Turn, request: DdlRequest, pending: m.Operatio
     if (head.pending != 0) return error.TableBusy;
     if (request.action == .rename) {
         if (try self.binding(turn, request.action.rename)) |occupied| return self.close(turn, pending, current, .rejected, .name_conflict, occupied.object.object);
+        const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+        if (try decl.boundMeta(turn, self.namespaceId(), request.action.rename)) |decl_occupied| return self.close(turn, pending, current, .rejected, .name_conflict, decl_occupied.object);
     } else if (try self.restrict(turn, request.object)) |dependency| return self.closeRestricted(turn, pending, current, dependency);
     const record = self.candidate(pending, current, if (request.action == .rename) request.action.rename else request.name, head.schema, original.schema_fingerprint);
     if (!try self.recordCandidate(turn, pending, record)) return .{ .operation = (try self.operation(turn, pending.principal, pending.operation)).? };
