@@ -4,6 +4,13 @@ Use these package interfaces to find APIs, configuration and implementation
 ownership. Libraries do not imply separate processes; entry points compose them.
 The [architecture](architecture.md) explains dependency direction and authority.
 
+Start from the [data model](data-model.md) when locating a change. Catalog and
+Station own data definitions and publication; Query and Fuze own query admission,
+source interpretation and computation. Native authorization and retention govern
+access and lifetime. SQL, SDK and Board adapters expose those owners. Core,
+storage and runtime libraries provide the execution and persistence mechanisms;
+their dependency boundaries do not define a separate product model.
+
 ## Consumer SDKs
 
 Language APIs and native distribution packages live in [sdks/](../../../sdks/README.md).

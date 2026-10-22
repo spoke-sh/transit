@@ -2,30 +2,56 @@
 
 [![CI](https://github.com/spoke-sh/transit/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/spoke-sh/transit/actions/workflows/ci.yml)
 
-Transit provides durable processes, messaging and state for applications.
+Transit is programmable data infrastructure for applications. It stores and
+queries tables, key-value data and collaborative documents, and provides durable
+execution for transforming data and coordinating work around it.
 
-Use the [CLI](docs/handbook/reference/cli.md) to run Transit and install applications,
-[SQL](docs/handbook/reference/sql.md) to query KV, Table and Document data, and
-[language SDKs](docs/handbook/reference/sdks.md) to build workers and callers.
-Integrate through [HTTP](docs/handbook/reference/openapi.md) and
-[reactive APIs](docs/handbook/reference/asyncapi.md), connect analytical tools with
-[Flight SQL and ADBC](docs/handbook/reference/flight.md), and inspect the system in
-[Board](docs/handbook/guides/inspect-board.md).
-The [database gateway](apps/transit-sql-gateway/README.md) provides PostgreSQL and
-MySQL autocommit access to authorized Table catalogs. Follow the
-[local connection guide](apps/transit-cli/docs/sql.md) to enable either protocol.
+Its declarative interfaces describe data and computation; its execution system
+preserves accepted changes, progress and outcomes across failures.
 
-The [interface guide](docs/handbook/guides/choose-interface.md) describes supported
-operations, types and compatibility rules for each entry point.
+Start with the data your application needs, what you want to compute from it,
+and the policies governing its use. The [data model](docs/handbook/reference/data-model.md)
+connects those decisions to their interfaces and observable outcomes. Durable
+processes, messaging and storage supply the mechanisms underneath that model.
+
+## Work with data
+
+| Task | Start here |
+| --- | --- |
+| Define, query and evolve a dataset | [Local quickstart](docs/handbook/guides/quickstart.md), [Tables](docs/handbook/reference/tables.md) |
+| Choose a data representation | [Tables, KV and Documents](docs/handbook/reference/data-model.md#choose-a-data-representation) |
+| Compute a result or follow changes | [Query lifetimes](docs/handbook/reference/data-model.md#choose-a-computation-lifetime), [reactive views](docs/handbook/reference/reactive.md) |
+| Govern access and lifetime | [Authorization](docs/handbook/reference/security.md), [retention and capacity](docs/handbook/reference/retention.md) |
+| Inspect definitions, results and progress | [Lifecycle evidence](docs/handbook/reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled), [Board](docs/handbook/guides/inspect-board.md) |
+| Add application-specific transformations or effects | [Build an application](docs/handbook/guides/applications.md), [connectors](docs/handbook/reference/connectors.md) |
+
+The Table lifecycle is available through configured SQL and typed catalog callers.
+KV and Documents use client/service APIs; their SQL declarations compile offline.
+Named captured and maintained relational computations use typed Zig owners with
+explicit activation and host scheduling. SQL views/subscriptions and a common
+declaration lifecycle across all these objects remain future work. The
+[capability map](docs/handbook/reference/data-model.md#declarations-and-current-interfaces)
+keeps these boundaries explicit.
+
+The organizing question for development is:
+
+> Can someone describe the data, computation and policies they need, then inspect
+> whether Transit is fulfilling that declaration?
+
+The [roadmap](docs/roadmap/README.md) turns the remaining gaps into implementation
+work. [Choose an interface](docs/handbook/guides/choose-interface.md) for the
+operations, types and lifecycle you need today.
 
 ## Documentation
 
-Start with [What is Transit?](docs/handbook/guides/introduction.md),
-[Run Transit locally](docs/handbook/guides/quickstart.md), or
-[Build your first application](docs/handbook/guides/applications.md).
+Read the [published handbook](https://spoke-sh.github.io/transit/), starting with
+[What is Transit?](docs/handbook/guides/introduction.md), the
+[data model](docs/handbook/reference/data-model.md) and
+[your first dataset](docs/handbook/guides/quickstart.md).
 
 | Reference | Entry point |
 | --- | --- |
+| Data and policies | [Data model](docs/handbook/reference/data-model.md), [security](docs/handbook/reference/security.md), [retention](docs/handbook/reference/retention.md) |
 | Query language | [SQL](docs/handbook/reference/sql.md) |
 | Commands and recovery | [Transit CLI](docs/handbook/reference/cli.md) |
 | SQL connections | [Server-managed sessions](docs/handbook/reference/sql-sessions.md), [PostgreSQL and MySQL](docs/handbook/reference/database-protocols.md) |

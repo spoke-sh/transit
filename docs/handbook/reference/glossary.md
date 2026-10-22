@@ -47,6 +47,21 @@ The `transit` executable owns local server and application workflows;
 use the `@transit/` scope. Protocol and stored identity changes follow the
 [hard-cutover policy](versioning.md), including a new shared definition identifier.
 
+## Data, computation and policies
+
+These terms describe the [data model](data-model.md) across its owning interfaces;
+they do not imply one implemented catalog or reconciliation service.
+
+| Term | Meaning |
+| --- | --- |
+| Data object | A Table, KV resource or Document with an identity, interpretation and accepted data; distinct from a worker or connection |
+| Declaration | An explicit description of data, computation or policy; validation alone does not publish it, start work or grant access |
+| Definition revision | An immutable interpretation or computation definition within its owner's profile; distinct from a changing name or data revision |
+| Dependency | An explicitly bound input, definition or resource needed by an operation; identity, current permission and lifetime are separate requirements |
+| Computation lifetime | The interactive, captured or maintained contract determining what runs, what survives disconnection and what completes |
+| Policy | An owned rule governing access, lifetime or permitted work; separate policy owners do not form one atomic transaction |
+| Lifecycle evidence | Attributed definitions, operation outcomes, source bases and progress used to assess a declaration; no single catalog-wide health API is implied |
+
 ## Processes, actors, and execution
 
 | Term | Meaning |

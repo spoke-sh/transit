@@ -1,7 +1,11 @@
 # Guarantees and verification limits
 
-Transit preserves identity, authorization and atomic commit across worker
-restarts and uncertain transport outcomes. The contracts below define the
+Transit's data guarantees depend on identity, current authorization and atomic
+publication across worker restarts and uncertain transport outcomes. Assess a
+supported declaration through its accepted definition, data or result, and
+attributed operation/progress evidence. The [data model](data-model.md) identifies
+those observations and their limits; a live worker or accepted request is not
+proof of completion. The contracts below define the
 guarantees at each boundary, the required deployment assumptions and how the
 test suites exercise them.
 

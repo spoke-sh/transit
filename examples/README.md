@@ -1,8 +1,11 @@
 # Runnable Transit applications
 
-These are complete applications using `transit-client` or Station. Each directory keeps
-its entry point and application handler together. They demonstrate how to program
-against Transit; no example is required to run the authority.
+Start with the [dataset quickstart](../docs/handbook/guides/quickstart.md) to define,
+query and evolve a Table through the running server. These examples then show
+how to extend Transit's data lifecycle with custom transformations, collaborative
+edits, coordination and recorded effects through the public client or Station.
+Each directory keeps its entry point and application handler together; no example
+is required to run the authority.
 
 The public [workload gallery](../docs/handbook/guides/workload-examples.md) connects these
 applications to inspection, telemetry, coordination, research, shared context
@@ -23,9 +26,9 @@ and enrichment, with source excerpts across SQL, Python, TypeScript, Rust and Zi
 | [Database wire](sql-wire/README.md) | `transit-sql-gateway` / `transit-query-host` | PostgreSQL/MySQL TLS, typed prepared reads/writes and fenced physical recovery |
 | [Language callers](station-sdk/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
 
-M11's [public SDK examples](station-sdk/README.md) define shared counter/query
-payload formats and fixtures first. Their language implementations and clean
-consumer qualification are being added separately.
+The [public SDK examples](station-sdk/README.md) share counter/query payload
+formats and fixtures. Their owning guides and the proof ledger describe the
+implemented language profiles and installed-consumer coverage.
 
 The [Station running guide](station-ledger/docs/running.md) starts a persistent
 installation with Board in local, Compose or reference mode. The smaller examples
