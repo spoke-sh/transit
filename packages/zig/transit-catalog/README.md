@@ -49,12 +49,12 @@ committed matched/changed counts. Staging never exposes a successful prefix.
 The owner preserves the four-mutation native turn boundary; larger work advances
 through durable bounded stages rather than widening that boundary.
 
-`TableStorageEngine` wires `transit_storage` (`TableMemtable`, `LocalWal`,
-`LocalSegmentStore`, `TableManifest`, `PartitionLease`, `NvmeCache`) and `transit_fuze`
-(`.tseg` `TSeg`, `.tdel` `TDel`, `PhysicalCodecs`, `Collation`) into the catalog
-for Direct Data-Plane `TWAL1` `.row_delta` ingestion, MVCC Read-Your-Writes point
-lookups, immutable `.tseg`/`.tdel` segment flushing, and `TMAN` v1 manifest CAS
-publication.
+`TableStorageEngine` is a separate component that composes `transit_storage`
+and `transit_fuze` helpers for row ingestion, point lookups, segment flushing
+and manifest publication. The installed runtime does not attach it to
+`TableBehavior` or the query reader. Its component tests do not establish a
+direct public operation, disk recovery or independent-writer safety. Catalog
+operations continue to use the native actor-backed publication path above.
 
 [General Table metadata and caller operations](docs/table-metadata.md) define
 physical records, schema references, atomic transitions, policy, dependencies,
