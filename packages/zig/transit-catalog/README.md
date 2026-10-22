@@ -56,6 +56,12 @@ and manifest publication. The installed runtime does not attach it to
 direct public operation, disk recovery or independent-writer safety. Catalog
 operations continue to use the native actor-backed publication path above.
 
+The component owns each registered schema and rejects implicit definition or
+partition replacement and epoch regression. Re-registering a descriptor is not
+a schema migration. Its storage owner now tests selected disk-recovery paths;
+the [proof ledger](../../../tests/README.md#data-operation-contracts-and-local-wal-persistence--2026-10-22)
+distinguishes those cases from the installed caller gates.
+
 [General Table metadata and caller operations](docs/table-metadata.md) define
 physical records, schema references, atomic transitions, policy, dependencies,
 cleanup, ownership and exact limits. The [Table reference](../../../docs/handbook/reference/tables.md)

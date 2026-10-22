@@ -67,8 +67,8 @@ pub fn registerTable(
         return error.InvalidPartitionLease;
     }
     if (self.tables.get(object_id)) |existing| {
-        existing.schema = schema;
-        existing.layout_fingerprint = try schema.layoutFingerprint();
+        if (existing.partition_id != partition_id or !std.mem.eql(u8, &(try existing.schema.fingerprint()), &(try schema.fingerprint()))) return error.TableDefinitionChanged;
+        if (lease.writer_epoch < existing.lease.writer_epoch or lease.policy_epoch < existing.lease.policy_epoch) return error.StaleEpoch;
         existing.lease = lease;
         return existing;
     }
@@ -163,6 +163,27 @@ pub fn applyDmlRows(
         _ = try memtable.flushToSegment(now_ms);
     }
     return last_lsn;
+}
+
+test "registered Tables own their schema and reject implicit reinterpretation" {
+    const t = std.testing;
+    var engine = try Self.initMemory(t.allocator, 1);
+    defer engine.deinit();
+    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "key", .type = .int64, .nullable = false }};
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const lease: storage.PartitionLease.PartitionLease = .{ .object_id = 7, .partition_id = 1, .holder_id = 2, .writer_epoch = 2, .policy_epoch = 2, .lease_until_ms = 1000 };
+    var input = try schema.clone(t.allocator);
+    const registered = try engine.registerTable(7, 1, input.schema, lease);
+    try t.expect(input.schema.columns[0].name.ptr != registered.schema.columns[0].name.ptr);
+    input.deinit();
+    try t.expectEqualStrings("key", registered.schema.columns[0].name);
+    var changed = schema;
+    changed.revision = 2;
+    try t.expectError(error.TableDefinitionChanged, engine.registerTable(7, 1, changed, lease));
+    var stale = lease;
+    stale.writer_epoch = 1;
+    try t.expectError(error.StaleEpoch, engine.registerTable(7, 1, schema, stale));
+    try t.expectEqual(@as(u64, 1), registered.schema.revision);
 }
 
 test "TableStorageEngine registers tables, ingests rows, flushes .tseg/.tdel segments, and recovers" {

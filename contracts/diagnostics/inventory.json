@@ -4004,6 +4004,8 @@
       "errors": {
         "InvalidCatalogIdentity": 2,
         "InvalidPartitionLease": 1,
+        "StaleEpoch": 1,
+        "TableDefinitionChanged": 1,
         "TableNotFound": 5
       },
       "outcomes": {},
@@ -4021,7 +4023,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -23545,8 +23547,13 @@
     },
     "packages/zig/transit-storage/src/TableMemtable.zig": {
       "errors": {
+        "InvalidPartitionLease": 1,
         "InvalidRowDelta": 4,
-        "ManifestCasConflict": 1
+        "InvalidTableManifest": 1,
+        "ManifestCasConflict": 1,
+        "MemtableRecoveryRequired": 4,
+        "TableDefinitionChanged": 2,
+        "WalHistoryMissing": 2
       },
       "outcomes": {
         "DeltaOp": [
@@ -23563,6 +23570,7 @@
         "TableMemtable.flushToSegment()": "<inferred>",
         "TableMemtable.getByPrimaryKey()": "<inferred>",
         "TableMemtable.init()": "<inferred>",
+        "TableMemtable.prepareEntry()": "<inferred>",
         "TableMemtable.readObjectBytes()": "<inferred>",
         "TableMemtable.recoverFromWal()": "<inferred>",
         "TableMemtable.upsertRow()": "<inferred>",
@@ -23571,8 +23579,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 87,
-        "catch": 0
+        "try": 92,
+        "catch": 1
       },
       "imports": [
         "NvmeCache.zig",

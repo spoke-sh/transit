@@ -24,4 +24,5 @@ test {
     _ = @import("storage_test.zig");
     _ = @import("disk_wal_test.zig");
     _ = @import("disk_objects_test.zig");
+    _ = @import("memtable_recovery_test.zig");
 }
