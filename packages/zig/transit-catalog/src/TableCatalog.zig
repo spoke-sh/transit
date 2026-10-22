@@ -307,6 +307,260 @@ pub fn blockingDependency(self: Self, source: anytype, who: u64, id: u64) !?m.De
     _ = (try self.object(source, id)) orelse return error.TableNotFound;
     return self.restrict(source, id);
 }
+pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
+    _ = try self.authorizeDatabase(source, who);
+    const current = (try self.object(source, id)) orelse return null;
+    _ = try self.authorizeObject(source, who, id, .inspect);
+    if (current.state == .initializing) {
+        const pending = if (current.pending_operation != 0) try self.operation(source, current.pending_principal, current.pending_operation) else null;
+        return .{
+            .kind = .table,
+            .state = .pending,
+            .scope = current.scope,
+            .namespace = current.namespace,
+            .object = current.object,
+            .revision = 0,
+            .name = try Meta.Name.init("_initializing"),
+            .definition_digest = current.pending_digest,
+            .resource_revision = source.view.revision,
+            .pending_operation = current.pending_operation,
+            .admitted_input = if (pending) |op| op.admitted_input else 0,
+        };
+    }
+    if (current.state == .retired and current.metadata.id == 0) {
+        return .{
+            .kind = .table,
+            .state = .unavailable,
+            .scope = current.scope,
+            .namespace = current.namespace,
+            .object = current.object,
+            .revision = 0,
+            .name = try Meta.Name.init("_retired"),
+            .definition_digest = @splat(0),
+            .resource_revision = source.view.revision,
+        };
+    }
+    const record = try self.metadata(source, current);
+    if (current.state == .retired) {
+        return .{
+            .kind = .table,
+            .state = .unavailable,
+            .scope = current.scope,
+            .namespace = current.namespace,
+            .object = current.object,
+            .revision = record.revision,
+            .name = record.name,
+            .definition_digest = record.schema_fingerprint,
+            .resource_revision = source.view.revision,
+            .admitted_input = record.admitted_input,
+        };
+    }
+    const head = try self.resolveHead(source, current, record);
+    const active_op = if (current.pending_operation != 0) current.pending_operation else head.pending;
+    return .{
+        .kind = .table,
+        .state = if (active_op != 0) .pending else .published,
+        .scope = current.scope,
+        .namespace = current.namespace,
+        .object = current.object,
+        .revision = record.revision,
+        .name = record.name,
+        .definition_digest = record.schema_fingerprint,
+        .resource_revision = source.view.revision,
+        .pending_operation = active_op,
+        .admitted_input = record.admitted_input,
+    };
+}
+pub fn previewDdl(self: Self, source: anytype, who: u64, request: DdlRequest) !m.Preview {
+    var scoped = self;
+    scoped.namespace = request.namespace;
+    if (who != request.principal) return error.CatalogDenied;
+    _ = try scoped.authorizeObject(source, request.principal, request.object, request.right());
+    _ = try request.digest(self.configuration.scope);
+    const bound = try scoped.binding(source, request.name);
+    switch (request.action) {
+        .create => |creation| {
+            const fp = try creation.schema.fingerprint();
+            if (bound) |existing| {
+                _ = try scoped.authorizeObject(source, request.principal, existing.object.object, .inspect);
+                return .{
+                    .kind = .table,
+                    .action = .create,
+                    .name = request.name,
+                    .object = existing.object.object,
+                    .expected_revision = existing.metadata.revision,
+                    .disposition = if (creation.if_not_exists) .unchanged else .rejected,
+                    .reason = if (creation.if_not_exists) .none else .name_conflict,
+                    .definition_digest = fp,
+                    .resource_revision = source.view.revision,
+                };
+            }
+            if (try scoped.object(source, request.object) != null) {
+                return .{
+                    .kind = .table,
+                    .action = .create,
+                    .name = request.name,
+                    .object = request.object,
+                    .expected_revision = 0,
+                    .disposition = .rejected,
+                    .reason = .object_conflict,
+                    .definition_digest = fp,
+                    .resource_revision = source.view.revision,
+                };
+            }
+            return .{
+                .kind = .table,
+                .action = .create,
+                .name = request.name,
+                .object = request.object,
+                .expected_revision = 1,
+                .disposition = .admissible,
+                .definition_digest = fp,
+                .resource_revision = source.view.revision,
+            };
+        },
+        else => {
+            const action_tag: m.Kind = request.action;
+            const existing = bound orelse {
+                const absent_ok = request.action == .drop and request.action.drop.if_exists and request.object == 0;
+                return .{
+                    .kind = .table,
+                    .action = action_tag,
+                    .name = request.name,
+                    .object = request.object,
+                    .expected_revision = 0,
+                    .disposition = if (absent_ok) .unchanged else .rejected,
+                    .reason = if (absent_ok) .none else .not_found,
+                    .resource_revision = source.view.revision,
+                };
+            };
+            if (request.object != existing.object.object) {
+                return .{
+                    .kind = .table,
+                    .action = action_tag,
+                    .name = request.name,
+                    .object = existing.object.object,
+                    .expected_revision = existing.metadata.revision,
+                    .disposition = .rejected,
+                    .reason = .object_conflict,
+                    .definition_digest = existing.metadata.schema_fingerprint,
+                    .resource_revision = source.view.revision,
+                };
+            }
+            if (request.expected_revision != existing.metadata.revision) {
+                return .{
+                    .kind = .table,
+                    .action = action_tag,
+                    .name = request.name,
+                    .object = existing.object.object,
+                    .expected_revision = existing.metadata.revision,
+                    .disposition = .rejected,
+                    .reason = .schema_changed,
+                    .definition_digest = existing.metadata.schema_fingerprint,
+                    .resource_revision = source.view.revision,
+                };
+            }
+            const head = try s.TableHead.load(source, request.object);
+            if (head.retired or !std.meta.eql(head.schema, existing.metadata.schema)) return error.CatalogSourceChanged;
+            if (existing.object.pending_operation != 0 or head.pending != 0) return error.TableBusy;
+            switch (request.action) {
+                .create => unreachable,
+                .alter => |alter| {
+                    if (!std.mem.eql(u8, &try alter.schema.fingerprint(), &existing.metadata.schema_fingerprint)) {
+                        return .{
+                            .kind = .table,
+                            .action = .alter,
+                            .name = request.name,
+                            .object = request.object,
+                            .expected_revision = existing.metadata.revision,
+                            .disposition = .rejected,
+                            .reason = .schema_changed,
+                            .definition_digest = existing.metadata.schema_fingerprint,
+                            .resource_revision = source.view.revision,
+                        };
+                    }
+                    var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+                    const transition = try c.fuze.TableEvolution.apply(alter.schema, alter.change, &columns);
+                    return .{
+                        .kind = .table,
+                        .action = .alter,
+                        .name = request.name,
+                        .object = request.object,
+                        .expected_revision = try add(existing.metadata.revision, 1),
+                        .disposition = .admissible,
+                        .work = transition.work,
+                        .rebuild_key = transition.rebuild_key,
+                        .definition_digest = try transition.after.fingerprint(),
+                        .resource_revision = source.view.revision,
+                    };
+                },
+                .rename => |target_name| {
+                    if (target_name.eql(&request.name)) {
+                        return .{
+                            .kind = .table,
+                            .action = .rename,
+                            .name = request.name,
+                            .object = request.object,
+                            .expected_revision = existing.metadata.revision,
+                            .disposition = .unchanged,
+                            .definition_digest = existing.metadata.schema_fingerprint,
+                            .resource_revision = source.view.revision,
+                        };
+                    }
+                    if (try scoped.binding(source, target_name)) |occupied| {
+                        return .{
+                            .kind = .table,
+                            .action = .rename,
+                            .name = target_name,
+                            .object = occupied.object.object,
+                            .expected_revision = existing.metadata.revision,
+                            .disposition = .rejected,
+                            .reason = .name_conflict,
+                            .definition_digest = existing.metadata.schema_fingerprint,
+                            .resource_revision = source.view.revision,
+                        };
+                    }
+                    return .{
+                        .kind = .table,
+                        .action = .rename,
+                        .name = target_name,
+                        .object = request.object,
+                        .expected_revision = try add(existing.metadata.revision, 1),
+                        .disposition = .admissible,
+                        .definition_digest = existing.metadata.schema_fingerprint,
+                        .resource_revision = source.view.revision,
+                    };
+                },
+                .drop => {
+                    if (try scoped.restrict(source, request.object)) |dependency| {
+                        return .{
+                            .kind = .table,
+                            .action = .drop,
+                            .name = request.name,
+                            .object = request.object,
+                            .expected_revision = existing.metadata.revision,
+                            .disposition = .rejected,
+                            .reason = .dependency,
+                            .definition_digest = existing.metadata.schema_fingerprint,
+                            .blocker = dependency,
+                            .resource_revision = source.view.revision,
+                        };
+                    }
+                    return .{
+                        .kind = .table,
+                        .action = .drop,
+                        .name = request.name,
+                        .object = request.object,
+                        .expected_revision = try add(existing.metadata.revision, 1),
+                        .disposition = .admissible,
+                        .definition_digest = existing.metadata.schema_fingerprint,
+                        .resource_revision = source.view.revision,
+                    };
+                },
+            }
+        },
+    }
+}
 
 pub const DdlRequest = c.TableDdlRequest;
 pub const Outcome = struct {

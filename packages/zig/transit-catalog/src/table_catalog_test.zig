@@ -1298,3 +1298,80 @@ test "current object checks filter two Tables sharing one resource" {
     try t.expectEqual(null, (try owner.list(&turn, 18, null)).entries[0]);
     try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 10, .read));
 }
+
+test "lifecycle inspection and non-mutating DDL preview distinguish pending published and unavailable states" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+
+    var turn = try store.capture(17);
+    const create_preview = try owner.previewDdl(&turn, 17, creation);
+    try t.expectEqual(null, turn.decision.mutations[0]);
+    try t.expectEqual(m.ObjectKind.table, create_preview.kind);
+    try t.expectEqual(m.Kind.create, create_preview.action);
+    try t.expectEqual(.admissible, create_preview.disposition);
+    try t.expectEqual(@as(u64, 1), create_preview.expected_revision);
+    try t.expectEqual(null, try owner.inspectLifecycle(&turn, 17, 10));
+
+    // Admit creation (step 1: initializing -> pending)
+    const admitted = try owner.step(t.allocator, &turn, creation);
+    try t.expect(!admitted.terminal());
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const pending_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.pending, pending_ev.state);
+    try t.expectEqual(@as(u64, 1), pending_ev.pending_operation);
+
+    // Finish creation -> published
+    _ = try ddl(&store, creation);
+    turn = try store.capture(17);
+    const published_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.published, published_ev.state);
+    try t.expectEqual(@as(u64, 1), published_ev.revision);
+    try t.expectEqualStrings("people", published_ev.name.slice());
+
+    // Preview duplicate CREATE and IF NOT EXISTS without mutating state
+    const conflict_preview = try owner.previewDdl(&turn, 17, try createRequest(11, 2, "people"));
+    try t.expectEqual(.rejected, conflict_preview.disposition);
+    try t.expectEqual(.name_conflict, conflict_preview.reason);
+    var if_not_exists = try createRequest(11, 2, "people");
+    if_not_exists.action.create.if_not_exists = true;
+    const unchanged_preview = try owner.previewDdl(&turn, 17, if_not_exists);
+    try t.expectEqual(.unchanged, unchanged_preview.disposition);
+
+    // Preview ALTER and DROP with dependency check
+    var resolved = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer resolved.deinit();
+    const alter_req: c.TableDdlRequest = .{
+        .principal = 17,
+        .operation = 3,
+        .object = 10,
+        .expected_revision = 1,
+        .name = creation.name,
+        .action = .{ .alter = .{ .schema = resolved.schema.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } },
+    };
+    const alter_preview = try owner.previewDdl(&turn, 17, alter_req);
+    try t.expectEqual(.admissible, alter_preview.disposition);
+    try t.expectEqual(c.fuze.TableEvolution.Work.metadata, alter_preview.work);
+
+    const dep: m.Dependency = .{ .scope = owner.configuration.scope, .object = 10, .identity = 77, .owner = 4, .kind = .query_source };
+    try owner.setDependency(&turn, dep, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const drop_req: c.TableDdlRequest = .{ .principal = 17, .operation = 4, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } };
+    const blocked_drop = try owner.previewDdl(&turn, 17, drop_req);
+    try t.expectEqual(.rejected, blocked_drop.disposition);
+    try t.expectEqual(.dependency, blocked_drop.reason);
+    try t.expectEqual(@as(u64, 77), blocked_drop.blocker.?.identity);
+
+    try owner.setDependency(&turn, dep, false);
+    try store.commit(turn);
+    _ = try ddl(&store, drop_req);
+
+    turn = try store.capture(17);
+    const retired_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.unavailable, retired_ev.state);
+}

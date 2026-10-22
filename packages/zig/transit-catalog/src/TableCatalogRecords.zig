@@ -28,6 +28,36 @@ pub const Configuration = struct {
 };
 pub const Right = enum { inspect, create, read, insert, update, delete, alter, drop };
 pub const Kind = enum(u8) { create = 1, alter = 2, rename = 3, drop = 4 };
+pub const ObjectKind = enum(u8) { table = 1, kv = 2, document = 3, computation = 4 };
+pub const LifecycleState = enum(u8) { defined = 1, published = 2, pending = 3, complete = 4, unavailable = 5 };
+pub const LifecycleEvidence = struct {
+    kind: ObjectKind,
+    state: LifecycleState,
+    scope: Scope,
+    namespace: u64,
+    object: u64,
+    revision: u64,
+    name: Meta.Name,
+    definition_digest: [32]u8,
+    resource_revision: u64,
+    pending_operation: u64 = 0,
+    admitted_input: u64 = 0,
+    completed_input: u64 = 0,
+};
+pub const Preview = struct {
+    kind: ObjectKind,
+    action: Kind,
+    name: Meta.Name,
+    object: u64,
+    expected_revision: u64,
+    disposition: enum(u8) { admissible = 1, unchanged = 2, rejected = 3 },
+    reason: @FieldType(Operation, "reason") = .none,
+    work: c.fuze.TableEvolution.Work = .metadata,
+    rebuild_key: bool = false,
+    definition_digest: [32]u8 = @splat(0),
+    blocker: ?Dependency = null,
+    resource_revision: u64,
+};
 pub const empty_reference: Ref = .{ .id = 0, .spec = .{ .format = 0, .length = 0, .digest = @splat(0) } };
 pub fn metadataReference(ref: Ref) !void {
     if (ref.id == 0 or ref.spec.format != Meta.format or ref.spec.length == 0 or ref.spec.length > Meta.max_bytes) return error.InvalidCatalogDefinition;

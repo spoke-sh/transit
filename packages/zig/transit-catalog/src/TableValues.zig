@@ -377,6 +377,64 @@ pub const Upload = struct {
     }
 };
 pub const State = struct { outcome: ?Outcome, upload: ?Upload };
+pub const LifecycleEvidence = struct {
+    kind: m.ObjectKind,
+    state: m.LifecycleState,
+    scope: Scope,
+    namespace: u64,
+    object: []const u8,
+    revision: []const u8,
+    name: []const u8,
+    definition_digest: []const u8,
+    resource_revision: u64,
+    pending_operation: ?[]const u8,
+    admitted_input: ?u64,
+    completed_input: ?u64,
+    pub fn foreign(allocator: Allocator, value: m.LifecycleEvidence) !LifecycleEvidence {
+        return .{
+            .kind = value.kind,
+            .state = value.state,
+            .scope = try Scope.foreign(allocator, value.scope),
+            .namespace = value.namespace,
+            .object = try decimal(allocator, value.object),
+            .revision = try decimal(allocator, value.revision),
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .definition_digest = try hex(allocator, &value.definition_digest),
+            .resource_revision = value.resource_revision,
+            .pending_operation = if (value.pending_operation == 0) null else try decimal(allocator, value.pending_operation),
+            .admitted_input = if (value.admitted_input == 0) null else value.admitted_input,
+            .completed_input = if (value.completed_input == 0) null else value.completed_input,
+        };
+    }
+};
+pub const Preview = struct {
+    kind: m.ObjectKind,
+    action: m.Kind,
+    name: []const u8,
+    object: []const u8,
+    expected_revision: []const u8,
+    disposition: @FieldType(m.Preview, "disposition"),
+    reason: @FieldType(m.Preview, "reason"),
+    work: f.TableEvolution.Work,
+    rebuild_key: bool,
+    definition_digest: []const u8,
+    resource_revision: u64,
+    pub fn foreign(allocator: Allocator, value: m.Preview) !Preview {
+        return .{
+            .kind = value.kind,
+            .action = value.action,
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .object = try decimal(allocator, value.object),
+            .expected_revision = try decimal(allocator, value.expected_revision),
+            .disposition = value.disposition,
+            .reason = value.reason,
+            .work = value.work,
+            .rebuild_key = value.rebuild_key,
+            .definition_digest = try hex(allocator, &value.definition_digest),
+            .resource_revision = value.resource_revision,
+        };
+    }
+};
 pub const Disposition = struct {
     input: u64,
     outcome: @FieldType(c.TableControl.Disposition, "outcome"),

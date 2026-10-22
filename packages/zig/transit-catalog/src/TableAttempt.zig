@@ -20,7 +20,7 @@ pub fn category(action: b.Action, cause: anyerror) d.Category {
 }
 fn selected(session: *b.Session, connection: c.TableClient.Connection, action: b.Action) ?d.Identity {
     const reference = switch (action) {
-        .next, .status, .prepare_resume, .forget => |value| value,
+        .preview, .apply, .next, .status, .prepare_resume, .forget => |value| value,
         inline .prepare_control, .progress, .wait_progress => |value| value.intent,
         .observe, .wait_observe, .input_disposition => |value| {
             if (value.input == 0 or value.input > c.protocol.max_counter) return null;
@@ -43,8 +43,8 @@ pub fn attempt(session: *b.Session, connection: c.TableClient.Connection, action
     }
     const stage: d.Stage = switch (action) {
         .compile, .compile_authorization => .compile,
-        .prepare, .load, .forget, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_dependency, .prepare_schema, .prepare_schema_plan => .prepare,
-        .submit => if (dispatched) .submit else .prepare,
+        .prepare, .load, .forget, .preview, .next, .prepare_resume, .prepare_control, .prepare_initialize, .prepare_dependency, .prepare_schema, .prepare_schema_plan => .prepare,
+        .apply, .submit => if (dispatched) .submit else .prepare,
         else => .read,
     };
     const detail = detailFor(action, cause);
