@@ -1,12 +1,20 @@
 # State, publication and lifetime
 
-This account explains how durable state, bounded resident work and recovery
-evidence fit together. It consolidates resource, Table, Document and retention
-reasoning. The [state](../reference/state.md), [Table](../reference/tables.md),
+This account asks how a data definition becomes an accepted, inspectable version
+without exposing partial changes or losing the evidence needed for recovery.
+It connects Table, KV and Document semantics to publication, bounded resident
+work and retention. The [data model](../reference/data-model.md) supplies the
+user-facing context. The [state](../reference/state.md), [Table](../reference/tables.md),
 [Document](../reference/documents.md) and [retention](../reference/retention.md)
 references own APIs, supported types and numeric bounds.
 
 ## Model
+
+Keep a definition revision, data revision and execution progress separate.
+A Table can accept many data revisions under one schema; a Document's visible
+projection does not contain all its causal history. The owning published head
+connects the accepted interpretation and data. Generic storage bytes or a worker
+checkpoint alone cannot establish that semantic relationship.
 
 A resource has a realm-qualified identity and immutable committed revisions.
 An association records a process's declared access/dependency relationship.

@@ -18,18 +18,18 @@ export const internalsSections: Section[] = [
     ],
   },
   {
-    label: "System and execution",
+    label: "Data and computation",
     pages: [
       account("system-model", "System model and authority boundaries"),
-      account("execution-model", "Execution, authorization and recovery"),
       account("state-model", "State, publication and lifetime"),
+      account("query-engine", "Query planning, snapshots and results"),
     ],
   },
   {
-    label: "Programming and interfaces",
+    label: "Execution and interfaces",
     pages: [
+      account("execution-model", "Execution, authorization and recovery"),
       account("client-framework", "Clients, SDKs and Station"),
-      account("query-engine", "Query planning, snapshots and results"),
       account("effect-lifecycle", "External effects and uncertain outcomes"),
       account("service-interfaces", "SQL sessions, serving and operator interfaces"),
     ],

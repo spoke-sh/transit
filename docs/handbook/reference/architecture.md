@@ -19,6 +19,25 @@ The local application server runs on Linux x86_64. The quickstart assumes an
 installed local bundle with `transit` on `PATH`; its linked source installation
 guide covers building that bundle. Release downloads are not available.
 
+## Data intent and execution responsibility
+
+The user-facing units are data objects, computations and policies. Their
+identities and definitions are separate from the processes that carry out their
+operations. A Table schema can remain stable while rows change; a query binds a
+specific schema and source basis; replacing a worker preserves accepted work.
+
+Inspection connects that intent to evidence: published definitions, original
+operation outcomes, completed results and recorded progress. Acceptance alone
+does not establish completion, and a completed result does not establish that it
+includes newer input. The [system model](../internals/system-model.md#declarations-and-observations)
+explains those distinctions and their implementation owners.
+
+Today these operations have separate owners. The Table catalog supplies its
+named lifecycle, KV and Documents have resource/service APIs, and typed query
+owners supply captured and maintained execution. A common declarative catalog
+and automatic scheduling across these owners are not implemented. SQL, SDKs
+and Board expose their documented portions of the lifecycle.
+
 ## Responsibilities
 
 ```mermaid
@@ -51,7 +70,7 @@ flowchart TD
 | Board | Evidence projections and separately configured query/application workspaces | Inspection does not decode arbitrary application payloads |
 | Storage and runtime | Persistence and physical process placement | Provider state cannot revive a retired PID or grant ownership |
 
-Transit is a general-purpose runtime for downstream applications.
+Transit supplies data and execution infrastructure for downstream applications.
 Trading policy, reasoning loops, goals and delegation belong to applications.
 LLM and tool access belong behind connector effect boundaries. Transit does not
 select a venue, strategy, latency target or monetary representation for you.

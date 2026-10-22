@@ -1,20 +1,31 @@
 # Transit documentation
 
-The public handbook is the shared source of current behavior for application
-users, contributors and agents. Start with [What is Transit?](handbook/guides/introduction.md),
-[Run Transit locally](handbook/guides/quickstart.md) and
-[Build your first application](handbook/guides/applications.md).
+Transit is programmable data infrastructure for applications. The public handbook
+is the shared source of current behavior for application users, contributors and
+agents. Start with [What is Transit?](handbook/guides/introduction.md),
+[data, computation and policies](handbook/reference/data-model.md) and
+[your first dataset](handbook/guides/quickstart.md). Custom
+[application workers](handbook/guides/applications.md) extend that data lifecycle.
 The [handbook project](handbook/README.md) keeps the Docusaurus site and its
 content together under `docs/handbook/`. The [interface and architecture map](handbook/reference/interfaces.md)
 connects public usage, exact contracts and technical accounts.
 
 ## Guides and reference
 
-The site navigation starts with the interfaces: CLI, SQL, SDKs, HTTP APIs/OpenAPI,
-reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol. Internals sits
-alongside these entry points for architecture, mechanisms and technical evidence. SDKs has its own sidebar with shared caller semantics and language installation pages. Each
-interface section groups its usage guides and exact contracts. Core concepts, application state
-and operations remain shared references below those entry points.
+The reading path starts with the data model, queries and derived data, then
+policies and lifecycle. Interface references follow: CLI, SQL, SDKs, HTTP
+APIs/OpenAPI, reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol.
+Each groups its usage guides and exact contracts. Execution and architecture
+explain how Transit fulfills supported data operations; extension and operation
+guides cover custom behavior and deployment. Internals develops the mechanisms
+and evidence. SDKs has its own sidebar with shared semantics and language guides.
+
+| User question | Start here |
+| --- | --- |
+| What data can I describe and change? | [Data model](handbook/reference/data-model.md), [Tables](handbook/reference/tables.md), [KV](handbook/reference/state.md), [Documents](handbook/reference/documents.md) |
+| What computation should run, and for how long? | [Computation lifetimes](handbook/reference/data-model.md#choose-a-computation-lifetime), [queries](handbook/reference/queries.md) |
+| Who may use it, and how long is it retained? | [Authorization](handbook/reference/security.md), [retention](handbook/reference/retention.md) |
+| Is Transit fulfilling the declaration? | [Definitions, outcomes and progress](handbook/reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled), [inspection](handbook/guides/inspect-board.md) |
 
 | Interface | Start here |
 | --- | --- |
@@ -42,7 +53,7 @@ support boundary before giving examples.
 | Workloads and performance | [Workload priorities](handbook/reference/workloads.md), [measured performance and improvement plan](handbook/reference/performance.md), [declarative benchmarks](handbook/reference/benchmarks.md), [examples across languages](handbook/guides/workload-examples.md) |
 | Durable execution | [Processes and turns](handbook/reference/processes.md), [streams and delivery](handbook/reference/streams.md), [caller/SDK semantics](handbook/reference/callers.md) |
 | Authority and lifetime | [Security](handbook/reference/security.md), [retention and capacity](handbook/reference/retention.md), [storage](handbook/reference/storage.md) |
-| Application state | [State resources](handbook/reference/state.md), [Station](handbook/reference/station.md), [Tables](handbook/reference/tables.md), [Documents](handbook/reference/documents.md) |
+| Data and computation | [Data model](handbook/reference/data-model.md), [Tables](handbook/reference/tables.md), [KV resources](handbook/reference/state.md), [Documents](handbook/reference/documents.md), [queries](handbook/reference/queries.md) |
 | Installation and composition | [Application installation, definitions and migration](handbook/reference/applications.md), [language SDKs](handbook/reference/sdks.md) |
 | Effects and inbound APIs | [Connectors](handbook/reference/connectors.md), [serving](handbook/reference/serving.md), [reactive sessions and views](handbook/reference/reactive.md) |
 | Queries and interchange | [SQL](handbook/reference/sql.md), [query execution](handbook/reference/queries.md), [Arrow](handbook/reference/arrow.md), [Flight SQL/ADBC](handbook/reference/flight.md) |
@@ -71,6 +82,13 @@ types and platforms, version compatibility and failure behavior. Avoid maturity
 labels and blanket readiness caveats. Put concrete limits beside the operation
 they affect; keep test execution details in the proof ledger. Clear wording must
 preserve the actual support boundary.
+
+Organize new explanations around the data, computation or policy the reader can
+describe and the evidence they can inspect. Identify the definition, its inputs
+and dependencies, the public operation that applies it, and the meaning of the
+observed result or progress. Explain processes, streams and storage where they
+establish that behavior. A desired definition, accepted operation and completed
+result are different facts; do not describe them all as "ready."
 
 ## Where documentation lives
 

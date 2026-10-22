@@ -21,6 +21,18 @@ or signature conversion is not implemented; preserve existing recovery material.
 
 ## Shared documentation
 
+Start changes from the [data model](../reference/data-model.md): what can an
+application describe, what operation applies it, and what evidence shows the
+result? Identify the owning definition, source/dependency basis, authorization,
+execution lifetime and failure behavior. A worker or transport is an
+implementation choice within those contracts.
+
+Use the same definition and lifecycle operations across SQL, SDK and visual
+interfaces. Preserve the distinction between validation, publication, activation
+and completion; a declaration accepted by a compiler may have no executable
+adapter. The [current capability map](../reference/data-model.md#declarations-and-current-interfaces)
+identifies those gaps. Custom workers extend the supported data operations.
+
 Follow the [versioning and hard-cutover policy](../reference/versioning.md) for
 Transit-owned contracts. Before 1.0, replace the current v1 definition and remove
 superseded paths, updating all consumers and proof fixtures in the same cutover.

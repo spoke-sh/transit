@@ -6,6 +6,11 @@ Extend typed exchanges and manual single-authority handoff into automatic placem
 and distributed execution. The [deployment reference](../handbook/reference/deployment.md)
 and [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md) own present behavior.
 
+Placement serves declared data and computation. Move execution without changing
+object/definition identity, accepted operation binding or result attribution.
+Expose deployment availability separately from declaration progress and freshness;
+rescheduling a healthy pod does not establish that a derived result is current.
+
 ## Delivery sequence
 
 1. Select a topology and define authority, routing, placement and provider-conformance

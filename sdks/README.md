@@ -1,6 +1,11 @@
 # Transit SDKs
 
 Consumer applications start from the [handbook SDK section](../docs/handbook/reference/sdks.md).
+Use the [data model](../docs/handbook/reference/data-model.md) to choose data
+representations, computation lifetimes and policies before selecting a language
+API. SDK callers use the same data owners and accepted-operation semantics as
+other supported interfaces; language coverage differs by operation. Custom
+handlers add application behavior around those data operations.
 Language directories own public APIs, native distribution packages and usage
 guides. The [binding tooling](../bindings/README.md) owns generation, packaging
 and installed-consumer checks.

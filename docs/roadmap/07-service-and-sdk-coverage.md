@@ -9,6 +9,10 @@ Transport support alone does not establish a new execution profile.
 
 ## Remaining work
 
+- Expose the qualified data/computation lifecycle through each selected SDK and
+  service adapter: definitions, apply/recovery, dependencies, policy references
+  and observed progress. Reuse neutral types and owning operations; transport
+  parity does not imply every kind, lifetime or administrative action is supported.
 - Extend Flight/ADBC and reactive interfaces beyond selected source/type profiles
   with shared codecs, metadata, current authorization and exact source bases.
   Finite results, refresh and continuous subscriptions remain distinct.
@@ -29,3 +33,7 @@ consumers, partial replies, leases/expiry, accepted-operation recovery, shutdown
 and bounded memory. Measure admission/control fairness across callers. Update the
 support matrix per delivered slice; one client/platform does not prove universal
 interoperability.
+
+Run the same declare/apply/inspect/change/recover scenario through the qualified
+interfaces and compare object identities, definition revisions and outcomes.
+Document differences in type and lifecycle coverage beside each caller.

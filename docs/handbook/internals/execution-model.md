@@ -2,7 +2,10 @@
 
 The central question is what evidence permits a worker to advance a logical
 process after concurrency, revocation or failure. This account combines the
-kernel, delivery and authorization arguments. Exact operations remain in the
+kernel, delivery and authorization arguments supporting the
+[data lifecycle](../reference/data-model.md): accepted mutations, recoverable
+computation and current permission. Process progress alone is not evidence that
+an application declaration has been fulfilled. Exact operations remain in the
 [process reference](../reference/processes.md),
 [native protocol](../reference/native.md) and [security reference](../reference/security.md).
 

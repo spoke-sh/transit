@@ -15,6 +15,14 @@ schedule and inspects durable consequences, not just eventual output. For
 example, a lost-acknowledgement test must distinguish duplicate admission from
 two observations of the same accepted identity.
 
+For a data operation, start with the declared schema or computation, its policy
+and bound inputs. Inspect the accepted definition, complete data/result and
+attributed progress before and after the fault. An independent oracle can
+challenge the relationship between those observations. Compiler acceptance,
+worker health and a successful HTTP response each test a narrower boundary;
+none alone establishes that Transit fulfilled the declaration. A maintained
+result needs comparison with finite recomputation at the same source basis.
+
 The [machine-readable inventory](../../../tests/verification/invariants.json) maps
 claims to implementation and scenarios. It prevents a large test count from
 substituting for coverage of a particular failure boundary.

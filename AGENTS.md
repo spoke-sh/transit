@@ -2,6 +2,12 @@
 
 ## Before changing code
 
+Transit is programmable data infrastructure for applications. Data, computation
+and policies are the primary user-facing model; durable execution explains how
+Transit preserves their accepted changes, progress and outcomes. Start with the
+[data model](docs/handbook/reference/data-model.md) and ask: can someone describe
+what they need, then inspect whether Transit is fulfilling that declaration?
+
 Read [README.md](README.md), the [public documentation index](docs/README.md),
 and [architecture and scope](docs/handbook/reference/architecture.md) first. Users,
 developers and agents share these same guides and references. Use the
@@ -43,6 +49,13 @@ established behavior, limits and reasoning into the public owner with the change
 
 ## Implementation rules
 
+- Design from the data lifecycle. Identify the data kind, stable object and
+  definition identities, dependencies, computation lifetime, policies and
+  observable outcomes before choosing workers, messages or transports. Reuse
+  the owning public operations across SQL, SDKs and UI; do not create another
+  configuration or permission authority. Separate validation, publication,
+  activation, progress and completion. A common catalog and service-managed
+  reconciliation are planned extensions, not assumptions about current behavior.
 - Follow the [versioning policy](docs/handbook/reference/versioning.md). Before Transit
   1.0, every Transit-owned protocol, wire format, schema and ABI has one current
   definition named v1. Breaking changes replace that definition through a hard
@@ -63,13 +76,13 @@ established behavior, limits and reasoning into the public owner with the change
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
 - Name runtime artifacts and deployments Transit. This repository develops the
-  general-purpose runtime. Board, Station and Fuze belong to Transit;
+  data and execution system. Board, Station and Fuze belong to Transit;
   use `transit-board*`, `transit-station*` and `transit-fuze*` for their artifacts.
   Keep their readable names in prose. Follow the [glossary](docs/handbook/reference/glossary.md)
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
-  M9's language bindings and M11's public SDKs, host adapters, examples and
+  Language bindings, public SDKs, host adapters, examples and
   conformance tests may use their target languages; share the Zig client/framework
   through the [binding boundary](docs/handbook/reference/callers.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
@@ -96,7 +109,7 @@ established behavior, limits and reasoning into the public owner with the change
   draft, query, source basis and budget. Probability may guide scheduling, never
   authorization or result truth. Editing does not implicitly apply administrative
   changes or dispatch external effects. Live execution and continuous queries
-  require their own contracts; M13's implemented explicit-submit profile remains.
+  require their own contracts; preserve the implemented explicit-submit profile.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.
@@ -115,7 +128,7 @@ established behavior, limits and reasoning into the public owner with the change
   storage outages never authorize expiry; preserve control/recovery evidence.
 - Follow the implemented state-resource profile: associations do not grant access
   or imply lifetime ownership. Preserve the commit boundary between mutations,
-  input progress, and outputs. M7 supports one mutated KV resource per turn;
+  input progress, and outputs. A native turn can mutate at most one KV resource;
   inline values do not acquire resource dependencies implicitly. Consult the
   [state contract](contracts/STATE_V1.md) for exact bounds and compatibility.
 - Put effects behind recorded intents, authorization, and outcomes. Replay must
@@ -125,10 +138,10 @@ established behavior, limits and reasoning into the public owner with the change
 - Use the pinned `ursula`/`ursulactl` overlay tools and upstream `ursula-zig` only
   inside the Ursula backend. Pin external Zig revisions/hashes in the consuming
   package. Use disk-backed Ursula for durability tests.
-- Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
+- Keep Board's inspection capability read-only. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Interpret runtime/framework primitives with source evidence; keep application
-  value decoding out of Board; the experimental counter lens was removed in M7.
+  value decoding out of Board.
   Board admits viewers through its private deployment boundary without access
   keys or sessions; its upstream Transit identity still requires a read-only grant.
 - Keep instrumentation with its domain owner and I/O outside deterministic core.
@@ -160,6 +173,11 @@ When rewriting history, preserve the original author date and use
 operations, set `GIT_COMMITTER_DATE` to that commit's author date.
 
 Follow the [documentation ownership guide](docs/README.md#where-documentation-lives).
+Lead product and contributor explanations with data, computation and policies.
+Connect each supported declaration to its public operation, dependencies,
+authorization and inspectable result or progress. Explain execution mechanisms
+as the basis for those semantics. Preserve explicit gaps between the product
+direction, offline definitions and executable lifecycle operations.
 Keep current scope, concepts, guarantees and user-facing semantics in
 `docs/handbook/guides/` and `docs/handbook/reference/`. Publish consolidated scientific explanations
 of how the system works in `docs/handbook/internals/`: models, mechanisms, invariants,

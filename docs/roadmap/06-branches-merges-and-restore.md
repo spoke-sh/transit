@@ -7,6 +7,11 @@ Add isolated application-state experimentation after
 [state model](../handbook/internals/state-model.md) owns the authority/lifetime proposal.
 Branches do not copy live process identities, grants or effect rights.
 
+Make branches understandable as versions of declared application data and its
+interpretation. Inspection must show definition/data differences, dependency
+changes, merge conflicts and pending recomputation through the shared lifecycle.
+Copying a definition must not activate its computations or renew old policy.
+
 ## Delivery sequence
 
 1. Publish full-data and schema-only branches using bounded independent copies as
