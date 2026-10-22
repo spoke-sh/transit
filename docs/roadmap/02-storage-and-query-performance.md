@@ -32,6 +32,15 @@ retained data. `S3ObjectStore` uses an in-memory signing loopback, `NvmeCache`
 holds heap buffers, and partition authority/OCC are not integrated into the node.
 The live runtime still uses the existing Table page path.
 
+The subsequent local WAL implementation replaces the whole-partition rewrite
+with incremental rolling files and bounded recovery. Disk component tests now
+cover 73 partitions with eight cached descriptors, more than 64 MiB of history,
+fence-only and full-trim restart, exclusive ownership and injected sync failure.
+The [persistence contract](../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence)
+defines mandatory current-definition metadata and uncertain outcomes. This
+advances #113; it does not establish the live acceptance, pin/retention or node
+cutover gates, or the object-store and memtable repairs listed above.
+
 | Remaining work | Tracking issue |
 | --- | --- |
 | WAL/manifest/catalog acceptance, visibility and contiguous checkpoint contract | [#111](https://github.com/spoke-sh/transit/issues/111) |

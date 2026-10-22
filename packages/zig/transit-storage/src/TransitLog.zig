@@ -119,7 +119,7 @@ pub fn decodeFrame(bytes: []const u8) !DecodedFrame {
     const expected_crc = std.mem.readInt(u32, bytes[52..56], .little);
     const expected_sha = bytes[56..64].*;
 
-    if (writer_epoch == 0 or policy_epoch == 0 or payload_len > max_payload_bytes) {
+    if (flags != 0 or writer_epoch == 0 or policy_epoch == 0 or payload_len > max_payload_bytes) {
         return error.InvalidWalHeader;
     }
     const total_bytes = alignedFrameSize(payload_len);

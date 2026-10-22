@@ -408,6 +408,38 @@ The complete rerun passes; the earlier attempts are not counted as passes.
 This is HTTP and local lifecycle evidence. It does not qualify browser automation,
 IPv6 listeners, remote aliases or aliases for the reactive gateway.
 
+## Data operation contracts and local WAL persistence — 2026-10-22
+
+In the pinned Linux development shell, `zig build test` in
+`packages/zig/transit-protocol` and `packages/zig/transit-catalog` passes after
+adding the neutral [data lifecycle contract](../contracts/DATA_LIFECYCLE_V1.md).
+Its independent JSON fixture checks complete retry bindings, full-width IDs,
+mandatory definitions, commit succession and unflushed snapshot coverage.
+These are descriptor checks; they do not qualify an installed acceptance or
+snapshot-pin service.
+
+`zig build test` in `packages/zig/transit-storage` passes its 13 component cases,
+including seven tests over actual temporary POSIX directories. The new cases
+exercise:
+
+- 73 partitions and rolling segment files with an eight-entry cache; restart
+  uses a 32 KiB allocator and returns at most two frames per requested page.
+- A log with 65 one-MiB payloads; restart and a tail read fit a 2 MiB owner
+  allocator, independently of retained history size.
+- A durable fence with no append, complete trim without LSN reset, stale epochs
+  and invalid trim boundaries.
+- Incomplete unacknowledged final frames, damaged earlier segments, missing
+  acknowledged tail files, checksum corruption and preserved incompatible logs.
+- Exclusive directory ownership and an injected file-sync error after a complete
+  frame write; the live owner refuses further work and restart recovers the
+  uncertain frame.
+
+The [local persistence contract](../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence)
+specifies the tested profile. These tests do not simulate host power loss,
+filesystem rollback, distributed fencing, authorization races, durable pin
+acquisition or installed SQL execution. Physical trim still requires an owning
+retention decision. The installed service backend is unchanged by these tests.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),
