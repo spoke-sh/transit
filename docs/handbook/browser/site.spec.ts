@@ -13,6 +13,7 @@ test("static publication exposes canonical routes, search and crawl metadata", a
   const origin = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
   const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
   for (const route of [
+    "reference/data-model",
     "reference/interfaces",
     "reference/sql-sessions",
     "reference/database-protocols",
@@ -36,6 +37,7 @@ test("static publication exposes canonical routes, search and crawl metadata", a
   expect(search.ok()).toBe(true);
   const index = (await search.json()) as { route: string }[];
   for (const route of [
+    "reference/data-model",
     "reference/interfaces",
     "reference/sql-sessions",
     "reference/database-protocols",
@@ -59,15 +61,39 @@ test("production navigation, search, generated references and exact downloads", 
     if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
   });
   await page.goto(baseURL!);
-  await expect(page.getByRole("heading", { name: "Build on durable state." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Programmable data infrastructure." }),
+  ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("desktop.png"), fullPage: true });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole("link", { name: "Explore the data model", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("#choose-a-computation-lifetime")).toBeVisible();
+  await expect(page.locator("#inspect-whether-a-declaration-is-being-fulfilled")).toBeVisible();
+  await page.getByRole("link", { name: "local quickstart", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /^Observe a change from another session/ }),
+  ).toBeVisible();
+  await page.locator(".navbar").getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("Data, computation and policies");
+  await page
+    .locator(".search-results")
+    .getByRole("link", { name: "Data, computation and policies", exact: true })
+    .click();
+  await expect(page.locator("#declarations-and-current-interfaces")).toBeVisible();
+  await page.goto(baseURL!);
   await page.getByRole("link", { name: "SQL Syntax, types and query profiles" }).click();
   await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Grammar only", exact: true }).first()).toBeVisible();
   const sidebar = page.locator(".theme-doc-sidebar-menu");
   const categories = sidebar.locator(":scope > .menu__list-item > .menu__list-item-collapsible");
   for (const name of [
+    "Data model",
+    "Queries and derived data",
+    "Policies and lifecycle",
     "CLI",
     "SQL",
     "HTTP APIs / OpenAPI",
@@ -218,7 +244,9 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(baseURL!);
-  await expect(page.getByRole("heading", { name: "Build on durable state." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Programmable data infrastructure." }),
+  ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("mobile.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -230,6 +258,21 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
     .getByRole("link", { name: "Documentation", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "What is Transit?", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Toggle navigation bar" }).click();
+  await page.getByRole("button", { name: "← Back to main menu", exact: true }).click();
+  await page
+    .locator(".navbar-sidebar")
+    .getByRole("link", { name: "Data model", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".navbar-sidebar")).not.toBeInViewport();
+  await expect(page.locator(".navbar-sidebar__backdrop")).not.toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.goto(baseURL!);
   await page.getByRole("button", { name: "Toggle navigation bar" }).click();
   await page

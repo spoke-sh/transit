@@ -12,7 +12,7 @@ concepts. Detailed contracts and compatibility requirements live with their owne
 
 | Term | Meaning |
 | --- | --- |
-| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and Station framework and Fuze engine. Its foundational execution protocol is enforced by durable message sequences. See [Processes](processes.md). |
+| Transit | Programmable data infrastructure for applications: Tables, key-value data, collaborative Documents, queries and durable execution, with shared authorization and recovery boundaries. Includes the kernel, data/query services, clients, adapters, Board, Station and Fuze. See [Data, computation and policies](data-model.md). |
 | Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [Board](../guides/inspect-board.md). |
 | Station | Transit's OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [Station](station.md). |
 | Fuze | Transit's Zig-native query and compute engine across KV, Table and Document state, inspired by DataFusion and Acero. Its artifact family is `transit-fuze*`; it runs outside kernel authority. See [Fuze queries](queries.md). |
@@ -22,7 +22,7 @@ concepts. Detailed contracts and compatibility requirements live with their owne
 | Agent Substrate | The recommended sandbox execution target on Kubernetes. It manages runtime infrastructure and lifecycle; Transit's durable history governs process execution. See [Deployment](deployment.md). |
 | Launcher | Development tooling that provisions and runs a concrete environment. Local, Compose, and reference launchers compose services; they do not replace Transit authority or Station supervision. See the [launcher guide](../../../launchers/README.md). |
 
-Use **Transit** for the streaming runtime and its deployment artifacts, including
+Use **Transit** for the data and execution system and its deployment artifacts, including
 the [Helm chart](../../../charts/transit/README.md) at `charts/transit`. Calling Transit the
 **kernel** describes its foundational protocol role; `transit-core` is specifically
 the deterministic kernel library. **Board** is the **inspection surface** and

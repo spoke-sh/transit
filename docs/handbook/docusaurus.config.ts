@@ -36,7 +36,7 @@ writeFileSync(
 
 const config: Config = {
   title: "Transit",
-  tagline: "Build on durable state.",
+  tagline: "Programmable data infrastructure for applications.",
   url,
   baseUrl,
   favicon: "img/transit.svg",
@@ -92,6 +92,7 @@ const config: Config = {
       logo: { alt: "", src: "img/transit.svg", width: 28, height: 28 },
       items: [
         { to: "/guides/introduction", label: "Documentation", position: "left" },
+        { to: "/reference/data-model", label: "Data model", position: "left" },
         { to: "/reference/cli", label: "CLI", position: "left" },
         { to: "/reference/sql", label: "SQL", position: "left" },
         { to: "/reference/sdks", label: "SDKs", position: "left" },
@@ -100,7 +101,7 @@ const config: Config = {
         { href: repository, label: "GitHub", position: "right" },
       ],
     },
-    footer: { style: "light", copyright: "Transit · Durable processes and state." },
+    footer: { style: "light", copyright: "Transit · Programmable data infrastructure." },
     colorMode: { respectPrefersColorScheme: true },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
     prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "toml", "zig"] },

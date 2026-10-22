@@ -1,7 +1,8 @@
 # Run Transit locally
 
-Start an isolated, application-capable local installation, then read and write
-its Table. Use Linux x86_64 with the complete local bundle installed and
+Start a local installation, define a task dataset, then inspect and change it
+from independent SQL sessions. The server supplies the catalog and execution
+services for this walkthrough. Use Linux x86_64 with the complete local bundle installed and
 `transit` available on `PATH` in both terminals. The bundle includes matching
 Transit, Board, the SQL gateway, Ursula and MinIO executables; Docker is not required at runtime.
 Check that the command is available:
@@ -60,34 +61,89 @@ cd .cache/docs-start
 transit console
 ```
 
-In the console:
+## Define your data
 
-```text
-.schema
-INSERT INTO items (id, value) VALUES (1, 100);
-SELECT * FROM items;
-UPDATE items SET value = 101 WHERE id = 1;
-SELECT * FROM items;
-DELETE FROM items WHERE id = 1;
-SELECT COUNT(*) FROM items;
+Create a Table for tasks. The schema declares a unique task ID, a required title
+and a completion flag whose default is false:
+
+```sql
+CREATE TABLE tasks (
+    id BIGINT PRIMARY KEY,
+    title TEXT NOT NULL,
+    done BOOLEAN DEFAULT FALSE
+);
+SHOW TABLES;
+DESCRIBE tasks;
 ```
 
-The initial Table has `id` and `value` int64 columns and no application rows.
-The local connection includes an authorized Table writer. Each mutation prints
-its applied row count; SELECT reads a fresh snapshot. The final count is zero
-after deleting the row. Enter `.quit` to disconnect. To run one query and exit:
+The local connection has an authorized catalog and Table writer. `SHOW TABLES`
+includes the new `tasks` Table alongside the supplied `items` Table. `DESCRIBE`
+returns its published definition. Creation does not insert any task rows.
+The [Table reference](../reference/tables.md) explains schemas, keys, defaults
+and the distinction between a Table's identity and its name.
+
+## Write rows and compute an answer
+
+Omit `done` to use its declared default:
+
+```sql
+INSERT INTO tasks (id, title) VALUES
+    (1, 'Review the data model'),
+    (2, 'Explore query results');
+SELECT id, title, done FROM tasks;
+SELECT COUNT(*) FROM tasks WHERE done = FALSE;
+```
+
+The rows have `done = false` and the count is **2**. Each successful mutation
+reports its applied outcome. Each SELECT reads a fresh snapshot; row order is
+not specified by these queries. A complete result answers the query for that
+snapshot. It does not establish an automatically maintained view.
+
+## Observe a change from another session
+
+Leave the first console open. In another terminal, enter the same
+`.cache/docs-start` directory and open another `transit console`. In that session:
+
+```sql
+UPDATE tasks SET done = TRUE WHERE id = 1;
+SELECT COUNT(*) FROM tasks WHERE done = FALSE;
+```
+
+The count is now **1**. Run that SELECT again in the first console: its new
+snapshot also sees one unfinished task. The sessions have independent cursors;
+the server owns mutation recovery. Neither console locks a client recovery file.
+
+## Evolve the schema and inspect the result
+
+Add a priority with a default for existing and future rows:
+
+```sql
+ALTER TABLE tasks ADD COLUMN priority BIGINT DEFAULT 1;
+DESCRIBE tasks;
+SELECT id, title, done, priority FROM tasks;
+```
+
+Both rows now have priority **1**. Transit validates and publishes the complete
+schema/data successor before new reads see it. A reader already holding an older
+snapshot retains its original schema and data until that read ends.
+[ALTER TABLE](../reference/sql/alter-table.md) describes supported changes and
+their failure behavior.
+
+Enter `.quit` to disconnect. To inspect the data without an interactive console:
 
 ```sh
-transit console -c 'SELECT COUNT(*) FROM items'
+transit console -c 'SELECT COUNT(*) FROM tasks WHERE done = FALSE'
 ```
 
-See the [console guide](../../../apps/transit-cli/docs/console.md) for output and
-recovery details, and the [SQL reference](../reference/sql.md) for admitted syntax.
+The answer is still **1**. Keep the dataset for the restart below. If you repeat
+this tutorial in the same installation, inspect the existing Table before
+creating or inserting again. Reissuing a statement creates a new operation;
+an uncertain earlier write needs recovery, not repetition.
 
-Open another `transit console` from the same directory to use an independent
-session. The server owns mutation recovery; neither console locks a client
-recovery file. Remote consoles use a connection YAML file pointing at the native
-HTTP/TLS listener, as described in the console guide.
+See the [console guide](../../../apps/transit-cli/docs/console.md) for output,
+remote HTTP/TLS connections and recovery, and the [SQL reference](../reference/sql.md)
+for admitted statements. Role and grant changes use the separate
+[administration interface](../../../apps/transit-cli/docs/authorization.md).
 
 ## Stop and resume
 
@@ -107,7 +163,15 @@ startup refuses to recreate its history. Set `startup.require_existing: true`
 to also refuse a completely missing or empty installation directory.
 Inspect the error and follow [server recovery](../../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
-Next, [connect with psql or mysql](../../../apps/transit-cli/docs/sql.md) or
-[install a separately compiled application](applications.md). Database listeners
-are independently opt-in; the default startup opens neither SQL port. Flight
-requires its own configuration.
+Reconnect and run the final count again to observe the retained task data.
+You have defined data, computed an answer, changed its schema and observed its
+accepted state across sessions and a server restart.
+
+Continue with the [data model](../reference/data-model.md) for computation
+lifetimes, permissions, retention and progress. You can also
+[connect with psql or mysql](../../../apps/transit-cli/docs/sql.md) to the same
+authorized catalog. Database listeners are independently opt-in; default startup
+opens neither SQL port. Flight requires its own configuration.
+
+When your application needs custom transformation or coordination, follow
+[build an application](applications.md) to install a separately compiled worker.

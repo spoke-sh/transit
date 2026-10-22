@@ -1,56 +1,98 @@
 # What is Transit?
 
-Transit is a runtime for applications that need durable messages, state and
-recoverable work. An application runs in its own worker and proposes changes;
-Transit validates and records which changes commit. A worker can restart without
-turning accepted work into a new request.
+Transit is programmable data infrastructure for applications. It stores and
+queries tables, key-value data and collaborative documents, and provides durable
+execution for transforming data and coordinating work around it.
 
-Use Transit when the identity and recovery of work matter beyond the lifetime of
-a process or network connection. Get started on Linux x86_64 with the
-[local quickstart](quickstart.md). Each interface reference defines its operations,
-types, compatibility rules and limits.
+Its declarative interfaces describe data and computation; its execution system
+preserves accepted changes, progress and outcomes across failures.
 
-## The pieces you use
+Start with the data your application needs: its shape, how it changes, what you
+want to compute from it, and who may use it. The [data model](../reference/data-model.md)
+connects these concerns to their supported interfaces. The
+[local quickstart](quickstart.md) takes you from an empty installation to a Table
+you define, query and change through the console.
 
-| Component | What you use it for |
+## Describe intent and inspect the result
+
+The question that organizes Transit is:
+
+> Can someone describe the data, computation and policies they need, then inspect
+> whether Transit is fulfilling that declaration?
+
+For a Table, that means defining columns, keys and defaults, then inspecting its
+published schema and committed rows. For a query, it means identifying its inputs
+and computation, then observing a complete result against a specific data basis.
+For a maintained result, it also means knowing which input changes it includes
+and whether processing has stopped or is still catching up.
+
+These observations have different meanings. A valid definition may still need
+publication or activation. An accepted operation may still be running. A complete
+result describes the source versions it read; newer input can exist. Current
+permissions govern both execution and inspection.
+
+The product direction is:
+
+> Declare your data, the computations that derive from it, and the policies
+> governing its use. Transit manages the execution and lifecycle needed to keep
+> those definitions useful.
+
+The supported path is most complete for Tables: create and evolve their schemas,
+read and change rows, and inspect outcomes through a configured catalog. KV and
+Documents have client/service APIs, but their SQL declarations compile offline
+without creating objects. Named captured and maintained relational queries have
+typed Zig interfaces with explicit host activation and scheduling; SQL view and
+subscription declarations are unavailable. See the [capability map](../reference/data-model.md#declarations-and-current-interfaces)
+for the boundary between the direction and today's operations.
+
+## Work with data
+
+| Need | Start here |
 | --- | --- |
-| Transit | Durable process identities, ordered mailboxes, state resources, authorization and commit decisions |
-| Station | Application behaviors, durable calls, typed Tables, Documents and supervision above Transit |
-| Fuze | Finite queries over declared KV, Table and Document sources, with Arrow results |
-| Connectors | Recorded HTTP and gRPC exchanges with explicit retry and unknown-outcome handling |
-| Board | Inspect authorized system evidence and use separately configured query/application workspaces |
-| `transit` CLI | Start a local server, install a separately compiled application and query through the console |
+| Store records with typed columns, keys and defaults | [Tables and schema evolution](../reference/tables.md) |
+| Store keys and values under an explicit encoding | [KV resources](../reference/state.md) |
+| Accept structured edits and collaborative text with explicit conflicts | [Documents](../reference/documents.md) |
+| Read, filter, join or aggregate supported sources | [SQL](../reference/sql.md) and [query lifetimes](../reference/data-model.md#choose-a-computation-lifetime) |
+| Control access, retention and resource budgets | [Permissions](../reference/security.md) and [retention](../reference/retention.md) |
+| Inspect definitions, results and progress | [Observe the lifecycle](../reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled) |
+| Capture external observations or coordinate external actions | [Connectors and recorded outcomes](../reference/connectors.md) |
 
-Application code decides what a message means. Transit does not run application
-handlers inside the node or prove their computation correct. Storage and runtime
-providers supply persistence and physical placement; durable Transit history
-remains execution authority.
+SQL, language SDKs, HTTP APIs and Board expose different operations over shared
+owners and contracts. [Choose an interface](choose-interface.md) for the data
+kind, computation lifetime and operations you need. An interface that reads a
+source does not necessarily create it or maintain a derived result.
 
-## Start with a working path
+## Durable execution supports the data lifecycle
 
-1. [Run Transit locally](quickstart.md) and query its initial empty Table.
-2. [Build an application](applications.md) separately and install its workers.
-3. [Choose an interface](choose-interface.md) for your application's clients.
-4. Learn [processes and turns](../reference/processes.md), [state](../reference/state.md) and
-   [permissions](../reference/security.md) before adding writes or external effects.
-5. Explore [workload recipes across languages](workload-examples.md), then use the
-   [workload priorities](../reference/workloads.md) and
-   [performance measurements](../reference/performance.md) to plan an application.
+Transit records accepted mutations and keeps partially staged data private until
+its complete successor is published. A reader retains its selected data version
+while later writes proceed. After an uncertain write, the original operation's
+recorded outcome tells the caller whether it applied. Repeating SQL creates new
+work; a lost connection alone does not establish failure.
 
-## Three distinctions to keep
+Custom workers extend this model with application-defined transformations,
+validation and coordination. A durable process gives that work an identity,
+ordered input and recoverable progress. Its worker can restart without replacing
+accepted work. [Processes and turns](../reference/processes.md) explain the commit
+mechanism; [build an application](applications.md) explains how to supply your
+own worker.
 
-**Accepted is not completed.** A receipt records admission. Observe a committed
-application outcome or a complete query result before claiming success.
+Station provides application behaviors and data owners above the generic kernel.
+Fuze executes queries over authorized sources. Board presents observed state,
+and connectors record external attempts and outcomes. These components support
+the same data and execution boundaries; their [architecture](../reference/architecture.md)
+explains the division of responsibilities.
 
-**A timeout is not a rejection.** Keep the original operation identity and frozen
-request. Reconcile or retry that exact request after uncertainty; a new identity
-means new work. Disconnecting does not cancel durable work.
+## Continue from a working dataset
 
-**An identity is not a permission.** Knowing a PID, resource, cursor or ticket
-never grants access. Current scoped authorization is checked independently from
-worker ownership, including on reads and replay.
+1. [Run Transit locally](quickstart.md), define a Table and inspect its schema.
+2. Read and change its rows from independent console sessions.
+3. Use the [data model](../reference/data-model.md) to choose representations,
+   computation lifetimes and policies for your application.
+4. Explore [workload recipes across languages](workload-examples.md), then add
+   custom execution or connectors where the application needs them.
 
-Retention is unlimited unless an application explicitly opts into a finite
-policy. Memory pressure, disk pressure and restarts do not authorize deletion.
-See the [architecture](../reference/architecture.md), [interface matrix](choose-interface.md)
-and [recovery guarantees](../reference/verification.md) for details.
+Retention defaults to unlimited and requires explicit opt-in to expiry. A name,
+resource reference or retained snapshot never grants access. The
+[verification reference](../reference/verification.md) explains the guarantees
+and limits behind the supported operations.

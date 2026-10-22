@@ -1,14 +1,15 @@
 # Choose an interface
 
-Transit has several interfaces because durable application calls, operator
-inspection and finite analytical queries have different responsibilities.
-Choose the owner that matches the job; a transport never grants authority.
+Choose an interface for the data and lifecycle you need: defining a Table,
+reading a Document, computing a result or observing change. The
+[data model](../reference/data-model.md) connects representations, computation
+lifetimes and policies. Each interface exposes selected operations through the
+owning data or execution service; a transport never grants authority.
 
 | Your task | Entry point | Supported boundary |
 | --- | --- | --- |
-| Start a neighborhood or install an app | [Transit CLI](../reference/cli.md) | Trusted local Linux supervisor; automatic first startup and exact recovery |
-| Implement a worker or durable caller | [Zig client and language SDKs](../reference/sdks.md) | Shared protocol/Station semantics with target-language types and ownership |
-| Integrate a native protocol client | [Signed HTTP protocol](../reference/native.md) | Versioned JSON envelopes, canonical signing, current grants and exact retry |
+| Define, query and evolve Tables | [Quickstart](quickstart.md), [Table catalog](../reference/tables.md) | Shared SQL/typed lifecycle, current object rights and atomic statement publication |
+| Use KV or collaborative Documents | [Resource client](../reference/state.md), [Document services](../reference/documents.md) | Explicit encoding or accepted structured revisions; SQL declarations do not provision these objects |
 | Run interactive SQL | [Console](../../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Independent server-managed local/remote sessions; finite reads, Table mutations and scoped administration |
 | Build a SQL session client | [SQL HTTP/TLS API](../reference/sql-sessions.md) | Logical sessions, typed results and token-based recovery of accepted operations |
 | Use a PostgreSQL or MySQL client | [Database protocols](../reference/database-protocols.md) | Explicit listeners and authentication, autocommit Table reads/writes and six scalar types; optional local TLS |
@@ -16,7 +17,11 @@ Choose the owner that matches the job; a transport never grants authority.
 | Expose application commands and reads | [Serving OpenAPI](../reference/openapi.md) | Signed native commands and scoped reads through a published service |
 | Follow changes | [Reactive API / AsyncAPI](../reference/asyncapi.md) | Int64 Table sessions and resumable notifications, fetch-SSE or WebSocket |
 | Connect an Arrow analytical client | [Flight SQL / ADBC](../reference/flight.md) | Finite Table v1, selected int64 types and independently tested clients |
+| Capture or maintain a relational result | [Typed Zig query owners](../reference/queries.md#relational-boundary) | Frozen definitions, explicit activation and recorded source vectors; maintained wakeups are host-managed |
 | Call an external HTTP or RPC service | [Connectors](../reference/connectors.md), [gRPC](../reference/connectors.md) | Recorded effect intent, capture, retry policy and unknown outcomes |
+| Start a server or install an app | [Transit CLI](../reference/cli.md) | Trusted local Linux supervisor; automatic first startup and exact recovery |
+| Implement a worker or durable caller | [Zig client and language SDKs](../reference/sdks.md) | Shared protocol/Station semantics with target-language types and ownership |
+| Integrate a native protocol client | [Signed HTTP protocol](../reference/native.md) | Versioned JSON envelopes, canonical signing, current grants and exact retry |
 
 ## Version and capability rules
 

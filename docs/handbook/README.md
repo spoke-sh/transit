@@ -27,12 +27,16 @@ There is no dependency on Board's runtime or a running Transit installation.
 ## Sources and navigation
 
 `catalog.ts`, `sdk-catalog.ts` and `internals-catalog.ts` map each owned Markdown file to a readable route and sidebar label.
-Top-level sections follow the homepage's interface entry points: CLI, SQL, SDKs,
-HTTP APIs/OpenAPI, reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol.
-Usage guides and wire contracts sit with their interface; shared concepts,
-application state and operation have their own sections. Existing page routes
+The first reading path introduces data representations, computation lifetimes,
+policies and the evidence that a declaration has been fulfilled. The quickstart
+creates and evolves a dataset before introducing custom workers. Data model,
+Queries and derived data, and Policies and lifecycle precede the interface
+references: CLI, SQL, SDKs, HTTP APIs/OpenAPI, reactive APIs/AsyncAPI,
+Flight SQL/ADBC and the native protocol. Usage guides and wire contracts sit with
+their interface; execution mechanisms and custom applications have their own
+sections. Existing page routes
 stay stable when their navigation location changes. Internals has a navbar entry
-beside CLI, SQL and SDKs and its own compact sidebar for nine scientific
+beside Data model, CLI, SQL and SDKs and its own compact sidebar for nine scientific
 accounts, the overview, standard and template. SDKs has its own sidebar with foundations and installation guides for each language,
 read directly from `sdks/<language>/README.md`. Detailed API links retain their
 component owners. All sections share the same site and search index.
@@ -136,6 +140,8 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
+It follows the homepage into the data model and dataset tutorial, and finds the
+shared data/computation/policy model through search.
 It follows the top-level interface sections into executable SELECT, grammar-only
 DDL and application declarations, and finds a statement through search.
 It opens Internals from desktop/mobile navigation, finds its scientific standard

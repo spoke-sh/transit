@@ -1,9 +1,16 @@
 # Architecture and scope
 
-Transit gives applications durable process identities, ordered mailboxes and
-versioned state. Workers propose changes; the authority validates and commits
-them to durable history. A worker's memory, a provider's pod and a UI cache are
-never substitutes for that history.
+Transit combines stored application data, queries and durable execution under
+shared authorization and publication rules. Tables provide typed records and
+schema evolution; KV resources retain explicitly encoded values; Documents
+provide structured edits and collaborative text. Queries bind those data
+definitions to explicit source versions. The [data model](data-model.md) explains
+the user-facing lifecycle and its current declarative interfaces.
+
+Durable processes, ordered input and versioned resources support that lifecycle.
+Workers propose changes; the authority validates and commits them to durable
+history. A worker's memory, a provider's pod and a UI cache are never substitutes
+for accepted data or execution progress.
 
 This reference is shared by application authors, Transit contributors and agents.
 Start with [the quickstart](../guides/quickstart.md) for an executable local system

@@ -8,6 +8,10 @@ its supported operations, types, configuration and failure behavior.
 
 ## Public entry points
 
+Start with [data, computation and policies](data-model.md) to choose the data
+representation, computation lifetime and observations you need. The interfaces
+below expose different portions of that lifecycle through shared owners.
+
 | Interface | Usage and limits | Exact owner or description | Mechanisms |
 | --- | --- | --- | --- |
 | Local supervisor and console | [CLI](cli.md), [configuration](configuration.md), [console](../../../apps/transit-cli/docs/console.md) | [Installation](../../../contracts/APPLICATION_INSTALLATION_V1.md), [configuration](../../../contracts/CONFIGURATION_V1.md) | [Execution and recovery](../internals/execution-model.md), [service sessions](../internals/service-interfaces.md) |

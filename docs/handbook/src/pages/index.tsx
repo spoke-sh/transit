@@ -2,6 +2,16 @@ import type { ReactElement } from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 
+const concepts = [
+  ["Define data", "Tables, key-value data, Documents and schemas", "/reference/data-model"],
+  ["Compute from data", "Interactive, captured and maintained results", "/reference/queries"],
+  [
+    "Govern its use",
+    "Permissions, retention and execution budgets",
+    "/reference/data-model#govern-access-and-lifetime",
+  ],
+] as const;
+
 const references = [
   ["SQL", "Syntax, types and query profiles", "/reference/sql"],
   ["Transit CLI", "Serve, install, query and recover", "/reference/cli"],
@@ -18,50 +28,86 @@ export default function Home(): ReactElement {
   return (
     <Layout
       title="Documentation"
-      description="Build applications on Transit: durable processes, state, queries and recoverable work."
+      description="Transit is programmable data infrastructure for applications: tables, key-value data, collaborative documents, queries and durable execution."
     >
       <main className="docs-home">
         <section className="docs-hero" aria-labelledby="hero-title">
           <div>
             <p className="eyebrow">TRANSIT DOCUMENTATION</p>
-            <h1 id="hero-title">
-              Build on
-              <br />
-              durable state.
-            </h1>
+            <h1 id="hero-title">Programmable data infrastructure.</h1>
             <p className="hero-description">
-              Messages, state and work that survive the worker.
-              <br />
-              Learn the model. Find the contract. Ship your application.
+              Store and query tables, key-value data and collaborative documents. Use durable
+              execution to transform data and coordinate work around it.
             </p>
             <div className="hero-actions">
               <Link className="button button--primary button--lg" to="/guides/quickstart">
-                Run Transit locally →
+                Create your first dataset →
               </Link>
               <Link
                 className="button button--outline button--secondary button--lg"
-                to="/guides/introduction"
+                to="/reference/data-model"
               >
-                Explore the concepts
+                Explore the data model
               </Link>
             </div>
-            <p className="profile-note">Durable processes · Versioned state · Recoverable work</p>
+            <p className="profile-note">Define data · Compute results · Inspect progress</p>
           </div>
           <div
             className="model-diagram"
-            aria-label="Applications propose changes; Transit validates and commits them to durable history."
+            aria-label="Describe data, computation and policies; Transit validates and executes supported operations; inspect definitions, results and progress."
           >
             <div className="model-node">
-              YOUR APPLICATION<span>Workers · callers · clients</span>
+              DESCRIBE<span>Data · computation · policies</span>
             </div>
-            <div className="model-connector">propose changes ↓</div>
+            <div className="model-connector">validate and apply ↓</div>
             <div className="model-node model-authority">
-              TRANSIT<span>Validate · authorize · commit</span>
+              TRANSIT<span>Store · query · execute</span>
             </div>
-            <div className="model-connector">accepted history ↓</div>
+            <div className="model-connector">observe results ↓</div>
             <div className="model-node">
-              DURABLE STATE<span>Messages · resources · outcomes</span>
+              INSPECT<span>Definitions · results · progress</span>
             </div>
+          </div>
+        </section>
+        <section className="reference-section" aria-labelledby="data-title">
+          <div className="section-heading">
+            <h2 id="data-title">Start with your data.</h2>
+            <Link to="/guides/introduction">What is Transit? →</Link>
+          </div>
+          <p>
+            Describe the data, computation and policies you need, then inspect whether Transit is
+            fulfilling that declaration. Each interface defines which lifecycle operations it
+            supports.
+          </p>
+          <div className="reference-grid">
+            {concepts.map(([title, description, to]) => (
+              <Link key={title} className="reference-card" to={to}>
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+        <section className="journey-grid" aria-label="Documentation paths">
+          <div>
+            <p className="eyebrow">DEFINE AND QUERY</p>
+            <h2>From a schema to useful data.</h2>
+            <p>
+              Create a Table, write records, compute an answer and evolve its schema. Read the same
+              data from independent sessions.
+            </p>
+            <Link to="/guides/quickstart">Follow the quickstart →</Link>
+          </div>
+          <div>
+            <p className="eyebrow">OBSERVE AND EXTEND</p>
+            <h2>Know what your declaration produced.</h2>
+            <p>
+              Inspect published definitions, complete results and recorded progress. Add custom
+              workers when your data needs application-defined behavior.
+            </p>
+            <Link to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled">
+              Understand the lifecycle →
+            </Link>
           </div>
         </section>
         <section className="reference-section" aria-labelledby="reference-title">
@@ -79,26 +125,6 @@ export default function Home(): ReactElement {
                 <p>{description}</p>
               </Link>
             ))}
-          </div>
-        </section>
-        <section className="journey-grid" aria-label="Documentation paths">
-          <div>
-            <p className="eyebrow">BUILD</p>
-            <h2>Your code, its own worker.</h2>
-            <p>
-              Compile independently, declare the resources you need, and install with scoped
-              permissions.
-            </p>
-            <Link to="/guides/applications">Build an application →</Link>
-          </div>
-          <div>
-            <p className="eyebrow">OPERATE</p>
-            <h2>Know what committed.</h2>
-            <p>
-              Inspect durable evidence, distinguish admission from completion, and recover the
-              original work.
-            </p>
-            <Link to="/reference/deployment">Deployment and recovery →</Link>
           </div>
         </section>
       </main>

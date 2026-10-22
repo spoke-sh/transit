@@ -46,21 +46,22 @@ regardless of whether an interactive answer needs recovery after console loss.
 
 ## Architectural priorities
 
-**Interactive snapshot reads are the immediate query priority.** Separate their
-session lifetime from durable captured jobs and bound data acquisition, Arrow
-buffers and cancellation. Preserve an explicit source basis and current access
-checks throughout disclosure. This requires a new shared contract before the
-console, Board or SDKs can claim the behavior.
+**Improve interactive reads within their existing session lifetime.** The shared
+SQL service already separates interactive snapshots from durable captured jobs.
+Reduce first-result latency and contention while preserving the selected source
+basis, bounded buffers, cancellation and current access checks. Measure each
+caller's supported profile; the presence of a shared owner does not make every
+transport expose the same operations.
 
 **Reduce shared read and write amplification.** Batch bounded native reads and
 tree updates, avoid reconstructing the same metadata for each tiny step, and
 measure cache budgets independently. This benefits queries, mutations, Documents
 and recovery. A larger cache alone leaves publication work unchanged.
 
-**Make bulk immutable data a shared storage capability.** The proposed boundary
-persists finite blocks before atomically publishing their verified references
-and source progress. It must specify availability, quotas, orphan cleanup and
-recovery. Query engines and applications continue to use authorized interfaces;
+**Build on shared immutable storage.** Authorized blocks and snapshot reads
+already provide a common boundary for data publication and acquisition. Improve
+batching, layout and reclamation cost within its availability, quota and recovery
+rules. Query engines and applications continue to use authorized interfaces;
 they do not receive raw provider credentials.
 
 **Choose read structures for each access pattern.** Prioritize KV point/range
