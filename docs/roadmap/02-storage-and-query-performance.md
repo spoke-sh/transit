@@ -1,6 +1,6 @@
-# 1. Storage hierarchy, `.tseg` segments and query performance
+# 2. Storage hierarchy, `.tseg` segments and query performance
 
-[Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76)
+[Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Completed
 
 Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and

@@ -1,9 +1,12 @@
 # Roadmap
 
-This roadmap contains unfinished work for Transit, ordered by dependency rather
-than delivery date. Current behavior belongs in the [public reference](../README.md),
-mechanisms in [Internals](../handbook/internals/README.md), and executed checks in the
-[proof ledger](../../tests/README.md). A plan does not establish support.
+This roadmap tracks milestone scope, sequencing, acceptance criteria and
+completion status for Transit, ordered by dependency rather than delivery date.
+Current behavior belongs in the [public reference](../README.md), mechanisms in
+[Internals](../handbook/internals/README.md), and executed checks in the
+[proof ledger](../../tests/README.md). A planned milestone does not establish
+support; completed milestones promote their current semantics into the public
+handbook while remaining in this index with their completion status.
 
 The product goal is programmable, versioned data infrastructure: declare schemas,
 datasets, computations and policies, then inspect whether Transit is fulfilling
@@ -13,17 +16,18 @@ mechanisms that **activate** data, materialize changes and coordinate external
 effects. The [current data model](../handbook/reference/data-model.md) describes
 the supported pieces and the gaps between them.
 
-| Order | Milestone | Outcome |
-| --- | --- | --- |
-| 1 | [Storage hierarchy, `.tseg` segments and query performance](01-storage-and-query-performance.md) | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
-| 2 | [Standards, collations and historical catalogs](02-standards-and-catalogs.md) | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
-| 3 | [Managed computations and WAL-activated dataflows](03-sql-and-dataflows.md) | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
-| 4 | [Multi-model and multi-format foreign relations](04-multi-model-and-foreign-relations.md) | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
-| 5 | [Branches, merges and restore](05-branches-merges-and-restore.md) | $O(1)$ manifest-based application-state branches, segment-index three-way merges and restore |
-| 6 | [Service and SDK coverage](06-service-and-sdk-coverage.md) | Broader types, sources and streaming interactions through shared contracts |
-| 7 | [Clustered execution and storage-disaggregated placement](07-clustered-execution.md) | Fenced lease transfer, zero-copy S3/NVMe cache warming and locality-aware distributed query execution |
-| 8 | [Qualification and complete benchmarks](08-qualification-and-benchmarks.md) | Reproducible full workloads, fault coverage and measured CI costs |
-| 9 | [Release distribution](09-releases.md) | Versioned, verified artifacts with runnable installed onboarding |
+| Order | Milestone | Status | Outcome |
+| --- | --- | --- | --- |
+| 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | Completed | Describe, apply, inspect and evolve Tables, KV, Documents, computations and policies through one catalog model with orthogonal $(\tau, \epsilon, \kappa)$ column descriptors and direct data-plane operations |
+| 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | Completed | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
+| 3 | [Standards, collations and historical catalogs](03-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
+| 4 | [Managed computations and WAL-activated dataflows](04-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
+| 5 | [Multi-model and multi-format foreign relations](05-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
+| 6 | [Branches, merges and restore](06-branches-merges-and-restore.md) | Planned | $O(1)$ manifest-based application-state branches, segment-index three-way merges and restore |
+| 7 | [Service and SDK coverage](07-service-and-sdk-coverage.md) | Planned | Broader types, sources and streaming interactions through shared contracts |
+| 8 | [Clustered execution and storage-disaggregated placement](08-clustered-execution.md) | Planned | Fenced lease transfer, zero-copy S3/NVMe cache warming and locality-aware distributed query execution |
+| 9 | [Qualification and complete benchmarks](09-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
+| 10 | [Release distribution](10-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
 
 Performance and storage architecture work is tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76).
@@ -32,7 +36,14 @@ Standards, multi-model and branching work is tracked in
 
 ## Architectural direction across the sequence
 
-1. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 1](01-storage-and-query-performance.md)).**
+1. **Decouple declarative data operations from the actor turn ceremony ([Milestone 1](01-declarative-data-lifecycle.md) — Completed).**
+   Unify catalog identities (`CatalogId`, `DefinitionId`), dependency tracking and
+   policy bindings across Tables, KV, Documents and named computations. Route
+   data-plane DDL/DML and batch ingestion directly through the catalog and
+   storage boundary instead of cycling every row through the `4 × 256B` metadata /
+   `128 KiB` block actor-turn loop (`open_view -> commit_turn`), reserving
+   `Station` actor turns for stateful process behavior and effect orchestration.
+2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md) — Completed).**
    Split storage into two swappable primitives: **`TransitLog`** (the sequenced
    `TWAL1` write-ahead log and live data-activation delta bus, backed by a native
    Zig local WAL by default in `transit server`, or by Ursula, Kafka or Pulsar in
@@ -47,7 +58,7 @@ Standards, multi-model and branching work is tracked in
    (`COLLATE`) support. Progress concurrency from a single global realm sequencer
    to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
    **Lock-Free Multi-Writer OCC** over conditional manifest CAS.
-2. **Activate derived views, multi-format foreign sources, $O(1)$ branches and clustered compute ([Milestones 2](02-standards-and-catalogs.md)–[7](07-clustered-execution.md)).**
+3. **Activate derived views, multi-format foreign sources, $O(1)$ branches and clustered compute ([Milestones 3](03-standards-and-catalogs.md)–[8](08-clustered-execution.md)).**
    Bind historical catalog snapshots to immutable manifest versions and collations;
    drive maintained SQL views, reactive watches and Station processes directly
    from `TransitLog` (`+row`/`-row`) delta streams; read Parquet, Arrow IPC,
@@ -57,7 +68,7 @@ Standards, multi-model and branching work is tracked in
    Station and `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](08-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](09-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -85,11 +96,11 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per future milestone. Insert or
-reorder work by updating this index, filenames and links together. Split work
-only when it has independently reviewable outcomes and prerequisites.
+Keep one numbered, descriptively named file per milestone (`01-` through `10-`).
+Insert or reorder work by updating this index, filenames and links together.
+Split work only when it has independently reviewable outcomes and prerequisites.
 
-When work is complete, remove it from this roadmap. Promote any current behavior
-or reasoning still held only in the plan into its public owner first. Delete
-obsolete delivery notes and completed checklists instead of archiving milestones.
-Test evidence is owned separately from delivery history.
+When a milestone is complete, keep its file in `docs/roadmap/` and update its
+status to `Completed` in both the milestone header and the table above, while
+promoting all current user-facing behavior and reasoning into its public
+handbook owner and recording executed verification in `tests/README.md`.

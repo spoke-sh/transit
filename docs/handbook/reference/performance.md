@@ -703,3 +703,33 @@ cover extreme values, malformed/outlier input, changed content, denial,
 cancellation and ownership. Those correctness schedules are separate from the
 synthetic timing shapes. Native accepted-work recovery keeps its existing
 contracts; local captured files do not admit durable jobs.
+
+## Tiered storage, `.tseg` segments and multi-writer OCC
+
+The [tiered storage package](../../../packages/zig/transit-storage/README.md) and
+[storage format contract](../../../contracts/TRANSIT_STORAGE_V1.md) decouple direct
+data-plane table ingestion and analytical/point reads from the actor-turn block
+staging pipeline:
+
+- **Direct WAL ingestion (`TransitLog` / `"TWAL"` v1):** Each `TableMemtable`
+  mutation appends one 64-byte-aligned `"TWAL"` v1 frame (`"TRDL"` v1 row delta)
+  directly to the partition log (`LocalWal` or long-lived `UrsulaWal` partition
+  stream) and updates the Tier 0 MVCC Memtable in memory without creating
+  ephemeral per-turn Ursula streams.
+- **Hybrid OLTP/OLAP `.tseg` segments and `.tdel` deletion vectors:** Flushing a
+  `TableMemtable` writes one immutable 64-byte-aligned `.tseg` segment sorted by
+  collation-aware primary-key sort key (`Collation.encodePrimaryKeySortKey`) and
+  publishes `manifest/<object_id>/v<N>.tman` via `If-None-Match` conditional CAS.
+  Point lookups (`TSeg.lookupPrimaryKey`) binary-search the embedded `"TSF1"`
+  footer PK index in $O(\log N)$ and decode only the target row group's column
+  pages; analytical predicates prune row groups via collation-preserving
+  `ZoneMap` bounds and 64-bit Wyhash Bloom masks. Row updates and deletes emit
+  compact `.tdel` (`"TDEL"` v1) bitmaps rather than rewriting existing `.tseg`
+  files.
+- **Scan-resistant Tier 2 `NvmeCache` and Multi-Writer OCC:** `NvmeCache` caches
+  `64 KiB` SHA-256-verified object ranges and protects `.metadata_or_index`
+  chunks (footers, zone maps, PK directories, `.tdel`, `.tman`) from eviction
+  during sequential `.column_data` scans. Concurrent writers committing disjoint
+  primary-key ranges automatically rebase onto `v{N+1}.tman` via
+  `PartitionLease.OccCoordinator` without rewriting `.tseg` objects, while
+  overlapping primary keys fail closed with `WriteWriteConflict`.

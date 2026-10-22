@@ -1,6 +1,6 @@
-# 6. Service and SDK coverage
+# 7. Service and SDK coverage
 
-[Roadmap](README.md)
+[Roadmap](README.md) · **Status:** Planned
 
 Extend source, type and lifecycle limits documented by
 [connectors](../handbook/reference/connectors.md), [reactive APIs](../handbook/reference/reactive.md),

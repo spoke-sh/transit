@@ -11115,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -12800,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -16373,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md).
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -21944,7 +21944,7 @@ operator installation was changed.
 
 Live browser/keyboard coverage, controlled revert/republication and a superseded
 workflow rerun have not been exercised. These remain explicit
-[publication qualification work](../docs/roadmap/08-qualification-and-benchmarks.md#documentation-publication).
+[publication qualification work](../docs/roadmap/09-qualification-and-benchmarks.md#documentation-publication).
 No runtime behavior or new runtime guarantee is established by this documentation
 framing change.
 
@@ -21970,3 +21970,36 @@ managed computation lifecycle tracking:
 - `just contract::station-generate`, `just contract::table-service-generate`, and
   `just bindings::generate` regenerate and verify the Station ABI, table-service
   schema, and SDK host binding contracts.
+
+## Storage hierarchy, `.tseg` segments and multi-writer OCC
+
+Working-tree verification in the pinned Nix development shell exercises the
+four-tier storage runtime (`TransitLog`, `TransitObjectStore`, `TableMemtable`,
+`NvmeCache`, `TableManifest`, `PartitionLease.OccCoordinator`), the `.tseg`
+(`"TSEG"` v1) hybrid OLTP/OLAP segment format, `.tdel` (`"TDEL"` v1) deletion
+vectors, all 10 physical column codecs (`PhysicalCodecs.zig`), collation-aware
+zone maps and sort keys (`Collation.zig`), and long-lived Ursula partition
+streams (`UrsulaWal.zig`):
+
+- `zig build test` in `packages/zig/transit-fuze` passes 332/332 unit tests,
+  including round-trip encoding/decoding across all 10 `TableSchema.Encoding`
+  codecs (`plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp`, `comp_3`,
+  `zoned`, `ibm_hfp`, `ebcdic`), lossless 5-state `.type_error` capture for
+  corrupted `COMP-3` nibbles and invalid `IBM_HFP` frames, collation-aware
+  `ZoneMap` range pruning and $O(\log N)$ embedded PK B-tree lookups across
+  `utf8_binary`, `ascii_ci`, `ebcdic_cp037` (`'a' < 'A' < '0'`) and `icu_root`,
+  and `.tdel` deletion vector union/encoding verification.
+- `zig build test` in `packages/zig/transit-storage` passes 6/6 integration and
+  unit tests, including `LocalWal` 64-byte-aligned `"TWAL"` v1 frame CRC-32C +
+  SHA-256 verification, `(writer_epoch, policy_epoch)` fencing, LSN conflict
+  rejection, torn-tail truncation on crash recovery, `S3ObjectStore` AWS
+  Signature Version 4 (`AWS4-HMAC-SHA256`) conditional CAS (`If-None-Match`) and
+  byte-range signing, `NvmeCache` SHA-256 corruption detection/reload and
+  scan-resistant `.metadata_or_index` retention, `TableMemtable` read-your-writes
+  snapshot lookups, `.tseg`/`.tdel` segment flushing and WAL crash recovery, and
+  `OccCoordinator` automatic manifest rebasing for concurrent writers with
+  disjoint primary keys versus `WriteWriteConflict` rejection for overlapping
+  primary keys.
+- `zig build test` in `packages/zig/transit-backend-ursula` passes 10/10 unit
+  tests, verifying that `UrsulaWal` reuses a single long-lived partition stream
+  across sequential `TWAL1` appends and enforces epoch fencing.

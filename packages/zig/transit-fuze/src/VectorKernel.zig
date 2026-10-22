@@ -5,6 +5,7 @@ const t = @import("Types.zig");
 const q = @import("LogicalQuery.zig");
 const finite = @import("Finite.zig");
 const rows = @import("ColumnRows.zig");
+const Collation = @import("Collation.zig");
 pub const cpu = @import("VectorCpu.zig");
 pub const Outcome = union(enum) { truth: finite.Truth, type_error, conflict };
 pub const Detail = union(enum) { none, type_error: t.Kind, conflict: []const t.Values.Alternative };
@@ -131,6 +132,7 @@ pub const Atom = struct {
     column: u8,
     literal: t.Values.Atom = .{ .signed = 0 },
     kind: t.Type = .int64,
+    collation: Collation.Collation = .utf8_binary,
     state: t.State = .value,
     uses_values: bool = false,
     implementation: cpu.Implementation = .portable,
@@ -139,11 +141,14 @@ pub const Atom = struct {
         return bindType(atom, if (atom == .compare) schema.structure[atom.compare.column].type else .int64);
     }
     pub fn bindType(atom: q.Plan.Atom, kind: t.Type) Atom {
+        return bindCollation(atom, kind, .utf8_binary);
+    }
+    pub fn bindCollation(atom: q.Plan.Atom, kind: t.Type, collation: Collation.Collation) Atom {
         return switch (atom) {
             .all => .{ .column = 0, .run = all },
             .state => |v| .{ .column = v.column, .state = v.value, .run = states },
             .null_compare => |v| .{ .column = v.column, .run = nullComparison },
-            .compare => |v| .{ .column = v.column, .literal = v.value, .kind = kind, .uses_values = true, .run = switch (v.op) {
+            .compare => |v| .{ .column = v.column, .literal = v.value, .kind = kind, .collation = collation, .uses_values = true, .run = switch (v.op) {
                 inline else => |op| switch (kind) {
                     .int64 => &Compare(i64, op).run,
                     .uint64 => &Compare(u64, op).run,
@@ -210,7 +215,7 @@ fn Compare(comptime T: type, comptime op: finite.Comparison) type {
                     .type_error => .type_error,
                     .conflict => .conflict,
                     .value => value: {
-                        const order = if (T == void) t.Values.atomOrder(column.atom(i), self.literal, self.kind) catch unreachable else std.math.order(number(T, column.atom(i)), literal);
+                        const order = if (T == void) Collation.compareAtom(column.atom(i), self.literal, self.kind, self.collation) catch unreachable else std.math.order(number(T, column.atom(i)), literal);
                         break :value .{ .truth = finite.Truth.fromBool(switch (op) {
                             .eq => order == .eq,
                             .ne => order != .eq,

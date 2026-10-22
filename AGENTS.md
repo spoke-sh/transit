@@ -199,7 +199,7 @@ architecture rationale, tradeoffs and evidence. Internals is public, navigable
 and searchable. Merge overlapping explanations around clear technical subjects;
 do not publish every source record as a separate Internals page.
 
-Keep unfinished delivery plans in `docs/roadmap/`; remove completed milestones. Keep UI/UX proposals
+Keep delivery plans and milestone status tracking in `docs/roadmap/`; do not delete completed milestones. Keep UI/UX proposals
 and reviews in `docs/design/`, and superseded topic accounts and historical
 qualification reviews in `docs/history/`. Preserve their outcomes and source
 links; these records stay outside the site's primary reading path and search.
@@ -243,9 +243,9 @@ Use black-and-white wireframes for structure and interaction reviews. Introduce
 color only when visual styling is explicitly being reviewed; keep meaning in
 labels, geometry and line styles.
 
-Keep the roadmap linear and future-facing: give additional work a numbered
-milestone, remove completed delivery records, and update the remaining sequence
-and references, following the
+Keep the roadmap linear and status-tracked: give each milestone a stable numbered
+file, update its status (`Planned`, `In Progress`, `Completed`) as work lands,
+and promote current behavior to the public handbook, following the
 [sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17

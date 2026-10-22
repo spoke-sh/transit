@@ -225,6 +225,7 @@ pub fn build(b: *std.Build) void {
     b.step("declarative-benchmark", "Build declarative workload component benchmarks").dependOn(&b.addInstallArtifact(declarative_benchmark, .{}).step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
+    const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
@@ -299,6 +300,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;

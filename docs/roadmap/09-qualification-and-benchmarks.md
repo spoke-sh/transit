@@ -1,6 +1,6 @@
-# 8. Qualification and complete benchmarks
+# 9. Qualification and complete benchmarks
 
-[Roadmap](README.md)
+[Roadmap](README.md) · **Status:** Planned
 
 Turn component coverage into complete workload and release evidence. The
 [verification reference](../handbook/reference/verification.md),
@@ -56,4 +56,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](09-releases.md).
+and immutable release links remain part of [release distribution](10-releases.md).

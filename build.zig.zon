@@ -28,6 +28,7 @@
         .transit_table_service = .{ .path = "apps/transit-table-service" },
         .transit_sql_gateway_app = .{ .path = "apps/transit-sql-gateway" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
+        .transit_storage = .{ .path = "packages/zig/transit-storage" },
         .transit_station = .{ .path = "packages/zig/transit-station" },
         .transit_station_bindings = .{ .path = "packages/zig/transit-station-bindings" },
         .transit_observability = .{ .path = "packages/zig/transit-observability" },

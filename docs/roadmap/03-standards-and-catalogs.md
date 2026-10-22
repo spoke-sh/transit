@@ -1,14 +1,14 @@
-# 2. Standards, collations and historical catalogs
+# 3. Standards, collations and historical catalogs
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Establish historical query, collation/encoding fidelity, multi-model and branch
 semantics using the [grammar inventory](../handbook/reference/sql/grammar-surface.md),
 [query model](../handbook/internals/query-engine.md) and
 [state model](../handbook/internals/state-model.md).
 
-Extend the [shared data lifecycle](../handbook/reference/data-model.md) and
-[manifest-backed storage hierarchy](01-storage-and-query-performance.md).
+Extend the [shared data lifecycle](01-declarative-data-lifecycle.md) and
+[manifest-backed storage hierarchy](02-storage-and-query-performance.md).
 Historical inspection must answer which definition, physical encoding and
 collation interpreted the data, which immutable Manifest (`manifest/v{N}`) and
 `.tseg` segments formed the snapshot, what a derived result depended on and
