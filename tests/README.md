@@ -21897,3 +21897,25 @@ Runtime execution and `ci-clean` are not run for this documentation refactor, as
 requested. These checks establish documentation/build behavior, not new runtime
 qualification. Cloudflare deployment, DNS/TLS, CDN routing/cache behavior and
 rollback are not exercised; local Docusaurus preview cannot establish them.
+
+## GitHub Pages handbook workflow (2026-10-21)
+
+The publication workflow and site defaults at `c29d6c13` target
+`https://spoke-sh.github.io/transit/`. Focused validation passes:
+
+- `nix develop --command actionlint .github/workflows/handbook.yml`.
+- Locked dependency installation in `nix develop .#docs`, followed by
+  `just transit-docs::check`: Vite+ lint/format, strict TypeScript, all nine
+  content/reference tests and the production build.
+- `vp exec playwright test` in `docs/handbook` against that same output:
+  all five browser checks pass with the default `/transit/` base path. These
+  cover canonical URLs, sitemap/robots, navigation, search, exact schema
+  downloads, diagrams and desktop/mobile accessibility.
+- `python3 -B tests/docs.py`: 5,248 local links across 552 Markdown files pass.
+
+GitHub's repository API confirms Pages uses `build_type: workflow`, the default
+site URL, no custom domain and enforced HTTPS. The `github-pages` environment
+has a single deployment branch rule for `main`. The first public deployment
+requires merging the workflow; live CDN routing, cache behavior and rollback
+have not been exercised. Runtime suites and `ci-clean` are not run for this
+scoped documentation/publication change, as requested.

@@ -14,7 +14,7 @@ just transit-docs::install
 just transit-docs::dev
 ```
 
-Open `http://localhost:3000`. `just transit-docs::build` writes `dist/` in this
+Open `http://localhost:3000/transit/`. `just transit-docs::build` writes `dist/` in this
 package. `just transit-docs::serve` previews that production output. All commands
 use locked workspace dependencies through Vite+; Docusaurus owns its site builder.
 [Docusaurus 3.10.2](https://docusaurus.io/docs/installation) and Mermaid 11 are
@@ -156,9 +156,9 @@ real offline compiler, including its canonical model round-trip.
 
 ## Static publication contract
 
-The canonical origin defaults to `https://transit.spoke.sh`, with base path `/`
+The canonical origin defaults to `https://spoke-sh.github.io`, with base path `/transit/`
 and no trailing slash on page routes. Local development still listens at
-`http://localhost:3000`; canonical URLs do not select the listening interface.
+`http://localhost:3000/transit/`; canonical URLs do not select the listening interface.
 Override `TRANSIT_DOCS_URL` and optionally `TRANSIT_DOCS_BASE_URL` for a different
 publication target. A base path must begin and end with `/`.
 
@@ -175,15 +175,45 @@ It contains static HTML, fingerprinted assets, `404.html`, `sitemap.xml`,
 no running Node or Transit service. Source Markdown, roadmap, design and history
 are not copied into this artifact; selected source links lead back to GitHub.
 
-A static host must resolve clean paths to the corresponding `.html`, redirect
-trailing-slash variants consistently, and return the custom 404 with HTTP 404 for
-missing pages. Do not use a catch-all SPA success response. HTML, search and
-schema URLs are mutable across builds, so they must not receive immutable cache
-policy. Use a single verified output bundle for each publication.
+The `trailingSlash: false` setting emits `.html` files for clean page routes,
+as supported by [Docusaurus on GitHub Pages](https://docusaurus.io/docs/deployment#deploying-to-github-pages).
+Assets, internal links, search results, canonical URLs and schema downloads carry
+the `/transit/` prefix. GitHub controls CDN caching and serves `404.html` for
+missing pages. This build has no catch-all SPA success response.
 
-The [next publication task](../roadmap/01-handbook-publication.md) specifies
-Cloudflare Static Assets, the custom domain, deployment CI and rollback evidence.
-No deployment or DNS change is performed by these build tasks. Cloudflare's
-asset routing, HTTPS, caching and rollback still require their own verification.
+## GitHub Pages publication
+
+[Publish handbook](../../.github/workflows/handbook.yml) builds pull requests and
+every push to `main`, including changes to component guides and contract owners
+outside this directory. It installs the locked dependencies in the Nix docs shell,
+checks repository links, runs `transit-docs::check`, then uploads only `dist/` as
+the `github-pages` artifact. Artifacts are retained for 14 days. Local build and
+preview commands do not publish anything.
+
+Only `main` can deploy, using the `github-pages` environment. The deployment job
+has `pages: write` and `id-token: write`; build jobs have read-only repository
+access. No personal token, deployment secret, custom domain or DNS record is
+needed. The workflow uses GitHub's
+[artifact deployment actions](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages),
+without a publishing branch or a Jekyll build. Deployments are serialized; a
+superseded revision or an old workflow rerun is skipped after checking current
+`main`. A failed build leaves the last successful deployment in place.
+
+The repository's **Settings → Pages → Build and deployment → Source** must be
+**GitHub Actions**. Keep the `github-pages` environment restricted to the `main`
+branch. After merging this workflow, its first `main` run publishes
+[the handbook](https://spoke-sh.github.io/transit/). The deployment records the
+commit and site URL; the final step checks the public homepage, an interface
+reference, search index and SQL session schema over HTTPS.
+
+To republish current `main`, use **Actions → Publish handbook → Run workflow**
+with branch `main`, or `gh workflow run handbook.yml --ref main`. To roll back a
+content or site regression, revert the offending change through a PR and merge
+it into `main`; that new revision goes through the same checks and deployment.
+Rerunning a superseded commit does not roll the site back.
+
+The [publication acceptance work](../roadmap/01-handbook-publication.md) covers
+the first live deployment and recovery verification. Local Docusaurus preview
+does not verify GitHub's CDN routing or cache behavior.
 The site describes the checked-out source capabilities; release-versioned
 documentation and immutable release links are not provided by this package.

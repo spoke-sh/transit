@@ -3,7 +3,7 @@ import { defineConfig } from "@playwright/test";
 const port = Number(process.env.TRANSIT_DOCS_TEST_PORT ?? "4179");
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
   throw new Error("Invalid documentation test port");
-const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/";
+const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
 export default defineConfig({
   testDir: "./browser",
   fullyParallel: false,
