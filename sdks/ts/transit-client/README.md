@@ -63,6 +63,6 @@ output sink; machine responses carry structured errors.
 Generated wire schemas are separate from public models. Runtime checks reject
 unsafe protocol integers and malformed data even from untyped JavaScript.
 `./internal` is a version-matched package interface used by Station, not a public
-application API. M9's generic Station adapter remains under `@rey/transit-station`.
+application API. M9's generic Station adapter remains under `@transit/station`.
 The qualified packaging target is Linux x86_64 with the pinned Nix linkage;
 registry publication and portable platform builds remain outside this slice.

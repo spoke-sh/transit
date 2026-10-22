@@ -20,7 +20,7 @@ class Compose:
         env = dict(os.environ)
         values = json.loads(values_file.read_text())
         for role in self.installation.artifacts.roles([]):
-            if "REY_COMPOSE_" + role.upper().replace("-", "_") + "_IMAGE" not in values:
+            if "TRANSIT_COMPOSE_" + role.upper().replace("-", "_") + "_IMAGE" not in values:
                 raise RuntimeError("Incomplete Compose configuration; preserve this installation and restore its matching build")
         env.update(values)
         config = self.installation.compose_topology
@@ -66,7 +66,7 @@ class Compose:
             prefix = role.upper().replace("-", "_")
             values[prefix + "_IMAGE"] = selected[self.installation.artifacts.mapping[role]]["image"]
             values.update({prefix + "_" + key: value for key, value in self.installation.service_environment(role).items()})
-        write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
+        write(self.path / "compose.env.json", {"TRANSIT_COMPOSE_" + key: value for key, value in values.items()})
         self.docker("config", "--quiet")
 
     def up(self, detached=True):

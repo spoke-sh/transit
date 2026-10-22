@@ -1,5 +1,5 @@
 {
-  "name": "@rey/transit-diagnostics",
+  "name": "@transit/diagnostics",
   "version": "0.0.0",
   "private": true,
   "type": "module",

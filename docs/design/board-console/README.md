@@ -30,7 +30,7 @@ or scale. The proposal preserves M2/M13 and maps dependencies to M15–M22;
 new implementation work requires its own place in the linear roadmap.
 
 [Board grammar](../board-grammar/README.md) now brings these explorations and
-the Atlas into one monochrome reactive interface model. [M23](../../roadmap/M23.md)
+the Atlas into one monochrome reactive interface model. M23
 owns its implementation, public declaration and migration gates; the recorded
 Console outcomes above remain unchanged.
 

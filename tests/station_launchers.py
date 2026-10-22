@@ -25,7 +25,7 @@ def exercise(profile, name=None, base=None, existing=False):
     from station_reference import StationReference
     installation = StationInstallation(profile, name or "station-" + secrets.token_hex(3), base or ports())
     launcher = {"local": Local, "compose": Compose, "reference": StationReference}[profile](installation)
-    env = {key: value for key, value in os.environ.items() if not key.startswith("REY_") and key not in ("LOG_LEVEL", "LOG_FORMAT")}
+    env = {key: value for key, value in os.environ.items() if not key.startswith("TRANSIT_") and key not in ("LOG_LEVEL", "LOG_FORMAT")}
 
     def invoke(action, *arguments):
         command = [sys.executable, "-B", ROOT / "launchers/main.py", profile, action, "--name", installation.name, *arguments]

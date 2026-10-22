@@ -79,10 +79,10 @@ class DocumentBoard:
                 command={"grant_resource": {"resource": self.writer["resource"], "subject": 55, "permissions": permission}}))
                 for i, (name, permission) in enumerate((("revoke", 0), ("restore", 3)))]
             env = os.environ | dict(BOARD_TEST_URL=self.origin, BOARD_DOCUMENT_RESOURCE=str(self.writer["resource"]),
-                BOARD_DOCUMENT_CLI=str(self.binaries["rey-cli"]), BOARD_DOCUMENT_SEED=str(self.system.seed),
+                BOARD_DOCUMENT_CLI=str(self.binaries["transit-admin"]), BOARD_DOCUMENT_SEED=str(self.system.seed),
                 BOARD_DOCUMENT_AUTHORITY=self.system.url, BOARD_DOCUMENT_REVOKE=str(paths[0]), BOARD_DOCUMENT_RESTORE=str(paths[1]))
             try:
-                subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "document.spec.ts"], env=env, check=True, timeout=120)
+                subprocess.run(["vp", "exec", "--filter", "@transit/board-web", "playwright", "test", "document.spec.ts"], env=env, check=True, timeout=120)
             finally:
                 self.grant(3)
         print("Document Board: accepted metadata, exact cuts, generated validation and revoked continuation passed" + (" with browser clearing" if self.browser else ""), flush=True)

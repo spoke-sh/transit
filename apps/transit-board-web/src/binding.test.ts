@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import { sameDigest, unifiedContract, unifiedPage, type QueryBinding } from "./binding";
-import type { UnifiedQueryResponse } from "@rey/transit-board-client";
+import type { UnifiedQueryResponse } from "@transit/board-client";
 const digest = Array<number>(32).fill(7);
 const binding: QueryBinding = {
   resource: 6,

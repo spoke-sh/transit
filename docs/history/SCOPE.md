@@ -8,7 +8,7 @@ Use this page to decide whether Transit fits your application and to distinguish
 implemented profiles from target architecture. New users can start with
 [What is Transit?](../guides/introduction.md) and the [interface matrix](../guides/choose-interface.md).
 
-Status: implemented experimental profiles extend through [M25](../roadmap/M25.md):
+Status: implemented experimental profiles extend through M25:
 growing process/state access, Station and language SDKs, SQL and unified queries,
 immutable publication, HTTP/gRPC connectors, Documents, serving/reactive APIs,
 finite Flight SQL, declarative interfaces and local application installation.
@@ -70,7 +70,7 @@ The same primitives must support ordinary stateful distributed programs.
   worker's memory. Bound resident pages, requests and active work independently
   of logical cardinality; enforce explicit deployment quotas before admission.
   Current compiled catalog ceilings are temporary implementation constraints,
-  not target semantics. [M10](../roadmap/M10.md) qualifies the correction before
+  not target semantics. M10 qualifies the correction before
   public SDKs; retention is never a workaround for an in-memory array limit.
 - Retention defaults to unlimited. Applications opt into finite process/mailbox
   lifetimes, history retention, keyed compaction, and workload-scoped resources.
@@ -91,8 +91,8 @@ The same primitives must support ordinary stateful distributed programs.
 - [Fuze](FUZE.md) is the Zig-native query and compute engine, inspired by Apache
   DataFusion and Acero. It targets one query model across KV, Table and Document,
   while Station owns their distinct mutation and merge semantics. Documents target
-  both structured state and collaborative text in [M17](../roadmap/M17.md);
-  [M18](../roadmap/M18.md) adds unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
+  both structured state and collaborative text in M17;
+  M18 adds unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
   M12 implements the bounded read-only Table SQL compiler. M13 exposes it through
   a separately authorized Board workspace and `transit` query shell; M22 reuses
   it for Flight SQL. Continuous queries and
@@ -101,13 +101,13 @@ The same primitives must support ordinary stateful distributed programs.
 - HTTP is the first connector; gRPC is the second. Request/response messages and
   timing travel through durable exchange groups, with explicit credential scope,
   capture, retry and closure. A live RPC stream is not a durable mailbox.
-- [Serving](SERVING.md) formalizes the inbound side in [M19](../roadmap/M19.md):
+- [Serving](SERVING.md) formalizes the inbound side in M19:
   application HTTP APIs and Board share service bindings, identity, admission,
   bounded responses and recovery over public operations. It sits above the kernel
   and complements outbound connectors. Board retains private shared viewer access.
-  [Reactive APIs M20](../roadmap/M20.md) adds SSE/WebSocket hosting, resumable
+  Reactive APIs M20 adds SSE/WebSocket hosting, resumable
   subscriptions and generated OpenAPI/AsyncAPI descriptions.
-  [Reactive interfaces M21](../roadmap/M21.md) consumes them for live views and
+  Reactive interfaces M21 consumes them for live views and
   snapshot refresh; incremental continuous queries and individual sign-in remain
   separately scoped. M22 qualifies Flight over the same serving foundation.
 - Kubernetes is part of the first executable milestone. Agent Substrate is the
@@ -131,52 +131,52 @@ first slice also proves opted-in expiry, safe checkpoint/trim boundaries, and
 refusal to revive a process whose mailbox recovery lifetime has ended.
 Authentication, grant/revocation enforcement, and recovery of the control catalog
 are part of that same slice. Its concrete authority, execution-isolation, time,
-and capacity mechanisms must pass the [M1 design gates](../roadmap/M1.md#design-gates-before-expanding-the-slice).
+and capacity mechanisms must pass the M1 design gates.
 
 Next, build Board to discover and explain the running kernel through public,
 authorized read APIs. Operators and agents should follow mailbox input, turns,
 outputs, effects, ownership, and retention with visible freshness and gaps.
 The static frontend and API ship in one executable; M2 adds no control actions.
 
-The completed [M4 observability milestone](../roadmap/M4.md) instruments
+The completed M4 observability milestone instruments
 Board, Transit services and their dependencies before Station so operators can
 diagnose the running system. Logs, metrics and trace context remain derived
 signals; collector/export infrastructure is later scope.
 
-[M7 state resources and associations](../roadmap/M7.md) provide fenced KV mutation,
+M7 state resources and associations provide fenced KV mutation,
 bounded recoverable reads, dependency lifetimes, and generic Board inspection.
-[M8 runtime readiness](../roadmap/M8.md) adds authenticated input origins, automatic
+M8 runtime readiness adds authenticated input origins, automatic
 outbox delivery, opt-in working catalog reclamation and scoped lifecycle controls.
-The bounded [Station M9](../roadmap/M9.md) profile adds GenServer behavior,
+The bounded Station M9 profile adds GenServer behavior,
 supervision, scoped name registration, language bindings and Arrow Tables,
-respecting those contracts. [M10](../roadmap/M10.md) establishes comprehensive
-verification, growing state and measured scale boundaries. [M11](../roadmap/M11.md)
+respecting those contracts. M10 establishes comprehensive
+verification, growing state and measured scale boundaries. M11
 makes those capabilities natural
 to use through typed language SDKs, with explicit lifetime and recovery behavior.
-[M14](../roadmap/M14.md) qualifies bounded immutable publication.
-[HTTP M15](../roadmap/M15.md) consumes it for shared exchange capture: a caller
+M14 qualifies bounded immutable publication.
+HTTP M15 consumes it for shared exchange capture: a caller
 records an intent, a fetch worker executes an authorized attempt, and the caller
 resumes from a correlated durable outcome. Replay reads captures without I/O.
-[gRPC M16](../roadmap/M16.md) reuses that common lifecycle for bounded streaming
-calls. These first connectors precede [Documents M17](../roadmap/M17.md) and
-[unified queries M18](../roadmap/M18.md), which reuse the storage/read foundations
-without depending on live network protocols. [Serving M19](../roadmap/M19.md)
+gRPC M16 reuses that common lifecycle for bounded streaming
+calls. These first connectors precede Documents M17 and
+unified queries M18, which reuse the storage/read foundations
+without depending on live network protocols. Serving M19
 first composes HTTP application APIs and Board.
-[Reactive APIs M20](../roadmap/M20.md) supplies the session, event and protocol
-contracts that [reactive interfaces M21](../roadmap/M21.md) consumes for live views.
-[Arrow interoperability M22](../roadmap/M22.md) reuses serving for Flight SQL/ADBC.
-[M23](../roadmap/M23.md) implements the [Board design explorations](../design/README.md)
+Reactive APIs M20 supplies the session, event and protocol
+contracts that reactive interfaces M21 consumes for live views.
+Arrow interoperability M22 reuses serving for Flight SQL/ADBC.
+M23 implements the [Board design explorations](../design/README.md)
 as a monochrome reactive UI and a shared SQL/visual application grammar, with
 explicit publication and recoverable application migrations.
-[Transit CLI M24](../roadmap/M24.md) formalizes `transit server` as a local
+Transit CLI M24 formalizes `transit server` as a local
 supervisor/gateway and `transit console` as a psql-like SQL/slash-command shell
-with shared grammar/catalog typeahead. [Local applications M25](../roadmap/M25.md)
+with shared grammar/catalog typeahead. Local applications M25
 adds language-neutral installation/bootstrap and compatible worker replacement,
-qualified first with a separately compiled Zig consumer. [Publication M33](../roadmap/M33.md) makes
+qualified first with a separately compiled Zig consumer. Publication M33 makes
 tagged Transit artifacts installable through Nix, a shell installer, Homebrew,
 Docker/OCI and Helm, with GitHub release publication and an explicit SDK/library
 inventory. M25 is complete for its trusted local Linux/Zig profile; publication
-remains planned. [M35](../roadmap/M35.md) extends their authority and recovery proofs
+remains planned. M35 extends their authority and recovery proofs
 across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](../roadmap/README.md).
@@ -209,10 +209,10 @@ the adversarial evidence and limits required before extending the foundation.
 
 Trading remains an intended consumer of the kernel, framework, and connectors.
 Market ingestion, strategy, risk, execution, and projections should compose
-these same primitives. Rey's intended workload includes broad instrument history
+these same primitives. One application scenario includes broad instrument history
 through L2/L3, internet context and collaboration, algorithmic/high-frequency
 execution, and strategy research/optimization with learned agents and models.
-The [workload model](workloads/REY.md) derives capacity scenarios and their
+The [workload model](workloads/TRADING.md) derives capacity scenarios and their
 implications for M10 without selecting venues, initial coverage, latency SLOs or
 a live-trading sequence. Trading milestones will be scoped when the foundation
 supports them; a paper-trading endpoint is not the foundation's objective.
@@ -242,7 +242,7 @@ connector questions are still open.
 | What are registry scope lifetimes and lookup consistency guarantees? | Concurrent registration, rebind/termination races, recovery, and cluster partition tests |
 | What constitutes an HTTP attempt, its capture boundary, and safe retry? | Connector transcripts and injected network/worker failures |
 | Which snapshot and code-version rules preserve replay through upgrades? | Replay and migration fixtures |
-| How do associated resources commit and expire with process work? | Atomic visibility, revisioned reads, dependency/retirement races, and compaction proofs in [M7](../roadmap/M7.md) |
+| How do associated resources commit and expire with process work? | Atomic visibility, revisioned reads, dependency/retirement races, and compaction proofs in M7 |
 | How can inspection expose enough evidence without leaking data or inventing certainty? | Authorized discovery/history, revocation/trim races, bounded reads, and Board API/UI agreement |
 | What workload and recovery targets matter? | Measurements from the kernel and connector slices |
 

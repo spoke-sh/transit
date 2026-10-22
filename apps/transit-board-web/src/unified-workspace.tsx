@@ -1,19 +1,19 @@
-import { logicalTypeText } from "@rey/transit-query-client";
+import { logicalTypeText } from "@transit/query-client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   BoardError,
   unifiedQuery as query,
   unifiedCellText,
   type UnifiedQueryResponse,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 
-import { acquireCaller } from "@rey/transit-reactive-client";
+import { acquireCaller } from "@transit/reactive-client";
 import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import { verifiedPage } from "./unified-result";
 import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
 import { QueryCandidates } from "./query-candidates";
 import { SqlEditor } from "./sql-editor";
-import type { Diagnostic } from "@rey/transit-query-client";
+import type { Diagnostic } from "@transit/query-client";
 import { QueryDiagnostic } from "./query-diagnostic";
 import { QueryProfile } from "./query-profile";
 import { QueryInspection, type Inspection } from "./query-inspection";

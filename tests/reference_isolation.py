@@ -10,7 +10,7 @@ def run(s, directory, namespace, authority_host, images, template):
     ursula = json.loads(ref.kube(s, ["-n", namespace, "get", "pods", "-l", "app=ursula", "-o", "json"], capture=True))["items"][0]
     ursula_ip = ursula["status"]["podIP"]
     dns = f"ursula.{namespace}.svc.cluster.local"
-    raw_path = "/rey-reference/authority?record=0&max_records=1"
+    raw_path = "/transit-reference/authority?record=0&max_records=1"
     checks = [
         {"label": "raw-read", "url": f"http://{dns}:8080{raw_path}"},
         # A separate nonexistent stream tests the write route without corrupting

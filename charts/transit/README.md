@@ -3,7 +3,7 @@
 [Transit](../../docs/reference/processes.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
 optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), runtime/framework controllers, and
-Agent Substrate worker capacity. Rey is the intended downstream trading
+Agent Substrate worker capacity. Transit is the intended downstream trading
 application.
 
 The [reference proof](../../deploy/reference/README.md) installs this chart and
@@ -71,8 +71,8 @@ against a different default pin.
 
 Choose an explicit Kubernetes context and namespace. Prepare a private values
 file with the public genesis, node image, bucket/journal and any desired options.
-Keep the root seed outside Helm. Generate its public key with `rey-cli public-key`
-as described in the [CLI guide](../../apps/rey-cli/README.md). Create Board and
+Keep the root seed outside Helm. Generate its public key with `transit-admin public-key`
+as described in the [CLI guide](../../apps/transit-admin/README.md). Create Board and
 maintenance/delivery Secrets separately, and record their grants through the
 signed Transit API before enabling those services. The chart creates no principals,
 grants, example processes, Actor templates or runtime bindings.

@@ -1,5 +1,10 @@
 # Frozen baseline and regression budgets
 
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
 These measurements establish a local regression baseline before optimizing the
 file implementation. They do not establish DuckDB parity, a service latency
 promise, or durable file-query recovery. The [harness](../../README.md) defines
@@ -21,12 +26,12 @@ remain in their reports. Every accepted report started with a clean worktree.
 
 | Artifact | Executed evidence |
 | --- | --- |
-| [Main matrix](baseline/baseline.json.gz) | 540 samples: nine shapes, five modes, cold/warm input pages, three repetitions, both engines; 4096 rows |
-| [Projection](baseline/projection-baseline.json.gz) | 108 samples: narrow/wide/nested, explicit/sampled/full, both cache conditions and engines, three repetitions |
-| [One-row batch](baseline/batch1-baseline.json.gz) | 36 samples: narrow/wide/nested, explicit, both cache conditions and engines, three repetitions |
-| [Filter](baseline/filter-baseline.json.gz), [COUNT](baseline/count-baseline.json.gz), [SUM](baseline/sum-baseline.json.gz) | 36 samples each: narrow/wide/nested explicit inputs, both cache conditions and engines, three repetitions; exact query checksums |
-| [Six-type control](baseline/six-baseline.json.gz) | Same eight-query driver against original `d5541301` production code and candidate; one discarded warmup and nine measured processes per binary; selected counts and exact SUM checked |
-| [RAM/cache proof](baseline/large-baseline.json.gz) | 600058901 input bytes, 10000 long records; explicit/sampled/full/raw; 268435456-byte cgroup RAM/cache ceiling, no swap; actual peak 268435456 bytes and no OOM in every mode |
+| Main matrix (archived) | 540 samples: nine shapes, five modes, cold/warm input pages, three repetitions, both engines; 4096 rows |
+| Projection (archived) | 108 samples: narrow/wide/nested, explicit/sampled/full, both cache conditions and engines, three repetitions |
+| One-row batch (archived) | 36 samples: narrow/wide/nested, explicit, both cache conditions and engines, three repetitions |
+| Filter (archived), COUNT (archived), SUM (archived) | 36 samples each: narrow/wide/nested explicit inputs, both cache conditions and engines, three repetitions; exact query checksums |
+| Six-type control (archived) | Same eight-query driver against original `d5541301` production code and candidate; one discarded warmup and nine measured processes per binary; selected counts and exact SUM checked |
+| RAM/cache proof (archived) | 600058901 input bytes, 10000 long records; explicit/sampled/full/raw; 268435456-byte cgroup RAM/cache ceiling, no swap; actual peak 268435456 bytes and no OOM in every mode |
 
 The [control provenance](control-provenance.json) identifies the detached base
 checkout, sole driver substitution and frozen binary. Every raw JSON report is
@@ -87,7 +92,7 @@ python3 -B tests/fuze_benchmarks/budgets.py check \
 
 ## Retained diagnostics and limits
 
-[The failed explicit-header run](diagnostics/positional-header-failure.json.gz)
+The failed explicit-header run (archived)
 retains 362 samples, ending in an incorrect DuckDB id checksum. Explicit DuckDB
 column names were positional across reordered files; the corrected comparator
 aligns each header by name inside discovery. Small smoke fixtures now use disjoint
@@ -96,10 +101,10 @@ id/value domains so this mistake cannot pass accidentally.
 The `diagnostics/pre-image-rss-*` reports retain the earlier complete runs before
 executable VmHWM instrumentation. Their wait4 measurements include launcher
 memory and are excluded from the frozen budgets. The
-[overlapping-smoke matrix](diagnostics/diagnostics-overlapping-smoke-matrix.json.gz)
+overlapping-smoke matrix (archived)
 records a later run whose start overlapped a small instrumentation check; the
 isolated final matrix above replaces it for acceptance. The
-[earlier six-type run](diagnostics/diagnostics-six-before-selected-check.json.gz)
+earlier six-type run (archived)
 predates the driver's explicit selected-row assertion. All of these remain
 inspectable observations with their original revisions/statuses; none supplies
 the accepted budget inputs.
@@ -115,7 +120,7 @@ capture. See the [proof ledger](../../../README.md) for those scopes.
 ## Withdrawn metadata experiments
 
 After committing these budgets at `5052c59e`, `19d3ba7d` removed one repeated
-validation traversal. Its [36-sample isolated run](experiments/validation-pass.json.gz)
+validation traversal. Its 36-sample isolated run (archived)
 passed result checks and observed lower wide-query CPU. `f509cdfb` additionally
 cached at most 128 header-to-column indices and guarded binding replacement.
 
@@ -151,7 +156,7 @@ or an explicitly reviewed new measurement profile established beforehand.
 
 After PR #42 merged, follow-up revision `a24f5cd3` passes full checks and the
 focused SQL/type/source/file/Arrow/codec proofs. Its
-[unchanged six-type driver](post-merge/six-before.json.gz), however, exceeds the
+unchanged six-type driver (archived), however, exceeds the
 frozen 1.15 candidate/control budget in seven of eight cases: predicate/aggregate
 ratios are 1.1795–1.2093; row export is 1.0093. The
 [scoped gate record](post-merge/six-before-gates.json) retains all failures. It
@@ -169,7 +174,7 @@ setting was changed and no sampled CPU profile is claimed.
 
 Revision `7aa743ca` avoids reconstructing unchanged output schemas during native
 plan validation. Fuze package tests and the independent SQL proof pass. Its
-[first paired measurement](post-merge/six-validation.json.gz) still
+first paired measurement (archived) still
 [fails](post-merge/six-validation-gates.json) the Boolean case at 1.4662.
 Raw control timings varied substantially during this run (for example, the
 Boolean control spans 12.45–35.23 ms versus 12.54–12.77 ms before the change),
@@ -185,7 +190,7 @@ output-name shape/collisions, literal types and source basis before hashing;
 standalone `Codec.encode` independently checks caller-supplied shapes. Current
 wire bytes, definitions and plan fingerprints are unchanged. Fuze package and
 independent SQL proofs pass. Its
-[paired measurement](post-merge/six-bound-codec.json.gz) passes the unchanged
+paired measurement (archived) passes the unchanged
 [scoped gate](post-merge/six-bound-codec-gates.json): all eight ratios are
 1.0003–1.1219, below 1.15. This qualifies this native six-type regression control,
 not the file matrix, large-input comparison, hosted latency or a DuckDB speedup.

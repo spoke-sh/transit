@@ -81,7 +81,7 @@ preserve the actual support boundary.
 | [tests/](../tests/README.md) | Executable proof commands, failure schedules, measurements and qualification results |
 | [apps/transit-docs/](../apps/transit-docs/README.md) | Docusaurus navigation, rendering, search, generated API presentation and browser verification |
 | [docs/internals/](internals/README.md) | Consolidated scientific accounts of system models, mechanisms, invariants, tradeoffs and evidence |
-| [docs/roadmap/](roadmap/README.md) | Delivery scope, sequencing, acceptance criteria and milestone status |
+| [docs/roadmap/](roadmap/README.md) | Unfinished delivery scope, sequencing and acceptance criteria |
 | [docs/design/](design/README.md) | UI/UX proposals, visual studies and recorded review outcomes |
 | [docs/history/](history/README.md) | Earlier topic accounts, language sketches, workload assumptions and qualification reviews; preserved as source material |
 | [docs/decisions/](decisions/README.md) | Reserved decision guidance and template; no separate ADR process |
@@ -110,7 +110,8 @@ owners without adding their individual records to the site's reading path or
 search. Keep delivery-plan labels and sequencing there. Usage/reference pages,
 component guides and wire contracts continue to describe capabilities directly;
 scientific accounts may cite dated proof records without inheriting broader claims.
-Historical outcomes and proposal status remain intact in their owning records.
+Completed milestones are removed; current semantics and reasoning remain with
+their public owners. Test evidence is maintained separately from delivery history.
 
 Repository Markdown must remain readable without Docusaurus. Render generated
 OpenAPI/AsyncAPI descriptions from the owning files; do not hand-maintain endpoint

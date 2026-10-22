@@ -9,7 +9,7 @@ durable evidence before deciding whether an operation committed. Start with
 [node operations](../../apps/transit-node/docs/operations.md) and
 [Board configuration](../../apps/transit-board/docs/configuration.md).
 
-Status: [M4](../roadmap/M4.md) implemented before Station.
+Status: M4 implemented before Station.
 Board request logs and the bounded [telemetry primitives](../../packages/zig/telemetry/README.md)
 are implemented across Board, Transit, storage, maintenance, runtime and callers.
 Local, Compose and Kubernetes/Substrate profiles are qualified within their
@@ -218,6 +218,6 @@ Board telemetry-query API, dashboards, alerting system or browser analytics.
 Protect any later diagnostic endpoint independently; Board inspection grants do
 not automatically grant access to all service telemetry.
 
-The [M4 plan](../roadmap/M4.md) owns sequencing, implementation
+The M4 plan owns sequencing, implementation
 gates and acceptance evidence. Component READMEs own exact event/metric catalogs,
 configuration, operating examples and measured limits.

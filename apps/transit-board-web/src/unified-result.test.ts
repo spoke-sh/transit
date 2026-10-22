@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { BoardError } from "@rey/transit-board-client";
+import { BoardError } from "@transit/board-client";
 import { verifiedPage, type ResultPage, type ReadPage } from "./unified-result";
 
 const manifest: ResultPage["evidence"]["manifest"] = {

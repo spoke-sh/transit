@@ -12,7 +12,6 @@ concepts. Detailed contracts and compatibility requirements live with their owne
 
 | Term | Meaning |
 | --- | --- |
-| Rey | The intended downstream trading application built using Transit. The repository retains its historical `rey` name; that name does not own runtime semantics. |
 | Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and Station framework and Fuze engine. Its foundational execution protocol is enforced by durable message sequences. See [Processes](processes.md). |
 | Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [Board](../guides/inspect-board.md). |
 | Station | Transit's OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [Station](station.md). |
@@ -24,8 +23,7 @@ concepts. Detailed contracts and compatibility requirements live with their owne
 | Launcher | Development tooling that provisions and runs a concrete environment. Local, Compose, and reference launchers compose services; they do not replace Transit authority or Station supervision. See the [launcher guide](../../launchers/README.md). |
 
 Use **Transit** for the streaming runtime and its deployment artifacts, including
-the [Helm chart](../../charts/transit/README.md) at `charts/transit`. Rey names the
-downstream application. Calling Transit the
+the [Helm chart](../../charts/transit/README.md) at `charts/transit`. Calling Transit the
 **kernel** describes its foundational protocol role; `transit-core` is specifically
 the deterministic kernel library. **Board** is the **inspection surface** and
 **Station** the **framework** above the kernel. **Fuze** is the **query and compute
@@ -44,11 +42,10 @@ library is `transit-fuze` and exports `transit_fuze`. See the
 persistence. **Agent Substrate** names the external execution project. Keep the
 distinction explicit when both appear in the same discussion.
 
-Existing compatibility identifiers include the `rey-cli` executable, `@rey/`
-frontend workspace scope, and `rey.transit.*` signature domains. They remain
-unchanged by the documentation orientation. Renaming wire domains would change
-signatures and needs an explicit compatibility plan; repository branding does
-not authorize that change.
+The `transit` executable owns local server and application workflows;
+`transit-admin` exposes low-level signed native operations. TypeScript workspaces
+use the `@transit/` scope. Protocol and stored identity changes follow the
+[hard-cutover policy](versioning.md), including a new shared definition identifier.
 
 ## Processes, actors, and execution
 

@@ -1,7 +1,7 @@
 # transit-board-client
 
 Typed resource client for Board's inspection and optional KV/Table/Document query APIs, exposed in the workspace as
-`@rey/transit-board-client`. This is a shared browser TypeScript package, independent of React and Router; it is not a Transit
+`@transit/board-client`. This is a shared browser TypeScript package, independent of React and Router; it is not a Transit
 execution/signing client. [Zig transit-board-api](../../zig/transit-board-api/README.md) owns the
 [OpenAPI contract](../../../contracts/transit-board-v1.openapi.json).
 
@@ -42,7 +42,7 @@ at runtime. `resource` is `resources`, `associations` or `entries`. For
 without an ID lists authorized metadata, and with an ID reads one resource.
 
 ```ts
-import { readState } from "@rey/transit-board-client";
+import { readState } from "@transit/board-client";
 
 const page = await readState("resources");
 const visible = page.observation.resources.filter((resource) => resource !== null);

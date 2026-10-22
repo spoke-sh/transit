@@ -1,12 +1,12 @@
 {
-  "name": "@rey/transit-query-client",
+  "name": "@transit/query-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@rey/transit-diagnostics": "workspace:*",
-    "@rey/transit-reactive-client": "workspace:*",
+    "@transit/diagnostics": "workspace:*",
+    "@transit/reactive-client": "workspace:*",
     "ajv": "8.20.0"
   },
   "devDependencies": {

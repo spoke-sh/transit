@@ -1,4 +1,4 @@
-//! The only Rey package importing the upstream Ursula client.
+//! The only Transit package importing the upstream Ursula client.
 const std = @import("std");
 const observations = @import("transit_observability");
 pub const ursula = @import("ursula");

@@ -16,8 +16,8 @@ versioned Board lenses. [Language adapters](../../bindings/README.md) share that
 implementation; the [runnable example](../../examples/station-ledger/docs/running.md)
 composes three workers across the development profiles. The package guides define implemented bounds;
 broader behavior below remains architectural direction.
-[M9](../roadmap/M9.md) builds on [M7 state resources](../roadmap/M7.md) and
-[M8 runtime readiness](../roadmap/M8.md).
+M9 builds on M7 state resources and
+M8 runtime readiness.
 
 ## Purpose
 
@@ -65,7 +65,7 @@ Foreign exceptions, cancellation and garbage collection cannot implicitly commit
 or acknowledge a turn. Bindings are part of M9's deliverable, not just a schema
 that leaves each language to build its own SDK.
 
-[M11](../roadmap/M11.md) adds idiomatic public SDKs above the implemented adapters.
+M11 adds idiomatic public SDKs above the implemented adapters.
 It also adds qualified Ruby public SDKs over the shared native port;
 Ruby is outside the M9-qualified binding matrix.
 The public [C](../../sdks/c/transit-station/README.md) and
@@ -101,9 +101,9 @@ isolation; additional worker images need the same deployment proofs as Zig.
 
 ## Preconditions for the first framework slice
 
-[M8](../roadmap/M8.md) supplies authenticated input origins, an automatic outbox
+M8 supplies authenticated input origins, an automatic outbox
 courier, explicit initialization, scoped lifecycle controls and opt-in catalog
-reclamation. [M9](../roadmap/M9.md#entry-gates) defines durable lifecycle watches,
+reclamation. M9 defines durable lifecycle watches,
 timer outcomes, child initialization/restart policies and the example's capacity
 budget. The [service guide](../../packages/zig/transit-station/docs/services.md)
 owns their implemented layout and role separation. These framework protocols use
@@ -147,7 +147,7 @@ publish outputs early or move checkpoints independently of that commit.
 The target framework accesses growing durable collections with bounded reads,
 private mutation batches and query batches. M9's complete-resource copies and
 shared 32-key capacity are implementation constraints, not a state-lifetime or
-application data model. [M10](../roadmap/M10.md) qualifies the replacement before
+application data model. M10 qualifies the replacement before
 public SDKs; [State](STATE.md#collection-size-and-working-memory) owns the boundary.
 Waits and captured results may remain retained without forcing applications to
 delete evidence to satisfy a worker buffer size.
@@ -164,9 +164,9 @@ Table API offers typed mutations, reads/scans and bounded query plans; the
 [package guide](../../packages/zig/transit-station/docs/tables.md) defines the exact
 implemented method set. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
-surface uses versioned structured operations. [M12](../roadmap/M12.md) implements
+surface uses versioned structured operations. M12 implements
 the bounded read-only Table SQL frontend; M13 exposes it publicly. M18 extends
-source contracts, and [M22](../roadmap/M22.md) adds Flight SQL transport over that
+source contracts, and M22 adds Flight SQL transport over that
 same compiler and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
@@ -180,7 +180,7 @@ retention and transactional visibility.
 Acero. Station supplies authorized KV/Table/Document source adapters and owns
 mutations, merge rules and durable result publication. The Document direction
 includes both structured state and collaborative text; its CRDT/storage profile
-is scoped in [M17](../roadmap/M17.md); [M18](../roadmap/M18.md) owns unified querying.
+is scoped in M17; M18 owns unified querying.
 Fuze queries accepted state and does not merge speculative edits.
 [Arrow interchange](ARROW.md) connects the engine to IPC/C
 interfaces and later Flight, Flight SQL and ADBC. Query operators stay outside

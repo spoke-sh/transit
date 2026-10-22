@@ -5,7 +5,7 @@ implemented and qualified through a clean tarball consumer. The
 [public Station package](../../../sdks/ts/transit-station-sdk/README.md) implements
 the contracts below, with strictly checked executable examples and the shared
 real-authority runner schedule. The [shared design](../SDK.md) owns authority,
-lifecycle and recovery rules. The existing `@rey/transit-station` M9 adapter
+lifecycle and recovery rules. The existing `@transit/station` M9 adapter
 remains compatible. The application types/codecs live in
 [@transit/sdk-examples](../../../examples/station-sdk/typescript/README.md);
 configuration and durable stores belong to the application. Public mixed-language
@@ -15,7 +15,7 @@ pairs remain a separate M11 exit gate.
 
 The package names are `@transit/client` and `@transit/station`, with the
 latter depending on the former. These are artifact-design names, not a claim of
-registry availability. The current `@rey/transit-station` low-level package remains
+registry availability. The current `@transit/station` low-level package remains
 compatible during migration; give it an explicit raw entry point without silently
 changing `NativeHost` behavior. The public packages contain strict TypeScript
 declarations and runtime validation. Generated wire/ABI types stay internal/raw.

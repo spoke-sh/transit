@@ -100,7 +100,7 @@ def main():
     duplicate = summarize(sample, [*full_jobs, job], full_log, budgets)
     assert duplicate['status'] == 'inconclusive' and not duplicate['budget_met']
     assert duplicate['duplicate_lanes'] == ['core'] and not duplicate['missing_lanes']
-    assert not select(["docs/reference/state.md", "docs/roadmap/M26.md", "README.md"])["full"]
+    assert not select(["docs/reference/state.md", "docs/roadmap/09-releases.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],
                   ["docs/history/STATE.md", "packages/zig/transit-core/README.md"]):

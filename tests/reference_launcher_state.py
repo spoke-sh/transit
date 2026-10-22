@@ -29,7 +29,7 @@ class ReferenceStateTest(unittest.TestCase):
         self.selection = self.artifacts / "selected.json"
         self.selection.write_text('{"old-build":true}')
         self.installation = SimpleNamespace(path=self.path, name="saved", artifacts=SimpleNamespace(path=self.artifacts), load=lambda: {"project": "project-123456"})
-        self.state = {"cluster": "rey-m1-original", "registry": "rey-m1-original-registry", "node_ids": ["node-id"], "registry_id": "registry-id"}
+        self.state = {"cluster": "transit-m1-original", "registry": "transit-m1-original-registry", "node_ids": ["node-id"], "registry_id": "registry-id"}
         self.saved = {"namespace": "transit-saved-123456", "uid": "namespace-id", "cluster": self.state["cluster"]}
         self.namespace = {"metadata": {"name": self.saved["namespace"], "uid": self.saved["uid"], "labels": {"transit.dev/installation": "project-123456"}}}
         self.enterContext(patch.object(infrastructure, "STATE", self.state_file))
@@ -63,10 +63,10 @@ class ReferenceStateTest(unittest.TestCase):
     def test_replacement_cluster_rejected_before_contact_for_either_example(self):
         self.save()
         original = self.identity.read_bytes()
-        self.state_file.write_text(json.dumps({**self.state, "cluster": "rey-m1-replacement"}))
+        self.state_file.write_text(json.dumps({**self.state, "cluster": "transit-m1-replacement"}))
         for cls in (Reference, StationReference):
             with self.subTest(example=cls.__name__):
-                with self.assertRaisesRegex(RuntimeError, "rey-m1-original.*rey-m1-replacement"):
+                with self.assertRaisesRegex(RuntimeError, "transit-m1-original.*transit-m1-replacement"):
                     cls(self.installation).up()
         self.up.assert_not_called()
         self.run.assert_not_called()
@@ -131,14 +131,14 @@ class ReferenceStateTest(unittest.TestCase):
 
     def test_explicit_discard_checks_original_cluster_not_replacement(self):
         self.save()
-        self.state_file.write_text(json.dumps({**self.state, "cluster": "rey-m1-replacement"}))
+        self.state_file.write_text(json.dumps({**self.state, "cluster": "transit-m1-replacement"}))
         self.run.side_effect = None
         self.run.return_value = ""
         Reference(self.installation).reset_missing_cluster()
         self.assertFalse(self.path.exists())
         self.assertFalse(self.selection.exists())
-        self.assertEqual(json.loads(self.state_file.read_text())["cluster"], "rey-m1-replacement")
-        self.assertIn("label=io.x-k8s.kind.cluster=rey-m1-original", self.run.call_args.args[0])
+        self.assertEqual(json.loads(self.state_file.read_text())["cluster"], "transit-m1-replacement")
+        self.assertIn("label=io.x-k8s.kind.cluster=transit-m1-original", self.run.call_args.args[0])
         self.kube.assert_not_called()
         self.up.assert_not_called()
 
@@ -168,12 +168,12 @@ class ReferenceStateTest(unittest.TestCase):
 class ReadObservationTest(unittest.TestCase):
     @staticmethod
     def failure(cause="AuthorityUnavailable"):
-        return {"schema_version": 1, "service_name": "rey-cli", "event": {
+        return {"schema_version": 1, "service_name": "transit-admin", "event": {
             "name": "service.failed", "level": "err", "outcome": "failed", "error_type": cause}}
 
     def test_read_retry_uses_json_and_preserves_the_same_request(self):
         with tempfile.TemporaryDirectory() as directory:
-            installation = SimpleNamespace(path=Path(directory), cli="rey-cli", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
+            installation = SimpleNamespace(path=Path(directory), cli="transit-admin", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
             kind = {"open_snapshot": {"resource": 9, "nonce": [7] * 16}}
             requests = []
             def invoke(argv, **options):

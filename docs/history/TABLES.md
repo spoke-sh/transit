@@ -9,13 +9,13 @@ Use a Table for typed rows in a durable resource. Begin with the
 and the [SQL reference](../reference/sql.md) for reads. A Table is a Station
 abstraction; its values and query schema are not kernel policy.
 
-Status: the bounded [M9](../roadmap/M9.md) Table/Fuze profile is implemented; the
+Status: the bounded M9 Table/Fuze profile is implemented; the
 [Table guide](../../packages/zig/transit-station/docs/tables.md) owns exact type,
 capacity and result-delivery limits. Broader transaction/query directions below
 remain planned. [State](STATE.md) owns the underlying resource
 contract; [Station](STATION.md) owns behaviors and remote request/reply.
 
-[M10](../roadmap/M10.md) implements growing durable Tables and paged access in
+M10 implements growing durable Tables and paged access in
 the explicit v3 profile, used by public SDKs. The M9 row/result ceilings remain enforced today; they must not
 become permanent total-size semantics. Bound resident batches and atomic work
 independently of total retained rows/results, following
@@ -165,7 +165,7 @@ authorization, a durable stream scheduler or transactional materialization.
 [Fuze](FUZE.md) composes these dependencies in a Zig-native query engine,
 inspired by DataFusion and Acero, with shared source, logical/physical plan and
 operator/sink boundaries across state entities. M9 proves the bounded Table path,
-finite execution and IPC; [M22](../roadmap/M22.md) adds Flight, a bounded Flight SQL
+finite execution and IPC; M22 adds Flight, a bounded Flight SQL
 frontend and ADBC interoperability over the same Table/query contract, following
 [ARROW.md](ARROW.md).
 
@@ -275,7 +275,7 @@ Full SQL, separate-resource transactions, continuous queries/retractions,
 multi-source snapshot coordination, historical time travel, large results,
 disk-scale indexes/spill, per-row TTL, migrations and writer transfer are outside
 M9. When selected, give this work a new numbered milestone in the linear roadmap.
-The selected remote interoperability work is [M22](../roadmap/M22.md), including a
+The selected remote interoperability work is M22, including a
 small read-only SQL subset; it does not promise full SQL, continuous queries or
 broader transaction scope.
 For transactions, first investigate a bounded multi-resource write/read-set
@@ -284,6 +284,6 @@ coordination, isolation, participant fencing, recovery and blocked-capacity
 policy. Sagas/compensation remain an explicit alternative with partial visibility,
 not an equivalent atomic guarantee.
 
-[M9's acceptance criteria](../roadmap/M9.md#exit-criteria) require crash/retry,
+M9's acceptance criteria require crash/retry,
 update/delete, Arrow interoperability, expiry/revocation and budget proofs before
 these proposals can be described as supported behavior.

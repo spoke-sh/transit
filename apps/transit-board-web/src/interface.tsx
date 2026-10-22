@@ -6,8 +6,8 @@ import {
   readInterface,
   type Compiled,
   type Definition,
-} from "@rey/transit-application";
-import type { Capabilities } from "@rey/transit-board-client";
+} from "@transit/application";
+import type { Capabilities } from "@transit/board-client";
 import "./shell.css";
 type Current = { compiled: Compiled; identity: string; published: boolean };
 const Interface = createContext<Current | null>(null);

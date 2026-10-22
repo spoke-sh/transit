@@ -8,7 +8,7 @@ import {
 } from "./client";
 import publicationFixture from "../../../zig/transit-station-app/src/fixtures/publication-v1.json" with { type: "json" };
 import fixture from "../../../zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
-import type { Diagnostic } from "@rey/transit-diagnostics";
+import type { Diagnostic } from "@transit/diagnostics";
 import type { HostRequest, Scope, Signed } from "./types";
 const scope: Scope = { realm: 49, application: 9, pid: 17, resource: 19, namespace: "23" };
 afterEach(() => vi.unstubAllGlobals());

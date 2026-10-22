@@ -19,7 +19,7 @@
   kubectl-ate,
   kubectl-transit,
 }:
-runCommand "rey-toolchain-check"
+runCommand "transit-toolchain-check"
   {
     nativeBuildInputs = [
       just
@@ -79,13 +79,13 @@ runCommand "rey-toolchain-check"
     zig test smoke.zig
 
     cat > web/package.json <<'JSON'
-    {"name":"rey-toolchain-smoke","private":true,"type":"module"}
+    {"name":"transit-toolchain-smoke","private":true,"type":"module"}
     JSON
     cat > web/index.html <<'HTML'
     <!doctype html><html><body><script type="module" src="/main.ts"></script></body></html>
     HTML
     cat > web/main.ts <<'TS'
-    const message: string = "Rey toolchain ready";
+    const message: string = "Transit toolchain ready";
     document.body.textContent = message;
     TS
     cd web

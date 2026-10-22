@@ -93,7 +93,7 @@ def inspect_capture(fixture, admin, authority, saved, board, provision, state, b
         if browser:
             environment = os.environ | dict(BOARD_TEST_URL=origin, BOARD_HTTP_PROOF=provision,
                 BOARD_HTTP_AUTHORITY=authority, BOARD_HTTP_STATE=str(state), BOARD_HTTP_RESOURCE=str(saved['resource']))
-            subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'playwright', 'test', 'http.spec.ts'], env=environment, check=True, timeout=120)
+            subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test', 'http.spec.ts'], env=environment, check=True, timeout=120)
         print('Board HTTP: real capture, source-bound pages, immutable inspection, generated validation and revoked continuation passed' + (' with browser clearing.' if browser else '.'))
     except BaseException:
         log.flush(); log.seek(0)

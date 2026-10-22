@@ -1,6 +1,6 @@
 # Durable mutation campaign, 2026-10-04
 
-Raw ReleaseSafe controls for [issue #55](https://github.com/rupurt/rey/issues/55).
+Raw ReleaseSafe controls for [issue #55](https://github.com/spoke-sh/transit/issues/55).
 Binary hashes identify each build; `source_revision` identifies the runner checkout,
 which can differ from the declared frozen `build_revision`. Dirty intermediate
 candidates are labeled in the original reports. Fixtures live on ext4 under

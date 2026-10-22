@@ -1,6 +1,6 @@
 import fixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { expect, test } from "vite-plus/test";
-import { inspectionResponse } from "@rey/transit-board-client";
+import { inspectionResponse } from "@transit/board-client";
 
 function page() {
   const facts = Object.entries({

@@ -11,7 +11,7 @@ public reads and committed turns. Begin with [Tables](TABLES.md) or
 
 Status: bounded M7 profile implemented and verified, before Station. The
 [wire contract](../../contracts/STATE_V1.md) and component READMEs own exact APIs,
-numerical bounds and compatibility. [M7](../roadmap/M7.md) and the
+numerical bounds and compatibility. M7 and the
 [proof guide](../../tests/README.md#m7-state-resources) record qualification.
 
 The broader design below includes future capabilities. The first profile has
@@ -21,8 +21,8 @@ no existing realm is automatically migrated. Table abstractions, per-key TTL,
 writer transfer and transactions across resources are outside this profile.
 
 The fixed catalog sizes are real constraints of that implementation, not the
-intended size of a resource. [M10](../roadmap/M10.md) replaces the coupling between
-total retained state and resident arrays before [SDKs M11](../roadmap/M11.md).
+intended size of a resource. M10 replaces the coupling between
+total retained state and resident arrays before SDKs M11.
 The target collection model below is not yet implemented by state v1.
 M10's explicit [v3 development profile](../../contracts/TRANSIT_V1.md) publishes
 immutable state roots through the authority and supplies bounded node/client
@@ -137,7 +137,7 @@ become a SQL or Arrow compute engine.
 
 [Fuze](FUZE.md) names that shared query engine. Its target source model includes
 KV, Table and the Station Document for structured values and collaborative
-text. [M17](../roadmap/M17.md) owns Document change/CRDT semantics above core and
+text. M17 owns Document change/CRDT semantics above core and
 the qualification of its storage/lifetime profile. Shared querying does not add
 those semantics to the current KV resource or widen its transaction boundary.
 
@@ -184,7 +184,7 @@ current single-record design.
 Splitting resource and process authority also requires an explicit coordination
 contract; independently successful stream appends are insufficient.
 
-[M14](../roadmap/M14.md) implements a Station-level
+M14 implements a Station-level
 [immutable publication layout](../../contracts/STATION_PUBLICATION_V1.md) inside one
 growing resource. Chunks are staged through ordinary bounded turns; the final
 descriptor, application head and outputs can publish in one turn. Explicit
@@ -325,14 +325,14 @@ primitives.
 
 ## Implementation gates
 
-[M7](../roadmap/M7.md) records the completed bounded profile and qualification.
+M7 records the completed bounded profile and qualification.
 [Conformance](CONFORMANCE.md) owns adversarial obligations; the
 [pre-Station review](reviews/PRE_STATION.md) identifies limits relevant to M9.
 
 The [state v1 contract](../../contracts/STATE_V1.md) specifies current encoding,
 limits, and compatibility. Changes to storage layout or numerical budgets need
-new measured evidence. Bounded Table helpers are implemented in [M9](../roadmap/M9.md);
-growing indexes and bounded-memory access are selected for [M10](../roadmap/M10.md).
+new measured evidence. Bounded Table helpers are implemented in M9;
+growing indexes and bounded-memory access are selected for M10.
 Writer transfer, multi-resource/cross-authority transactions, per-key TTL and
 automatic data migration require later explicit scope. Compatibility for any
 new storage profile is an M10 gate, not permission for implicit migration.

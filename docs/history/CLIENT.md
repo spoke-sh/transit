@@ -9,11 +9,11 @@ turns or recover an uncertain operation. Choose a [language SDK](../reference/sd
 or follow the [separate application walkthrough](../guides/applications.md). This
 page defines the semantics shared by those interfaces.
 
-Status: experimental v2 Zig client and [M7 state-resource API](../roadmap/M7.md)
-implemented. [M9](../roadmap/M9.md) adds the shared C ABI, generated signatures and
+Status: experimental v2 Zig client and M7 state-resource API
+implemented. M9 adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../../packages/zig/transit-client/docs/bindings.md).
 [Station's adapters](../../bindings/README.md) expose the framework to M9's target languages.
-[M11](../roadmap/M11.md) provides qualified public SDKs over those low-level
+M11 provides qualified public SDKs over those low-level
 bindings; their manual action/turn interfaces remain the current implementation.
 General payload references and migration helpers remain
 separate future work.
@@ -176,7 +176,7 @@ host supports them. Do not convert results into JSON rows as the sole API.
 result completeness, snapshots and cleanup independently of host-language
 garbage collection.
 
-[Arrow interoperability M22](../roadmap/M22.md) adds Flight/Flight SQL access and
+Arrow interoperability M22 adds Flight/Flight SQL access and
 qualification with existing ADBC drivers. Those are Table query clients, distinct
 from these process/behavior bindings. The shared Zig engine remains behind both
 surfaces; neither an Arrow C interface nor an ADBC handle grants Transit rights.
@@ -197,7 +197,7 @@ does not execute application handlers.
 
 ## Idiomatic language SDKs
 
-Status: all target public SDKs are qualified in [M11](../roadmap/M11.md).
+Status: all target public SDKs are qualified in M11.
 The [SDK design](SDK.md) links concrete Python, TypeScript and Rust API proposals
 for services/requesters, raw recovery, runner ownership and packaging. It records
 the required shared native changes. Python, TypeScript, Rust, Ruby, C/C++, Java
@@ -219,10 +219,10 @@ Java, .NET and Elixir/Erlang**. Python, TypeScript and Rust establish the first
 equivalent API designs. Ruby uses the shared native port with pinned Ruby 3.4.9,
 independent client/Station gems and qualified public handler/recovery/data proofs. The historical
 [M9 target table](#m9-language-targets) and binding evidence retain their original
-scope. [M11's language conventions](../roadmap/M11.md#language-conventions) own the
+scope. M11's language conventions own the
 public interface direction for the complete target list.
 
-[M10](../roadmap/M10.md) first qualifies the growing-state and verification foundation.
+M10 first qualifies the growing-state and verification foundation.
 Public SDKs must distinguish working-set and operation budgets from explicit
 deployment quotas. They must not encode the legacy total-key/catalog array sizes
 as the application's state model. Qualify bounded reads, retained results and
@@ -287,7 +287,7 @@ above the shared Station implementation, consumed by the
 It compiles M12 SQL against current authorized Table metadata, freezes signed
 submission/cancellation identity and reads verified bounded result segments.
 It owns no kernel authority, storage access or independent query semantics.
-See the [public contract](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) for admission,
+See the [public contract](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) for admission,
 uncertainty, current authorization and deployment limits.
 
 ## HTTP connector callers
@@ -353,7 +353,7 @@ See the [operator guide](../../packages/ts/transit-application/docs/operator.md)
 
 ## Separately compiled application hosts
 
-[M25](../roadmap/M25.md) defines a language-neutral
+M25 defines a language-neutral
 [installation and bootstrap contract](../../contracts/APPLICATION_INSTALLATION_V1.md)
 in `transit_client.Application`. Its first executable consumer is the separately
 built [work-item package](../../examples/work-items/docs/local.md). The CLI accepts

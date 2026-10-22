@@ -4,7 +4,7 @@ import {
   participation,
   type ParticipationResponse,
   type ParticipationCursor,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 import { message } from "./state";
 /** A bounded projection, never a second registry or an activity measurement. */
 export function Participation({ resource }: { resource: number }) {

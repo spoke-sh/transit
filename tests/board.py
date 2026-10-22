@@ -189,7 +189,7 @@ def run(node, cli, board, browser=False):
                                 "BOARD_TEST_TABLE_KEY": head_key.hex(),
                                 "BOARD_TEST_RESOURCE": str(resource), "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
-            subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "board.spec.ts"], env=env, check=True, timeout=180)
+            subprocess.run(["vp", "exec", "--filter", "@transit/board-web", "playwright", "test", "board.spec.ts"], env=env, check=True, timeout=180)
 
         # The removed session endpoints cannot create or revoke Board access.
         request("/api/v1/session", method="POST", status=404)

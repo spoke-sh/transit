@@ -5,7 +5,7 @@ wide identities/revisions use checked decimal strings. It delegates validation
 to `Client.Reference`. Query and language binding conversions share this type.
 
 Zig Station Document changes, structured merge and collaborative plain text for
-[M17](../../../docs/roadmap/M17.md). Depends directly on `transit-station` for
+[Documents](../../../docs/reference/documents.md). Depends directly on `transit-station` for
 immutable publication/indexes; it does not depend on effect connectors.
 
 The [neutral v1 contract](../../../contracts/STATION_DOCUMENT_V1.md) fixes stable

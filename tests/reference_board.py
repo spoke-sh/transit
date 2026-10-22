@@ -54,8 +54,8 @@ ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
         checks = [{"label": label, "url": url, "deny_at_transport": True} for label, url in [
-            ("raw-service", f"http://{ursula_ip}:8080/rey-reference/authority?record=0"),
-            ("raw-pod", f"http://{raw_ip}:8080/rey-reference/authority?record=0"),
+            ("raw-service", f"http://{ursula_ip}:8080/transit-reference/authority?record=0"),
+            ("raw-pod", f"http://{raw_ip}:8080/transit-reference/authority?record=0"),
             ("raw-admin", f"http://{raw_ip}:8081/metrics"),
             ("substrate", f"http://{substrate_ip}:443/"),
             ("kubernetes", f"http://{kube_ip}:443/"),

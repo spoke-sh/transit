@@ -1,1 +1,1 @@
-export { ownedDiagnostic, diagnosticLines } from "@rey/transit-diagnostics";
+export { ownedDiagnostic, diagnosticLines } from "@transit/diagnostics";

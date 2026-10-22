@@ -50,9 +50,9 @@ def exercise(installation, launcher, invoke, observe):
         from common import write
         file = installation.path / "compose.env.json"
         current = json.loads(file.read_text())
-        legacy = {key: value for key, value in current.items() if key not in ("REY_COMPOSE_NODE_IMAGE", "REY_COMPOSE_BOARD_IMAGE", "REY_COMPOSE_COUNTER_IMAGE")}
-        legacy = {key: value for key, value in legacy.items() if not key.startswith("REY_COMPOSE_DELIVERY_")}
-        legacy["REY_COMPOSE_IMAGE_PREFIX"] = installation.load()["project"]
+        legacy = {key: value for key, value in current.items() if key not in ("TRANSIT_COMPOSE_NODE_IMAGE", "TRANSIT_COMPOSE_BOARD_IMAGE", "TRANSIT_COMPOSE_COUNTER_IMAGE")}
+        legacy = {key: value for key, value in legacy.items() if not key.startswith("TRANSIT_COMPOSE_DELIVERY_")}
+        legacy["TRANSIT_COMPOSE_IMAGE_PREFIX"] = installation.load()["project"]
         try:
             write(file, legacy)
             try:
@@ -128,7 +128,7 @@ def exercise(installation, launcher, invoke, observe):
     # Updating the same owned port from loopback to wildcard must not reject
     # the current listener as somebody else's process. It is replaced below.
     for host in ("0.0.0.0", "127.0.0.1"):
-        invoke("update", "board", "--no-build", settings={"REY_BOARD_HOST": host})
+        invoke("update", "board", "--no-build", settings={"TRANSIT_BOARD_HOST": host})
         assert installation.board["host"] == host
         assert observe(12)["generation"] == first["generation"]
     candidate(installation, "example-counter")

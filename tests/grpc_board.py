@@ -102,7 +102,7 @@ def inspect_capture(fixture, admin, authority, saved, board, provision, state, b
         if browser:
             environment = os.environ | dict(BOARD_TEST_URL=origin, BOARD_GRPC_PROOF=provision,
                 BOARD_GRPC_AUTHORITY=authority, BOARD_GRPC_STATE=str(state), BOARD_GRPC_RESOURCE=str(saved['resource']))
-            subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'playwright', 'test', 'grpc.spec.ts'], env=environment, check=True, timeout=120)
+            subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test', 'grpc.spec.ts'], env=environment, check=True, timeout=120)
         print('Board RPC: real capture, source-bound pages, immutable inspection, generated validation and revoked continuation passed' + (' with browser clearing.' if browser else '.'))
     except BaseException:
         log.flush(); log.seek(0)

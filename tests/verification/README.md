@@ -1,6 +1,10 @@
 # Verification foundation
 
-[Strategy](../../docs/reference/verification.md) · [M10](../../docs/roadmap/M10.md)
+Historical results are summarized in the [proof ledger](../README.md). Obsolete
+raw transcripts and their dependent manifests are no longer maintained; references
+to this summary do not promise retained transcript bytes or qualify current source.
+
+[Verification strategy](../../docs/reference/verification.md)
 
 This is executable test infrastructure, not an alternate authority. The existing
 disk, native scheduling, browser, launcher and provider proofs remain necessary.
@@ -157,7 +161,7 @@ passing test result.
 
 Executed budget qualification belongs to the retained 33-task baseline below.
 The expanded inventory remains unqualified; the
-[completed failed hosted record](results/m37-hosted-ordinary-2026-10-01.json)
+completed failed hosted record (archived)
 retains its actual task outcomes, partial-cache profile and costs. Larger job
 execution caps do not revise the numeric budgets or make an incomplete run pass.
 
@@ -165,7 +169,7 @@ The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
 and sixty aggregate runner minutes, following the accepted five-lane sample.
 Under ten minutes remains an improvement target and five a stretch. `just ci::cost RUN_ID` retains hosted phase timing and restored
 bytes separately from local task measurements. The completed warm-dependency run
-[`36181871580`](https://github.com/rupurt/rey/actions/runs/36181871580) used 1,000s
+[`36181871580`](https://github.com/spoke-sh/transit/actions/runs/36181871580) used 1,000s
 for core, 874s for experience and 529s for bindings, plus selection/final gating.
 The three lanes restored approximately 7.0 GiB total. Its task artifacts identify
 growing-service qualification (260.38s), the counter launcher (344.52s), Station
@@ -173,7 +177,7 @@ launcher (172.07s), core checks (193.67s) and build smoke (97.29s) as major cost
 This baseline does **not** meet the feedback target. Splitting into five lanes
 preserves each task once and shares dependency-cache keys with one writer; its
 first hosted warm run
-[`36194234944`](https://github.com/rupurt/rey/actions/runs/36194234944) passed in
+[`36194234944`](https://github.com/spoke-sh/transit/actions/runs/36194234944) passed in
 12m37s, using 53m27s of aggregate job time and 10.69 GiB restored. Core/growth
 took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improved
 and the user accepted that result as close enough to defer further optimization.
@@ -181,26 +185,26 @@ Three ordinary warm samples now meet the 15-minute / 60-runner-minute budgets:
 
 | Run                                                                   | Revision  | Feedback | Aggregate runner time | Restored  |
 | --------------------------------------------------------------------- | --------- | -------- | --------------------- | --------- |
-| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s   | 53m27s                | 10.69 GiB |
-| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s   | 58m08s                | 10.69 GiB |
-| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s   | 51m53s                | 10.69 GiB |
+| [36194234944](https://github.com/spoke-sh/transit/actions/runs/36194234944) | `97f3b7e` | 12m37s   | 53m27s                | 10.69 GiB |
+| [36197767974](https://github.com/spoke-sh/transit/actions/runs/36197767974) | `22aa6f0` | 14m35s   | 58m08s                | 10.69 GiB |
+| [36199109839](https://github.com/spoke-sh/transit/actions/runs/36199109839) | `22aa6f0` | 13m31s   | 51m53s                | 10.69 GiB |
 
 All three ran the same 33 required tasks on five 2-vCPU Linux x86_64 runners.
 These samples establish the bounded calibration, not a percentile or future
 latency guarantee. A fourth passing test run,
-[36197683518](https://github.com/rupurt/rey/actions/runs/36197683518) at `72552a3`,
+[36197683518](https://github.com/spoke-sh/transit/actions/runs/36197683518) at `72552a3`,
 took 14m49s and 62m05s of aggregate runner time, exceeding the cost budget.
 That revision unnecessarily removed unused SDKs even on warm cache hits; cleanup
 is now limited to cache misses. The over-budget result remains evidence of that
 regression and does not count toward the three qualifying warm samples.
 
 The complete cold run
-[36200208768](https://github.com/rupurt/rey/actions/runs/36200208768) at `082ea76`
+[36200208768](https://github.com/spoke-sh/transit/actions/runs/36200208768) at `082ea76`
 passed all 33 tasks in 31m09s, with 111m51s aggregate runner time and no GitHub
 dependency-cache restore. It fits the separate 35-minute / 135-runner-minute
 budget. This is one cache-miss baseline, not a cold-variance guarantee; upstream
 Nix substitutes remain available and their transfer is outside the archive-byte
-measurement. The [retained report](results/m10-ci-2026-09-25.json) includes all
+measurement. The retained report (archived) includes all
 four qualifying runs, task timings, revisions, artifact hashes and excluded runs.
 
 Cold run `36196325993` failed during bindings setup with exhausted disk and in

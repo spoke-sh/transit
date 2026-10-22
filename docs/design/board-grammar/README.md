@@ -22,7 +22,7 @@ are collected in [Atlas D10](../board-atlas/D10.md); D1–D9 retain their histor
 outcomes. That direction does not accept every earlier interaction or prove
 implementation.
 
-[M23](../../roadmap/M23.md) owns implementation and qualification after M19–M22.
+M23 owns implementation and qualification after M19–M22.
 [Reactive applications](../../history/REACTIVE_APPLICATIONS.md) owns the proposed system
 model, application lifecycle and migration semantics. This directory owns the
 interface review, not a second architecture or wire specification.

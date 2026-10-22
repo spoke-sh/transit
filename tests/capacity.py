@@ -34,8 +34,8 @@ def run(binary):
     python = str(Path(sys.executable).resolve(strict=True))
     assert python.startswith("/nix/store/")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    name = "rey-capacity-" + uuid.uuid4().hex[:12]
-    with tempfile.TemporaryDirectory(prefix="rey-capacity-") as directory:
+    name = "transit-capacity-" + uuid.uuid4().hex[:12]
+    with tempfile.TemporaryDirectory(prefix="transit-capacity-") as directory:
         root = Path(directory)
         disk = root / "disk.img"
         with disk.open("xb") as file:

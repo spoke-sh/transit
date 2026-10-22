@@ -236,23 +236,23 @@ service:
 
 # Signed policy staging, current checks and restart against disk-backed Ursula.
 authorization:
-    zig build transit-node rey-cli
-    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/rey-cli --report .cache/verification/authorization-native.json
+    zig build transit-node transit-admin
+    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
-    zig build transit-node rey-cli transit client-abi transit-client-host
-    python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
+    zig build transit-node transit-admin transit client-abi transit-client-host
+    python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Table isolation, original subjects, rotation and revocation across disk restart.
 authorization-tables *args:
-    zig build transit-node rey-cli transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
+    zig build transit-node transit-admin transit transit-query-host transit-table-service -Doptimize=ReleaseSafe
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --report .cache/verification/authorization-tables.json {{args}}
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build transit-node rey-cli transit transit-query-host transit-table-service serving-example
-    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    zig build transit-node transit-admin transit transit-query-host transit-table-service serving-example
+    python3 -B tests/authorization_tables.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-query-host zig-out/bin/transit-table-service zig-out/bin/transit --serving-example zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:

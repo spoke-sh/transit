@@ -126,7 +126,7 @@ def run(node, proof, board):
             recovered = request('/api/v1/application', {'submit':signed})['admitted']
             assert lost['request'] is not None and lost['recovered'] and recovered['position'] > 0
             env = dict(os.environ, BOARD_TEST_URL=origin)
-            subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'playwright', 'test', 'application.spec.ts'], check=True, env=env, timeout=300)
+            subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test', 'application.spec.ts'], check=True, env=env, timeout=300)
             published = request('/api/v1/interface')['published']
             assert published['head']['revision'] == '1'
             assert published['compiled']['definition']['theme'] == 'dense'

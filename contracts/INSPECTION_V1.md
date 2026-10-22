@@ -77,8 +77,8 @@ source events, so consumers must mark unresolved historical links.
 ## Clients and proofs
 
 `transit_client.Client.query` with `kind.inspection` returns an owned native
-response containing `Inspection.Page`. `rey-cli sign-query SEED QUERY.json` emits
-the envelope; `rey-cli query SEED QUERY.json URL` performs the public client call.
+response containing `Inspection.Page`. `transit-admin sign-query SEED QUERY.json` emits
+the envelope; `transit-admin query SEED QUERY.json URL` performs the public client call.
 
 `just test::inspection` exercises real signed HTTP calls and disk recovery.
 A shared [canonical fixture](../packages/zig/transit-protocol/src/fixtures/inspection-v1.json)

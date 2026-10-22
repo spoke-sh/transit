@@ -65,7 +65,7 @@ check first. The probe image is test-only.
 
 The manual [reference CI workflow](../../.github/workflows/reference.yml) uses these
 commands and always attempts owned-resource cleanup. It requires a separately
-registered `rey-reference` Linux x86_64 runner with Nix and Docker; repository
+registered `transit-reference` Linux x86_64 runner with Nix and Docker; repository
 configuration does not provision one. Local execution is the evidence recorded
 here, not a claim that the remote workflow has run. That workflow also runs the
 separate physical-capacity proof. Evidence and limits are tracked in
@@ -107,7 +107,7 @@ The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
 maintenance, the host runtime controller and the counter's Actor template.
 Change the chart's per-component `logging` values for deployed services, and the
 explicit environment entries for the host controller and Actor template. The
-launcher `REY_*` settings apply to persistent installations; the isolated proof
+launcher `TRANSIT_*` settings apply to persistent installations; the isolated proof
 supplies its own configuration explicitly.
 Read service stderr through `kubectl logs` with the owned kubeconfig/context,
 and controller/provider diagnostics in the private proof directory. Substrate

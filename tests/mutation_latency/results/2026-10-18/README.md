@@ -1,9 +1,14 @@
 # Storage foundation baseline, 2026-10-18
 
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
 These controls freeze source `ee88a131` in a clean independent worktree. The
 ReleaseSafe build includes the CLI, node, query host, Board and SQL gateway;
 binary/provider hashes and exact controls are retained in the
-[qualification record](../../../verification/results/storage-foundation-baseline-2026-10-18.json).
+qualification record (archived).
 The owned fixtures use disk Ursula and MinIO on ext4 under `/var/tmp`. Builds
 finish before measurement, and the campaigns run sequentially.
 
@@ -40,8 +45,8 @@ include overlapping background activity and instrumentation overhead. They are
 neither isolated fsync counts nor independent durations to add together.
 
 Raw reports preserve their original bytes with deterministic gzip:
-[narrow](baseline-narrow.json.gz), [wide](baseline-wide.json.gz),
-[nested](baseline-nested.json.gz), [retained/concurrent failure](baseline-retained.json.gz)
-and [request attribution](baseline-counts.json.gz). The qualification record
+narrow (archived), wide (archived),
+nested (archived), retained/concurrent failure (archived)
+and request attribution (archived). The qualification record
 pins both raw and compressed hashes. No improvement is claimed before matched
 controls on the completed foundation.

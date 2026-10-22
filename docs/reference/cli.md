@@ -1,7 +1,7 @@
 # Transit CLI reference
 
 `transit` starts a local server, manages installed applications and opens signed
-query sessions, general Table DDL/DML and catalog operations. It is separate from the retained `rey-cli` administration utility
+query sessions, general Table DDL/DML and catalog operations. It is separate from the retained `transit-admin` administration utility
 and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 

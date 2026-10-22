@@ -45,7 +45,7 @@ jobs:
         run: nix develop .#serving --command just transit-board::install
       - name: Install owned browser dependencies
         if: inputs.profile == 'reactive'
-        run: nix develop .#serving --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
+        run: nix develop .#serving --command vp exec --filter @transit/board-web playwright install --with-deps chromium
       - name: Run selected qualification
         env:
           PROFILE: ${{ inputs.profile || 'discovery' }}

@@ -28,7 +28,7 @@ installation, tagged recovery and supervised caller-loss cleanup. Both BEAM
 Station APIs also pass scoped handlers, recovery and Table/query ownership proofs.
 The public interoperability ring qualifies every target in both roles; see the
 [test guide](../../tests/README.md#public-sdk-interoperability) for its ten pairs and limits.
-[M11](../roadmap/M11.md) owns delivery, including public interoperability. The
+M11 owns delivery, including public interoperability. The
 [M9 adapters](../../bindings/README.md) remain executable low-level interfaces.
 
 The [caller model](CLIENT.md#idiomatic-language-sdks) owns shared guarantees.

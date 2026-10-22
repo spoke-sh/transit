@@ -82,7 +82,7 @@ shutdown. Machine records go to stdout and diagnostics to stderr; JSON mode has
 no banner or prompt. Broken stdout ends presentation without deleting accepted
 work.
 
-`query`, `rey-cli`, `kubectl-transit` and the existing launcher commands
+`query`, `transit-admin`, `kubectl-transit` and the existing launcher commands
 retain their separate configuration and protocols. The query shell uses dot
 commands and are omitted from the primary command list. No alias silently changes a
 single-line shell into a multiline console, adopts a launcher installation or

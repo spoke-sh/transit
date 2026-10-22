@@ -17,7 +17,7 @@ def run():
         personal = root / "personal-config"
         personal.write_text("untouched personal config")
         env = dict(os.environ, KUBECONFIG=str(personal))
-        env.pop("REY_KUBECONFIG", None)
+        env.pop("TRANSIT_KUBECONFIG", None)
 
         def selected():
             return subprocess.check_output(
@@ -32,8 +32,8 @@ def run():
         assert selected() == str(expected)
         expected.unlink()
         assert selected() == str(expected)
-        env["REY_KUBECONFIG"] = str(root / "explicit-config")
-        assert selected() == env["REY_KUBECONFIG"]
+        env["TRANSIT_KUBECONFIG"] = str(root / "explicit-config")
+        assert selected() == env["TRANSIT_KUBECONFIG"]
         assert personal.read_text() == "untouched personal config"
     print("Project kubeconfig selection, subdirectory use, override and personal-config isolation passed.")
 

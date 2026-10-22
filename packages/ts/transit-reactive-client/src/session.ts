@@ -1,4 +1,4 @@
-import { ownedDiagnostic, type Diagnostic } from "@rey/transit-diagnostics";
+import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import { ReactiveError, Transport, type ServerMessage } from "./index";
 import { acquireCaller, type AcquireCaller } from "./caller-gate";
 import type { Bootstrap, HostRequest, HostResponse, ReactiveRead, SignedCommand } from "./types";

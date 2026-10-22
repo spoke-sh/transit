@@ -1,10 +1,15 @@
 # Typed column pipeline measurements
 
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
 The selected runtime is **`5b3d1ba6`**, built with pinned Zig
 `0.17.0-dev.2267+48abf1a34` in ReleaseSafe. The wider immutable input fixture and
 scalar baseline were committed at `c3dca7f1`; [numerical budgets](budgets.json)
 were committed at `9b3de419` before runtime tuning. The input fixture remains
-unchanged. [Artifact metadata](artifacts.json) records build commands, hashes
+unchanged. Artifact metadata (archived) records build commands, hashes
 and the separate native control revision. Later test/documentation commits do
 not silently become the measured source.
 
@@ -119,17 +124,17 @@ Other [intermediate pipeline](final-pipelines.json.gz) and
 [dispatch](baseline-kernels.json.gz) measurements retain their own source/dirty
 metadata and do not substitute for the final committed-source reports.
 
-The first final [native-control comparison](release-six.json.gz) mistakenly
+The first final native-control comparison (archived) mistakenly
 paired the baseline-target candidate with the native-target frozen control.
 All eight [control ceilings failed](release-pipeline-gates.json). This is a
 build-profile mismatch, retained rather than relabeled as a pass. Rebuilding the
 candidate with the original native target gives the qualified
-[matching-target comparison](release-native-six.json.gz). No threshold changed.
+matching-target comparison (archived). No threshold changed.
 
 ## Reproduction
 
 Enter `nix develop`, check out the measured revision, and use the exact commands
-in [artifact metadata](artifacts.json). The measurement guide describes the
+in artifact metadata (archived). The measurement guide describes the
 [frozen control build](../../README.md#six-scalar-native-regression-control).
 Run the following sequentially on the selected cores:
 

@@ -2,7 +2,7 @@ import fixtureValue from "../../../packages/zig/transit-protocol/src/fixtures/di
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vite-plus/test";
-import type { Diagnostic } from "@rey/transit-query-client";
+import type { Diagnostic } from "@transit/query-client";
 import { QueryDiagnostic } from "./query-diagnostic";
 
 test("diagnostics render literal text, exact identity, missing evidence and scoped guidance", () => {

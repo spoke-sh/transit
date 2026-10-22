@@ -1,5 +1,5 @@
 {
-  "name": "@rey/transit-board-web",
+  "name": "@transit/board-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rey/transit-application": "workspace:*",
-    "@rey/transit-board-client": "workspace:*",
-    "@rey/transit-query-client": "workspace:*",
-    "@rey/transit-reactive-client": "workspace:*",
     "@tanstack/react-router": "1.170.39",
+    "@transit/application": "workspace:*",
+    "@transit/board-client": "workspace:*",
+    "@transit/query-client": "workspace:*",
+    "@transit/reactive-client": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

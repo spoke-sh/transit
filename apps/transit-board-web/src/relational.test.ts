@@ -4,7 +4,7 @@ import {
   validateRelational,
   BoardError,
   type RelationalReference,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 import fixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 const reference: RelationalReference = {
   definition: fixture.definition as RelationalReference["definition"],

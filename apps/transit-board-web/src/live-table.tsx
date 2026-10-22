@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { LiveView, Session, type Inspection } from "@rey/transit-reactive-client";
+import { LiveView, Session, type Inspection } from "@transit/reactive-client";
 
 // One metadata panel per Board origin. Its session and exact pending operation
 // survive route remount; hiding the panel stops renewal and joins its stream.

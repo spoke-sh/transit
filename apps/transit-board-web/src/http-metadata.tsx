@@ -1,5 +1,5 @@
 import { CaptureFailure } from "./capture-failure";
-import { httpMetadata } from "@rey/transit-board-client";
+import { httpMetadata } from "@transit/board-client";
 import { useMetadata } from "./use-metadata";
 
 export function HttpMetadata({ resource, exchange }: { resource: number; exchange: string }) {

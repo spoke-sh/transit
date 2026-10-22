@@ -435,12 +435,19 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     # build/launcher environment, while the invalid realm remains diagnosed.
     tools_environment = {name: 'private-must-not-appear' for name in (
         'TRANSIT_SQL_TOOLS', 'TRANSIT_GSON_JAR', 'TRANSIT_FUZE_BENCH_PYTHON',
-        'TRANSIT_DOCS_BASE_URL', 'TRANSIT_LIBRARY_DIR', 'TRANSIT_PORT')}
+        'TRANSIT_DOCS_BASE_URL', 'TRANSIT_DOCS_URL', 'TRANSIT_LIBRARY_DIR', 'TRANSIT_PORT',
+        'TRANSIT_KUBECONFIG', 'TRANSIT_LAUNCHER_NAME', 'TRANSIT_LAUNCHER_BASE_PORT',
+        'TRANSIT_BOARD_HOST', 'TRANSIT_BOARD_PORT', 'TRANSIT_BOARD_PUBLIC_ORIGIN',
+        'TRANSIT_BOARD_ALLOW_INSECURE_HTTP', 'TRANSIT_LOG_LEVEL', 'TRANSIT_LOG_FORMAT',
+        'TRANSIT_NODE_LOG_LEVEL', 'TRANSIT_STATION_OBSERVER_LOG_FORMAT')}
     invoke(['server', '--no-ui'], env=dict(environment, **tools_environment),
            cwd=project, contains=('realm must be',))
     for setting in ({'TRANSIT_BOGUS': 'private-must-not-appear'}, {'TRANSIT_PORTS__GATEWAY': '"private-must-not-appear"'}):
         invoke(['server', '--no-ui'], env=dict(environment, **setting), cwd=project,
                contains=('setting' if 'TRANSIT_BOGUS' in setting else 'ports.gateway',))
+    for name in ('TRANSIT_BOARD_POTR', 'TRANSIT_NODE_LOG_LEVLE', 'TRANSIT_LAUNCHER_UNKNOWN'):
+        invoke(['server', '--no-ui'], env=dict(environment, **{name: 'private-must-not-appear'}),
+               cwd=project, contains=('setting',))
     # Deep leaves beat whole objects, preserve other default ports and validate conflicts.
     invoke(['server', '--no-ui'], env=dict(environment, TRANSIT_REALM='1', TRANSIT_PORTS='{"gateway":10000}', TRANSIT_PORTS__GATEWAY='19104'), cwd=project,
            contains=('ports.gateway and ports.node',))

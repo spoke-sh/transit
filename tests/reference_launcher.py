@@ -17,7 +17,7 @@ from launchers import ports
 def run():
     installation = ReferenceInstallation("update-" + secrets.token_hex(3), ports())
     launcher = Reference(installation)
-    env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TRANSIT_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
 
     def invoke(action, *args, settings=None):
         result = subprocess.run([sys.executable, "-B", str(ROOT / "launchers/main.py"), "reference", action,
@@ -85,7 +85,7 @@ def run():
         assert state_revision() == revision
         invoke("down")
         assert not launcher.services()
-        assert "Counter template settings retained" in invoke("up", settings={"REY_COUNTER_LOG_LEVEL": "debug"})
+        assert "Counter template settings retained" in invoke("up", settings={"TRANSIT_COUNTER_LOG_LEVEL": "debug"})
         assert installation.load()["observability"]["counter"]["level"] == "info"
         recovered = observe(19)
         # Runtime stop/start records control history and fences ownership. The

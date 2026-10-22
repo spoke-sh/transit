@@ -43,7 +43,7 @@ persistence, hosting, and configuration; see the
 
 A **process** is Transit's logical execution primitive: an identity, ordered
 mailbox, committed control state and application-state associations, execution
-sequence, and lifecycle. M1 stores application state inline; [M7](../roadmap/M7.md)
+sequence, and lifecycle. M1 stores application state inline; M7
 adds durable resource associations. A **PID** identifies
 that process independently of its worker, OS process, pod, or sandbox. An actor
 is a programming-model participant implemented by a process; a Station GenServer
@@ -211,7 +211,7 @@ outputs atomically visible in one journal record. Pending cross-process delivery
 uses durable outboxes with stable identities and deduplicated admission; this
 provides no general multi-stream transaction. See [STREAMS.md](STREAMS.md).
 
-[M7](../roadmap/M7.md) introduces associated resource views and mutation proposals
+M7 introduces associated resource views and mutation proposals
 under that same turn boundary. A process can locate its state through named,
 versioned associations instead of replacing all application data per message.
 The kernel validates the resources and commit preconditions without interpreting

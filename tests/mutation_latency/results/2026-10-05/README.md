@@ -1,6 +1,6 @@
 # Mutation completion campaign, 2026-10-05
 
-Physical-disk controls for [issue #73](https://github.com/rupurt/rey/issues/73).
+Physical-disk controls for [issue #73](https://github.com/spoke-sh/transit/issues/73).
 The runtime baseline is merged `96943293`; bounded waits are `799a7a69`,
 correlated attribution is `d793fff3`, and leaf-frontier batching is `79b53c8c`.
 The later wide-batch unit and measurement-fixture commits do not change runtime.

@@ -201,10 +201,10 @@ qualify the ordinary-suite budget.
 
 Hosted execution caps are 60 minutes for core, 300 for growth, 60 for experience,
 30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
-The [authorization budget record](../tests/verification/results/authorization-ci-budgets-2026-10-15.json)
+The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
 hosted setup, and one original 40 KiB SQL mutation takes 56.61 minutes to complete.
-The earlier [database qualification record](../tests/verification/results/sql-wire-clean-2026-10-14.json)
+The earlier database qualification record (archived)
 contains clean-task sums of 265.07 minutes for bindings and 104.96 minutes for
 growth before the authorization cutover. These separate local observations
 motivate finite headroom for the expanded inventories; they are not a measured
@@ -212,7 +212,7 @@ hosted job duration or a claim that the entire current suite has passed.
 Individual proof deadlines, resident bounds and the separately recorded feedback
 budgets remain unchanged.
 
-The [bindings split record](../tests/verification/results/authorization-ci-bindings-split-2026-10-15.json)
+The bindings split record (archived)
 records the complete inventory partition. Python, Node, Rust and Ruby run with
 the shared boundary and cross-language proofs in `bindings-1`; C/C++, Java,
 .NET and Erlang/Elixir run in `bindings-2`. Each job builds its own dependencies.
@@ -292,7 +292,7 @@ The [build module](build.just) exposes Zig's four optimization modes:
 | `just build::release-small` | `-Doptimize=small` | Optimize for executable size | Disabled by default |
 
 Bare `just build` lists these choices. With no further arguments, each profile
-installs `transit-node`, `transit-runtime-controller`, `rey-cli`, `kubectl-transit`, and `transit-board` with
+installs `transit-node`, `transit-runtime-controller`, `transit-admin`, `kubectl-transit`, and `transit-board` with
 its embedded UI into `zig-out/bin`. Install frontend dependencies first with
 `just transit-board::install`. Zig caches each optimization mode separately, but the
 default installation directory is shared: the most recent build replaces those

@@ -1,5 +1,5 @@
-import { logicalTypeText } from "@rey/transit-query-client";
-import type { UnifiedQueryResponse } from "@rey/transit-board-client";
+import { logicalTypeText } from "@transit/query-client";
+import type { UnifiedQueryResponse } from "@transit/board-client";
 
 export type Inspection = Extract<UnifiedQueryResponse, { inspection: unknown }>["inspection"];
 

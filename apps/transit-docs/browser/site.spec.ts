@@ -133,10 +133,10 @@ test("production navigation, search, generated references and exact downloads", 
   await page.goto(new URL("internals", baseURL).href);
   await expect(
     page.locator("main").getByRole("link", { name: "Roadmap", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/roadmap/README.md");
+  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/roadmap/README.md");
   await expect(
     page.locator("main").getByRole("link", { name: "Design", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/design/README.md");
+  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/design/README.md");
   await page.getByRole("link", { name: "Search", exact: true }).click();
   await page.getByLabel("Words or an interface name").fill("System model and authority boundaries");
   await expect(
@@ -244,12 +244,14 @@ test("workload examples link to measured performance and interactive sessions", 
   for (const language of ["python", "typescript", "rust", "zig"])
     await expect(page.locator(`pre.language-${language}`).first()).toBeVisible();
   await page.getByRole("link", { name: "performance reference", exact: true }).click();
-  await expect(page.locator("#planned-improvements")).toHaveText(/Planned improvements/);
+  await expect(page.getByRole("heading", { name: /^Remaining improvements/ })).toBeVisible();
   await expect(page.getByRole("cell", { name: "1,120", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "query sessions", exact: true }).click();
   await expect(page.locator("#interactive-sessions")).toHaveText(/Interactive sessions/);
   await expect(
-    page.getByText("Reconnecting does not resume a previous interactive SELECT.", { exact: false }),
+    page.getByText("A new logical session does not resume a previous interactive SELECT.", {
+      exact: false,
+    }),
   ).toBeVisible();
   await page.goto(new URL("search", baseURL).href);
   await page.getByLabel("Words or an interface name").fill("telemetry");

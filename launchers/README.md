@@ -174,7 +174,7 @@ just launchers::compose::restart counter
 just launchers::compose::down
 ```
 
-Board defaults to `http://127.0.0.1:18202`. Provisioning uses host-side `rey-cli`
+Board defaults to `http://127.0.0.1:18202`. Provisioning uses host-side `transit-admin`
 and explicit initialization; runtime containers contain Zig binaries and the
 upstream Ursula image, with no Node.js or Python application runtime. The
 launcher builds static Linux binaries for the Docker engine architecture.
@@ -374,18 +374,18 @@ when accepting the changed `.envrc`. Subsequent `.env` changes reload through
 direnv. For your browser on another machine:
 
 ```dotenv
-REY_BOARD_HOST=0.0.0.0
-REY_BOARD_PORT=18102
-REY_BOARD_PUBLIC_ORIGIN=http://devbox.local:18102
-REY_BOARD_ALLOW_INSECURE_HTTP=true
+TRANSIT_BOARD_HOST=0.0.0.0
+TRANSIT_BOARD_PORT=18102
+TRANSIT_BOARD_PUBLIC_ORIGIN=http://devbox.local:18102
+TRANSIT_BOARD_ALLOW_INSECURE_HTTP=true
 ```
 
 | Setting | Meaning |
 | --- | --- |
-| `REY_BOARD_HOST` | IPv4 bind address; `0.0.0.0` listens on all IPv4 interfaces |
-| `REY_BOARD_PORT` | Board listener/published port; independent of Ursula/Transit ports |
-| `REY_BOARD_PUBLIC_ORIGIN` | Exact browser URL origin, used for Host/Origin checks and printed links |
-| `REY_BOARD_ALLOW_INSECURE_HTTP` | Explicit `true`/`false` development HTTP opt-in; default false |
+| `TRANSIT_BOARD_HOST` | IPv4 bind address; `0.0.0.0` listens on all IPv4 interfaces |
+| `TRANSIT_BOARD_PORT` | Board listener/published port; independent of Ursula/Transit ports |
+| `TRANSIT_BOARD_PUBLIC_ORIGIN` | Exact browser URL origin, used for Host/Origin checks and printed links |
+| `TRANSIT_BOARD_ALLOW_INSECURE_HTTP` | Explicit `true`/`false` development HTTP opt-in; default false |
 
 Apply changed settings with `just launchers::local::update board`, or a
 `down`/`up` cycle. The same settings work for Compose and reference with their
@@ -420,8 +420,8 @@ Board/client/node/storage detail, set these in `.env` before the next `update`
 or `up`:
 
 ```dotenv
-REY_BOARD_LOG_LEVEL=debug
-REY_NODE_LOG_LEVEL=debug
+TRANSIT_BOARD_LOG_LEVEL=debug
+TRANSIT_NODE_LOG_LEVEL=debug
 ```
 
 Periodic `telemetry.metrics` snapshots are also debug-only. Their outcomes and
@@ -429,9 +429,9 @@ duration buckets are named JSON objects; counters still accumulate at every
 log level. `telemetry.loss` warnings indicate diagnostic records were dropped
 or rate-limited.
 
-`REY_LOG_LEVEL` and `REY_LOG_FORMAT` set installation-wide defaults. Override
-either field per service with `REY_BOARD_LOG_*`, `REY_NODE_LOG_*`,
-`REY_MAINTENANCE_LOG_*`, `REY_DELIVERY_LOG_*`, `REY_COUNTER_LOG_*`, or reference `REY_CONTROLLER_LOG_*`.
+`TRANSIT_LOG_LEVEL` and `TRANSIT_LOG_FORMAT` set installation-wide defaults. Override
+either field per service with `TRANSIT_BOARD_LOG_*`, `TRANSIT_NODE_LOG_*`,
+`TRANSIT_MAINTENANCE_LOG_*`, `TRANSIT_DELIVERY_LOG_*`, `TRANSIT_COUNTER_LOG_*`, or reference `TRANSIT_CONTROLLER_LOG_*`.
 Levels are `debug`, `info`,
 `warn`, `error`, and `off`; formats are `text` and `json`. Precedence is the
 per-service variable, global variable, saved service value, then the default:
@@ -484,8 +484,8 @@ reports. These budgets are independent of mailbox/history retention.
 
 ### Installation selection
 
-To run another independent installation, set `REY_LAUNCHER_NAME` and
-`REY_LAUNCHER_BASE_PORT` before its first `up`, and use that name for subsequent
+To run another independent installation, set `TRANSIT_LAUNCHER_NAME` and
+`TRANSIT_LAUNCHER_BASE_PORT` before its first `up`, and use that name for subsequent
 commands. Locally and in Compose, the three consecutive ports are Ursula,
 Transit and Board. Reference forwards only Transit and Board on base+1/base+2.
 The name and internal base port are persisted; use a new name to change the
@@ -495,8 +495,8 @@ The selected checkout must have a path short enough for the local Unix socket.
 Use Linux x86_64 with the documented engine configuration.
 
 ```sh
-REY_LAUNCHER_NAME=experiment REY_LAUNCHER_BASE_PORT=18300 just launchers::local::up
-REY_LAUNCHER_NAME=experiment just launchers::local::down
+TRANSIT_LAUNCHER_NAME=experiment TRANSIT_LAUNCHER_BASE_PORT=18300 just launchers::local::up
+TRANSIT_LAUNCHER_NAME=experiment just launchers::local::down
 ```
 
 [main.py](main.py) implements the command boundary;

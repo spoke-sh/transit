@@ -1,4 +1,4 @@
-import { BoardError } from "@rey/transit-board-client";
+import { BoardError } from "@transit/board-client";
 
 /** Recover a throttled read without synchronizing with the five-second polls. */
 export async function retryInspectionRead<T>(

@@ -50,9 +50,9 @@ else:
         key, public = s.key("controller")
         pid = s.command({"spawn": {}})
         s.command({"grant": {"subject": 2, "public_key": public, "permissions": 17, "pid": pid}})
-        resource = list(hashlib.sha256(b"rey.substrate.resource.v1\0proof/counter").digest())
+        resource = list(hashlib.sha256(b"transit.substrate.resource.v1\0proof/counter").digest())
         def workload(uid):
-            return list(hashlib.sha256(b"rey.substrate.workload.v1\0" + uid.bytes + image.encode()).digest())
+            return list(hashlib.sha256(b"transit.substrate.workload.v1\0" + uid.bytes + image.encode()).digest())
         stop = s.command({"runtime_intent": {"pid": pid, "expected_revision": 0, "instance": [1]*16, "resource": resource, "workload": workload(old_uid), "desired": "stopped"}})
         s.command({"runtime_observe": {"pid": pid, "revision": 1, "operation": stop, "incarnation": list(uuid.UUID(actor_uid).bytes), "outcome": "stopped"}})
         s.command({"runtime_upgrade": {"pid": pid, "expected_revision": 1, "expected_workload": workload(old_uid), "workload": workload(new_uid), "expected_code": 1, "expected_state_revision": 0}})

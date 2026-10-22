@@ -26,7 +26,7 @@ def main():
                 completed += count
                 print(f'Rust lifetime: {completed}/{args.cases} cases verified with joined fixture cleanup.', flush=True)
 
-    run('zig-out/bin/transit-node', 'zig-out/bin/rey-cli',
+    run('zig-out/bin/transit-node', 'zig-out/bin/transit-admin',
         'zig-out/lib/libtransit_client.so', '.cache/bindings/rust', execute=batches)
 
 

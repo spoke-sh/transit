@@ -1,4 +1,4 @@
-import { diagnosticLines } from "@rey/transit-query-client";
+import { diagnosticLines } from "@transit/query-client";
 import { InterfaceShell } from "./interface";
 import { Link } from "@tanstack/react-router";
 import {
@@ -21,7 +21,7 @@ import {
   type Response,
   type Resource,
   type Cut,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 const Context = createContext<{ scope: Capabilities | null; denied: () => void }>({
   scope: null,
   denied: () => {},

@@ -1,5 +1,5 @@
-import { logicalTypeText } from "@rey/transit-query-client";
-import { cellStates, pageProfile, type ResultPage } from "@rey/transit-query-client";
+import { logicalTypeText } from "@transit/query-client";
+import { cellStates, pageProfile, type ResultPage } from "@transit/query-client";
 
 export function QueryProfile({ page }: { page: ResultPage }) {
   const manifest = page.evidence.manifest;

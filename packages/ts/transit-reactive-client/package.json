@@ -1,5 +1,5 @@
 {
-  "name": "@rey/transit-reactive-client",
+  "name": "@transit/reactive-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "./caller-gate": "./src/caller-gate.ts"
   },
   "dependencies": {
-    "@rey/transit-diagnostics": "workspace:*",
+    "@transit/diagnostics": "workspace:*",
     "ajv": "8.20.0"
   }
 }

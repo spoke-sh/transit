@@ -5,8 +5,8 @@ it never converts a counter realm or creates extra state in an existing one.
 After first startup, every command selects the saved example automatically.
 
 ```sh
-export REY_LAUNCHER_NAME=station-demo
-export REY_LAUNCHER_BASE_PORT=18400
+export TRANSIT_LAUNCHER_NAME=station-demo
+export TRANSIT_LAUNCHER_BASE_PORT=18400
 just launchers::local::up --example station
 ```
 

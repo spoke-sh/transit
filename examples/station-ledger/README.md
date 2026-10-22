@@ -8,8 +8,8 @@ Each role is a separate Transit process and worker.
 For an interactive installation with Board:
 
 ```sh
-export REY_LAUNCHER_NAME=station-demo
-export REY_LAUNCHER_BASE_PORT=18400
+export TRANSIT_LAUNCHER_NAME=station-demo
+export TRANSIT_LAUNCHER_BASE_PORT=18400
 just launchers::local::up --example station
 # In another terminal with the same launcher name:
 just launchers::local::send -2 station-delta

@@ -1,13 +1,7 @@
 import reactiveFixture from "../../../packages/zig/transit-serving/src/fixtures/reactive-v1.json" with { type: "json" };
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import { describe, expect, test } from "vite-plus/test";
-import {
-  SseDecoder,
-  ReactiveError,
-  Session,
-  Transport,
-  message,
-} from "@rey/transit-reactive-client";
+import { SseDecoder, ReactiveError, Session, Transport, message } from "@transit/reactive-client";
 
 describe("generated reactive transport boundary", () => {
   test("incremental framing validates the wrapper and its JSON payload", () => {
@@ -45,7 +39,7 @@ describe("generated reactive transport boundary", () => {
     const signed = {
       request: {
         version: 1,
-        definition: "cbee25ed95ec3dc9b1e987f6f90a4f4b983bb828f60d772d6dbd4a75facf6731",
+        definition: "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -138,7 +132,7 @@ describe("generated reactive transport boundary", () => {
       const signed = {
         request: {
           version: 1,
-          definition: "cbee25ed95ec3dc9b1e987f6f90a4f4b983bb828f60d772d6dbd4a75facf6731",
+          definition: "4621694a96edf0779fc0f8213802a43d2f4b179421f00f868a06cb23c50b567a",
           realm: 49,
           principal: 65536,
           sequence: 1,

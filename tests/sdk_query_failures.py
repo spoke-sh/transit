@@ -23,7 +23,7 @@ def main():
         for family in args.family or FAMILIES:
             package = 'wheels' if family == 'python' else family
             importlib.import_module(f'{family}_station_sdk').run(
-                str(native / 'bin/transit-node'), str(native / 'bin/rey-cli'),
+                str(native / 'bin/transit-node'), str(native / 'bin/transit-admin'),
                 str(native / 'lib/libtransit_client.so'), str(artifacts / package),
                 execute=sdk_station_runner.run)
     finally:

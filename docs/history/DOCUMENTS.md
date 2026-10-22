@@ -11,7 +11,7 @@ edits and accepted revisions remain different states.
 
 Status: M17's declared growing profile is implemented and qualified: durable
 merge/checkpoint recovery, all ten installed SDKs, two independent editors,
-Board metadata and local/Compose/reference placement pass. [M14](../roadmap/M14.md) supplies bounded immutable publication over
+Board metadata and local/Compose/reference placement pass. M14 supplies bounded immutable publication over
 growing KV. M15/M16 qualify HTTP/gRPC integrations; Document semantics remain
 independent of those transports. See [executed evidence](../../tests/README.md#m17-qualification).
 
@@ -111,7 +111,7 @@ nodes, before publishing the final public API and compatibility profile.
 M13's public request contains at most 207 encoded plan bytes. Its Fuze schema
 contains an int64 key and one nullable scalar value. A larger immutable record
 does not silently change either contract. M17 supplies bounded accepted-state
-reads and [M18](../roadmap/M18.md) defines a versioned query source,
+reads and M18 defines a versioned query source,
 schema and request extension for KV decoders and Document projections, retaining
 missing/null/type-error/conflict distinctions and bounded list/text operations.
 Reuse exact source revisions, current read authorization and verified result
@@ -121,9 +121,9 @@ All ten M11 SDK targets expose the shared Zig operations with exact change
 identities, scoped ownership and explicit accepted/tentative outcomes.
 The M14 Zig primitive is a storage prerequisite, not public Document support in
 those SDKs. The complete collaborative example, Board metadata and deployment
-proofs have executed evidence under [M17 exit criteria](../roadmap/M17.md#exit-criteria).
+proofs have executed evidence under M17 exit criteria.
 Unified query APIs, Arrow ownership/fixtures and all-language query conformance
-remain [M18](../roadmap/M18.md) obligations, separate from Document mutation APIs.
+remain M18 obligations, separate from Document mutation APIs.
 
 The [Station Document package](../../packages/zig/transit-station-document/README.md)
 now implements the selected merge model and bounded candidate/reader component.

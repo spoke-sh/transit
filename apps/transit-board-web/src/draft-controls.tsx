@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
 import { QueryDiagnostic } from "./query-diagnostic";
-import type { DraftSession } from "@rey/transit-query-client";
+import type { DraftSession } from "@transit/query-client";
 export function DraftControls({
   session,
   available,

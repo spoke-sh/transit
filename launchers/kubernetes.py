@@ -229,7 +229,7 @@ class Reference:
 
     @staticmethod
     def workload_hash(provider):
-        return list(hashlib.sha256(b"rey.substrate.workload.v1\0" + bytes(provider["template_uid"]) + provider["image"].encode()).digest())
+        return list(hashlib.sha256(b"transit.substrate.workload.v1\0" + bytes(provider["template_uid"]) + provider["image"].encode()).digest())
 
     def service_values(self, values, selection, images):
         i = self.installation
@@ -471,7 +471,7 @@ class Reference:
         if not identity.exists():
             raise RuntimeError("No saved reference cluster identity; use the ordinary reset path")
         cluster = json.loads(identity.read_text())["cluster"]
-        if not cluster.startswith("rey-m1-"):
+        if not cluster.startswith("transit-m1-"):
             raise RuntimeError("Invalid saved reference cluster identity")
         if (self.path / "pc.sock").exists():
             raise RuntimeError("A forwarding manager socket remains; stop the owned manager before discarding its files")

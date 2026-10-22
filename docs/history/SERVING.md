@@ -9,17 +9,17 @@ binding. Start with [OpenAPI](../reference/openapi.md) and the
 [runnable example](../../examples/serving/README.md). This page explains how inbound
 requests preserve application identity, admission and response evidence.
 
-Status: [M19](../roadmap/M19.md) initial HTTP profile is qualified. The shared bounded
+Status: M19 initial HTTP profile is qualified. The shared bounded
 [HTTP listener](../../packages/zig/transit-http-server/README.md), Board migration and
 [service profile](../../contracts/SERVING_V1.md) pass their separately recorded
 [admission, lifecycle, TLS and placement proofs](../../tests/README.md#m19-qualification).
 HTTP is the first profile for application
-APIs and Board. [M20](../roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
-[M21](../roadmap/M21.md) consumes them in live views, and
-[Flight/Flight SQL M22](../roadmap/M22.md) qualifies an Arrow protocol adapter.
+APIs and Board. M20 adds [reactive APIs](REACTIVE_API.md),
+M21 consumes them in live views, and
+Flight/Flight SQL M22 qualifies an Arrow protocol adapter.
 The existing node and Board HTTP listeners remain qualified only under their
-[current contracts](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/SERVICE_V2.md) and component limits.
-The [M19 milestone](../roadmap/M19.md) records the selected scope, design decisions,
+[current contracts](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/SERVICE_V2.md) and component limits.
+The M19 milestone records the selected scope, design decisions,
 entry gates and qualification criteria.
 
 ## Purpose and ownership
@@ -251,10 +251,10 @@ Detailed route-editing screens and administrative DDL remain separate review wor
 
 M19 exits only when application HTTP and Board exercise the same serving contract
 with independent clients, restart/lost-response tests, auth/overload checks and
-local/Compose/reference deployment evidence. [M20](../roadmap/M20.md) then supplies
+local/Compose/reference deployment evidence. M20 then supplies
 [reactive API contracts](REACTIVE_API.md), SSE/WebSocket hosting and generated
-OpenAPI/AsyncAPI descriptions. [M21](../roadmap/M21.md) consumes them in
-[reactive interfaces](REACTIVE.md). [M22](../roadmap/M22.md) reuses the admission,
+OpenAPI/AsyncAPI descriptions. M21 consumes them in
+[reactive interfaces](REACTIVE.md). M22 reuses the admission,
 identity, budget and result seams for Flight while qualifying its own inbound
 gRPC/TLS, standard metadata and client compatibility. ADBC remains a client API,
 not a wire protocol. None of these steps moves Fuze or application handlers

@@ -56,7 +56,7 @@ def proof(profile):
             command.append("--detach")
         # A developer's .env must never redirect proof resources or publish
         # credentials on their chosen development listener.
-        env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("TRANSIT_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
         env.update(settings or {})
         result = subprocess.run(list(map(str, command)), cwd=ROOT, env=env, text=True, capture_output=True, timeout=600)
         if (result.returncode == 0) != success:
@@ -91,7 +91,7 @@ def proof(profile):
             occupied.listen()
             invoke("up", success=False)
             assert not launcher.services()
-        invoke("up", settings={"REY_LOG_FORMAT": "json", "REY_NODE_LOG_LEVEL": "debug"})
+        invoke("up", settings={"TRANSIT_LOG_FORMAT": "json", "TRANSIT_NODE_LOG_LEVEL": "debug"})
         first = observe(12)
         assert installation.load()["observability"]["node"]["level"] == "debug"
         time.sleep(.1)
@@ -219,15 +219,15 @@ def proof(profile):
         # identity/history. Public DNS and probe transport are distinct.
         board_port = ports()
         remote_origin = f"http://devbox.local:{board_port}"
-        remote = {"REY_BOARD_HOST": "0.0.0.0", "REY_BOARD_PORT": str(board_port),
-                  "REY_BOARD_PUBLIC_ORIGIN": remote_origin, "REY_BOARD_ALLOW_INSECURE_HTTP": "true"}
+        remote = {"TRANSIT_BOARD_HOST": "0.0.0.0", "TRANSIT_BOARD_PORT": str(board_port),
+                  "TRANSIT_BOARD_PUBLIC_ORIGIN": remote_origin, "TRANSIT_BOARD_ALLOW_INSECURE_HTTP": "true"}
         saved_manifest = installation.manifest.read_bytes()
         invoke("up", success=False, settings=remote)
         assert installation.manifest.read_bytes() == saved_manifest
         invoke("down")
-        for invalid in ({**remote, "REY_BOARD_ALLOW_INSECURE_HTTP": "false"},
-                        {**remote, "REY_BOARD_PORT": str(installation.base_port)},
-                        {**remote, "REY_BOARD_PUBLIC_ORIGIN": "http://user@devbox.local"}):
+        for invalid in ({**remote, "TRANSIT_BOARD_ALLOW_INSECURE_HTTP": "false"},
+                        {**remote, "TRANSIT_BOARD_PORT": str(installation.base_port)},
+                        {**remote, "TRANSIT_BOARD_PUBLIC_ORIGIN": "http://user@devbox.local"}):
             invoke("up", success=False, settings=invalid)
             assert installation.manifest.read_bytes() == saved_manifest
         invoke("up", settings=remote)
@@ -312,7 +312,7 @@ def proof(profile):
 def foreground_proof(profile):
     installation = Installation(profile, "foreground-" + secrets.token_hex(3), ports())
     launcher = Local(installation) if profile == "local" else Compose(installation)
-    env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TRANSIT_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
     command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), profile]
     selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
     output = ROOT / ".cache" / (installation.name + ".log")

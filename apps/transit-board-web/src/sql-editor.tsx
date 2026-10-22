@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { unifiedQuery } from "@rey/transit-board-client";
-import { AssistanceReader, applySuggestion, type AssistanceState } from "@rey/transit-query-client";
+import { unifiedQuery } from "@transit/board-client";
+import { AssistanceReader, applySuggestion, type AssistanceState } from "@transit/query-client";
 
 /** Presentation only: native grammar, catalog and capability checks own hints. */
 export function SqlEditor({

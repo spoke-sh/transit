@@ -37,7 +37,7 @@ def transient_read_failure(stderr):
         return False
     record = records[-1]
     event = record.get("event")
-    return (record.get("schema_version") == 1 and record.get("service_name") == "rey-cli"
+    return (record.get("schema_version") == 1 and record.get("service_name") == "transit-admin"
             and isinstance(event, dict) and event.get("name") == "service.failed"
             and event.get("level") == "err" and event.get("outcome") == "failed"
             and event.get("error_type") in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing"))
@@ -122,7 +122,7 @@ class Installation:
 
     @property
     def cli(self):
-        return self.artifacts.binary("rey-cli")
+        return self.artifacts.binary("transit-admin")
 
     def load(self):
         value = json.loads(self.manifest.read_text())
@@ -203,7 +203,7 @@ class Installation:
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
               "protocol": "native_v1", "definition": DEFINITION,
-              "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
+              "project": "transit-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
         self.configs()
 

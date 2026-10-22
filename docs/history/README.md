@@ -20,7 +20,7 @@ provenance; readers do not need to reconstruct current behavior from this archiv
   preserve their qualification findings and open requirements.
 - [Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md)
   preserve the original SDK design decisions; packages own current APIs.
-- [Rey workload model](workloads/REY.md) records demand scenarios, not measured SLOs.
+- [Trading workload model](workloads/TRADING.md) records demand scenarios, not measured SLOs.
 
 ## Topic records and current interface owners
 

@@ -1,11 +1,16 @@
 # Storage foundation comparison, 2026-10-19
 
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
 This compares the frozen integrated baseline `ee88a131` with the complete runtime
 at `29765ef0`. Both use ReleaseSafe and the pinned Zig/Ursula/MinIO tools. Owned
 disk fixtures run sequentially after builds finish on the same Linux/ext4 host
 (Threadripper 3960X, 48 logical CPUs). Unrelated host services remain running;
 there is no exclusive CPU or fsync isolation. The
-[qualification record](../../../verification/results/storage-foundation-2026-10-19.json)
+qualification record (archived)
 pins raw/compressed hashes, binary/provider hashes, source/harness revisions,
 controls, reproduction scripts and the baseline wire build-only patch.
 

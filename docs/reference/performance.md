@@ -441,7 +441,7 @@ ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for primary-key equality, 20 for its
 COUNT, and 11 for metadata inspection. Explicit bindings add ten requests.
 These ceilings apply to that fixture; they are not latency promises or allowances
 for arbitrary schema/cardinality growth. The earlier failed-budget reports remain
-part of the evidence. [Further optimization](https://github.com/rupurt/rey/issues/76)
+part of the evidence. [Further optimization](https://github.com/spoke-sh/transit/issues/76)
 tracks the remaining ingress, layout and workload controls while preserving
 authority, recovery and resource bounds.
 
