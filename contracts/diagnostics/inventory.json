@@ -2873,18 +2873,17 @@
     },
     "packages/zig/transit-catalog/src/Model.zig": {
       "errors": {
-        "InvalidCatalogIdentity": 2
+        "InvalidCatalogIdentity": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Scope.validate()": "<inferred>",
         "fingerprint()": "<inferred>",
         "nativeId()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 1,
         "catch": 0
       },
       "imports": [
@@ -11285,6 +11284,74 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/DataLifecycle.zig": {
+      "errors": {
+        "DataIdentityConflict": 5,
+        "InconsistentSnapshot": 1,
+        "InvalidCatalogIdentity": 1,
+        "InvalidDataContent": 1,
+        "InvalidDataDefinition": 5,
+        "InvalidDataIdentity": 2,
+        "InvalidDataOperation": 1,
+        "InvalidDataPosition": 4,
+        "InvalidSnapshotCoverage": 2
+      },
+      "outcomes": {
+        "Action": [
+          "create",
+          "alter",
+          "rename",
+          "drop",
+          "insert",
+          "update",
+          "delete"
+        ],
+        "Commit.ingestion": [
+          "point",
+          "bulk"
+        ],
+        "Consistency": [
+          "single_partition",
+          "independent"
+        ],
+        "Observation": [
+          "unavailable",
+          "denied",
+          "not_observed",
+          "admitted",
+          "committed",
+          "rejected",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Commit.requireBinding()": "<inferred>",
+        "Commit.validate()": "<inferred>",
+        "Content.validate()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Object.validate()": "<inferred>",
+        "Observation.validate()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Position.validate()": "<inferred>",
+        "Scope.validate()": "<inferred>",
+        "Snapshot.requireSource()": "<inferred>",
+        "Snapshot.validate()": "<inferred>",
+        "SourceCut.needsWal()": "<inferred>",
+        "SourceCut.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
         "DiagnosticCapacity": 4,
@@ -12058,7 +12125,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -12237,6 +12304,7 @@
       "imports": [
         "Authorization.zig",
         "Blocks.zig",
+        "DataLifecycle.zig",
         "Diagnostic.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",

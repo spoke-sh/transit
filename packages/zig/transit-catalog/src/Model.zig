@@ -2,16 +2,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
-pub const Scope = struct {
-    realm: u64,
-    resource: u64,
-    catalog: u64,
-    pub fn validate(self: Scope) !void {
-        try nativeId(self.realm);
-        try nativeId(self.resource);
-        if (self.catalog == 0) return error.InvalidCatalogIdentity;
-    }
-};
+pub const Scope = p.DataLifecycle.Scope;
 pub fn nativeId(id: u64) !void {
     if (id == 0 or id > p.max_counter) return error.InvalidCatalogIdentity;
 }

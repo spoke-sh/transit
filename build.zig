@@ -555,6 +555,9 @@ pub fn build(b: *std.Build) void {
     const diagnostics_export = b.addRunArtifact(exporter);
     diagnostics_export.addArg("--diagnostic");
     b.step("diagnostic-contract", "Export bounded shared diagnostic JSON Schema").dependOn(&diagnostics_export.step);
+    const lifecycle_export = b.addRunArtifact(exporter);
+    lifecycle_export.addArg("--data-lifecycle");
+    b.step("data-lifecycle-contract", "Export neutral data lifecycle and snapshot schemas").dependOn(&lifecycle_export.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit_board_api.module("transit_board_api") })).step);
