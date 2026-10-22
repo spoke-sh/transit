@@ -256,7 +256,9 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
 pub fn tick(self: *Self) !void {
     if (self.installation.root_pending != null and !self.hasPending()) return;
     const now = std.Io.Clock.awake.now(self.installation.init.io);
-    if (self.last) |last| if (last.durationTo(now).toMilliseconds() < 1000) return;
+    if (self.status != .initializing and self.status != .starting) {
+        if (self.last) |last| if (last.durationTo(now).toMilliseconds() < 1000) return;
+    }
     self.last = now;
     var arena: std.heap.ArenaAllocator = .init(self.installation.init.gpa);
     defer arena.deinit();

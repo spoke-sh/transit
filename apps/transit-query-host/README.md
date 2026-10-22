@@ -8,7 +8,7 @@ permission boundaries; [transit-query](../../packages/zig/transit-query/README.m
 owns the reusable behaviors.
 
 Configuration requires `url`, `realm`, non-root `principal`, `seed_file` (32-byte
-hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 20`,
+hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 10`,
 `request_timeout_ms: 5000` (both 1–60000). Worker roles also require `pid`,
 `generation`, `activation_directory`, and a required `association` (default
 `state`) to their writer resource.
@@ -17,7 +17,7 @@ hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 20`,
 When greater than `interval_ms`, each idle step doubles the next delay up to
 that ceiling; observed activity resets it to `interval_ms`. The courier uses
 the same rule. Error recovery keeps the base retry interval and exact pending
-mutations. The local server sets a 100 ms base and one-second ceiling. This
+mutations. The local server sets a 10 ms base and one-second ceiling. This
 reduces idle traffic but can add up to one polling interval before newly queued
 durable work is noticed; interactive reads do not wait for these workers.
 
