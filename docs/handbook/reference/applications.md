@@ -132,6 +132,8 @@ dispatch.
 The application declaration compiler handles application definitions. KV and
 Document declarations have an offline compiler. Table CREATE/ALTER/DROP uses
 shared typed DDL compilation and publishes through authorized catalog callers,
-including a console with a configured catalog. Connector DDL and SQL privileges
-remain grammar-only. See the
+including a console with a configured catalog. The dedicated
+[authorization compiler](sql/authorization.md) lowers supported role, privilege
+and schema statements to typed plans for explicit administration; query sessions
+do not apply those plans. Connector DDL remains grammar-only. See the
 [SQL grammar surface](sql/grammar-surface.md) for implemented and planned forms.

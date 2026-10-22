@@ -12,6 +12,7 @@ several batches does not make that query continuous.
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
 | Maintain application state from messages | Application freezes input identity and publishes complete Table changes with durable progress | No `CREATE MATERIALIZED VIEW` |
+| Maintain a supported relational result | Typed Zig owner publishes complete revisions and deltas from Table history, with explicit host activation and wakeups | No SQL view, materialized-view or subscription adapter |
 | Refresh a displayed query | Int64 Table watch invalidation and finite snapshot refresh | No `SUBSCRIBE` or continuous `SELECT` |
 | Dispatch external work | Recorded intent, authorized attempt and captured outcome | `CREATE SINK` is grammar only; no query-to-sink binding |
 
@@ -40,6 +41,13 @@ by binding durable input identity to its staged operation and publishing the
 complete Table successor with its recorded outcome. The
 application owns decoding and transformation. Fuze does not install a maintained
 query graph or automatically recompute Tables after upstream changes.
+
+The separate [maintained relational owner](../queries.md#maintained-table-revisions)
+uses Fuze to recompute each recorded Table-history basis and publish a complete
+result and delta. Named definitions, authorization, activation and wakeups have
+explicit typed Zig interfaces. An application host schedules advancement; SQL
+declarations do not install a background service. This differs from refreshing
+a displayed finite query after an invalidation notice.
 
 [Reactive APIs](../reactive.md) notify a viewer that its source may have changed.
 The viewer acquires a new finite result and replaces the displayed result after

@@ -15,10 +15,34 @@ export const sections: Section[] = [
     pages: [
       guide("introduction", "What is Transit?"),
       guide("quickstart", "Run Transit locally"),
-      guide("applications", "Build your first application"),
       guide("choose-interface", "Choose an interface"),
       reference("interfaces", "Interface and architecture map"),
       guide("workload-examples", "Workload examples across languages"),
+    ],
+  },
+  {
+    label: "Data model",
+    pages: [
+      reference("data-model", "Data, computation and policies"),
+      reference("tables", "Tables and materialization"),
+      reference("state", "Key-value resources and associations"),
+      reference("documents", "Documents and text"),
+      reference("sql/types", "Data types and cell states"),
+    ],
+  },
+  {
+    label: "Queries and derived data",
+    pages: [
+      reference("queries", "Query execution and recovery"),
+      reference("sql/streaming", "Streaming and effects"),
+      reference("workloads", "Workloads and architectural priorities"),
+    ],
+  },
+  {
+    label: "Policies and lifecycle",
+    pages: [
+      reference("security", "Identity and permissions"),
+      reference("retention", "Retention and capacity"),
     ],
   },
   {
@@ -54,7 +78,6 @@ export const sections: Section[] = [
       reference("sql", "SQL reference"),
       reference("sql/grammar-surface", "Grammar surface: implemented and planned"),
       reference("sql/syntax", "Syntax, names and literals"),
-      reference("sql/types", "Data types and cell states"),
       reference("sql/expressions", "Functions and operators"),
       reference("sql/select", "SELECT"),
       reference("sql/relational", "Table joins and grouped aggregation"),
@@ -62,7 +85,6 @@ export const sections: Section[] = [
       reference("sql/insert", "INSERT"),
       reference("sql/update", "UPDATE"),
       reference("sql/delete", "DELETE"),
-      reference("sql/streaming", "Streaming and effects"),
       reference("sql/create-connection", "CREATE CONNECTION"),
       reference("sql/create-source", "CREATE SOURCE"),
       reference("sql/create-sink", "CREATE SINK"),
@@ -80,7 +102,6 @@ export const sections: Section[] = [
       reference("sql/explain", "EXPLAIN"),
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
       reference("sql/application", "Application declarations"),
-      reference("queries", "Query execution and recovery"),
       reference("database-protocols", "PostgreSQL and MySQL clients"),
       page("contracts/SQL_GATEWAY_V1.md", "reference/database-wire", "Database wire contract"),
       page(
@@ -148,24 +169,19 @@ export const sections: Section[] = [
     ],
   },
   {
-    label: "Core concepts",
+    label: "Execution and architecture",
     pages: [
       reference("architecture", "Architecture and scope"),
       reference("versioning", "Versioning and hard cutovers"),
-      reference("workloads", "Workloads and architectural priorities"),
       reference("processes", "Processes and turns"),
       reference("streams", "Streams and delivery"),
-      reference("state", "State and associations"),
-      reference("security", "Identity and permissions"),
-      reference("retention", "Retention and capacity"),
       reference("glossary", "Glossary"),
     ],
   },
   {
-    label: "Build applications",
+    label: "Extend Transit",
     pages: [
-      reference("tables", "Tables and materialization"),
-      reference("documents", "Documents and text"),
+      guide("applications", "Build your first application"),
       reference("connectors", "Effects, HTTP and gRPC connectors"),
       reference("applications", "Installation, definitions and migration"),
       page(
