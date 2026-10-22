@@ -11115,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -12800,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -16373,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md).
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -21944,6 +21944,29 @@ operator installation was changed.
 
 Live browser/keyboard coverage, controlled revert/republication and a superseded
 workflow rerun have not been exercised. These remain explicit
-[publication qualification work](../docs/roadmap/09-qualification-and-benchmarks.md#documentation-publication).
+[publication qualification work](../docs/roadmap/08-qualification-and-benchmarks.md#documentation-publication).
 No runtime behavior or new runtime guarantee is established by this documentation
 framing change.
+
+## Declarative data lifecycle, codecs and collations
+
+Working-tree verification in the pinned Nix development shell exercises the
+shared state-declaration model (`Table`, `KV`, `Document`), orthogonal column
+encoding ($\epsilon$) and collation ($\kappa$) descriptors, direct idempotent
+`apply` / non-mutating `preview`, dependency and policy-reference inspection, and
+managed computation lifecycle tracking:
+
+- `zig build test` in `packages/zig/transit-fuze` passes 274/274 unit tests,
+  including canonical `"FTP1"` column-descriptor trailer encoding/decoding,
+  fingerprint sensitivity to physical codecs and collations, incompatible
+  encoding/collation rejection, and `.physical` schema change classification.
+- `zig build test` in `packages/zig/transit-catalog` passes 40/40 unit tests,
+  including named `KV` and `Document` two-phase provisioning/publication,
+  cross-kind name collision rejection, direct idempotent `apply` and non-mutating
+  `preview`, forward/reverse dependency pagination, `DROP RESTRICT` enforcement,
+  policy-reference redaction for callers lacking `.read`, and managed computation
+  freshness transitions (`fresh` $\to$ `stale` $\to$ `invalidated`) across
+  upstream schema evolution and drops.
+- `just contract::station-generate`, `just contract::table-service-generate`, and
+  `just bindings::generate` regenerate and verify the Station ABI, table-service
+  schema, and SDK host binding contracts.

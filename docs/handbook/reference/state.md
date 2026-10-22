@@ -13,7 +13,13 @@ supply arbitrary transactions across resources.
 
 Station Tables add typed schemas and rows within that commit boundary. Station
 Documents add accepted structured/text changes and immutable indexes. Neither
-introduces an alternate state authority or silently converts old history.
+introduces an alternate state authority or silently converts old history. Named
+KV and Document objects can also be registered in a shared catalog namespace
+through `DeclarativeCatalog`: `Declaration.compile` validates `CREATE KV` and
+`CREATE DOCUMENT` definitions and lowers them to two-phase catalog operations
+(`initializing` reservation followed by `live` resource binding and publication),
+with `rename`, `DROP RESTRICT` dependency enforcement, permanent retirement of
+dropped object IDs, and shared `inspectLifecycle` / `policyReferences` inspection.
 
 ## Identity, access and ownership
 

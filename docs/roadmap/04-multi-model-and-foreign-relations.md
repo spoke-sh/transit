@@ -1,14 +1,14 @@
-# 5. Multi-model and multi-format foreign relations
+# 4. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
 
 Compose KV, Table, Document, Graph and external dataset formats using the
-[`.tseg` codec and collation architecture](02-storage-and-query-performance.md),
-[standards/semantic contracts](03-standards-and-catalogs.md) and
-[declaration/dataflow lifecycle](04-sql-and-dataflows.md).
+[`.tseg` codec and collation architecture](01-storage-and-query-performance.md),
+[standards/semantic contracts](02-standards-and-catalogs.md) and
+[declaration/dataflow lifecycle](03-sql-and-dataflows.md).
 
 Use the shared object/definition identities, policy references and inspection
-model from the [data lifecycle](01-declarative-data-lifecycle.md). Every
+model from the [data lifecycle](../handbook/reference/data-model.md). Every
 projection or foreign table must expose its schema, physical encoding, collation,
 captured manifest basis, dependencies and 5-state completeness through the shared
 `Fuze` `SegmentReader` boundary.

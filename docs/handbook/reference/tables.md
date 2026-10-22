@@ -21,7 +21,13 @@ explicit raw-resource privileges; those privileges expose the backing resource.
 ## Schemas and identities
 
 Tables contain 1–128 ordered named columns with the shared
-[logical types](sql/types.md). Omitted nullability means nullable. A declared
+[logical types](sql/types.md), plus orthogonal physical encoding descriptors
+($\epsilon$: `plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp3`, `zoned`,
+`comp`, `ibm_hfp`, `ebcdic`) and collation descriptors ($\kappa$: `none`,
+`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `icu_root`). Encodings and collations
+are validated against the column's logical type and committed into the schema
+layout fingerprint so physical layout or collation evolution is tracked explicitly.
+Omitted nullability means nullable. A declared
 single or composite PRIMARY KEY implies NOT NULL; column position creates no
 constraint. Without a primary key, stable internal row identities preserve
 duplicate rows. These identities are separate from user-visible identity columns,
@@ -90,7 +96,14 @@ Changing a default does not rewrite earlier values.
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object/head
 under RESTRICT semantics. Registered blocking dependencies prevent DROP;
 historical references do not make a name live. Applications install dependency
-records explicitly. The registry does not discover arbitrary external users.
+records explicitly, and callers can inspect both incoming `dependents` and
+outgoing `dependencies` as well as object `policyReferences` and five-state
+`inspectLifecycle` (`defined`, `published`, `pending`, `complete`, `unavailable`).
+Before submitting a command, callers can run non-mutating `preview` to verify
+authorization, target revision, schema-evolution work classification and any
+blocking dependency, or call `TableClient.apply` to drive inline and multi-part
+command submission idempotently to a terminal state. The registry does not
+discover arbitrary external users.
 
 Already captured readers retain their original schema and cut, subject to
 current authorization and their own lifetimes. New admissions cannot substitute

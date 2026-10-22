@@ -1,4 +1,4 @@
-# 2. Storage hierarchy, `.tseg` segments and query performance
+# 1. Storage hierarchy, `.tseg` segments and query performance
 
 [Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76)
 
