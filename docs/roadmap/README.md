@@ -19,7 +19,7 @@ the supported pieces and the gaps between them.
 | Order | Milestone | Status | Outcome |
 | --- | --- | --- | --- |
 | 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | Completed | Describe, apply, inspect and evolve Tables, KV, Documents, computations and policies through one catalog model with orthogonal $(\tau, \epsilon, \kappa)$ column descriptors and direct data-plane operations |
-| 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | In Progress | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
+| 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | Completed | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
 | 3 | [Standards, collations and historical catalogs](03-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
 | 4 | [Managed computations and WAL-activated dataflows](04-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
 | 5 | [Multi-model and multi-format foreign relations](05-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
@@ -43,7 +43,7 @@ Standards, multi-model and branching work is tracked in
    storage boundary instead of cycling every row through the `4 × 256B` metadata /
    `128 KiB` block actor-turn loop (`open_view -> commit_turn`), reserving
    `Station` actor turns for stateful process behavior and effect orchestration.
-2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md) — In Progress).**
+2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md) — Completed).**
    Split storage into two swappable primitives: **`TransitLog`** (the sequenced
    `TWAL1` write-ahead log and live data-activation delta bus, backed by a native
    Zig local WAL by default in `transit server`, or by Ursula, Kafka or Pulsar in

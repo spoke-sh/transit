@@ -21970,3 +21970,36 @@ managed computation lifecycle tracking:
 - `just contract::station-generate`, `just contract::table-service-generate`, and
   `just bindings::generate` regenerate and verify the Station ABI, table-service
   schema, and SDK host binding contracts.
+
+## Storage hierarchy, `.tseg` segments and multi-writer OCC
+
+Working-tree verification in the pinned Nix development shell exercises the
+four-tier storage runtime (`TransitLog`, `TransitObjectStore`, `TableMemtable`,
+`NvmeCache`, `TableManifest`, `PartitionLease.OccCoordinator`), the `.tseg`
+(`"TSEG"` v1) hybrid OLTP/OLAP segment format, `.tdel` (`"TDEL"` v1) deletion
+vectors, all 10 physical column codecs (`PhysicalCodecs.zig`), collation-aware
+zone maps and sort keys (`Collation.zig`), and long-lived Ursula partition
+streams (`UrsulaWal.zig`):
+
+- `zig build test` in `packages/zig/transit-fuze` passes 332/332 unit tests,
+  including round-trip encoding/decoding across all 10 `TableSchema.Encoding`
+  codecs (`plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp`, `comp_3`,
+  `zoned`, `ibm_hfp`, `ebcdic`), lossless 5-state `.type_error` capture for
+  corrupted `COMP-3` nibbles and invalid `IBM_HFP` frames, collation-aware
+  `ZoneMap` range pruning and $O(\log N)$ embedded PK B-tree lookups across
+  `utf8_binary`, `ascii_ci`, `ebcdic_cp037` (`'a' < 'A' < '0'`) and `icu_root`,
+  and `.tdel` deletion vector union/encoding verification.
+- `zig build test` in `packages/zig/transit-storage` passes 6/6 integration and
+  unit tests, including `LocalWal` 64-byte-aligned `"TWAL"` v1 frame CRC-32C +
+  SHA-256 verification, `(writer_epoch, policy_epoch)` fencing, LSN conflict
+  rejection, torn-tail truncation on crash recovery, `S3ObjectStore` AWS
+  Signature Version 4 (`AWS4-HMAC-SHA256`) conditional CAS (`If-None-Match`) and
+  byte-range signing, `NvmeCache` SHA-256 corruption detection/reload and
+  scan-resistant `.metadata_or_index` retention, `TableMemtable` read-your-writes
+  snapshot lookups, `.tseg`/`.tdel` segment flushing and WAL crash recovery, and
+  `OccCoordinator` automatic manifest rebasing for concurrent writers with
+  disjoint primary keys versus `WriteWriteConflict` rejection for overlapping
+  primary keys.
+- `zig build test` in `packages/zig/transit-backend-ursula` passes 10/10 unit
+  tests, verifying that `UrsulaWal` reuses a single long-lived partition stream
+  across sequential `TWAL1` appends and enforces epoch fencing.

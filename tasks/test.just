@@ -177,6 +177,7 @@ packages:
     cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-catalog && zig build test
     cd packages/zig/transit-station && zig build test
+    cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
@@ -212,6 +213,7 @@ packages-build:
     cd packages/zig/transit-query && zig build check
     cd packages/zig/transit-catalog && zig build check
     cd packages/zig/transit-station && zig build check
+    cd packages/zig/transit-storage && zig build check
     cd packages/zig/transit-fuze && zig build check
     cd packages/zig/transit-observability && zig build check
     cd packages/zig/telemetry && zig build check

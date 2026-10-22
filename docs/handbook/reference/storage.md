@@ -107,32 +107,37 @@ The [backend package](../../../packages/zig/transit-backend-ursula/README.md) an
 the journal/checkpoint layout, adapter operations, cold-store setup and recovery
 requirements. A replacement provider must satisfy those same requirements.
 
-## Target four-tier storage hierarchy and `.tseg` segment architecture
+## Four-tier storage hierarchy and `.tseg` segment architecture
 
-While the current implementation persists copy-on-write B-tree pages (`TPG1`) and
-`64 KiB` resource blocks (`SBR1`) inside Ursula streams via `PackedPageStore`,
-the target storage architecture documented in
+Alongside copy-on-write B-tree pages (`TPG1`) and `64 KiB` resource blocks (`SBR1`)
+in `PackedPageStore`, the [tiered storage runtime](../../../packages/zig/transit-storage/README.md),
+[storage format contract](../../../contracts/TRANSIT_STORAGE_V1.md) and
 [Storage, placement and observation](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
-splits persistence into two pluggable primitives across a four-tier memory
-hierarchy:
+provide two pluggable persistence primitives across a four-tier memory hierarchy:
 
-1. **`TransitLog` (Tier 1 Sequenced WAL & Activation Bus):** Sequences binary
-   `TWAL1` commit frames and streams live `+row`/`-row` deltas to `Fuze`
+1. **`TransitLog` (Tier 1 Sequenced WAL & Activation Bus):** Sequences 64-byte-aligned
+   `"TWAL"` v1 binary frames (`CRC-32C` + 8-byte `SHA-256` payload prefix) and
+   streams `"TRDL"` v1 row deltas (`+row`/`-row`) to `TableMemtable`, `Fuze`
    maintained views, reactive watches and `Station` processes. Backed by a
-   pure-Zig segmented local WAL (`LocalWal` using `fdatasync`/`io_uring` + group
-   commit) by default in `transit server`, or by long-lived **Ursula**, **Kafka**
-   or **Pulsar** partition streams in distributed deployments.
+   pure-Zig segmented local WAL (`LocalWal` with `sync` durability and torn-tail
+   crash truncation) or by long-lived **Ursula** partition streams (`UrsulaWal`).
 2. **`TransitObjectStore` (Tier 3 Immutable Segment & Manifest Store):** Stores
-   64-byte-aligned **`.tseg` hybrid OLTP/OLAP segments** (Arrow-compatible
-   column buffers, 5-state cell tags, composable Zig codecs including `FSST`,
-   `COMP-3`, `ZONED`, `COMP`, `IBM_HFP` and `EBCDIC`, collation-aware zone maps,
-   and an embedded primary-key prefix B-tree index), **`.tdel` deletion vectors**,
-   and versioned **Manifests (`manifest/v{N}`)** committed via conditional CAS
-   (`If-None-Match`). Backed by a local POSIX directory (`LocalSegmentStore`) in
-   `transit server` or cloud object storage (S3, GCS, R2, Azure Blob) paired with
-   a stateless **Tier 2 local NVMe** content-verified read-through cache and
-   **Tier 0 RAM** Memtables and buffer pools.
+   64-byte-aligned **`.tseg` (`"TSEG"` v1) hybrid OLTP/OLAP segments** (Arrow-compatible
+   column pages, 5-state cell tags, composable Zig codecs in `PhysicalCodecs.zig`
+   including `plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp`, `comp_3`,
+   `zoned`, `ibm_hfp` and `ebcdic`, collation-aware `ZoneMap`s with 64-bit Wyhash
+   Bloom masks, and an embedded primary-key B-tree index), **`.tdel` (`"TDEL"` v1)
+   deletion vectors**, and versioned **Table Manifests (`manifest/<object_id>/v<N>.tman`)**
+   committed via conditional CAS (`If-None-Match`). Backed by a local POSIX
+   directory (`LocalSegmentStore`) or S3-compatible object storage (`S3ObjectStore`
+   with AWS Signature Version 4 and byte-range requests) paired with a
+   content-verified **Tier 2 `NvmeCache`** (`64 KiB` range chunks with scan-resistant
+   eviction) and **Tier 0 `TableMemtable`** for immediate read-your-writes snapshot
+   visibility.
 3. **Partitioned Authority, Fenced Leases and Multi-Writer OCC:** Separates the
-   cache-resident **Control & Policy Log** (`policy_epoch`, catalog directory,
-   lease table) from per-table/per-process log partitions, epoch-fenced direct
-   data-plane writer leases, and lock-free multi-writer optimistic manifest CAS.
+   **Control & Policy Log** (`partition_id = 0`) from data-plane partitions
+   (`partition_id >= 1`), enforces `(writer_epoch, policy_epoch)` fencing on
+   `PartitionLease` records, and coordinates lock-free multi-writer commits via
+   `PartitionLease.OccCoordinator` (rebasing concurrent `.tseg` commits with
+   disjoint primary keys automatically onto `v{N+1}.tman` while rejecting
+   overlapping primary keys with `WriteWriteConflict`).
