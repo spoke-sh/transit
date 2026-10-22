@@ -4,16 +4,18 @@ For planned CSV/JSONL workloads, see
 [schema-on-demand comparisons](#schema-on-demand-measurements). The native
 query measurements below do not measure file discovery or type inference.
 
-The console executes fresh interactive queries through leased native snapshots
-and client-side Fuze. It avoids the durable upload/result-publication workflow
-whose measured costs motivated this change. This page records local read and mutation measurements, their limits and the
-remaining storage costs.
+The console executes through [server-managed SQL sessions](sql-sessions.md),
+sharing Fuze execution with PostgreSQL and MySQL adapters. Ordinary interactive
+reads use leased snapshots; explicitly captured queries pay for durable intent
+and result publication. The [service account](../internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
+describes the current session mechanism and its scoped measurement evidence.
 
-Interactive `.timer` separates local `compile`, snapshot `open`, `fetch`
-(including execution and current validation), `render` and snapshot `release`.
-The instrumented fixture also records cumulative upstream elapsed nanoseconds
-by native operation and principal. Those durations include provider/queue time
-and proxy overhead; they are not independent CPU measurements.
+This page preserves measurements from their stated source revisions. The older
+interactive fixture below ran Fuze in the client and separated local compilation,
+snapshot open/fetch, rendering and release. Those phase timings are not the
+current server-managed console's timing contract. Instrumented upstream durations
+include provider/queue time and proxy overhead; they are not independent CPU
+measurements or latency promises for the current build.
 
 See [declarative benchmarks](benchmarks.md) for synthetic compiler/execution
 measurements and explicit TPC-C, TPC-E, TPC-H and TPC-DS coverage gaps.
@@ -51,7 +53,8 @@ claimed. Medians are not tail percentiles or service latency guarantees.
 
 ## Interactive execution measurements
 
-The default local server returns the empty typed Table in **15–18 ms** across
+In the recorded client-side execution fixture, the local server returns the
+empty typed Table in **15–18 ms** across
 eight sequential queries (SELECT, COUNT and both output formats), including CLI
 startup. The first SELECT takes 17 ms, with first stdout at 15 ms. Console timing
 reports 11–14 ms: local compilation rounds to zero, opening takes 8–10 ms, fetching
@@ -361,6 +364,11 @@ and saved steps still use small-message Publication records, as does large
 statement ingress. Those costs remain separate optimization work.
 
 ## Durable Table mutation measurements
+
+The phase descriptions and console recovery files in this section belong to
+the recorded client-side console experiments. Current console execution and
+recovery run in the SQL service; see [SQL sessions](sql-sessions.md). These
+historical samples do not measure the current service's end-to-end latency.
 
 The [mutation latency task](../../../tests/README.md#durable-table-mutation-latency)
 measures the full public writer path against an owned disk-backed local installation. It records

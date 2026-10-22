@@ -5,15 +5,21 @@ import type { Options, ThemeConfig } from "@docusaurus/preset-classic";
 import { pages } from "./catalog";
 import { pageContent, repository, repositoryLinks } from "./lib/content";
 import { specifications } from "./lib/specs";
+import { downloads } from "./lib/downloads";
 
 const root = path.resolve(__dirname, "../..");
+const url = process.env.TRANSIT_DOCS_URL ?? "https://transit.spoke.sh";
 const baseUrl = process.env.TRANSIT_DOCS_BASE_URL ?? "/";
 if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(baseUrl))
   throw new Error("TRANSIT_DOCS_BASE_URL must start and end with / and contain path segments only");
 const generated = path.join(__dirname, ".generated/static");
 mkdirSync(path.join(generated, "specs"), { recursive: true });
-for (const spec of specifications)
+for (const spec of downloads)
   copyFileSync(path.join(root, spec.source), path.join(generated, "specs", spec.name));
+writeFileSync(
+  path.join(generated, "robots.txt"),
+  `User-agent: *\nAllow: /\nSitemap: ${new URL(`${baseUrl}sitemap.xml`, url).href}\n`,
+);
 writeFileSync(
   path.join(generated, "search-index.json"),
   JSON.stringify(
@@ -31,7 +37,7 @@ writeFileSync(
 const config: Config = {
   title: "Transit",
   tagline: "Build on durable state.",
-  url: process.env.TRANSIT_DOCS_URL ?? "http://localhost:3000",
+  url,
   baseUrl,
   favicon: "img/transit.svg",
   trailingSlash: false,

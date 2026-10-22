@@ -2,8 +2,51 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { specifications } from "../lib/specs";
+import { downloads } from "../lib/downloads";
 import { pages } from "../catalog";
+
+test("static publication exposes canonical routes, search and crawl metadata", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  const origin = process.env.TRANSIT_DOCS_URL ?? "https://transit.spoke.sh";
+  const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/";
+  for (const route of [
+    "reference/interfaces",
+    "reference/sql-sessions",
+    "reference/database-protocols",
+  ]) {
+    const response = await page.goto(new URL(route, baseURL).href);
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      new URL(`${base}${route}`, origin).href,
+    );
+  }
+  const sitemap = await request.get(new URL("sitemap.xml", baseURL).href);
+  expect(sitemap.ok()).toBe(true);
+  const sitemapText = await sitemap.text();
+  expect(sitemapText).toContain(new URL(`${base}reference/sql-sessions`, origin).href);
+  expect(sitemapText).not.toMatch(/localhost|\/roadmap\/|\/history\/|\/design\//);
+  const robots = await request.get(new URL("robots.txt", baseURL).href);
+  expect(robots.ok()).toBe(true);
+  expect(await robots.text()).toContain(new URL(`${base}sitemap.xml`, origin).href);
+  const search = await request.get(new URL("search-index.json", baseURL).href);
+  expect(search.ok()).toBe(true);
+  const index = (await search.json()) as { route: string }[];
+  for (const route of [
+    "reference/interfaces",
+    "reference/sql-sessions",
+    "reference/database-protocols",
+    "reference/contracts",
+    "internals",
+  ])
+    expect(index.some((entry) => entry.route === route)).toBe(true);
+  expect(readFileSync(path.resolve(__dirname, "../dist/404.html"), "utf8")).toContain(
+    "Page Not Found",
+  );
+});
 
 test("production navigation, search, generated references and exact downloads", async ({
   page,
@@ -144,7 +187,7 @@ test("production navigation, search, generated references and exact downloads", 
       .locator(".search-results")
       .getByRole("link", { name: "System model and authority boundaries", exact: true }),
   ).toBeVisible();
-  for (const entry of specifications) {
+  for (const entry of downloads) {
     const route = pages.find((entryPage) => entryPage.source === entry.page)!.route;
     await page.goto(new URL(route, baseURL).href);
     const download = page.locator(`a[href$="/specs/${entry.name}"]`);

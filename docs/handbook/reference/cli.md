@@ -1,7 +1,9 @@
 # Transit CLI reference
 
-`transit` starts a local server, manages installed applications and opens signed
-query sessions, general Table DDL/DML and catalog operations. It is separate from the retained `transit-admin` administration utility
+`transit` starts a local server, manages installed applications and opens
+server-managed SQL sessions for queries, Table DDL/DML and catalog operations.
+The separate `query`, `catalog` and `auth` commands expose explicit native
+recovery workflows. It is separate from the retained `transit-admin` administration utility
 and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
@@ -26,7 +28,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | Command | Input and outcome |
 | --- | --- |
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
-| `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
+| `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
 | `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `catalog` | [Compile Table declarations, save, submit and inspect explicit initialization, creation and conditional policy commands](../../../apps/transit-cli/docs/catalog.md) |
 | `auth` | [Preview, save, explicitly apply and recover native authorization changes](../../../apps/transit-cli/docs/authorization.md) |
@@ -43,11 +45,13 @@ selects exactly one file instead. `TRANSIT_CONFIG` selects an explicit file when
 using `__` for nesting. No matching file means defaults; a bad selected file
 fails without fallback. Configuration files are bounded to 64 KiB, 96 nested
 containers and 65,536 syntax nodes; logical schemas retain their own depth,
-node and name budgets. Initialization remains explicit.
+node and name budgets. Server startup initializes missing or empty state unless
+`startup.require_existing: true` is configured.
 
-The console derives its connection from the local server topology and retained
-installation; no generated console configuration file is needed. Defaults use
-`./.transit` and `http://127.0.0.1:19105`.
+The console resolves the installation path (default `./.transit`) to a nonsecret
+runtime rendezvous and opens the SQL service's private Unix socket. It does not
+read `installation.json`, signing seeds or a client recovery file. Remote consoles
+use an explicit [SQL session connection](../../../apps/transit-cli/docs/console.md#configuration-and-trust).
 It merges `/etc/transit/transitrc`, `~/.transitrc` and `./.transitrc`.
 Only `.connect PATH`, `.mode table|json` and `.timer on|off` settings are allowed there.
 `--init FILE` replaces that hierarchy; `--no-rc` skips it.
@@ -213,23 +217,25 @@ commands are unsupported. Completion never submits.
 | `.tables` | List the configured catalog, or the query source when no catalog is configured |
 | `.mode table\|json` | Select result presentation |
 | `.timer on\|off` | Report query phase wall times to stderr; off by default |
-| `.connect PATH` | Switch connection in a terminal, after resolving outstanding work |
+| `.connect PATH` | Open an independent connection in a terminal; accepted work remains with the service |
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
-| `.status`, `.info` | Saved write/query status, or query evidence |
-| `.resume [ID]` | Recover the saved write or durable query; an ID selects a durable query |
-| `.cancel` | Request cancellation of saved Table work or a durable query; publication cannot be undone |
+| `.info` | Current account/database and authorized source bindings |
+| `.execute FILE` | Execute a typed query object |
+| `.status [all\|KIND:ID\|token:HEX]` | Observe currently authorized retained operations |
+| `.resume [KIND:ID\|token:HEX]` | Reconcile the original accepted operation |
+| `.cancel [KIND:ID\|token:HEX]` | Request cancellation through the operation's owner; publication cannot be undone |
 | `.quit`, EOF | Disconnect; durable accepted work persists |
 
-SELECT uses a fresh leased snapshot by default and executes locally without durable
-query state. In `execution: durable` mode, SELECT chooses a fresh identity, records
-exact intent, advances its upload and prints verified results. Recovery commands also handle saved Table operations. The automatic local
-connection supplies a general catalog; separate connections configure their
-explicit catalog owner. CREATE/ALTER/DROP and DML share that route and private
-recovery file. Each operation still requires current native and catalog rights. See [console writes](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-for exact saved commands, Ctrl-C behavior and terminal outcomes. `.new`, `.retry`, `.advance`, `.next` and
-manual recovery exports are not console commands. `query` remains a callable
-shell with its explicit protocol and dot commands;
-root help advertises `console` as the query interface.
+SELECT uses a fresh leased snapshot and executes in the shared SQL service.
+`execution: captured` selects durable query execution over a named service-owned
+source. Table writes, captured queries and configuration operations retain their
+original intents in the service's account ledger. Each operation still requires
+current native and catalog rights. `KIND` is `table`, `configuration` or
+`captured`; a bare ID selects a Table operation. In a fresh session, `.status`
+lists authorized retained operations. The [console guide](../../../apps/transit-cli/docs/console.md#input-commands-and-results)
+defines controls and source selection. `.new`, `.retry`, `.advance`, `.next`
+and manual recovery exports are not console commands. `query` keeps its separate
+explicit native protocol and recovery commands.
 
 ## Catalog commands
 
@@ -270,20 +276,17 @@ are explicit. Each result page is bounded; the console does not accumulate
 all rows. Previously displayed output cannot be recalled after revocation.
 
 For `console`, normal disconnect/help exits 0, invalid invocation/configuration
-exits 2, and runtime or any piped-command failure exits 1. Ctrl-C during SQL or
-`.resume` returns to an empty terminal prompt after cancellation. Default
-interactive execution stops local evaluation and releases its leased snapshot,
-falling back to lease expiry if cleanup fails. Durable execution requests
-cancellation using the original query identity and waits for bounded settlement
-and cleanup. Repeated Ctrl-C is
-coalesced. Batch input exits 130 on a resolved outcome, or 1 if cancellation fails.
-In durable mode, completed execution is reported separately from interrupted
-result display; unconfirmed cancellation retains saved intent for `.status` and `.cancel`.
-Ordinary disconnect, SIGTERM and metadata interruption do not submit cancellation;
-metadata or idle batch interruption exits 130. The [console guide](../../../apps/transit-cli/docs/console.md#input-commands-and-results)
-defines completion races, cleanup bounds and recovery. Durable automatic queries
-require a configured recovery file, explicitly retaining private
-query text and exact intent. Server-generated connections supply this setting.
-Use `.resume` after a disconnect with saved work; it reconciles the same operation and prints its
-result from the beginning, possibly repeating previously displayed rows. New SQL
-refuses to replace unresolved work.
+exits 2, and runtime or piped-command failure exits 1. Ctrl-C stops the current
+wait and asks the service to stop its active read. Accepted mutations survive
+connection loss; `.cancel` explicitly addresses the original operation and does
+not undo published data. Session expiry releases temporary cursors without
+expiring accepted history.
+
+On an uncertain write, retain the request token printed by the console. After
+reconnecting, inspect that token or list account operations before deciding what
+to do next. Repeating the SQL allocates a new token and can create another write.
+Captured results can be opened again from their beginning under current rights,
+possibly repeating displayed rows. An interactive result cannot resume after
+loss of its logical session. The [SQL session reference](sql-sessions.md) and
+[console recovery guide](../../../apps/transit-cli/docs/console.md#exact-recovery-and-bounds)
+define these lifetimes and bounds.

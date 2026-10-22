@@ -23,6 +23,9 @@ flowchart TD
   Node --> Storage[Ursula storage adapter]
   Query[Fuze query execution] --> Sources[Authorized source adapters]
   Sources --> Client
+  SQLClients[Console and PostgreSQL/MySQL clients] --> SQL[Shared SQL sessions]
+  SQL --> Query
+  SQL --> Client
   Board[Board inspection] --> Client
   Serving[Serving and Flight gateways] --> Client
   Runtime[Runtime reconciliation] --> Client
@@ -35,6 +38,7 @@ flowchart TD
 | Client | Canonical requests, signatures, bounded reads, private proposals and exact retry | Application code still validates its domain rules |
 | Station | Behaviors, durable calls, names, supervision, typed Tables and Documents | Builds above the client; no alternate execution authority |
 | Fuze | Typed finite plans, source adapters, bounded execution and Arrow output | No raw storage credentials or kernel authority; no DataFusion/Acero runtime |
+| Shared SQL service | Independent logical sessions, account coordination and durable operation recovery for console and database clients | Temporary connection/session state is separate from accepted operation history |
 | Connectors | Authorized external attempts and durable capture | Replay reads outcomes; it does not redispatch |
 | Serving and Flight | Protocol adaptation, scoped admission and bounded disclosure | A socket, cursor or ticket is not permission |
 | Board | Evidence projections and separately configured query/application workspaces | Inspection does not decode arbitrary application payloads |
@@ -112,7 +116,8 @@ backup is not an ordinary worker restart. See [deployment](deployment.md).
 
 ## Find an implementation owner
 
-Use the [component directory](components.md) for package interfaces and the
+Use the [interface map](interfaces.md) to connect usage, contracts and internals,
+the [component directory](components.md) for package interfaces and the
 [contributor guide](../guides/contributing.md) for builds and validation. Wire
 specifications stay in [contracts](../../../contracts); each package owns its
 configuration, APIs and bounds. Public documentation owns the explanation of

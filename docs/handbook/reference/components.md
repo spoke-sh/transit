@@ -19,6 +19,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-app](../../../packages/zig/transit-station-app/README.md) / `transit_station_app` | neutral definitions, shared compiler, signed conditional publication, bounded host contract and upload continuation | transit-serving |
 | [transit-serving](../../../packages/zig/transit-serving/README.md) / `transit_serving` | admission/current reads; session controls, Table watch coverage and generated reactive contracts | transit-station, transit-query |
 | [transit-diagnostics](../../../packages/ts/transit-diagnostics/README.md) | Owned shared diagnostic validation and caller-facing rendering | transit-protocol diagnostic schema, AJV |
+| [transit-reactive-client](../../../packages/ts/transit-reactive-client/README.md) | Browser transport, bounded reactive attachments, lease renewal and explicit recovery through a Zig host | transit-diagnostics, AJV; reflected reactive host contract |
 | [transit-query-client](../../../packages/ts/transit-query-client/README.md) | Reflected finite-query host types, bounded browser transport, semantic cell validation and complete-result reads shared by Board and applications | transit-query schema, transit-reactive-client caller coordination, transit-diagnostics, AJV |
 | [transit-application](../../../packages/ts/transit-application/README.md) | generated validators, pure visual edits, scoped signing and exact pending/reviewed-plan recovery | transit-station-app reflected contract, transit-reactive-client, transit-diagnostics, AJV |
 | [transit-serving-http](../../../packages/zig/transit-serving-http/README.md) / `transit_serving_http` | Reusable signed HTTP/SSE/WebSocket dispatch, local challenges and joined streaming tasks | transit-serving, transit-http-server |
@@ -58,6 +59,7 @@ the implementations listed below remain shared runtime libraries.
 | Entry point | Role |
 | --- | --- |
 | [transit-sql-gateway](../../../apps/transit-sql-gateway/README.md) | Shared SQL runtime, native HTTP/TLS and Unix peer sessions, PostgreSQL/MySQL listeners and account recovery |
+| [transit-flight-gateway](../../../apps/transit-flight-gateway/README.md) | Finite Table Flight SQL over a private HTTP/2 listener behind an explicit TLS edge |
 | [transit-station-document-worker](../../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance |
 | [transit-station-grpc-worker](../../../apps/transit-station-grpc-worker/README.md) | finite RPC preparation/dispatch/capture worker |
 | [transit-station-http-worker](../../../apps/transit-station-http-worker/README.md) | finite HTTP preparation/dispatch/capture worker |
@@ -69,8 +71,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../../apps/transit-query-host/README.md) | Runnable source/requester workers and scoped courier |
 | [transit-table-service](../../../apps/transit-table-service/README.md) | Signed original-subject Table mediation with private storage credentials |
-| [transit-cli](../../../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, explicit-submit console and signed query SQL shell |
-| [transit-docs](../README.md) | Static documentation over guides/reference, Internals, component guides and generated interface descriptions |
+| [transit-cli](../../../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, shared local/remote SQL sessions and a separate signed query CLI |
 | [transit-board](../../../apps/transit-board/README.md) | Inspection API plus optional query capability with embedded [TanStack Router frontend](../../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [transit-admin](../../../apps/transit-admin/README.md) | Signs/submits commands and reads scoped views |
@@ -86,3 +87,11 @@ Station, Ursula or Substrate dependency. Language SDKs use the shared Zig client
 and framework through generated boundaries; see the [SDK index](sdks.md).
 Applications import public package modules rather than sibling source files.
 Each library owns its manifest, direct dependencies and focused checks.
+
+## Repository tooling
+
+The [handbook project](../README.md) contains the Docusaurus site and its guides,
+reference and Internals sources. It builds static documentation from those
+sources, selected component guides and generated interface descriptions. It has
+no runtime dependency on a Transit server. The [interface map](interfaces.md)
+connects this directory's implementation owners to public usage and internals.

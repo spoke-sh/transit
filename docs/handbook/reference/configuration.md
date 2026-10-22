@@ -15,8 +15,9 @@ Uncomment only the desired keys and their parent sections, retaining the shown
 indentation. Omitted settings use built-in defaults, subject to environment
 overrides. Leaving a section commented out does not disable a service that starts
 by default. Values shown are defaults unless labeled as optional examples,
-including listener, account and executable-path examples. SQL account
-enrollment still requires the explicit authorization workflow in the
+including listener, account and executable-path examples. SQL accounts require
+explicit authentication and authority: choose one-time `bootstrap_owner`
+enrollment or the scoped grant workflow in the
 [local database guide](../../../apps/transit-cli/docs/sql.md).
 
 ## File selection and precedence

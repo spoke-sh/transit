@@ -44,7 +44,7 @@ subquery or query source. Preparation and description do not dispatch it. A
 validation failure returns an error and retains a rejected outcome. Active
 values remain unchanged. There is no separate configuration check function.
 
-The console saves the request before sending it. Existing `.status` inspects and
+The SQL service saves the original reload request before sending it. `.status` inspects and
 `.resume` retries the exact identity after an unknown outcome. SQL gateways save
 one serialized reload lane per account; the next reload reconciles an unresolved
 request before creating another identity. Current authorization is checked on

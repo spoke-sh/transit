@@ -84,8 +84,9 @@ AVX2 is slightly slower than the portable decoded loop on the measured host;
 extra workers are inconsistent or slower on the selected complete pipelines.
 The chosen defaults therefore keep portable computation and one worker. Explicit
 host policies can select other qualified configurations. Different workloads or
-CPUs could reverse that choice. The record retains raw samples, target-mismatch
-failures and shared-host confounders; unavailable hardware counters prevent a
+CPUs could reverse that choice. The retained measurement summary describes
+target-mismatch failures and shared-host confounders; archived raw samples remain
+in repository history. Unavailable hardware counters prevent a
 cycle-level attribution. Relational constant views retain the existing work
 quantum, so this evidence establishes no multilane join acceleration.
 
@@ -111,7 +112,7 @@ change the source's meaning.
 
 Durability of application state does not require every read computation to become
 a durable job. Interactive execution avoids recorded upload/progress/result turns
-and gives up resumption of that computation after client loss. Captured queries
+and gives up resumption of that computation after logical session loss or expiry. Captured queries
 pay for durable bookkeeping in exchange for their specified result recovery.
 These are distinct contracts, not interchangeable optimization settings.
 

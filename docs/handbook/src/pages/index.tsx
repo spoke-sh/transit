@@ -5,10 +5,13 @@ import Link from "@docusaurus/Link";
 const references = [
   ["SQL", "Syntax, types and query profiles", "/reference/sql"],
   ["Transit CLI", "Serve, install, query and recover", "/reference/cli"],
+  ["SQL sessions", "Local and remote HTTP/TLS clients", "/reference/sql-sessions"],
+  ["PostgreSQL and MySQL", "Connect, authenticate and query", "/reference/database-protocols"],
   ["OpenAPI", "HTTP operations and schemas", "/reference/openapi"],
   ["AsyncAPI", "Reactive channels and messages", "/reference/asyncapi"],
   ["Flight SQL", "Arrow clients and compatibility", "/reference/flight"],
   ["Language SDKs", "Native types, turns and ownership", "/reference/sdks"],
+  ["Contracts", "Wire definitions and schema downloads", "/reference/contracts"],
 ] as const;
 
 export default function Home(): ReactElement {

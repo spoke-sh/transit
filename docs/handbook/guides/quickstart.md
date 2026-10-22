@@ -16,7 +16,7 @@ Transit upgrades are not available. Keep the installed bundle for the lifetime
 of the installation: startup requires the same artifact hashes. See
 [deployment limits](../reference/deployment.md).
 
-Choose unused ports 19101–19107 and a new `.cache/docs-start` directory under
+Choose unused ports 19101–19108 and a new `.cache/docs-start` directory under
 your working directory. Keep that directory to resume the installation.
 
 ## Start with defaults
@@ -34,10 +34,13 @@ transit server
 Optional `transit.yaml` settings overlay these defaults. Discovery selects the
 first file in the working directory, home directory or `/etc/transit`; see the
 [configuration hierarchy](../../../apps/transit-cli/docs/server.md#defaults-and-configuration).
-For this walkthrough, use the defaults and keep ports 19101–19107 available.
+For this walkthrough, use the defaults and keep ports 19101–19108 available.
 
-Wait for the JSON ready record. It names the installation,
-`management_config` and `board_url`. Open `board_url` to inspect the installation.
+Wait for the readable `server.ready` and `board.ready` log events, then open the
+Board endpoint shown (`http://127.0.0.1:19107` with defaults). Redirected or piped
+stdout retains a JSON ready record for scripts; operational logs go to stderr.
+Wait for SQL to report that listeners are accepting connections before opening
+a console. Core readiness and SQL readiness are separate observations.
 All listeners bind loopback; this is a trusted single-user
 installation, not an OS sandbox. Credentials and data stay in the installation
 directory. The [server guide](../../../apps/transit-cli/docs/server.md) explains

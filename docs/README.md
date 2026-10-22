@@ -4,6 +4,9 @@ The public handbook is the shared source of current behavior for application
 users, contributors and agents. Start with [What is Transit?](handbook/guides/introduction.md),
 [Run Transit locally](handbook/guides/quickstart.md) and
 [Build your first application](handbook/guides/applications.md).
+The [handbook project](handbook/README.md) keeps the Docusaurus site and its
+content together under `docs/handbook/`. The [interface and architecture map](handbook/reference/interfaces.md)
+connects public usage, exact contracts and technical accounts.
 
 ## Guides and reference
 
@@ -18,7 +21,8 @@ and operations remain shared references below those entry points.
 | CLI | [Configuration](handbook/reference/configuration.md), [Commands](handbook/reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md), [psql/mysql](../apps/transit-cli/docs/sql.md) |
 | SQL | [Statements and support](handbook/reference/sql.md), [implemented and planned grammar](handbook/reference/sql/grammar-surface.md), [syntax](handbook/reference/sql/syntax.md), [types](handbook/reference/sql/types.md), [functions and operators](handbook/reference/sql/expressions.md), [streaming and effects](handbook/reference/sql/streaming.md) |
 | SDKs | [Language SDKs](handbook/reference/sdks.md), [caller semantics](handbook/reference/callers.md) |
-| HTTP APIs | [SQL session API](../contracts/SQL_SESSION_V1.md), [Serving OpenAPI](handbook/reference/openapi.md), [Board OpenAPI](handbook/reference/board-api.md) |
+| SQL connections | [SQL sessions](handbook/reference/sql-sessions.md), [PostgreSQL and MySQL](handbook/reference/database-protocols.md) |
+| HTTP APIs | [SQL session API](../contracts/SQL_SESSION_V1.md), [Serving OpenAPI](handbook/reference/openapi.md), [Board OpenAPI](handbook/reference/board-api.md), [schema downloads](handbook/reference/contracts.md) |
 | Reactive APIs | [AsyncAPI](handbook/reference/asyncapi.md), [sessions and watches](handbook/reference/reactive.md) |
 | Analytical clients | [Flight SQL and ADBC](handbook/reference/flight.md) |
 | Native protocol | [Signed operations](handbook/reference/native.md) |

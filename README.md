@@ -28,12 +28,14 @@ Start with [What is Transit?](docs/handbook/guides/introduction.md),
 | --- | --- |
 | Query language | [SQL](docs/handbook/reference/sql.md) |
 | Commands and recovery | [Transit CLI](docs/handbook/reference/cli.md) |
+| SQL connections | [Server-managed sessions](docs/handbook/reference/sql-sessions.md), [PostgreSQL and MySQL](docs/handbook/reference/database-protocols.md) |
 | HTTP APIs | [Serving OpenAPI](docs/handbook/reference/openapi.md), [Board OpenAPI](docs/handbook/reference/board-api.md) |
 | Reactive streams | [AsyncAPI](docs/handbook/reference/asyncapi.md) |
 | Analytical clients | [Flight SQL and ADBC](docs/handbook/reference/flight.md) |
 | Application clients | [Language SDKs](docs/handbook/reference/sdks.md), [native protocol](docs/handbook/reference/native.md) |
 | Workload design | [Architectural priorities](docs/handbook/reference/workloads.md), [performance and improvement plan](docs/handbook/reference/performance.md), [declarative benchmarks](docs/handbook/reference/benchmarks.md) |
 | System internals | [Architecture, rationale and evidence](docs/handbook/internals/README.md), [scientific standard](docs/handbook/internals/standard.md) |
+| Interface coverage | [Usage, contracts and internals map](docs/handbook/reference/interfaces.md), [schema downloads](docs/handbook/reference/contracts.md) |
 | Example recipes | [SQL, Python, TypeScript, Rust and Zig](docs/handbook/guides/workload-examples.md) |
 
 The [documentation index](docs/README.md) explains navigation and source ownership;

@@ -170,10 +170,12 @@ outer predicates and derived tables returning rows are unsupported. An outer
 
 ## Execution and results
 
-The console opens a fresh snapshot session per `SELECT`, releases it on completion
-and cancels active work on exit. Reconnecting starts a new query. Explicit durable
-queries instead preserve the original submission and recover its captured result.
-Both paths require current source authority and bounded Arrow output; a returned
+The SQL service opens a fresh snapshot for each interactive `SELECT` and releases
+it on completion, closure or lease expiry. Replacing an HTTP connection preserves
+the logical session; losing that session makes its interactive result incomplete.
+Explicit captured queries preserve the original submission and recover retained
+results through their owner. Both paths require current source authority and
+bounded typed output; a returned
 prefix is not proof of complete execution. See [query execution](../queries.md)
 and [console use](../../../../apps/transit-cli/docs/console.md).
 

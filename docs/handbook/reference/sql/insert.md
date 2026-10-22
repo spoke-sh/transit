@@ -48,7 +48,7 @@ attributed reason and available constraint witness under current disclosure
 rights; they do not require rereading a possibly changed Table. A primary-key
 conflict never authorizes disclosure of the existing row's other values.
 
-The [console](../../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+The console's [SQL service](../sql-sessions.md)
 saves the original intent and exact signed steps before sending. After an
 uncertain response, use `.status` and `.resume`; repeating the SQL creates new
 work. `.cancel` cannot undo a published operation. Saved work remains bound to

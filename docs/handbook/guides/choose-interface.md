@@ -9,8 +9,9 @@ Choose the owner that matches the job; a transport never grants authority.
 | Start a neighborhood or install an app | [Transit CLI](../reference/cli.md) | Trusted local Linux supervisor; automatic first startup and exact recovery |
 | Implement a worker or durable caller | [Zig client and language SDKs](../reference/sdks.md) | Shared protocol/Station semantics with target-language types and ownership |
 | Integrate a native protocol client | [Signed HTTP protocol](../reference/native.md) | Versioned JSON envelopes, canonical signing, current grants and exact retry |
-| Run interactive queries | [Console](../../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Explicit finite SELECT over configured KV/Table/Document sources |
-| Use a PostgreSQL or MySQL client | [Database gateway](../../../apps/transit-sql-gateway/README.md) | TLS, autocommit general-Table reads/writes, six scalar types and typed single-Table parameters |
+| Run interactive SQL | [Console](../../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Independent server-managed local/remote sessions; finite reads, Table mutations and scoped administration |
+| Build a SQL session client | [SQL HTTP/TLS API](../reference/sql-sessions.md) | Logical sessions, typed results and token-based recovery of accepted operations |
+| Use a PostgreSQL or MySQL client | [Database protocols](../reference/database-protocols.md) | Explicit listeners and authentication, autocommit Table reads/writes and six scalar types; optional local TLS |
 | Inspect the system | [Board OpenAPI](../reference/board-api.md) | Private viewers share a scoped read identity; optional query/operator identities are separate |
 | Expose application commands and reads | [Serving OpenAPI](../reference/openapi.md) | Signed native commands and scoped reads through a published service |
 | Follow changes | [Reactive API / AsyncAPI](../reference/asyncapi.md) | Int64 Table sessions and resumable notifications, fetch-SSE or WebSocket |
@@ -41,3 +42,5 @@ history into a new profile.
 
 See [architecture and scope](../reference/architecture.md) for component
 responsibilities and [deployment](../reference/deployment.md) for supported environments.
+The [interface and architecture map](../reference/interfaces.md) connects each
+surface to its contract, usage reference and internals.

@@ -4,6 +4,7 @@ import path from "node:path";
 import { pages, handbookPages, sdkPages } from "../catalog";
 import { pageContent, resolveLink } from "./content";
 import { object, readSpecification, renderSpecification, specifications } from "./specs";
+import { downloads } from "./downloads";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 
@@ -39,16 +40,16 @@ describe("documentation ownership and navigation", () => {
       expect(readFileSync(path.join(root, source), "utf8"), source).not.toMatch(deliveryReference);
     }
     // Downloads are public too, including description fields not rendered as tables.
-    for (const entry of specifications)
+    for (const entry of downloads)
       expect(readFileSync(path.join(root, entry.source), "utf8"), entry.source).not.toMatch(
         deliveryReference,
       );
   });
   it("publishes every guide, reference and Internals page without route collisions", () => {
     for (const directory of ["guides", "reference", "internals"]) {
-      const sources = readdirSync(path.join(root, "docs", "handbook", directory), { recursive: true }).filter(
-        (name): name is string => typeof name === "string" && name.endsWith(".md"),
-      );
+      const sources = readdirSync(path.join(root, "docs", "handbook", directory), {
+        recursive: true,
+      }).filter((name): name is string => typeof name === "string" && name.endsWith(".md"));
       for (const name of sources) {
         const source = `docs/handbook/${directory}/${name.split(path.sep).join("/")}`;
         expect(
@@ -78,24 +79,44 @@ describe("documentation ownership and navigation", () => {
       ).toBe(true);
     }
     expect(
-      resolveLink(root, "docs/handbook/reference/sdks.md", "../../../sdks/zig/README.md", "/handbook/"),
+      resolveLink(
+        root,
+        "docs/handbook/reference/sdks.md",
+        "../../../sdks/zig/README.md",
+        "/handbook/",
+      ),
     ).toBe("/handbook/sdks/zig");
     expect(
-      resolveLink(root, "sdks/python/README.md", "../../docs/handbook/reference/callers.md", "/handbook/"),
+      resolveLink(
+        root,
+        "sdks/python/README.md",
+        "../../docs/handbook/reference/callers.md",
+        "/handbook/",
+      ),
     ).toBe("/handbook/reference/callers");
   });
   it("keeps page/anchor links inside a mounted site and unselected owners in source", () => {
-    expect(resolveLink(root, "docs/handbook/reference/callers.md", "cli.md#commands", "/handbook/")).toBe(
-      "/handbook/reference/cli#commands",
-    );
     expect(
-      resolveLink(root, "docs/handbook/reference/cli.md", "../../../apps/transit-cli/docs/console.md", "/"),
+      resolveLink(root, "docs/handbook/reference/callers.md", "cli.md#commands", "/handbook/"),
+    ).toBe("/handbook/reference/cli#commands");
+    expect(
+      resolveLink(
+        root,
+        "docs/handbook/reference/cli.md",
+        "../../../apps/transit-cli/docs/console.md",
+        "/",
+      ),
     ).toBe("/guides/console");
-    expect(resolveLink(root, "docs/handbook/guides/contributing.md", "launchers.md", "/handbook/")).toBe(
-      "/handbook/guides/launchers",
-    );
     expect(
-      resolveLink(root, "docs/handbook/guides/launchers.md", "../../../launchers/README.md", "/handbook/"),
+      resolveLink(root, "docs/handbook/guides/contributing.md", "launchers.md", "/handbook/"),
+    ).toBe("/handbook/guides/launchers");
+    expect(
+      resolveLink(
+        root,
+        "docs/handbook/guides/launchers.md",
+        "../../../launchers/README.md",
+        "/handbook/",
+      ),
     ).toBe("https://github.com/spoke-sh/transit/blob/main/launchers/README.md");
     expect(
       resolveLink(
@@ -115,14 +136,29 @@ describe("documentation ownership and navigation", () => {
       "/handbook/internals",
     );
     expect(
-      resolveLink(root, "docs/handbook/internals/system-model.md", "execution-model.md", "/handbook/"),
+      resolveLink(
+        root,
+        "docs/handbook/internals/system-model.md",
+        "execution-model.md",
+        "/handbook/",
+      ),
     ).toBe("/handbook/internals/execution-model");
     expect(
-      resolveLink(root, "docs/handbook/internals/README.md", "../../roadmap/README.md", "/handbook/"),
+      resolveLink(
+        root,
+        "docs/handbook/internals/README.md",
+        "../../roadmap/README.md",
+        "/handbook/",
+      ),
     ).toBe("https://github.com/spoke-sh/transit/blob/main/docs/roadmap/README.md");
-    expect(resolveLink(root, "docs/handbook/internals/README.md", "../../design/README.md", "/handbook/")).toBe(
-      "https://github.com/spoke-sh/transit/blob/main/docs/design/README.md",
-    );
+    expect(
+      resolveLink(
+        root,
+        "docs/handbook/internals/README.md",
+        "../../design/README.md",
+        "/handbook/",
+      ),
+    ).toBe("https://github.com/spoke-sh/transit/blob/main/docs/design/README.md");
     expect(() => resolveLink(root, "docs/README.md", "missing-guide.md", "/")).toThrow(
       "missing link",
     );
@@ -131,7 +167,10 @@ describe("documentation ownership and navigation", () => {
 
 describe("executable workload excerpts", () => {
   it("keeps published code identical to a complete example, allowing only common indentation", () => {
-    const content = readFileSync(path.join(root, "docs/handbook/guides/workload-examples.md"), "utf8");
+    const content = readFileSync(
+      path.join(root, "docs/handbook/guides/workload-examples.md"),
+      "utf8",
+    );
     const excerpts = [
       ...content.matchAll(/<!-- source-excerpt: ([^\s]+) -->\n```\w+\n([\s\S]*?)\n```/g),
     ];

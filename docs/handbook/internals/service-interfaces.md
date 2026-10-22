@@ -1,8 +1,10 @@
-# Serving, reactive views and Board
+# SQL sessions, serving and operator interfaces
 
 This account explains how network and visual interfaces preserve the underlying
-execution model. It consolidates serving, reactive and Board reasoning. Usage
-belongs to the [serving](../reference/serving.md), [reactive](../reference/reactive.md),
+execution model. It consolidates SQL session, serving, reactive and Board reasoning. Usage
+belongs to the [SQL session](../reference/sql-sessions.md),
+[database protocol](../reference/database-protocols.md),
+[serving](../reference/serving.md), [reactive](../reference/reactive.md),
 [application](../reference/applications.md) and [Board](../guides/inspect-board.md) references.
 
 ## Model and trust boundary

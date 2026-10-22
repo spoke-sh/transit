@@ -5,7 +5,11 @@ export const sdkSections: Section[] = [
   {
     label: "SDK foundations",
     pages: [
-      { source: "docs/handbook/reference/sdks.md", route: "reference/sdks", label: "Language SDKs" },
+      {
+        source: "docs/handbook/reference/sdks.md",
+        route: "reference/sdks",
+        label: "Language SDKs",
+      },
       {
         source: "docs/handbook/reference/callers.md",
         route: "reference/callers",

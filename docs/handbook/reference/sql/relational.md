@@ -18,8 +18,9 @@ SELECT key, COUNT(*) AS rows, SUM(value) AS total
 FROM observations WHERE value >= 0 GROUP BY key;
 ```
 
-The console requires an explicit catalog connection, per-resource snapshot-vector
-consistency and execution budgets; see [configuration and results](../../../../apps/transit-cli/docs/console.md#finite-relational-queries).
+The console uses the selected account's service-owned catalog, per-resource
+snapshot-vector consistency and bounded execution; see
+[configuration and results](../../../../apps/transit-cli/docs/console.md#finite-relational-queries).
 The Zig query API accepts one authorized catalog route per source in SQL order.
 Routes share a realm and caller. A Table alias is local to the query and grants
 no access. Aliases may use explicit `AS` or follow the Table name directly.

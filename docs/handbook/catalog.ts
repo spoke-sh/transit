@@ -17,6 +17,7 @@ export const sections: Section[] = [
       guide("quickstart", "Run Transit locally"),
       guide("applications", "Build your first application"),
       guide("choose-interface", "Choose an interface"),
+      reference("interfaces", "Interface and architecture map"),
       guide("workload-examples", "Workload examples across languages"),
     ],
   },
@@ -80,6 +81,8 @@ export const sections: Section[] = [
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
       reference("sql/application", "Application declarations"),
       reference("queries", "Query execution and recovery"),
+      reference("database-protocols", "PostgreSQL and MySQL clients"),
+      page("contracts/SQL_GATEWAY_V1.md", "reference/database-wire", "Database wire contract"),
       page(
         "packages/zig/transit-fuze/docs/file-sources.md",
         "reference/file-sources",
@@ -101,7 +104,8 @@ export const sections: Section[] = [
   {
     label: "HTTP APIs / OpenAPI",
     pages: [
-      page("contracts/SQL_SESSION_V1.md", "reference/sql-session", "SQL session API"),
+      reference("sql-sessions", "SQL sessions"),
+      page("contracts/SQL_SESSION_V1.md", "reference/sql-session", "SQL session wire contract"),
       reference("openapi", "Serving OpenAPI"),
       reference("serving", "Serve an application API"),
       reference("board-api", "Board OpenAPI"),
@@ -194,6 +198,7 @@ export const sections: Section[] = [
     label: "Understand and contribute",
     pages: [
       reference("components", "Component directory"),
+      reference("contracts", "Contracts and schema downloads"),
       reference("verification", "Guarantees and verification limits"),
       guide("contributing", "Contributing"),
       page("docs/README.md", "contributing/documentation", "Documentation ownership"),

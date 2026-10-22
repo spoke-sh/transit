@@ -4,6 +4,7 @@ import type { Root } from "mdast";
 import { visit } from "unist-util-visit";
 import { pages } from "../catalog";
 import { readSpecification, renderSpecification, specifications } from "./specs";
+import { downloads } from "./downloads";
 
 export const repository = "https://github.com/spoke-sh/transit";
 export function pageContent(root: string, source: string): string {
@@ -25,7 +26,7 @@ export function resolveLink(root: string, source: string, url: string, baseUrl: 
   const suffix = fragment ? `#${fragment}` : "";
   const page = pages.find((entry) => entry.source === relative);
   if (page) return `${baseUrl}${page.route}${suffix}`;
-  const spec = specifications.find((entry) => entry.source === relative);
+  const spec = downloads.find((entry) => entry.source === relative);
   // Downloads are files, not React-router pages. Docusaurus's pathname scheme
   // keeps ordinary navigation and base-path handling for these verified assets.
   if (spec) return `pathname://${baseUrl}specs/${spec.name}${suffix}`;

@@ -31,7 +31,7 @@ export const internalsSections: Section[] = [
       account("client-framework", "Clients, SDKs and Station"),
       account("query-engine", "Query planning, snapshots and results"),
       account("effect-lifecycle", "External effects and uncertain outcomes"),
-      account("service-interfaces", "Serving, reactive views and Board"),
+      account("service-interfaces", "SQL sessions, serving and operator interfaces"),
     ],
   },
   {
