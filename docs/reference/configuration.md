@@ -9,9 +9,13 @@ pagination and recovery.
 
 The annotated [transit.yaml.example](../../transit.yaml.example) covers all local
 server settings, including independently enabled PostgreSQL/MySQL listeners,
-accounts and TLS. Copy it to `transit.yaml` and customize it; the repository
-ignores that local file. The example retains the built-in defaults and includes
-commented alternatives for optional features and executable paths. SQL account
+accounts and TLS. Copy it to `transit.yaml`; the repository ignores that local
+file. Every setting is commented out, so the unchanged file supplies no overrides.
+Uncomment only the desired keys and their parent sections, retaining the shown
+indentation. Omitted settings use built-in defaults, subject to environment
+overrides. Leaving a section commented out does not disable a service that starts
+by default. Values shown are defaults unless labeled as optional examples,
+including listener, account and executable-path examples. SQL account
 enrollment still requires the explicit authorization workflow in the
 [local database guide](../../apps/transit-cli/docs/sql.md).
 

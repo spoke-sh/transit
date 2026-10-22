@@ -1,5 +1,9 @@
-# Copy this file to transit.yaml and customize it before starting Transit.
+# Copy this file to transit.yaml to start with Transit's built-in defaults.
 # The repository ignores /transit.yaml; this example is not loaded automatically.
+# Every setting is commented out. Uncomment only the settings you want to
+# override, including their parent keys, and keep the indentation shown here.
+# Values shown are defaults unless labeled as optional examples. Leaving a
+# section commented out uses its defaults; it does not disable that service.
 # Use the matching local bundle with transit on PATH.
 #
 # Start or resume the installation:    transit server
@@ -13,170 +17,173 @@
 # See docs/reference/configuration.md for precedence, reload and permissions.
 
 # Installation identity: choose before initialization; retain on every restart.
-version: 1
+# The default installation is .transit in the startup working directory.
+# An explicit relative installation path is relative to this configuration file.
+# version: 1
+# installation: ./.transit
+# realm: 1
+# Native accepted-work quotas; these do not expire history or reclaim storage.
+# admission_ceiling: 65536
+# control_reserve: 4096
 
 # Operational logs use stderr. JSON is available for log collectors.
 # Overrides: TRANSIT_LOGGING__FORMAT=json, TRANSIT_LOGGING__LEVEL=debug.
 # Changes require restarting the server; SHOW logging.format exposes the setting.
-logging:
-  format: text # text | json
-  level: info # debug | info | warn | error | off
-installation: ./.transit
-realm: 1
-# Native accepted-work quotas; these do not expire history or reclaim storage.
-admission_ceiling: 65536
-control_reserve: 4096
+# logging:
+#   format: text # text | json
+#   level: info # debug | info | warn | error | off
 
 # Automatic first startup creates a missing or empty installation directory.
 # Enable this after provisioning a managed deployment to catch missing volumes
 # or a mistaken installation path. Changes take effect on the next startup.
-startup:
-  require_existing: false
+# startup:
+#   require_existing: false
 
 # Physical immutable allocations, including staged candidates. Provider metadata,
 # work ledgers, WAL, snapshots and filesystem headroom have separate costs.
-storage:
-  limits:
-    bytes: 8 GiB
-    control_bytes: 64 MiB
-    candidate_bytes: 8 MiB
-  maintenance:
-    collection_every_records: 1024
-    # Copies current data in bounded steps. Unlimited history still owns old roots.
-    compact: false
-
+# storage:
+#   limits:
+#     bytes: 8 GiB
+#     control_bytes: 64 MiB
+#     candidate_bytes: 8 MiB
+#   maintenance:
+#     collection_every_records: 1024
+#     # Copies current data in bounded steps. Unlimited history still owns old roots.
+#     compact: false
 
 # Core services bind 127.0.0.1. All configured listener ports must be distinct
 # and in 1024..65535. Port changes require a server restart.
-ports:
-  cold: 19101          # MinIO cold storage
-  cold_console: 19102  # Reserved even though the MinIO browser is disabled
-  store: 19103         # Ursula storage
-  node: 19104          # Native authority
-  gateway: 19105       # Native HTTP gateway, not a PostgreSQL/MySQL endpoint
+# ports:
+#   cold: 19101          # MinIO cold storage
+#   cold_console: 19102  # Reserved even though the MinIO browser is disabled
+#   store: 19103         # Ursula storage
+#   node: 19104          # Native authority
+#   gateway: 19105       # Native HTTP gateway, not a PostgreSQL/MySQL endpoint
 
 # Additional exact Host authorities accepted by the native HTTP gateway.
 # Loopback authorities are already allowed. At most eight aliases, each at most
 # 200 bytes; no URL schemes, paths or wildcards. Applies on configuration reload.
-# Example: gateway_allowed_hosts: ["transit.example:443"]
-gateway_allowed_hosts: []
+# Default: no additional aliases. Optional example:
+# gateway_allowed_hosts:
+#   - transit.example:443
 
 # Application management is enabled by default. Use applications: null to
 # disable its admission endpoint. Limits: 1..64 applications, 1..256 roles each.
 # Install application definitions with the existing transit app workflow;
 # this block configures management, not application definitions or connectors.
-applications:
-  port: 19106
-  max_applications: 8
-  max_roles: 32
+# applications:
+#   port: 19106
+#   max_applications: 8
+#   max_roles: 32
 
 # Board starts by default. Use transit server --no-ui for a headless invocation;
 # board: null does not disable it. These settings require restart.
-board:
-  port: 19107
-  # null derives http://127.0.0.1:<board.port>; an explicit origin must match it.
-  public_origin: null
+# board:
+#   port: 19107
+#   # null derives http://127.0.0.1:<board.port>; an explicit origin must match it.
+#   public_origin: null
 
 # New sessions capture these settings after reload. Zero adds no statement
 # deadline; other request/work limits still apply. Maximum: 24h.
 # With a nonzero ceiling, the default must also be nonzero and <= the ceiling.
 # Example: statement_timeout: 5s and statement_timeout_ceiling: 30s.
-query:
-  statement_timeout: 0
-  statement_timeout_ceiling: 0
+# query:
+#   statement_timeout: 0
+#   statement_timeout_ceiling: 0
 
-# PostgreSQL and MySQL are independently opt-in. Replace either null with its
-# port object to enable that protocol, and configure an account below:
-#   postgres: {"port": 15432}
-#   mysql: {"port": 13306}
-# Use JSON syntax for flow objects, or ordinary indented YAML mappings.
+# SQL provides the local console's shared sessions by default. PostgreSQL,
+# MySQL and native HTTP listeners are independently opt-in (default: null).
 #
-# SQL settings require restart. For local use, enable either port, uncomment
-# the owner account below and set tls.mode to disabled. Then connect with:
+# SQL settings require restart. For local wire access, uncomment sql, the
+# postgres and/or mysql block, and the accounts block below. For plaintext,
+# also uncomment tls and set mode to disabled. Then connect with:
 #   psql -h localhost -p 15432 -U owner -d transit
 #   mysql --protocol=TCP -h localhost -P 13306 -u owner -D transit --ssl-mode=DISABLED
 # See apps/transit-cli/docs/sql.md for password/TLS and additional roles.
 # Restart never restores revoked privileges. Disabling listeners or accounts
 # preserves accepted operations and their recovery worker.
-sql:
-  # Local consoles use independent sessions over an OS-authenticated private
-  # Unix socket. No password, TLS or client recovery file is needed.
-  native:
-    local: true
-    session_lease_ms: 30s  # Renewable native HTTP session lease; 1ms..270s
-    sources_file: null  # Optional service-owned KV/Table/Document source bindings
-    http: null
-    # To enable remote native consoles, replace null with:
-    # http:
-    #   address: 0.0.0.0
-    #   port: 19109
-    #   tls: true
-    #   certificate_file: ../transit-secrets/tls/server.pem
-    #   key_file: ../transit-secrets/tls/server.key
-    # Configure a password account below. Its console uses SCRAM over HTTPS.
-    # This TLS configuration is independent of the PG/MySQL tls block.
-  postgres: null
-  mysql: null
+# sql:
+#   # Local consoles use independent sessions over an OS-authenticated private
+#   # Unix socket. No password, TLS or client recovery file is needed.
+#   native:
+#     local: true
+#     session_lease_ms: 30s  # Renewable native HTTP session lease; 1ms..270s
+#     sources_file: null  # Optional service-owned KV/Table/Document source bindings
+#     # Optional remote-console example: default http is null (disabled).
+#     # The example binds all IPv4 interfaces; the default address is 127.0.0.1.
+#     # Supply your PEM files and configure a password account below.
+#     # Its console uses SCRAM over HTTPS. This TLS configuration is independent
+#     # of the PG/MySQL tls block.
+#     http:
+#       address: 0.0.0.0
+#       port: 19109
+#       tls: true
+#       certificate_file: ../transit-secrets/tls/server.pem
+#       key_file: ../transit-secrets/tls/server.key
+#   # Optional wire listeners: uncomment either block to enable its protocol.
+#   postgres:
+#     port: 15432
+#   mysql:
+#     port: 13306
 
-  # A configured listener requires at least one enabled account (max 32).
-  # trust accepts the claimed login from any process able to connect locally;
-  # it does not verify the OS user. Ordinary native role/grant checks still apply.
-  # bootstrap_owner explicitly binds this account to the original local owner
-  # once. Keep its value unchanged after enrollment; revocation remains effective.
-  # Account names: 1..63 ASCII letters, digits, underscores or hyphens.
-  # The local server supports only database transit and schema public.
-  accounts: []
-  #   - name: owner
-  #     role: local_owner
-  #     authentication: trust
-  #     bootstrap_owner: true
-  #     enabled: true
-  #     database: transit
-  #     schema: public
-  #     sources_file: ../transit-secrets/sources.yaml
-  # For password authentication on a newly enrolled account, instead select:
-  #     authentication: password
-  #     password_file: ../transit-secrets/sql-owner.password
-  # The private file contains 1..128 printable ASCII bytes without a newline.
-  # Password accounts default to explicit enrollment (bootstrap_owner: false).
-  # MySQL password authentication requires optional or required TLS.
+#   # Default: no configured network accounts. A configured listener requires
+#   # at least one enabled account (max 32). Optional local owner example:
+#   # trust accepts the claimed login from any process able to connect locally;
+#   # it does not verify the OS user. Ordinary native role/grant checks still apply.
+#   # bootstrap_owner explicitly binds this account to the original local owner
+#   # once. Keep its value unchanged after enrollment; revocation remains effective.
+#   # Account names: 1..63 ASCII letters, digits, underscores or hyphens.
+#   # The local server supports only database transit and schema public.
+#   accounts:
+#     - name: owner
+#       role: local_owner
+#       authentication: trust  # Default for a configured account is password
+#       bootstrap_owner: true  # Default is false (explicit enrollment)
+#       enabled: true
+#       database: transit
+#       schema: public
+#       sources_file: null  # Optional source bindings file, resolved relative to this file
+#       # For a newly enrolled password account, change authentication to password
+#       # and uncomment password_file. The private file contains 1..128 printable
+#       # ASCII bytes without a newline. MySQL password authentication requires TLS.
+#       # password_file: ../transit-secrets/sql-owner.password
 
-  # required is the default; disabled needs no certificates or password files
-  # with trust accounts. optional accepts TLS and plaintext on the same ports.
-  # For optional/required, all null generates private local TLS trust.
-  # Or supply all three PEM paths; the leaf covers localhost and 127.0.0.1.
-  # Supplied PEM paths reject with disabled TLS. Clients can verify the reported CA.
-  tls:
-    mode: required
-    certificate_file: null  # e.g. ../transit-secrets/tls/server.pem
-    key_file: null          # e.g. ../transit-secrets/tls/server.key
-    ca_file: null           # e.g. ../transit-secrets/tls/ca.pem
+#   # required is the default; disabled needs no certificates or password files
+#   # with trust accounts. optional accepts TLS and plaintext on the same ports.
+#   # For optional/required, all null generates private local TLS trust.
+#   # Or supply all three PEM paths; the leaf covers localhost and 127.0.0.1.
+#   # Supplied PEM paths reject with disabled TLS. Clients can verify the reported CA.
+#   tls:
+#     mode: required
+#     certificate_file: null  # e.g. ../transit-secrets/tls/server.pem
+#     key_file: null          # e.g. ../transit-secrets/tls/server.key
+#     ca_file: null           # e.g. ../transit-secrets/tls/ca.pem
 
-  # Private loopback /health (admission) and /recovery (worker) probes.
-  # Recovery can retain this endpoint after both database listeners are disabled.
-  health_port: 19108
-  drain_ms: 30s            # Joined connection drain; 1ms..270s
-  request_timeout_ms: 5s   # Native request wait; 1ms..60s
-  command_ms: 30s          # SQL statement wait; 1ms..270s (e.g. 180s for local use)
-  idle_ms: 0               # PG/MySQL idle timeout; 0 disables it (default)
-  # A timeout does not undo an accepted write. Inspect its original operation
-  # before submitting new SQL; the local database guide covers lost responses.
-  connections: 64              # 1..256 total
-  connections_per_account: 8   # 1..255, no greater than connections
-  authentications: 4           # 1..16, no greater than connections
-  # Initial durable-ledger quotas per account; changing these does not rewrite
-  # an already enrolled account's ledger or discard accepted operations.
-  operation_quota: 1000000
-  byte_quota: 1GiB
-  pending_quota: 16
+#   # Private loopback /health (admission) and /recovery (worker) probes.
+#   # Recovery can retain this endpoint after both database listeners are disabled.
+#   health_port: 19108
+#   drain_ms: 30s            # Joined connection drain; 1ms..270s
+#   request_timeout_ms: 5s   # Native request wait; 1ms..60s
+#   command_ms: 30s          # SQL statement wait; 1ms..270s (e.g. 180s for local use)
+#   idle_ms: 0              # PG/MySQL idle timeout; 0 disables it (default)
+#   # A timeout does not undo an accepted write. Inspect its original operation
+#   # before submitting new SQL; the local database guide covers lost responses.
+#   connections: 64             # 1..256 total
+#   connections_per_account: 8   # 1..255, no greater than connections
+#   authentications: 4          # 1..16, no greater than connections
+#   # Initial durable-ledger quotas per account; changing these does not rewrite
+#   # an already enrolled account's ledger or discard accepted operations.
+#   operation_quota: 1000000
+#   byte_quota: 1GiB
+#   pending_quota: 16
 
 # Omitted executable keys are found beside the physical transit executable,
-# then on PATH. Keep this empty for the installed local bundle. Explicit paths
+# then on PATH. Leave this section commented for the installed local bundle.
+# Optional examples below override discovery for selected executables. Paths
 # resolve relative to this file and must match the installation's recorded
 # artifact hashes; executable replacement is not a configuration upgrade.
 # Board and SQL gateway artifacts are required even with their listeners off.
-executables: {}
-# To override discovery, replace {} with the needed entries, for example:
+# executables:
 #   minio: /absolute/path/to/minio
 #   ursula: /absolute/path/to/ursula
 #   node: /absolute/path/to/transit-node
