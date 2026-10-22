@@ -207,6 +207,12 @@ fn changeWrite(writer: *std.Io.Writer, schema: c.fuze.TableSchema.Schema, change
             try typeWrite(writer, column.type);
             try writer.writeInt(u32, column.max_characters orelse 0, .little);
         },
+        .physical => |column| {
+            try writer.writeByte(7);
+            try writer.writeInt(u64, column.column, .little);
+            try writer.writeByte(@intFromEnum(column.encoding));
+            try writer.writeByte(@intFromEnum(column.collation));
+        },
     }
 }
 pub fn encode(allocator: std.mem.Allocator, body: Body, output: []u8) ![]const u8 {
@@ -298,6 +304,12 @@ fn changeRead(arena: *std.heap.ArenaAllocator, reader: *std.Io.Reader, schema: c
             const data_type = try typeRead(arena, reader);
             const length = try reader.takeInt(u32, .little);
             break :blk .{ .type = .{ .column = id, .type = data_type, .max_characters = if (length == 0) null else length } };
+        },
+        7 => blk: {
+            const id = try reader.takeInt(u64, .little);
+            const encoding = std.enums.fromInt(c.fuze.TableSchema.Encoding, try reader.takeByte()) orelse return error.InvalidTableCommand;
+            const collation = std.enums.fromInt(c.fuze.TableSchema.Collation, try reader.takeByte()) orelse return error.InvalidTableCommand;
+            break :blk .{ .physical = .{ .column = id, .encoding = encoding, .collation = collation } };
         },
         else => error.InvalidTableCommand,
     };

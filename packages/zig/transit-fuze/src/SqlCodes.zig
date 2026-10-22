@@ -156,6 +156,8 @@ pub const entries = [_]Entry{
     .{ .cause = error.Overflow, .code = "sql.overflow", .category = .constraint, .summary = "Value is outside the declared type's range", .hint = "Use an in-range value or an explicitly selected wider type; no partial statement was accepted." },
     .{ .cause = error.Inexact, .code = "sql.inexact", .category = .constraint, .summary = "Conversion would lose numeric precision", .hint = "Use an exactly representable value or a suitable type; Table binding and schema changes do not silently round." },
     .{ .cause = error.InvalidArrayLength, .code = "sql.invalid_array_length", .category = .constraint, .summary = "Array length does not match its descriptor", .hint = "Supply exactly the declared positive number of array elements." },
+    .{ .cause = error.IncompatibleColumnEncoding, .code = "sql.incompatible_column_encoding", .category = .binding, .summary = "Physical column encoding is incompatible with the logical column type", .hint = "Choose an encoding descriptor supported for the column's logical type." },
+    .{ .cause = error.IncompatibleColumnCollation, .code = "sql.incompatible_column_collation", .category = .binding, .summary = "Column collation is incompatible with the logical column type", .hint = "Specify text collations only on UTF8 columns; non-text columns require collation none." },
 };
 pub fn fromError(cause: anyerror) ?[]const u8 {
     for (entries) |entry| if (entry.cause == cause) return entry.code;

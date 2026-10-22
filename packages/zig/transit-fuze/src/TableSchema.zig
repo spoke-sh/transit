@@ -7,6 +7,28 @@ pub const definition = "transit.table.schema.v1.2026-10-05";
 pub const max_columns = 128;
 pub const max_bytes = 65536;
 pub const ColumnId = u64;
+/// Orthogonal physical column representation ($\epsilon$). Logical values and
+/// expressions evaluate over `Type` ($\tau$) independently of physical codec.
+pub const Encoding = enum(u8) {
+    plain = 0,
+    bitpacked = 1,
+    rle = 2,
+    dictionary = 3,
+    fsst = 4,
+    comp = 5,
+    comp_3 = 6,
+    zoned = 7,
+    ibm_hfp = 8,
+    ebcdic = 9,
+};
+/// Orthogonal ordering and equality collation ($\kappa$) for text columns.
+pub const Collation = enum(u8) {
+    none = 0,
+    utf8_binary = 1,
+    ascii_ci = 2,
+    ebcdic_cp037 = 3,
+    icu_root = 4,
+};
 pub const Column = struct {
     id: ColumnId,
     name: []const u8,
@@ -15,9 +37,32 @@ pub const Column = struct {
     default: ?v.Cell = null,
     /// Unicode scalar count, separate from the encoded-byte/work budgets.
     max_characters: ?u32 = null,
+    encoding: Encoding = .plain,
+    collation: Collation = .none,
 
     pub fn field(self: Column) t.Field {
         return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
+    }
+    pub fn validateEncodingAndCollation(self: Column) !void {
+        const is_integer = switch (self.type) {
+            .int8, .int16, .int32, .int64, .int128, .uint8, .uint16, .uint32, .uint64, .uint128 => true,
+            else => false,
+        };
+        const valid_encoding = switch (self.encoding) {
+            .plain => true,
+            .bitpacked => is_integer or self.type == .boolean,
+            .rle, .dictionary => keyType(self.type),
+            .fsst, .ebcdic => self.type == .utf8 or self.type == .binary,
+            .comp => is_integer,
+            .comp_3, .zoned => is_integer or self.type == .decimal,
+            .ibm_hfp => self.type == .float32 or self.type == .float64,
+        };
+        if (!valid_encoding) return error.IncompatibleColumnEncoding;
+        const valid_collation = switch (self.collation) {
+            .none => true,
+            .utf8_binary, .ascii_ci, .ebcdic_cp037, .icu_root => self.type == .utf8,
+        };
+        if (!valid_collation) return error.IncompatibleColumnCollation;
     }
     pub fn validateCell(self: Column, cell: v.Cell) !void {
         try cell.validate(self.field(), .{});
@@ -72,6 +117,12 @@ pub const Schema = struct {
         }
         return .{ .structure = output[0..self.columns.len] };
     }
+    pub fn hasPhysicalAttributes(self: Schema) bool {
+        for (self.columns) |column| {
+            if (column.encoding != .plain or column.collation != .none) return true;
+        }
+        return false;
+    }
     /// Physical row interpretation only. Preparation/admission must retain the
     /// full schema fingerprint; this digest never authorizes stale operations.
     pub fn layoutFingerprint(self: Schema) ![32]u8 {
@@ -85,6 +136,12 @@ pub const Schema = struct {
         std.mem.writeInt(u64, &object, self.object, .little);
         hash.update(&object);
         hash.update(&try (try self.storageType(&fields, &names)).fingerprint());
+        if (self.hasPhysicalAttributes()) {
+            hash.update("FTP1");
+            for (self.columns) |column| {
+                hash.update(&.{ @intFromEnum(column.encoding), @intFromEnum(column.collation) });
+            }
+        }
         return hash.finalResult();
     }
     pub fn validate(self: Schema) !void {
@@ -98,6 +155,7 @@ pub const Schema = struct {
                 if (std.mem.eql(u8, previous.name, column.name)) return error.DuplicateColumn;
             }
             if (column.max_characters) |limit| if (limit == 0 or column.type != .utf8) return error.InvalidCharacterLimit;
+            try column.validateEncodingAndCollation();
             if (column.default) |value| try column.validateCell(value);
         }
         try row_type.validate(.{});
@@ -226,6 +284,13 @@ pub const Schema = struct {
         }
         try writer.writeInt(u16, @intCast(self.primary_key.len), .little);
         for (self.primary_key) |id| try writer.writeInt(u64, id, .little);
+        if (self.hasPhysicalAttributes()) {
+            try writer.writeAll("FTP1");
+            for (self.columns) |column| {
+                try writer.writeByte(@intFromEnum(column.encoding));
+                try writer.writeByte(@intFromEnum(column.collation));
+            }
+        }
     }
     pub fn fingerprint(self: Schema) ![32]u8 {
         var bytes: [max_bytes]u8 = undefined;
@@ -286,6 +351,17 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
     const primary = try a.alloc(ColumnId, keys);
     for (primary) |*id| id.* = try reader.takeInt(u64, .little);
     schema.primary_key = primary;
+    if (reader.seek < bytes.len) {
+        if (bytes.len - reader.seek != 4 + columns.len * 2) return error.InvalidTableSchemaEncoding;
+        if (!std.mem.eql(u8, try reader.take(4), "FTP1")) return error.InvalidTableSchemaEncoding;
+        var has_physical = false;
+        for (columns) |*column| {
+            column.encoding = std.enums.fromInt(Encoding, try reader.takeByte()) orelse return error.InvalidTableSchemaEncoding;
+            column.collation = std.enums.fromInt(Collation, try reader.takeByte()) orelse return error.InvalidTableSchemaEncoding;
+            if (column.encoding != .plain or column.collation != .none) has_physical = true;
+        }
+        if (!has_physical) return error.InvalidTableSchemaEncoding;
+    }
     if (reader.seek != bytes.len) return error.InvalidTableSchemaEncoding;
     try schema.validate();
     return .{ .arena = arena, .schema = schema };

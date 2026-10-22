@@ -377,6 +377,183 @@ pub const Upload = struct {
     }
 };
 pub const State = struct { outcome: ?Outcome, upload: ?Upload };
+pub const LifecycleEvidence = struct {
+    kind: m.ObjectKind,
+    state: m.LifecycleState,
+    scope: Scope,
+    namespace: u64,
+    object: []const u8,
+    revision: []const u8,
+    name: []const u8,
+    definition_digest: []const u8,
+    resource_revision: u64,
+    pending_operation: ?[]const u8,
+    admitted_input: ?u64,
+    completed_input: ?u64,
+    pub fn foreign(allocator: Allocator, value: m.LifecycleEvidence) !LifecycleEvidence {
+        return .{
+            .kind = value.kind,
+            .state = value.state,
+            .scope = try Scope.foreign(allocator, value.scope),
+            .namespace = value.namespace,
+            .object = try decimal(allocator, value.object),
+            .revision = try decimal(allocator, value.revision),
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .definition_digest = try hex(allocator, &value.definition_digest),
+            .resource_revision = value.resource_revision,
+            .pending_operation = if (value.pending_operation == 0) null else try decimal(allocator, value.pending_operation),
+            .admitted_input = if (value.admitted_input == 0) null else value.admitted_input,
+            .completed_input = if (value.completed_input == 0) null else value.completed_input,
+        };
+    }
+};
+pub const Preview = struct {
+    kind: m.ObjectKind,
+    action: m.Kind,
+    name: []const u8,
+    object: []const u8,
+    expected_revision: []const u8,
+    disposition: @FieldType(m.Preview, "disposition"),
+    reason: @FieldType(m.Preview, "reason"),
+    work: f.TableEvolution.Work,
+    rebuild_key: bool,
+    definition_digest: []const u8,
+    resource_revision: u64,
+    pub fn foreign(allocator: Allocator, value: m.Preview) !Preview {
+        return .{
+            .kind = value.kind,
+            .action = value.action,
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .object = try decimal(allocator, value.object),
+            .expected_revision = try decimal(allocator, value.expected_revision),
+            .disposition = value.disposition,
+            .reason = value.reason,
+            .work = value.work,
+            .rebuild_key = value.rebuild_key,
+            .definition_digest = try hex(allocator, &value.definition_digest),
+            .resource_revision = value.resource_revision,
+        };
+    }
+};
+pub const DependencyCursor = struct {
+    definition: p.Growth.Definition,
+    scope: Scope,
+    resource_revision: u64,
+    subject: []const u8,
+    after: []const u8,
+    pub fn native(self: DependencyCursor) !m.DependencyCursor {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        if (self.resource_revision > p.max_counter) return error.InvalidCatalogPage;
+        const subj = try unsigned(self.subject);
+        const aft = try unsigned(self.after);
+        if (subj == 0 or aft == 0) return error.InvalidCatalogPage;
+        return .{ .scope = try self.scope.native(), .resource_revision = self.resource_revision, .subject = subj, .after = aft };
+    }
+    pub fn foreign(allocator: Allocator, value: m.DependencyCursor) !DependencyCursor {
+        const result: DependencyCursor = .{ .definition = p.Growth.current_definition, .scope = try Scope.foreign(allocator, value.scope), .resource_revision = value.resource_revision, .subject = try decimal(allocator, value.subject), .after = try decimal(allocator, value.after) };
+        _ = try result.native();
+        return result;
+    }
+};
+pub const DependencyEntry = struct {
+    scope: Scope,
+    object: []const u8,
+    identity: []const u8,
+    owner: u64,
+    kind: @FieldType(m.Dependency, "kind"),
+};
+pub const DependencyPage = struct {
+    resource_revision: u64,
+    entries: [p.Growth.page_size]?DependencyEntry,
+    next: ?DependencyCursor,
+    pub fn foreign(allocator: Allocator, value: m.DependencyPage) !DependencyPage {
+        if (value.resource_revision > p.max_counter) return error.InvalidCatalogPage;
+        var result: DependencyPage = .{ .resource_revision = value.resource_revision, .entries = @splat(null), .next = if (value.next) |cursor| try DependencyCursor.foreign(allocator, cursor) else null };
+        for (value.entries, 0..) |slot, i| if (slot) |dep| {
+            try dep.validate();
+            result.entries[i] = .{
+                .scope = try Scope.foreign(allocator, dep.scope),
+                .object = try decimal(allocator, dep.object),
+                .identity = try decimal(allocator, dep.identity),
+                .owner = dep.owner,
+                .kind = dep.kind,
+            };
+        };
+        return result;
+    }
+};
+pub const PolicyReferences = struct {
+    kind: m.ObjectKind,
+    scope: Scope,
+    namespace: u64,
+    object: []const u8,
+    authorization_domain: u64,
+    authorization_object: ?u64,
+    schema_authorization: ?u64,
+    owner_pid: u64,
+    retention_unlimited: bool,
+    record_bytes: u32,
+    staging_bytes: []const u8,
+    staging_records: u32,
+    can_read: bool,
+    redacted: bool,
+    resource_revision: u64,
+    pub fn foreign(allocator: Allocator, value: m.PolicyReferences) !PolicyReferences {
+        return .{
+            .kind = value.kind,
+            .scope = try Scope.foreign(allocator, value.scope),
+            .namespace = value.namespace,
+            .object = try decimal(allocator, value.object),
+            .authorization_domain = value.authorization_domain,
+            .authorization_object = if (value.authorization_object == 0) null else value.authorization_object,
+            .schema_authorization = if (value.schema_authorization == 0) null else value.schema_authorization,
+            .owner_pid = value.owner_pid,
+            .retention_unlimited = value.retention_unlimited,
+            .record_bytes = value.record_bytes,
+            .staging_bytes = try decimal(allocator, value.staging_bytes),
+            .staging_records = value.staging_records,
+            .can_read = value.can_read,
+            .redacted = value.redacted,
+            .resource_revision = value.resource_revision,
+        };
+    }
+};
+pub const ComputationEvidence = struct {
+    scope: Scope,
+    namespace: u64,
+    object: []const u8,
+    revision: []const u8,
+    name: []const u8,
+    state: m.LifecycleState,
+    source_object: []const u8,
+    source_revision: []const u8,
+    current_source_revision: ?[]const u8,
+    output_object: ?[]const u8,
+    fresh: bool,
+    source_available: bool,
+    resource_revision: u64,
+    admitted_input: ?u64,
+    completed_input: ?u64,
+    pub fn foreign(allocator: Allocator, value: m.ComputationEvidence) !ComputationEvidence {
+        return .{
+            .scope = try Scope.foreign(allocator, value.scope),
+            .namespace = value.namespace,
+            .object = try decimal(allocator, value.object),
+            .revision = try decimal(allocator, value.revision),
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .state = value.state,
+            .source_object = try decimal(allocator, value.source_object),
+            .source_revision = try decimal(allocator, value.source_revision),
+            .current_source_revision = if (value.current_source_revision == 0) null else try decimal(allocator, value.current_source_revision),
+            .output_object = if (value.output_object == 0) null else try decimal(allocator, value.output_object),
+            .fresh = value.fresh,
+            .source_available = value.source_available,
+            .resource_revision = value.resource_revision,
+            .admitted_input = if (value.admitted_input == 0) null else value.admitted_input,
+            .completed_input = if (value.completed_input == 0) null else value.completed_input,
+        };
+    }
+};
 pub const Disposition = struct {
     input: u64,
     outcome: @FieldType(c.TableControl.Disposition, "outcome"),

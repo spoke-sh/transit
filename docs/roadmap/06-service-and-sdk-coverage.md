@@ -1,4 +1,4 @@
-# 7. Service and SDK coverage
+# 6. Service and SDK coverage
 
 [Roadmap](README.md)
 

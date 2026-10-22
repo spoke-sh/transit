@@ -158,6 +158,135 @@ pub fn inspectIntent(self: *Self, intent: *const Intent) !State {
     try current.finish();
     return result;
 }
+pub fn inspectLifecycle(self: *Self, id: u64) !?m.LifecycleEvidence {
+    if (id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', id, 0), self.address('K', id, 0) });
+    const result = try (try self.catalog(&current)).inspectLifecycle(&current, self.connection.principal, id);
+    try current.finish();
+    return result;
+}
+pub fn dependents(self: *Self, object_id: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    if (object_id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', object_id, 0), self.address('K', object_id, 0) });
+    const result = try (try self.catalog(&current)).dependents(&current, self.connection.principal, object_id, cursor);
+    try current.finish();
+    return result;
+}
+pub fn dependencies(self: *Self, identity: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    if (identity == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', identity, 0), self.address('K', identity, 0) });
+    const result = try (try self.catalog(&current)).dependencies(&current, self.connection.principal, identity, cursor);
+    try current.finish();
+    return result;
+}
+pub fn policyReferences(self: *Self, id: u64) !?m.PolicyReferences {
+    if (id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', id, 0), self.address('K', id, 0) });
+    const result = try (try self.catalog(&current)).policyReferences(&current, self.connection.principal, id);
+    try current.finish();
+    return result;
+}
+pub fn inspectComputation(self: *Self, id: u64) !?m.ComputationEvidence {
+    if (id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{self.address('K', id, 0)});
+    const result = try (try self.catalog(&current)).inspectComputation(&current, self.connection.principal, id);
+    try current.finish();
+    return result;
+}
+/// Non-mutating validation of an intent against the current authorized cut.
+/// Never signs, submits or reserves an operation identity.
+pub fn preview(self: *Self, allocator: std.mem.Allocator, intent: *const Intent) !m.Preview {
+    try self.connection.header(intent.header);
+    var command = try intent.command(allocator);
+    defer command.deinit();
+    var current = try self.source(&.{});
+    const owner = try self.catalog(&current);
+    const result: m.Preview = switch (command.body.request) {
+        .ddl => |request| try owner.previewDdl(&current, self.connection.principal, request),
+        .dml => |request| blk: {
+            _ = try owner.authorize(current: {
+                break :current &current;
+            }, self.connection.principal, .inspect);
+            _ = try owner.authorizeObject(&current, self.connection.principal, request.plan.schema.object, request.right());
+            const obj = (try owner.lookup(allocator, &current, self.connection.principal, try c.TableMetadata.Name.init(request.plan.name))) orelse return error.TableNotFound;
+            var owned_obj = obj;
+            defer owned_obj.deinit();
+            if (owned_obj.metadata.object != request.plan.schema.object or owned_obj.metadata.revision != request.metadata.id or !std.mem.eql(u8, &owned_obj.metadata.schema_fingerprint, &try request.plan.schema.fingerprint())) {
+                break :blk .{
+                    .kind = .table,
+                    .action = .alter,
+                    .name = owned_obj.metadata.name,
+                    .object = owned_obj.metadata.object,
+                    .expected_revision = owned_obj.metadata.revision,
+                    .disposition = .rejected,
+                    .reason = .schema_changed,
+                    .definition_digest = owned_obj.metadata.schema_fingerprint,
+                    .resource_revision = current.view.revision,
+                };
+            }
+            break :blk .{
+                .kind = .table,
+                .action = .alter,
+                .name = owned_obj.metadata.name,
+                .object = owned_obj.metadata.object,
+                .expected_revision = owned_obj.metadata.revision,
+                .disposition = .admissible,
+                .work = .rewrite_rows,
+                .definition_digest = owned_obj.metadata.schema_fingerprint,
+                .resource_revision = current.view.revision,
+            };
+        },
+    };
+    try current.finish();
+    return result;
+}
+/// Direct idempotent application of an intent. Drives inline or multi-part
+/// uploads and owner continuations without caller-managed chunk loops.
+pub fn apply(self: *Self, intent: *const Intent) !State {
+    try self.connection.header(intent.header);
+    var steps: usize = 0;
+    const max_steps: usize = (c.TableIntent.max_bytes / c.TableUpload.part_bytes) + 64;
+    while (steps < max_steps) : (steps += 1) {
+        switch (try self.next(intent)) {
+            .send => |prepared| {
+                const accepted = try self.submit(prepared);
+                var polls: usize = 0;
+                while (polls < 64) : (polls += 1) {
+                    if (try self.waitObserve(prepared, accepted.position) == .processed) break;
+                }
+                if (try self.inputDisposition(prepared, accepted.position)) |disp| {
+                    switch (disp.outcome) {
+                        .denied => return error.CatalogDenied,
+                        .identity_conflict => return error.CatalogIdentityConflict,
+                        .stale_policy => return error.CatalogPolicyConflict,
+                        .invalid_command => return error.InvalidCatalogCommand,
+                        .blocked => return error.CatalogDefinitionChanged,
+                        else => {},
+                    }
+                }
+            },
+            .running => {
+                var waits: usize = 0;
+                while (waits < 32) : (waits += 1) {
+                    try self.waitForChange(intent);
+                    const current_state = try self.inspectIntent(intent);
+                    if (current_state.outcome) |out| if (out.terminal()) return current_state;
+                    if (current_state.upload) |up| if (up.phase == .cancelled) return error.TableUploadClosed;
+                    switch (try self.nextValue(intent)) {
+                        .terminal => return self.inspectIntent(intent),
+                        .upload_cancelled => return error.TableUploadClosed,
+                        .running => {},
+                        .send => break,
+                    }
+                }
+                return self.inspectIntent(intent);
+            },
+            .terminal => return self.inspectIntent(intent),
+            .upload_cancelled => return error.TableUploadClosed,
+        }
+    }
+    return self.inspectIntent(intent);
+}
 pub fn resources(self: *Self) wire.ResourceReader {
     if (self.reader) |value| return value;
     return .{ .wire = self.transport, .realm = self.connection.scope.realm, .principal = self.connection.principal, .key = self.key };

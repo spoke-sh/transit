@@ -40,8 +40,14 @@ pub const Action = union(enum) {
     list: ?v.Cursor,
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
+    lifecycle: []const u8,
+    dependents: @FieldType(b.Action, "dependents"),
+    dependencies: @FieldType(b.Action, "dependencies"),
+    policy_references: []const u8,
+    computation: []const u8,
     compile: @FieldType(b.Action, "compile"),
     prepare: c.TableTyped.Request,
+    preview: b.Saved,
     next: struct { saved: b.Saved, sequence: u64 },
     prepare_resume: struct { saved: b.Saved, sequence: u64 },
     observe: struct { prepared: Client.Prepared, input: u64 },
@@ -85,6 +91,11 @@ pub const Result = union(enum) {
     list: v.Page,
     lookup: ?v.Definition,
     definition: ?v.HistoricalDefinition,
+    lifecycle: ?v.LifecycleEvidence,
+    dependencies: v.DependencyPage,
+    policy_references: ?v.PolicyReferences,
+    computation: ?v.ComputationEvidence,
+    preview: v.Preview,
     compiled: b.Compiled,
     next: Next,
     state: @FieldType(b.Result, "state"),
@@ -152,6 +163,11 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             defer found.deinit();
             return .{ .definition = try v.HistoricalDefinition.foreign(arena, found) };
         },
+        .lifecycle => |object| return .{ .lifecycle = if (try client.inspectLifecycle(try v.unsigned(object))) |found| try v.LifecycleEvidence.foreign(alloc, found) else null },
+        .dependents => |query| return .{ .dependencies = try v.DependencyPage.foreign(alloc, try client.dependents(try v.unsigned(query.object), if (query.cursor) |cursor| try cursor.native() else null)) },
+        .dependencies => |query| return .{ .dependencies = try v.DependencyPage.foreign(alloc, try client.dependencies(try v.unsigned(query.identity), if (query.cursor) |cursor| try cursor.native() else null)) },
+        .policy_references => |object| return .{ .policy_references = if (try client.policyReferences(try v.unsigned(object))) |found| try v.PolicyReferences.foreign(alloc, found) else null },
+        .computation => |object| return .{ .computation = if (try client.inspectComputation(try v.unsigned(object))) |found| try v.ComputationEvidence.foreign(alloc, found) else null },
         .compile, .prepare => {
             var session: b.Session = .{ .allocator = alloc };
             defer session.deinit();
@@ -164,20 +180,21 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             _ = try client.requireObject(intent.header.object, intent.header.right());
             return .{ .compiled = prepared.compiled };
         },
-        .next, .prepare_resume, .status, .control, .progress => {
+        .next, .prepare_resume, .status, .preview, .control, .progress => {
             var session: b.Session = .{ .allocator = alloc };
             defer session.deinit();
             const saved = switch (action) {
                 .next => |value| value.saved,
                 .prepare_resume => |value| value.saved,
                 .progress => |value| value.saved,
-                .status => |value| value,
+                .status, .preview => |value| value,
                 .control => |value| value.saved,
                 else => unreachable,
             };
             const loaded = (try session.apply(arena, client, .{ .load = saved })).loaded;
             const intent = try session.get(loaded.reference, client.connection);
             if (action == .status) return .{ .state = (try session.apply(arena, client, .{ .status = loaded.reference })).state };
+            if (action == .preview) return .{ .preview = (try session.apply(arena, client, .{ .preview = loaded.reference })).preview };
             if (action == .prepare_resume) return .{ .candidate = try client.resumeCandidate(intent, action.prepare_resume.sequence) };
             if (action == .progress) return .{ .progress = switch (try client.progress(intent, action.progress.prepared, action.progress.input)) {
                 .pending => .pending,

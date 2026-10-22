@@ -3,10 +3,53 @@
 const std = @import("std");
 const sql = @import("Sql.zig");
 const m = @import("model.zig");
+pub const ObjectKind = enum { table, kv, document, computation };
+pub const LifecycleState = enum { defined, published, pending, complete, unavailable };
 pub const Body = union(enum) { kv: m.Type, document };
+pub const KvSpec = struct {
+    name: m.Name,
+    value_type: m.Type,
+    if_not_exists: bool = false,
+};
+pub const DocumentSpec = struct {
+    name: m.Name,
+    if_not_exists: bool = false,
+};
+pub const StateAction = union(enum) {
+    create_kv: KvSpec,
+    create_document: DocumentSpec,
+    rename: struct { kind: enum { kv, document }, name: m.Name, to: m.Name },
+    drop: struct { kind: enum { kv, document }, name: m.Name, if_exists: bool = false },
+
+    pub fn validate(self: StateAction) !void {
+        switch (self) {
+            .create_kv => |spec| try validName(spec.name),
+            .create_document => |spec| try validName(spec.name),
+            .rename => |spec| {
+                try validName(spec.name);
+                try validName(spec.to);
+            },
+            .drop => |spec| try validName(spec.name),
+        }
+    }
+};
 pub const Definition = struct {
     name: m.Name,
     body: Body,
+
+    pub fn objectKind(self: Definition) ObjectKind {
+        return switch (self.body) {
+            .kv => .kv,
+            .document => .document,
+        };
+    }
+
+    pub fn toStateAction(self: Definition) StateAction {
+        return switch (self.body) {
+            .kv => |value_type| .{ .create_kv = .{ .name = self.name, .value_type = value_type } },
+            .document => .{ .create_document = .{ .name = self.name } },
+        };
+    }
 
     /// Typed callers and SQL share validation, including canonical owned names.
     pub fn validate(self: Definition) !void {

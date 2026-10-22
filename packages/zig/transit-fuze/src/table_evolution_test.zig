@@ -81,3 +81,25 @@ test "type rewrites are exact and refuse overflow rounding and unqualified casts
     try e.expectEqual(@as(i128, 700), decimal.after.columns[1].default.?.value.atom.decimal);
     try e.expectEqual(@as(i128, 1200), (try decimal.row(&.{ number(1), number(12) }, &output))[1].value.atom.decimal);
 }
+test "physical encoding and collation transitions classify rewrite and key rebuild requirements" {
+    const keyed_text: s.Schema = .{
+        .object = 1,
+        .revision = 1,
+        .next_column = 3,
+        .columns = &.{
+            .{ .id = 1, .name = "code", .type = .utf8, .nullable = false },
+            .{ .id = 2, .name = "amount", .type = .int64, .nullable = false },
+        },
+        .primary_key = &.{1},
+    };
+    var columns: [s.max_columns]s.Column = undefined;
+    const recoded = try evolution.apply(keyed_text, .{ .physical = .{ .column = 2, .encoding = .bitpacked, .collation = .none } }, &columns);
+    try e.expectEqual(evolution.Work.rewrite_rows, recoded.work);
+    try e.expect(!recoded.rebuild_key);
+
+    const recollated = try evolution.apply(keyed_text, .{ .physical = .{ .column = 1, .encoding = .ebcdic, .collation = .ebcdic_cp037 } }, &columns);
+    try e.expectEqual(evolution.Work.rewrite_rows, recollated.work);
+    try e.expect(recollated.rebuild_key);
+
+    try e.expectError(error.IncompatibleColumnCollation, evolution.apply(keyed_text, .{ .physical = .{ .column = 2, .encoding = .plain, .collation = .ascii_ci } }, &columns));
+}

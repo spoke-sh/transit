@@ -28,6 +28,46 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .submit => |bytes| return .{ .receipt = try mediated.submit(try B.prepared(allocator, bytes)) },
         .receipt => |bytes| return .{ .receipt_status = try mediated.receipt(try B.prepared(allocator, bytes)) },
         .prepare_initialize, .prepare_dependency => return error.UnsupportedTableServiceAction,
+        .apply => |reference| {
+            var steps: usize = 0;
+            const max_steps: usize = (c.TableIntent.max_bytes / c.TableUpload.part_bytes) + 64;
+            while (steps < max_steps) : (steps += 1) {
+                const next_res = (try apply(arena, session, client, service, limits, .{ .next = reference })).next;
+                switch (next_res) {
+                    .send => |prepared_bytes| {
+                        const accepted = (try apply(arena, session, client, service, limits, .{ .submit = prepared_bytes })).receipt;
+                        var polls: usize = 0;
+                        while (polls < 64) : (polls += 1) {
+                            const obs = (try apply(arena, session, client, service, limits, .{ .wait_observe = .{ .prepared = prepared_bytes, .input = accepted.position } })).observation;
+                            if (obs == .processed) break;
+                        }
+                        if ((try apply(arena, session, client, service, limits, .{ .input_disposition = .{ .prepared = prepared_bytes, .input = accepted.position } })).disposition) |disp| {
+                            switch (disp.outcome) {
+                                .denied => return error.CatalogDenied,
+                                .identity_conflict => return error.CatalogIdentityConflict,
+                                .stale_policy => return error.CatalogPolicyConflict,
+                                .invalid_command => return error.InvalidCatalogCommand,
+                                .blocked => return error.CatalogDefinitionChanged,
+                                else => {},
+                            }
+                        }
+                    },
+                    .running => {
+                        var waits: usize = 0;
+                        while (waits < 32) : (waits += 1) {
+                            try client.transport.http.io.sleep(.fromMilliseconds(c.TableClient.completion_wait_ms), .awake);
+                            const current_state = (try apply(arena, session, client, service, limits, .{ .status = reference })).state;
+                            if (current_state.outcome) |out| if (out.terminal) return .{ .state = current_state };
+                            if (current_state.upload) |up| if (up.phase == .cancelled) return error.TableUploadClosed;
+                        }
+                        return apply(arena, session, client, service, limits, .{ .status = reference });
+                    },
+                    .terminal => return apply(arena, session, client, service, limits, .{ .status = reference }),
+                    .upload_cancelled => return error.TableUploadClosed,
+                }
+            }
+            return apply(arena, session, client, service, limits, .{ .status = reference });
+        },
         else => {},
     }
     const remote: Service.Action = switch (action) {
@@ -40,9 +80,15 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .compile_authorization => |value| .{ .compile_authorization = value },
         .lookup => |value| .{ .lookup = value },
         .definition => |value| .{ .definition = .{ .object = value.object, .revision = value.revision } },
+        .lifecycle => |value| .{ .lifecycle = value },
+        .dependents => |value| .{ .dependents = value },
+        .dependencies => |value| .{ .dependencies = value },
+        .policy_references => |value| .{ .policy_references = value },
+        .computation => |value| .{ .computation = value },
         .list => |value| .{ .list = value },
         .compile => |value| .{ .compile = value },
         .prepare => |value| .{ .prepare = value },
+        .preview => |reference| .{ .preview = try saved(allocator, session, client.connection, reference) },
         .next => |reference| .{ .next = .{ .saved = try saved(allocator, session, client.connection, reference), .sequence = try sequence(client) } },
         .status => |reference| .{ .status = try saved(allocator, session, client.connection, reference) },
         .prepare_resume => |reference| .{ .prepare_resume = .{ .saved = try saved(allocator, session, client.connection, reference), .sequence = try sequence(client) } },
@@ -50,7 +96,7 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .observe, .wait_observe => |value| .{ .observe = .{ .prepared = try B.prepared(allocator, value.prepared), .input = value.input } },
         .input_disposition => |value| .{ .disposition = .{ .prepared = try B.prepared(allocator, value.prepared), .input = value.input } },
         .progress, .wait_progress => |value| .{ .progress = .{ .saved = try saved(allocator, session, client.connection, value.intent), .prepared = try B.prepared(allocator, value.prepared), .input = value.input } },
-        .capabilities, .load, .forget, .submit, .receipt, .prepare_initialize, .prepare_dependency => unreachable,
+        .capabilities, .load, .forget, .apply, .submit, .receipt, .prepare_initialize, .prepare_dependency => unreachable,
     };
     // Wait variants use bounded polling at this adapter. They return one fresh
     // observation; scheduling never changes authorization or implies completion.
@@ -65,6 +111,11 @@ pub fn apply(arena: *std.heap.ArenaAllocator, session: *B.Session, client: *c.Ta
         .authorization_plan => |value| .{ .authorization_plan = value },
         .lookup => |value| .{ .definition = value },
         .definition => |value| .{ .historical = value },
+        .lifecycle => |value| .{ .lifecycle = value },
+        .dependencies => |value| .{ .dependencies = value },
+        .policy_references => |value| .{ .policy_references = value },
+        .computation => |value| .{ .computation = value },
+        .preview => |value| .{ .preview = value },
         .list => |value| .{ .page = value },
         .compiled => |value| {
             var replacement: B.Session = .{ .allocator = session.allocator };

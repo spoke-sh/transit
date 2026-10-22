@@ -1298,3 +1298,441 @@ test "current object checks filter two Tables sharing one resource" {
     try t.expectEqual(null, (try owner.list(&turn, 18, null)).entries[0]);
     try t.expectError(error.CatalogDenied, owner.authorizeObject(&turn, 18, 10, .read));
 }
+
+test "lifecycle inspection and non-mutating DDL preview distinguish pending published and unavailable states" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+
+    var turn = try store.capture(17);
+    const create_preview = try owner.previewDdl(&turn, 17, creation);
+    try t.expectEqual(null, turn.decision.mutations[0]);
+    try t.expectEqual(m.ObjectKind.table, create_preview.kind);
+    try t.expectEqual(m.Kind.create, create_preview.action);
+    try t.expectEqual(.admissible, create_preview.disposition);
+    try t.expectEqual(@as(u64, 1), create_preview.expected_revision);
+    try t.expectEqual(null, try owner.inspectLifecycle(&turn, 17, 10));
+
+    // Admit creation (step 1: initializing -> pending)
+    const admitted = try owner.step(t.allocator, &turn, creation);
+    try t.expect(!admitted.terminal());
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const pending_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.pending, pending_ev.state);
+    try t.expectEqual(@as(u64, 1), pending_ev.pending_operation);
+
+    // Finish creation -> published
+    _ = try ddl(&store, creation);
+    turn = try store.capture(17);
+    const published_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.published, published_ev.state);
+    try t.expectEqual(@as(u64, 1), published_ev.revision);
+    try t.expectEqualStrings("people", published_ev.name.slice());
+
+    // Preview duplicate CREATE and IF NOT EXISTS without mutating state
+    const conflict_preview = try owner.previewDdl(&turn, 17, try createRequest(11, 2, "people"));
+    try t.expectEqual(.rejected, conflict_preview.disposition);
+    try t.expectEqual(.name_conflict, conflict_preview.reason);
+    var if_not_exists = try createRequest(11, 2, "people");
+    if_not_exists.action.create.if_not_exists = true;
+    const unchanged_preview = try owner.previewDdl(&turn, 17, if_not_exists);
+    try t.expectEqual(.unchanged, unchanged_preview.disposition);
+
+    // Preview ALTER and DROP with dependency check
+    var resolved = (try owner.lookup(t.allocator, &turn, 17, creation.name)).?;
+    defer resolved.deinit();
+    const alter_req: c.TableDdlRequest = .{
+        .principal = 17,
+        .operation = 3,
+        .object = 10,
+        .expected_revision = 1,
+        .name = creation.name,
+        .action = .{ .alter = .{ .schema = resolved.schema.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } },
+    };
+    const alter_preview = try owner.previewDdl(&turn, 17, alter_req);
+    try t.expectEqual(.admissible, alter_preview.disposition);
+    try t.expectEqual(c.fuze.TableEvolution.Work.metadata, alter_preview.work);
+
+    const dep: m.Dependency = .{ .scope = owner.configuration.scope, .object = 10, .identity = 77, .owner = 4, .kind = .query_source };
+    try owner.setDependency(&turn, dep, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const drop_req: c.TableDdlRequest = .{ .principal = 17, .operation = 4, .object = 10, .expected_revision = 1, .name = creation.name, .action = .{ .drop = .{} } };
+    const blocked_drop = try owner.previewDdl(&turn, 17, drop_req);
+    try t.expectEqual(.rejected, blocked_drop.disposition);
+    try t.expectEqual(.dependency, blocked_drop.reason);
+    try t.expectEqual(@as(u64, 77), blocked_drop.blocker.?.identity);
+
+    try owner.setDependency(&turn, dep, false);
+    try store.commit(turn);
+    _ = try ddl(&store, drop_req);
+
+    turn = try store.capture(17);
+    const retired_ev = (try owner.inspectLifecycle(&turn, 17, 10)).?;
+    try t.expectEqual(m.LifecycleState.unavailable, retired_ev.state);
+}
+
+test "declarative catalog manages KV and Document lifecycles with two-phase provisioning RESTRICT drop and retirement" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
+
+    // Parse SQL CREATE KV and CREATE DOCUMENT via Fuze Declaration
+    const kv_def = try c.fuze.Declaration.compile("CREATE KV session_tokens (UTF8)");
+    const doc_def = try c.fuze.Declaration.compile("CREATE DOCUMENT customer_profile");
+
+    const kv_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 101, 1, 50, 9001, kv_def);
+    var turn = try store.capture(17);
+    const kv_preview = try decl.preview(&turn, 17, kv_req);
+    try t.expectEqual(m.ObjectKind.kv, kv_preview.kind);
+    try t.expectEqual(.admissible, kv_preview.disposition);
+
+    // Phase 1: reserve initializing record
+    turn = try store.capture(17);
+    const phase1 = try decl.apply(&turn, kv_req);
+    try t.expectEqual(.provisioning, phase1.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const pending_ev = (try owner.inspectLifecycle(&turn, 17, 50)).?;
+    try t.expectEqual(m.ObjectKind.kv, pending_ev.kind);
+    try t.expectEqual(m.LifecycleState.pending, pending_ev.state);
+    try t.expectEqual(null, try decl.lookup(&turn, 17, kv_req.name));
+
+    // Phase 2: bind resource and publish
+    const phase2 = try decl.apply(&turn, kv_req);
+    try t.expectEqual(.applied, phase2.state);
+    try t.expectEqual(@as(u64, 9001), phase2.resource_id);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const published_ev = (try owner.inspectLifecycle(&turn, 17, 50)).?;
+    try t.expectEqual(m.ObjectKind.kv, published_ev.kind);
+    try t.expectEqual(m.LifecycleState.published, published_ev.state);
+    const looked_up = (try decl.lookup(&turn, 17, kv_req.name)).?;
+    try t.expectEqual(@as(u64, 50), looked_up.object);
+    try t.expectEqual(@as(u64, 9001), looked_up.resource_id);
+
+    // Interrupted provisioning on Document (cancel + cleanup)
+    const doc_req_cancelled = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 102, 1, 60, 9002, doc_def);
+    turn = try store.capture(17);
+    const doc_p1 = try decl.apply(&turn, doc_req_cancelled);
+    try t.expectEqual(.provisioning, doc_p1.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const cancelled_doc = try decl.cancel(&turn, 17, 102, try doc_req_cancelled.digest());
+    try t.expectEqual(.cancelled, cancelled_doc.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    try t.expect(try decl.cleanup(&turn, 17, 102, try doc_req_cancelled.digest()));
+    try store.commit(turn);
+
+    // Publish Document with fresh object ID 61
+    const doc_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 103, 1, 61, 9003, doc_def);
+    turn = try store.capture(17);
+    _ = try decl.apply(&turn, doc_req);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    const doc_p2 = try decl.apply(&turn, doc_req);
+    try t.expectEqual(.applied, doc_p2.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const page = try decl.list(&turn, 17, null);
+    try t.expectEqual(@as(u64, 50), page.entries[0].?.object);
+    try t.expectEqual(@as(u64, 61), page.entries[1].?.object);
+
+    // Table with same name as KV is rejected with name_conflict
+    const table_conflict = try ddl(&store, try createRequest(70, 104, "session_tokens"));
+    try t.expectEqual(.rejected, table_conflict.operation.state);
+    try t.expectEqual(.name_conflict, table_conflict.operation.reason);
+
+    // Rename KV and test RESTRICT drop
+    const rename_req: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 105,
+        .namespace = 1,
+        .object = 50,
+        .expected_revision = 1,
+        .name = kv_req.name,
+        .action = .{ .rename = try c.TableAuthority.Name.init("active_tokens") },
+    };
+    turn = try store.capture(17);
+    const renamed = try decl.apply(&turn, rename_req);
+    try t.expectEqual(.applied, renamed.state);
+    try t.expectEqual(@as(u64, 2), renamed.revision);
+    try store.commit(turn);
+
+    // Add restricting dependency on KV object 50
+    turn = try store.capture(17);
+    const dep: m.Dependency = .{ .scope = owner.configuration.scope, .object = 50, .identity = 88, .owner = 4, .kind = .query_source };
+    try owner.setDependency(&turn, dep, true);
+    try store.commit(turn);
+
+    const drop_req: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 106,
+        .namespace = 1,
+        .object = 50,
+        .expected_revision = 2,
+        .name = try c.TableAuthority.Name.init("active_tokens"),
+        .action = .{ .drop = .{} },
+    };
+    turn = try store.capture(17);
+    const blocked = try decl.apply(&turn, drop_req);
+    try t.expectEqual(.rejected, blocked.state);
+    try t.expectEqual(.dependency, blocked.reason);
+    try t.expectEqual(@as(u64, 88), blocked.blocker.dependency.identity);
+    try store.commit(turn);
+
+    // Remove dependency and drop KV object 50
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, dep, false);
+    try store.commit(turn);
+
+    var drop_req2 = drop_req;
+    drop_req2.operation = 107;
+    turn = try store.capture(17);
+    const dropped = try decl.apply(&turn, drop_req2);
+    try t.expectEqual(.applied, dropped.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const retired_kv = (try owner.inspectLifecycle(&turn, 17, 50)).?;
+    try t.expectEqual(m.LifecycleState.unavailable, retired_kv.state);
+
+    // Reusing retired object ID 50 is rejected with object_conflict; fresh ID 51 succeeds
+    var reuse_id_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 108, 1, 50, 9004, try c.fuze.Declaration.compile("CREATE KV active_tokens (UTF8)"));
+    turn = try store.capture(17);
+    const reused = try decl.apply(&turn, reuse_id_req);
+    try t.expectEqual(.rejected, reused.state);
+    try t.expectEqual(.object_conflict, reused.reason);
+    try store.commit(turn);
+
+    reuse_id_req.operation = 109;
+    reuse_id_req.object = 51;
+    turn = try store.capture(17);
+    _ = try decl.apply(&turn, reuse_id_req);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    const replaced = try decl.apply(&turn, reuse_id_req);
+    try t.expectEqual(.applied, replaced.state);
+    try store.commit(turn);
+}
+
+test "dependency graph and policy reference inspection enforce current rights and redact details without read access" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    _ = try ddl(&store, try createRequest(10, 1, "people"));
+    _ = try ddl(&store, try createRequest(20, 2, "secret_audit"));
+
+    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
+    const kv_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 3, 1, 30, 9100, try c.fuze.Declaration.compile("CREATE KV user_cache (UTF8)"));
+    var turn = try store.capture(17);
+    _ = try decl.apply(&turn, kv_req);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    _ = try decl.apply(&turn, kv_req);
+    try store.commit(turn);
+
+    // Register dependencies: identity 30 (user_cache) depends on 10 (people) and 20 (secret_audit)
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, .{ .scope = owner.configuration.scope, .object = 10, .identity = 30, .owner = 3, .kind = .query_source }, true);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, .{ .scope = owner.configuration.scope, .object = 20, .identity = 30, .owner = 3, .kind = .history }, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const deps_of_10 = try owner.dependents(&turn, 17, 10, null);
+    try t.expectEqual(@as(u64, 30), deps_of_10.entries[0].?.identity);
+    try t.expectEqual(null, deps_of_10.entries[1]);
+
+    const targets_of_30 = try owner.dependencies(&turn, 17, 30, null);
+    try t.expectEqual(@as(u64, 10), targets_of_30.entries[0].?.object);
+    try t.expectEqual(@as(u64, 20), targets_of_30.entries[1].?.object);
+
+    // Full policy references with read access
+    const full_policy = (try owner.policyReferences(&turn, 17, 10)).?;
+    try t.expectEqual(m.ObjectKind.table, full_policy.kind);
+    try t.expect(full_policy.can_read);
+    try t.expect(!full_policy.redacted);
+    try t.expect(full_policy.authorization_object != 0);
+    try t.expect(full_policy.schema_authorization != 0);
+
+    const kv_policy = (try owner.policyReferences(&turn, 17, 30)).?;
+    try t.expectEqual(m.ObjectKind.kv, kv_policy.kind);
+    try t.expect(kv_policy.can_read);
+    try t.expect(!kv_policy.redacted);
+
+    // Revoke read access for principal 17 (keep inspect via insert/update/delete or visible grant)
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.read = false;
+    try store.setRights(rights);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const redacted_policy = (try owner.policyReferences(&turn, 17, 10)).?;
+    try t.expect(!redacted_policy.can_read);
+    try t.expect(redacted_policy.redacted);
+    try t.expectEqual(@as(u64, 0), redacted_policy.authorization_object);
+    try t.expectEqual(@as(u64, 0), redacted_policy.schema_authorization);
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const foreign_redacted = try c.TableValues.PolicyReferences.foreign(arena.allocator(), redacted_policy);
+    try t.expect(foreign_redacted.redacted);
+    try t.expectEqual(null, foreign_redacted.authorization_object);
+    try t.expectEqual(null, foreign_redacted.schema_authorization);
+
+    // Principal 18 granted only SELECT on table 10 and KV 30, not on table 20
+    var def10 = (try owner.lookup(t.allocator, &turn, 17, try Meta.Name.init("people"))).?;
+    defer def10.deinit();
+    const rec30 = (try decl.record(&turn, 30)).?;
+    try store.setRights(.{ .principal = 18, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
+    try store.grantObject(18, def10.authority.authorization, c.TableAuthority.select);
+    try store.grantObject(18, rec30.authorization, c.TableAuthority.select);
+
+    turn = try store.capture(18);
+    // Principal 18 inspecting dependencies of 30 sees 10, while unauthorized 20 is filtered out
+    const filtered_targets = try owner.dependencies(&turn, 18, 30, null);
+    try t.expectEqual(@as(u64, 10), filtered_targets.entries[0].?.object);
+    try t.expectEqual(null, filtered_targets.entries[1]);
+    try t.expectError(error.CatalogDenied, owner.dependents(&turn, 18, 20, null));
+    try t.expectError(error.CatalogDenied, owner.policyReferences(&turn, 18, 20));
+}
+
+test "computation catalog lifecycle tracks upstream source revision freshness and availability" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+    _ = try ddl(&store, creation);
+
+    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
+    const comp_req: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 2,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 0,
+        .name = try c.TableAuthority.Name.init("people_summary"),
+        .action = .{
+            .create = .{
+                .spec = .{ .computation = .{ .source_object = 10, .source_revision = 1, .output_object = 0 } },
+                .resource_id = 9800,
+            },
+        },
+    };
+
+    // Phase 1: initializing -> pending
+    var turn = try store.capture(17);
+    const p1 = try decl.apply(&turn, comp_req);
+    try t.expectEqual(.provisioning, p1.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectComputation(&turn, 17, 80)).?.state);
+
+    // Phase 2: live -> published (not yet evaluated)
+    const p2 = try decl.apply(&turn, comp_req);
+    try t.expectEqual(.applied, p2.state);
+    try store.commit(turn);
+
+    // Bind restricting query_source dependency from computation 80 to source table 10
+    turn = try store.capture(17);
+    try decl.bindComputationDependency(&turn, 80, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_published = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.published, comp_published.state);
+    try t.expect(comp_published.source_available);
+    try t.expect(!comp_published.fresh);
+    try t.expectEqual(@as(u64, 1), comp_published.source_revision);
+    try t.expectEqual(@as(u64, 1), comp_published.current_source_revision);
+    try t.expectEqual(@as(u64, 80), (try owner.dependents(&turn, 17, 10, null)).entries[0].?.identity);
+    try t.expectEqual(@as(u64, 10), (try owner.dependencies(&turn, 17, 80, null)).entries[0].?.object);
+
+    // Complete computation evaluation against source_revision 1 -> complete & fresh
+    const eval1: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 3,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 1,
+        .name = comp_req.name,
+        .action = .{ .complete_computation = .{ .source_revision = 1 } },
+    };
+    const eval1_out = try decl.apply(&turn, eval1);
+    try t.expectEqual(.applied, eval1_out.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_complete = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.complete, comp_complete.state);
+    try t.expect(comp_complete.fresh);
+    try t.expectEqual(m.LifecycleState.complete, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+
+    // Evolve upstream table 10 to revision 2 -> computation becomes stale (pending, fresh = false)
+    const alter: c.TableDdlRequest = .{
+        .principal = 17,
+        .operation = 4,
+        .object = 10,
+        .expected_revision = 1,
+        .name = creation.name,
+        .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } },
+    };
+    _ = try ddl(&store, alter);
+
+    turn = try store.capture(17);
+    const comp_stale = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.pending, comp_stale.state);
+    try t.expect(!comp_stale.fresh);
+    try t.expectEqual(@as(u64, 1), comp_stale.source_revision);
+    try t.expectEqual(@as(u64, 2), comp_stale.current_source_revision);
+    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+
+    // Re-evaluate computation against source_revision 2 -> complete & fresh again
+    const eval2: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 5,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 2,
+        .name = comp_req.name,
+        .action = .{ .complete_computation = .{ .source_revision = 2 } },
+    };
+    _ = try decl.apply(&turn, eval2);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_re_evaluated = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.complete, comp_re_evaluated.state);
+    try t.expect(comp_re_evaluated.fresh);
+
+    // Unbind dependency and drop upstream table 10 -> computation reports unavailable
+    try decl.bindComputationDependency(&turn, 80, false);
+    try store.commit(turn);
+    _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 2, .name = creation.name, .action = .{ .drop = .{} } });
+
+    turn = try store.capture(17);
+    const comp_unavail = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.unavailable, comp_unavail.state);
+    try t.expect(!comp_unavail.source_available);
+    try t.expect(!comp_unavail.fresh);
+    try t.expectEqual(m.LifecycleState.unavailable, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+}

@@ -47,11 +47,18 @@ pub const Action = union(enum) {
     compile_authorization: struct { sql: []const u8, identity: c.AuthorizationSql.Identity = .{} },
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
+    lifecycle: []const u8,
+    dependents: struct { object: []const u8, cursor: ?v.DependencyCursor = null },
+    dependencies: struct { identity: []const u8, cursor: ?v.DependencyCursor = null },
+    policy_references: []const u8,
+    computation: []const u8,
     list: ?v.Cursor,
     compile: struct { identity: v.Identity, create_object: ?[]const u8, sql: []const u8 },
     prepare: c.TableTyped.Request,
     load: Saved,
     forget: Reference,
+    preview: Reference,
+    apply: Reference,
     next: Reference,
     status: Reference,
     prepare_resume: Reference,
@@ -77,6 +84,11 @@ pub const Result = union(enum) {
     authorization_plan: v.AuthorizationPlan,
     definition: ?v.Definition,
     historical: ?v.HistoricalDefinition,
+    lifecycle: ?v.LifecycleEvidence,
+    dependencies: v.DependencyPage,
+    policy_references: ?v.PolicyReferences,
+    computation: ?v.ComputationEvidence,
+    preview: v.Preview,
     page: v.Page,
     compiled: Compiled,
     loaded: Summary,
@@ -163,6 +175,11 @@ pub const Session = struct {
                 defer value.deinit();
                 break :blk .{ .historical = try v.HistoricalDefinition.foreign(arena, value) };
             },
+            .lifecycle => |object| .{ .lifecycle = if (try client.inspectLifecycle(try v.unsigned(object))) |value| try v.LifecycleEvidence.foreign(allocator, value) else null },
+            .dependents => |query| .{ .dependencies = try v.DependencyPage.foreign(allocator, try client.dependents(try v.unsigned(query.object), if (query.cursor) |cursor| try cursor.native() else null)) },
+            .dependencies => |query| .{ .dependencies = try v.DependencyPage.foreign(allocator, try client.dependencies(try v.unsigned(query.identity), if (query.cursor) |cursor| try cursor.native() else null)) },
+            .policy_references => |object| .{ .policy_references = if (try client.policyReferences(try v.unsigned(object))) |value| try v.PolicyReferences.foreign(allocator, value) else null },
+            .computation => |object| .{ .computation = if (try client.inspectComputation(try v.unsigned(object))) |value| try v.ComputationEvidence.foreign(allocator, value) else null },
             .list => |cursor| .{ .page = try v.Page.foreign(allocator, try client.list(if (cursor) |value| try value.native() else null)) },
             .compile => |value| blk: {
                 var identity = try value.identity.native();
@@ -193,6 +210,15 @@ pub const Session = struct {
                 self.active.?.intent.deinit();
                 self.active = null;
                 break :blk .forgotten;
+            },
+            .preview => |reference| blk: {
+                const intent = try self.get(reference, client.connection);
+                break :blk .{ .preview = try v.Preview.foreign(allocator, try client.preview(allocator, intent)) };
+            },
+            .apply => |reference| blk: {
+                const intent = try self.get(reference, client.connection);
+                const value = try client.apply(intent);
+                break :blk .{ .state = .{ .outcome = if (value.outcome) |outcome| try v.Outcome.foreign(allocator, intent, outcome) else null, .upload = if (value.upload) |upload| try v.Upload.foreign(upload) else null } };
             },
             .next => |reference| blk: {
                 const intent = try self.get(reference, client.connection);

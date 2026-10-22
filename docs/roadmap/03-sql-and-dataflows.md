@@ -1,12 +1,12 @@
-# 4. Managed computations and WAL-activated dataflows
+# 3. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md)
 
 Let an application declare a derived result, apply it, and inspect the definition,
 source basis, completed revision and pending or blocked work while Transit owns
 the qualified scheduling, WAL-driven delta activation and recovery. Extend the
-[shared lifecycle](01-declarative-data-lifecycle.md),
-[four-tier storage hierarchy](02-storage-and-query-performance.md),
+[shared lifecycle](../handbook/reference/data-model.md),
+[four-tier storage hierarchy](01-storage-and-query-performance.md),
 [SQL reference](../handbook/reference/sql.md) and
 [grammar inventory](../handbook/reference/sql/grammar-surface.md).
 
@@ -75,7 +75,7 @@ recomputation oracle.
 
 ## Prerequisites and completion
 
-Historical operations consume [catalog contracts](03-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](02-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.
