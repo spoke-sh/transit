@@ -1,5 +1,11 @@
 # Build your first application
 
+Use a custom worker when your data needs application-defined validation,
+transformation or coordination. The [quickstart](quickstart.md) covers Table
+creation, queries and schema changes through the server's existing catalog.
+This guide extends that experience with a worker that owns domain commands and
+a resumable data migration.
+
 Local application installation uses a separately compiled Zig worker
 and a language-neutral JSON installation/bootstrap contract. Application code
 links public packages; it does not import the CLI's internals or become a node

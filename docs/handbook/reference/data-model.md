@@ -17,9 +17,9 @@ and computation through one declarative catalog or automatic scheduler.
 
 | Representation | Meaning | Definition and access |
 | --- | --- | --- |
-| Table | Typed records with declared columns, nullability, defaults and optional primary keys | A configured catalog owns names, immutable schemas, row publication and schema evolution; use SQL or typed catalog callers |
-| Key-value resource | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
-| Document | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
+| [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured catalog owns names, immutable schemas, row publication and schema evolution; use SQL or typed catalog callers |
+| [Key-value resource](state.md) | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
+| [Document](documents.md) | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
 
 Choose the representation for the meaning of the data. A Document field can be
 missing or conflicted; an ordinary Table cell is a typed value or SQL NULL.
@@ -58,9 +58,9 @@ creating data, starting a worker or granting access.
 
 | Lifetime | What the caller asks for | What survives and what to inspect |
 | --- | --- | --- |
-| Interactive | Execute a finite query against fresh source snapshots | A logical session and bounded cursor; inspect complete rows and source evidence, then close it |
-| Captured | Execute a frozen query with recoverable progress and retained results | The original accepted request, input basis, progress and verified result; inspect its recorded outcome after disconnect or worker loss |
-| Maintained | Publish successive complete results as source history advances | The definition, recorded source vectors, completed revisions and deltas; inspect the last complete result and any stopped or pending successor |
+| [Interactive](queries.md#interactive-sessions) | Execute a finite query against fresh source snapshots | A logical session and bounded cursor; inspect complete rows and source evidence, then close it |
+| [Captured](queries.md#recovery-and-display) | Execute a frozen query with recoverable progress and retained results | The original accepted request, input basis, progress and verified result; inspect its recorded outcome after disconnect or worker loss |
+| [Maintained](queries.md#relational-boundary) | Publish successive complete results as source history advances | The definition, recorded source vectors, completed revisions and deltas; inspect the last complete result and any stopped or pending successor |
 
 Supported operators and callers differ by lifetime. The console executes finite
 interactive queries and has explicit captured query operations. Typed Zig owners
@@ -103,11 +103,11 @@ operation or query identity, and the meaning of its outcome.
 
 | Question | Current evidence or interface | How to interpret it |
 | --- | --- | --- |
-| Is my Table published with the intended shape? | Console `SHOW TABLES` and `DESCRIBE`, or catalog lookup and immutable definition reads | A visible name/schema establishes publication; it does not show row contents |
-| Did my write or schema change apply? | The console's mutation result, `.status` and `.resume`, or the catalog operation outcome | Admission, processing and the terminal applied/rejected/cancelled outcome are separate |
-| Which data did this query read? | The query's bound schema and source snapshots; complete result coverage | Independently captured resources need not represent one global or causal snapshot |
-| Is a maintained result up to date? | The typed owner's completed source vector, revision and pending/failure evidence | Completeness is relative to that recorded basis; a newer source revision can exist |
-| Can this caller still inspect or use the result? | Current authorization at metadata and result disclosure | A retained result or permission checked at admission does not authorize later disclosure |
+| Is my Table published with the intended shape? | [Console `SHOW TABLES` and `DESCRIBE`](sql/show.md), or catalog lookup and immutable definition reads | A visible name/schema establishes publication; it does not show row contents |
+| Did my write or schema change apply? | The [console's mutation result, `.status` and `.resume`](../../../apps/transit-cli/docs/console.md), or the catalog operation outcome | Admission, processing and the terminal applied/rejected/cancelled outcome are separate |
+| Which data did this query read? | The query's [bound schema and source snapshots](queries.md#relational-boundary); complete result coverage | Independently captured resources need not represent one global or causal snapshot |
+| Is a maintained result up to date? | The [typed owner's completed source vector](queries.md#relational-boundary), revision and pending/failure evidence | Completeness is relative to that recorded basis; a newer source revision can exist |
+| Can this caller still inspect or use the result? | [Current authorization](security.md) at metadata and result disclosure | A retained result or permission checked at admission does not authorize later disclosure |
 
 These observations are available through their owning interfaces; a single
 catalog-wide declaration health view is not provided. [Board](../guides/inspect-board.md)
@@ -143,11 +143,11 @@ interfaces provide different portions of that experience:
 
 | Declaration | Available today | Remaining public lifecycle |
 | --- | --- | --- |
-| Tables and schemas | Table CREATE/ALTER/DROP and DML through configured catalog callers; schema administration through explicit typed plans | Broader constraints, transaction sessions and other operations retain their documented SQL limits |
-| KV and Documents | Client/service provisioning and access; offline SQL definition compilation | SQL publication and a common named catalog lifecycle |
-| Named captured/maintained relations | Immutable definitions, separate authorization and explicit activation through typed Zig owners | SQL view/subscription adapters and service-managed scheduling |
-| Connections, connector sources and sinks | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
-| Permissions and retention | Native authorization, selected SQL administration plans and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |
+| [Tables and schemas](tables.md) | Table CREATE/ALTER/DROP and DML through configured catalog callers; schema administration through explicit typed plans | Broader constraints, transaction sessions and other operations retain their documented SQL limits |
+| [KV](state.md) and [Documents](documents.md) | Client/service provisioning and access; offline SQL definition compilation | SQL publication and a common named catalog lifecycle |
+| [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, separate authorization and explicit activation through typed Zig owners | SQL view/subscription adapters and service-managed scheduling |
+| [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
+| [Permissions](security.md) and [retention](retention.md) | Native authorization, selected SQL administration plans and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |
 
 The [SQL capability inventory](sql/grammar-surface.md) identifies executable,
 offline and grammar-only statements. The lifecycle gaps above describe product
