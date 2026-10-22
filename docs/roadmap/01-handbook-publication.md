@@ -1,67 +1,38 @@
 # 1. Publish the handbook
 
-[Roadmap](README.md) · [Handbook build guide](../handbook/README.md)
+[Roadmap](README.md) · [Handbook build and publication guide](../handbook/README.md)
 
-Publish the static handbook at `https://transit.spoke.sh/`. The site project and
-content live in `docs/handbook`; shared contracts and component guides keep their
-repository owners. This is the next task after the documentation restructure.
-The canonical URL and static build are prepared; no Cloudflare deployment or DNS
-change is established by that preparation.
+Publish the static handbook at `https://spoke-sh.github.io/transit/` through
+GitHub Pages. The site project and content live in `docs/handbook`; shared
+contracts and component guides keep their repository owners. Use the default
+GitHub domain and the `/transit/` project path.
 
-## Deployment design
+The [publication workflow](../../.github/workflows/handbook.yml) checks and
+uploads the static artifact on pull requests, and deploys accepted `main`
+revisions. Local build evidence does not establish a successful public deployment.
+The handbook project guide owns setup, manual publication and rollback commands.
 
-Use Cloudflare Workers Static Assets to serve the Docusaurus output without a
-Worker request handler or Transit backend. Cloudflare documents
-[static site generation and 404 handling](https://developers.cloudflare.com/workers/static-assets/routing/static-site-generation/)
-for this profile. Select `assets.directory: ./dist`,
-`assets.html_handling: drop-trailing-slash` and
-`assets.not_found_handling: 404-page` in a manifest beside the site package.
-Existing routes remain `/guides/*`, `/reference/*`, `/internals` and `/sdks/*`.
+## Remaining acceptance work
 
-The production [custom domain](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
-is `transit.spoke.sh`, with the worker as its origin. This requires an active
-Cloudflare zone and a review of any existing record for that hostname. Keep
-account identifiers and deployment credentials in deployment configuration and
-GitHub secrets; they are not site content or browser environment variables.
+1. Merge the workflow and observe the first successful `main` deployment. Confirm
+   the Pages source is GitHub Actions and the `github-pages` environment permits
+   only `main`. Record the source revision and deployment URL in the proof ledger.
+2. Inspect public HTTPS and direct navigation/refreshes for a guide, SDK page,
+   Internals page and generated API reference. Verify assets and links remain
+   under `/transit/`, including canonical URLs, sitemap entries, search results
+   and exact schema downloads. Confirm a nonexistent URL returns the site's
+   custom 404 with HTTP 404, rather than a success response.
+3. Inspect desktop/mobile navigation, diagrams and keyboard access on the live
+   site. Search must contain public guides/reference/Internals and exclude
+   individual planning and historical records. Keep these results distinct from
+   the local production-browser proof.
+4. Verify a subsequent accepted change appears publicly, and exercise recovery
+   by reverting that change through `main`. Confirm the revision is republished
+   and stale CDN assets do not mask the recovered content. Old workflow reruns
+   must not replace newer `main` content.
 
-## Implementation sequence
-
-1. Inspect the selected Cloudflare account and `spoke.sh` zone. Establish whether
-   `transit.spoke.sh` already serves anything and record the intended DNS change.
-   Select the project name and production deployment identity.
-2. Pin Wrangler through the existing Vite+ workspace tooling. Add the asset-only
-   manifest with an explicit compatibility date, route policy and custom domain.
-   Add focused tasks for preview, deployment and rollback without changing the
-   Transit executable's CLI.
-3. Build from a clean committed revision using the locked docs shell and workspace
-   dependencies. Upload only `docs/handbook/dist`. Preserve the source revision
-   and artifact identity with the deployment record; no runtime binaries,
-   installation state or source checkout belongs in that artifact.
-4. Add deployment CI for accepted `main` changes and an explicit manual trigger.
-   Include handbook sources, component/SDK docs, contracts/generated descriptions,
-   workspace locks and site tooling in change detection. Build/test pull requests
-   without production credentials. If previews are added, keep their domains and
-   indexing policy separate from production. Serialize production deployments so
-   an older build cannot replace a newer one by finishing later.
-5. Preview the exact asset bundle with Cloudflare's local serving behavior. Check
-   direct deep links and refreshes, clean URLs, missing-page HTTP 404s, JSON content
-   types, search, diagrams and exact schema bytes. Set cache policy so mutable
-   HTML, search and schema URLs refresh together; fingerprinted JS/CSS can use
-   immutable caching. Check a second deployment for stale assets.
-6. Attach the custom domain, publish the verified bundle and inspect HTTPS from
-   outside the account. Record the revision and deployment identifier. Exercise
-   rollback to a previously verified deployment and restore the intended version.
-   Promote operational commands into the handbook project guide.
-
-## Completion evidence
-
-Require successful public HTTPS and direct navigation to a guide, SDK page,
-Internals page and generated API reference. Verify the canonical URL, sitemap,
-robots policy, custom 404 response and all schema downloads. Confirm search
-contains public guides/reference/Internals and excludes individual planning and
-historical records. Inspect desktop/mobile navigation and keyboard access.
-
-Keep preview/build evidence separate from actual Cloudflare routing, TLS and
-rollback evidence. A local Docusaurus preview does not verify CDN behavior.
-The current site describes the selected source revision; release-versioned
-documentation and immutable release links remain separate distribution work.
+GitHub owns the hosting cache policy; the repository uploads one static bundle
+per deployment. Do not infer runtime or CDN guarantees from a successful local
+build. Remove this milestone after recording the live publication and recovery
+evidence. Release-versioned documentation and immutable release links remain
+separate distribution work.

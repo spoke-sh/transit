@@ -277,7 +277,8 @@ anchors; it is included in `just check` and the experience lane.
 `just transit-docs::browser-install` installs Chromium. Then run
 `just transit-docs::browser` to exercise desktop/mobile navigation, generated
 API downloads, local search, Internals, diagrams and accessibility. Use
-`TRANSIT_DOCS_BASE_URL=/handbook/` to qualify hosting below a path. See the
+`TRANSIT_DOCS_BASE_URL=/handbook/` to qualify an alternate prefix; the default is
+`/transit/` for GitHub Pages. See the
 [site guide](../docs/handbook/README.md) for source ownership and hosting.
 
 ## Build profiles

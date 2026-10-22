@@ -7,7 +7,7 @@ mechanisms in [Internals](../handbook/internals/README.md), and executed checks 
 
 | Order | Milestone | Outcome |
 | --- | --- | --- |
-| 1 | [Publish the handbook](01-handbook-publication.md) | Static documentation at transit.spoke.sh with repeatable deployment and rollback |
+| 1 | [Publish the handbook](01-handbook-publication.md) | Static documentation on GitHub Pages with repeatable deployment and rollback |
 | 2 | [Storage and query performance](02-storage-and-query-performance.md) | Lower end-to-end read/write cost with bounded memory |
 | 3 | [Standards and historical catalogs](03-standards-and-catalogs.md) | Explicit feature capabilities and historical schema/snapshot identities |
 | 4 | [SQL and declarative dataflows](04-sql-and-dataflows.md) | Selected SQL operations, dependency lifecycle and maintained-query controls |
