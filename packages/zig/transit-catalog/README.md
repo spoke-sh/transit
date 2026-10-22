@@ -49,6 +49,13 @@ committed matched/changed counts. Staging never exposes a successful prefix.
 The owner preserves the four-mutation native turn boundary; larger work advances
 through durable bounded stages rather than widening that boundary.
 
+`TableStorageEngine` wires `transit_storage` (`TableMemtable`, `LocalWal`,
+`LocalSegmentStore`, `TableManifest`, `PartitionLease`, `NvmeCache`) and `transit_fuze`
+(`.tseg` `TSeg`, `.tdel` `TDel`, `PhysicalCodecs`, `Collation`) into the catalog
+for Direct Data-Plane `TWAL1` `.row_delta` ingestion, MVCC Read-Your-Writes point
+lookups, immutable `.tseg`/`.tdel` segment flushing, and `TMAN` v1 manifest CAS
+publication.
+
 [General Table metadata and caller operations](docs/table-metadata.md) define
 physical records, schema references, atomic transitions, policy, dependencies,
 cleanup, ownership and exact limits. The [Table reference](../../../docs/handbook/reference/tables.md)

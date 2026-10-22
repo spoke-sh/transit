@@ -41,6 +41,7 @@ reference_end: bool = false,
 scanned: u64 = 0,
 complete: bool = false,
 rejection: ?p.ErrorCode = null,
+segment_scan: ?*q.TableSegmentScan = null,
 pub fn metadata(connection: c.TableClient.Connection) [g.SnapshotRead.current_resources]?g.SnapshotRead.Current {
     var keys: g.SnapshotRead.Keys = @splat(null);
     keys[0] = c.Records.key(connection.scope.catalog, 'c', 0, 0);
@@ -260,6 +261,17 @@ pub fn next(self: *Scan) !?logical.Row {
 pub fn nextAllocated(self: *Scan, row_allocator: std.mem.Allocator) !?logical.Row {
     if (self.complete) return null;
     try self.checkCancellation();
+    if (self.segment_scan) |seg_scan| {
+        if (try seg_scan.nextAllocated(row_allocator)) |row| {
+            if (seg_scan.cursor > 0 and seg_scan.cursor <= seg_scan.rows.len) {
+                self.after = seg_scan.rows[seg_scan.cursor - 1].identity;
+            }
+            self.scanned = try std.math.add(u64, self.scanned, 1);
+            return row;
+        }
+        self.complete = true;
+        return null;
+    }
     const definition = &self.definition.?;
     const data: s.TableData = .{ .schema = definition.schema.schema, .index = definition.head.index };
     var pages: s.TablePages.Reader(*Scan) = .{ .pages = .{ .resource = self.view.resource, .object = definition.metadata.object }, .source = self };
