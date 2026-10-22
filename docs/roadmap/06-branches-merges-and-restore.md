@@ -1,10 +1,10 @@
-# 5. Branches, merges and restore
+# 6. Branches, merges and restore
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Add isolated application-state branching, three-way merging and point-in-time
-restore built directly on the [immutable `.tseg` segment and Manifest architecture](01-storage-and-query-performance.md)
-and [historical catalog binding](02-standards-and-catalogs.md). The
+restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
+and [historical catalog binding](03-standards-and-catalogs.md). The
 [state model](../handbook/internals/state-model.md) owns the authority/lifetime
 model. Branches never copy live process identities, grants or effect rights.
 

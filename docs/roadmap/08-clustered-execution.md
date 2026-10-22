@@ -1,10 +1,10 @@
-# 7. Clustered execution and storage-disaggregated placement
+# 8. Clustered execution and storage-disaggregated placement
 
-[Roadmap](README.md)
+[Roadmap](README.md) · **Status:** Planned
 
 Extend typed exchanges and manual single-authority handoff into automatic
 placement, fenced partition lease transfer and distributed query execution over
-the [disaggregated four-tier storage architecture](01-storage-and-query-performance.md).
+the [disaggregated four-tier storage architecture](02-storage-and-query-performance.md).
 The [deployment reference](../handbook/reference/deployment.md) and
 [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md) own present behavior.
 
