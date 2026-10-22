@@ -210,7 +210,7 @@ def main():
         for changed in [{**model, 'unknown': 1}, {**model, 'realm': 9007199254740992},
                         {**model, 'revision': '018'}]:
             run('format', json.dumps(changed), directory, False)
-        documentation = (ROOT / 'docs/reference/sql/application.md').read_text()
+        documentation = (ROOT / 'docs/handbook/reference/sql/application.md').read_text()
         programs = re.findall(r'^```sql\n(.*?)^```', documentation, re.M | re.S)
         assert programs, 'missing complete application documentation example'
         for source in programs:

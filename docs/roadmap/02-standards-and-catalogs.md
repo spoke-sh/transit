@@ -3,8 +3,8 @@
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
 
 Establish historical query, multi-model and branch semantics using the
-[grammar inventory](../reference/sql/grammar-surface.md),
-[query model](../internals/query-engine.md) and [state model](../internals/state-model.md).
+[grammar inventory](../handbook/reference/sql/grammar-surface.md),
+[query model](../handbook/internals/query-engine.md) and [state model](../handbook/internals/state-model.md).
 
 ## Delivery sequence
 

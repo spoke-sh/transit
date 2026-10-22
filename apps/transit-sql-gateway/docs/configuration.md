@@ -222,5 +222,5 @@ result. Each account serializes its private configuration journal under
 operation using its original generation, caller and selected role. Retained
 history requires current inspection rights. Configuration and Table mutation
 journals remain separate, and neither cancellation nor connection loss undoes
-accepted work. See [settings SQL](../../../docs/reference/sql/settings.md) and
+accepted work. See [settings SQL](../../../docs/handbook/reference/sql/settings.md) and
 the [configuration contract](../../../contracts/CONFIGURATION_V1.md).

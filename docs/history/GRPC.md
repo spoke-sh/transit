@@ -1,13 +1,13 @@
 # gRPC connector
 
-Engineering background and historical design. Use [Effects, HTTP and gRPC connectors](../reference/connectors.md)
+Engineering background and historical design. Use [Effects, HTTP and gRPC connectors](../handbook/reference/connectors.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use the RPC connector for recorded outbound calls and replay. Start with the
 [application example](../../examples/station-grpc/README.md) and
 [adapter](../../packages/zig/transit-station-grpc/README.md). For inbound analytical
-clients, use the separate [Flight reference](../reference/flight.md).
+clients, use the separate [Flight reference](../handbook/reference/flight.md).
 
 Status: the finite M16 profile is implemented and locally
 qualified after HTTP M15. The Zig [transport](../../packages/zig/transit-grpc/README.md),
@@ -103,7 +103,7 @@ streaming-send extension would additionally need the following obligations:
   as an instance of [FLOW_CONTROL.md](FLOW_CONTROL.md)'s pattern (the captured
   message/attempt as the credit unit) rather than a bespoke scheme.
 
-[gRPC flow control](https://grpc.io/docs/guides/flow-control/) regulates transport
+[gRPC flow control](https://grpc.io/docs/handbook/guides/flow-control/) regulates transport
 pressure; it does not acknowledge the application's durable handling. Exercise
 both directions independently so two peers waiting for the other to drain cannot
 exhaust worker capacity. Transcript exhaustion closes with an explicit capture
@@ -120,7 +120,7 @@ an unknown outcome. A status lookup or remote cancellation is itself authorized
 external work under the original finite reconciliation policy.
 
 Disable hidden retries, hedging and service-config retry policies in the first
-profile. The [gRPC retry guide](https://grpc.io/docs/guides/retry/) documents
+profile. The [gRPC retry guide](https://grpc.io/docs/handbook/guides/retry/) documents
 transparent retries even without an application retry policy. Qualify the chosen
 transport's actual behavior; every fresh RPC attempt must remain visible and
 authorized, including replacement streams after connection failure. TCP byte
@@ -133,7 +133,7 @@ none of that durable contract. Without it, preserve the partial transcript and
 settle under bounded unknown-outcome policy. M16 need not implement generic
 automatic resumption to support bounded streaming methods honestly.
 
-[gRPC cancellation](https://grpc.io/docs/guides/cancellation/) is cooperative.
+[gRPC cancellation](https://grpc.io/docs/handbook/guides/cancellation/) is cooperative.
 Record requested cancellation separately from observed remote outcome. When
 reconciliation closes, reject late result admission permanently; the remote
 system may still finish. Previously accepted provisional observations remain

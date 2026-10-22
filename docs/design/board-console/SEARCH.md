@@ -128,7 +128,7 @@ Start hybrid evaluation with a rank-based fusion baseline such as reciprocal
 rank fusion: sum `1 / (k + rank)` for the retrievers that returned a candidate,
 then apply stable ties. Keep the exact-match tier outside this sum. Version and
 measure candidate windows, `k`, any weights/context boosts and a later reranker;
-do not add raw lexical scores to vector distances. Elastic's [RRF reference](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion)
+do not add raw lexical scores to vector distances. Elastic's [RRF reference](https://www.elastic.co/docs/handbook/reference/elasticsearch/rest-apis/reciprocal-rank-fusion)
 describes rank-based combination of otherwise different retrieval signals. It
 is an algorithm reference, not a proposed Elasticsearch dependency.
 

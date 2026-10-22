@@ -1,6 +1,6 @@
 # transit-station-http
 
-The first HTTP connector, under implementation in [HTTP effects](../../../docs/reference/connectors.md).
+The first HTTP connector, under implementation in [HTTP effects](../../../docs/handbook/reference/connectors.md).
 This package owns HTTP-specific request construction, framing and capture kinds;
 [transit-exchange](../transit-exchange/README.md) owns durable capture and coverage.
 The pure API does not dispatch effects. `Transport.execute` performs one finite
@@ -53,7 +53,7 @@ idempotent retries, captured same-authority redirects and declared status/cancel
 actions. It rejects destination, credential, policy and method/body changes outside
 that explicit decision. The worker still owns current dispatch authority and the
 shared exchange layer owns lineage/budgets; this helper performs no I/O.
-The [connector design](../../../docs/reference/connectors.md) and
+The [connector design](../../../docs/handbook/reference/connectors.md) and
 [exchange contract](../../../contracts/STATION_EXCHANGE_V1.md) own authority,
 lifetime, unknown-outcome and replay requirements.
 
@@ -121,7 +121,7 @@ Admission rejection diagnostics retain the original delivered input commitment,
 failing field and check, expected/supplied values, and original validation cause.
 Strings are bounded with explicit truncation; credential values and foreign-caller
 state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
-and [connector semantics](../../../docs/reference/connectors.md).
+and [connector semantics](../../../docs/handbook/reference/connectors.md).
 
 `Policy.followupDiagnostic` retains the exact failed policy field and safe
 expected/supplied values in the existing admission witness. Retry-key counts,

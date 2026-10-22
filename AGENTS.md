@@ -3,10 +3,10 @@
 ## Before changing code
 
 Read [README.md](README.md), the [public documentation index](docs/README.md),
-and [architecture and scope](docs/reference/architecture.md) first. Users,
+and [architecture and scope](docs/handbook/reference/architecture.md) first. Users,
 developers and agents share these same guides and references. Use the
-[glossary](docs/reference/glossary.md) for names and the
-[component directory](docs/reference/components.md) to find the affected
+[glossary](docs/handbook/reference/glossary.md) for names and the
+[component directory](docs/handbook/reference/components.md) to find the affected
 package/app README, configuration and limits. Treat proposals as intent, not
 implemented behavior.
 
@@ -14,25 +14,25 @@ Follow the public explanations and exact contracts for the area you change:
 
 | Area | Required references |
 | --- | --- |
-| Protocol, processes, ownership | [Processes](docs/reference/processes.md), [native v1 contract](contracts/TRANSIT_V1.md) |
-| Authentication, grants, credentials, trust | [Security](docs/reference/security.md), [service contract](contracts/SERVICE_V1.md) |
-| Storage, delivery, producer/consumer behavior | [Streams](docs/reference/streams.md), [storage boundary](docs/reference/storage.md) |
-| State resources, associations, KV/Table/Document APIs | [State](docs/reference/state.md), [Tables](docs/reference/tables.md), [Documents](docs/reference/documents.md), [state contract](contracts/STATE_V1.md) |
-| Declarative interfaces and query execution | [SQL](docs/reference/sql.md), [queries](docs/reference/queries.md), [applications](docs/reference/applications.md), [grammar](contracts/sql/README.md) |
-| Arrow IPC/C interfaces, Flight SQL, ADBC | [Arrow](docs/reference/arrow.md), [Flight](docs/reference/flight.md) |
-| Inbound HTTP APIs and service publication | [Serving](docs/reference/serving.md), [OpenAPI](docs/reference/openapi.md), [serving contract](contracts/SERVING_V1.md) |
-| SSE/WebSocket, sessions, watches and live views | [Reactive](docs/reference/reactive.md), [AsyncAPI](docs/reference/asyncapi.md), [reactive contract](contracts/REACTIVE_V1.md) |
-| Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/reference/retention.md) |
-| Caller APIs and language bindings | [Caller semantics](docs/reference/callers.md), [SDKs](docs/reference/sdks.md), [public protocol package](packages/zig/transit-protocol/README.md) |
-| Operator/agent inspection and Board UI/API | [Board guide](docs/guides/inspect-board.md), [Board API](docs/reference/board-api.md), [SQL](docs/reference/sql.md) |
-| Logs, metrics, traces, probes | [Observability](docs/reference/observability.md) |
-| Behaviors, supervision, names | [Station](docs/reference/station.md) |
-| Effects, capture, secret interpolation | [Connectors](docs/reference/connectors.md), [HTTP](contracts/STATION_HTTP_V1.md), [gRPC](contracts/STATION_GRPC_V1.md) |
-| Kubernetes, provider bindings, recovery | [Deployment](docs/reference/deployment.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
-| Installation, bootstrap and replacement | [Applications](docs/reference/applications.md), [installation contract](contracts/APPLICATION_INSTALLATION_V1.md) |
-| Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md), [contributing](docs/guides/contributing.md) |
+| Protocol, processes, ownership | [Processes](docs/handbook/reference/processes.md), [native v1 contract](contracts/TRANSIT_V1.md) |
+| Authentication, grants, credentials, trust | [Security](docs/handbook/reference/security.md), [service contract](contracts/SERVICE_V1.md) |
+| Storage, delivery, producer/consumer behavior | [Streams](docs/handbook/reference/streams.md), [storage boundary](docs/handbook/reference/storage.md) |
+| State resources, associations, KV/Table/Document APIs | [State](docs/handbook/reference/state.md), [Tables](docs/handbook/reference/tables.md), [Documents](docs/handbook/reference/documents.md), [state contract](contracts/STATE_V1.md) |
+| Declarative interfaces and query execution | [SQL](docs/handbook/reference/sql.md), [queries](docs/handbook/reference/queries.md), [applications](docs/handbook/reference/applications.md), [grammar](contracts/sql/README.md) |
+| Arrow IPC/C interfaces, Flight SQL, ADBC | [Arrow](docs/handbook/reference/arrow.md), [Flight](docs/handbook/reference/flight.md) |
+| Inbound HTTP APIs and service publication | [Serving](docs/handbook/reference/serving.md), [OpenAPI](docs/handbook/reference/openapi.md), [serving contract](contracts/SERVING_V1.md) |
+| SSE/WebSocket, sessions, watches and live views | [Reactive](docs/handbook/reference/reactive.md), [AsyncAPI](docs/handbook/reference/asyncapi.md), [reactive contract](contracts/REACTIVE_V1.md) |
+| Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/handbook/reference/retention.md) |
+| Caller APIs and language bindings | [Caller semantics](docs/handbook/reference/callers.md), [SDKs](docs/handbook/reference/sdks.md), [public protocol package](packages/zig/transit-protocol/README.md) |
+| Operator/agent inspection and Board UI/API | [Board guide](docs/handbook/guides/inspect-board.md), [Board API](docs/handbook/reference/board-api.md), [SQL](docs/handbook/reference/sql.md) |
+| Logs, metrics, traces, probes | [Observability](docs/handbook/reference/observability.md) |
+| Behaviors, supervision, names | [Station](docs/handbook/reference/station.md) |
+| Effects, capture, secret interpolation | [Connectors](docs/handbook/reference/connectors.md), [HTTP](contracts/STATION_HTTP_V1.md), [gRPC](contracts/STATION_GRPC_V1.md) |
+| Kubernetes, provider bindings, recovery | [Deployment](docs/handbook/reference/deployment.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
+| Installation, bootstrap and replacement | [Applications](docs/handbook/reference/applications.md), [installation contract](contracts/APPLICATION_INSTALLATION_V1.md) |
+| Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md), [contributing](docs/handbook/guides/contributing.md) |
 
-Read [guarantees and verification limits](docs/reference/verification.md) and
+Read [guarantees and verification limits](docs/handbook/reference/verification.md) and
 [executed proof evidence](tests/README.md). Preserve the proved authority,
 readiness and recovery gates before extending a profile. Distinguish planned
 checks from executable evidence; never treat a skipped or incomplete proof as passed.
@@ -43,7 +43,7 @@ established behavior, limits and reasoning into the public owner with the change
 
 ## Implementation rules
 
-- Follow the [versioning policy](docs/reference/versioning.md). Before Transit
+- Follow the [versioning policy](docs/handbook/reference/versioning.md). Before Transit
   1.0, every Transit-owned protocol, wire format, schema and ABI has one current
   definition named v1. Breaking changes replace that definition through a hard
   cutover; do not add v2/v3, parallel legacy profiles, compatibility shims,
@@ -65,15 +65,15 @@ established behavior, limits and reasoning into the public owner with the change
 - Name runtime artifacts and deployments Transit. This repository develops the
   general-purpose runtime. Board, Station and Fuze belong to Transit;
   use `transit-board*`, `transit-station*` and `transit-fuze*` for their artifacts.
-  Keep their readable names in prose. Follow the [glossary](docs/reference/glossary.md)
+  Keep their readable names in prose. Follow the [glossary](docs/handbook/reference/glossary.md)
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
   M9's language bindings and M11's public SDKs, host adapters, examples and
   conformance tests may use their target languages; share the Zig client/framework
-  through the [binding boundary](docs/reference/callers.md#language-neutral-boundary) instead of duplicating
+  through the [binding boundary](docs/handbook/reference/callers.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
-  follow [Fuze](docs/reference/queries.md) for DataFusion/Acero inspiration and query boundaries.
+  follow [Fuze](docs/handbook/reference/queries.md) for DataFusion/Acero inspiration and query boundaries.
   Neither upstream engine is a runtime dependency.
 - Keep generated wire/ABI declarations separate from language-native public APIs.
   SDKs own types, codecs, handler dispatch, scheduling and packaging; the shared
@@ -82,7 +82,7 @@ established behavior, limits and reasoning into the public owner with the change
   host tasks and handler fields are not durable state.
 - Design Board and other operator interfaces as views over Transit's declarative
   model. Map objects, forms, diagrams and actions to the SQL grammar and shared
-  typed contracts in [Query language](docs/reference/applications.md#declarative-application-interfaces).
+  typed contracts in [Query language](docs/handbook/reference/applications.md#declarative-application-interfaces).
   SQL, visual editing, CLI and SDK surfaces must share validation and semantics:
   queries lower to Fuze plans; declarations and controls use their owning public
   operations, never a separate UI configuration authority. Show definitions,
@@ -161,8 +161,8 @@ operations, set `GIT_COMMITTER_DATE` to that commit's author date.
 
 Follow the [documentation ownership guide](docs/README.md#where-documentation-lives).
 Keep current scope, concepts, guarantees and user-facing semantics in
-`docs/guides/` and `docs/reference/`. Publish consolidated scientific explanations
-of how the system works in `docs/internals/`: models, mechanisms, invariants,
+`docs/handbook/guides/` and `docs/handbook/reference/`. Publish consolidated scientific explanations
+of how the system works in `docs/handbook/internals/`: models, mechanisms, invariants,
 architecture rationale, tradeoffs and evidence. Internals is public, navigable
 and searchable. Merge overlapping explanations around clear technical subjects;
 do not publish every source record as a separate Internals page.
@@ -172,7 +172,7 @@ and reviews in `docs/design/`, and superseded topic accounts and historical
 qualification reviews in `docs/history/`. Preserve their outcomes and source
 links; these records stay outside the site's primary reading path and search.
 Internals and architecture documentation must follow the
-[scientific standard](docs/internals/standard.md): explicit questions, scope,
+[scientific standard](docs/handbook/internals/standard.md): explicit questions, scope,
 models and assumptions; precise claims and reasoning; traceable primary evidence;
 reproducible methods; alternatives, uncertainty and limits. Apply it to new and
 substantively revised accounts. Do not retroactively certify historical records.

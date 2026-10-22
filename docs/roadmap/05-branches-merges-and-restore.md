@@ -4,7 +4,7 @@
 
 Add isolated application-state experimentation after
 [historical catalog binding](02-standards-and-catalogs.md). The
-[state model](../internals/state-model.md) owns the authority/lifetime proposal.
+[state model](../handbook/internals/state-model.md) owns the authority/lifetime proposal.
 Branches do not copy live process identities, grants or effect rights.
 
 ## Delivery sequence

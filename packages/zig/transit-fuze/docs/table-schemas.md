@@ -2,7 +2,7 @@
 
 `TableSchema` validates immutable, borrowed schema revisions and Table cells.
 It has no catalog, storage or authorization side effects. This model does not
-change the executable [Table profile](../../../../docs/reference/tables.md).
+change the executable [Table profile](../../../../docs/handbook/reference/tables.md).
 
 A schema identifies its stable object, revision and monotonic next-column ID.
 Columns have distinct nonzero IDs, UTF-8 names, logical types, nullability and

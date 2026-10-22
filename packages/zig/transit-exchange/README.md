@@ -4,7 +4,7 @@ Shared Zig capture over Station's growing immutable publication. HTTP and RPC
 consume this package; it has no external transport, credential resolver, protocol
 parser or remote retry loop. Its optional Worker and Caller helpers use only the public
 Transit client for authority I/O.
-[HTTP effects](../../../docs/reference/connectors.md) is in progress. The initial unit checks do not
+[HTTP effects](../../../docs/handbook/reference/connectors.md) is in progress. The initial unit checks do not
 qualify the complete connector, deployment, SDK or disk-recovery obligations.
 
 Each `Exchange` owns one publication namespace in a writer-owned resource.

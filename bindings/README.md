@@ -5,10 +5,10 @@ transitions and exact recovery. Raw Transit clients and Station SDKs are separat
 packages. Host APIs own language types, codecs, scheduling and packaging; generated
 wire declarations remain separate from those APIs.
 
-Use the [SDK directory](../docs/reference/sdks.md) for the current Python,
+Use the [SDK directory](../docs/handbook/reference/sdks.md) for the current Python,
 TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir packages. The
 [installed examples](../examples/station-sdk/README.md) provide service and requester
-programs. All use native v1. The pre-1.0 [versioning policy](../docs/reference/versioning.md)
+programs. All use native v1. The pre-1.0 [versioning policy](../docs/handbook/reference/versioning.md)
 requires matching current definitions and hard cutovers.
 
 ## Shared boundary
@@ -24,7 +24,7 @@ Preparation and dispatch are separate. A mutation's original canonical bytes mus
 survive an unknown outcome and host replacement. Foreign pointers, cancelled host
 tasks and application queues do not change durable authority. Destruction joins
 owned work and releases native buffers; read results retain their documented
-ownership. See [caller semantics](../docs/reference/callers.md).
+ownership. See [caller semantics](../docs/handbook/reference/callers.md).
 
 `just bindings::generate` regenerates declarations and embedded schemas from Zig
 exports. `just bindings::check` detects drift. No legacy generic handler package,

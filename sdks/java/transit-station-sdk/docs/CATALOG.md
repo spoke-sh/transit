@@ -164,7 +164,7 @@ lists and binary values outlive the client; mutable inputs are copied before wor
 can outlive their caller. Generated recursive schemas and typed decoders validate
 fields, identities, canonical integers, budgets and continuations.
 
-The [Table reference](../../../../docs/reference/tables.md) and
+The [Table reference](../../../../docs/handbook/reference/tables.md) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
 publication and retention. The [proof ledger](../../../../tests/README.md) records
 executed installed-JAR and recovery evidence.

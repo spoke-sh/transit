@@ -13,7 +13,7 @@ pub const Basis = struct { resource: u64, revision: u64, head: [32]u8 };
 pub const fragment_bytes = Frame.max_payload - 22;
 /// A sender may not start a segment more than this many ordinals past the
 /// last credit it has observed. Fixed, not adaptive; matches Delivery.tla's
-/// checked `Window` constant. See docs/reference/streams.md#flow-control.
+/// checked `Window` constant. See docs/handbook/reference/streams.md#flow-control.
 pub const credit_window: u64 = 2;
 pub const Phase = enum(u8) { capturing = 1, captured = 2, published = 3, acknowledged = 4, cancelled = 5, denied = 6, failed = 7 };
 pub const Failure = enum(u8) { none = 0, result_too_large = 1, workspace_exceeded = 2, overflow = 3 };
@@ -348,7 +348,7 @@ pub const Publication = struct {
         return .{ .result = decoded.result, .segment = decoded.page, .offset = decoded.written };
     }
 };
-/// Receiver-issued application admission credit (docs/reference/streams.md#flow-control): the
+/// Receiver-issued application admission credit (docs/handbook/reference/streams.md#flow-control): the
 /// destination durably grants credit only for segments it has itself sealed.
 /// `granted` is monotonically non-decreasing; the sender retains the last
 /// value it observed under key tag `g`, independent of its own send cursor.

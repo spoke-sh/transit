@@ -2,7 +2,7 @@
 
 The service exposes the single current [native protocol](TRANSIT_V1.md).
 `transit-client` owns canonical bytes, signatures, response validation and exact
-retry. [Versioning](../docs/reference/versioning.md) defines the pre-1.0 hard
+retry. [Versioning](../docs/handbook/reference/versioning.md) defines the pre-1.0 hard
 cutover policy. Clients, workers and services use matching builds.
 
 ## Routes and envelopes
@@ -147,14 +147,14 @@ upstream pool.
 Signatures authenticate callers; they neither encrypt responses nor authenticate
 the response transport. A listener outside a trusted private network requires an
 authenticated TLS ingress boundary. Workloads cannot receive raw Ursula/provider
-credentials. [Security](../docs/reference/security.md) owns deployment trust.
+credentials. [Security](../docs/handbook/reference/security.md) owns deployment trust.
 
 ## Operation and recovery
 
 [transit-node](../apps/transit-node/README.md) owns bootstrap, trusted clock
 integration, request limits and separately authorized maintenance. Finite
 lifetimes require an opted-in bounded-error clock; clock failure grants no
-expiry or fresh execution. [Caller semantics](../docs/reference/callers.md) owns
+expiry or fresh execution. [Caller semantics](../docs/handbook/reference/callers.md) owns
 host cancellation and recovery. [Executed proofs](../tests/README.md) distinguish
 actual evidence from planned checks.
 

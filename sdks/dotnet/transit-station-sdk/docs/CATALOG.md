@@ -168,7 +168,7 @@ outlive the client. Requests are encoded before queuing native work. Generated
 recursive schemas and typed decoders validate fields, identities, canonical
 integers, budgets and continuations.
 
-The [Table reference](../../../../docs/reference/tables.md) and
+The [Table reference](../../../../docs/handbook/reference/tables.md) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
 publication and retention. The [proof ledger](../../../../tests/README.md) records
 executed installed-NuGet and recovery evidence.

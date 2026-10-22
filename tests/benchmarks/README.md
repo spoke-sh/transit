@@ -1,6 +1,6 @@
 # Declarative benchmark tooling
 
-The [public benchmark reference](../../docs/reference/benchmarks.md) owns scope,
+The [public benchmark reference](../../docs/handbook/reference/benchmarks.md) owns scope,
 interpretation and declarative coverage. These are Transit-authored component
 fixtures, not full TPC implementations or standard scale factors.
 

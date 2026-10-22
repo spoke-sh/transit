@@ -35,7 +35,7 @@ a separate transport budget and are excluded from authority journal records.
 
 Incompatible signatures, histories, checkpoints, cursors and saved operations
 reject; no fallback decoder, alternate route or automatic migration exists.
-The [versioning policy](../docs/reference/versioning.md) requires matching builds
+The [versioning policy](../docs/handbook/reference/versioning.md) requires matching builds
 and preservation of original recovery material across a hard cutover.
 
 ## Current identity observation
@@ -213,7 +213,7 @@ current permission. The growing engine currently enforces these rules internally
 the explicit HTTP profile exposes them. A separate node maintenance process
 materializes terminal dispositions with bounded scans. Maintenance latency depends
 on scan budgets and catalog size; there is no fixed lag bound. See
-[deployment](../docs/reference/deployment.md) for runtime requirements.
+[deployment](../docs/handbook/reference/deployment.md) for runtime requirements.
 
 The [immutable catalog](../packages/zig/transit-core/docs/pages.md#typed-catalog)
 is the storage basis. One conditional journal decision must publish state roots,

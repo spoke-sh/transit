@@ -1,12 +1,12 @@
 # Transit — kernel protocol
 
-Engineering background and historical design. Use [Processes, turns and recovery](../reference/processes.md)
+Engineering background and historical design. Use [Processes, turns and recovery](../handbook/reference/processes.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use this model to understand what a worker may commit and how it recovers.
-The [native protocol reference](../reference/native.md) owns wire entry points;
-[the application guide](../guides/applications.md) shows a caller in practice.
+The [native protocol reference](../handbook/reference/native.md) owns wire entry points;
+[the application guide](../handbook/guides/applications.md) shows a caller in practice.
 
 Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay

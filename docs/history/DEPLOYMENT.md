@@ -1,10 +1,10 @@
 # Deployment and runtime boundary
 
-Engineering background and historical design. Use [Deployment and recovery](../reference/deployment.md)
+Engineering background and historical design. Use [Deployment and recovery](../handbook/reference/deployment.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
-Start with the [local quickstart](../guides/quickstart.md) for a single-user
+Start with the [local quickstart](../handbook/guides/quickstart.md) for a single-user
 installation, [launchers](../../launchers/README.md) for development topologies, or
 the [reference runbook](../../deploy/reference/README.md) for Kubernetes/Substrate.
 This page explains what physical recovery can and cannot authorize.

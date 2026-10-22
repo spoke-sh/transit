@@ -1,12 +1,12 @@
 # Station — framework and behaviors
 
-Engineering background and historical design. Use [Station behaviors, names and supervision](../reference/station.md)
+Engineering background and historical design. Use [Station behaviors, names and supervision](../handbook/reference/station.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use Station to implement sequential handlers, durable calls, state access and
-supervision above Transit. Start with the [application walkthrough](../guides/applications.md)
-or a [language SDK](../reference/sdks.md). Station conveniences preserve the same
+supervision above Transit. Start with the [application walkthrough](../handbook/guides/applications.md)
+or a [language SDK](../handbook/reference/sdks.md). Station conveniences preserve the same
 current grants and turn commit boundary as a raw caller.
 
 Status: the [Station package](../../packages/zig/transit-station/README.md) implements

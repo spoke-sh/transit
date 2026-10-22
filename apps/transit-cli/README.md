@@ -18,7 +18,7 @@ gateway pressure, physical capacity and clean-checkout qualification are recorde
 The local gateway supports [localhost and explicit tunnel aliases](docs/server.md#local-names-and-ssh-tunnels)
 and reports its URL and accepted authorities in the ready record.
 
-The [public CLI reference](../../docs/reference/cli.md#output-philosophy-explain-locate-guide)
+The [public CLI reference](../../docs/handbook/reference/cli.md#output-philosophy-explain-locate-guide)
 defines concise errors, useful coordinates, recovery guidance, streams and exit
 statuses. Use `transit server --help`, `transit console --help` or application
 operation help such as `transit app install --help` for supported options and
@@ -26,7 +26,7 @@ configuration guidance. `just test::cli-diagnostics` checks the real executable'
 invocation and configuration failures without starting an installation.
 Put `--diagnostics=json` before the command for structured stderr errors; result
 stdout keeps its command-specific format. See the
-[structured error reference](../../docs/reference/cli.md#structured-errors).
+[structured error reference](../../docs/handbook/reference/cli.md#structured-errors).
 
 The [authorization guide](docs/authorization.md) describes `transit auth`
 preview, saved changes, explicit bounded apply and receipt recovery. Catalog SQL

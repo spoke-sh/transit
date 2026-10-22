@@ -51,8 +51,8 @@ through durable bounded stages rather than widening that boundary.
 
 [General Table metadata and caller operations](docs/table-metadata.md) define
 physical records, schema references, atomic transitions, policy, dependencies,
-cleanup, ownership and exact limits. The [Table reference](../../../docs/reference/tables.md)
-and [SQL reference](../../../docs/reference/sql.md) describe user-facing behavior.
+cleanup, ownership and exact limits. The [Table reference](../../../docs/handbook/reference/tables.md)
+and [SQL reference](../../../docs/handbook/reference/sql.md) describe user-facing behavior.
 
 ## Signed and neutral callers
 

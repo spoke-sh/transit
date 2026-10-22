@@ -1,6 +1,6 @@
 # State — resources and process associations
 
-Engineering background and historical design. Use [State resources and associations](../reference/state.md)
+Engineering background and historical design. Use [State resources and associations](../handbook/reference/state.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

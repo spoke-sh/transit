@@ -97,7 +97,7 @@ Request diagnostics retain `wait_ns` as zero because there is no authority-work
 mutex, `work_ns` for request execution including provider I/O, and `cache_hits` /
 `cache_misses` for decoded page-cache access during that work. They count one
 attempt, not durable outcomes or total provider requests. The separate immutable
-control-record cache is described in [storage](../../../docs/reference/storage.md).
+control-record cache is described in [storage](../../../docs/handbook/reference/storage.md).
 
 Capabilities advertise the implemented operation budgets, named association
 lookup, scoped failed-input retry, retained read versions and support for root

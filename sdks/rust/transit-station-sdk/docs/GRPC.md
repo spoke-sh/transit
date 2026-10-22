@@ -46,7 +46,7 @@ released. It retains the exact protocol status, exchange identity and inspection
 guidance. A completed response does not establish business success or permit a
 retry; rejected input does not settle earlier work. Original details absent from
 the reply are explicitly unrecorded. See the
-[shared SDK diagnostic contract](../../../../docs/reference/sdks.md#structured-failure-details).
+[shared SDK diagnostic contract](../../../../docs/handbook/reference/sdks.md#structured-failure-details).
 
 ## Original diagnostic evidence
 
@@ -59,4 +59,4 @@ They require current capture-resource access; native effect reads additionally
 require inspection of the connector PID. Permission, stale-cut and integrity
 failures remain read errors. These operations do not open a replay cursor,
 resolve credentials, dispatch, resume or retry an effect. See the
-[shared diagnostic semantics](../../../../docs/reference/sdks.md#structured-failure-details).
+[shared diagnostic semantics](../../../../docs/handbook/reference/sdks.md#structured-failure-details).

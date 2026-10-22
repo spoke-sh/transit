@@ -1,6 +1,6 @@
 # Testing and verification strategy
 
-Engineering background and historical design. Use [Guarantees and verification limits](../reference/verification.md)
+Engineering background and historical design. Use [Guarantees and verification limits](../handbook/reference/verification.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 

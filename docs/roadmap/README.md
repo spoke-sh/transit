@@ -2,7 +2,7 @@
 
 This roadmap contains unfinished work for Transit, ordered by dependency rather
 than delivery date. Current behavior belongs in the [public reference](../README.md),
-mechanisms in [Internals](../internals/README.md), and executed checks in the
+mechanisms in [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../../tests/README.md). A plan does not establish support.
 
 | Order | Milestone | Outcome |
@@ -29,7 +29,7 @@ Standards, multi-model and branching work is tracked in
   retirement and the distinction between cancellation and uncertainty.
 - Keep retained collection size independent of resident memory. Measure provider,
   compute, transport and publication costs separately.
-- Apply the [v1 hard-cutover policy](../reference/versioning.md) to incompatible
+- Apply the [v1 hard-cutover policy](../handbook/reference/versioning.md) to incompatible
   definitions. Never reinterpret accepted work or reset data automatically.
 - Run focused proofs and committed-source clean checks. Publish supported
   behavior and measured limits with their public owners as work lands.

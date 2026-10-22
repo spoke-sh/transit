@@ -1,7 +1,7 @@
 # Serving profile v1
 
 Serving v1 defines service identity, caller authorization, durable command
-admission and bounded reads. [Serving](../docs/reference/serving.md) explains
+admission and bounded reads. [Serving](../docs/handbook/reference/serving.md) explains
 the architecture and protocol adapters.
 
 ## Owner and publication

@@ -7,7 +7,7 @@ current builds.
 
 Raw owned-fixture observations for [issue #55](https://github.com/spoke-sh/transit/issues/55).
 The [proof ledger](../../../README.md#durable-table-mutation-latency) owns executed
-qualification; the [performance reference](../../../../docs/reference/performance.md#durable-table-mutation-measurements)
+qualification; the [performance reference](../../../../docs/handbook/reference/performance.md#durable-table-mutation-measurements)
 owns mechanisms and measurement controls.
 
 These gzip files preserve the original JSON bytes, including errors, failed

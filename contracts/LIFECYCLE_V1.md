@@ -1,7 +1,7 @@
 # Process lifecycle controls v1
 
 Direct variants of the native `Command` union. [Transit](TRANSIT_V1.md)
-remains the execution authority; [Station](../docs/reference/station.md) owns behavior policy.
+remains the execution authority; [Station](../docs/handbook/reference/station.md) owns behavior policy.
 
 ## Initialization
 

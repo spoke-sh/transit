@@ -168,7 +168,7 @@ leaves native work owned; `close` joins that work and child cleanup. Block-based
 synchronous, with Ruby scheduling during I/O; it supplies no Fiber scheduler,
 retry queue, provisioning loop or principal sequence coordinator.
 
-The [Table reference](../../../../docs/reference/tables.md) and
+The [Table reference](../../../../docs/handbook/reference/tables.md) and
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) own authority,
 atomic publication and retention. The [proof ledger](../../../../tests/README.md)
 records executed installed-gem and recovery evidence.

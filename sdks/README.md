@@ -1,6 +1,6 @@
 # Transit SDKs
 
-Consumer applications start from the [handbook SDK section](../docs/reference/sdks.md).
+Consumer applications start from the [handbook SDK section](../docs/handbook/reference/sdks.md).
 Language directories own public APIs, native distribution packages and usage
 guides. The [binding tooling](../bindings/README.md) owns generation, packaging
 and installed-consumer checks.

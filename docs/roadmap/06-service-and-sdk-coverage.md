@@ -3,8 +3,8 @@
 [Roadmap](README.md)
 
 Extend source, type and lifecycle limits documented by
-[connectors](../reference/connectors.md), [reactive APIs](../reference/reactive.md),
-[Flight/ADBC](../reference/flight.md) and the [SDKs](../reference/sdks.md).
+[connectors](../handbook/reference/connectors.md), [reactive APIs](../handbook/reference/reactive.md),
+[Flight/ADBC](../handbook/reference/flight.md) and the [SDKs](../handbook/reference/sdks.md).
 Transport support alone does not establish a new execution profile.
 
 ## Remaining work

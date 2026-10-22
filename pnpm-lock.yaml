@@ -61,7 +61,7 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  apps/transit-docs:
+  docs/handbook:
     dependencies:
       '@docusaurus/core':
         specifier: 3.10.2

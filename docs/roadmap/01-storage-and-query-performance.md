@@ -3,8 +3,8 @@
 [Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76)
 
 Reduce remaining end-to-end costs before adding storage-heavy historical and
-branching features. The [performance reference](../reference/performance.md)
-describes measurements; the [storage reference](../reference/storage.md) owns
+branching features. The [performance reference](../handbook/reference/performance.md)
+describes measurements; the [storage reference](../handbook/reference/storage.md) owns
 existing block publication, concurrent requests and reclamation.
 
 ## Remaining work

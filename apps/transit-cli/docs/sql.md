@@ -355,7 +355,7 @@ Idle PostgreSQL/MySQL connections remain open by default (`sql.idle_ms: 0`).
 A positive value enables idle expiry; PostgreSQL reports `57P05`, and MySQL
 reports `4031`. An existing `idle_ms: 30s` entry still enables that timeout.
 Native HTTP sessions use the independent renewable `sql.native.session_lease_ms`
-lease. See [configuration](../../../docs/reference/configuration.md) for bounds.
+lease. See [configuration](../../../docs/handbook/reference/configuration.md) for bounds.
 
 A `busy` SQL status with `HttpCapacity` means the supervisor could not complete
 its account observation because native request capacity was full. It does not

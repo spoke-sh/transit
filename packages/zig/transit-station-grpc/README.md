@@ -120,7 +120,7 @@ Admission rejection diagnostics retain the original delivered input commitment,
 failing field and check, expected/supplied values, and original validation cause.
 Strings are bounded with explicit truncation; credential values and foreign-caller
 state remain withheld. See the [shared admission layout](../../../contracts/CONNECTOR_ADMISSION_V1.md)
-and [connector semantics](../../../docs/reference/connectors.md).
+and [connector semantics](../../../docs/handbook/reference/connectors.md).
 
 `Policy.followupDiagnostic` and `Prepared.validateRequestDiagnostic` separate
 method, stream shape, descriptor commitment, credential reference and provenance

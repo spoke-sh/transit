@@ -21,7 +21,7 @@ The [behavior and paging guide](docs/growing.md) owns the execution loop, captur
 views and retained sources. All callers use this implementation; resident page
 and operation bounds do not limit total retained application state.
 The [binding package](../transit-station-bindings/README.md) composes the shared C ABI
-and port for [language SDKs](../../../docs/reference/sdks.md). Its
+and port for [language SDKs](../../../docs/handbook/reference/sdks.md). Its
 [binding guide](../transit-station-bindings/docs/bindings.md) defines detached handlers,
 explicit dispatch and ownership. Document and finite KV/Table/Document queries
 compose above Station through their own packages.

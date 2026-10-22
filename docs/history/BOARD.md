@@ -1,12 +1,12 @@
 # Board — system inspection and Table workspace
 
-Engineering background and historical design. Use [Inspect with Board](../guides/inspect-board.md)
+Engineering background and historical design. Use [Inspect with Board](../handbook/guides/inspect-board.md)
 for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use Board to inspect current, authorized evidence and separately configured query
 workspaces. Begin with [configuration](../../apps/transit-board/docs/configuration.md)
-and the [HTTP API reference](../reference/board-api.md). UI review proposals later
+and the [HTTP API reference](../handbook/reference/board-api.md). UI review proposals later
 in this page describe future interactions; they are not a command reference.
 
 Status: bounded M2 inspection profile implemented and qualified

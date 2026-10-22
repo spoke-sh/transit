@@ -31,7 +31,7 @@ The current C plan and explanation layouts require matching headers, SDK librari
 and native artifacts. Their ABI cutover replaces the shared v1 definition;
 older native builds and saved requests reject before use. Recover accepted work
 with its matching build before changing definitions. Source, schema and plan commitments use the current unified query formats. See the
-[versioning policy](../../../../docs/reference/versioning.md).
+[versioning policy](../../../../docs/handbook/reference/versioning.md).
 
 `transit_station_unified_open` takes a growing client config, explicit credential
 and source/resource/requester/request-resource connection. It owns a bounded

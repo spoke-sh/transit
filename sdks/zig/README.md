@@ -50,5 +50,5 @@ lifetimes stay explicit in the owning APIs.
 
 The [work-items application](../../examples/work-items/README.md) has a standalone
 manifest consuming this SDK. The root example builds use the same SDK modules.
-The [caller reference](../../docs/reference/callers.md) defines uncertainty,
+The [caller reference](../../docs/handbook/reference/callers.md) defines uncertainty,
 current authorization and cancellation across all supported languages.

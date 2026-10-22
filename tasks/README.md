@@ -278,7 +278,7 @@ anchors; it is included in `just check` and the experience lane.
 `just transit-docs::browser` to exercise desktop/mobile navigation, generated
 API downloads, local search, Internals, diagrams and accessibility. Use
 `TRANSIT_DOCS_BASE_URL=/handbook/` to qualify hosting below a path. See the
-[site guide](../apps/transit-docs/README.md) for source ownership and hosting.
+[site guide](../docs/handbook/README.md) for source ownership and hosting.
 
 ## Build profiles
 

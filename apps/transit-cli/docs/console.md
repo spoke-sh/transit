@@ -109,8 +109,8 @@ as partial, never as success. Configuration operations cannot be cancelled.
 
 `SET query.statement_timeout = '5s'`, `RESET query.statement_timeout` and
 `RESET ALL` affect only this session within its captured administrator ceiling.
-See [configuration](../../../docs/reference/configuration.md) and
-[settings SQL](../../../docs/reference/sql/settings.md).
+See [configuration](../../../docs/handbook/reference/configuration.md) and
+[settings SQL](../../../docs/handbook/reference/sql/settings.md).
 
 ## Typed query parameters
 
@@ -136,7 +136,7 @@ requests new work.
 The selected catalog admits a bounded INNER/LEFT equijoin over two Tables or a
 grouped single-Table query. Referenced columns use BIGINT/INT64. Projection,
 COUNT and ordered checked int64 SUM follow the
-[relational query profile](../../../docs/reference/queries.md). Resource cuts are
+[relational query profile](../../../docs/handbook/reference/queries.md). Resource cuts are
 an explicit per-resource snapshot vector, not an atomic cross-resource snapshot.
 Current rights apply to every dependency, including empty inputs. The service
 owns private spill and bounded execution; closing a read releases its resources.

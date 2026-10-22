@@ -200,7 +200,7 @@ Existing Board OpenAPI stays versioned separately.
 
 The proof matrix records Table/SSE and Table/WebSocket, non-UI peers, a minimal
 browser transport harness and each actual placement independently.
-[Live views](../docs/reference/reactive.md) use these snapshot/watch and reset
+[Live views](../docs/handbook/reference/reactive.md) use these snapshot/watch and reset
 contracts for bounded refresh in Board and applications, with a shared browser
 client. KV/Document watches, compression and lossless event histories are not
 supported. Refresh scheduling, presentation and any other protocol adapter retain

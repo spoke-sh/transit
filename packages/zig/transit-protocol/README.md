@@ -23,7 +23,7 @@ from the exact public types. It includes defaults, field order, integer ranges,
 routes, signing metadata and the current contract definition identifier.
 Run `just contract::generate` after public changes; `just contract::check` detects
 drift. Incompatible changes replace that identifier and update all consumers
-under the [hard-cutover policy](../../../docs/reference/versioning.md).
+under the [hard-cutover policy](../../../docs/handbook/reference/versioning.md).
 
 Canonical signing includes defaults/nulls, declaration order and decimal integers.
 Opaque `Value` fields use lowercase hexadecimal. Keep numeric values lossless

@@ -3,8 +3,8 @@
 [Roadmap](README.md)
 
 Turn component coverage into complete workload and release evidence. The
-[verification reference](../reference/verification.md),
-[benchmark inventory](../reference/benchmarks.md) and
+[verification reference](../handbook/reference/verification.md),
+[benchmark inventory](../handbook/reference/benchmarks.md) and
 [test ledger](../../tests/README.md) own current results. Focused qualification
 remains a gate for every preceding milestone.
 

@@ -1,6 +1,6 @@
 # transit-http-server
 
-Neutral HTTP/1.1 listener mechanics for [Serving](../../../docs/reference/serving.md).
+Neutral HTTP/1.1 listener mechanics for [Serving](../../../docs/handbook/reference/serving.md).
 This package has no Transit, Station, storage, credentials or application dependency.
 Consumers own identity, routes, durable admission, body/result budgets and responses.
 

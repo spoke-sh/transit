@@ -431,7 +431,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
         try enqueue(&queue, turn);
     }
     try t.expectEqual(@as(usize, 1), callbacks);
-    // One receiver-issued credit grant per sealed segment (docs/reference/streams.md#flow-control):
+    // One receiver-issued credit grant per sealed segment (docs/handbook/reference/streams.md#flow-control):
     // the sender never runs more than `credit_window` segments ahead of it.
     try t.expectEqual(@as(usize, 6), credit_frames);
     var sender = try producer.turn(.{ .kind = .cast }, 2);

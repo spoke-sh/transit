@@ -85,7 +85,7 @@ transit --version
 Add that same absolute `bin` directory to `PATH` in each terminal used by the
 quickstart. Keep the build link while installations use it; do not rebuild it
 in place to change a running installation's selected artifacts. Continue with
-[Run Transit locally](../docs/guides/quickstart.md).
+[Run Transit locally](../docs/handbook/guides/quickstart.md).
 
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is

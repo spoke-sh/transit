@@ -40,5 +40,5 @@ schema, operation, storage or query budgets. Large valid hex uses a linear scan,
 without a regex stack frame per byte.
 
 See the [catalog caller](CATALOG.md) for schemas and assignments and the
-[logical type reference](../../../../docs/reference/sql/types.md) for shared
+[logical type reference](../../../../docs/handbook/reference/sql/types.md) for shared
 semantics.

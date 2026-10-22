@@ -1,9 +1,9 @@
 # SQL grammar and rewrite proofs
 
-The public [SQL statement reference](../../docs/reference/sql.md#statement-forms)
+The public [SQL statement reference](../../docs/handbook/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
-the separate [historical-read fragment](../../docs/reference/sql/as-of.md).
-The [grammar surface inventory](../../docs/reference/sql/grammar-surface.md)
+the separate [historical-read fragment](../../docs/handbook/reference/sql/as-of.md).
+The [grammar surface inventory](../../docs/handbook/reference/sql/grammar-surface.md)
 separates implemented profiles, checked grammar, proposed syntax and undecided
 syntax. Proposed graph, foreign-relation and historical-selector examples are
 not inputs to this checked grammar. The integer system-time fragment has no
@@ -37,7 +37,7 @@ through the shared compiler; see the parameter contract.
 of `showStatement` belong to the shared query package's `SettingsSql` compiler.
 It lowers typed metadata predicates/projections through Fuze's `TableSelect`;
 administrative reload remains a separate explicit execution operation. See
-[settings SQL](../../docs/reference/sql/settings.md) for its bounded profile.
+[settings SQL](../../docs/handbook/reference/sql/settings.md) for its bounded profile.
 
 ## Reproducible reference checks
 
@@ -147,7 +147,7 @@ column identities to the original schema and defines a complete successor;
 existing-row validation and atomic publication remain runtime obligations. DROP
 binds the original object under RESTRICT semantics and preserves retained evidence.
 The [schema contract](../TABLE_SCHEMA_V1.md), [DDL contract](../TABLE_DDL_V1.md)
-and [Table reference](../../docs/reference/tables.md) own exact semantics.
+and [Table reference](../../docs/handbook/reference/tables.md) own exact semantics.
 
 `TableDml.compile` binds INSERT column lists or positional rows, omitted/defaulted
 fields, multiple constant assignments and Boolean/state predicates. `FDM1`
@@ -169,7 +169,7 @@ ownership and explicit SET/RESET ROLE. Production `AuthorizationSql` validates
 name/statement bounds, option duplication, privilege applicability and PUBLIC
 restrictions. Catalog lowering resolves stable IDs at one policy basis; native
 and catalog owners perform explicit preparation/publication. The
-[authorization reference](../../docs/reference/sql/authorization.md) identifies
+[authorization reference](../../docs/handbook/reference/sql/authorization.md) identifies
 executable interfaces and limits. Query-only roots do not apply policy changes.
 
 `CREATE CONNECTION`/`SOURCE`/`SINK`, connector listing forms,

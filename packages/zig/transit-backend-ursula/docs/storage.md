@@ -89,7 +89,7 @@ Native TTL and physical erasure of all historical copies are not claimed.
 Prefix trimming preserves the current catalog root; physical [segment collection](pages.md#root-collection-and-relocation) separately reclaims unreachable catalog
 pages and blocks. Neither mechanism chooses application keys to expire.
 The portable policy lives in
-[retention](../../../../docs/reference/retention.md).
+[retention](../../../../docs/handbook/reference/retention.md).
 
 ## Persistence configuration
 
@@ -108,7 +108,7 @@ recovery behavior. See
 [durability and consistency](https://ursula.tonbo.io/docs/concepts/durability-and-consistency/).
 
 Test execution-worker loss separately from Ursula restart and persistent-volume loss
-in the [reference deployment](../../../../docs/reference/deployment.md). Multi-node failure tolerance,
+in the [reference deployment](../../../../docs/handbook/reference/deployment.md). Multi-node failure tolerance,
 S3-compatible cold storage, backup/restore, and retention need explicit design
 and tests before broader use. Unread mailbox data must survive authorized
 suspension within its accepted lifetime; expiry must make recovery terminal.

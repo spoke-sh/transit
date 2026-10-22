@@ -16,7 +16,7 @@ Each source has `name`, `database`, `key_file`, `connection` and `workspace`.
 `connection` is the existing `UnifiedClient.Connection`: realm, caller principal,
 source process/resource, requester process/resource and selected role.
 `workspace` is the existing `Workspace.Config`: SQL name, typed source definition
-and finite page/segment/result-byte budgets. The [Query reference](../../../../docs/reference/queries.md)
+and finite page/segment/result-byte budgets. The [Query reference](../../../../docs/handbook/reference/queries.md)
 describes the source and requester owners. These owners and their policies must
 already exist; loading a source declaration does not provision or grant them.
 

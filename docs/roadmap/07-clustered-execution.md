@@ -3,7 +3,7 @@
 [Roadmap](README.md)
 
 Extend typed exchanges and manual single-authority handoff into automatic placement
-and distributed execution. The [deployment reference](../reference/deployment.md)
+and distributed execution. The [deployment reference](../handbook/reference/deployment.md)
 and [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md) own present behavior.
 
 ## Delivery sequence

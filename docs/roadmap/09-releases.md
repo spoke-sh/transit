@@ -4,7 +4,7 @@
 
 Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
-[source onboarding](../guides/quickstart.md) are the baseline, not a release pipeline.
+[source onboarding](../handbook/guides/quickstart.md) are the baseline, not a release pipeline.
 
 ## Delivery sequence
 

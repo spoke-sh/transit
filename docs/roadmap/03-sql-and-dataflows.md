@@ -2,8 +2,8 @@
 
 [Roadmap](README.md)
 
-Complete unsupported operation families in the [SQL reference](../reference/sql.md)
-and [grammar inventory](../reference/sql/grammar-surface.md). Existing typed Tables,
+Complete unsupported operation families in the [SQL reference](../handbook/reference/sql.md)
+and [grammar inventory](../handbook/reference/sql/grammar-surface.md). Existing typed Tables,
 joins/grouping, expressions, parameters and named relational activation are the
 baseline; extend their shared owners rather than planning them again.
 

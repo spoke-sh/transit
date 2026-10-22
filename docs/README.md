@@ -1,9 +1,9 @@
 # Transit documentation
 
 The public handbook is the shared source of current behavior for application
-users, contributors and agents. Start with [What is Transit?](guides/introduction.md),
-[Run Transit locally](guides/quickstart.md) and
-[Build your first application](guides/applications.md).
+users, contributors and agents. Start with [What is Transit?](handbook/guides/introduction.md),
+[Run Transit locally](handbook/guides/quickstart.md) and
+[Build your first application](handbook/guides/applications.md).
 
 ## Guides and reference
 
@@ -15,13 +15,13 @@ and operations remain shared references below those entry points.
 
 | Interface | Start here |
 | --- | --- |
-| CLI | [Configuration](reference/configuration.md), [Commands](reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md), [psql/mysql](../apps/transit-cli/docs/sql.md) |
-| SQL | [Statements and support](reference/sql.md), [implemented and planned grammar](reference/sql/grammar-surface.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
-| SDKs | [Language SDKs](reference/sdks.md), [caller semantics](reference/callers.md) |
-| HTTP APIs | [SQL session API](../contracts/SQL_SESSION_V1.md), [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
-| Reactive APIs | [AsyncAPI](reference/asyncapi.md), [sessions and watches](reference/reactive.md) |
-| Analytical clients | [Flight SQL and ADBC](reference/flight.md) |
-| Native protocol | [Signed operations](reference/native.md) |
+| CLI | [Configuration](handbook/reference/configuration.md), [Commands](handbook/reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md), [psql/mysql](../apps/transit-cli/docs/sql.md) |
+| SQL | [Statements and support](handbook/reference/sql.md), [implemented and planned grammar](handbook/reference/sql/grammar-surface.md), [syntax](handbook/reference/sql/syntax.md), [types](handbook/reference/sql/types.md), [functions and operators](handbook/reference/sql/expressions.md), [streaming and effects](handbook/reference/sql/streaming.md) |
+| SDKs | [Language SDKs](handbook/reference/sdks.md), [caller semantics](handbook/reference/callers.md) |
+| HTTP APIs | [SQL session API](../contracts/SQL_SESSION_V1.md), [Serving OpenAPI](handbook/reference/openapi.md), [Board OpenAPI](handbook/reference/board-api.md) |
+| Reactive APIs | [AsyncAPI](handbook/reference/asyncapi.md), [sessions and watches](handbook/reference/reactive.md) |
+| Analytical clients | [Flight SQL and ADBC](handbook/reference/flight.md) |
+| Native protocol | [Signed operations](handbook/reference/native.md) |
 
 The SQL statement index covers the complete checked grammar, including explicit
 Table mutations, offline definitions and administrative forms that remain
@@ -32,21 +32,21 @@ support boundary before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |
-| Internals | [System models, mechanisms and evidence](internals/README.md), [scientific standard](internals/standard.md) |
-| Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
-| Compatibility policy | [Versioning and hard cutovers](reference/versioning.md) |
-| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [declarative benchmarks](reference/benchmarks.md), [examples across languages](guides/workload-examples.md) |
-| Durable execution | [Processes and turns](reference/processes.md), [streams and delivery](reference/streams.md), [caller/SDK semantics](reference/callers.md) |
-| Authority and lifetime | [Security](reference/security.md), [retention and capacity](reference/retention.md), [storage](reference/storage.md) |
-| Application state | [State resources](reference/state.md), [Station](reference/station.md), [Tables](reference/tables.md), [Documents](reference/documents.md) |
-| Installation and composition | [Application installation, definitions and migration](reference/applications.md), [language SDKs](reference/sdks.md) |
-| Effects and inbound APIs | [Connectors](reference/connectors.md), [serving](reference/serving.md), [reactive sessions and views](reference/reactive.md) |
-| Queries and interchange | [SQL](reference/sql.md), [query execution](reference/queries.md), [Arrow](reference/arrow.md), [Flight SQL/ADBC](reference/flight.md) |
-| Type coverage and schema discovery | [Logical types and frozen CSV/JSONL discovery](reference/sql/types.md), [measured DuckDB comparisons](reference/performance.md#schema-on-demand-measurements) |
-| Interface specifications | [CLI](reference/cli.md), [native protocol](reference/native.md), [serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md), [AsyncAPI](reference/asyncapi.md) |
-| Operation and contribution | [Deployment](reference/deployment.md), [Board](guides/inspect-board.md), [observability](reference/observability.md), [verification limits](reference/verification.md), [contributing](guides/contributing.md) |
+| Internals | [System models, mechanisms and evidence](handbook/internals/README.md), [scientific standard](handbook/internals/standard.md) |
+| Model and components | [Architecture and scope](handbook/reference/architecture.md), [component directory](handbook/reference/components.md), [glossary](handbook/reference/glossary.md) |
+| Compatibility policy | [Versioning and hard cutovers](handbook/reference/versioning.md) |
+| Workloads and performance | [Workload priorities](handbook/reference/workloads.md), [measured performance and improvement plan](handbook/reference/performance.md), [declarative benchmarks](handbook/reference/benchmarks.md), [examples across languages](handbook/guides/workload-examples.md) |
+| Durable execution | [Processes and turns](handbook/reference/processes.md), [streams and delivery](handbook/reference/streams.md), [caller/SDK semantics](handbook/reference/callers.md) |
+| Authority and lifetime | [Security](handbook/reference/security.md), [retention and capacity](handbook/reference/retention.md), [storage](handbook/reference/storage.md) |
+| Application state | [State resources](handbook/reference/state.md), [Station](handbook/reference/station.md), [Tables](handbook/reference/tables.md), [Documents](handbook/reference/documents.md) |
+| Installation and composition | [Application installation, definitions and migration](handbook/reference/applications.md), [language SDKs](handbook/reference/sdks.md) |
+| Effects and inbound APIs | [Connectors](handbook/reference/connectors.md), [serving](handbook/reference/serving.md), [reactive sessions and views](handbook/reference/reactive.md) |
+| Queries and interchange | [SQL](handbook/reference/sql.md), [query execution](handbook/reference/queries.md), [Arrow](handbook/reference/arrow.md), [Flight SQL/ADBC](handbook/reference/flight.md) |
+| Type coverage and schema discovery | [Logical types and frozen CSV/JSONL discovery](handbook/reference/sql/types.md), [measured DuckDB comparisons](handbook/reference/performance.md#schema-on-demand-measurements) |
+| Interface specifications | [CLI](handbook/reference/cli.md), [native protocol](handbook/reference/native.md), [serving OpenAPI](handbook/reference/openapi.md), [Board OpenAPI](handbook/reference/board-api.md), [AsyncAPI](handbook/reference/asyncapi.md) |
+| Operation and contribution | [Deployment](handbook/reference/deployment.md), [Board](handbook/guides/inspect-board.md), [observability](handbook/reference/observability.md), [verification limits](handbook/reference/verification.md), [contributing](handbook/guides/contributing.md) |
 
-Select a supported profile with the [interface matrix](guides/choose-interface.md).
+Select a supported profile with the [interface matrix](handbook/guides/choose-interface.md).
 Unsupported behavior, uncertainty, recovery rules and compatibility limits belong
 beside the feature users rely on. Describe the capabilities in the documented
 source revision, using interface versions and explicit supported/unsupported
@@ -72,15 +72,15 @@ preserve the actual support boundary.
 
 | Location | Ownership |
 | --- | --- |
-| `docs/guides/` | Runnable user and contributor workflows |
-| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled grammar targets, workload priorities and performance improvement plans |
+| `docs/handbook/guides/` | Runnable user and contributor workflows |
+| `docs/handbook/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled grammar targets, workload priorities and performance improvement plans |
 | `sdks/<language>/` READMEs and guides | Consumer language installation and API documentation; the handbook SDK sidebar reads these owners directly |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |
 | [tests/](../tests/README.md) | Executable proof commands, failure schedules, measurements and qualification results |
-| [apps/transit-docs/](../apps/transit-docs/README.md) | Docusaurus navigation, rendering, search, generated API presentation and browser verification |
-| [docs/internals/](internals/README.md) | Consolidated scientific accounts of system models, mechanisms, invariants, tradeoffs and evidence |
+| [docs/handbook/](handbook/README.md) | Docusaurus navigation, rendering, search, generated API presentation and browser verification |
+| [docs/handbook/internals/](handbook/internals/README.md) | Consolidated scientific accounts of system models, mechanisms, invariants, tradeoffs and evidence |
 | [docs/roadmap/](roadmap/README.md) | Unfinished delivery scope, sequencing and acceptance criteria |
 | [docs/design/](design/README.md) | UI/UX proposals, visual studies and recorded review outcomes |
 | [docs/history/](history/README.md) | Earlier topic accounts, language sketches, workload assumptions and qualification reviews; preserved as source material |
@@ -94,13 +94,13 @@ mechanisms and reasoning in greater depth for readers evaluating or changing the
 system. Link between these owners instead of duplicating contracts.
 
 Internals and architecture explanations must meet the
-[scientific standard](internals/standard.md): explicit scope and assumptions,
+[scientific standard](handbook/internals/standard.md): explicit scope and assumptions,
 precise claims, traceable sources, reproducible evidence, alternatives and limits.
 New and substantively revised technical accounts follow that standard. Consolidate
 overlapping explanations around a clear model or mechanism; link exact contracts,
 implementation and evidence instead of creating parallel specifications.
 
-Every Markdown page in `docs/guides/`, `docs/reference/` and `docs/internals/`
+Every Markdown page in `docs/handbook/guides/`, `docs/handbook/reference/` and `docs/handbook/internals/`
 belongs in the site catalog and search. Internals has its own top-level navigation
 and a compact sidebar. Usage documentation can link there for deeper reasoning,
 but remains sufficient to use and operate the documented interface.
@@ -122,7 +122,7 @@ source evidence when moving material. Keep dates and outcomes on historical revi
 
 Read the public topic, its component guide and relevant wire contract before
 changing behavior. Update all affected user explanations with the code. Use
-[contributing](guides/contributing.md) for the repository workflow and
-[verification](reference/verification.md) to select evidence. The
-[site guide](../apps/transit-docs/README.md) owns preview, validation,
+[contributing](handbook/guides/contributing.md) for the repository workflow and
+[verification](handbook/reference/verification.md) to select evidence. The
+[site guide](handbook/README.md) owns preview, validation,
 hosting, generated references and root/prefixed browser check commands.
