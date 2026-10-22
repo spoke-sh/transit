@@ -355,20 +355,62 @@ pub fn status(self: Self, source: anytype, who: u64, id: u64, expected_digest: [
     return found;
 }
 
+pub fn inspectComputation(self: Self, source: anytype, who: u64, id: u64) !?m.ComputationEvidence {
+    const tc = self.tables();
+    _ = try tc.authorizeDatabase(source, who);
+    const current = (try self.record(source, id)) orelse return null;
+    if (current.spec != .computation) return error.InvalidCatalogObject;
+    _ = try self.authorizeObject(source, who, id, .inspect);
+    const comp = current.spec.computation;
+    const source_ev = tc.inspectLifecycle(source, who, comp.source_object) catch |err| switch (err) {
+        error.CatalogDenied, error.TableNotFound => null,
+        else => return err,
+    };
+    const source_available = if (source_ev) |ev| ev.state != .unavailable and ev.revision != 0 else false;
+    const current_source_rev: u64 = if (source_ev) |ev| ev.revision else 0;
+    const fresh = source_available and current.state == .live and current.completed_input != 0 and current_source_rev == comp.source_revision;
+    const state: m.LifecycleState = switch (current.state) {
+        .initializing => .pending,
+        .retired => .unavailable,
+        .live => if (!source_available)
+            .unavailable
+        else if (current.pending_operation != 0)
+            .pending
+        else if (current.completed_input != 0)
+            (if (fresh) .complete else .pending)
+        else
+            (if (current_source_rev == comp.source_revision) .published else .pending),
+    };
+    return .{
+        .scope = current.scope,
+        .namespace = current.namespace,
+        .object = current.object,
+        .revision = current.revision,
+        .name = try Meta.Name.init(current.name.slice()),
+        .state = state,
+        .source_object = comp.source_object,
+        .source_revision = comp.source_revision,
+        .current_source_revision = current_source_rev,
+        .output_object = comp.output_object,
+        .fresh = fresh,
+        .source_available = source_available,
+        .resource_revision = source.view.revision,
+        .admitted_input = current.admitted_input,
+        .completed_input = current.completed_input,
+    };
+}
+
 pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
     const tc = self.tables();
     _ = try tc.authorizeDatabase(source, who);
     const current = (try self.record(source, id)) orelse return null;
     _ = try self.authorizeObject(source, who, id, .inspect);
-    const state: m.LifecycleState = switch (current.state) {
+    const state: m.LifecycleState = if (current.spec == .computation)
+        (try self.inspectComputation(source, who, id)).?.state
+    else switch (current.state) {
         .initializing => .pending,
         .retired => .unavailable,
-        .live => if (current.pending_operation != 0)
-            .pending
-        else if (current.spec == .computation and current.completed_input != 0)
-            .complete
-        else
-            .published,
+        .live => if (current.pending_operation != 0) .pending else .published,
     };
     return .{
         .kind = current.spec.objectKind(),
@@ -384,6 +426,20 @@ pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.Life
         .admitted_input = current.admitted_input,
         .completed_input = current.completed_input,
     };
+}
+
+pub fn bindComputationDependency(self: Self, turn: *s.Turn, id: u64, present: bool) !void {
+    const tc = self.tables();
+    const current = (try self.record(turn, id)) orelse return error.TableNotFound;
+    if (current.spec != .computation) return error.InvalidCatalogObject;
+    const comp = current.spec.computation;
+    try tc.setDependency(turn, .{
+        .scope = current.scope,
+        .object = comp.source_object,
+        .identity = current.object,
+        .owner = self.configuration.owner,
+        .kind = .query_source,
+    }, present);
 }
 
 pub fn preview(self: Self, source: anytype, who: u64, request: Request) !m.Preview {

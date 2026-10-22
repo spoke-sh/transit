@@ -1528,3 +1528,211 @@ test "declarative catalog manages KV and Document lifecycles with two-phase prov
     try t.expectEqual(.applied, replaced.state);
     try store.commit(turn);
 }
+
+test "dependency graph and policy reference inspection enforce current rights and redact details without read access" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    _ = try ddl(&store, try createRequest(10, 1, "people"));
+    _ = try ddl(&store, try createRequest(20, 2, "secret_audit"));
+
+    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
+    const kv_req = try c.DeclarativeCatalog.Request.fromDeclaration(owner.configuration.scope, 17, 3, 1, 30, 9100, try c.fuze.Declaration.compile("CREATE KV user_cache (UTF8)"));
+    var turn = try store.capture(17);
+    _ = try decl.apply(&turn, kv_req);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    _ = try decl.apply(&turn, kv_req);
+    try store.commit(turn);
+
+    // Register dependencies: identity 30 (user_cache) depends on 10 (people) and 20 (secret_audit)
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, .{ .scope = owner.configuration.scope, .object = 10, .identity = 30, .owner = 3, .kind = .query_source }, true);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try owner.setDependency(&turn, .{ .scope = owner.configuration.scope, .object = 20, .identity = 30, .owner = 3, .kind = .history }, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const deps_of_10 = try owner.dependents(&turn, 17, 10, null);
+    try t.expectEqual(@as(u64, 30), deps_of_10.entries[0].?.identity);
+    try t.expectEqual(null, deps_of_10.entries[1]);
+
+    const targets_of_30 = try owner.dependencies(&turn, 17, 30, null);
+    try t.expectEqual(@as(u64, 10), targets_of_30.entries[0].?.object);
+    try t.expectEqual(@as(u64, 20), targets_of_30.entries[1].?.object);
+
+    // Full policy references with read access
+    const full_policy = (try owner.policyReferences(&turn, 17, 10)).?;
+    try t.expectEqual(m.ObjectKind.table, full_policy.kind);
+    try t.expect(full_policy.can_read);
+    try t.expect(!full_policy.redacted);
+    try t.expect(full_policy.authorization_object != 0);
+    try t.expect(full_policy.schema_authorization != 0);
+
+    const kv_policy = (try owner.policyReferences(&turn, 17, 30)).?;
+    try t.expectEqual(m.ObjectKind.kv, kv_policy.kind);
+    try t.expect(kv_policy.can_read);
+    try t.expect(!kv_policy.redacted);
+
+    // Revoke read access for principal 17 (keep inspect via insert/update/delete or visible grant)
+    var rights = try @import("TestStore.zig").Rights.administrator(owner.configuration.scope, 17);
+    rights.revision = 2;
+    rights.read = false;
+    try store.setRights(rights);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const redacted_policy = (try owner.policyReferences(&turn, 17, 10)).?;
+    try t.expect(!redacted_policy.can_read);
+    try t.expect(redacted_policy.redacted);
+    try t.expectEqual(@as(u64, 0), redacted_policy.authorization_object);
+    try t.expectEqual(@as(u64, 0), redacted_policy.schema_authorization);
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const foreign_redacted = try c.TableValues.PolicyReferences.foreign(arena.allocator(), redacted_policy);
+    try t.expect(foreign_redacted.redacted);
+    try t.expectEqual(null, foreign_redacted.authorization_object);
+    try t.expectEqual(null, foreign_redacted.schema_authorization);
+
+    // Principal 18 granted only SELECT on table 10 and KV 30, not on table 20
+    var def10 = (try owner.lookup(t.allocator, &turn, 17, try Meta.Name.init("people"))).?;
+    defer def10.deinit();
+    const rec30 = (try decl.record(&turn, 30)).?;
+    try store.setRights(.{ .principal = 18, .create = false, .read = false, .insert = false, .update = false, .delete = false, .alter = false, .drop = false });
+    try store.grantObject(18, def10.authority.authorization, c.TableAuthority.select);
+    try store.grantObject(18, rec30.authorization, c.TableAuthority.select);
+
+    turn = try store.capture(18);
+    // Principal 18 inspecting dependencies of 30 sees 10, while unauthorized 20 is filtered out
+    const filtered_targets = try owner.dependencies(&turn, 18, 30, null);
+    try t.expectEqual(@as(u64, 10), filtered_targets.entries[0].?.object);
+    try t.expectEqual(null, filtered_targets.entries[1]);
+    try t.expectError(error.CatalogDenied, owner.dependents(&turn, 18, 20, null));
+    try t.expectError(error.CatalogDenied, owner.policyReferences(&turn, 18, 20));
+}
+
+test "computation catalog lifecycle tracks upstream source revision freshness and availability" {
+    var store: TestStore = .{};
+    defer store.deinit();
+    try ready(&store);
+    const creation = try createRequest(10, 1, "people");
+    _ = try ddl(&store, creation);
+
+    const decl: c.DeclarativeCatalog = .{ .configuration = owner.configuration };
+    const comp_req: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 2,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 0,
+        .name = try c.TableAuthority.Name.init("people_summary"),
+        .action = .{
+            .create = .{
+                .spec = .{ .computation = .{ .source_object = 10, .source_revision = 1, .output_object = 0 } },
+                .resource_id = 9800,
+            },
+        },
+    };
+
+    // Phase 1: initializing -> pending
+    var turn = try store.capture(17);
+    const p1 = try decl.apply(&turn, comp_req);
+    try t.expectEqual(.provisioning, p1.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectComputation(&turn, 17, 80)).?.state);
+
+    // Phase 2: live -> published (not yet evaluated)
+    const p2 = try decl.apply(&turn, comp_req);
+    try t.expectEqual(.applied, p2.state);
+    try store.commit(turn);
+
+    // Bind restricting query_source dependency from computation 80 to source table 10
+    turn = try store.capture(17);
+    try decl.bindComputationDependency(&turn, 80, true);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_published = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.published, comp_published.state);
+    try t.expect(comp_published.source_available);
+    try t.expect(!comp_published.fresh);
+    try t.expectEqual(@as(u64, 1), comp_published.source_revision);
+    try t.expectEqual(@as(u64, 1), comp_published.current_source_revision);
+    try t.expectEqual(@as(u64, 80), (try owner.dependents(&turn, 17, 10, null)).entries[0].?.identity);
+    try t.expectEqual(@as(u64, 10), (try owner.dependencies(&turn, 17, 80, null)).entries[0].?.object);
+
+    // Complete computation evaluation against source_revision 1 -> complete & fresh
+    const eval1: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 3,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 1,
+        .name = comp_req.name,
+        .action = .{ .complete_computation = .{ .source_revision = 1 } },
+    };
+    const eval1_out = try decl.apply(&turn, eval1);
+    try t.expectEqual(.applied, eval1_out.state);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_complete = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.complete, comp_complete.state);
+    try t.expect(comp_complete.fresh);
+    try t.expectEqual(m.LifecycleState.complete, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+
+    // Evolve upstream table 10 to revision 2 -> computation becomes stale (pending, fresh = false)
+    const alter: c.TableDdlRequest = .{
+        .principal = 17,
+        .operation = 4,
+        .object = 10,
+        .expected_revision = 1,
+        .name = creation.name,
+        .action = .{ .alter = .{ .schema = creation.action.create.schema, .change = .{ .rename = .{ .column = 2, .name = "full_name" } } } },
+    };
+    _ = try ddl(&store, alter);
+
+    turn = try store.capture(17);
+    const comp_stale = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.pending, comp_stale.state);
+    try t.expect(!comp_stale.fresh);
+    try t.expectEqual(@as(u64, 1), comp_stale.source_revision);
+    try t.expectEqual(@as(u64, 2), comp_stale.current_source_revision);
+    try t.expectEqual(m.LifecycleState.pending, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+
+    // Re-evaluate computation against source_revision 2 -> complete & fresh again
+    const eval2: c.DeclarativeCatalog.Request = .{
+        .scope = owner.configuration.scope,
+        .principal = 17,
+        .operation = 5,
+        .namespace = 1,
+        .object = 80,
+        .expected_revision = 2,
+        .name = comp_req.name,
+        .action = .{ .complete_computation = .{ .source_revision = 2 } },
+    };
+    _ = try decl.apply(&turn, eval2);
+    try store.commit(turn);
+
+    turn = try store.capture(17);
+    const comp_re_evaluated = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.complete, comp_re_evaluated.state);
+    try t.expect(comp_re_evaluated.fresh);
+
+    // Unbind dependency and drop upstream table 10 -> computation reports unavailable
+    try decl.bindComputationDependency(&turn, 80, false);
+    try store.commit(turn);
+    _ = try ddl(&store, .{ .principal = 17, .operation = 6, .object = 10, .expected_revision = 2, .name = creation.name, .action = .{ .drop = .{} } });
+
+    turn = try store.capture(17);
+    const comp_unavail = (try owner.inspectComputation(&turn, 17, 80)).?;
+    try t.expectEqual(m.LifecycleState.unavailable, comp_unavail.state);
+    try t.expect(!comp_unavail.source_available);
+    try t.expect(!comp_unavail.fresh);
+    try t.expectEqual(m.LifecycleState.unavailable, (try owner.inspectLifecycle(&turn, 17, 80)).?.state);
+}

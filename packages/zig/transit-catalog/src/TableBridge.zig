@@ -48,6 +48,10 @@ pub const Action = union(enum) {
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
     lifecycle: []const u8,
+    dependents: struct { object: []const u8, cursor: ?v.DependencyCursor = null },
+    dependencies: struct { identity: []const u8, cursor: ?v.DependencyCursor = null },
+    policy_references: []const u8,
+    computation: []const u8,
     list: ?v.Cursor,
     compile: struct { identity: v.Identity, create_object: ?[]const u8, sql: []const u8 },
     prepare: c.TableTyped.Request,
@@ -81,6 +85,9 @@ pub const Result = union(enum) {
     definition: ?v.Definition,
     historical: ?v.HistoricalDefinition,
     lifecycle: ?v.LifecycleEvidence,
+    dependencies: v.DependencyPage,
+    policy_references: ?v.PolicyReferences,
+    computation: ?v.ComputationEvidence,
     preview: v.Preview,
     page: v.Page,
     compiled: Compiled,
@@ -169,6 +176,10 @@ pub const Session = struct {
                 break :blk .{ .historical = try v.HistoricalDefinition.foreign(arena, value) };
             },
             .lifecycle => |object| .{ .lifecycle = if (try client.inspectLifecycle(try v.unsigned(object))) |value| try v.LifecycleEvidence.foreign(allocator, value) else null },
+            .dependents => |query| .{ .dependencies = try v.DependencyPage.foreign(allocator, try client.dependents(try v.unsigned(query.object), if (query.cursor) |cursor| try cursor.native() else null)) },
+            .dependencies => |query| .{ .dependencies = try v.DependencyPage.foreign(allocator, try client.dependencies(try v.unsigned(query.identity), if (query.cursor) |cursor| try cursor.native() else null)) },
+            .policy_references => |object| .{ .policy_references = if (try client.policyReferences(try v.unsigned(object))) |value| try v.PolicyReferences.foreign(allocator, value) else null },
+            .computation => |object| .{ .computation = if (try client.inspectComputation(try v.unsigned(object))) |value| try v.ComputationEvidence.foreign(allocator, value) else null },
             .list => |cursor| .{ .page = try v.Page.foreign(allocator, try client.list(if (cursor) |value| try value.native() else null)) },
             .compile => |value| blk: {
                 var identity = try value.identity.native();

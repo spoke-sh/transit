@@ -165,3 +165,48 @@ pub const Dependency = struct {
         return self.kind != .history;
     }
 };
+pub const DependencyCursor = struct {
+    scope: Scope,
+    resource_revision: u64,
+    subject: u64,
+    after: u64,
+};
+pub const DependencyPage = struct {
+    entries: [p.Growth.page_size]?Dependency = @splat(null),
+    next: ?DependencyCursor = null,
+    resource_revision: u64,
+};
+pub const PolicyReferences = struct {
+    kind: ObjectKind,
+    scope: Scope,
+    namespace: u64,
+    object: u64,
+    authorization_domain: u64,
+    authorization_object: u64,
+    schema_authorization: u64,
+    owner_pid: u64,
+    retention_unlimited: bool = true,
+    record_bytes: u32,
+    staging_bytes: u64,
+    staging_records: u32,
+    can_read: bool,
+    redacted: bool,
+    resource_revision: u64,
+};
+pub const ComputationEvidence = struct {
+    scope: Scope,
+    namespace: u64,
+    object: u64,
+    revision: u64,
+    name: Meta.Name,
+    state: LifecycleState,
+    source_object: u64,
+    source_revision: u64,
+    current_source_revision: u64 = 0,
+    output_object: u64 = 0,
+    fresh: bool = false,
+    source_available: bool = false,
+    resource_revision: u64,
+    admitted_input: u64 = 0,
+    completed_input: u64 = 0,
+};

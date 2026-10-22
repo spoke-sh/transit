@@ -41,6 +41,10 @@ pub const Action = union(enum) {
     lookup: []const u8,
     definition: struct { object: []const u8, revision: []const u8 },
     lifecycle: []const u8,
+    dependents: @FieldType(b.Action, "dependents"),
+    dependencies: @FieldType(b.Action, "dependencies"),
+    policy_references: []const u8,
+    computation: []const u8,
     compile: @FieldType(b.Action, "compile"),
     prepare: c.TableTyped.Request,
     preview: b.Saved,
@@ -88,6 +92,9 @@ pub const Result = union(enum) {
     lookup: ?v.Definition,
     definition: ?v.HistoricalDefinition,
     lifecycle: ?v.LifecycleEvidence,
+    dependencies: v.DependencyPage,
+    policy_references: ?v.PolicyReferences,
+    computation: ?v.ComputationEvidence,
     preview: v.Preview,
     compiled: b.Compiled,
     next: Next,
@@ -157,6 +164,10 @@ fn apply(self: Self, arena: *std.heap.ArenaAllocator, client: *Client, action: A
             return .{ .definition = try v.HistoricalDefinition.foreign(arena, found) };
         },
         .lifecycle => |object| return .{ .lifecycle = if (try client.inspectLifecycle(try v.unsigned(object))) |found| try v.LifecycleEvidence.foreign(alloc, found) else null },
+        .dependents => |query| return .{ .dependencies = try v.DependencyPage.foreign(alloc, try client.dependents(try v.unsigned(query.object), if (query.cursor) |cursor| try cursor.native() else null)) },
+        .dependencies => |query| return .{ .dependencies = try v.DependencyPage.foreign(alloc, try client.dependencies(try v.unsigned(query.identity), if (query.cursor) |cursor| try cursor.native() else null)) },
+        .policy_references => |object| return .{ .policy_references = if (try client.policyReferences(try v.unsigned(object))) |found| try v.PolicyReferences.foreign(alloc, found) else null },
+        .computation => |object| return .{ .computation = if (try client.inspectComputation(try v.unsigned(object))) |found| try v.ComputationEvidence.foreign(alloc, found) else null },
         .compile, .prepare => {
             var session: b.Session = .{ .allocator = alloc };
             defer session.deinit();

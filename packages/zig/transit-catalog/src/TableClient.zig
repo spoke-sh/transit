@@ -160,8 +160,36 @@ pub fn inspectIntent(self: *Self, intent: *const Intent) !State {
 }
 pub fn inspectLifecycle(self: *Self, id: u64) !?m.LifecycleEvidence {
     if (id == 0) return error.InvalidCatalogIdentity;
-    var current = try self.source(&.{self.address('O', id, 0)});
+    var current = try self.source(&.{ self.address('O', id, 0), self.address('K', id, 0) });
     const result = try (try self.catalog(&current)).inspectLifecycle(&current, self.connection.principal, id);
+    try current.finish();
+    return result;
+}
+pub fn dependents(self: *Self, object_id: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    if (object_id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', object_id, 0), self.address('K', object_id, 0) });
+    const result = try (try self.catalog(&current)).dependents(&current, self.connection.principal, object_id, cursor);
+    try current.finish();
+    return result;
+}
+pub fn dependencies(self: *Self, identity: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    if (identity == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', identity, 0), self.address('K', identity, 0) });
+    const result = try (try self.catalog(&current)).dependencies(&current, self.connection.principal, identity, cursor);
+    try current.finish();
+    return result;
+}
+pub fn policyReferences(self: *Self, id: u64) !?m.PolicyReferences {
+    if (id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{ self.address('O', id, 0), self.address('K', id, 0) });
+    const result = try (try self.catalog(&current)).policyReferences(&current, self.connection.principal, id);
+    try current.finish();
+    return result;
+}
+pub fn inspectComputation(self: *Self, id: u64) !?m.ComputationEvidence {
+    if (id == 0) return error.InvalidCatalogIdentity;
+    var current = try self.source(&.{self.address('K', id, 0)});
+    const result = try (try self.catalog(&current)).inspectComputation(&current, self.connection.principal, id);
     try current.finish();
     return result;
 }

@@ -273,6 +273,7 @@ pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, presen
     } else return error.TableNotFound;
     const location = self.key('B', dependency.object, dependency.identity);
     const index_key = self.key('J', dependency.object, dependency.identity);
+    const reverse_key = self.key('b', dependency.identity, dependency.object);
     const bytes = try r.encode('B', dependency);
     const indexed = try turn.read(index_key);
     if (try turn.read(location)) |existing| {
@@ -282,12 +283,16 @@ pub fn setDependency(self: Self, turn: *s.Turn, dependency: m.Dependency, presen
             if (indexed == null or !indexed.?.eql(bytes)) return error.InvalidCatalogDependency;
             if (!present) try turn.write(index_key, null);
         } else if (indexed != null) return error.InvalidCatalogDependency;
-        if (!present) try turn.write(location, null);
+        if (!present) {
+            try turn.write(location, null);
+            try turn.write(reverse_key, null);
+        }
     } else {
         if (indexed != null) return error.InvalidCatalogDependency;
         if (present) {
             try turn.write(location, bytes);
             if (dependency.restricts()) try turn.write(index_key, bytes);
+            try turn.write(reverse_key, bytes);
         }
     }
 }
@@ -314,6 +319,149 @@ pub fn blockingDependency(self: Self, source: anytype, who: u64, id: u64) !?m.De
         _ = try decl.authorizeObject(source, who, id, .inspect);
     } else return error.TableNotFound;
     return self.restrict(source, id);
+}
+pub fn dependents(self: Self, source: anytype, who: u64, object_id: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try self.object(source, object_id) != null) {
+        _ = try self.authorizeObject(source, who, object_id, .inspect);
+    } else if (try decl.record(source, object_id) != null) {
+        _ = try decl.authorizeObject(source, who, object_id, .inspect);
+    } else return error.TableNotFound;
+    if (cursor) |prior| {
+        try self.scope(prior.scope);
+        if (prior.resource_revision != source.view.revision or prior.subject != object_id or prior.after == 0) return error.CatalogCursorChanged;
+    }
+    const full = self.key('B', object_id, 0);
+    const prefix = try p.Value.init(full.data[0..19]);
+    const after = if (cursor) |prior| self.key('B', object_id, prior.after) else prefix;
+    const page = try source.page(after);
+    try c.Inspection.validatePage(page, after, source.view.revision);
+    var result: m.DependencyPage = .{ .resource_revision = source.view.revision };
+    var count: usize = 0;
+    var last: u64 = 0;
+    for (page.entries) |slot| {
+        const entry = slot orelse break;
+        if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;
+        if (entry.key.len != 27) return error.InvalidCatalogDependency;
+        const identity = std.mem.readInt(u64, entry.key.data[19..27], .big);
+        const dep = try r.decode(m.Dependency, 'B', entry.value);
+        try self.scope(dep.scope);
+        if (dep.object != object_id or dep.identity != identity) return error.InvalidCatalogDependency;
+        last = identity;
+        result.entries[count] = dep;
+        count += 1;
+    }
+    if (page.next != null and last != 0) result.next = .{ .scope = self.configuration.scope, .resource_revision = source.view.revision, .subject = object_id, .after = last };
+    return result;
+}
+pub fn dependencies(self: Self, source: anytype, who: u64, identity: u64, cursor: ?m.DependencyCursor) !m.DependencyPage {
+    if (identity == 0) return error.InvalidCatalogIdentity;
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try self.object(source, identity) != null) {
+        _ = try self.authorizeObject(source, who, identity, .inspect);
+    } else if (try decl.record(source, identity) != null) {
+        _ = try decl.authorizeObject(source, who, identity, .inspect);
+    } else {
+        _ = try self.authorize(source, who, .inspect);
+    }
+    if (cursor) |prior| {
+        try self.scope(prior.scope);
+        if (prior.resource_revision != source.view.revision or prior.subject != identity or prior.after == 0) return error.CatalogCursorChanged;
+    }
+    const full = self.key('b', identity, 0);
+    const prefix = try p.Value.init(full.data[0..19]);
+    const after = if (cursor) |prior| self.key('b', identity, prior.after) else prefix;
+    const page = try source.page(after);
+    try c.Inspection.validatePage(page, after, source.view.revision);
+    var result: m.DependencyPage = .{ .resource_revision = source.view.revision };
+    var count: usize = 0;
+    var last: u64 = 0;
+    for (page.entries) |slot| {
+        const entry = slot orelse break;
+        if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;
+        if (entry.key.len != 27) return error.InvalidCatalogDependency;
+        const target = std.mem.readInt(u64, entry.key.data[19..27], .big);
+        const dep = try r.decode(m.Dependency, 'B', entry.value);
+        try self.scope(dep.scope);
+        if (dep.identity != identity or dep.object != target) return error.InvalidCatalogDependency;
+        const forward = (try source.read(self.key('B', target, identity))) orelse return error.InvalidCatalogDependency;
+        if (!forward.eql(entry.value)) return error.InvalidCatalogDependency;
+        last = target;
+        if (try self.object(source, target) != null) {
+            _ = self.authorizeObject(source, who, target, .inspect) catch |err| {
+                if (err == error.CatalogDenied) continue;
+                return err;
+            };
+        } else if (try decl.record(source, target) != null) {
+            _ = decl.authorizeObject(source, who, target, .inspect) catch |err| {
+                if (err == error.CatalogDenied) continue;
+                return err;
+            };
+        } else continue;
+        result.entries[count] = dep;
+        count += 1;
+    }
+    if (page.next != null and last != 0) result.next = .{ .scope = self.configuration.scope, .resource_revision = source.view.revision, .subject = identity, .after = last };
+    return result;
+}
+pub fn policyReferences(self: Self, source: anytype, who: u64, id: u64) !?m.PolicyReferences {
+    _ = try self.authorizeDatabase(source, who);
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    if (try self.object(source, id)) |current| {
+        _ = try self.authorizeObject(source, who, id, .inspect);
+        const ns = try self.namespaceRecord(source, current.namespace);
+        const readable = try self.canRead(source, who, id);
+        return .{
+            .kind = .table,
+            .scope = current.scope,
+            .namespace = current.namespace,
+            .object = current.object,
+            .authorization_domain = self.configuration.authority.table_domain,
+            .authorization_object = if (readable) current.authorization else 0,
+            .schema_authorization = if (readable) ns.authorization else 0,
+            .owner_pid = self.configuration.owner,
+            .retention_unlimited = true,
+            .record_bytes = self.configuration.table_limits.record_bytes,
+            .staging_bytes = self.configuration.table_limits.staging_bytes,
+            .staging_records = self.configuration.table_limits.staging_records,
+            .can_read = readable,
+            .redacted = !readable,
+            .resource_revision = source.view.revision,
+        };
+    }
+    if (try decl.record(source, id)) |current_decl| {
+        _ = try decl.authorizeObject(source, who, id, .inspect);
+        const ns = try self.namespaceRecord(source, current_decl.namespace);
+        const readable = blk: {
+            _ = decl.authorizeObject(source, who, id, .read) catch |err| {
+                if (err == error.CatalogDenied) break :blk false;
+                return err;
+            };
+            break :blk true;
+        };
+        return .{
+            .kind = current_decl.spec.objectKind(),
+            .scope = current_decl.scope,
+            .namespace = current_decl.namespace,
+            .object = current_decl.object,
+            .authorization_domain = self.configuration.authority.table_domain,
+            .authorization_object = if (readable) current_decl.authorization else 0,
+            .schema_authorization = if (readable) ns.authorization else 0,
+            .owner_pid = self.configuration.owner,
+            .retention_unlimited = true,
+            .record_bytes = p.Value.max_bytes,
+            .staging_bytes = 0,
+            .staging_records = 0,
+            .can_read = readable,
+            .redacted = !readable,
+            .resource_revision = source.view.revision,
+        };
+    }
+    return null;
+}
+pub fn inspectComputation(self: Self, source: anytype, who: u64, id: u64) !?m.ComputationEvidence {
+    const decl: c.DeclarativeCatalog = .{ .configuration = self.configuration, .namespace = self.namespace, .registration = self.registration };
+    return decl.inspectComputation(source, who, id);
 }
 pub fn inspectLifecycle(self: Self, source: anytype, who: u64, id: u64) !?m.LifecycleEvidence {
     _ = try self.authorizeDatabase(source, who);
