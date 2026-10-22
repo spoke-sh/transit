@@ -1,7 +1,11 @@
 # SQL sessions, serving and operator interfaces
 
-This account explains how network and visual interfaces preserve the underlying
-execution model. It consolidates SQL session, serving, reactive and Board reasoning. Usage
+This account explains how network and visual interfaces expose data operations
+and their outcomes while preserving the underlying authority model. A shared
+[data lifecycle](../reference/data-model.md) needs consistent definition, result
+and progress semantics across adapters. Current adapters expose different
+portions of that lifecycle. This account consolidates SQL session, serving,
+reactive and Board reasoning. Usage
 belongs to the [SQL session](../reference/sql-sessions.md),
 [database protocol](../reference/database-protocols.md),
 [serving](../reference/serving.md), [reactive](../reference/reactive.md),

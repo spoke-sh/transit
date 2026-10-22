@@ -1,9 +1,18 @@
 # Query planning, snapshots and results
 
-This account combines SQL, Fuze and Arrow reasoning around one question: what
-makes a query result attributable and complete? The [SQL](../reference/sql.md),
+This account asks how a declared computation produces a result that can be
+attributed to its definition and source data, and what establishes completeness.
+It connects the [data model's computation lifetimes](../reference/data-model.md#choose-a-computation-lifetime)
+to SQL, Fuze, query ownership and Arrow. The [SQL](../reference/sql.md),
 [query](../reference/queries.md), [Arrow](../reference/arrow.md) and
 [Flight](../reference/flight.md) references own supported syntax, types and interfaces.
+
+Read [model and dependencies](#model-and-dependencies) for how definitions bind
+data, [execution lifetimes](#native-execution-lifetimes) for interactive and
+captured work, and [maintained revisions](#complete-revisions-from-retained-table-transactions)
+for successive complete results. The physical mechanisms below preserve those
+semantics. Typed maintained owners require explicit host activation and wakeups;
+they do not establish an automatic SQL materialized-view service.
 
 ## Column execution and ordered failure frontiers
 
