@@ -23,4 +23,5 @@ test {
     _ = TableMemtable;
     _ = @import("storage_test.zig");
     _ = @import("disk_wal_test.zig");
+    _ = @import("disk_objects_test.zig");
 }

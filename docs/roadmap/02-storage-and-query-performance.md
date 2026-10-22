@@ -41,6 +41,15 @@ defines mandatory current-definition metadata and uncertain outcomes. This
 advances #113; it does not establish the live acceptance, pin/retention or node
 cutover gates, or the object-store and memtable repairs listed above.
 
+The local object path now stages immutable raw payloads and chunk checksums, then
+publishes one definition-bound descriptor under a per-key process lock. Range
+reads do not populate a whole-object cache. Three twelve-process races establish
+one winner for create, compare-and-swap and competing immutable puts; component
+tests cover restart, corruption, bounded allocation and six sync failures. This
+advances #114 and the object-read portion of #116. Physical collection remains
+dependent on retained-root/pin ownership, and Table/native integration remains
+open.
+
 | Remaining work | Tracking issue |
 | --- | --- |
 | WAL/manifest/catalog acceptance, visibility and contiguous checkpoint contract | [#111](https://github.com/spoke-sh/transit/issues/111) |
