@@ -172,13 +172,14 @@ pub fn residentBytes(self: *const Self) usize {
     return self.cache.len * @sizeOf(?Cached) + if (self.candidate) |*candidate| candidate.residentBytes() else @as(usize, 0);
 }
 fn cached(self: *Self, ref: pages.Reference) ?pages.Page {
-    for (self.cache) |*slot| if (slot.*) |*entry| {
+    for (self.cache) |*slot| {
+        const entry = &(slot.* orelse break);
         if (std.meta.eql(ref, entry.reference)) {
             self.hits +|= 1;
             entry.used = self.touch();
             return entry.page;
         }
-    };
+    }
     return null;
 }
 fn touch(self: *Self) u64 {
@@ -195,11 +196,15 @@ fn remember(self: *Self, ref: pages.Reference, page: pages.Page) void {
     if (self.cache.len == 0) return;
     var selected: usize = 0;
     var oldest: u64 = std.math.maxInt(u64);
-    for (self.cache, 0..) |slot, i| {
-        const entry = slot orelse {
+    for (self.cache, 0..) |*slot, i| {
+        const entry = &(slot.* orelse {
             selected = i;
             break;
-        };
+        });
+        if (std.meta.eql(ref, entry.reference)) {
+            entry.used = self.touch();
+            return;
+        }
         if (entry.used < oldest) {
             oldest = entry.used;
             selected = i;

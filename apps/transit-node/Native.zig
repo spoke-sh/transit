@@ -96,6 +96,11 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     const shared_pages = try init.gpa.alloc(?adapter.PackedPageStore.Cached, config.resident_pages);
     defer init.gpa.free(shared_pages);
     @memcpy(shared_pages, pages.cache);
+    var shared_pages_count: usize = 0;
+    for (shared_pages) |*slot| {
+        if (slot.* == null) break;
+        shared_pages_count += 1;
+    }
     var context: Context = .{
         .server = &server,
         .diagnostics = diagnostics,
@@ -104,6 +109,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         .position = engine.head.position,
         .latest_cached = journal.cached,
         .shared_pages = shared_pages,
+        .shared_pages_count = shared_pages_count,
         .shared_access = pages.access,
     };
     diagnostics.event(.{ .name = "service.ready" });
@@ -117,7 +123,10 @@ const Lane = struct {
     pages: adapter.PackedPageStore,
     engine: Engine,
     busy: bool = false,
+    pages_epoch: u64 = 0,
     acquired_access: u64 = 0,
+    acquired_created: u64 = 0,
+    acquired_misses: u64 = 0,
     fn init(self: *Lane, allocator: std.mem.Allocator, io: std.Io, config: Config, basis: Engine, diagnostics: *telemetry.Runtime) !void {
         self.* = undefined;
         self.busy = false;
@@ -458,11 +467,13 @@ const Context = struct {
     position: u64,
     latest_cached: @FieldType(adapter.Store, "cached") = null,
     shared_pages: []?adapter.PackedPageStore.Cached,
+    shared_pages_count: usize = 0,
+    shared_pages_epoch: u64 = 1,
     shared_access: u64 = 0,
 
     fn touchShared(self: *Context) u64 {
         if (self.shared_access == std.math.maxInt(u64)) {
-            for (self.shared_pages) |*slot| if (slot.*) |*entry| {
+            for (self.shared_pages[0..self.shared_pages_count]) |*slot| if (slot.*) |*entry| {
                 entry.used = 0;
             };
             self.shared_access = 0;
@@ -471,27 +482,33 @@ const Context = struct {
         return self.shared_access;
     }
 
-    fn rememberShared(self: *Context, ref: core.pages.Reference, page: core.pages.Page) void {
+    fn rememberShared(self: *Context, ref: *const core.pages.Reference, page: *const core.pages.Page) void {
         if (self.shared_pages.len == 0) return;
-        for (self.shared_pages) |*slot| if (slot.*) |*entry| {
-            if (std.meta.eql(ref, entry.reference)) {
+        for (self.shared_pages[0..self.shared_pages_count]) |*slot| if (slot.*) |*entry| {
+            if (std.meta.eql(ref.*, entry.reference)) {
                 entry.used = self.touchShared();
                 return;
             }
         };
         var selected: usize = 0;
-        var oldest: u64 = std.math.maxInt(u64);
-        for (self.shared_pages, 0..) |slot, i| {
-            const entry = slot orelse {
-                selected = i;
-                break;
-            };
-            if (entry.used < oldest) {
-                oldest = entry.used;
-                selected = i;
+        if (self.shared_pages_count < self.shared_pages.len) {
+            selected = self.shared_pages_count;
+            self.shared_pages_count += 1;
+        } else {
+            var oldest: u64 = std.math.maxInt(u64);
+            for (self.shared_pages, 0..) |*slot, i| {
+                const entry = &(slot.* orelse {
+                    selected = i;
+                    break;
+                });
+                if (entry.used < oldest) {
+                    oldest = entry.used;
+                    selected = i;
+                }
             }
         }
-        self.shared_pages[selected] = .{ .reference = ref, .page = page, .used = self.touchShared() };
+        self.shared_pages[selected] = .{ .reference = ref.*, .page = page.*, .used = self.touchShared() };
+        self.shared_pages_epoch +|= 1;
     }
 
     fn syncToLane(self: *Context, lane: *Lane) void {
@@ -500,11 +517,18 @@ const Context = struct {
                 lane.journal.cached = shared_entry;
             }
         }
-        if (self.shared_pages.len == lane.pages.cache.len) {
-            @memcpy(lane.pages.cache, self.shared_pages);
+        if (self.shared_pages.len == lane.pages.cache.len and lane.pages_epoch != self.shared_pages_epoch) {
+            const count = self.shared_pages_count;
+            @memcpy(lane.pages.cache[0..count], self.shared_pages[0..count]);
+            if (count < lane.pages.cache.len) {
+                lane.pages.cache[count] = null;
+            }
             lane.pages.access = self.shared_access;
-            lane.acquired_access = self.shared_access;
+            lane.pages_epoch = self.shared_pages_epoch;
         }
+        lane.acquired_access = lane.pages.access;
+        lane.acquired_created = lane.pages.created;
+        lane.acquired_misses = lane.pages.misses;
     }
 
     fn syncFromLane(self: *Context, lane: *Lane) void {
@@ -518,12 +542,21 @@ const Context = struct {
             }
         }
         if (self.shared_pages.len > 0 and self.shared_pages.len == lane.pages.cache.len) {
-            for (lane.pages.cache) |slot| if (slot) |entry| {
-                if (entry.used > lane.acquired_access) {
-                    self.rememberShared(entry.reference, entry.page);
+            if (lane.pages.created != lane.acquired_created or lane.pages.misses != lane.acquired_misses) {
+                const prior_epoch = self.shared_pages_epoch;
+                for (lane.pages.cache) |*slot| {
+                    const entry = &(slot.* orelse break);
+                    if (entry.used > lane.acquired_access) {
+                        self.rememberShared(&entry.reference, &entry.page);
+                    }
                 }
-            };
-            lane.acquired_access = self.shared_access;
+                if (lane.pages_epoch == prior_epoch) {
+                    lane.pages_epoch = self.shared_pages_epoch;
+                }
+            }
+            lane.acquired_access = lane.pages.access;
+            lane.acquired_created = lane.pages.created;
+            lane.acquired_misses = lane.pages.misses;
         }
     }
 

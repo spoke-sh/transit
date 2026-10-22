@@ -36,12 +36,13 @@ pub fn residentBytes(self: *const Self) usize {
     return self.cache.len * @sizeOf(?Cached);
 }
 fn cached(self: *Self, ref: pages.Reference) ?pages.Page {
-    for (self.cache) |slot| if (slot) |entry| {
+    for (self.cache) |*slot| {
+        const entry = &(slot.* orelse break);
         if (std.meta.eql(ref, entry.reference)) {
             self.hits += 1;
             return entry.page;
         }
-    };
+    }
     return null;
 }
 fn remember(self: *Self, ref: pages.Reference, page: pages.Page) void {
