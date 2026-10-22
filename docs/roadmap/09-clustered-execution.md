@@ -13,22 +13,35 @@ shared **`TransitLog`** partitions (Ursula, Kafka or Pulsar) and shared
 **`TransitObjectStore`** segments (`.tseg`/`.tdel` and Manifests in S3/GCS/R2)
 with stateless local NVMe read-through caches on worker nodes, moving a table
 partition or Station process group between Kubernetes/Substrate pods requires
-**zero durable data copying**. Expose deployment availability separately from
+no relocation of authoritative data when all required WAL, native checkpoint
+and object state already survives in shared storage. This is a selected topology
+property, not a guarantee for local-only WAL or disk state. Expose deployment availability separately from
 declaration progress and freshness; rescheduling a healthy pod does not
 establish that a derived result is current.
 
 ## Delivery sequence
 
+Consume the provider trust/durability profiles in
+[#117](https://github.com/spoke-sh/transit/issues/117) and
+[#121](https://github.com/spoke-sh/transit/issues/121), complete durable-owner
+inventory in [#126](https://github.com/spoke-sh/transit/issues/126), source roots
+in [#125](https://github.com/spoke-sh/transit/issues/125), and retained-history/pin
+contract in [#127](https://github.com/spoke-sh/transit/issues/127). This milestone
+adds routing/placement and distributed execution, not a replacement permission
+or commit authority.
+
 1. **Select topologies and define partitioned authority, routing, placement and provider-conformance contracts:**
    close controller gaps before automatic scheduling. Bind placement decisions
    to **Control/Policy Log** epoch leases `(partition_id, writer_epoch, policy_epoch)`
-   so old pods are immediately fenced at both `TransitLog` and `TransitObjectStore`
-   when a partition lease moves.
-2. **Transfer partition leases and recover workers in $O(\text{WAL tail})$ time:**
+   with an enforceable revocation/handoff boundary at append, publication and
+   disclosure. Use the chosen provider mechanism from #117; a cached epoch,
+   signed lease or retained storage credential alone does not fence old pods.
+2. **Transfer partition leases and recover workers from checkpoints and retained tails:**
    when a Station group or Table writer moves to a new node, the new node acquires
    the incremented `writer_epoch` lease, loads the latest committed `manifest/v{N}`
    from `TransitObjectStore`, replays only the uncompacted `TransitLog` tail into
-   its Tier 0 Memtable, and warms its Tier 2 NVMe cache on demand via content-verified
+   its Tier 0 state, restores native control/process evidence as required, and
+   warms its Tier 2 NVMe cache on demand via content-verified
    range reads (`get_range`). Qualify process/grant/mailbox safety before moving
    effects; physical pod readiness never grants execution authority.
 3. **Implement locality-aware distributed `Fuze` query execution over `.tseg` segments:**
@@ -59,3 +72,5 @@ Compare distributed `Fuze` queries with independent single-node finite oracles
 across partitions, worker churn and network faults. Report lease-handoff latency,
 NVMe cache hit/warm rates and topology limits separately from correctness. Pod
 recovery does not prove host power-loss durability or live disaster recovery.
+Measure checkpoint discovery/loading, replay and cache warming separately;
+recovery work is not universally proportional only to the number of WAL frames.
