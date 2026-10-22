@@ -22352,6 +22352,13 @@ framing change.
 
 ## Declarative data lifecycle, codecs and collations
 
+Source-audit correction (2026-10-22): the checks below exercise metadata
+transitions and standalone codec helpers. They do not prove resource-backed
+named provisioning, direct data-plane admission, verified computation completion
+or freshness after row changes. The current caller path and these limits are
+described in the [data model](../docs/handbook/reference/data-model.md).
+The earlier observations below are retained with this narrower attribution.
+
 Working-tree verification in the pinned Nix development shell exercises the
 shared state-declaration model (`Table`, `KV`, `Document`), orthogonal column
 encoding ($\epsilon$) and collation ($\kappa$) descriptors, direct idempotent
@@ -22374,6 +22381,13 @@ managed computation lifecycle tracking:
   schema, and SDK host binding contracts.
 
 ## Storage hierarchy, `.tseg` segments and multi-writer OCC
+
+Source-audit correction (2026-10-22): the earlier observations below are component
+evidence. Memory stores and provider loopbacks do not establish disk crash
+recovery, real S3 behavior, a disk-backed NVMe cache or independent-writer CAS.
+Paired codec round trips do not establish interchange conformance or correct
+collation throughout query execution. The recorded counts are historical;
+they are not a new execution of the suites.
 
 Working-tree verification in the pinned Nix development shell exercises the
 four-tier storage runtime (`TransitLog`, `TransitObjectStore`, `TableMemtable`,
@@ -22407,6 +22421,16 @@ streams (`UrsulaWal.zig`):
   across sequential `TWAL1` appends and enforces epoch fencing.
 
 ## Live storage engine and SQL execution cutover
+
+Source-audit correction (2026-10-22): the installed executables do not attach
+`TableStorageEngine` or the segment scan. `TableBehavior.attachStorageEngine`
+and `TableScan.openSegmentReader` are not implemented APIs. The component
+helpers and existing Ursula cache/gateway changes must be assessed separately.
+The previously reported gateway timing below does not prove `.tseg` use, and
+changes to cache/transport controls prevent attributing that comparison solely
+to a storage engine replacement. Preserve the reported observation without
+treating it as qualification of a live cutover. No new benchmark was run for
+this correction.
 
 Working-tree verification in the pinned Nix development shell exercises the live
 catalog and query `.tseg` storage integration (`TableStorageEngine`,
