@@ -456,6 +456,17 @@ schedules; they do not establish distributed object-store behavior or safe
 physical collection. The [object contract](../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence)
 states the deletion and retention boundary.
 
+Table component recovery additionally passes a 5,001-frame replay across every
+bounded log page, repeated replay without duplication, and refusal of reads,
+writes and flushes after a missing accepted prefix. Allocation-failure enumeration
+checks that row-visibility allocations precede the durable append. A real disk
+case writes a raw `TSEG` file, reopens the WAL/object providers, and reads both
+flushed rows and a three-frame unflushed suffix through one-frame log pages.
+Registered Tables own cloned schema storage and reject implicit definition or
+partition replacement and epoch regression. The storage and catalog package
+tests pass 23 and 89 cases respectively at this revision. This does not qualify
+bounded memtable residency, historical snapshot pins or installed SQL cutover.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),

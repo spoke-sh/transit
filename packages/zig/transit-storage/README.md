@@ -49,3 +49,10 @@ through a 16 KiB owner allocator, incompatible definitions and six sync failures
 The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.
+
+Table recovery consumes every bounded WAL page through its captured frontier and
+checks contiguous history and schema identity. An incomplete recovery blocks
+reads and mutations until successful recovery. The component owns its schema
+and reserves row-visibility allocations before attempting a durable append.
+The active memtable and manifest still require separate growth and snapshot
+work; paging WAL reads does not bound the full resident row set.
