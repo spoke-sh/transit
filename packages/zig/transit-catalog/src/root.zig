@@ -1,5 +1,6 @@
 //! Declarative metadata and conditional state creation above Station.
 pub const station = @import("transit_station");
+pub const storage = @import("transit_storage");
 pub const protocol = station.protocol;
 pub const fuze = station.fuze;
 pub const Model = @import("Model.zig");
@@ -12,6 +13,7 @@ pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableMetadataStore = @import("TableMetadataStore.zig");
 pub const TableCatalogRecords = @import("TableCatalogRecords.zig");
 pub const TableCatalog = @import("TableCatalog.zig");
+pub const TableStorageEngine = @import("TableStorageEngine.zig");
 pub const DeclarativeCatalog = @import("DeclarativeCatalog.zig");
 pub const TableDdlRequest = @import("TableDdlRequest.zig");
 pub const TableDmlRequest = @import("TableDmlRequest.zig");
@@ -32,6 +34,7 @@ test {
     _ = AuthorizationSql;
     _ = TableAuthority;
     _ = TableAttempt;
+    _ = TableStorageEngine;
     _ = @import("table_bridge_test.zig");
     _ = @import("table_values_test.zig");
     _ = @import("table_client_test.zig");

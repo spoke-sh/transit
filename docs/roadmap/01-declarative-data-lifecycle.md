@@ -115,7 +115,7 @@ This milestone does not add automatic maintained-query scheduling, arbitrary
 cross-resource transactions, historical SQL, branches or a universal health
 boolean. [Storage hierarchy and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store and single-sequencer bottleneck;
-[managed computations](04-sql-and-dataflows.md) add WAL-driven activation and
-service-owned maintenance; [historical catalogs](03-standards-and-catalogs.md)
+[managed computations](05-sql-and-dataflows.md) add WAL-driven activation and
+service-owned maintenance; [historical catalogs](04-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.

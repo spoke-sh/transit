@@ -1,4 +1,4 @@
-# 3. Standards, collations and historical catalogs
+# 4. Standards, collations and historical catalogs
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 

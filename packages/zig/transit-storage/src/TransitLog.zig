@@ -79,7 +79,7 @@ pub fn encodeFrame(
     @memset(out[0..total_bytes], 0);
     out[0..4].* = "TWAL".*;
     out[4] = 1; // version 1
-    out[5] = @intFromEnum(kind);
+    out[5] = @backingInt(kind);
     std.mem.writeInt(u16, out[6..8], 0, .little);
     std.mem.writeInt(u64, out[8..16], partition_id, .little);
     std.mem.writeInt(u64, out[16..24], writer_epoch, .little);

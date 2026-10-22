@@ -11,6 +11,7 @@ allocator: std.mem.Allocator,
 configuration: c.TableCatalogRecords.Configuration,
 registration: ?p.Authorization.Action = null,
 namespace: ?u64 = null,
+storage_engine: ?*c.TableStorageEngine = null,
 pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }

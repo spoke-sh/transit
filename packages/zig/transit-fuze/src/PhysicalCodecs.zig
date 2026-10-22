@@ -295,7 +295,7 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
     try column.validateEncodingAndCollation();
     var writer: std.Io.Writer = .fixed(out);
     try writer.writeAll("TCP1");
-    try writer.writeByte(@intFromEnum(column.encoding));
+    try writer.writeByte(@backingInt(column.encoding));
     try writer.writeInt(u32, @intCast(cells.len), .little);
 
     // 1. Write 5-state tag stream
@@ -316,7 +316,7 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
 
     // 2. Write detail stream for type_error and conflict cells
     for (cells) |cell| switch (cell) {
-        .type_error => |kind| try writer.writeByte(@intFromEnum(kind)),
+        .type_error => |kind| try writer.writeByte(@backingInt(kind)),
         .conflict => |alts| {
             try writer.writeInt(u16, @intCast(alts.len), .little);
             for (alts) |alt| {
@@ -326,7 +326,7 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
                     .null => try writer.writeByte(0),
                     .type_error => |kind| {
                         try writer.writeByte(1);
-                        try writer.writeByte(@intFromEnum(kind));
+                        try writer.writeByte(@backingInt(kind));
                     },
                     .value => |val| {
                         try writer.writeByte(2);

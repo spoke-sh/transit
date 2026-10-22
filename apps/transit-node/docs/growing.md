@@ -19,7 +19,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `genesis` | Exact expected v1 genesis |
 | `ursula_url`, `bucket`, `journal` | Private provider location |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
-| `resident_pages` | Decoded page cache slots per execution lane, default 16, configurable 0–1024; ten lanes plus the bootstrap/maintenance context; not retained cardinality |
+| `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |

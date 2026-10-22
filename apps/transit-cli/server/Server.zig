@@ -168,7 +168,7 @@ fn cycle(self: *Self) !void {
     try self.start(allocator, .store, &.{ config.executables.ursula, "server", "--config", store_config }, &.{ .{ .name = "RUST_LOG", .value = "error" }, .{ .name = "TOKIO_WORKER_THREADS", .value = "2" } }, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/__ursula/ready", .{config.ports.store}));
     const node_config = try installation.path("node.json");
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 8, .request_timeout_ms = 2000, .storage = config.storage, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
     try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
@@ -188,7 +188,7 @@ fn cycle(self: *Self) !void {
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
     const destinations = [_]u64{ connection.source, connection.requester };
-    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
+    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
     var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
@@ -316,7 +316,7 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const process = (try installation.query(.{ .process = pid })).body.process.process;
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
-    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { catalog: q.catalog.TableCatalogRecords.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
+    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 10, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { catalog: q.catalog.TableCatalogRecords.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
     const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .catalog = Installation.catalogFor(connection, installation.record) } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);

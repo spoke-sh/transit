@@ -218,7 +218,7 @@ pub fn compareCell(left: Values.Cell, right: Values.Cell, expected: Types.Type, 
     if (rl != rr) return std.math.order(rl, rr);
     return switch (left) {
         .missing, .null => .eq,
-        .type_error => |kl| std.math.order(@intFromEnum(kl), @intFromEnum(right.type_error)),
+        .type_error => |kl| std.math.order(@backingInt(kl), @backingInt(right.type_error)),
         .conflict => |cl| std.math.order(cl.len, right.conflict.len),
         .value => |vl| switch (vl) {
             .atom => |al| compareAtom(al, right.value.atom, expected, collation),
@@ -273,7 +273,7 @@ pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.
     try writer.writeByte(stateRank(std.meta.activeTag(cell)));
     switch (cell) {
         .missing, .null => {},
-        .type_error => |kind| try writer.writeByte(@intFromEnum(kind)),
+        .type_error => |kind| try writer.writeByte(@backingInt(kind)),
         .conflict => |alts| try writer.writeInt(u32, @intCast(alts.len), .big),
         .value => |val| switch (val) {
             .atom => |atom| {

@@ -272,6 +272,35 @@ sequenceDiagram
        either regenerates its `.tdel` bitmap against `v{N+1}` or returns a
        deterministic serialization conflict.
 
+### Live catalog, query and authority cache integration
+
+- **Catalog storage engine (`TableStorageEngine`):**
+  [`TableStorageEngine`](../../../packages/zig/transit-catalog/src/TableStorageEngine.zig)
+  binds `TableBehavior` definitions (`CatalogId`, `DefinitionId`, `TableSchema`)
+  to a live `TableMemtable`, `LocalWal`, `LocalSegmentStore`, `TableManifest`,
+  `PartitionLease.OccCoordinator` and optional Tier 2 `NvmeCache`. Row inserts,
+  updates and deletes append `"TWAL"` v1 frames before mutating the Tier 0
+  memtable; `flush()` writes 64-byte-aligned `.tseg` and `.tdel` objects and
+  advances `manifest/<object_id>/v<N>.tman` via conditional CAS with disjoint-key
+  OCC rebasing.
+- **Pruned segment query scan (`TableSegmentScan`):**
+  [`TableSegmentScan`](../../../packages/zig/transit-query/src/TableSegmentScan.zig)
+  and [`TableScan.openSegmentReader`](../../../packages/zig/transit-query/src/TableScan.zig)
+  evaluate equality and range predicates against each `.tseg` footer's
+  collation-aware `ZoneMap` (`min_sort_key`, `max_sort_key`) and 64-bit Wyhash
+  Bloom filter (`bloom_mask`), skipping pruned row groups before decoding column
+  buffers and feeding active rows directly into `Fuze` `Batch` (`VectorBatch`) and
+  `LogicalQuery.Execution`.
+- **Verified candidate write-through and epoch-tracked cross-lane cache sharing:**
+  In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),
+  `finish()` populates the verified resident page cache (`rememberCandidate`) as
+  soon as the candidate segment stream is read back, verified and sealed. In
+  [`Native.zig`](../../../apps/transit-node/Native.zig), all 10 request lanes
+  synchronize their verified page caches and journal head entries through an
+  epoch-tracked shared cache (`shared_pages_epoch`), propagating newly staged or
+  fetched pages across lanes without copying unchanged 17 KiB page slots on every
+  request.
+
 ## Resource costs and failure (implemented baseline)
 
 | Mechanism | Benefit | Cost or obligation |

@@ -20,10 +20,50 @@ ingress_mutex: std.Io.Mutex = .init,
 settings_mutex: std.Io.Mutex = .init,
 capture_mutex: std.Io.Mutex = .init,
 admission_mutex: std.Io.Mutex = .init,
+wake_mutex: std.Io.Mutex = .init,
+wake_cond: std.Io.Condition = .init,
+progress_cond: std.Io.Condition = .init,
+wake_pending: bool = false,
 ingress_lane: g.ControlLane = .{},
 private_lane: g.ControlLane = .{},
 ready: std.atomic.Value(bool) = .init(false),
 await_initialization: bool = false,
+
+pub fn notify(self: *Self) void {
+    self.wake_mutex.lockUncancelable(self.io);
+    defer self.wake_mutex.unlock(self.io);
+    self.wake_pending = true;
+    self.wake_cond.broadcast(self.io);
+}
+
+pub fn notifyProgress(self: *Self) void {
+    self.wake_mutex.lockUncancelable(self.io);
+    defer self.wake_mutex.unlock(self.io);
+    self.progress_cond.broadcast(self.io);
+}
+
+pub fn waitIdle(self: *Self, milliseconds: u32) !void {
+    try self.wake_mutex.lock(self.io);
+    defer self.wake_mutex.unlock(self.io);
+    if (self.wake_pending) {
+        self.wake_pending = false;
+        return;
+    }
+    self.wake_cond.waitTimeout(self.io, &self.wake_mutex, .{ .duration = .{ .raw = .fromMilliseconds(milliseconds), .clock = .awake } }) catch |err| switch (err) {
+        error.Timeout => {},
+        else => return err,
+    };
+    self.wake_pending = false;
+}
+
+pub fn waitProgress(self: *Self, milliseconds: u32) !void {
+    try self.wake_mutex.lock(self.io);
+    defer self.wake_mutex.unlock(self.io);
+    self.progress_cond.waitTimeout(self.io, &self.wake_mutex, .{ .duration = .{ .raw = .fromMilliseconds(milliseconds), .clock = .awake } }) catch |err| switch (err) {
+        error.Timeout => {},
+        else => return err,
+    };
+}
 pub const Keys = struct { worker: p.Ed25519.KeyPair, ingress: p.Ed25519.KeyPair, coordinator: p.Ed25519.KeyPair, table: p.Ed25519.KeyPair, reader: p.Ed25519.KeyPair };
 fn staleRead(client: *s.client.Client, err: anyerror) bool {
     return client.contended(err) or ((err == error.Rejected or err == error.Conflict) and client.last_rejection == .StaleStateResource);
@@ -98,30 +138,42 @@ fn advancePrivate(self: *Self) !bool {
 pub fn tick(self: *Self) !bool {
     errdefer self.ready.store(false, .release);
     const now: u64 = @intCast(std.Io.Clock.real.now(self.io).toMilliseconds());
-    const result = self.server.step(self.behavior.interface(), now + 30000) catch |err| {
-        if (self.background.contended(err)) {
-            if (self.server.pending == null and self.server.ready != null) try self.server.discard();
-            return false;
+    var progressed = false;
+    for (0..8) |_| {
+        const result = self.server.step(self.behavior.interface(), now + 30000) catch |err| {
+            if (self.background.contended(err)) {
+                if (self.server.pending == null and self.server.ready != null) try self.server.discard();
+                return progressed;
+            }
+            if (self.server.pending == null and (err == error.Conflict or err == error.Rejected) and (self.background.last_rejection == .StaleStateResource or self.background.last_rejection == .QueryExpired or self.background.last_rejection == .StateViewExpired)) {
+                if (self.background.last_rejection == .StateViewExpired) self.server.view_id = null;
+                return progressed;
+            }
+            if (s.client.Client.unavailable(err) and self.server.pending == null and self.server.ready != null) try self.server.discard();
+            return err;
+        };
+        if (result == .blocked) return self.server.handler_error orelse error.GatewayOwnerUnavailable;
+        if (result == .progress) {
+            progressed = true;
+            continue;
         }
-        if (self.server.pending == null and (err == error.Conflict or err == error.Rejected) and (self.background.last_rejection == .StaleStateResource or self.background.last_rejection == .QueryExpired or self.background.last_rejection == .StateViewExpired)) {
-            if (self.background.last_rejection == .StateViewExpired) self.server.view_id = null;
-            return false;
+        if (result == .committed) {
+            progressed = true;
+            self.notifyProgress();
+            continue;
         }
-        if (s.client.Client.unavailable(err) and self.server.pending == null and self.server.ready != null) try self.server.discard();
-        return err;
-    };
-    if (result == .blocked) return self.server.handler_error orelse error.GatewayOwnerUnavailable;
+        break;
+    }
     // Detached ingress never blocks the owner thread waiting for itself.
     if (self.ingress_mutex.tryLock()) {
         defer self.ingress_mutex.unlock(self.io);
         _ = self.ingress_lane.poll(&self.ingress) catch |err| if (staleRead(&self.ingress_wire, err)) g.ControlLane.Result.pending else return err;
     }
-    // Finish the captured turn before potentially long coordinator reads. A
-    // separate intent acquisition must not consume this turn's view lifetime.
-    if (result == .progress) return true;
-    var progressed = result != .idle;
     if (self.private_lane.pending != null) {
-        progressed = try self.advancePrivate() or progressed;
+        if (try self.advancePrivate()) {
+            progressed = true;
+            self.notifyProgress();
+        }
     } else switch (self.coordinator.next() catch |err| {
         if (staleRead(&self.background, err)) return progressed;
         if (self.await_initialization and err == error.GatewayNotInitialized) return progressed;
@@ -130,7 +182,8 @@ pub fn tick(self: *Self) !bool {
         .idle, .blocked => {},
         .control => |command| {
             try self.private_lane.start(&self.private, command);
-            progressed = try self.advancePrivate() or progressed;
+            progressed = try self.advancePrivate() or true;
+            self.notifyProgress();
         },
         .dispatch => |action| {
             // Receipt loss leaves the committed Table pointer unchanged. A
@@ -140,10 +193,12 @@ pub fn tick(self: *Self) !bool {
                 return err;
             };
             try self.private_lane.start(&self.private, command);
-            progressed = try self.advancePrivate() or progressed;
+            progressed = try self.advancePrivate() or true;
+            self.notifyProgress();
         },
     }
-    self.ready.store(true, .release);
+    const was_ready = self.ready.swap(true, .release);
+    if (!was_ready or progressed) self.notifyProgress();
     return progressed;
 }
 pub const Deadline = struct {
@@ -160,13 +215,19 @@ fn finishControl(self: *Self, deadline: Deadline) !?g.Control.Disposition {
         try deadline.check(self.io);
         switch (self.ingress_lane.poll(&self.ingress) catch |err| {
             if (!s.client.Client.unavailable(err) and !staleRead(&self.ingress_wire, err)) return err;
-            try self.io.sleep(.fromMilliseconds(5), .awake);
+            try self.waitProgress(2);
             continue;
         }) {
             .idle => return null,
-            .admitted => return null,
+            .admitted => {
+                self.notify();
+                return null;
+            },
             .processed => |rejected| return rejected,
-            .pending => try self.io.sleep(.fromMilliseconds(5), .awake),
+            .pending => {
+                self.notify();
+                try self.waitProgress(2);
+            },
         }
     }
 }
@@ -179,17 +240,19 @@ fn handoff(self: *Self, command: g.Control.Command, deadline: Deadline, completi
     if (completion == .admitted and command != .intent_part) return error.InvalidGatewayCommand;
     while (!self.ingress_mutex.tryLock()) {
         try deadline.check(self.io);
-        try self.io.sleep(.fromMilliseconds(5), .awake);
+        try self.waitProgress(1);
     }
     defer self.ingress_mutex.unlock(self.io);
     _ = try self.finishControl(deadline); // Prior caller's detached observation.
     try deadline.check(self.io);
     while (!self.ready.load(.acquire)) {
         try deadline.check(self.io);
-        try self.io.sleep(.fromMilliseconds(20), .awake);
+        self.notify();
+        try self.waitProgress(5);
     }
     try prepareControl(&self.ingress_lane, &self.ingress, command, deadline, self.io);
     self.ingress_lane.pending.?.admission_only = completion == .admitted;
+    self.notify();
     if (try self.finishControl(deadline) != null) return error.GatewayControlRejected;
 }
 /// Only prepare reads are repeated. Once preparation publishes into the lane,
@@ -231,11 +294,12 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
         try deadline.check(self.io);
         const terminal = self.observe(observer, table, &intent, item.id) catch |err| {
             if (!retryObservation(observer.transport, err)) return err;
-            try self.io.sleep(.fromMilliseconds(5), .awake);
+            try self.waitProgress(2);
             continue;
         };
         if (terminal) |value| return value;
-        try self.io.sleep(.fromMilliseconds(5), .awake);
+        self.notify();
+        try self.waitProgress(2);
     }
 }
 /// Look up before preparing SQL. Existing tokens never recompile or republish

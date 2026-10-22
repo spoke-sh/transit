@@ -122,10 +122,11 @@ fn control(init: std.process.Init, caller: *gateway.Client, directory: []const u
 }
 fn runtimeWorker(runtime: *gateway.AccountRuntime) !void {
     while (true) {
-        _ = runtime.tick() catch |err| {
+        const progressed = runtime.tick() catch |err| blk: {
             if (!s.client.Client.unavailable(err)) return err;
+            break :blk false;
         };
-        try runtime.io.sleep(.fromMilliseconds(2), .awake);
+        if (!progressed) try runtime.waitIdle(2);
     }
 }
 fn runtimeTable(init: std.process.Init, url: []const u8, directory: []const u8, config: Config) !void {

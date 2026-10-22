@@ -1,4 +1,4 @@
-# 4. Managed computations and WAL-activated dataflows
+# 5. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -75,7 +75,7 @@ recomputation oracle.
 
 ## Prerequisites and completion
 
-Historical operations consume [catalog contracts](03-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](04-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.

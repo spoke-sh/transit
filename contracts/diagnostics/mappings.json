@@ -700,6 +700,14 @@
         "InvalidArrayLength": {
           "code": "sql.invalid_array_length",
           "category": "constraint"
+        },
+        "IncompatibleColumnEncoding": {
+          "code": "sql.incompatible_column_encoding",
+          "category": "binding"
+        },
+        "IncompatibleColumnCollation": {
+          "code": "sql.incompatible_column_collation",
+          "category": "binding"
         }
       }
     },

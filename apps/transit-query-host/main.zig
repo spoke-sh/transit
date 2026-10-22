@@ -16,7 +16,7 @@ const Config = struct {
     generation: u64 = 0,
     association: []const u8 = "state",
     activation_directory: ?[]const u8 = null,
-    interval_ms: u32 = 20,
+    interval_ms: u32 = 10,
     idle_max_interval_ms: u32 = 0,
     request_timeout_ms: u32 = 5000,
     role: union(enum) {

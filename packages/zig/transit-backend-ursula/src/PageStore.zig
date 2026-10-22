@@ -19,7 +19,7 @@ create_payload_bytes_attempted: u64 = 0,
 
 pub fn init(allocator: std.mem.Allocator, journal: adapter.Journal, resident_pages: usize) !Self {
     // This is a working-set budget, unrelated to durable page cardinality.
-    if (resident_pages > 1024) return error.InvalidPageCacheBudget;
+    if (resident_pages > 4096) return error.InvalidPageCacheBudget;
     const cache = try allocator.alloc(?Cached, resident_pages);
     @memset(cache, null);
     return .{ .allocator = allocator, .journal = journal, .cache = cache };
@@ -36,12 +36,13 @@ pub fn residentBytes(self: *const Self) usize {
     return self.cache.len * @sizeOf(?Cached);
 }
 fn cached(self: *Self, ref: pages.Reference) ?pages.Page {
-    for (self.cache) |slot| if (slot) |entry| {
+    for (self.cache) |*slot| {
+        const entry = &(slot.* orelse break);
         if (std.meta.eql(ref, entry.reference)) {
             self.hits += 1;
             return entry.page;
         }
-    };
+    }
     return null;
 }
 fn remember(self: *Self, ref: pages.Reference, page: pages.Page) void {

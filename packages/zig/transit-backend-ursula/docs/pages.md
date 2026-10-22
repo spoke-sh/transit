@@ -34,10 +34,13 @@ root. Exact already-accepted native retries reconcile their original receipt.
 
 Loads never create storage. They validate the locator, coordinate, complete
 canonical frame and digest. Missing or corrupt data fails. The LRU cache has
-zero to 1,024 slots; eviction cannot remove durable bytes. `residentBytes` reports
+zero to 4,096 slots; eviction cannot remove durable bytes. Sealed segments also
+populate the verified page cache with their newly committed `TPG1` pages so the
+subsequent turn does not immediately fault on its own output. `residentBytes` reports
 its cache and active candidate buffer, excluding tree stacks, parsers, transport
 buffers and temporary JSON-array framing. That framing is separately bounded by
-the candidate limit. Each native execution lane owns these allocations.
+the candidate limit. Each native execution lane owns these allocations and
+synchronizes verified cache state on lane handoff.
 
 `PageStore` remains a closed-stream primitive used by the page-layout comparison
 proof. It stores raw compact page bytes and requires zero opaque locations. It

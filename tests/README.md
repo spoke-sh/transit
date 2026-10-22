@@ -11115,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/05-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -12800,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/05-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -16373,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md).
+[SQL and dataflows](../docs/roadmap/05-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -21944,7 +21944,7 @@ operator installation was changed.
 
 Live browser/keyboard coverage, controlled revert/republication and a superseded
 workflow rerun have not been exercised. These remain explicit
-[publication qualification work](../docs/roadmap/09-qualification-and-benchmarks.md#documentation-publication).
+[publication qualification work](../docs/roadmap/10-qualification-and-benchmarks.md#documentation-publication).
 No runtime behavior or new runtime guarantee is established by this documentation
 framing change.
 
@@ -22003,3 +22003,35 @@ streams (`UrsulaWal.zig`):
 - `zig build test` in `packages/zig/transit-backend-ursula` passes 10/10 unit
   tests, verifying that `UrsulaWal` reuses a single long-lived partition stream
   across sequential `TWAL1` appends and enforces epoch fencing.
+
+## Live storage engine and SQL execution cutover
+
+Working-tree verification in the pinned Nix development shell exercises the live
+catalog and query `.tseg` storage integration (`TableStorageEngine`,
+`TableSegmentScan`), `PackedPageStore` candidate seal write-through, epoch-tracked
+cross-lane page cache synchronization in `transit-node`, condition-variable
+wakeups and multi-step turn draining in `AccountRuntime` / `transit-sql-gateway`,
+and low-latency worker polling in `transit-cli` / `transit-query-host`:
+
+- `zig build test` in `packages/zig/transit-backend-ursula` passes 11/11 unit
+  tests, verifying that `PackedPageStore.finish` populates the resident page cache
+  immediately upon candidate verification and seal (`misses == 0`, `hits == 1` on
+  subsequent `load` without additional provider requests).
+- `zig build test` in `packages/zig/transit-catalog` passes 88/88 unit tests,
+  exercising `TableStorageEngine` WAL-backed `insertRow` / `deleteRow`, `.tseg`
+  and `.tdel` flush + `TableManifest` conditional CAS publication, Tier 2
+  `NvmeCache` byte-range population, $O(\log N)$ primary-key point lookups across
+  flushed segments and active memtables, crash recovery from `TableManifest` +
+  `LocalWal` replay, and disjoint-primary-key multi-writer OCC rebasing via
+  `TableBehavior.attachStorageEngine`.
+- `zig build test` and `zig build test-catalog-query` in
+  `packages/zig/transit-query` pass 151/151 unit tests and the catalog-query suite,
+  verifying `TableSegmentScan` Zone-Map + 64-bit Bloom-filter row-group pruning,
+  `.tdel` deletion filtering, active `TableMemtable` delta merging, vectorized
+  `Fuze` `Batch` (`nextBatch`) emission, and end-to-end `LogicalQuery.Execution`
+  (`SELECT ... WHERE ... ORDER BY ...`) over `.tseg` segments.
+- `zig build test-sql-gateway -Doptimize=ReleaseSafe` (`just test::sql-gateway`)
+  passes the 33-operation, 217-turn `native_gateway_ledger` fault, recovery,
+  fencing and pipelined-admission schedule in **55.770 seconds** (down from the
+  **122.759-second** pre-cutover baseline on the same host, a **2.20x** wall-clock
+  speedup).

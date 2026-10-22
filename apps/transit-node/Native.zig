@@ -22,7 +22,7 @@ const Config = struct {
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8080,
     request_timeout_ms: u32 = 2000,
-    resident_pages: u16 = 16,
+    resident_pages: u16 = 512,
     storage: core.protocol.Storage.Settings = .{},
     accept_trace_parent: bool = false,
     request_metrics: bool = false,
@@ -93,7 +93,25 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         try lane.init(init.gpa, init.io, config, engine, diagnostics);
         initialized += 1;
     }
-    var context: Context = .{ .server = &server, .diagnostics = diagnostics, .lanes = lanes, .snapshots = .{ .epoch = snapshot_epoch }, .position = engine.head.position };
+    const shared_pages = try init.gpa.alloc(?adapter.PackedPageStore.Cached, config.resident_pages);
+    defer init.gpa.free(shared_pages);
+    @memcpy(shared_pages, pages.cache);
+    var shared_pages_count: usize = 0;
+    for (shared_pages) |*slot| {
+        if (slot.* == null) break;
+        shared_pages_count += 1;
+    }
+    var context: Context = .{
+        .server = &server,
+        .diagnostics = diagnostics,
+        .lanes = lanes,
+        .snapshots = .{ .epoch = snapshot_epoch },
+        .position = engine.head.position,
+        .latest_cached = journal.cached,
+        .shared_pages = shared_pages,
+        .shared_pages_count = shared_pages_count,
+        .shared_access = pages.access,
+    };
     diagnostics.event(.{ .name = "service.ready" });
     try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
 }
@@ -105,6 +123,10 @@ const Lane = struct {
     pages: adapter.PackedPageStore,
     engine: Engine,
     busy: bool = false,
+    pages_epoch: u64 = 0,
+    acquired_access: u64 = 0,
+    acquired_created: u64 = 0,
+    acquired_misses: u64 = 0,
     fn init(self: *Lane, allocator: std.mem.Allocator, io: std.Io, config: Config, basis: Engine, diagnostics: *telemetry.Runtime) !void {
         self.* = undefined;
         self.busy = false;
@@ -159,6 +181,8 @@ const Server = struct {
     engine: *Engine,
     observation: telemetry.Http = .{},
     accept_trace_parent: bool,
+    context: *Context = undefined,
+    lane: *Lane = undefined,
     mutex: *std.Io.Mutex = undefined,
     working: bool = false,
     changed: *Notifications = undefined,
@@ -373,6 +397,7 @@ const Server = struct {
                 self.mutex.lockUncancelable(self.io);
                 defer self.mutex.unlock(self.io);
                 self.position.* = @max(self.position.*, self.engine.head.position);
+                self.context.syncFromLane(self.lane);
                 self.changed.publish(self.io, parsed.value.request.command);
             }
             self.observation.protocol_outcome = .receipt;
@@ -410,9 +435,11 @@ const Server = struct {
                 {
                     try self.mutex.lock(self.io);
                     defer self.mutex.unlock(self.io);
+                    self.context.syncFromLane(self.lane);
                     if (self.position.* <= wait.after) {
                         try self.changed.wait(self.io, self.mutex, parsed.value.query, wait.milliseconds);
                     }
+                    self.context.syncToLane(self.lane);
                 }
                 self.beginWork();
                 // Recheck signature, grants, scope, lifecycle and authority tail
@@ -438,11 +465,107 @@ const Context = struct {
     lanes: []Lane,
     snapshots: core.SnapshotLeases,
     position: u64,
+    latest_cached: @FieldType(adapter.Store, "cached") = null,
+    shared_pages: []?adapter.PackedPageStore.Cached,
+    shared_pages_count: usize = 0,
+    shared_pages_epoch: u64 = 1,
+    shared_access: u64 = 0,
+
+    fn touchShared(self: *Context) u64 {
+        if (self.shared_access == std.math.maxInt(u64)) {
+            for (self.shared_pages[0..self.shared_pages_count]) |*slot| if (slot.*) |*entry| {
+                entry.used = 0;
+            };
+            self.shared_access = 0;
+        }
+        self.shared_access += 1;
+        return self.shared_access;
+    }
+
+    fn rememberShared(self: *Context, ref: *const core.pages.Reference, page: *const core.pages.Page) void {
+        if (self.shared_pages.len == 0) return;
+        for (self.shared_pages[0..self.shared_pages_count]) |*slot| if (slot.*) |*entry| {
+            if (std.meta.eql(ref.*, entry.reference)) {
+                entry.used = self.touchShared();
+                return;
+            }
+        };
+        var selected: usize = 0;
+        if (self.shared_pages_count < self.shared_pages.len) {
+            selected = self.shared_pages_count;
+            self.shared_pages_count += 1;
+        } else {
+            var oldest: u64 = std.math.maxInt(u64);
+            for (self.shared_pages, 0..) |*slot, i| {
+                const entry = &(slot.* orelse {
+                    selected = i;
+                    break;
+                });
+                if (entry.used < oldest) {
+                    oldest = entry.used;
+                    selected = i;
+                }
+            }
+        }
+        self.shared_pages[selected] = .{ .reference = ref.*, .page = page.*, .used = self.touchShared() };
+        self.shared_pages_epoch +|= 1;
+    }
+
+    fn syncToLane(self: *Context, lane: *Lane) void {
+        if (self.latest_cached) |shared_entry| {
+            if (lane.journal.cached == null or shared_entry.at >= lane.journal.cached.?.at) {
+                lane.journal.cached = shared_entry;
+            }
+        }
+        if (self.shared_pages.len == lane.pages.cache.len and lane.pages_epoch != self.shared_pages_epoch) {
+            const count = self.shared_pages_count;
+            @memcpy(lane.pages.cache[0..count], self.shared_pages[0..count]);
+            if (count < lane.pages.cache.len) {
+                lane.pages.cache[count] = null;
+            }
+            lane.pages.access = self.shared_access;
+            lane.pages_epoch = self.shared_pages_epoch;
+        }
+        lane.acquired_access = lane.pages.access;
+        lane.acquired_created = lane.pages.created;
+        lane.acquired_misses = lane.pages.misses;
+    }
+
+    fn syncFromLane(self: *Context, lane: *Lane) void {
+        if (lane.journal.cached) |lane_entry| {
+            if (self.latest_cached == null or lane_entry.at >= self.latest_cached.?.at) {
+                self.latest_cached = lane_entry;
+            }
+        } else if (self.latest_cached) |shared_entry| {
+            if (shared_entry.at < lane.engine.head.history_floor) {
+                self.latest_cached = null;
+            }
+        }
+        if (self.shared_pages.len > 0 and self.shared_pages.len == lane.pages.cache.len) {
+            if (lane.pages.created != lane.acquired_created or lane.pages.misses != lane.acquired_misses) {
+                const prior_epoch = self.shared_pages_epoch;
+                for (lane.pages.cache) |*slot| {
+                    const entry = &(slot.* orelse break);
+                    if (entry.used > lane.acquired_access) {
+                        self.rememberShared(&entry.reference, &entry.page);
+                    }
+                }
+                if (lane.pages_epoch == prior_epoch) {
+                    lane.pages_epoch = self.shared_pages_epoch;
+                }
+            }
+            lane.acquired_access = lane.pages.access;
+            lane.acquired_created = lane.pages.created;
+            lane.acquired_misses = lane.pages.misses;
+        }
+    }
+
     fn acquire(self: *Context, io: std.Io) !*Lane {
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
         for (self.lanes) |*lane| if (!lane.busy) {
             lane.busy = true;
+            self.syncToLane(lane);
             return lane;
         };
         return error.ControlCapacity;
@@ -450,6 +573,7 @@ const Context = struct {
     fn release(self: *Context, io: std.Io, lane: *Lane) void {
         self.mutex.lockUncancelable(io);
         defer self.mutex.unlock(io);
+        self.syncFromLane(lane);
         lane.busy = false;
     }
     pub fn isWait(_: *@This(), request: *std.http.Server.Request) bool {
@@ -468,6 +592,8 @@ const Context = struct {
         var server = self.server.*;
         server.io = io;
         server.allocator = allocator;
+        server.context = self;
+        server.lane = lane;
         server.mutex = &self.mutex;
         server.changed = &self.changed;
         server.engine = &lane.engine;
