@@ -133,7 +133,8 @@ Standard editions, application schema history and Transit's
 | --- | --- | --- |
 | SQL:2023 Foundation and SQL/JSON | **Planned — syntax undecided** beyond the implemented subset above | Audit selected relational/type features and explicit structured-value projections, including missing/null/error/conflict conversion |
 | SQL/PGQ: `CREATE PROPERTY GRAPH`, `GRAPH_TABLE` | **Planned — proposed syntax** | Catalog graph mappings over existing resources; finite, read-only, fixed-length patterns with stable element identity and bag multiplicity |
-| SQL/MED: `CREATE FOREIGN TABLE` | **Planned — proposed syntax** | Typed foreign relation over a recoverable immutable capture; filesystem first, S3 only after separate qualification |
+| SQL/MED: `CREATE FOREIGN TABLE` | **Planned — proposed syntax** | Typed foreign relation over a recoverable immutable capture (`parquet`, `arrow_ipc`, `csv`, `jsonl`, or mainframe `fixed_record`/`variable_record` copybook layouts); filesystem and S3 bindings require explicit qualification |
+| Collation and physical codec clauses (`COLLATE`, `ENCODING`) | **Planned — proposed syntax** | Explicit column/expression collation (`UCS_BASIC`, `EBCDIC_037_PAD`, `EBCDIC_1047_NOPAD`, `ASCII_CI`, versioned `UCA`) and physical codec descriptors (`FSST`, `COMP3`, `ZONED`, `COMP`, `IBM_HFP`, `EBCDIC_CP037`) |
 | GQL frontend | **Outside selected profile** | Future frontend target over shared semantics; no accepted GQL grammar |
 | Cypher and PGQL | **Outside selected profile** | Named comparison/import dialects; independent compatibility evidence and explicit selection are required before support |
 
@@ -191,6 +192,19 @@ OPTIONS (
   transit_format 'parquet',
   transit_read_basis 'captured_manifest'
 );
+
+CREATE FOREIGN TABLE core_banking_ledger (
+  acct_id     VARCHAR(10)   COLLATE EBCDIC_037_PAD OPTIONS (encoding 'EBCDIC_CP037', byte_len '10'),
+  branch_code INT32                                OPTIONS (encoding 'COMP',         byte_len '4'),
+  balance     DECIMAL(13,2)                        OPTIONS (encoding 'COMP3',        byte_len '7'),
+  tx_rate     DECIMAL(7,4)                         OPTIONS (encoding 'ZONED_EBCDIC', byte_len '7')
+)
+SERVER mainframe_s3
+OPTIONS (
+  transit_format 'fixed_record',
+  transit_record_bytes '28',
+  transit_read_basis 'captured_manifest'
+);
 ```
 
 Graph keys/endpoints, self-loops and parallel edges require explicit identity and
@@ -200,11 +214,12 @@ the examples analyzed in the [query-engine account](../../internals/query-engine
 it does not claim full SQL/PGQ support.
 
 `CREATE FOREIGN TABLE` is the intended canonical foreign-relation spelling;
-there is no separate `EXTERNAL` object model. `archive_reader` denotes a planned
-typed binding with credential references, a permitted root and budgets. Its
-foreign-server/connection relationship must have one credential authority.
-`transit_*` options are proposed Transit extensions. Parquet illustrates a format
-option; the first decoder is not selected here.
+there is no separate `EXTERNAL` object model. `archive_reader` and `mainframe_s3`
+denote planned typed bindings with credential references, permitted roots and
+budgets. Their foreign-server/connection relationship must have one credential
+authority. `transit_*` options and column-level `encoding`/`COLLATE` descriptors
+are proposed Transit extensions over the shared `SegmentReader` boundary
+([logical types, physical codecs and collations](../../internals/query-engine.md#logical-types-and-physical-codecs-and-collation-semantics)).
 
 A directory or S3 prefix listing is not a snapshot. A complete paged manifest
 must identify input bytes and their schema/decoder, retain them or establish an

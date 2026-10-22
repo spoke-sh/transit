@@ -92,16 +92,23 @@ callers can also execute Fuze in their own process.
 distinction and the cancellation/cleanup contract.
 
 Authorized snapshots, generic immutable block publication and independently
-owned native request engines provide the shared storage boundary. Table records
-use those blocks, and bounded result batches check current access before disclosure.
-Physical collection follows explicit roots, storage epochs and read-lifetime
-fences; quota pressure does not authorize expiry. See [storage](storage.md).
+owned native request engines provide the current shared storage boundary. Table
+records use those blocks, and bounded result batches check current access before
+disclosure. Physical collection follows explicit roots, storage epochs and
+read-lifetime fences; quota pressure does not authorize expiry. See
+[storage](storage.md).
 
-Remaining priorities include larger statement ingress, read structures suited to
-each resource kind, and workload-specific indexing and statistics. Resident work
-must remain bounded independently of retained data, with separate execution and
-control capacity. The [performance reference](performance.md) records measured
-improvements, regressions and remaining limits.
+To eliminate the write amplification of nesting row records inside copy-on-write
+B-tree pages over HTTP streams and funneling bulk data through `128 KiB` actor
+turns, the [storage and query architecture](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
+separates the **Control & Policy Plane** (`policy_epoch`, catalog identities,
+fenced leases), the **Direct Data Plane** (a four-tier memory hierarchy over
+pluggable `TransitLog` write-ahead/activation logs and `TransitObjectStore`
+immutable `.tseg` hybrid segments, `.tdel` deletion vectors and versioned
+Manifests), and the **Process & Effect Plane** (`Station` actors and connectors).
+Resident work remains bounded independently of retained data, with separate
+execution and control capacity. The [performance reference](performance.md)
+records measured improvements, regressions and remaining limits.
 
 ## Source of truth
 

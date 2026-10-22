@@ -1,14 +1,18 @@
 # Transit documentation
 
-Transit is programmable data infrastructure for applications. The public handbook
-is the shared source of current behavior for application users, contributors and
-agents. Start with [What is Transit?](handbook/guides/introduction.md),
+Transit is programmable, versioned data infrastructure for applications. The
+public handbook is the shared source of current behavior and architectural models
+for application users, contributors and agents. Start with
+[What is Transit?](handbook/guides/introduction.md),
 [data, computation and policies](handbook/reference/data-model.md) and
 [your first dataset](handbook/guides/quickstart.md). Custom
-[application workers](handbook/guides/applications.md) extend that data lifecycle.
-The [handbook project](handbook/README.md) keeps the Docusaurus site and its
-content together under `docs/handbook/`. The [interface and architecture map](handbook/reference/interfaces.md)
-connects public usage, exact contracts and technical accounts.
+[application workers](handbook/guides/applications.md) extend that data lifecycle,
+and [Internals](handbook/internals/README.md) provides the formal computer-science
+models, storage hierarchy, vectorized/incremental query engine, branching
+invariants, and execution proofs. The [handbook project](handbook/README.md)
+keeps the Docusaurus site and its content together under `docs/handbook/`. The
+[interface and architecture map](handbook/reference/interfaces.md) connects
+public usage, exact contracts and technical accounts.
 
 ## Guides and reference
 

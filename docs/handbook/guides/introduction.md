@@ -1,17 +1,19 @@
 # What is Transit?
 
-Transit is programmable data infrastructure for applications. It stores and
-queries tables, key-value data and collaborative documents, and provides durable
-execution for transforming data and coordinating work around it.
+Transit is programmable, versioned data infrastructure for applications. It
+stores and queries relational tables, key-value state and collaborative
+documents, and uses durable execution, write-ahead change streams and recorded
+connectors to **activate** data—maintaining derived views, driving stateful
+workflows and coordinating external effects with exact recovery and current
+authorization.
 
-Its declarative interfaces describe data and computation; its execution system
-preserves accepted changes, progress and outcomes across failures.
-
-Start with the data your application needs: its shape, how it changes, what you
-want to compute from it, and who may use it. The [data model](../reference/data-model.md)
-connects these concerns to their supported interfaces. The
-[local quickstart](quickstart.md) takes you from an empty installation to a Table
-you define, query and change through the console.
+Start with the data your application needs: its logical schema, physical
+encoding and collation, how it changes, what computations derive from it, and
+which policies govern its use. The [data model](../reference/data-model.md)
+connects these concerns to their supported interfaces, and
+[Internals](../internals/README.md) formalizes the underlying storage, query and
+execution mechanisms. The [local quickstart](quickstart.md) takes you from an
+empty installation to a Table you define, query and evolve through the console.
 
 ## Describe intent and inspect the result
 
@@ -34,8 +36,8 @@ permissions govern both execution and inspection.
 The product direction is:
 
 > Declare your data, the computations that derive from it, and the policies
-> governing its use. Transit manages the execution and lifecycle needed to keep
-> those definitions useful.
+> governing its use. Transit manages the storage hierarchy, delta activation and
+> durable execution lifecycle needed to keep those definitions useful.
 
 The supported path is most complete for Tables: create and evolve their schemas,
 read and change rows, and inspect outcomes through a configured catalog. KV and
@@ -64,24 +66,35 @@ source does not necessarily create it or maintain a derived result.
 
 ## Durable execution supports the data lifecycle
 
-Transit records accepted mutations and keeps partially staged data private until
-its complete successor is published. A reader retains its selected data version
-while later writes proceed. After an uncertain write, the original operation's
-recorded outcome tells the caller whether it applied. Repeating SQL creates new
-work; a lost connection alone does not establish failure.
+In Transit, data and computation are the primary user-facing declarations, while
+durable processes (`Station`), write-ahead streams and connectors are the
+mechanisms that activate changes and preserve progress across failures:
 
-Custom workers extend this model with application-defined transformations,
-validation and coordination. A durable process gives that work an identity,
-ordered input and recoverable progress. Its worker can restart without replacing
-accepted work. [Processes and turns](../reference/processes.md) explain the commit
-mechanism; [build an application](applications.md) explains how to supply your
-own worker.
+1. **Snapshot isolation and atomic publication:** Transit records accepted
+   mutations and keeps partially staged data private until its complete successor
+   is published. A reader retains its selected data version while later writes
+   proceed. After an uncertain write, the original operation's recorded outcome
+   tells the caller whether it applied. Repeating SQL creates new work; a lost
+   connection alone does not establish failure.
+2. **Change capture and derived views:** Committed Table transitions preserve
+   ordered row deltas (`+row`/`-row`) and schema provenance so change readers,
+   reactive watches and maintained computations can advance from exact source
+   watermarks without polling or losing intermediate transactions.
+3. **Stateful workflows and external effects:** Custom `Station` workers extend
+   this model with application-defined validation, orchestration and connector
+   calls. A durable process gives that work an identity (`PID`), ordered input
+   and recoverable progress; its worker can restart without replacing accepted
+   work or re-dispatching an external HTTP/gRPC effect. [Processes and turns](../reference/processes.md)
+   explain the commit mechanism; [build an application](applications.md) explains
+   how to supply your own worker.
 
 Station provides application behaviors and data owners above the generic kernel.
-Fuze executes queries over authorized sources. Board presents observed state,
-and connectors record external attempts and outcomes. These components support
-the same data and execution boundaries; their [architecture](../reference/architecture.md)
-explains the division of responsibilities.
+Fuze executes vectorized and relational queries over authorized sources. Board
+presents observed state, and connectors record external attempts and outcomes.
+These components support the same data and execution boundaries; their
+[architecture](../reference/architecture.md) and
+[system model](../internals/system-model.md) explain the division of
+responsibilities.
 
 ## Continue from a working dataset
 
