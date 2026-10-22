@@ -73,7 +73,7 @@ runtime adapters and application backends. TypeScript/Vite+ supplies frontend co
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
 Station M9 adds host-language SDK adapters and examples over the shared Zig
-client/framework. [M11](../roadmap/M11.md) adds language-native public SDKs over
+client/framework. M11 adds language-native public SDKs over
 those bindings. That binding glue does not change the service language or move
 application handlers into Transit authority; [CLIENT.md](CLIENT.md#language-neutral-boundary)
 owns the generated ABI and target-language plan.
@@ -106,14 +106,14 @@ The explicit v3 profile decouples durable cardinality from resident memory:
 resource data, retained work and control catalogs use paged access and bounded
 working sets. One conditional root publication retains the authority decision.
 The default v2 profile still uses fixed arrays and complete resource snapshots;
-those are compatibility ceilings, not cache settings. [M10](../roadmap/M10.md)
+those are compatibility ceilings, not cache settings. M10
 tracks qualification before public SDKs stabilize;
 [State](STATE.md#collection-size-and-working-memory) defines the boundary.
 No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M35](../roadmap/M35.md) qualifies
+the single-realm serialization bottleneck in M10; M35 qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -176,7 +176,7 @@ application state without running or verifying the handler's computation.
 [CLIENT.md](CLIENT.md) defines that programming model; [SECURITY.md](SECURITY.md)
 and [CONFORMANCE.md](CONFORMANCE.md) define trust and bypass obligations.
 
-[M7](../roadmap/M7.md) evolves inline application state into versioned resources
+M7 evolves inline application state into versioned resources
 accessed through recorded process associations. Core enforces identity,
 revision, commit, grants, and lifetime; application values stay opaque. The
 client supplies bounded KV access, core rebuilds its bounded materialized catalog
@@ -261,7 +261,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-docs](../../apps/transit-docs/README.md) | Static Docusaurus handbook over owned Markdown and generated interface descriptions; no runtime authority or credentials |
 | [transit-board](../../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
-| [rey-cli](../../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
+| [transit-admin](../../apps/transit-admin/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../../examples/byte-log/README.md) | Independent caller against the same generic authority |
 | [example-station-ledger](../../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |
@@ -277,26 +277,26 @@ and protocol assertions belong under [tests/](../../tests/README.md).
 
 ### Planned components
 
-- [M19](../roadmap/M19.md) formalizes serving with HTTP application APIs and Board
+- M19 formalizes serving with HTTP application APIs and Board
   as its first consumers. The implemented neutral `transit-http-server` owns HTTP
   mechanics; implemented `transit-serving` composes public Transit/Station admission and
   response contracts. Board keeps its projections and private access profile.
   Create packages only with real implementations, manifests and consumers;
-  core must not depend on these higher layers. [M20](../roadmap/M20.md) adds
+  core must not depend on these higher layers. M20 adds
   qualified SSE/WebSocket bindings, an int64 Table snapshot/watch adapter and
-  generated API descriptions over shared durable session controls. [M21](../roadmap/M21.md) consumes
+  generated API descriptions over shared durable session controls. M21 consumes
   that API for bounded refresh and live views. Neither creates another event store.
 - Add typed public APIs, handler runners and installable artifacts to the existing
-  language packages in [M11](../roadmap/M11.md). Python, TypeScript, Rust, Ruby, C/C++,
+  language packages in M11. Python, TypeScript, Rust, Ruby, C/C++,
   Java and .NET have public handler/recovery/data proofs; remaining targets and public mixed
   language pairs are still open. Ruby uses the shared native port.
   Generated/raw bindings remain a
   separate interface over the shared Zig client/framework; the
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
-  controls as scoped in the [full plugin plan](../roadmap/M5.md).
-- [M17](../roadmap/M17.md) adds Document changes/CRDTs over M14 publication;
-  [M18](../roadmap/M18.md) adds KV/Document query adapters and wider source contracts. Add further entity adapters only
+  controls as scoped in the full plugin plan.
+- M17 adds Document changes/CRDTs over M14 publication;
+  M18 adds KV/Document query adapters and wider source contracts. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
 - M15 introduces only the shared exchange/capture/reference library needed by
   HTTP, above Station. M16 qualifies reuse for gRPC. Keep generally reusable
@@ -318,27 +318,27 @@ and protocol assertions belong under [tests/](../../tests/README.md).
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.
-- [M23](../roadmap/M23.md) implements [declarative reactive applications](REACTIVE_APPLICATIONS.md),
+- M23 implements [declarative reactive applications](REACTIVE_APPLICATIONS.md),
   using Board as the first consumer. Shared Zig definition/publication/migration
   owners remain above the public client and Station; TypeScript renderers consume
   generated, runtime-validated types and M20/M21 clients. SQL lowers to owning
   operations or Fuze plans, never a UI authority database. Create shared packages
   only when Board and the downstream example exercise them.
-- [M24](../roadmap/M24.md) formalizes the Zig `transit` entry point around `server`
+- M24 formalizes the Zig `transit` entry point around `server`
   and `console`. The server composes a supervisor/gateway and the locally placed
   service neighborhood; OS lifecycle does not replace durable ownership or
   Station supervision. The console reuses public clients, Fuze and M23's shared
   grammar/catalog assistance. [Deployment](DEPLOYMENT.md#transit-cli-applications-and-planned-publication)
   owns the local-placement boundary; [Query language](QUERY_LANGUAGE.md#terminal-console)
   owns the terminal semantic boundary.
-- [M25](../roadmap/M25.md) adds application installation above the native client.
+- M25 adds application installation above the native client.
   The [public declaration/bootstrap contract](../../contracts/APPLICATION_INSTALLATION_V1.md)
   identifies roles and resources without granting authority. The CLI composes
   exact native provisioning and physical lifecycle; independently built workers
   import public packages. Compatible worker revision, ownership generation,
   data epoch and published interface revision remain separate. Native key rotation
   preserves permission epochs, so restarting a process cannot renew revoked reads.
-- [M33](../roadmap/M33.md) publishes the declared Transit artifact matrix from a
+- M33 publishes the declared Transit artifact matrix from a
   tagged commit through GitHub Releases/Packages, Nix, an install script,
   Homebrew, OCI images and Helm. Existing component build/package owners remain
   authoritative; release orchestration binds their outputs to one verified
@@ -373,13 +373,13 @@ Station/connector lenses as those layers land. It reads through the public clien
 required discovery/history surfaces belong to Transit, not a Board backdoor into
 storage. UI and agent consumers share a versioned OpenAPI contract. Views remain
 derived, permissioned, bounded, and explicit about freshness and missing history.
-See [BOARD.md](BOARD.md) and [M2](../roadmap/M2.md) for the design and proof gates.
+See [BOARD.md](BOARD.md) and M2 for the design and proof gates.
 
 [Service observability](OBSERVABILITY.md) is implemented across Board,
 Transit services, clients, adapters and callers. Owners define their signals;
 executables configure bounded sinks and correlation. Core stays deterministic,
 and telemetry remains lossy operational evidence with no execution authority.
-[M4](../roadmap/M4.md) owns its qualification evidence.
+M4 owns its qualification evidence.
 Collectors and remote export are later scope.
 Measure latency, throughput, recovery time, and resident memory before choosing
 scaling or latency targets. The [pre-Station review](reviews/PRE_STATION.md) maps

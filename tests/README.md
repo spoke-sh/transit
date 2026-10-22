@@ -1,4 +1,10 @@
-# Validation and milestone evidence
+# Validation and evidence
+
+Dated sections below summarize checks at their recorded source revisions. Obsolete
+raw transcripts and dependent manifests were removed during repository cleanup;
+the summaries retain measured outcomes and limits, but do not claim those archived
+bytes are available here. Current validation must be rerun with the owning tasks.
+Remaining benchmark budgets and independent regression fixtures stay executable.
 
 ## SQL idle lifetimes and readiness observations
 
@@ -77,7 +83,7 @@ explicit remote clients use the HTTPS session API and SCRAM. The
 [console guide](../apps/transit-cli/docs/console.md),
 [session contract](../contracts/SQL_SESSION_V1.md) and
 [Internals account](../docs/internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
-own behavior and reasoning. [M56](../docs/roadmap/M56.md) records delivery scope.
+own behavior and reasoning. [SQL sessions](../apps/transit-cli/docs/console.md) records delivery scope.
 
 The [evidence record](verification/results/sql-sessions-2026-10-21.json) preserves
 exact source/binary hashes, commands, raw structured
@@ -154,7 +160,7 @@ the full language, growth, browser or Arrow/Flight inventories.
 The startup implementation and executable proofs at `d61f2e0d` use one
 `transit server` command for missing/empty installation creation, recorded
 bootstrap recovery and ordinary restart. The [server guide](../apps/transit-cli/docs/server.md#first-startup-and-recovery)
-owns the directory and recovery rules; [M55](../docs/roadmap/M55.md) records scope.
+owns the directory and recovery rules; [Server startup](../apps/transit-cli/docs/server.md) records scope.
 
 Executed on 2026-10-20 with the pinned development shell:
 
@@ -197,7 +203,7 @@ contracts or test code qualified at `d61f2e0d`.
 
 The [matched campaign](mutation_latency/results/2026-10-19/README.md) compares
 `ee88a131` with runtime `29765ef0`, using ReleaseSafe and sequential disk fixtures
-after builds finish. Its [record](verification/results/storage-foundation-2026-10-19.json)
+after builds finish. Its record (archived)
 preserves commands, source/binary hashes, raw reports, intermediate controls and
 failed attempts. Both real SQL wire campaigns complete 400 reads and 36 mutations
 with cross-protocol readback. The final console controls include narrow, wide and
@@ -637,7 +643,7 @@ remaining completion/readback/schema/drain checks. The harness now allows
 and one SQL attempt. The complete replacement is part of `just ci-clean`'s
 ordinary growth lane; its result must be reported before submission.
 
-The [hosted execution budget record](verification/results/authorization-ci-budgets-2026-10-15.json)
+The hosted execution budget record (archived)
 sets finite core/growth/bindings job caps of 60/300/360 minutes. The complete
 26-task core lane at `31319985` takes **1,674.66 s** before hosted setup. The
 separate SQL preflight completes the original 40 KiB write in **3,396.781 s**
@@ -647,7 +653,7 @@ are still pending at this checkpoint. These measured phases and the older clean
 task totals justify execution headroom; they are not a full current-suite or
 hosted pass. Task-local assertions, deadlines and resident bounds are unchanged.
 
-The [bindings inventory split](verification/results/authorization-ci-bindings-split-2026-10-15.json)
+The bindings inventory split (archived)
 keeps all **86 ordinary tasks**; the split itself changes no task deadline.
 The clean Python task at
 `f0227c7c` passes in **2,275.22 s**, compared with **1,300.78 s** in the earlier
@@ -665,7 +671,7 @@ missing-lane rejection and one cache writer. The verification catalog passes
 with all task owners accounted for. Complete clean qualification requires all
 six ordinary lanes at the same final revision.
 
-The [SDK queue observer report](verification/results/authorization-sdk-queue-observer-2026-10-15.json)
+The SDK queue observer report (archived)
 retains clean Ruby and Erlang queue failures at committed `d7298d22`, under the
 then-current definition. Their tasks stop after **734.40 s** and **730.35 s** when
 the shared per-drain **600-second** observer expires. Separate instrumented
@@ -695,7 +701,7 @@ also pass. The report retains the exact source, observations and complete log
 hash. It replaces the failed preflight, while the final committed-source growth
 lane must independently run the entire task.
 
-The [ingress pipeline proof](verification/results/authorization-gateway-ingress-pipeline-2026-10-15.json)
+The ingress pipeline proof (archived)
 passes the gateway unit suite and complete native gateway schedule in **99.730 s**
 on modified `41e2db79`. The preceding clean wire attempt reaches its SQL deadline
 with the large operation still `uploading`, no Table input and no terminal
@@ -748,7 +754,7 @@ artifact build also passes. These focused checks use modified source; the full
 Station SDK task and all final ordinary clean lanes remain required. Wire,
 stored and ABI definitions and task deadlines are unchanged.
 
-The [native gateway recovery report](verification/results/authorization-native-gateway-registration-2026-10-15.json)
+The native gateway recovery report (archived)
 passes the complete ledger/coordinator proof in **101.228 s** after migrating
 its manually driven Table host to the existing signed object-registration
 handshake. The clean attempt had stopped at `CatalogRegistrationRequired`;
@@ -805,7 +811,7 @@ an 8 MiB hot limit and an 8 MiB cold cache. No resident limit increases, retenti
 changes or history discard are used. This focused result does not qualify the
 remaining clean growth tasks.
 
-The [Table restart-drain report](verification/results/authorization-table-restart-drain-2026-10-15.json)
+The Table restart-drain report (archived)
 records a complete focused lifecycle pass in **647.760 s** after a clean run
 exposed a fixture restart race. A stopped worker can leave a native notification
 wait in flight through the HTTP proxy. The fixture now pauses new forwarding
@@ -869,7 +875,7 @@ budget failures. Disabled intermediate roles cannot conceal membership cycles.
 
 This evidence covers the pure injected-store evaluator. It does not establish
 durable administration, adapter enforcement or restricted Table isolation. Those
-integration gates remain open in [the delivery plan](../docs/roadmap/M49.md).
+integration gates remain open in [Authorization](../docs/reference/security.md).
 
 The subsequent paged-store and administrative-candidate run passes **92/92 core
 tests** using the same command. It adds reopen and page-boundary checks, private
@@ -1060,7 +1066,7 @@ schema failure and drop/name-reuse failure all pass. The surrounding Table suite
 also completes, totaling 2,505 turns while retaining the four-write/256-byte
 native bounds. Installed callers and physical exchanges remain separate checks.
 
-The [exchange authorization report](verification/results/authorization-exchanges-2026-10-14.json)
+The exchange authorization report (archived)
 records `just test::relational-exchanges` passing in **645.972 s** on dirty
 `65bd94f4`, definition `c7446846…34cccd`. Its one-worker/one-partition and
 three-worker/seven-partition layouts retain the original signed assignment
@@ -1080,7 +1086,7 @@ while the worker was progressing; that run remains failed. The proof now uses
 the same optimized checked profile as the other native disk schedules and still
 requires complete results before success.
 
-The [Station authorization report](verification/results/authorization-station-2026-10-14.json)
+The Station authorization report (archived)
 records the ReleaseSafe Station integration suite and actual local launcher
 passing on dirty `ca76ae7a`, definition `c7446846…34cccd`. The ledger uses explicit
 LOGIN roles, SET-only data-role membership and native database/schema/Table
@@ -1117,7 +1123,7 @@ the unchanged fresh lifecycle passing in **1,237.070 s**. That successful rerun
 does not establish the earlier unavailable response's cause. Final committed
 clean-source qualification remains separate.
 
-The [serving lease-maintenance report](verification/results/authorization-serving-lease-2026-10-15.json)
+The serving lease-maintenance report (archived)
 retains a clean `6ecf24fa` attempt whose post-revocation snapshot returns
 `reactive.session_expired` instead of the expected access denial. The fixture now
 renews its unchanged **28-second** lease around credential, membership and SELECT
@@ -1549,7 +1555,7 @@ the complete task.
 
 ### Committed-source qualification
 
-The [clean qualification record](verification/results/sql-wire-clean-2026-10-14.json)
+The clean qualification record (archived)
 retains passing evidence for all **89 inventory tasks**, including the seven
 browser tasks. This is composed coverage across committed-source clean checkouts,
 not one complete run at a single HEAD. Exact task scopes, revisions, durations,
@@ -1766,7 +1772,7 @@ were corrected before these passes; full clean qualification remains pending.
 
 ## Integrated vector execution
 
-[Issue #71](https://github.com/rupurt/rey/issues/71)'s integrated query runtime is
+[Issue #71](https://github.com/spoke-sh/transit/issues/71)'s integrated query runtime is
 **`5b3d1ba6`**, based on merged `243df508`. File/general Table execution uses
 bounded typed columns; logical, Unified and relational callers share kernels.
 Portable computation and one worker remain defaults after measured AVX2 and
@@ -1774,7 +1780,7 @@ worker comparisons. Public progress formats, source/page validation boundaries,
 current-right checks and publication limits are unchanged. Relational execution
 retains its one-source-read/one-group-update quantum and canonical order.
 
-The [complete qualification record](verification/results/vector-pipelines-2026-10-13.json)
+The complete qualification record (archived)
 covers **all 79 ordinary tasks**: core 22, growth 30, experience 7, launchers 2
 and bindings 18. Every task runs in a pristine committed-source clone with locked
 dependencies. Core, experience and launchers are complete clean lanes. Growth
@@ -1850,7 +1856,7 @@ execution status is reported separately in the PR.
 
 ## Experimental int64 batch qualification
 
-The first [vectorization delivery](../docs/roadmap/M48.md), before the integrated
+The first [Vectorized queries](../docs/reference/queries.md), before the integrated
 qualification above, used an internal Table/file selector. Production callers at
 that revision retained their existing executor.
 Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
@@ -1894,9 +1900,9 @@ qualification above records their completion and the measured default selection.
 
 ## Integrated relational qualification
 
-[Issue #70](https://github.com/rupurt/rey/issues/70)'s selected implementation is
+[Issue #70](https://github.com/spoke-sh/transit/issues/70)'s selected implementation is
 qualified at **`85861c88`**, integrated on the Table foundation `07918d7a`.
-The [complete record](verification/results/relational-qualification-2026-10-12.json)
+The complete record (archived)
 contains all **79 ordinary tasks**, with five complete clean lanes at that same
 committed revision: core 22, growth 30, experience 7, launchers 2 and bindings 18.
 Each lane runs `just ci-clean --lane <lane>` from an isolated disk-backed clone,
@@ -2824,7 +2830,7 @@ before/after controls and failed experiments. Browser and external-placement tie
 and sustained multi-writer SQL throughput are outside this qualification. Runtime
 qualification remains tied to the revision above; later closeout commits change
 only documentation and evidence. This completes the scoped implementation gates
-for [issue #73](https://github.com/rupurt/rey/issues/73), pending merge.
+for [issue #73](https://github.com/spoke-sh/transit/issues/73), pending merge.
 
 Evidence is scoped to each recorded revision or definition. “Current” in an
 earlier entry refers to that entry's source, not automatically to HEAD. The latest
@@ -2840,7 +2846,7 @@ in five complete, uninterrupted `just ci-clean --lane <lane> --work-root /var/tm
 runs: core 22, growth 26, experience 7, launchers 2 and bindings 18. Each lane
 uses an isolated clean checkout, locked frontend dependencies and pinned Nix
 tools. The source stays unchanged throughout the campaign. The
-[retained evidence](verification/results/m39-final-qualification-2026-10-04.json)
+retained evidence (archived)
 embeds every task result and lane completion record, exact commands, revision,
 toolchain identity and local log hashes. Its audit matches the ordered results
 against the ordinary inventory with no gaps, duplicates or failed tasks.
@@ -2879,7 +2885,7 @@ campaign. The original intermittent gRPC failure remains unclassified; this
 complete passing lane does not establish its historical cause. Earlier failed,
 interrupted and disk-pressure runs below retain their actual outcomes.
 
-This closes [issue #53](https://github.com/rupurt/rey/issues/53)'s ordinary and
+This closes [issue #53](https://github.com/spoke-sh/transit/issues/53)'s ordinary and
 physical-disk qualification gates for the delivered profile. The historical
 [file comparison and native controls](fuze_benchmarks/results/2026-09-30/README.md)
 retain their measured revisions, raw samples, withdrawn experiments and frozen
@@ -2887,7 +2893,7 @@ budgets; this campaign adds no file benchmark or DuckDB-parity claim. Local file
 captures remain ephemeral, and native Table/Flight and other language logical
 admission retain the [published surface limits](../docs/reference/sql/types.md#surface-capability-matrix).
 Browser and external-placement tiers, hosted execution/cost and broader mutation
-latency work in [issue #55](https://github.com/rupurt/rey/issues/55) are outside
+latency work in [issue #55](https://github.com/spoke-sh/transit/issues/55) are outside
 this closeout. Later closeout commits change only evidence and roadmap prose;
 this runtime qualification remains tied to the revision above.
 
@@ -3573,9 +3579,9 @@ Committed-HEAD `just ci-clean --lane experience` at `37996e4f` **fails** in
 binding check, observability and Board inspection pass first; the final local
 Station launcher task does not run. The failed checkout and task timings remain
 at `/var/tmp/transit-ci-e1al9pr1`; the log is
-`/tmp/rey-grammar-ci-clean-inventory.log`. A focused rerun of the unchanged query
+`/tmp/transit-grammar-ci-clean-inventory.log`. A focused rerun of the unchanged query
 test in that checkout fails with the same response; its log is
-`/tmp/rey-grammar-query-rerun.log`. The failure is unresolved. Neither that run
+`/tmp/transit-grammar-query-rerun.log`. The failure is unresolved. Neither that run
 nor the focused documentation/browser passes establish a clean-lane or complete
 clean-suite pass. No graph, foreign-capture, historical-query, branch, merge or
 standards-conformance execution is claimed.
@@ -5260,7 +5266,7 @@ diagnostic evidence, not an automatically restorable launcher installation.
 The native cold-store process is joined before its files move into the retained
 fixture. `test::catalog` first checks this lifecycle with a disposable native
 child and an injected unjoined child. The
-[cleanup control](verification/results/m37-cold-fixture-retention-2026-10-01.json)
+cleanup control (archived)
 reproduces the stale Docker cleanup path's `ColdStore.name` `AttributeError`;
 the corrected path preserves both authority and cold files after normal cleanup
 and refuses to remove unjoined cold state. This is fixture lifecycle evidence,
@@ -5402,7 +5408,7 @@ schedule or establish a performance improvement under native cold storage.
 ### Shared reads for catalog mutation counts
 
 The `perf/sql-catalog-mutation-reads` continuation starts from merged #41 at
-`d5541301` in its own `rey-sql-catalog-mutation-reads` worktree. Catalog mutation
+`d5541301` in its own `transit-sql-catalog-mutation-reads` worktree. Catalog mutation
 counting now uses the existing bounded `Tree.getMany` before staging the new
 candidate. It validates all keys, values and duplicate keys before page I/O,
 reads the original immutable cut, and updates the root and count together only
@@ -5631,7 +5637,7 @@ the shared `/tmp` filesystem ran out of space. That incomplete run is not a pass
 subsequent work uses an owned disk-backed `TMPDIR`.
 The full corrected installed Rust client, Station, HTTP and gRPC suite then passed.
 
-The [follow-up record](verification/results/m37-followup-2026-09-30.json)
+The follow-up record (archived)
 retains hashes and separates incomplete, passing and unexecuted profiles.
 Installed raw-client checks passed, including sixteen I/O/open/close repetitions
 and override reuse/replacement/missing-file rejection. A compiling mutation that
@@ -5859,7 +5865,7 @@ courier replacement after 30.284 seconds and the Arrow reply within the original
 60-second window. The remaining ordinary lanes are separate until their full
 completion records are available.
 
-Hosted [run 36796408660](https://github.com/rupurt/rey/actions/runs/36796408660)
+Hosted [run 36796408660](https://github.com/spoke-sh/transit/actions/runs/36796408660)
 executes jobs; the earlier account restriction no longer prevents this run.
 Experience fails its first task because its reduced Nix Python environment lacks
 `jsonschema`. Bindings fails while restoring the Nix store with `No space left
@@ -5959,7 +5965,7 @@ package build is deliberately interrupted to integrate main at `2704c153` after
 new PR conflicts. Its completion record remains false; growth, bindings and
 launchers are unrun at that checkpoint. The stopped checkout retains evidence
 and has no remaining owned processes. Hosted discovery run
-[36801433218](https://github.com/rupurt/rey/actions/runs/36801433218) uses the
+[36801433218](https://github.com/spoke-sh/transit/actions/runs/36801433218) uses the
 unchanged `1f76bf3b` source. Its subsequent completion is recorded below.
 
 Integration preserves main's SQL console write/recovery cases and the controlled
@@ -6040,7 +6046,7 @@ core's 22 tasks in 1,123.770 seconds including setup. Clean growth passes eight
 tasks, then the query delivery phase exceeds its unchanged 180-second deadline
 inside `test::growing-service`; seventeen later growth tasks are unrun. Clean
 launchers passes both tasks in 345.792 seconds. The
-[progress record](verification/results/m37-delivery-progress-2026-10-01.json)
+progress record (archived)
 retains the exact binaries, completed task outcomes and diagnostics.
 
 The failed delivery window contains 350 completed commands through position 545,
@@ -6063,7 +6069,7 @@ the wrapper's termination is not a failed SDK proof. This source ends with
 browser tasks. Hosted run `36823397287` is refused before execution by GitHub's
 account billing restriction and contains no test results.
 
-The [batching control](verification/results/m37-delivery-batching-2026-10-01.json)
+The batching control (archived)
 compares `9b19d569` with the original delivery path. It groups the disposition,
 three pending-index removals and optional mailbox/process pair into one existing
 bounded catalog mutation. The same small-catalog unit fixture stages **eight
@@ -6084,7 +6090,7 @@ deadline. These shared-host, incomplete workload observations do not qualify an
 end-to-end speedup or resolve the historical timing change. Committed-source
 clean qualification remains separate.
 
-The subsequent [clean checkpoint](verification/results/m37-clean-delivery-core-2026-10-01.json)
+The subsequent clean checkpoint (archived)
 passes all **22 core tasks at committed `42d45983` in 1,082.326 seconds** including
 setup. Its disk storage task passes in 430.21 seconds with kill, checkpoint and
 trim recovery. The driver stops between lanes; growth, experience, launchers,
@@ -6093,7 +6099,7 @@ the focused query timeout. Hosted run `36832812554` is refused before any test
 starts with the same GitHub account billing annotation. The source-specific
 record retains both outcomes; neither is a complete ordinary or cost pass.
 
-The [receipt-batching follow-up](verification/results/m37-delivery-receipt-batching-2026-10-01.json)
+The receipt-batching follow-up (archived)
 at `8e49e0bc` prepares delivery's records together with the caller sequence and
 receipt in the existing eight-key mutation limit. Other commands still read
 their resulting caller record after applying their own changes. The same unit
@@ -6111,7 +6117,7 @@ All phase limits, provider durability and workload assertions are unchanged.
 
 ## Query boundary and fixture controls — 2026-10-01
 
-The [continuation record](verification/results/m37-clean-continuation-2026-10-01.json)
+The continuation record (archived)
 retains `c61896d2`'s 55 ordinary passes, two failures and 17 unrun tasks of 74,
 plus one browser pass, one failure and five unrun tasks. Core, experience and
 launchers complete at that source; an independent growth suffix does not
@@ -6121,7 +6127,7 @@ HTTP/RPC recovery and closure proofs. Hosted run `36836820226` is refused before
 test execution by the account billing restriction. These results do not qualify
 the full suite or its cost budget.
 
-The [boundary controls](verification/results/m37-query-boundaries-2026-10-01.json)
+The boundary controls (archived)
 preserve the failed browser resume after restored access. The native client
 classifies a validated `HttpCapacity` rejection as `AuthorityUnavailable`; Board
 previously flattened that into generic `Unavailable`. Board now retries only
@@ -6237,7 +6243,7 @@ hosted validation; these controls do not qualify a complete lane or cost budget.
 
 ## Qualification checkpoint — 2026-10-01
 
-At frozen committed `88fc1d0d`, [clean experience and browser](verification/results/m37-clean-browser-2026-10-01.json)
+At frozen committed `88fc1d0d`, clean experience and browser (archived)
 pass all seven tasks in each lane. Full `just check` passes in 228.407 seconds;
 experience takes 521.652 seconds and browser takes 2,580.391 seconds, including
 clean setup. The original Station reply arrives in **59.7616 seconds** under its
@@ -6247,7 +6253,7 @@ HTTP/RPC crash-recovery proofs, reactive transport, live-view verification and
 lifecycle checks. Core, growth, launchers and bindings at this revision remain
 unrun; earlier source results do not fill those gaps.
 
-The [completed continuation run](verification/results/m37-hosted-continuation-2026-10-01.json)
+The completed continuation run (archived)
 `36809340716` records **61 ordinary passes, one failure, two interrupted tasks
 and ten unrun tasks** out of 74 at synthetic merge `7e0d6a69`. The separate browser
 tier has one pass, one failure and five unrun tasks. The failures are the upload
@@ -6258,7 +6264,7 @@ This incomplete run takes **76m40s** feedback and **223m21s** aggregate job time
 restoring **4,947,520,314 bytes** with mixed/missing cache hits. It does not qualify
 a cost budget.
 
-The next [ordinary and discovery runs](verification/results/m37-hosted-refusals-2026-10-01.json)
+The next ordinary and discovery runs (archived)
 at `88fc1d0d` are refused before any job executes. GitHub reports an account
 payment/spending restriction. Both runs contain zero test results; neither
 supplies passing or failing proof evidence.
@@ -6272,7 +6278,7 @@ Controls cover each missing lane, duplicates, full warm/cold selections, skipped
 jobs, incomplete timestamps and missing cache evidence. The CI runner checks pass.
 These synthetic checks do not supply hosted cost samples or change any budget.
 
-The [completed hosted record](verification/results/m37-hosted-ordinary-2026-10-01.json)
+The completed hosted record (archived)
 for run `36803044000` retains **53 passed, two failed and thirteen unrun** ordinary
 tasks out of 68 at synthetic merge `03ab0209`. Its tree matches merged `9fdf1d02`.
 Core, launchers and ordinary experience complete; bindings stops at the optional
@@ -6351,7 +6357,7 @@ These runs do not qualify Compose/reference placement or the whole clean suite.
 
 ## Installed Node optional Arrow dependency — 2026-10-01
 
-Hosted [bindings job 110181434108](https://github.com/rupurt/rey/actions/runs/36803044000/job/110181434108)
+Hosted [bindings job 110181434108](https://github.com/spoke-sh/transit/actions/runs/36803044000/job/110181434108)
 passes the raw client and durable-continuation checks, then exits when the
 Station fixture installs its optional Arrow dependency. The original fixture
 reports only installation exit 1, so that hosted log does not identify the
@@ -6404,9 +6410,9 @@ are unrun. That hot-Ursula failure is not attributed to MinIO's free-space guard
 
 ## Hosted discovery completion — 2026-10-01
 
-Hosted [run 36801433218](https://github.com/rupurt/rey/actions/runs/36801433218)
+Hosted [run 36801433218](https://github.com/spoke-sh/transit/actions/runs/36801433218)
 passes all thirteen discovery stages at clean `1f76bf3b`, using pinned Zig
-`0.17.0-dev.2267+48abf1a34`. The [experiment record](verification/results/m37-hosted-discovery-2026-10-01.json)
+`0.17.0-dev.2267+48abf1a34`. The experiment record (archived)
 preserves the downloaded reports, source/binary/oracle identities, commands,
 trace hashes, job metadata and an SHA-256 manifest of the 492 artifact files.
 
@@ -6435,15 +6441,15 @@ bytes and has the workflow's fourteen-day retention. These are one discovery
 sample's measurements, not ordinary feedback or cache-budget qualification.
 The later PR #45 head `164b808f` and merge `9fdf1d02` are different revisions;
 their ordinary checks remain separately tracked by
-[issue #26](https://github.com/rupurt/rey/issues/26).
+[issue #26](https://github.com/spoke-sh/transit/issues/26).
 
-The [qualification handoff record](verification/results/m37-qualification-handoff-2026-10-01.json)
+The qualification handoff record (archived)
 retains the first three completed clean lanes at `164b808f`: launchers (two tasks,
 333.992 seconds), experience (seven tasks, 494.358 seconds) and core (22 tasks,
 782.916 seconds), including setup. Growth is running and bindings is unrun at
 this checkpoint; these 31 passes do not complete the 68-task ordinary gate.
 
-Hosted [ordinary run 36803044000](https://github.com/rupurt/rey/actions/runs/36803044000)
+Hosted [ordinary run 36803044000](https://github.com/spoke-sh/transit/actions/runs/36803044000)
 uses synthetic merge `03ab0209`, whose source tree matches merged main `9fdf1d02`.
 Launchers passes both tasks in 1,038.43 seconds and experience passes all seven
 ordinary tasks in 1,011.62 seconds, excluding setup. The experience job then
@@ -6456,7 +6462,7 @@ files, and its cause remains unresolved. This is not a complete hosted pass.
 
 ## Expanded fault-verification qualification — 2026-09-30
 
-The [local experiment record](verification/results/m37-local-2026-09-30.json)
+The local experiment record (archived)
 binds the source revisions, dirty development runs, compiler/binary/runner hashes,
 counts, fault coverage, negative controls and elapsed times. The last implementation
 revision is `b0462904`; subsequent ledger changes contain documentation/evidence.
@@ -6515,11 +6521,11 @@ Simulation assumes atomic journal append and does not qualify physical page GC.
 Component schedules replay seeds with pinned binaries; only the JSON-trace profiles
 provide edited-trace replay and bounded minimization.
 
-Hosted run [36678421267](https://github.com/rupurt/rey/actions/runs/36678421267)
+Hosted run [36678421267](https://github.com/spoke-sh/transit/actions/runs/36678421267)
 produced no test execution: GitHub refused job startup because of account
 payments/spending limits. The local observations do not requalify hosted feedback,
 aggregate runner time or cache budgets. Hosted ordinary/discovery runs and cost
-measurement remain tracked by [issue #26](https://github.com/rupurt/rey/issues/26).
+measurement remain tracked by [issue #26](https://github.com/spoke-sh/transit/issues/26).
 
 ## Publication clock-bound correction
 
@@ -6680,7 +6686,7 @@ automatic worker/courier scheduler, clocks, HTTP or real disk. Its progress chec
 restores permissions and explicitly schedules finite eligible work with available
 storage. It does not prove scheduler fairness or general liveness. The complete
 external real-binary program remains tracked by
-[issue #26](https://github.com/rupurt/rey/issues/26).
+[issue #26](https://github.com/spoke-sh/transit/issues/26).
 
 ## Native v1 cutover checkpoint — 2026-09-30
 
@@ -6688,7 +6694,7 @@ This checkpoint replaces the bounded native authority with the paged v1
 implementation and moves native clients, Station, controllers, Board, Flight,
 installation and language boundaries onto it. It is an implementation checkpoint;
 full cutover qualification remains in progress under
-[protocol consolidation](../docs/roadmap/M31.md). Earlier milestone records below
+[Hard cutovers](../docs/reference/versioning.md). Earlier milestone records below
 are historical executions and do not qualify the replacement automatically.
 
 Executed against the cutover workspace with the pinned Linux x86_64 Nix/Zig
@@ -7851,7 +7857,7 @@ These checks passed locally on Linux x86_64 with the pinned compiler. They do no
 yet qualify general public multi-call/followup APIs, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
-[M15](../docs/roadmap/M15.md) exit obligations. The shared capture
+[HTTP effects](../docs/reference/connectors.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
 from protocol completeness and effect-result acceptance.
 
@@ -8304,7 +8310,7 @@ namespace/release selection, useful empty-selection diagnostics, and rejection
 of control characters or oversized human-table fields without partial output.
 
 The plugin's [runbook](../apps/kubectl-transit/README.md) and
-[full plan](../docs/roadmap/M5.md) define its inspection-only scope.
+[Kubernetes tooling](../apps/kubectl-transit/README.md) define its inspection-only scope.
 Toolchain smoke checks verify Kind and both kubectl plugins offline.
 
 `just launchers::reference::test-plugin` passed on Linux x86_64 against the
@@ -8979,7 +8985,7 @@ count/sum, nulls and exact integers agree across boundaries. Package/root unit
 tests additionally reject changed basis/plan/order, signed intermediate overflow,
 insufficient workspace/output and cancellation without publishing progress.
 This does not qualify durable large-result staging, delivery or recovery; those
-remain integration gates in the [incremental contract](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md).
+remain integration gates in the [incremental contract](https://github.com/spoke-sh/transit/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md).
 
 `just test::query` (also part of `test::growing-service`) separately
 qualifies durable **capture**. Real Zig callers retain a 41-row Table, stage
@@ -10123,7 +10129,7 @@ tasks do not change M10's hosted CI budgets.
 
 ### Local gateway host alias checks
 
-[Issue #11](https://github.com/rupurt/rey/issues/11) adds the local host policy
+[Issue #11](https://github.com/spoke-sh/transit/issues/11) adds the local host policy
 described in the [server guide](../apps/transit-cli/docs/server.md#local-names-and-ssh-tunnels).
 `zig build test-cli-lifecycle` includes case-insensitive exact authority matching,
 port separation, DNS-label/IPv6 syntax and the eight-entry/200-byte bounds.
@@ -10363,7 +10369,7 @@ feedback/cost for this addition remains unmeasured. No site was published and
 this work does not constitute a full ordinary `ci-clean` run.
 
 A documentation-only clean clone of committed `20ccdd3` passed the exact CI
-filtered install (`vp install --frozen-lockfile --filter rey --filter @rey/transit-docs`),
+filtered install (`vp install --frozen-lockfile --filter transit --filter @transit/docs`),
 `just transit-docs::check` and all three production browser checks at `/`.
 The separate `/handbook/` build and browser checks also pass, including regular
 file navigation and byte equality for all three specification downloads. The
@@ -11109,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[M36 gap inventory](../docs/roadmap/M36.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -11154,7 +11160,7 @@ The published handbook assumes the complete local bundle is installed and invoke
 `transit` through `PATH`. Source setup and proof commands remain with repository
 tooling owners. The launcher overview retains `/guides/launchers`; its full
 runbook remains outside the site catalog and search. This follows the public
-documentation scope in [M26](../docs/roadmap/M26.md).
+documentation scope in [Public documentation](../docs/README.md).
 
 Executed for this documentation change:
 
@@ -11563,8 +11569,8 @@ checks retained. Logs remain `/tmp/transit-sql-boolean-plan-check.log` and
 Before this extension, committed clean core passes **22/22** at output-alias
 source `4a646f2b` in **1071.05 s**, and at Boolean foundation `518bb880` in
 **875.55 s**. Completion/timing records are respectively
-`rey-sql-output-aliases/.cache/ci/clean/4a646f2b6b5e-transit-ci-o2u7e86p` and
-`rey-sql-boolean-predicates/.cache/ci/clean/518bb8802998-transit-ci-rm3n8vct`.
+`transit-sql-output-aliases/.cache/ci/clean/4a646f2b6b5e-transit-ci-o2u7e86p` and
+`transit-sql-boolean-predicates/.cache/ci/clean/518bb8802998-transit-ci-rm3n8vct`.
 Those runs do not qualify later program changes, other lanes or installed
 all-source recovery. SQL Boolean parsing, typed SDK constructors and current
 installed recovery remain outstanding.
@@ -11640,7 +11646,7 @@ retained KV turn, before replay assertions (18.34 s); the final four tasks are
 unrun. Total lane time is **1215.07 s**. Station and disk write/recovery/checkpoint/
 trim proofs pass, including the 604.85-second storage task. Cause remains
 unestablished. The failed checkout is `/var/tmp/transit-ci-mv9l_ft8`; its metadata
-is also copied to `rey-sql-boolean-predicates/.cache/ci/clean/051c766a976d-service-failure`.
+is also copied to `transit-sql-boolean-predicates/.cache/ci/clean/051c766a976d-service-failure`.
 The command log is `/tmp/transit-sql-boolean-owned-clean-core.log`. A separate
 diagnostic clone at `/var/tmp/transit-sql-service-diagnostic-8jwnky5h` prints
 internal error names. Its first focused service run passes, but the fixture's
@@ -12794,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[M40](../docs/roadmap/M40.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -13342,7 +13348,7 @@ The Fuze package's `zig build test` also passes with these schema tests enabled.
 This is pure model/codec evidence. It does not qualify generalized native Table
 storage, SQL execution, catalog routing, DDL publication or restart recovery.
 Those remain separate implementation and proof obligations in
-[M46](../docs/roadmap/M46.md) and [#75](https://github.com/rupurt/rey/issues/75).
+[Typed Tables](../docs/reference/tables.md) and [#75](https://github.com/spoke-sh/transit/issues/75).
 
 The subsequent physical-row/key run passes 34 focused tests; the evolution run
 passes 33, including shared schema/type dependencies. Independent Python bytes
@@ -14761,15 +14767,15 @@ this implementation.
 The source checkpoint passes full `just check`, including generated contract
 checks, Zig units, CLI diagnostics, frontend tests and the documentation build.
 A subsequent focused rerun of all 23 source/type tests passes after centralizing
-saved-binding metadata validation. Logs are `/tmp/rey-fuze-sources-check.log`
-and `/tmp/rey-fuze-source-final-test.log`; these local paths are not portable
+saved-binding metadata validation. Logs are `/tmp/transit-fuze-sources-check.log`
+and `/tmp/transit-fuze-source-final-test.log`; these local paths are not portable
 artifacts or independent durability evidence.
 
 Committed source checkpoint `2b729f7a` passes `just ci-clean --lane core` without
 inherited outputs. Foundation/package checks, properties, client ABI, Station,
 disk storage, service, runtime upgrade, callers, inspection and state all finish
 successfully. Evidence is `.cache/ci/clean/2b729f7afdcc-transit-ci-9iwhecgd` and
-`/tmp/rey-fuze-source-ci-clean.log`. This is the core lane, not every integration
+`/tmp/transit-fuze-source-ci-clean.log`. This is the core lane, not every integration
 or installed SDK profile.
 
 The shared file/native SQL checkpoint passes all 65 Fuze package tests and
@@ -14780,7 +14786,7 @@ COUNT/ordered SUM, late failures behind LIMIT, exact typed uint128 predicates,
 and exhaustive allocation failures. Logical JSON tests preserve recursive
 descriptors, full-width integers and signed floating zero through owned codecs;
 missing/foreign definitions and noncanonical numeric strings reject. Logs are
-`/tmp/rey-fuze-logical-json-test.log` and `/tmp/rey-fuze-sql-regression.log`.
+`/tmp/transit-fuze-logical-json-test.log` and `/tmp/transit-fuze-sql-regression.log`.
 Physical acquisition, installed SDK extensions and comparative performance
 remain separate qualification gates.
 
@@ -14807,7 +14813,7 @@ proofs rather than accepted-work crash recovery.
 
 The CLI checkpoint passes full `just check` (generated contracts, Zig/CLI units,
 independent fixtures, frontend checks/tests and documentation build). Logs are
-`/tmp/rey-fuze-cli-proof.log` and `/tmp/rey-fuze-cli-check.log`. Arrow, installed
+`/tmp/transit-fuze-cli-proof.log` and `/tmp/transit-fuze-cli-check.log`. Arrow, installed
 SDK extensions and the DuckDB performance matrix are not qualified by this run.
 
 ## Logical Arrow export
@@ -14826,12 +14832,12 @@ Independent checks include physical schema/nullability, full Arrow validation,
 batch splitting at widths 1/8 under 64 KiB segments and missing end markers on
 late failure. The Fuze package passes 66 tests, including logical IPC round trip,
 tiny workspace/output failures and the previous allocation schedules. Logs are
-`/tmp/rey-fuze-arrow-proof.log` and `/tmp/rey-fuze-logical-arrow-cli.log`. These
+`/tmp/transit-fuze-arrow-proof.log` and `/tmp/transit-fuze-logical-arrow-cli.log`. These
 prove local IPC export, not installed SDK, logical IPC import/C ownership,
 Flight expansion or comparative performance.
 
 The logical Arrow checkpoint also passes full `just check` and a rerun of all
-83 real file-query host cases; see `/tmp/rey-fuze-arrow-check.log`. Rich Arrow
+83 real file-query host cases; see `/tmp/transit-fuze-arrow-check.log`. Rich Arrow
 export remains inside the original output/workspace bounds.
 
 Structural operations pass **11 focused type tests / 68 Fuze package tests**.
@@ -14840,7 +14846,7 @@ SHA-256 hashes, including float32 widening and signed-zero normalization.
 Recursive tests distinguish null/missing, check exact uint128 ordering, typed map
 equality and rejection of error/conflict/unsupported traits before comparison
 short-circuiting. Hashing does not change the bit-preserving neutral codecs.
-The log is `/tmp/rey-fuze-operations-test.log`.
+The log is `/tmp/transit-fuze-operations-test.log`.
 
 ## Local logical codec and installed owners
 
@@ -14987,7 +14993,7 @@ immutable pages and growing authority recovery. Main then advances through
 PR #57 to `8bd85869`; integrating it supersedes this source. The owned clean run
 is interrupted during `test::growing-service`, with exit 130 and no surviving
 owned processes. Growth is incomplete; experience, launchers and bindings did
-not start. The [retained checkpoint](verification/results/m39-superseded-2026-10-01.json)
+not start. The retained checkpoint (archived)
 records task timings, completion and log hashes. These results do not qualify
 the new integration implicitly.
 
@@ -15008,7 +15014,7 @@ prefix revocation and released source pins. Document provisioning fails with
 `AuthorityUnavailable` before its query schedule begins. Ursula reports
 `ColdBackpressure` at the existing 8388608-byte hot-store limit. This is a failed
 three-source run; no provider limit or failure is waived. The
-[retained failure](verification/results/m39-document-provisioning-2026-10-01.json)
+retained failure (archived)
 records the command, source and log identity. Diagnosis and final ordinary clean
 lanes remain outstanding.
 
@@ -15046,7 +15052,7 @@ The corrected CLI fixtures use 200-byte values within the existing 220-byte
 Table bound to select publication staging; no runtime path or limit changes.
 The short lost-reply operation still verifies direct execution, exact recovery
 and preservation of its applied result and row when cancellation follows.
-The [retained Table proof record](verification/results/m39-table-query-writer-2026-10-01.json)
+The retained Table proof record (archived)
 includes hosted completion metadata, the failed explicit-begin adapter trial,
 source identities and the focused physical-disk rerun.
 
@@ -15060,7 +15066,7 @@ for 0.302 s during the final apply. These are proof timings, not a latency budge
 
 Clean experience at `c64e5b96` passes its first six tasks, then misses the
 Station Arrow reply's shared 60-second replacement/completion window. The
-[retained launcher record](verification/results/m39-launcher-recovery-2026-10-01.json)
+retained launcher record (archived)
 contains completion metadata, task timings and stopped-fixture log hashes.
 Main advances to `a4ba1124`, including the closing-response transport fix and
 console write-observation changes. Rebase preserves all commit author dates.
@@ -15084,7 +15090,7 @@ removes only automatic courier restart and fails at the unchanged replacement
 gate. Its original topology is restored and the owned failed installation stopped.
 Fresh ordinary clean lanes remain required at the final integrated source.
 
-The earlier [physical-disk query result](verification/results/m39-pre-integration-query-2026-10-01.json)
+The earlier physical-disk query result (archived)
 at `e870713e` passes KV/Table/Document recovery, but does not qualify the newly
 integrated transport implicitly. Hosted run `36815884722` starts no jobs because
 GitHub reports an account payment/spending restriction; it supplies no test result.
@@ -15109,7 +15115,7 @@ a runtime latency guarantee.
 
 The focused ext4 run passes with the revised fixture and unchanged implementation:
 write 10.691, seal 7.633, recover 41.916, publish 4.675 and deliver 242.177 seconds.
-It verifies all 41 rows and 21,296 IPC bytes. The [delivery report](verification/results/m39-query-delivery-2026-10-01.json)
+It verifies all 41 rows and 21,296 IPC bytes. The delivery report (archived)
 retains both original deadline failures, the memory-backed diagnostic, source and
 log hashes, and the passing dirty-tree fixture identity. It also retains the
 superseded full check and complete core/experience lanes at `be27b037`; these do
@@ -15125,7 +15131,7 @@ The HTTP example then fails after its initial publication commits a call:
 `ChangedCallConfiguration` comes from comparing the stored 48-byte `SPU1` upload
 marker with the raw `HTQ1` request reference. An unchanged focused gRPC example
 reproduces the same mismatch with `GRQ1`. The lane remains incomplete; the
-[example publication report](verification/results/m39-example-publication-2026-10-01.json)
+example publication report (archived)
 retains its task results, independent reproduction, prior core/experience passes
 and log hashes.
 
@@ -15237,7 +15243,7 @@ as a latency optimization from this workload. Native qualification remains
 necessary before accepting any format change.
 
 
-Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). The historical
+Tracked by [issue #55](https://github.com/spoke-sh/transit/issues/55). The historical
 measurements below retain their original scope and failures. Completed clean
 qualification is recorded above; no measurement establishes a latency SLO or
 turns an unexecuted gate into a pass.
@@ -15297,7 +15303,7 @@ has enough samples per case to establish p95. Both older fixed-20-ms polling
 controls fail with connection closure; faster polling is not a qualified fix.
 
 At `3d0d7819`, after the closing-response fix in
-[PR #59](https://github.com/rupurt/rey/pull/59), the ordinary fixed-20-ms control
+[PR #59](https://github.com/spoke-sh/transit/pull/59), the ordinary fixed-20-ms control
 completes 77 cases before an unavailable observation stops the next INSERT
 233 ms after starting it. Admission succeeded. The preserved request must be
 recovered explicitly; the run is failed and still has fewer than 20 samples per
@@ -15426,7 +15432,7 @@ cases, 95 real file-query cases and all 39 Node tests. Log:
 `/tmp/transit-sql-boolean-main-e82-check.log`. The generated native-schema diff
 against main changes only the definition; captured-read fields remain present.
 
-The [integration measurements](benchmarks/results/2026-10-01-boolean-main-integration.json)
+The integration measurements (archived)
 retain clean source/binary/driver/lock identities, alternating raw samples and
 the exact frozen-budget comparison. Nine paired six-type samples against main
 `e82c8430` return the same results with candidate medians 0.8–8.3% higher.
@@ -15485,7 +15491,7 @@ across three sources/eight page widths, 57 documentation examples and 88 codecs.
 The console proof exercises real PTY search/accept/cancel, Unicode/multiline,
 restart, concurrent append, malformed records, permissions and file failure.
 
-The [retained validation measurements](benchmarks/results/2026-10-01-boolean-validation.json.gz)
+The retained validation measurements (archived)
 contain raw alternating samples, binary/source/driver/lock identities, reproduction
 commands, dirty exploratory patches and the committed-source six-type gate.
 Nine measured pairs plus a discarded warmup return identical results. The eight
@@ -15933,7 +15939,7 @@ still shows **17.4–38.9% overhead**. The 19,272-byte compiler stack frame and
 large AST initialization remain; no native compiler timing pass is claimed.
 Final source hashes match `862ab427`, with original dirty metadata preserved.
 
-The [independent compound report](benchmarks/results/2026-10-01-boolean-compound-duckdb.json.gz)
+The independent compound report (archived)
 passes **324 samples**: nine shapes × explicit/sampled/full discovery × cold/warm
 input × Transit/DuckDB × three repetitions, 4096 rows per fixture. Every expected
 sample identity is present exactly once, result counts/checksums pass, and
@@ -16124,7 +16130,7 @@ attribute restoration. The interposer is loaded only by these proof children.
 
 All four cases and the existing history suite pass on the correction. The same
 test fails on its first scheduled case against the frozen main control.
-[Source hashes, control logs and development failures](verification/results/console-input-race-2026-10-01.json)
+Source hashes, control logs and development failures (archived)
 retain their distinct outcomes. Pinned `just transit-board::install`, full
 `just check` and `zig build test-cli-lifecycle` pass, exit 0; log
 `/var/tmp/transit-console-race-proof/full-check.log`. This includes all 422 CLI
@@ -16243,7 +16249,7 @@ and the combined command exits 1. MinIO returns HTTP 507 `XMinioStorageFull`;
 Ursula then reports `ColdBackpressure` when a write would exceed the unchanged
 8 MiB hot limit. The log is
 `/var/tmp/transit-count-column-table-document-partial-recovery.log`;
-[bounded failure evidence](verification/results/count-values-document-provision-2026-10-01.json)
+bounded failure evidence (archived)
 preserves the completed Table phase and unrun Document checks. Fixture cleanup
 joins its children and removes the private state; the log retains provider tails.
 
@@ -16256,7 +16262,7 @@ Its held 8/10 accumulator survives replacement and completes at 10. The separate
 missing-column query selects ten rows and counts zero. The same current-denial,
 cancellation, empty LIMIT, retirement and pin-release checks pass, with the
 existing 64 resident authority pages, 8 MiB hot store, 1037 cold objects and
-120,666,637 cold bytes. [Source-qualified evidence](verification/results/count-values-document-recovery-2026-10-01.json)
+120,666,637 cold bytes. Source-qualified evidence (archived)
 retains the completed scope and prior failure. No storage threshold, deadline,
 resident bound or assertion changes.
 
@@ -16367,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
+[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -16412,7 +16418,7 @@ fail: cold projection narrow/explicit **1.2579**, cold projection wide/explicit
 These failures keep overall performance qualification open. Exact drivers,
 source/binary hashes, raw samples, input-residency checks and gates are retained.
 
-The separate [COUNT(column) capability archive](benchmarks/results/2026-10-01-count-values-file-capability.json.gz)
+The separate COUNT(column) capability archive (archived)
 passes **1296 Transit/DuckDB results**: nine shapes, four typed discovery modes,
 both input-cache conditions and nine samples per engine. Each source has 4096
 rows; sparse values contribute 2184 and the other selected columns contribute
@@ -16431,7 +16437,7 @@ native SELECT median ratios are only 0.9903–0.9984 and targeted cold wide/expl
 compilation regresses to **1.3533**. Same-binary file controls span 0.8703–1.0613,
 with that cold wide/explicit case at 0.9724. The experiment is **rejected** and
 its runtime patch restored; code size alone is not a timing improvement.
-The [experiment archive](benchmarks/results/2026-10-01-rejected-count-parser-storage.json.gz)
+The experiment archive (archived)
 retains 1098 native case measurements, 486 file process results, the exact patch,
 drivers, assembly and control provenance. These diagnostics use CPU 2 while the
 original matrices use CPU 1; shared-host variation and the original failures
@@ -16605,7 +16611,7 @@ do not justify another runtime optimization without further evidence. Logs
 `/var/tmp/transit-count-compiler-diagnostic-comparison.log`.
 
 The fixed-revision installed-bindings clean lane at `5d897f0d` completes with
-**17/17 tasks passing in 9909.64 s**. The [completed record](verification/results/count-values-bindings-2026-10-01.json)
+**17/17 tasks passing in 9909.64 s**. The completed record (archived)
 retains the exact source revision, completed metadata, ordered task inventory,
 zero exit codes and log digest. It covers the installed SDK checks, the public
 language interoperability ring, bounded models, SQL rewrite checks, independent
@@ -16624,7 +16630,7 @@ bytes/manifests, fewer reader callbacks, missing/corrupt fragments and poisoned
 proposals after unavailable/denied reads. The matching prototype `64024bdc`
 passes those tests and `just test::query`; integrated `just check` also passes.
 
-The [frozen fragment-read comparison](verification/results/count-values-fragment-reads-2026-10-01.json.gz)
+The frozen fragment-read comparison (archived)
 uses the same instrumented proof, CPU 0, ext4 fixture storage and unchanged
 180-second phase deadlines in candidate/baseline/baseline/candidate order. Each
 run independently verifies all 41 rows, six segments and 21,296 Arrow bytes,
@@ -16700,7 +16706,7 @@ passes. The initial log is `/var/tmp/transit-sql-parameter-callers-native.log`;
 current remaining-source log is
 `/var/tmp/transit-sql-parameter-callers-final-native-remaining.log`.
 
-The [neutral caller performance archive](benchmarks/results/2026-10-01-sql-parameter-callers.json.gz)
+The neutral caller performance archive (archived)
 retains nine CPU-1 ReleaseSafe samples at clean `1b92acd9`, exact source/driver
 bytes and patch, commands and frozen binary hashes. One-shot parameter medians
 are **6732–6851 ns**, including template preparation, source/scalar conversion,
@@ -16851,7 +16857,7 @@ On 2026-10-02, the diagnostic implementation working tree passed `just check`,
 256-byte native values and eight resident authority pages; all seven profiles
 passed for native, port and CLI callers. All ten SDK packages built in the
 bindings shell. These results do not establish the remaining diagnostic matrix
-in [M44](../docs/roadmap/M44.md); installed SDK witness qualification is separate.
+in [Diagnostics](../contracts/DIAGNOSTICS_V1.md); installed SDK witness qualification is separate.
 
 The same working tree subsequently passed the installed mutation witness proof
 for Python (sync and async), TypeScript/Node, Rust, Ruby, C, C++, Java, .NET,
@@ -21351,7 +21357,7 @@ Raw public-query pass SHA-256: `1e6570781aee5d91ccaa35be31ddc87d2fa082837f63ac06
 
 On 2026-10-07 the user explicitly accepts the documented general Table costs
 for issue #75 and selects separate optimization tracking in
-[issue #76](https://github.com/rupurt/rey/issues/76). This decision supersedes the
+[issue #76](https://github.com/spoke-sh/transit/issues/76). This decision supersedes the
 earlier pending-budget checkpoints; it does not relabel their failed runs.
 `tests/interactive_query.py` applies the recorded ceilings only to the 41-row,
 64-resident-page, unaged Table fixture. Other sizes/source profiles keep their
@@ -21518,7 +21524,7 @@ execution; the successful prefix is not relabeled a complete bindings lane.
 
 ### Final general Table clean task coverage
 
-The [final clean task record](verification/results/m46-clean-task-coverage-2026-10-07.json)
+The final clean task record (archived)
 covers all **75 ordinary tasks** with successful executions in clean checkouts:
 
 | Selection | Source revision | Passing tasks |
@@ -21655,7 +21661,7 @@ clients on a joined worker thread passes the unchanged capacity/cancellation
 checks. This changes test-client ownership, not gateway limits or TLS behavior.
 
 
-The [committed-source configuration qualification record](verification/results/configuration-clean-2026-10-17.json)
+The committed-source configuration qualification record (archived)
 accounts for **all 88 ordinary recipes**: 28 core, 32 growth, seven experience,
 two launcher and 19 bindings recipes. Runtime source is `9dffe9e4`; the SQL
 compiler/final fault scope uses `ac9d1db3`, whose only change is the compiler
@@ -21705,7 +21711,7 @@ budget is claimed. The separate browser lane is outside this 88-recipe inventory
 
 ## Configured local SQL access — 2026-10-17
 
-The [local SQL qualification record](verification/results/local-sql-2026-10-17.json)
+The local SQL qualification record (archived)
 records the current-v1 definition, source and installed artifact hashes, actual
 per-task revisions, log digests and scope. Shared runtime/protocol/SDK source is
 unchanged from `ca90c312`; `51ad5c65` only supplies the gateway executable to an
@@ -21791,7 +21797,7 @@ ordinary-suite inventory.
 
 ## Local SQL authentication — 2026-10-18
 
-The [local authentication qualification record](verification/results/local-sql-authentication-2026-10-18.json)
+The local authentication qualification record (archived)
 retains the shared definition, artifact/log digests, exact revisions and scope.
 Runtime source is unchanged from `047c2fa7`. Source proofs and the clean
 experience lane use `74c6d400`; `2b0b334d` adds only the installed bundle option

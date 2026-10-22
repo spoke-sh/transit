@@ -36,7 +36,7 @@ same frozen request resolves. This requires a secure browser context and Web Loc
 it does not replace durable requester admission or coordinate different origins.
 Other native callers still need sequence coordination. The gate can be injected
 by another supported host. Import `acquireCaller` and its types from
-`@rey/transit-reactive-client/caller-gate` when only coordination is needed;
+`@transit/reactive-client/caller-gate` when only coordination is needed;
 this entry does not initialize reactive transport validators. The main entry
 continues to export the same gate and error class. `refresh` controls and `refreshStatus` use the opt-in
 durable owner; namespace strings preserve all 64 bits.

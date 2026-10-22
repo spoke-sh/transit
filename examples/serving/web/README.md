@@ -1,6 +1,6 @@
 # Counter live view
 
-Strict TypeScript/Vite+ application example using `@rey/transit-reactive-client`.
+Strict TypeScript/Vite+ application example using `@transit/reactive-client`.
 It displays the int64 Table snapshot with the resource and revision from its
 captured source cut and the application's separate data progress;
 values remain decimal strings. The bounded first page explicitly reports when

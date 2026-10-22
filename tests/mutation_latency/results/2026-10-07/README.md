@@ -1,6 +1,6 @@
 # General Table performance campaign, 2026-10-07
 
-Physical-disk controls for [issue #75](https://github.com/rupurt/rey/issues/75).
+Physical-disk controls for [issue #75](https://github.com/spoke-sh/transit/issues/75).
 The fixed-profile baseline is merged `cc5f57e7`; general Tables use runtime
 `1832f58a`. The corrected concurrent-reader harness is `decdbd94`, with the same
 runtime binaries. Reports retain exact source/build revisions and binary hashes.
@@ -86,7 +86,7 @@ path is no longer their access method.
 
 On 2026-10-07 the user explicitly accepted the documented general Table costs
 for #75 and selected separate optimization tracking in
-[issue #76](https://github.com/rupurt/rey/issues/76). The original failed-budget
+[issue #76](https://github.com/spoke-sh/transit/issues/76). The original failed-budget
 run above stays failed. A later focused rerun uses the accepted fixture ceilings:
 75 for scan/COUNT and scalar ranges, 23 for LIMIT 3, 13 for LIMIT 0, 22 for
 primary-key equality, 20 for equality COUNT, and 11 for metadata inspection;

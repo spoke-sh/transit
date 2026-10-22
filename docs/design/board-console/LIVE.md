@@ -126,7 +126,7 @@ DML, grants, sinks, credentials, remote probes or uncaptured connector fetches.
 Query execution itself records durable work/capture; “read-only” does not mean
 free, ephemeral or authorized by Board's inspection identity.
 
-The [current query profile](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) admits one
+The [current query profile](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) admits one
 active query per configured principal, shared across viewers. Transport requests
 beyond it can create durable busy outcomes/backlog; flooding that path per key
 is not the scheduler. An initial adapter must gate before submitting and retain

@@ -26,7 +26,7 @@ native identity proof and current service policy. Its trusted gateway reader has
 an independent resource grant; callers receive no raw grant to other callers'
 records. Provisioned public keys are bounded gateway configuration, not a grant
 database. Selected inbound TLS and native/Compose/reference deployment proofs
-pass in [M19](../roadmap/M19.md); federation and broader topologies remain outside
+pass in M19; federation and broader topologies remain outside
 that evidence.
 
 Authentication establishes who is calling. Authorization decides which action
@@ -267,7 +267,7 @@ one second; these disclosure bounds are not instantaneous revocation. Expired
 leases stop reads even without an observer. Physical recovery and cursor signing
 key reuse cannot extend a lease or restore a revoked grant.
 
-M13's [public Table query profile](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) uses a
+M13's [public Table query profile](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) uses a
 separate configured query identity, durable requester binding and source peer
 policy. Inspection credentials remain read-only. Board's optional POST route
 requires exact Origin/JSON checks and accepts only bounded query operations;
@@ -294,7 +294,7 @@ gateway inspection credentials can substitute for the caller's entry-read grant.
 
 ## Board inspection profile
 
-[M2](../roadmap/M2.md) adds protected discovery/history and an inspection-only UI/API.
+M2 adds protected discovery/history and an inspection-only UI/API.
 Board exposes one explicitly configured read-only Transit principal per
 instance to everyone who can reach its private UI/API. Viewer admission belongs
 to the network/deployment boundary; Board has no access keys or sessions.
@@ -360,7 +360,7 @@ M1 implements minimal explicit grants and revocation, authenticated services,
 and a fixed trusted workload image. Identity federation, arbitrary user-supplied
 native plugins, an identity-provider product, and broad policy languages are
 outside the first slice. The adversarial evidence belongs in
-[CONFORMANCE.md](CONFORMANCE.md), with implementation gates in [M1](../roadmap/M1.md#design-gates-before-expanding-the-slice).
+[CONFORMANCE.md](CONFORMANCE.md), with implementation gates in M1.
 
 
 ## M23 application operator boundary
@@ -395,4 +395,4 @@ grants. Recovery cannot restore a revoked grant by reissuing a broad grant.
 Replacement is a trusted physical operation, not proof of honest or compatible
 application computation. All local components share one OS user; exported seed
 references and separate keys do not sandbox that user's filesystem. Cluster
-isolation and authority movement remain [M35](../roadmap/M35.md).
+isolation and authority movement remain M35.

@@ -9,7 +9,7 @@ must survive recovery. Start with the [HTTP worker](../../apps/transit-station-h
 or [RPC connector](GRPC.md). Inbound application APIs instead use
 [serving](SERVING.md).
 
-Status: [HTTP M15](../roadmap/M15.md) and [gRPC M16](../roadmap/M16.md) are implemented
+Status: HTTP M15 and gRPC M16 are implemented
 and qualified within their finite profiles. The broad group, streaming and provider
 requirements below remain design intent outside the qualified finite HTTP profile. Transit has
 opaque intents, dispatch authorization, observations, and bounded closure in its
@@ -45,11 +45,11 @@ gaps, and the distinction between authorization and observed remote outcomes.
 
 ## Foundation and shared implementation plan
 
-[M14](../roadmap/M14.md) qualifies growing immutable publication: 256-byte chunks,
+M14 qualifies growing immutable publication: 256-byte chunks,
 explicit staging quotas, a final publication marker, permanent terminal IDs and
 bounded cleanup. Its 64 KiB proof includes real worker/node/store recovery and
-source-bound reads. [M15](../roadmap/M15.md) is now the first consumer for external
-exchanges; Documents are scheduled separately in [M17](../roadmap/M17.md).
+source-bound reads. M15 is now the first consumer for external
+exchanges; Documents are scheduled separately in M17.
 
 The following table is the target decomposition. The libraries above
 implement the finite M15/M16 profiles; broader provider integrations remain future work:
@@ -102,8 +102,8 @@ security and failure proofs run; M14 byte integrity is not that evidence.
 ## Transport, connector and integration
 
 Inbound server protocols belong to the separate [serving layer](SERVING.md).
-[M19](../roadmap/M19.md) first qualifies HTTP application APIs and Board;
-[M22](../roadmap/M22.md) reuses that foundation for Flight. A server accepts and
+M19 first qualifies HTTP application APIs and Board;
+M22 reuses that foundation for Flight. A server accepts and
 authorizes external requests; a connector executes committed outbound intents.
 Share qualified framing/codecs where useful, while preserving these distinct
 admission, provenance and recovery contracts. An HTTP response is not a new
@@ -125,7 +125,7 @@ exactly one ordered byte stream per connection), and wire-level flow control.
 evidence of durable application admission on its own; see GRPC.md's
 [streaming authority and backpressure](GRPC.md#streaming-authority-and-backpressure)
 for what a connector must check in addition.
-[M16](../roadmap/M16.md)'s entry gates already treat HTTP/2 this way — an
+M16's entry gates already treat HTTP/2 this way — an
 immutable, Zig-compatible dependency selected and proved once (generation,
 trailers, framing, compression bounds, flow control, cancellation),
 independently of the gRPC connector built on it — without naming the tier;
@@ -137,8 +137,8 @@ proposed here.
 **Connector** is this document's subject: something that executes a committed
 effect intent, with attempt identity, dispatch authorization, idempotency,
 retry/redirect handling, and a reconciliation policy distinguishing a
-confirmed outcome from closed-with-outcome-unknown. HTTP ([M15](../roadmap/M15.md))
-and gRPC ([M16](../roadmap/M16.md)) are the two implemented connectors. FTP/SFTP/FTPS,
+confirmed outcome from closed-with-outcome-unknown. HTTP (M15)
+and gRPC (M16) are the two implemented connectors. FTP/SFTP/FTPS,
 filesystem, S3, GCS and SSH effects fit the same shape — each has a natural
 per-operation attempt/outcome boundary (put, get, list, delete) — and belong
 here when they are built, reusing this document's attempt/reconciliation

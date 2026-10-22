@@ -174,7 +174,7 @@ The [declarative-authorization proof ledger](../../tests/README.md#declarative-a
 links independent role-graph fixtures, native staged-change/restart schedules,
 the two-Tables/one-resource mediation proof, exact recovery after rotation,
 maintained queries and exchange handoff. The
-[Station report](../../tests/verification/results/authorization-station-2026-10-14.json)
+Station report (archived)
 also injects native SELECT revocation after capture while leaving raw worker
 reads available. These tests would falsify the claims above if a forbidden
 caller obtained another Table's values, a revoked saved proof disclosed a

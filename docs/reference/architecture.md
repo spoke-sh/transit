@@ -40,7 +40,7 @@ flowchart TD
 | Board | Evidence projections and separately configured query/application workspaces | Inspection does not decode arbitrary application payloads |
 | Storage and runtime | Persistence and physical process placement | Provider state cannot revive a retired PID or grant ownership |
 
-Rey is the intended downstream trading application, not the runtime's name.
+Transit is a general-purpose runtime for downstream applications.
 Trading policy, reasoning loops, goals and delegation belong to applications.
 LLM and tool access belong behind connector effect boundaries. Transit does not
 select a venue, strategy, latency target or monetary representation for you.

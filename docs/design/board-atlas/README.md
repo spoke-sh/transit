@@ -29,7 +29,7 @@ Review status records the design discussion. D1–D8 contain proposed
 interfaces and synthetic imagery; none establishes implemented capacity. D9
 records the bounded implemented baseline separately from reviewer acceptance.
 Delivery scope and qualification belong in the [roadmap](../../roadmap/README.md);
-[M13](../../roadmap/M13.md) scopes the query capability, the accepted D5/D6
+M13 scopes the query capability, the accepted D5/D6
 foundation and D7's data workspace, without retroactively accepting D7 or D8's
 still-open interactions. [Board](../../history/BOARD.md) owns the product boundary and
 current inspection contracts.
@@ -38,7 +38,7 @@ Follow the shared [review workflow](../README.md#maintaining-the-sequence)
 and [template](../TEMPLATE.md) when adding the next review. Keep this table,
 the current-review link and previous/next navigation in sync.
 
-[Board grammar](../board-grammar/README.md) and [M23](../../roadmap/M23.md) now
+[Board grammar](../board-grammar/README.md) and M23 now
 formalize the shared monochrome reactive interface and its implementation gates.
 The [D10 gallery](monochrome.html) provides one-to-one comparison with the originals.
 

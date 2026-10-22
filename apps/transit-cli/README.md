@@ -5,7 +5,7 @@ process by default in version-1 local installations, with `--no-ui` for headless
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
 The `transit` executable provides the local `server`, interactive/batch `console`,
-explicit signed query shell, general Table DDL/DML and catalog operations. Existing `rey-cli`
+explicit signed query shell, general Table DDL/DML and catalog operations. Existing `transit-admin`
 administration commands remain separate.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,

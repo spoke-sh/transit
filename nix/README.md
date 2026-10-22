@@ -248,10 +248,10 @@ write/merge `~/.kube/config`. An absent reference config does not fall back to
 personal clusters. Reference setup/teardown always use their own explicit path
 and context, regardless of interactive overrides.
 
-Set `REY_KUBECONFIG` to an absolute path to deliberately select another config.
+Set `TRANSIT_KUBECONFIG` to an absolute path to deliberately select another config.
 With direnv, put it in ignored `.env`; `.envrc` reapplies the environment helper
 after loading those settings. Plain `nix develop` does not load `.env`: export
-`REY_KUBECONFIG` before entering it. Per-command `--kubeconfig` and `--context`
+`TRANSIT_KUBECONFIG` before entering it. Per-command `--kubeconfig` and `--context`
 remain available. Reauthorize `.envrc` with `direnv allow` after reviewing changes,
 or reenter `nix develop`. `just doctor` and Nix smoke checks stay offline.
 
@@ -265,7 +265,7 @@ configuration and the separately pinned Zig client dependency.
 
 The hosted workflow caches the Nix store using the approach described in
 [Speeding up CI with Nix](https://simonshine.dk/articles/speeding-up-ci-with-nix/).
-The [baseline run](https://github.com/rupurt/rey/actions/runs/35809573509) spent
+The [baseline run](https://github.com/spoke-sh/transit/actions/runs/35809573509) spent
 16m32s in its first shell/check step: roughly 14 minutes building Ursula and
 `ursulactl` from Rust source. Installing Nix took only four seconds. We keep that
 installer and cache the pinned overlay outputs rather than changing tools.
@@ -295,7 +295,7 @@ deadline. Explicit cold calibration gets a 45-minute job deadline; ordinary
 feedback budgets and task coverage are unchanged.
 
 The first cache miss still builds the pinned toolchain. The
-[first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
+[first measured warm run](https://github.com/spoke-sh/transit/actions/runs/35815675439)
 restored the cache in 1m32s and prepared the shell in eight seconds, with no
 Ursula rebuild. Its service test exposed a deadline bug under limited CPU
 availability, so it is not a passing end-to-end timing. Compare the separate
@@ -303,10 +303,10 @@ restore, preparation, checks, and save step timings on subsequent runs.
 
 ### CI lanes
 
-The [pre-split run](https://github.com/rupurt/rey/actions/runs/36073815381)
+The [pre-split run](https://github.com/spoke-sh/transit/actions/runs/36073815381)
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
 qualification accounted for 5m39s of those checks. The later three-lane
-[baseline](https://github.com/rupurt/rey/actions/runs/36181871580) took 17m42s
+[baseline](https://github.com/spoke-sh/transit/actions/runs/36181871580) took 17m42s
 and 40m11s of aggregate job time. Five concurrent lanes now separate
 `just ci::core` (foundation/library/protocol), `just ci::growth` (Arrow, pages
 and growing authority/service), `just ci::experience` (frontend, observability,

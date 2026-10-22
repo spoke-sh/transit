@@ -1,5 +1,10 @@
 # Vectorization intake measurements
 
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
 The frozen ReleaseSafe runtime is merged source
 `73dca03a59a9eb79384957d69ee8fc94428c37c7`. The decoded-kernel/owned-row
 measurement driver was committed at `34ca32c0` before runtime changes. Its
@@ -7,7 +12,7 @@ measurement driver was committed at `34ca32c0` before runtime changes. Its
 Python and retains nine repetitions plus a discarded warmup. There are no tail
 percentile claims. The eight-row fixture deliberately selects no rows.
 
-The [file control](file-count.json.gz) uses the existing real captured CSV
+The file control (archived) uses the existing real captured CSV
 COUNT pipeline: 4096 rows, explicit schema, warm input and nine repetitions.
 Its binary was built before runtime changes. Its dirty flag includes the user's
 untracked file and measurement-driver work; this is intake evidence, not a
@@ -54,7 +59,7 @@ changes neither compiler nor dependency pins.
 Candidate runtime **`244c83f674d2a77f7ad3e098a549685286a8d9ea`** retains production
 executor selection. The [operator/pipeline samples](candidate.json.gz),
 [324 file samples](files.json.gz), [experimental gates](gates.json),
-[eight six-scalar controls](six-controls.json.gz) and [control gates](six-gates.json)
+eight six-scalar controls (archived) and [control gates](six-gates.json)
 retain raw results and failures. Candidate/scalar comparisons use the same
 ReleaseSafe binary and CPU affinity; the separate six-scalar control binary was
 frozen before runtime changes. Measurements run sequentially on CPU 12, on a

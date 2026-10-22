@@ -11,8 +11,8 @@ which layer owns buffers, query execution and remote access.
 
 Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../../packages/zig/transit-fuze/docs/integration.md).
-M16 qualifies outbound gRPC and [M19](../roadmap/M19.md) establishes HTTP serving.
-[M22](../roadmap/M22.md) now implements finite Table Flight SQL and recorded outbound
+M16 qualifies outbound gRPC and M19 establishes HTTP serving.
+M22 now implements finite Table Flight SQL and recorded outbound
 Flight over those components. Native, Compose and reference TLS queries pass pinned PyArrow
 and ADBC C/Python checks; the [proof ledger](../../tests/README.md#m22-qualification)
 separately records lifecycle, load and reference placement qualification.
@@ -178,11 +178,11 @@ prerequisite milestone if the selected interoperability fixtures cannot fit.
 
 ## Qualification and later work
 
-[M9](../roadmap/M9.md) proves batches, operator behavior and IPC/C ownership with
-independent consumers. [M16](../roadmap/M16.md) qualifies the finite outbound gRPC
-transport and effect boundary; [M18](../roadmap/M18.md) owns wider source/schema
-contracts and [M19](../roadmap/M19.md) the shared serving foundation.
-[M22](../roadmap/M22.md) then proves actual Flight/ADBC clients, authentication,
+M9 proves batches, operator behavior and IPC/C ownership with
+independent consumers. M16 qualifies the finite outbound gRPC
+transport and effect boundary; M18 owns wider source/schema
+contracts and M19 the shared serving foundation.
+M22 then proves actual Flight/ADBC clients, authentication,
 schemas, backpressure, cancellation and recovery together. Keep dependency pins,
 supported protocol versions and proof commands with the implementing packages.
 Flight SQL writes, a native ADBC driver, continuous query maintenance and

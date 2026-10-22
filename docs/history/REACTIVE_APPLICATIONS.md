@@ -9,7 +9,7 @@ and commands. Begin with [Board application configuration](../../apps/transit-bo
 or the [separate application walkthrough](../guides/applications.md). Declarative
 interface publication, worker replacement and data migration have separate identities.
 
-Status: [M23](../roadmap/M23.md) selected profiles implemented and qualified, reviewed through
+Status: M23 selected profiles implemented and qualified, reviewed through
 [board-grammar D1](../design/board-grammar/D1.md). The bounded application v1 compiler, conditional publication, declared Board
 shell, finite Table draft scheduler and data-owner migration ledger are
 implemented in their owning packages. The generated work-item workflow passes
@@ -162,7 +162,7 @@ the earlier plan or a successful validation is not a grant.
 | Query, source schema, route or watch binding | Add a qualified binding, verify, then explicitly switch new admissions | Fence late results; reset incompatible watches; accepted commands retain the old target and receipt |
 | Data/schema transformation | Expand, bounded backfill, verify, switch consumers, then explicitly retire old definitions | Requires a selected writer/codec contract, concurrent-write policy and resumable progress; no automatic generic `ALTER TABLE` |
 | Credential or access change | Separate metadata revision, consumer rebinding and current-grant operations | Cannot be undone by restoring UI files; preserve independent recovery access and frozen effect references |
-| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | [M35](../roadmap/M35.md) owns this broader proof; an application migration cannot revive retired authority |
+| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | M35 owns this broader proof; an application migration cannot revive retired authority |
 
 **Plan** resolves dependencies within current disclosure rights, checks the exact
 base revision, capabilities, schema compatibility and bounds, and reports the
@@ -196,7 +196,7 @@ or expire history. Retirement and cleanup are explicit; retention defaults unlim
 
 ## First qualification boundary
 
-[M23](../roadmap/M23.md) owns the implementation inventory and proofs: equivalent
+M23 owns the implementation inventory and proofs: equivalent
 SQL/visual/API plans, capability rejection, publication races, receipt recovery,
 revocation, bounded reactive refresh, monochrome accessibility, and a real
 generated application with compatible publication plus one explicitly supported

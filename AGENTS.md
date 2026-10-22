@@ -62,8 +62,8 @@ established behavior, limits and reasoning into the public owner with the change
 - Keep the Transit kernel generic and Station above it. Reasoning loops, goals,
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
-- Name streaming-runtime artifacts and deployments Transit; Rey is the intended
-  downstream trading application. Board, Station and Fuze belong to Transit;
+- Name runtime artifacts and deployments Transit. This repository develops the
+  general-purpose runtime. Board, Station and Fuze belong to Transit;
   use `transit-board*`, `transit-station*` and `transit-fuze*` for their artifacts.
   Keep their readable names in prose. Follow the [glossary](docs/reference/glossary.md)
   for roles.
@@ -167,7 +167,7 @@ architecture rationale, tradeoffs and evidence. Internals is public, navigable
 and searchable. Merge overlapping explanations around clear technical subjects;
 do not publish every source record as a separate Internals page.
 
-Keep delivery planning and milestone status in `docs/roadmap/`, UI/UX proposals
+Keep unfinished delivery plans in `docs/roadmap/`; remove completed milestones. Keep UI/UX proposals
 and reviews in `docs/design/`, and superseded topic accounts and historical
 qualification reviews in `docs/history/`. Preserve their outcomes and source
 links; these records stay outside the site's primary reading path and search.
@@ -211,8 +211,9 @@ Use black-and-white wireframes for structure and interaction reviews. Introduce
 color only when visual styling is explicitly being reviewed; keep meaning in
 labels, geometry and line styles.
 
-Keep the roadmap linear: give additional work its own numbered milestone and
-renumber upcoming milestones and references, following the
+Keep the roadmap linear and future-facing: give additional work a numbered
+milestone, remove completed delivery records, and update the remaining sequence
+and references, following the
 [sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17

@@ -27,7 +27,7 @@ adds provider reconciliation and sandbox execution. Reference `up` installs the
 complete persistent application, including its in-cluster controller; recovery
 and isolation proofs use separate installations.
 
-The implemented [M6 launcher milestone](../roadmap/M6.md) separates candidate
+The implemented M6 launcher milestone separates candidate
 builds, service updates and same-PID workload upgrades. Each installation selects
 identified artifacts and retains its durable state. Application stop/start is
 separate from destroying the reference cluster.
@@ -39,7 +39,7 @@ availability never determines Transit ownership or changes retention authority.
 
 ## Transit CLI, applications and planned publication
 
-[M25](../roadmap/M25.md) extends the neighborhood with public application installation,
+M25 extends the neighborhood with public application installation,
 attachment and compatible worker replacement. Its first consumer is a separately
 compiled Zig application over a language-neutral declaration/bootstrap contract.
 The manager owns physical processes and recoverable provisioning; native grants
@@ -52,7 +52,7 @@ exact recovery across lost replies and process/store interruption. Real ENOSPC
 preserves accepted work. The fixed M24 source/requester remains the version-1
 default; neither profile permits an implicit pinned-neighborhood upgrade.
 
-[Transit CLI M24](../roadmap/M24.md) formalizes `transit server` as a foreground
+Transit CLI M24 formalizes `transit server` as a foreground
 supervisor/gateway for a functioning locally placed Transit service neighborhood.
 The implemented [local Table profile](../../apps/transit-cli/docs/server.md) composes
 disk Ursula with S3 cold storage, authority, maintenance, delivery, separate query
@@ -68,7 +68,7 @@ signed, currently authorized operations, with explicit endpoint/trust selection
 and opt-in exact recovery files. Its qualification is recorded separately from
 the server lifecycle work; a local recovery file never becomes authority.
 
-[Publication M33](../roadmap/M33.md) formalizes tag-triggered GitHub release artifacts
+Publication M33 formalizes tag-triggered GitHub release artifacts
 and installation via Nix flakes/derivations, verified archives and a shell
 installer, Homebrew, Docker/OCI images and Helm packages. Its artifact manifest
 must identify required external services, supported platforms and compatibility.
@@ -76,7 +76,7 @@ Installing or upgrading a package does not initialize authority or authorize a
 worker. Durable data and credentials remain outside immutable artifacts; each
 channel needs its own installed-consumer and upgrade evidence. Local operation
 and published packages do not replace Kubernetes/Substrate as the reference or
-close [M35](../roadmap/M35.md)'s cluster and disaster-recovery gates.
+close M35's cluster and disaster-recovery gates.
 
 ## Reference architecture
 

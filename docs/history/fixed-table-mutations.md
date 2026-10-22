@@ -1,13 +1,13 @@
 # Fixed Table mutation caller qualification
 
 This is a historical record for the fixed key/value writer at
-[`cc5f57e7`](https://github.com/rupurt/rey/tree/cc5f57e7cb32727828a4195e500fa2885cd7afbc).
+[`cc5f57e7`](https://github.com/spoke-sh/transit/tree/cc5f57e7cb32727828a4195e500fa2885cd7afbc).
 Its separate CLI, native/port ABI and SDK mutation clients are removed. The
 current [Catalog caller](../../packages/zig/transit-catalog/README.md) owns general
 Table DDL/DML. The following task names and claims describe the earlier revision;
 they are not current entry points or qualification of the replacement. The
-[original contract](https://github.com/rupurt/rey/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_MUTATION_V1.md)
-and [combined owner contract](https://github.com/rupurt/rey/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_QUERY_WRITER_V1.md)
+[original contract](https://github.com/spoke-sh/transit/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_MUTATION_V1.md)
+and [combined owner contract](https://github.com/spoke-sh/transit/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_QUERY_WRITER_V1.md)
 preserve the exact retired definitions. The [proof ledger](../../tests/README.md)
 retains the executed outcomes and their limits.
 

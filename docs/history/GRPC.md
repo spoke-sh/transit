@@ -9,8 +9,8 @@ Use the RPC connector for recorded outbound calls and replay. Start with the
 [adapter](../../packages/zig/transit-station-grpc/README.md). For inbound analytical
 clients, use the separate [Flight reference](../reference/flight.md).
 
-Status: the finite [M16](../roadmap/M16.md) profile is implemented and locally
-qualified after [HTTP M15](../roadmap/M15.md). The Zig [transport](../../packages/zig/transit-grpc/README.md),
+Status: the finite M16 profile is implemented and locally
+qualified after HTTP M15. The Zig [transport](../../packages/zig/transit-grpc/README.md),
 [durable adapter](../../packages/zig/transit-station-grpc/README.md), actual worker,
 ten language SDKs, Board and local/Compose/reference example have executed proofs.
 [Tests](../../tests/README.md) separates those results from deferred hosted CI costs.
@@ -154,9 +154,9 @@ application values. Service logs/metrics remain bounded diagnostics; they must
 not contain credentials, raw messages or unbounded method/target labels. Follow
 [Security](SECURITY.md) and [Observability](OBSERVABILITY.md).
 
-[M16](../roadmap/M16.md) owns interoperation tests, crash/revocation schedules and
+M16 owns interoperation tests, crash/revocation schedules and
 reference deployment qualification. Server-side hosting of arbitrary application
 gRPC services, gRPC-Web and automatic remote-stream resumption are outside its
-first profile. [M19](../roadmap/M19.md) first formalizes [serving](SERVING.md) with
+first profile. M19 first formalizes [serving](SERVING.md) with
 HTTP; M22 adds the specific Flight/Flight SQL ingress adapter over that foundation.
 Neither HTTP serving nor the outbound gRPC client proves an inbound gRPC server.

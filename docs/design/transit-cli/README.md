@@ -14,7 +14,7 @@ these reviews describe proposed changes.
 | [D2](D2.md) | Interactive and batch SQL, dot commands, defaults, discovery and environment overrides | Accepted | Console direction and flags selected; server defaults plus one project/home/system YAML file; merged system/home/project rc settings; implemented and qualified in M29; dot commands only, simplified recovery and preserved input transcript; timing follow-up remains |
 
 Command structure, local lifecycle and recovery derive from the completed
-[CLI milestone](../../roadmap/M24.md). [M28](../../roadmap/M28.md) owns this
+CLI milestone. M28 owns this
 presentation change and its qualification, preserving the earlier evidence.
-[M29](../../roadmap/M29.md) implements D2's further command/configuration change; it does not extend either
+M29 implements D2's further command/configuration change; it does not extend either
 completed milestone's implementation or qualification claims.

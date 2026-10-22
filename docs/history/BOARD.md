@@ -9,7 +9,7 @@ workspaces. Begin with [configuration](../../apps/transit-board/docs/configurati
 and the [HTTP API reference](../reference/board-api.md). UI review proposals later
 in this page describe future interactions; they are not a command reference.
 
-Status: bounded [M2](../roadmap/M2.md) inspection profile implemented and qualified
+Status: bounded M2 inspection profile implemented and qualified
 on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
 system. M2 remains inspection-only. M13 adds a growing atlas and an optional,
@@ -139,7 +139,7 @@ states, exact source/plan evidence and complete page coverage. Run initiates one
 finite upload, subsequent steps observe committed progress, and uncertainty
 requires an explicit identical retry. This does not implement D4 Live sessions.
 The [configuration guide](../../apps/transit-board/docs/configuration.md#unified-state-query-workspace)
-owns usage; [M18](../roadmap/M18.md) tracks remaining qualification.
+owns usage; M18 tracks remaining qualification.
 
 [D9](../design/board-atlas/D9.md) records the focused implementation baseline: explicit
 Processes/Resources emphasis, flat overhead detail, deliberate resource entry,
@@ -154,7 +154,7 @@ ages and totals are labeled unknown. Entry counts include framework keys.
 This first profile supports an unscoped realm inspector with filtered resource
 grants; legacy PID-scoped pages remain in their original profile.
 
-The optional [public query capability](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) targets
+The optional [public query capability](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) targets
 one configured Table and dedicated requester per query principal. The same Zig
 client powers Board and the `transit` shell. External Station workers execute
 M12's SELECT subset and deliver captured results through segment/credit flow.
@@ -278,11 +278,11 @@ attributable operator admission, managed catalogs and administrative SQL require
 new public contracts. Today's private shared viewer profile and separate query
 identity remain unchanged.
 
-The next implementation sequence puts [shared HTTP serving](../roadmap/M19.md)
+The next implementation sequence puts shared HTTP serving
 under both Board and an application API. Board retains its private shared access,
-inspection identity and separate explicit query identity. [M20](../roadmap/M20.md)
+inspection identity and separate explicit query identity. M20
 qualifies the [reactive API](REACTIVE_API.md) with independent clients before
-[M21](../roadmap/M21.md) adds [reactive views](REACTIVE.md) through source notifications
+M21 adds [reactive views](REACTIVE.md) through source notifications
 and exact snapshot refresh. This selects the Follow changes foundation; D4's
 continuous Stream results and predictive execution while editing remain proposed.
 It does not implement D6's operator controls or individual sign-in implicitly.
@@ -295,7 +295,7 @@ dimensions. [Atlas D10](../design/board-atlas/D10.md) redraws every D1–D8 figu
 a vector wireframe while preserving the historical review outcomes. Labels,
 geometry, line styles and evidence remain meaningful without color.
 
-[M23](../roadmap/M23.md) owns implementation after M19–M22: shared SQL/visual
+M23 owns implementation after M19–M22: shared SQL/visual
 definitions, qualified public bindings, the full selected Board experience and
 a downstream application workflow with explicit migrations.
 [Reactive applications](REACTIVE_APPLICATIONS.md) owns the proposed composition,
@@ -489,9 +489,9 @@ interpret history are outside the supported inspection model.
 
 ## Qualification and later scope
 
-M2's [implementation sequence and exit criteria](../roadmap/M2.md) cover the API,
+M2's implementation sequence and exit criteria cover the API,
 embedded build, live UI, access control, retention gaps, and lens fallback.
-The completed [M4 observability milestone](../roadmap/M4.md) instruments
+The completed M4 observability milestone instruments
 Board's HTTP/service lifecycle and correlates its public client calls with Transit.
 These operational signals follow the shared [observability rules](OBSERVABILITY.md)
 and do not change Board's evidence-backed inspection API or require a collector.

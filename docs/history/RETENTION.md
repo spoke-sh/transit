@@ -14,7 +14,7 @@ M1 implements a bounded subset: finite execution/settlement, checkpoint/trim,
 immutable payload deletion, and finite admission with a physical reserve proof.
 [Core](../../packages/zig/transit-core/README.md), [backend](../../packages/zig/transit-backend-ursula/README.md),
 and [maintenance](../../apps/transit-node/README.md) own the mechanisms;
-[tests](../../tests/README.md) own evidence. [M7](../roadmap/M7.md) implements bounded
+[tests](../../tests/README.md) own evidence. M7 implements bounded
 KV dependencies, resource expiry and keyed checkpoint compaction;
 [STATE.md](STATE.md) owns that model. M14–M16 add finite publication/capture lifetime and bounded disposal. General
 resource graphs, per-key TTL and distributed compaction remain planned.
@@ -41,7 +41,7 @@ silently deleting accepted work.
 A resident cache budget is not a retention policy or a maximum logical collection
 size. Derived pages may be evicted and read back without deleting durable rows,
 waits or results. The legacy fixed catalogs impose real total-cardinality limits;
-[M10](../roadmap/M10.md) must replace that coupling in the growing-state profile.
+M10 must replace that coupling in the growing-state profile.
 Applications must not be forced to select expiry or discard completion evidence
 merely to reuse array slots. [State](STATE.md#collection-size-and-working-memory)
 separates operation budgets, working sets, quotas and retained data.
@@ -354,7 +354,7 @@ collection can run after process expiry without prolonging its execution rights.
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
 basic trim/delete recovery. M7 proves associated-state dependencies, KV compaction,
 and resource expiry. M9 exposes those semantics through Station suspension and
-supervision. [M17](../roadmap/M17.md) qualifies Document causal checkpoints, deletion
+supervision. M17 qualifies Document causal checkpoints, deletion
 evidence and opted-in replica merge/resynchronization horizons. M15 adds connector
 dependency handling; M16 applies it to streaming
 RPCs. [M19 serving](SERVING.md) separates socket/response deadlines from accepted

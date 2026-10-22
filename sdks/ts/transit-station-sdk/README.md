@@ -4,7 +4,7 @@ The [local logical codec guide](docs/logical.md) covers exact scalar/recursive
 documents, immutable owners, checked casts and logical Arrow export.
 
 Typed Station runners for Node.js 24, over the version-matched shared Zig host.
-This M11 package is separate from the compatible `@rey/transit-station` M9 wrapper.
+This M11 package is separate from the compatible `@transit/station` M9 wrapper.
 It depends on the independent `@transit/client` and `@transit/native-station`
 artifacts. Importing starts no process and discovers no credentials.
 Source declarations use erasable TypeScript so Node's strip-only unit-test loader

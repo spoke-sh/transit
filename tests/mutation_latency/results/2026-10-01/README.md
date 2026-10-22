@@ -1,6 +1,11 @@
 # Durable mutation diagnostic evidence, 2026-10-01
 
-Raw owned-fixture observations for [issue #55](https://github.com/rupurt/rey/issues/55).
+This page retains measurement summaries at the stated revisions. References marked
+“archived” name raw files removed from the current tree; those bytes are available
+only in repository history before the cleanup. These observations do not qualify
+current builds.
+
+Raw owned-fixture observations for [issue #55](https://github.com/spoke-sh/transit/issues/55).
 The [proof ledger](../../../README.md#durable-table-mutation-latency) owns executed
 qualification; the [performance reference](../../../../docs/reference/performance.md#durable-table-mutation-measurements)
 owns mechanisms and measurement controls.
@@ -14,8 +19,8 @@ intermediate candidates are deliberate controls, not builds of that runner HEAD.
 
 | Run | Status | Completed samples | Compressed SHA-256 |
 | --- | --- | ---: | --- |
-| [baseline-matched](baseline-matched.json.gz) | failed | 4 | `b004f974ec70eb7ba73f45fd912e5197651fd88ec90a8248ea9cede06450702a` |
-| [baseline64-matched](baseline64-matched.json.gz) | failed | 4 | `e71c3b4b95db1333894ffd55bfe9ee82658d806b76bec812c3a59d74c4d35381` |
+| baseline-matched (archived) | failed | 4 | `b004f974ec70eb7ba73f45fd912e5197651fd88ec90a8248ea9cede06450702a` |
+| baseline64-matched (archived) | failed | 4 | `e71c3b4b95db1333894ffd55bfe9ee82658d806b76bec812c3a59d74c4d35381` |
 | [candidate-batched](candidate-batched.json.gz) | complete | 7 | `1bdba3e9f93f65cc258789c039b7e84f24a4aea2e27aae445f0a0dce5675d1a7` |
 | [candidate-idle](candidate-idle.json.gz) | complete | 21 | `9b94cf2f3ad9db1f5e04e50cc8d3512dbc0ff93af887125ef27c45109fa41489` |
 | [candidate-poll20](candidate-poll20.json.gz) | failed | 6 | `8adf23abd3b6fdda667763f2c238541f0c83a0cd422149714953c979099eacdd` |
@@ -94,10 +99,10 @@ host's ext4 mount; ordinary development-shell placement was verified as tmpfs.
 
 | Run | Source | Filesystem | Delivery | Compressed SHA-256 |
 | --- | --- | --- | --- | --- |
-| [query-ext4-3d0](query-ext4-3d0.log.gz) | `3d0d7819` | ext4 | timeout at 180 s | `b6908abb376a420998f17e9c0e65040373005531b3d08a9a27d8b562028ff4af` |
+| query-ext4-3d0 (archived) | `3d0d7819` | ext4 | timeout at 180 s | `b6908abb376a420998f17e9c0e65040373005531b3d08a9a27d8b562028ff4af` |
 | [query-tmpfs-3d0](query-tmpfs-3d0.log.gz) | `3d0d7819` | tmpfs | 33.41 s | `204477b5976cf47d0d166e4c55fb43d992620ac26d9355e469fdba2799b8cbbb` |
 | [query-ext4-3d6](query-ext4-3d6.log.gz) | `3d6ba315` | ext4 | 112.82 s | `f4e4ee5fc3d3e92b93848da61a05adb106881d573be2be9054ba32a19e0686cd` |
-| [query-ext4-batched](query-ext4-batched.log.gz) | `38e5a328` | ext4 | 56.32 s | `b806de56fda982d3a705774edf36157c0ff469ece28f65e25eda6e4ab4dab807` |
+| query-ext4-batched (archived) | `38e5a328` | ext4 | 56.32 s | `b806de56fda982d3a705774edf36157c0ff469ece28f65e25eda6e4ab4dab807` |
 
 The `3d6ba315` control includes the other changes merged before fragment batching.
 Its 112.82-second ext4 delivery and the batched 56.32-second delivery are single

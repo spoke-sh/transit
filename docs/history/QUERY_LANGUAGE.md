@@ -14,8 +14,8 @@ exact grammar, budgets and `Sql.parse` / `Sql.compile` / `Sql.plan` API.
 It produces the existing `Stream.Plan`/`PlanCodec` and runs through Fuze's
 bounded Arrow engine. It introduces no public query endpoint or CLI.
 The DDL/DML-write, broader dataframe and connector/transport namespace designs
-below remain direction, not implemented SQL capabilities. [M13](../roadmap/M13.md)
-owns public typed query access; [M22](../roadmap/M22.md) implements Flight SQL
+below remain direction, not implemented SQL capabilities. M13
+owns public typed query access; M22 implements Flight SQL
 ingress using this compiler. Neither milestone acquires new authority from
 accepting query text.
 
@@ -110,13 +110,13 @@ bindings, explicit revisions, conditional changes and retirement while keeping
 private values outside SQL. Its new syntax and permission semantics remain
 proposals; neither parser support nor administrative execution is added.
 
-[Serving M19](../roadmap/M19.md) adds a typed declaration and operation-mapping
+Serving M19 adds a typed declaration and operation-mapping
 contract for inbound services and HTTP routes. The [serving SQL map](SERVING.md#declarative-and-operator-mapping)
 marks the missing service/endpoint grammar explicitly; HTTP publication does not
-implement administrative SQL. [Reactive APIs M20](../roadmap/M20.md) extends the
+implement administrative SQL. Reactive APIs M20 extends the
 shared typed model with sessions, messages and subscriptions, with generated
 OpenAPI/AsyncAPI descriptions; it supplies no executable serving/subscription DDL
-or independent configuration authority. [Reactive interfaces M21](../roadmap/M21.md) follows
+or independent configuration authority. Reactive interfaces M21 follows
 source changes by scheduling new finite snapshots of an already submitted query.
 It adds neither SUBSCRIBE syntax nor continuous operators or automatic draft execution.
 
@@ -124,14 +124,14 @@ It adds neither SUBSCRIBE syntax nor continuous operators or automatic draft exe
 composition of Board itself: interfaces, screens, bindings, actions and themes.
 The [support map](REACTIVE_APPLICATIONS.md#sql-and-support-levels) and
 [candidate Board program](../design/board-grammar/board.proposed.sql) explicitly
-mark the new syntax as non-executable. [M23](../roadmap/M23.md) scopes shared typed
+mark the new syntax as non-executable. M23 scopes shared typed
 validation, public-operation lowering, semantic round-trip, publication and
 application migrations. It does not silently add these statements to the
 reference grammar or turn administrative operations into Fuze plans.
 
 ## Terminal console
 
-[Transit CLI M24](../roadmap/M24.md) formalizes `transit console` as a psql-like
+Transit CLI M24 formalizes `transit console` as a psql-like
 terminal shell accepting `/` meta commands and Transit's SQL statements. It
 reuses the qualified [query shells](../../apps/transit-cli/README.md) and M23's
 selected shared language-assistance contracts: grammar context, authorized
@@ -161,8 +161,8 @@ executed identically to every other durable mutation. A relational DDL surface
 is a text encoding of that same typed command, checked by the same
 authorization before it ever reaches durable state; it does not bypass
 anything or add a second creation path. `CREATE DOCUMENT` and `CREATE KV`
-follow the same shape once [M17](../roadmap/M17.md#entry-gates)'s Document model
-and [M18](../roadmap/M18.md)'s KV decoder/source model are specified. Those
+follow the same shape once M17's Document model
+and M18's KV decoder/source model are specified. Those
 milestones do not themselves select SQL DDL; a later DDL frontend would expose
 their supported operations without deciding new schema/merge semantics.
 
@@ -182,7 +182,7 @@ multi-column tables already exist.
 existing, authorized operation, not a new one. `SELECT` is the interesting
 case: it compiles to Fuze's typed `Plan` (predicate, projection, limit,
 aggregate) and executes through the same bounded, credited pipeline
-[M10](../roadmap/M10.md) qualified this cycle and [M13](../roadmap/M13.md) is
+M10 qualified this cycle and M13 is
 scoped to expose — `WHERE`/column selection/`LIMIT`/`COUNT`/`SUM` map
 onto the existing plan. The admitted aggregate-input subquery spells
 filter → limit → aggregate without confusing an outer SQL limit with an input
@@ -190,7 +190,7 @@ limit. Omitted limits remain unlimited under `Stream.Plan`; explicit limits
 are 0–32 in this SQL profile. Joins, grouping, general subqueries and window
 functions require separate qualification. Unsupported constructs fail explicitly.
 
-[M22](../roadmap/M22.md) already commits to exactly this SELECT-only slice,
+M22 already commits to exactly this SELECT-only slice,
 narrower and further out: *"a bounded read-only SQL subset... translating
 into Fuze's M9 plans; no separate engine."* A full DDL/DML relational
 surface — this document's scope — is bigger than that existing commitment in
@@ -198,14 +198,14 @@ two ways: it writes, and M22 ties its SQL specifically to the Flight SQL
 ingress path. M12 now supplies the local read compiler; M22 supplies remote Flight SQL
 ingress over it. Neither delivers the full relational surface; a general DDL/DML surface
 (`transit query`'s shell, a future direct SQL endpoint) is separate work.
-[M23](../roadmap/M23.md) now scopes the bounded declarative
+M23 now scopes the bounded declarative
 subset needed by Board and its application example; the general relational
 surface remains broader than that selected profile.
 
 ## The dataframe surface
 
 A typed builder — `table.filter(col("qty") > 0).select("sym", "px").limit(100)`,
-in whatever each [M11](../roadmap/M11.md) language SDK's idiom is — compiling to
+in whatever each M11 language SDK's idiom is — compiling to
 the identical `Plan` value SQL text would produce. This is the natural home for
 programmatic query construction (composable, typed, no string interpolation,
 no injection surface) and maps cleanly onto `Stream.Plan`'s existing Zig shape,
@@ -241,7 +241,7 @@ without pretending the two have the same freshness or transaction semantics.
 write — is a further step again: it would use DML syntax to trigger work at
 an external boundary, not to durably store a row. That is worth having named
 here so it is not lost, but it stays speculative until connectors
-([M15](../roadmap/M15.md)) exist to dispatch through at all; do not treat this
+(M15) exist to dispatch through at all; do not treat this
 section as scoping that milestone's design.
 
 ## CONNECTION, SOURCE and SINK: naming the DDL for external data

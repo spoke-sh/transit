@@ -12,7 +12,7 @@ application's `build.zig.zon`:
 
 ```zig
 .dependencies = .{
-    .transit_sdk = .{ .path = "../rey/sdks/zig" },
+    .transit_sdk = .{ .path = "../transit/sdks/zig" },
 },
 ```
 

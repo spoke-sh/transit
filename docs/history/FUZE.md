@@ -10,26 +10,26 @@ use the [package API](../../packages/zig/transit-fuze/README.md) when embedding 
 engine. This page explains execution ownership and future extension boundaries.
 
 Status: the bounded M9 Table profile is implemented. The [package](../../packages/zig/transit-fuze/README.md)
-implements the [v1 bounded query profile](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_V1.md), Arrow
+implements the [v1 bounded query profile](https://github.com/spoke-sh/transit/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_V1.md), Arrow
 dependency integration and finite IPC encoding. Broader capabilities below
-remain design direction. [M9](../roadmap/M9.md) introduces Fuze's
+remain design direction. M9 introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
-qualification belong to [M17](../roadmap/M17.md); KV/Document query adapters and
-wider schema/request contracts belong to [M18](../roadmap/M18.md). [M12](../roadmap/M12.md) adds the
+qualification belong to M17; KV/Document query adapters and
+wider schema/request contracts belong to M18. M12 adds the
 implemented [Table SQL compiler](../../packages/zig/transit-fuze/docs/sql.md);
-[M22](../roadmap/M22.md) adds remote Flight SQL ingress. Those bounded profiles
+M22 adds remote Flight SQL ingress. Those bounded profiles
 do not imply the whole target design.
 [QUERY_LANGUAGE.md](QUERY_LANGUAGE.md) elaborates the "structured query API /
 Table SQL frontend" line below into relational DDL/DML and a dataframe surface,
 both compiling to the plan this document defines.
 
-[M10](../roadmap/M10.md) requires a measured path from growing durable sources to
+M10 requires a measured path from growing durable sources to
 bounded query/result batches before public SDKs. The existing finite M9 source
 and IPC ceilings remain limits of the legacy path; they are not the intended
 maximum Table or retained-result size. A larger dataset must not imply collecting
 all rows or result bytes in a worker's memory.
-The [incremental execution contract](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md) now has a
+The [incremental execution contract](https://github.com/spoke-sh/transit/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md) now has a
 qualified pure Zig engine with bounded batches and whole-query progress. Station's
 durable fragment/result publication and growing recovery are qualified separately
 in M10; pure engine evidence alone does not establish service recovery.
@@ -195,7 +195,7 @@ causal/deletion evidence required by their merge and replica-resynchronization
 contracts. These capabilities need their own storage, retention and recovery
 proofs; a batch engine or RPC stream alone cannot provide them.
 
-[M21 reactive interfaces](../roadmap/M21.md) deliberately starts with notifications
+M21 reactive interfaces deliberately starts with notifications
 and fresh finite snapshots through the existing query APIs. It supplies none of
 the incremental operator semantics above. [Serving](SERVING.md) owns inbound
 admission/delivery; [reactive APIs](REACTIVE_API.md) owns source/watch and
@@ -203,10 +203,10 @@ transport contracts; [reactive interfaces](REACTIVE.md) owns refresh scheduling
 and presentation. None introduces another query engine or executes inside core.
 
 M9 fixes the source/plan/operator contract and proves the bounded Table path.
-[M14](../roadmap/M14.md) provides immutable publication and [M17](../roadmap/M17.md)
+M14 provides immutable publication and M17
 adds structured/text Documents with CRDT/storage/retention qualification.
-[M18](../roadmap/M18.md) adds KV/Document query adapters, nested Arrow types and
+M18 adds KV/Document query adapters, nested Arrow types and
 versioned schema/request contracts. Publication alone does not supply those
-semantics or widen the existing 256-byte KV/four-mutation boundary. [M22](../roadmap/M22.md) remains the first
+semantics or widen the existing 256-byte KV/four-mutation boundary. M22 remains the first
 bounded remote Flight SQL frontend over qualified Table sources; broadening
 its source matrix requires explicit source and interoperability qualification.

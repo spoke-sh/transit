@@ -3,9 +3,9 @@
 Reviewed 2026-09-24 against implementation commit `96db8a9` and the documentation
 corrections accompanying this review. This is a source/contract/test-coverage
 review of M0–M7, not a production security certification or a new milestone.
-[Roadmap](../../roadmap/README.md) · [Station entry gates](../../roadmap/M9.md#entry-gates)
+[Roadmap](../../roadmap/README.md) · Station entry gates
 
-This is the historical M7 review. [M8](../../roadmap/M8.md) implements the generic
+This is the historical M7 review. M8 implements the generic
 origin, delivery, lifecycle and catalog-readiness recommendations below; see its
 [qualification evidence](../../../tests/README.md#m8-runtime-readiness) for current
 behavior. Remaining framework policies and scaling limits still apply.
@@ -29,13 +29,13 @@ failure proofs in M8 runtime readiness and M9 Station before claiming its progra
 | Boundary examined | Implementation and existing evidence | Assessment |
 | --- | --- | --- |
 | Public contracts and dependency direction | [Protocol](../../../packages/zig/transit-protocol/README.md), [client](../../../packages/zig/transit-client/README.md), [core](../../../packages/zig/transit-core/README.md), package manifests | Caller/core separation is real; no application handler dependency in the node. Schema generation is not a complete future language SDK. |
-| Authentication and authority | `authenticate`, `authorize`, `duplicate`, `prepare`, `commit` in [core](../../../packages/zig/transit-core/src/root.zig); [unit proofs](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/tests.zig) | Current grants, principal sequence and CAS fence transitions. Handler-facing origin and framework-specific rights remain incomplete. |
-| Atomic resource state and reads | [Resource transitions](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources.zig), [reads](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resource_read.zig), [resource proofs](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources_test.zig) | One-resource mutations share the turn decision. Read grants and snapshot expiry are explicit. Trusted provisioning is narrower than an initialization barrier. |
-| Retention and recovery | [Backend](../../../packages/zig/transit-backend-ursula/docs/storage.md), [disk proof](../../../tests/state.zig), [maintenance](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/apps/transit-node/Maintenance.zig) | Checkpoint/replay, required-state expiry and reclamation have bounded proofs. Whole-realm quiescence and permanent catalogs limit long-running use. |
+| Authentication and authority | `authenticate`, `authorize`, `duplicate`, `prepare`, `commit` in [core](../../../packages/zig/transit-core/src/root.zig); [unit proofs](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/tests.zig) | Current grants, principal sequence and CAS fence transitions. Handler-facing origin and framework-specific rights remain incomplete. |
+| Atomic resource state and reads | [Resource transitions](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources.zig), [reads](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resource_read.zig), [resource proofs](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources_test.zig) | One-resource mutations share the turn decision. Read grants and snapshot expiry are explicit. Trusted provisioning is narrower than an initialization barrier. |
+| Retention and recovery | [Backend](../../../packages/zig/transit-backend-ursula/docs/storage.md), [disk proof](../../../tests/state.zig), [maintenance](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/apps/transit-node/Maintenance.zig) | Checkpoint/replay, required-state expiry and reclamation have bounded proofs. Whole-realm quiescence and permanent catalogs limit long-running use. |
 | Delivery and effects | `applyTurn`/`deliver`/`observe` in core; [outbox](../../../tests/outbox.zig), [effect proof](../../../tests/effect_io.py) | Legal delivery and closure are proved; no deployed general delivery loop, timer service, or HTTP connector follows from those tests. |
 | Runtime and development | [Controller](../../../apps/transit-runtime-controller/README.md), [provisioning](../../../launchers/common.py), [upgrade proof](../../../tests/reference_launcher.py) | Same-PID recovery and compatible upgrades are distinct from logical replacement. Current controller scope is one PID; local/Compose trust differs from Substrate isolation. |
 | Inspection and operations | [Board](../../../apps/transit-board/README.md), [frontend](../../../apps/transit-board-web/README.md), [telemetry](../../../packages/zig/telemetry/README.md) | Private shared inspection, raw-value permission boundaries, explicit cuts, and lossy diagnostics are documented. Framework descriptors and progress guarantees are future work. |
-| Roadmap and evidence ownership | [M7](../../roadmap/M7.md), [M9](../../roadmap/M9.md), [proof guide](../../../tests/README.md) | Corrected completion wording to match the chosen bounded mechanism; new gates belong to upcoming work, not retroactive milestone follow-ons. |
+| Roadmap and evidence ownership | M7, M9, [proof guide](../../../tests/README.md) | Corrected completion wording to match the chosen bounded mechanism; new gates belong to upcoming work, not retroactive milestone follow-ons. |
 
 ## Authenticated inputs and framework permissions
 
@@ -67,7 +67,7 @@ registry policy must validate authenticated origins independently of send rights
 **Priority: before a runnable multi-process Station example.**
 A committed outbox becomes destination input only when an authorized caller
 submits `deliver`. The existing proofs do this explicitly.
-[Maintenance](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/apps/transit-node/Maintenance.zig) handles expiry, views,
+[Maintenance](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/apps/transit-node/Maintenance.zig) handles expiry, views,
 reclamation and checkpoints; the runtime controller handles Substrate lifecycle.
 Neither runs a general outbox pump. There is no framework timer service or
 durable lifecycle subscription feeding supervisor mailboxes.
@@ -182,18 +182,17 @@ preserve pending work if continuous operation needs it.
 
 ## Documentation corrections and next milestones
 
-This pass makes Transit the root documentation subject and Rey the intended
-consumer. Existing repository/artifact/signature names retain their compatibility
-meaning. Detailed node/Board operations, caller workflows and Ursula mappings
+This pass makes Transit the root documentation subject, with downstream applications
+as consumers. Detailed node/Board operations, caller workflows and Ursula mappings
 now live in nested component guides. Foundational docs link to those owners.
 Stale planned-state wording, durable-staging claims, initialization overclaims,
 and outdated application-lens references are corrected.
 
-[M8 runtime readiness](../../roadmap/M8.md) owns the generic runtime prerequisites;
-[M9 Station](../../roadmap/M9.md#entry-gates) owns behavior policies and subscriptions.
-[M15](../../roadmap/M15.md) must additionally specify large-body references,
+M8 runtime readiness owns the generic runtime prerequisites;
+M9 Station owns behavior policies and subscriptions.
+M15 must additionally specify large-body references,
 transcript/secret permissions, capture completeness and bounded external retry;
-the immutable payload proof is not that dependency model. [M35](../../roadmap/M35.md)
+the immutable payload proof is not that dependency model. M35
 needs measured recovery/scaling, portable runtime conformance, distributed
 retention and explicit live-restore/migration procedures. If an expansion needs
 its own delivery milestone, insert it into the linear roadmap before its consumer.

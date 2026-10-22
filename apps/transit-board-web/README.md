@@ -1,7 +1,7 @@
 # transit-board-web
 
 Strict TypeScript, React, and TanStack Router file routes built with the pinned
-Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output is
+Vite+ 0.3.3 toolchain, packaged as `@transit/board-web`. The static output is
 embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection and optional Table query APIs on the
 same origin. There is no production JavaScript server.
 
@@ -135,7 +135,7 @@ remain separate from drafts, and no result or credential enters browser storage.
 | [query-workspace.tsx](src/unified-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
 | [model.test.ts](src/model.test.ts)               | Model/client boundary tests                                                       |
 
-Import public types and transports from `@rey/transit-board-client`; do not copy
+Import public types and transports from `@transit/board-client`; do not copy
 wire types into a route. Generated route trees and client validators are not
 hand-maintained APIs. Make API changes in the Zig owner, run
 `just transit-board::generate`, and use `just transit-board::check` before the
@@ -147,7 +147,7 @@ links, lazy assets, keyboard focus across polling, causal/effect explanations,
 denial clearing and connection retries;
 and saves a local screenshot/failed traces under `.cache/`. Chromium needs its
 host libraries; on supported CI Linux images Playwright can provision them with
-`vp exec --filter @rey/transit-board-web playwright install --with-deps chromium`.
+`vp exec --filter @transit/board-web playwright install --with-deps chromium`.
 
 The inspection proof enters the native v1 atlas, selects a process with the
 keyboard, and opens the process evidence routes directly. It checks admission,

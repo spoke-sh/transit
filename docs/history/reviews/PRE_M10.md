@@ -2,8 +2,8 @@
 
 Reviewed 2026-09-24 against implementation commit **a7b41da**. This is a
 source, contract, test and CI review of the bounded M0–M9 implementation.
-This review led to [M10 verification and scale foundations](../../roadmap/M10.md);
-idiomatic SDKs moved to [M11](../../roadmap/M11.md). References use the current
+This review led to M10 verification and scale foundations;
+idiomatic SDKs moved to M11. References use the current
 sequence; the implementation evidence still describes the reviewed revision.
 The filename preserves the original review link. New capabilities remain planned.
 
@@ -26,12 +26,12 @@ Substrate isolation.
 
 | Area reviewed | Existing capability and evidence | Boundary that still matters |
 | --- | --- | --- |
-| Authority and protocol | [Core](../../../packages/zig/transit-core/src/root.zig) separates prepare/conditional commit; [adversarial tests](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/tests.zig) cover fencing, current grants, duplicate requests, ordered input and closure | Protocol validity does not establish honest handler computation. The realm journal remains a serialization point. |
-| State and retention | [Resource tests](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources_test.zig) cover atomic mutations, view expiry, grants, replay and full view capacity; [state contract](../../../contracts/STATE_V1.md) defines bounds | One mutated resource per turn; four resources and four active views per realm. Association, access and lifetime ownership remain separate. |
+| Authority and protocol | [Core](../../../packages/zig/transit-core/src/root.zig) separates prepare/conditional commit; [adversarial tests](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/tests.zig) cover fencing, current grants, duplicate requests, ordered input and closure | Protocol validity does not establish honest handler computation. The realm journal remains a serialization point. |
+| State and retention | [Resource tests](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/packages/zig/transit-core/src/resources_test.zig) cover atomic mutations, view expiry, grants, replay and full view capacity; [state contract](../../../contracts/STATE_V1.md) defines bounds | One mutated resource per turn; four resources and four active views per realm. Association, access and lifetime ownership remain separate. |
 | Storage and recovery | [Backend](../../../packages/zig/transit-backend-ursula/README.md), [storage proof](../../../tests/storage.py), and [physical capacity proof](../../../tests/capacity.py) exercise their actual boundaries | Process SIGKILL is not a host power-loss test. Provider behavior and full-store handling cannot be qualified by a pure model. |
 | Station | [GenServer](../../../packages/zig/transit-station/src/GenServer.zig), [Turn](../../../packages/zig/transit-station/src/Turn.zig) and [services](../../../packages/zig/transit-station/docs/services.md) implement detached turns, calls, names, timers and bounded supervision | Host-pumped ABI, one call per input, explicit recovery; no durable suspended language stack or general dynamic supervision tree. |
-| Fuze and Arrow | [Finite execution](../../../packages/zig/transit-fuze/src/execute.zig), [tests](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/packages/zig/transit-fuze/src/tests.zig) and independent [PyArrow checks](../../../tests/arrow.py) | Two-column bounded Tables; captured replies at most 672 IPC bytes. No optimizer rewrites, SQL, streaming query engine or cross-resource transaction support. |
-| Language bindings | [Matrix](../../../tests/bindings.py) exercises service/requester roles and host restart; [ABI proof](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/tests/station_abi.py) and runtime-specific bridge tests cover ownership/cancellation | Low-level bindings are qualified, not installable idiomatic SDKs. Foreign-language Substrate workers and broad platform compatibility remain outside M11. |
+| Fuze and Arrow | [Finite execution](../../../packages/zig/transit-fuze/src/execute.zig), [tests](https://github.com/spoke-sh/transit/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/packages/zig/transit-fuze/src/tests.zig) and independent [PyArrow checks](../../../tests/arrow.py) | Two-column bounded Tables; captured replies at most 672 IPC bytes. No optimizer rewrites, SQL, streaming query engine or cross-resource transaction support. |
+| Language bindings | [Matrix](../../../tests/bindings.py) exercises service/requester roles and host restart; [ABI proof](https://github.com/spoke-sh/transit/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/tests/station_abi.py) and runtime-specific bridge tests cover ownership/cancellation | Low-level bindings are qualified, not installable idiomatic SDKs. Foreign-language Substrate workers and broad platform compatibility remain outside M11. |
 | Operator surfaces and diagnostics | [Board](../../../apps/transit-board/README.md), [observability proof](../../../tests/observability.py), browser tests and launcher recovery | Board is inspection-only, admitted through a private deployment boundary. Observations do not grant execution authority. |
 | Deployment | [Runtime adapter](../../../packages/zig/transit-runtime-substrate/README.md), launcher upgrade proofs and [reference workflow](../../../.github/workflows/reference.yml) | Pinned provider, reviewed Zig workload and topology; reference/physical-capacity qualification is manually triggered, not part of ordinary hosted CI. |
 
@@ -70,7 +70,7 @@ M8's kernel catalog collection does not reclaim all Station records.
 
 The initial recommendation to expose these bounds and select cleanup was
 insufficient: they are compiled total-cardinality ceilings, not cache settings.
-[M10](../../roadmap/M10.md) now requires a growing-state path with bounded resident
+M10 now requires a growing-state path with bounded resident
 memory before SDKs stabilize. Explicit retention remains an application policy,
 not a requirement to make a fixed array reusable. Test retained calls/results
 beyond the old ceilings, then test deliberate quota exhaustion without losing
@@ -152,12 +152,12 @@ local task totals exclude Nix setup and cannot predict hosted wall time.
 The local launcher pair accounts for **41.9%** of that total. Its logs were
 retained locally at .cache/ci/fix-clean.log; these are not committed artifacts.
 
-In [hosted run 36085614545](https://github.com/rupurt/rey/actions/runs/36085614545),
+In [hosted run 36085614545](https://github.com/spoke-sh/transit/actions/runs/36085614545),
 experience passed in **15m29s**, including 800 seconds of lane checks. Its two
 launcher tasks took **370.26 + 225.40 = 595.66 seconds**, about 74% of those
 checks. Core passed in 11m44s; bindings failed, so neither its duration nor the
 overall result establishes a complete successful baseline. The earlier
-[run 36083552672](https://github.com/rupurt/rey/actions/runs/36083552672) similarly
+[run 36083552672](https://github.com/spoke-sh/transit/actions/runs/36083552672) similarly
 had a successful 16m16s experience job and failures elsewhere.
 
 In run 36085614545, Nix restores took **49s core, 31s experience, 141s bindings**;
@@ -346,6 +346,6 @@ Python/TypeScript/Rust examples, including shared-principal contention, capacity
 exhaustion and restart during a durable call. Prototype the small TLA+ model
 alongside that work, without making a broad formalization project a prerequisite.
 
-This preparation is now scoped as [M10](../../roadmap/M10.md), including the
-collection-growth correction above; [M11](../../roadmap/M11.md) follows its exit
+This preparation is now scoped as M10, including the
+collection-growth correction above; M11 follows its exit
 gates. The [testing strategy](../TESTING.md) owns the selected verification policy.

@@ -9,7 +9,7 @@ exact snapshot evidence. Start with the [TypeScript client](../../packages/ts/tr
 and [reactive example](../../examples/serving/docs/reactive.md). An invalidation
 schedules a refresh; it is not itself the refreshed result.
 
-Status: implemented bounded [M21](../roadmap/M21.md) consumer of
+Status: implemented bounded M21 consumer of
 [M20 reactive APIs](REACTIVE_API.md) over [M19 serving](SERVING.md).
 The selected scope is live views with resumable change notifications and snapshot
 refresh, used by Board and an application interface. M20 owns the server/API
@@ -194,7 +194,7 @@ these observations from hosted CI cost and broader capacity claims.
 
 ## Declarative composition after M21
 
-[M23](../roadmap/M23.md) composes these primitives into the
+M23 composes these primitives into the
 [Board grammar](../design/board-grammar/README.md) and a reusable
 [reactive application workflow](REACTIVE_APPLICATIONS.md). It owns themeable
 monochrome presentation, explicit binding definitions, bounded opt-in draft
@@ -210,7 +210,7 @@ Document: decoder/schema, accepted-change, retention and deletion semantics need
 explicit view qualification. Missing source adapters must implement the same
 public M20 contract; UI code never reads raw storage or defines its own tail.
 
-[M21's exit criteria](../roadmap/M21.md#exit-criteria) cover generation races,
+M21's exit criteria cover generation races,
 dirty-during-refresh, reset/resnapshot, protected-state clearing, multi-viewer
 fairness and actual browser/server recovery in all three placements. Server API
 conformance remains M20's proof. Continuous SQL, incremental operators, cross-source

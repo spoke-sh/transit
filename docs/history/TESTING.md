@@ -8,7 +8,7 @@ Use this guide to choose evidence appropriate to a change. Runnable commands
 and measured outcomes belong in [the proof ledger](../../tests/README.md). A skipped
 check or a diagram does not qualify a runtime behavior.
 
-Status: [M10](../roadmap/M10.md) is qualified within its recorded profile and workload
+Status: M10 is qualified within its recorded profile and workload
 limits. Conservative workflow selection, separate unit/build checks, clean-run
 timings, generated transitions, reviewed bounds, finite TLA+ models and concrete
 negative controls are implemented. Repeated disk/S3 growth and hosted CI budgets
@@ -148,7 +148,7 @@ as a proof of Zig or the deployed system. CRDT merge laws remain future work.
 
 ## Scale, overload and recovery
 
-The [Rey workload model](workloads/REY.md) supplies downstream demand scenarios
+The [Trading workload model](workloads/TRADING.md) supplies downstream demand scenarios
 for market capture, context, execution and research. Its arithmetic is not
 benchmark evidence. The [experiment matrix](../../tests/verification/scale.json)
 keeps small reproducible growth runs distinct from those application envelopes.
@@ -185,11 +185,11 @@ Record hardware, filesystem, provider topology, versions, cold/warm state and
 repeat counts. Establish tolerances from measured variance. Keep strict protocol
 deadline assertions separate from noisy performance regressions. Single-authority
 growth does not prove horizontal throughput: the current realm-wide journal is a
-serialization point, and [M35](../roadmap/M35.md) owns broader cluster qualification.
+serialization point, and M35 owns broader cluster qualification.
 
 ## Documentation verification
 
-[M26](../roadmap/M26.md) adds the Docusaurus handbook. Source-link checks remain in
+M26 adds the Docusaurus handbook. Source-link checks remain in
 `tests/docs.py`; `just transit-docs::check` additionally verifies every public guide/reference
 is cataloged without internal prerequisites, generated API operations/schemas, strict frontend types and a
 production build with broken routes/anchors treated as errors. The actual browser
@@ -215,7 +215,7 @@ runs do not count. The calibrated cold budget is **under 35 minutes** and
 **135 aggregate runner minutes**, with GitHub dependency restores disabled.
 Its complete baseline took 31m09s and 111m51s. Restored-byte measurements cover
 GitHub cache archives, not upstream Nix substitute traffic. The
-[measurement record](../../tests/verification/results/m10-ci-2026-09-25.json)
+measurement record (archived)
 preserves all qualifying samples and the excluded failures/regression.
 
 M11 adds installed public SDK schedules and the ten-edge language ring to the

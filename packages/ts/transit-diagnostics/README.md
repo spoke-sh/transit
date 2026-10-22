@@ -1,6 +1,6 @@
 # Transit diagnostics for browser callers
 
-`@rey/transit-diagnostics` owns the TypeScript validation and rendering of the
+`@transit/diagnostics` owns the TypeScript validation and rendering of the
 shared [diagnostic contract](../../../contracts/DIAGNOSTICS_V1.md). Query,
 application and reactive callers use this library directly.
 
