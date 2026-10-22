@@ -1,8 +1,11 @@
-# transit-docs
+# Transit handbook
 
 Docusaurus renders Transit's user and Internals documentation from the owning repository
 Markdown files. Start with [the introduction](guides/introduction.md).
 The site is a static frontend; it does not connect to Transit or hold credentials.
+This directory owns the site project plus `guides/`, `reference/` and `internals/`.
+The top-level [documentation index](../README.md) describes the repository's
+other documentation owners. Roadmap, design and history stay outside this project.
 
 From the repository root, inside `nix develop` (or the smaller `nix develop .#docs`):
 
@@ -82,6 +85,16 @@ Literal code examples are untouched. Original edit links point at the owning fil
 Markdown uses CommonMark mode; Mermaid fences render as diagrams. No separate
 copy of the foundations or generated wire schema is maintained here.
 
+The [interface and architecture map](reference/interfaces.md) is the coverage
+index: CLI/configuration, native SQL sessions, PostgreSQL/MySQL, language SDKs,
+signed native HTTP, Table mediation, Serving, reactive APIs, Board, Arrow/Flight
+and outbound connectors each lead to usage, contracts and technical accounts.
+Runtime coverage includes authority, delivery, state, Station, query execution,
+storage/concurrency/cleanup, deployment and observability. When an interface
+changes, update its public owner and this map, then the relevant Internals account
+if the mechanism or its evidence changes. Keep historical measurements tied to
+their source revisions; documentation checks are not new runtime qualification.
+
 The [workload gallery](guides/workload-examples.md) uses excerpts from
 complete executable examples. A `source-excerpt` HTML comment before a code fence
 names its repository-relative owner; content tests require the block to match
@@ -91,7 +104,10 @@ it does not replace the language checks or the example's real-authority proof.
 
 `lib/specs.ts` renders API operations/messages and recursive field/variant tables
 from checked Board/serving OpenAPI and reactive AsyncAPI descriptions. Builds copy
-the same bytes to `specs/` for downloads. Regenerate those descriptions with their
+the same bytes to `specs/` for downloads. `lib/downloads.ts` also publishes native
+message schemas and the setting registry, indexed by
+[Contracts and schema downloads](reference/contracts.md). These files are copied
+exactly, without treating native messages as OpenAPI. Regenerate descriptions with their
 owners, not in this package; `just transit-board::contract` and
 `just test::reactive-descriptions` detect upstream drift. Build/start clear Docusaurus compilation caches so changes to external schemas
 and link transforms cannot leave old rendered contracts behind. The generated reference
@@ -107,7 +123,10 @@ reload, but the index is built when configuration loads.
 `just transit-docs::check` runs Vite+ lint/format, strict TypeScript, reference/link
 transform tests and a production build with broken links/anchors treated as
 errors. `just check` includes it. The experience CI lane owns it on ordinary runs;
-documentation-only PRs run it through the dedicated documentation job.
+documentation-only PRs run it through the dedicated documentation job. This
+includes site code and assets under `docs/handbook`; shared dependency, contract
+and runtime changes still select the full CI path. Markdown links across the
+repository are checked separately by `python3 -B tests/docs.py`.
 
 ```sh
 just transit-docs::browser-install
@@ -122,8 +141,10 @@ DDL and application declarations, and finds a statement through search.
 It opens Internals from desktop/mobile navigation, finds its scientific standard
 through labeled search results, follows the template and technical accounts,
 renders their diagrams, and verifies Roadmap/Design links target source indexes.
-It also follows the workload gallery into performance evidence and planned
+It also follows the workload gallery into performance evidence and shared
 session semantics, checking highlighted language blocks and search discovery.
+Publication checks cover direct new-reference routes, canonical URLs, sitemap,
+robots, search entries, the 404 artifact and exact schema downloads.
 It uses a private loopback port (4179 by default, `TRANSIT_DOCS_TEST_PORT` to change).
 No Transit deployment is started or modified.
 
@@ -133,10 +154,36 @@ not execution of administrative forms. `just test::application-grammar` validate
 the complete published application program through the independent grammar and
 real offline compiler, including its canonical model round-trip.
 
-For a static host, set `TRANSIT_DOCS_URL` to its origin and optionally
-`TRANSIT_DOCS_BASE_URL` to a path beginning and ending with `/`, then build. The
-default is a local preview at `http://localhost:3000/`. Publish the resulting
-`dist/` contents under that path; clean URLs need the host's `.html` resolution.
-These tasks do not publish the site or assume a production domain. The preview
-documents the checked-out source capabilities; published versioned
-release documentation and immutable release links are not provided by this package.
+## Static publication contract
+
+The canonical origin defaults to `https://transit.spoke.sh`, with base path `/`
+and no trailing slash on page routes. Local development still listens at
+`http://localhost:3000`; canonical URLs do not select the listening interface.
+Override `TRANSIT_DOCS_URL` and optionally `TRANSIT_DOCS_BASE_URL` for a different
+publication target. A base path must begin and end with `/`.
+
+From the repository root:
+
+```sh
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+```
+
+The publication artifact is **`docs/handbook/dist/`**, not the repository root.
+It contains static HTML, fingerprinted assets, `404.html`, `sitemap.xml`,
+`robots.txt`, the local `search-index.json` and exact `specs/` downloads. It needs
+no running Node or Transit service. Source Markdown, roadmap, design and history
+are not copied into this artifact; selected source links lead back to GitHub.
+
+A static host must resolve clean paths to the corresponding `.html`, redirect
+trailing-slash variants consistently, and return the custom 404 with HTTP 404 for
+missing pages. Do not use a catch-all SPA success response. HTML, search and
+schema URLs are mutable across builds, so they must not receive immutable cache
+policy. Use a single verified output bundle for each publication.
+
+The [next publication task](../roadmap/01-handbook-publication.md) specifies
+Cloudflare Static Assets, the custom domain, deployment CI and rollback evidence.
+No deployment or DNS change is performed by these build tasks. Cloudflare's
+asset routing, HTTPS, caching and rollback still require their own verification.
+The site describes the checked-out source capabilities; release-versioned
+documentation and immutable release links are not provided by this package.

@@ -1,4 +1,4 @@
-# 1. Storage and query performance
+# 2. Storage and query performance
 
 [Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76)
 

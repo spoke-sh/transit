@@ -1,10 +1,10 @@
-# 4. Multi-model and foreign relations
+# 5. Multi-model and foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
 
 Compose KV, Table and Document data using the
-[standards/semantic contracts](02-standards-and-catalogs.md) and relevant
-[declaration/dataflow lifecycle](03-sql-and-dataflows.md).
+[standards/semantic contracts](03-standards-and-catalogs.md) and relevant
+[declaration/dataflow lifecycle](04-sql-and-dataflows.md).
 
 ## Delivery sequence
 

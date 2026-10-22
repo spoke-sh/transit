@@ -1,4 +1,4 @@
-# 2. Standards and historical catalogs
+# 3. Standards and historical catalogs
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
 

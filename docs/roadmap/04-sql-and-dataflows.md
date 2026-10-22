@@ -1,4 +1,4 @@
-# 3. SQL and declarative dataflows
+# 4. SQL and declarative dataflows
 
 [Roadmap](README.md)
 
@@ -27,7 +27,7 @@ baseline; extend their shared owners rather than planning them again.
 
 ## Prerequisites and completion
 
-Historical operations consume [catalog contracts](02-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](03-standards-and-catalogs.md).
 Branch merge and SQL MERGE remain distinct. Fuze owns computation; Station and
 application owners coordinate work above a generic kernel.
 

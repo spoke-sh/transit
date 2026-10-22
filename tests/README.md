@@ -11115,7 +11115,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:
@@ -12800,7 +12800,7 @@ multi-model and historical-schema analysis. Runtime, fixtures, generated contrac
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
 is preserved, and the SQL continuation becomes M39 at that checkpoint (now
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
@@ -16373,7 +16373,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../docs/roadmap/03-sql-and-dataflows.md).
+[SQL and dataflows](../docs/roadmap/04-sql-and-dataflows.md).
 
 ### Native COUNT costs
 
@@ -21875,3 +21875,25 @@ At PR submission, `just ci-clean --lane experience` is running against committed
 inspection and Board query recovery. The local Station launcher is in progress.
 This partial lane is not a completed clean-checkout pass; the
 other ordinary lanes and separate browser lane are outside this run's scope.
+
+## Handbook consolidation and static publication preparation (2026-10-21)
+
+Documentation-only validation for the move into `docs/handbook` and the interface
+coverage review:
+
+- `python3 -B tests/docs.py`: 5,246 local links across 552 Markdown files pass.
+- `just transit-docs::check` in the pinned docs shell: Vite+ lint/format, strict
+  TypeScript, nine content/reference tests and the production build pass.
+- The final production build and all five Chromium checks pass after the content
+  review. They exercise navigation, static search, diagrams, desktop/mobile
+  accessibility, canonical URLs, sitemap/robots, the 404 artifact and byte-exact
+  downloads of OpenAPI/AsyncAPI descriptions, native schemas and setting metadata.
+- `python3 -B tests/ci_runner.py` passes, including handbook-only selection,
+  conservative shared-file selection, rename handling and failure propagation.
+- The component directory links all 55 app/library README owners. The final
+  static artifact has 353 files and no source Markdown or temporary server bundle.
+
+Runtime execution and `ci-clean` are not run for this documentation refactor, as
+requested. These checks establish documentation/build behavior, not new runtime
+qualification. Cloudflare deployment, DNS/TLS, CDN routing/cache behavior and
+rollback are not exercised; local Docusaurus preview cannot establish them.

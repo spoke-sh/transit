@@ -1,9 +1,9 @@
-# 5. Branches, merges and restore
+# 6. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31)
 
 Add isolated application-state experimentation after
-[historical catalog binding](02-standards-and-catalogs.md). The
+[historical catalog binding](03-standards-and-catalogs.md). The
 [state model](../handbook/internals/state-model.md) owns the authority/lifetime proposal.
 Branches do not copy live process identities, grants or effect rights.
 

@@ -1,4 +1,4 @@
-# 9. Release distribution
+# 10. Release distribution
 
 [Roadmap](README.md)
 
@@ -28,7 +28,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](08-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](09-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.
