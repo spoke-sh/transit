@@ -267,6 +267,8 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await expect(
     page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".navbar-sidebar")).not.toBeInViewport();
+  await expect(page.locator(".navbar-sidebar__backdrop")).not.toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
