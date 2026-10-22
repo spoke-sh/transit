@@ -1,6 +1,6 @@
 # 3. Live storage engine and SQL execution cutover
 
-[Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
+[Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Completed
 
 Wire the four-tier storage hierarchy (`TransitLog`, `TransitObjectStore`,
 `TableMemtable`, `TableManifest`) and `.tseg` hybrid columnar segment engine

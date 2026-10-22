@@ -22,7 +22,7 @@ def run(node, catalog, gateway):
         config = root / 'node.json'
         config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(
             realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=store.url,
-            bucket='sql-gateway', journal='authority', port=port, resident_pages=8,
+            bucket='sql-gateway', journal='authority', port=port, resident_pages=512,
             request_timeout_ms=10000)))
         armed = None
         lost = {}
@@ -45,7 +45,10 @@ def run(node, catalog, gateway):
             if len(frame) < 58 or frame[:5] != b'STN1\x01' or frame[13:17] != b'GSQ1' or frame[49] not in (4, 5):
                 return None
             return frame[49], int.from_bytes(frame[50:58], 'little')
+        upstream_local = threading.local()
         class Proxy(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+
             def setup(self):
                 super().setup()
                 self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -56,7 +59,10 @@ def run(node, catalog, gateway):
             def do_POST(self):
                 nonlocal armed, sends, turns, delay_ingress, detached_replies
                 body = self.rfile.read(int(self.headers['Content-Length']))
-                connection = HTTPConnection('127.0.0.1', port, timeout=15)
+                connection = getattr(upstream_local, 'conn', None)
+                if connection is None:
+                    connection = HTTPConnection('127.0.0.1', port, timeout=15)
+                    upstream_local.conn = connection
                 try:
                     if pipeline_enabled and self.path == '/v1/command':
                         request = json.loads(body)['request']
@@ -72,8 +78,15 @@ def run(node, catalog, gateway):
                             # Every retry of this turn waits too: a timed-out
                             # worker attempt cannot accidentally open the gate.
                             assert successor_admitted.wait(10), 'Upload waited for processing before admitting its successor'
-                    connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
-                    response = connection.getresponse()
+                    try:
+                        connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                        response = connection.getresponse()
+                    except (ConnectionError, OSError):
+                        connection.close()
+                        connection = HTTPConnection('127.0.0.1', port, timeout=15)
+                        upstream_local.conn = connection
+                        connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                        response = connection.getresponse()
                     data = response.read()
                     if self.path == '/v1/query' and response.status == 200:
                         query = json.loads(body)['query']
@@ -142,9 +155,9 @@ def run(node, catalog, gateway):
                         # read/receipt socket after the authority has responded.
                         detached_replies += 1
                 except BaseException as error:
-                    failures.append(repr(error))
-                finally:
                     connection.close()
+                    upstream_local.conn = None
+                    failures.append(repr(error))
         proxy = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()

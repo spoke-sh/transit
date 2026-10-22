@@ -733,3 +733,19 @@ staging pipeline:
   primary-key ranges automatically rebase onto `v{N+1}.tman` via
   `PartitionLease.OccCoordinator` without rewriting `.tseg` objects, while
   overlapping primary keys fail closed with `WriteWriteConflict`.
+- **Live catalog/query segment wiring and execution-path latency cutover:**
+  [`TableStorageEngine`](../../../packages/zig/transit-catalog/src/TableStorageEngine.zig)
+  connects `TableBehavior` directly to `TableMemtable`, `LocalWal`,
+  `LocalSegmentStore`, `TableManifest`, `PartitionLease.OccCoordinator` and
+  `NvmeCache`, while [`TableSegmentScan`](../../../packages/zig/transit-query/src/TableSegmentScan.zig)
+  executes collation-aware Zone-Map and 64-bit Bloom-filter row-group pruning and
+  streams `.tseg` + `.tdel` + Memtable deltas directly into `Fuze` `VectorBatch`
+  and `LogicalQuery.Execution` pipelines. On the authority and SQL gateway paths,
+  `PackedPageStore.finish` populates the verified page cache immediately upon
+  candidate segment seal, `Native.zig` shares verified pages and journal heads
+  across all 10 request lanes using epoch-tracked incremental synchronization, and
+  `AccountRuntime` wakes immediately on condition variables while draining ready
+  `GenServer` sub-steps within a single tick. On the 33-operation, 217-turn
+  `native_gateway_ledger` end-to-end proof (`just test::sql-gateway`), wall-clock
+  execution drops from **122.759 seconds** to **55.770 seconds** (a **2.20x**
+  speedup) with identical durable turn and send counts.
