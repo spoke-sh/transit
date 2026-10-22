@@ -1,4 +1,4 @@
-# 8. Clustered execution and storage-disaggregated placement
+# 9. Clustered execution and storage-disaggregated placement
 
 [Roadmap](README.md) · **Status:** Planned
 

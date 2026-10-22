@@ -1,4 +1,4 @@
-# 9. Qualification and complete benchmarks
+# 10. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -56,4 +56,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](10-releases.md).
+and immutable release links remain part of [release distribution](11-releases.md).

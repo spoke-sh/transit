@@ -20,14 +20,15 @@ the supported pieces and the gaps between them.
 | --- | --- | --- | --- |
 | 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | Completed | Describe, apply, inspect and evolve Tables, KV, Documents, computations and policies through one catalog model with orthogonal $(\tau, \epsilon, \kappa)$ column descriptors and direct data-plane operations |
 | 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | Completed | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
-| 3 | [Standards, collations and historical catalogs](03-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
-| 4 | [Managed computations and WAL-activated dataflows](04-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
-| 5 | [Multi-model and multi-format foreign relations](05-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
-| 6 | [Branches, merges and restore](06-branches-merges-and-restore.md) | Planned | $O(1)$ manifest-based application-state branches, segment-index three-way merges and restore |
-| 7 | [Service and SDK coverage](07-service-and-sdk-coverage.md) | Planned | Broader types, sources and streaming interactions through shared contracts |
-| 8 | [Clustered execution and storage-disaggregated placement](08-clustered-execution.md) | Planned | Fenced lease transfer, zero-copy S3/NVMe cache warming and locality-aware distributed query execution |
-| 9 | [Qualification and complete benchmarks](09-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
-| 10 | [Release distribution](10-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
+| 3 | [Live storage engine and SQL execution cutover](03-live-storage-and-sql-cutover.md) | In Progress | Write-through page/block caches, cross-lane sharing, zero-sleep SQL gateway wakeup, single-turn DML fast path and `.tseg`/storage wiring in live executables |
+| 4 | [Standards, collations and historical catalogs](04-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
+| 5 | [Managed computations and WAL-activated dataflows](05-sql-and-dataflows.md) | Planned | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
+| 6 | [Multi-model and multi-format foreign relations](06-multi-model-and-foreign-relations.md) | Planned | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
+| 7 | [Branches, merges and restore](07-branches-merges-and-restore.md) | Planned | $O(1)$ manifest-based application-state branches, segment-index three-way merges and restore |
+| 8 | [Service and SDK coverage](08-service-and-sdk-coverage.md) | Planned | Broader types, sources and streaming interactions through shared contracts |
+| 9 | [Clustered execution and storage-disaggregated placement](09-clustered-execution.md) | Planned | Fenced lease transfer, zero-copy S3/NVMe cache warming and locality-aware distributed query execution |
+| 10 | [Qualification and complete benchmarks](10-qualification-and-benchmarks.md) | Planned | Reproducible full workloads, fault coverage and measured CI costs |
+| 11 | [Release distribution](11-releases.md) | Planned | Versioned, verified artifacts with runnable installed onboarding |
 
 Performance and storage architecture work is tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76).
@@ -58,8 +59,10 @@ Standards, multi-model and branching work is tracked in
    (`COLLATE`) support. Progress concurrency from a single global realm sequencer
    to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
    **Lock-Free Multi-Writer OCC** over conditional manifest CAS.
-3. **Activate derived views, multi-format foreign sources, $O(1)$ branches and clustered compute ([Milestones 3](03-standards-and-catalogs.md)–[8](08-clustered-execution.md)).**
-   Bind historical catalog snapshots to immutable manifest versions and collations;
+3. **Cut over live executables and activate derived views, multi-format foreign sources, $O(1)$ branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[9](09-clustered-execution.md)).**
+   Wire the storage hierarchy, `.tseg` segments, write-through caches and immediate
+   wakeups into the live node, SQL gateway and server executables; bind historical
+   catalog snapshots to immutable manifest versions and collations;
    drive maintained SQL views, reactive watches and Station processes directly
    from `TransitLog` (`+row`/`-row`) delta streams; read Parquet, Arrow IPC,
    CSV/JSONL and mainframe fixed/variable (`FB`/`VB`) copybook datasets through
@@ -68,7 +71,7 @@ Standards, multi-model and branching work is tracked in
    Station and `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](09-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](10-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -96,7 +99,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `10-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `11-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 
