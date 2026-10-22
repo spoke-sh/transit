@@ -9,6 +9,7 @@ pub const PackedPageStore = @import("PackedPageStore.zig");
 pub const StorageCollection = @import("StorageCollection.zig");
 pub const AllocationQueue = @import("AllocationQueue.zig");
 pub const Segment = @import("Segment.zig");
+pub const UrsulaWal = @import("UrsulaWal.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
 
@@ -27,6 +28,7 @@ test {
     _ = Segment;
     _ = AllocationQueue;
     _ = StorageCollection;
+    _ = UrsulaWal;
 }
 
 /// Borrows its client and stream names. Never implicitly creates missing history.
