@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { atlas, BoardError, type AtlasResponse } from "@rey/transit-board-client";
+import { atlas, BoardError, type AtlasResponse } from "@transit/board-client";
 import { message, useScope } from "./state";
 export type AtlasCursor = { position: number; process_after?: number; resource_after?: number };
 /** One authorized page and one in-flight acquisition. No global catalog cache. */

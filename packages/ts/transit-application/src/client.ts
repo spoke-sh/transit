@@ -1,5 +1,5 @@
-import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
-import { ownedDiagnostic, type Diagnostic } from "@rey/transit-diagnostics";
+import { acquireCaller, type AcquireCaller } from "@transit/reactive-client";
+import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import * as validate from "./validators.js";
 import type {
   Command,

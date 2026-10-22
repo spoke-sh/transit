@@ -46,7 +46,7 @@ def main():
         # The shell supplies tools, but checkout-local environment selection
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
-               if not key.startswith("REY_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
+               if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
         run("nix", "develop", "--command", "env", f"TMPDIR={scratch}",
             "just", "transit-board::install", cwd=checkout, env=env)
         # Select TMPDIR after entering Nix, which supplies its own temporary

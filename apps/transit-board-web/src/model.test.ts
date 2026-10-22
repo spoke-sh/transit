@@ -11,7 +11,7 @@ import {
   type GrpcResponse,
   type HttpResponse,
   BoardError,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 import { message } from "./state";
 describe("inspection semantics", () => {
   it("preserves bytes as text and refuses invalid UTF-8 previews", () => {

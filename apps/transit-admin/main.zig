@@ -14,7 +14,7 @@ fn print(io: std.Io, value: anytype) !void {
     try writer.interface.flush();
 }
 pub fn main(init: std.process.Init) !void {
-    const status = telemetry.runService(init, "rey-cli", .debug, runMain);
+    const status = telemetry.runService(init, "transit-admin", .debug, runMain);
     if (status != 0) std.process.exit(status);
 }
 fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {

@@ -12,7 +12,7 @@ const options = { url: cfg.url, profile: 'native_v1', timeoutMs: 3000 };
 const credential = new Credential(72, 65536, cfg.seed);
 const peer = new ProcessRef(72, cfg.pid);
 const require = createRequire(import.meta.url);
-for (const name of ['@transit/station', '@transit/native-station', '@rey/transit-station']) {
+for (const name of ['@transit/station', '@transit/native-station', '@transit/station']) {
   assert.throws(() => require.resolve(name), { code: 'MODULE_NOT_FOUND' });
 }
 for (const value of [true, -1, 0, 2**53, '1']) assert.throws(() => new ProcessRef(72, value), TypeError);

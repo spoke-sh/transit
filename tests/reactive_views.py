@@ -97,7 +97,7 @@ def run(env, tls):
     configuration.write_text(json.dumps(dict(board=gateway['public_origin'], counter='https://' + counter_host, resource=resource, marker=str(root / 'view-stage'), spki=','.join(pins), recovery='recover' in env, screenshots=str(Path('.cache/verification').resolve()), profile=env.get('profile', 'native'))))
     log = (root / 'view-browser.log').open('w+')
     script = 'live-view-lifecycle.mjs' if env.get('reactive_views_lifecycle') else 'live-views.mjs'
-    browser = subprocess.Popen(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/' + script, str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
+    browser = subprocess.Popen(['vp', 'exec', '--filter', '@transit/board-web', 'node', 'browser/' + script, str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
     previous = None
     sessions_before = None
 

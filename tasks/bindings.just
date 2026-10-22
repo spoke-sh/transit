@@ -28,7 +28,7 @@ test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test ja
 # Requires the installed language artifacts from the corresponding *-build tasks.
 # C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
 query-failures *args: build
-    zig build transit-node rey-cli
+    zig build transit-node transit-admin
     python3 -B tests/sdk_query_failures.py {{args}}
 
 # Validate the current Node adapters and their asynchronous port transport.
@@ -53,11 +53,11 @@ python-test: python-build
     PYTHONPATH=sdks/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict sdks/python/transit-native-client/transit_native_client sdks/python/transit-native-station/transit_native_station sdks/python/transit-client/transit_client
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
-    zig build transit-node rey-cli transit-station-http-worker
-    python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels
+    zig build transit-node transit-admin transit-station-http-worker
+    python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels
     zig build transit-station-grpc-worker
-    python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
+    python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
     just test::typed-tables --cold --sdk python
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk python
 
@@ -83,11 +83,11 @@ node-sdk-test: node-build
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
-    zig build transit-node rey-cli transit-station-http-worker
-    python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
+    zig build transit-node transit-admin transit-station-http-worker
+    python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node
     zig build transit-station-grpc-worker
-    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
+    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just test::typed-tables --cold --sdk node
     zig build test-relational-callers -Doptimize=ReleaseSafe -- --sdk node
 
@@ -104,7 +104,7 @@ rust-build: build
 
 # Stress installed Rust runner destruction on fresh malformed inputs.
 rust-lifetime cases="128": rust-build
-    zig build transit-node rey-cli
+    zig build transit-node transit-admin
     python3 -B tests/rust_station_lifetime.py --cases {{quote(cases)}}
 
 # Build clean Rust consumers; run from the bindings shell.
@@ -114,11 +114,11 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path sdks/rust/transit-native-station/Cargo.toml --check
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
-    zig build transit-node rey-cli transit-station-http-worker
-    python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
+    zig build transit-node transit-admin transit-station-http-worker
+    python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust
     zig build transit-station-grpc-worker
-    python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
+    python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
     just test::typed-tables --cold --sdk rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
@@ -146,12 +146,12 @@ ruby-sdk-test: ruby-build
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
-    zig build transit-node rey-cli
-    python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
+    zig build transit-node transit-admin
+    python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby
     zig build transit-station-http-worker
     zig build transit-station-grpc-worker
-    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
+    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
     just test::typed-tables --cold --sdk ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
@@ -167,10 +167,10 @@ c-build: build
 # Compile installed public C and C++ consumers and run the shared raw schedule.
 c-sdk-test: c-build
     zig fmt --check sdks/c sdks/cpp/transit-client sdks/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
-    python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c
+    python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
     just test::typed-tables --cold --sdk c --sdk cpp
     python3 -B tests/c_logical_values.py .cache/bindings/c
 
@@ -184,10 +184,10 @@ java-build: build
 
 # Compile installed public Java consumers outside the checkout.
 java-sdk-test: java-build
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java
-    python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java
+    python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
     just test::typed-tables --cold --sdk java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
@@ -201,10 +201,10 @@ logical-dotnet: dotnet-build
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
-    python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet
+    python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
     just test::typed-tables --cold --sdk dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
@@ -219,16 +219,16 @@ logical-beam: beam-build
 beam-sdk-test: beam-build
     python3 -B tests/beam_logical_values.py .cache/bindings/beam
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
-    python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam
+    python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
     just test::typed-tables --cold --sdk erlang --sdk elixir
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json
 
 # Every installed SDK uses only native send and its selected Table data role.
 authorization: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -236,71 +236,71 @@ authorization: python-build node-build rust-build ruby-build c-build java-build 
 
 # Qualify installed HTTP/gRPC outcome diagnostics and recovery in every SDK.
 connector-outcomes: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings
 
 # Retain original accepted-call preparation failures across lost receipts and restart.
 connector-preparation: python-build
-    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http --language python --preparation-failure
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --preparation-failure
+    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-http-worker .cache/bindings --protocol http --language python --preparation-failure
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --preparation-failure
 
 # Crash after public RPC output commit and preserve a retired caller destination.
 grpc-faults: python-build
-    zig build transit-node rey-cli transit-station-grpc-worker
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault published
-    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault retirement
+    zig build transit-node transit-admin transit-station-grpc-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault published
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python --fault retirement
 
 # Qualify Document scoped jobs and read-only native/port consumers.
 document-native: build
-    zig build transit-node rey-cli
-    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
+    zig build transit-node transit-admin
+    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
 
 # Installed Python Document types, scoped changes, retained reads and host loss.
 document-python: python-build
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language python
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language python
 
 # Installed Node Document values, scoped ownership, retained reads and host loss.
 document-node: node-build
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/document.test.ts
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language node
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language node
 
 # Installed Ruby Document values, scoped changes and joined reader destruction.
 document-ruby: ruby-build
     ruby -c sdks/ruby/transit-station/lib/transit/station/document.rb
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language ruby
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language ruby
 
 # Installed Rust Document values and compiler-enforced owner/reader lifetimes.
 document-rust: rust-build
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language rust
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language rust
 
 # Installed C11/C++17 Document handlers, owned values and reader lifetimes.
 document-c: c-build
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language c
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language c
 
 # Installed Java Document values, scoped jobs and asynchronous joined reads.
 document-java: java-build
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language java
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language java
 
 # Installed .NET Document values, scoped jobs, cancellation and joined disposal.
 document-dotnet: dotnet-build
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language dotnet
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language dotnet
 
 # Installed Erlang and Elixir Document APIs share the native merge implementation.
 document-beam: beam-build
     mix format --check-formatted sdks/beam/transit-station-elixir/lib/document.ex tests/elixir_document_adapter.ex
-    zig build transit-node rey-cli
-    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language beam
+    zig build transit-node transit-admin
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings --language beam
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

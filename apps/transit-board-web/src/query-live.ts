@@ -1,7 +1,7 @@
-import { BoardError, unifiedQuery as query } from "@rey/transit-board-client";
-import { LiveView, ReactiveError, Session } from "@rey/transit-reactive-client";
+import { BoardError, unifiedQuery as query } from "@transit/board-client";
+import { LiveView, ReactiveError, Session } from "@transit/reactive-client";
 import { verifiedPage, type ResultPage } from "./unified-result";
-import { DraftSession } from "@rey/transit-query-client";
+import { DraftSession } from "@transit/query-client";
 
 export const liveDraft = new DraftSession(query);
 

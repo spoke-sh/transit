@@ -1,5 +1,5 @@
 {
-  "name": "@rey/transit-work-items-web",
+  "name": "@transit/work-items-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rey/transit-application": "workspace:*",
-    "@rey/transit-query-client": "workspace:*"
+    "@transit/application": "workspace:*",
+    "@transit/query-client": "workspace:*"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

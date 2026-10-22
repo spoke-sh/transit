@@ -75,7 +75,7 @@ def summarize(run, jobs, log, budgets):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', required=True, type=int)
-    parser.add_argument('--repo', default='rupurt/rey')
+    parser.add_argument('--repo', default='spoke-sh/transit')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     def api(path):

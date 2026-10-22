@@ -1,4 +1,4 @@
-# rey-cli
+# transit-admin
 
 Small signed Transit operator client built on
 [transit-client](../../packages/zig/transit-client/README.md). It derives public
@@ -8,11 +8,11 @@ It has no storage or provider access.
 From the repository root in `nix develop`, run `just build::debug apps`, then:
 
 ```sh
-zig-out/bin/rey-cli public-key PRIVATE_SEED_FILE
-zig-out/bin/rey-cli sign PRIVATE_SEED_FILE REQUEST.json
-zig-out/bin/rey-cli submit PRIVATE_SEED_FILE REQUEST.json http://127.0.0.1:8080
-zig-out/bin/rey-cli sign-query PRIVATE_SEED_FILE QUERY.json
-zig-out/bin/rey-cli query PRIVATE_SEED_FILE QUERY.json http://127.0.0.1:8080
+zig-out/bin/transit-admin public-key PRIVATE_SEED_FILE
+zig-out/bin/transit-admin sign PRIVATE_SEED_FILE REQUEST.json
+zig-out/bin/transit-admin submit PRIVATE_SEED_FILE REQUEST.json http://127.0.0.1:8080
+zig-out/bin/transit-admin sign-query PRIVATE_SEED_FILE QUERY.json
+zig-out/bin/transit-admin query PRIVATE_SEED_FILE QUERY.json http://127.0.0.1:8080
 ```
 
 Seed files contain 32 bytes encoded as hexadecimal and require owner-only

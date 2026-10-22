@@ -6,7 +6,7 @@ import {
   ApplicationTransportError,
   type Compiled,
   type Definition,
-} from "@rey/transit-application";
+} from "@transit/application";
 import {
   DraftSession,
   httpTransport,
@@ -15,7 +15,7 @@ import {
   QueryError,
   diagnosticLines,
   type ResultPage,
-} from "@rey/transit-query-client";
+} from "@transit/query-client";
 import { proposal } from "./proposal.generated";
 import "./style.css";
 

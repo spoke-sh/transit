@@ -220,7 +220,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         print(f'Board Table draft budget: atomic finite query, cross-instance exact retries, exhaustion, closed-generation replay and current source denial passed in {time.monotonic()-draft_started:.2f}s.', flush=True)
     if browser:
         marker = root/'board-browser-ready'
-        process = start('board-v1-browser', ['vp', 'exec', '--filter', '@rey/transit-board-web',
+        process = start('board-v1-browser', ['vp', 'exec', '--filter', '@transit/board-web',
             'node', 'browser/unified-query.mjs', origin, str(marker), str(caller['connection']['resource']), kind])
         try:
             until = time.monotonic()+240

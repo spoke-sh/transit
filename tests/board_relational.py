@@ -92,7 +92,7 @@ def exercise(board, fixture, url, root, policy, typed, sql, proof, browser):
         subprocess.run(['vp', 'exec', 'node', 'tests/board_relational_client.mjs'], input=json.dumps(observed), text=True, check=True, timeout=30)
         if browser:
             env = os.environ | dict(BOARD_TEST_URL=origin, BOARD_RELATIONAL_PROOF=proof, BOARD_RELATIONAL_AUTHORITY=url, BOARD_RELATIONAL_ROOT=str(root), BOARD_RELATIONAL_SQL=sql)
-            subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'playwright', 'test', 'relational.spec.ts'], env=env, check=True, timeout=180)
+            subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test', 'relational.spec.ts'], env=env, check=True, timeout=180)
         stop()
         del config['relational']
         child = start()

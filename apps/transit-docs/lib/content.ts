@@ -5,7 +5,7 @@ import { visit } from "unist-util-visit";
 import { pages } from "../catalog";
 import { readSpecification, renderSpecification, specifications } from "./specs";
 
-export const repository = "https://github.com/rupurt/rey";
+export const repository = "https://github.com/spoke-sh/transit";
 export function pageContent(root: string, source: string): string {
   let text = readFileSync(path.join(root, source), "utf8");
   const spec = specifications.find((entry) => entry.page === source);

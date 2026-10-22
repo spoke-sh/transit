@@ -20,10 +20,10 @@ from storage import Fixture, wait_ready
 
 def run(*, board=False, browser=False):
     binaries = {name: ROOT / "zig-out/bin" / name for name in (
-        "transit-board", "transit-node", "rey-cli", "transit-station-document-worker", "example-station-document")}
+        "transit-board", "transit-node", "transit-admin", "transit-station-document-worker", "example-station-document")}
     started = time.monotonic()
     with ColdStore() as cold:
-        fixture = GrowingSystem(binaries["transit-node"], binaries["rey-cli"])
+        fixture = GrowingSystem(binaries["transit-node"], binaries["transit-admin"])
         fixture.store = Fixture(cold.config())
         fixture.resident_pages = 64
         with fixture as system:
@@ -44,7 +44,7 @@ def run(*, board=False, browser=False):
                 return json.loads(result.stdout)
 
             def query(kind):
-                return invoke([binaries["rey-cli"], "query", system.seed,
+                return invoke([binaries["transit-admin"], "query", system.seed,
                     write("query.json", {"realm": 72, "principal": 0, "kind": kind}), system.url])
 
             def command(body):
@@ -52,7 +52,7 @@ def run(*, board=False, browser=False):
                 path = write(f"command-{sequence}.json", {"realm": 72, "principal": 0, "sequence": sequence, "command": body})
                 for attempt in range(3):
                     try:
-                        return invoke([binaries["rey-cli"], "submit", system.seed, path, system.url])["position"]
+                        return invoke([binaries["transit-admin"], "submit", system.seed, path, system.url])["position"]
                     except RuntimeError:
                         if attempt == 2:
                             raise

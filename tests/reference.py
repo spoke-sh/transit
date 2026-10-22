@@ -45,7 +45,7 @@ def source():
 
 def state():
     value = json.loads(STATE.read_text())
-    if not value["cluster"].startswith("rey-m1") or not value["registry"].startswith("rey-m1"):
+    if not value["cluster"].startswith("transit-m1") or not value["registry"].startswith("transit-m1"):
         raise RuntimeError("Invalid owned reference state")
     return value
 
@@ -73,12 +73,12 @@ def up():
     run(["docker", "info"], capture=True)
     source()
     CACHE.mkdir(parents=True, exist_ok=True)
-    name = "rey-m1-" + secrets.token_hex(3)
+    name = "transit-m1-" + secrets.token_hex(3)
     s = {"cluster": name, "registry": name + "-registry", "port": free_port(), "node_ids": []}
     # Record ownership before external operations, so interrupted setup is cleanable.
     STATE.write_text(json.dumps(s, indent=2))
     registry_id = run(["docker", "run", "-d", "--name", s["registry"],
-                       "--label", "rey.reference=" + name, "-p", f"127.0.0.1:{s['port']}:5000", PINS["registry"]], capture=True)
+                       "--label", "transit.reference=" + name, "-p", f"127.0.0.1:{s['port']}:5000", PINS["registry"]], capture=True)
     s["registry_id"] = registry_id
     STATE.write_text(json.dumps(s, indent=2))
     config = CACHE / "kind.yaml"

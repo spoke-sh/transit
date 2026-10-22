@@ -1,6 +1,6 @@
 import { CaptureFailure } from "./capture-failure";
 import { useEffect, useState } from "react";
-import { records, type RecordsResponse } from "@rey/transit-board-client";
+import { records, type RecordsResponse } from "@transit/board-client";
 import { message } from "./state";
 import { GrpcMetadata } from "./grpc-metadata";
 import { DocumentMetadata } from "./document-metadata";

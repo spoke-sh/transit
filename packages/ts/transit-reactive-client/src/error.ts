@@ -1,4 +1,4 @@
-import { ownedDiagnostic, type Diagnostic } from "@rey/transit-diagnostics";
+import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 
 export class ReactiveError extends Error {
   readonly diagnostic?: Diagnostic;

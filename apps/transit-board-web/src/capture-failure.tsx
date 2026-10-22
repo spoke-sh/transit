@@ -1,4 +1,4 @@
-import type { HttpResponse } from "@rey/transit-board-client";
+import type { HttpResponse } from "@transit/board-client";
 
 const explanation = {
   transport_failure:

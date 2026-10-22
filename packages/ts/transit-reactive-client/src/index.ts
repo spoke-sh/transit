@@ -1,4 +1,4 @@
-import { ownedDiagnostic } from "@rey/transit-diagnostics";
+import { ownedDiagnostic } from "@transit/diagnostics";
 import { ReactiveError } from "./error";
 export { ReactiveError } from "./error";
 import * as validate from "./validators.js";

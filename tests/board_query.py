@@ -457,7 +457,7 @@ def run(node, host, proof, board, browser=False):
             if browser:
                 assert faults.verified == {"next", "submit"} and not faults.errors
                 env = os.environ | {"BOARD_TEST_URL": origin, "BOARD_QUERY_PROOF": proof, "BOARD_QUERY_AUTHORITY": url, "BOARD_QUERY_CONFIG": str(fixture.root / "cli.json"), "BOARD_QUERY_RESOURCE": str(caller["connection"]["resource"]), "BOARD_QUERY_SCREENSHOT": str(Path(".cache/verification/m13-board.png").resolve())}
-                subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "query.spec.ts"], env=env, check=True, timeout=240)
+                subprocess.run(["vp", "exec", "--filter", "@transit/board-web", "playwright", "test", "query.spec.ts"], env=env, check=True, timeout=240)
             else:
                 admin("retire-source")
             api({"page": {"namespace": "1"}}, status=410)

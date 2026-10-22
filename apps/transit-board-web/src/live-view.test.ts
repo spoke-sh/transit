@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import diagnosticFixture from "../../../packages/zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
-import { LiveView, ReactiveError, Session, type Snapshot } from "@rey/transit-reactive-client";
+import { LiveView, ReactiveError, Session, type Snapshot } from "@transit/reactive-client";
 const scope = {
   realm: 1,
   principal: 2,

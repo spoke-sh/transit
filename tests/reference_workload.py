@@ -31,9 +31,9 @@ def run():
     images = json.loads((ref.CACHE / "images.json").read_text())
     directory = ref.CACHE / ("proof-" + uuid.uuid4().hex[:8])
     directory.mkdir(mode=0o700)
-    namespace = "rey-" + directory.name
+    namespace = "transit-" + directory.name
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    cli = ref.CACHE / "bin/bin/rey-cli"
+    cli = ref.CACHE / "bin/bin/transit-admin"
     controller_bin = ref.CACHE / "bin/bin/transit-runtime-controller"
     children = []
     logs = []
@@ -112,7 +112,7 @@ def run():
         return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
 
     config = {"genesis": {"realm": 49, "root_key": root_public, "allow_history_trim": True, "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
-              "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
+              "bucket": "transit-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
     from reference_chart import Chart
     chart = Chart(s, directory, namespace, images, config)
     try:

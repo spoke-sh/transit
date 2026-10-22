@@ -26,8 +26,8 @@ import {
   Error as errorValidator,
 } from "./validators.js";
 
-import { QueryError as BoardError, httpTransport } from "@rey/transit-query-client";
-export { QueryError as BoardError } from "@rey/transit-query-client";
+import { QueryError as BoardError, httpTransport } from "@transit/query-client";
+export { QueryError as BoardError } from "@transit/query-client";
 export const validateResponse = (value: unknown): value is Response => {
   if (!responseValidator(value)) return false;
   try {

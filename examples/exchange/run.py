@@ -31,7 +31,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
     connector_binary = f"transit-station-{protocol}-worker"
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
-                ("rey-cli", "transit-node", caller_binary, connector_binary)}
+                ("transit-admin", "transit-node", caller_binary, connector_binary)}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", LOG_LEVEL="warn")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -82,7 +82,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
             keys[role] = work / role / "seed.key"
             keys[role].write_text(secrets.token_hex(32))
             keys[role].chmod(0o600)
-            public[role] = invoke([binaries["rey-cli"], "public-key", keys[role]])
+            public[role] = invoke([binaries["transit-admin"], "public-key", keys[role]])
         realm = secrets.randbelow(2**30) + 1
         store_port, node_port = port(), port()
         url = f"http://127.0.0.1:{node_port}"
@@ -124,7 +124,7 @@ backend = "inline"
 
         def query(kind, role="operator"):
             request = write(role + "/query.json", {"realm": realm, "principal": principals[role], "kind": kind})
-            return invoke([binaries["rey-cli"], "query", keys[role], request, url])
+            return invoke([binaries["transit-admin"], "query", keys[role], request, url])
 
         def command(value, role="operator"):
             # Persist this exact request before I/O. A failed receipt never
@@ -134,7 +134,7 @@ backend = "inline"
                 "realm": realm, "principal": principals[role], "sequence": sequences[role], "command": value})
             for attempt in range(3):
                 try:
-                    return invoke([binaries["rey-cli"], "submit", keys[role], request, url])["position"]
+                    return invoke([binaries["transit-admin"], "submit", keys[role], request, url])["position"]
                 except RuntimeError:
                     if attempt == 2:
                         raise
@@ -173,12 +173,12 @@ backend = "inline"
             # authority. Exercise both boundaries through the actual CLI.
             before = query({"capabilities": {}})["position"]
             denied = write("caller/denied.json", {"realm": realm, "principal": 1, "sequence": 1, "command": {"spawn": {}}})
-            first = invoke([binaries["rey-cli"], "sign", keys["caller"], denied])
-            assert first == invoke([binaries["rey-cli"], "sign", keys["caller"], denied])
-            result = subprocess.run([binaries["rey-cli"], "submit", keys["caller"], denied, url], env=env,
+            first = invoke([binaries["transit-admin"], "sign", keys["caller"], denied])
+            assert first == invoke([binaries["transit-admin"], "sign", keys["caller"], denied])
+            result = subprocess.run([binaries["transit-admin"], "submit", keys["caller"], denied, url], env=env,
                                     capture_output=True, timeout=15)
             assert result.returncode and b"AccessDenied" in result.stderr
-            extra_url = subprocess.run([binaries["rey-cli"], "sign", keys["caller"], denied, url], env=env,
+            extra_url = subprocess.run([binaries["transit-admin"], "sign", keys["caller"], denied, url], env=env,
                                        capture_output=True, timeout=15)
             assert extra_url.returncode and b"ExpectedKeyAndRequestFile" in extra_url.stderr
             assert query({"capabilities": {}})["position"] == before

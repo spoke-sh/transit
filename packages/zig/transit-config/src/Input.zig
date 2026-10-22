@@ -126,11 +126,32 @@ pub fn reservedEnvironment(key: []const u8) bool {
     // These exact names belong to selectors, build tools or launcher templates.
     // Do not exempt prefixes: misspelled operator settings still fail closed.
     for ([_][]const u8{
-        "TRANSIT_CONSOLE_CONFIG", "TRANSIT_CONFIG",            "TRANSIT_SQL_TOOLS",
-        "TRANSIT_GSON_JAR",       "TRANSIT_FUZE_BENCH_PYTHON", "TRANSIT_DOCS_BASE_URL",
-        "TRANSIT_LIBRARY_DIR",    "TRANSIT_PORT",
+        "TRANSIT_CONSOLE_CONFIG",            "TRANSIT_CONFIG",            "TRANSIT_SQL_TOOLS",
+        "TRANSIT_GSON_JAR",                  "TRANSIT_FUZE_BENCH_PYTHON", "TRANSIT_DOCS_BASE_URL",
+        "TRANSIT_LIBRARY_DIR",               "TRANSIT_PORT",              "TRANSIT_DOCS_URL",
+        "TRANSIT_KUBECONFIG",                "TRANSIT_LAUNCHER_NAME",     "TRANSIT_LAUNCHER_BASE_PORT",
+        "TRANSIT_BOARD_HOST",                "TRANSIT_BOARD_PORT",        "TRANSIT_BOARD_PUBLIC_ORIGIN",
+        "TRANSIT_BOARD_ALLOW_INSECURE_HTTP", "TRANSIT_LOG_LEVEL",         "TRANSIT_LOG_FORMAT",
     }) |name| if (std.mem.eql(u8, key, name)) return true;
+    inline for (.{ "BOARD", "NODE", "MAINTENANCE", "DELIVERY", "COUNTER", "CONTROLLER", "LEDGER", "REQUESTER", "COORDINATOR", "STATION_OBSERVER", "STATION_LIFECYCLE" }) |service| {
+        inline for (.{ "LEVEL", "FORMAT" }) |field| {
+            if (std.mem.eql(u8, key, "TRANSIT_" ++ service ++ "_LOG_" ++ field)) return true;
+        }
+    }
     return false;
+}
+
+test "launcher environment names do not hide server settings or misspellings" {
+    const t = std.testing;
+    try t.expect(reservedEnvironment("TRANSIT_KUBECONFIG"));
+    try t.expect(reservedEnvironment("TRANSIT_LAUNCHER_NAME"));
+    try t.expect(reservedEnvironment("TRANSIT_BOARD_PORT"));
+    try t.expect(reservedEnvironment("TRANSIT_STATION_OBSERVER_LOG_LEVEL"));
+    try t.expect(!reservedEnvironment("TRANSIT_BOARD__PORT"));
+    try t.expect(!reservedEnvironment("TRANSIT_LOGGING__LEVEL"));
+    try t.expect(!reservedEnvironment("TRANSIT_BOARD_POTR"));
+    try t.expect(!reservedEnvironment("TRANSIT_NODE_LOG_LEVLE"));
+    try t.expect(!reservedEnvironment("TRANSIT_LAUNCHER_UNKNOWN"));
 }
 pub const Location = struct { name: []const u8, line: u64, column: u64 };
 pub const Document = struct { value: Value, locations: []const Location };

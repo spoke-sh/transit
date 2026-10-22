@@ -1,11 +1,11 @@
-# Container waypoint. The launcher supplies the saved REY_COMPOSE_* values and
+# Container waypoint. The launcher supplies the saved TRANSIT_COMPOSE_* values and
 # provisions through the public client before starting application services.
 x-logging: &logging
   driver: json-file
   options: {max-size: 5m, max-file: "2"}
 
 x-service: &service
-  user: '${REY_COMPOSE_UID:?}:${REY_COMPOSE_GID:?}'
+  user: '${TRANSIT_COMPOSE_UID:?}:${TRANSIT_COMPOSE_GID:?}'
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
@@ -16,53 +16,53 @@ x-service: &service
 services:
   ursula:
     <<: *service
-    image: '${REY_COMPOSE_URSULA_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_URSULA_IMAGE:?}'
     read_only: false
     command: [server, --config, /ursula.toml]
     environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/ursula.toml', target: /ursula.toml, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/wal', target: /wal, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/ursula.toml', target: /ursula.toml, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/wal', target: /wal, bind: {create_host_path: false}}
     networks: [storage]
     ports:
-      - {target: 8080, published: '${REY_COMPOSE_URSULA_PORT:?}', host_ip: 127.0.0.1}
+      - {target: 8080, published: '${TRANSIT_COMPOSE_URSULA_PORT:?}', host_ip: 127.0.0.1}
 
   node:
     <<: *service
-    image: '${REY_COMPOSE_NODE_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_NODE_IMAGE:?}'
     command: [/node.json]
-    environment: {LOG_LEVEL: '${REY_COMPOSE_NODE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_NODE_LOG_FORMAT:?}'}
+    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_NODE_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_NODE_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/node.json', target: /node.json, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/node.json', target: /node.json, read_only: true, bind: {create_host_path: false}}
     networks: [storage, client]
     ports:
-      - {target: 8080, published: '${REY_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
+      - {target: 8080, published: '${TRANSIT_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
 
   maintenance:
     <<: *service
-    image: '${REY_COMPOSE_NODE_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_NODE_IMAGE:?}'
     command: [/maintenance/config.json, --maintain]
-    environment: {LOG_LEVEL: '${REY_COMPOSE_MAINTENANCE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_MAINTENANCE_LOG_FORMAT:?}'}
+    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_MAINTENANCE_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_MAINTENANCE_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/maintenance', target: /maintenance, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/maintenance', target: /maintenance, read_only: true, bind: {create_host_path: false}}
     networks: [storage]
 
   counter:
     <<: *service
-    image: '${REY_COMPOSE_COUNTER_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_COUNTER_IMAGE:?}'
     command: [/counter/config.json]
-    environment: {LOG_LEVEL: '${REY_COMPOSE_COUNTER_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_COUNTER_LOG_FORMAT:?}'}
+    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_COUNTER_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_COUNTER_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/counter', target: /counter, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/counter', target: /counter, read_only: true, bind: {create_host_path: false}}
     networks: [client]
 
   delivery:
     <<: *service
-    image: '${REY_COMPOSE_DELIVERY_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_DELIVERY_IMAGE:?}'
     command: [/delivery/config.json]
-    environment: {LOG_LEVEL: '${REY_COMPOSE_DELIVERY_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_DELIVERY_LOG_FORMAT:?}'}
+    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_DELIVERY_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_DELIVERY_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/delivery', target: /delivery, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/delivery', target: /delivery, read_only: true, bind: {create_host_path: false}}
     networks: [client]
     healthcheck:
       test: [CMD, /bin/transit-delivery, /delivery/config.json, --check]
@@ -72,14 +72,14 @@ services:
 
   board:
     <<: *service
-    image: '${REY_COMPOSE_BOARD_IMAGE:?}'
+    image: '${TRANSIT_COMPOSE_BOARD_IMAGE:?}'
     command: [/board/config.json]
-    environment: {LOG_LEVEL: '${REY_COMPOSE_BOARD_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_BOARD_LOG_FORMAT:?}'}
+    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_BOARD_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_BOARD_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${REY_COMPOSE_STATE:?}/board', target: /board, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/board', target: /board, read_only: true, bind: {create_host_path: false}}
     networks: [client]
     ports:
-      - {target: 8080, published: '${REY_COMPOSE_BOARD_PORT:?}', host_ip: '${REY_COMPOSE_BOARD_HOST:?}'}
+      - {target: 8080, published: '${TRANSIT_COMPOSE_BOARD_PORT:?}', host_ip: '${TRANSIT_COMPOSE_BOARD_HOST:?}'}
 
 # Ordinary bridges: host loopback publication is needed by provisioning tools.
 # This is development segmentation, not the reference sandbox's isolation.

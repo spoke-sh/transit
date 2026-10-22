@@ -8,7 +8,7 @@ const Store = @This();
 journal: *adapter.Journal,
 fn payloadStream(self: *Store, id: u64, buffer: *[45]u8) adapter.ursula.Stream {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("rey.payload.v1\x00");
+    hash.update("transit.payload.v1\x00");
     hash.update(self.journal.stream.bucket);
     hash.update("\x00");
     hash.update(self.journal.stream.name);

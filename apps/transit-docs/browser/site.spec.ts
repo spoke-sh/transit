@@ -133,10 +133,10 @@ test("production navigation, search, generated references and exact downloads", 
   await page.goto(new URL("internals", baseURL).href);
   await expect(
     page.locator("main").getByRole("link", { name: "Roadmap", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/roadmap/README.md");
+  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/roadmap/README.md");
   await expect(
     page.locator("main").getByRole("link", { name: "Design", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/design/README.md");
+  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/design/README.md");
   await page.getByRole("link", { name: "Search", exact: true }).click();
   await page.getByLabel("Words or an interface name").fill("System model and authority boundaries");
   await expect(

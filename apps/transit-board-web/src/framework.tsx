@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { StateResponse } from "@rey/transit-board-client";
+import type { StateResponse } from "@transit/board-client";
 import { present, text } from "./components";
 
 type Lens = NonNullable<StateResponse["framework"][number]>;

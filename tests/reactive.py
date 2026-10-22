@@ -368,7 +368,7 @@ def browser(env, tls, old_scope):
     definition = native_query(key, scope['principal'], {'identity': {}})['query']['definition']
     config.write_text(json.dumps(dict(origin='https://' + env['public_host'], definition=definition, scope=scope, sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
     config.chmod(0o600)
-    completed = subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/reactive.mjs', str(config)], capture_output=True, text=True, timeout=45)
+    completed = subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'node', 'browser/reactive.mjs', str(config)], capture_output=True, text=True, timeout=45)
     assert completed.returncode == 0, (completed.stdout, completed.stderr)
     result = json.loads(completed.stdout.strip().splitlines()[-1])
     env['sequences'][65536] = result['sequence']

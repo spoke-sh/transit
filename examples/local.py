@@ -21,7 +21,7 @@ def free_port():
 
 
 def run(name, board=False):
-    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "rey-cli", f"example-{name}")}
+    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "transit-admin", f"example-{name}")}
     if board:
         binaries["board"] = ROOT / "zig-out/bin/transit-board"
     for binary in binaries.values():
@@ -30,7 +30,7 @@ def run(name, board=False):
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
-    with tempfile.TemporaryDirectory(prefix=f"rey-example-{name}-") as directory:
+    with tempfile.TemporaryDirectory(prefix=f"transit-example-{name}-") as directory:
         work = Path(directory)
         children, logs = [], []
 
@@ -60,7 +60,7 @@ def run(name, board=False):
             path = work / f"{label}.key"
             path.write_text(os.urandom(32).hex())
             path.chmod(0o600)
-            return path, invoke(binaries["rey-cli"], "public-key", path)
+            return path, invoke(binaries["transit-admin"], "public-key", path)
 
         def write(label, value):
             path = work / f"{label}.json"
@@ -103,7 +103,7 @@ backend = "inline"
                 nonlocal sequence
                 sequence += 1
                 request = write(f"request-{sequence}", {"realm": 71, "principal": 0, "sequence": sequence, "command": value})
-                return invoke(binaries["rey-cli"], "submit", root_key, request, url)["position"]
+                return invoke(binaries["transit-admin"], "submit", root_key, request, url)["position"]
 
             pid = command({"spawn": {}})
             command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
@@ -122,7 +122,7 @@ backend = "inline"
                 invoke(binaries[f"example-{name}"], "--once", caller)
             def query(kind):
                 request = write("read", {"realm": 71, "principal": 0, "kind": kind})
-                return invoke(binaries["rey-cli"], "query", root_key, request, url)["body"]
+                return invoke(binaries["transit-admin"], "query", root_key, request, url)["body"]
             view = query({"process": pid})["process"]
             entries = query({"read_entries": {"resource": resource, "keys": [b"value".hex()] + [None]*7}})["read_entries"]["entries"]
             expected = b"12" if name == "counter" else b"hello world"

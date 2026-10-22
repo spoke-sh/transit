@@ -17,56 +17,56 @@ run name:
 
 # Two independent Document editors, atomic replies and worker/store recovery.
 document:
-    zig build transit-node rey-cli transit-station-document-worker example-station-document
+    zig build transit-node transit-admin transit-station-document-worker example-station-document
     python3 -B examples/station-document/run.py
 
 # Finite HTTP call, separate connector, captured replay and worker/store recovery.
 http:
-    zig build transit-node rey-cli example-station-http transit-station-http-worker
+    zig build transit-node transit-admin example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py
 
 # The finite HTTP example with separate client, storage and effect networks.
 http-compose:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-http/run.py --profile compose
 
 # Fresh public caller registration and generation-pinned operator activation.
 http-bootstrap:
-    zig build transit-node rey-cli example-station-http transit-station-http-worker
+    zig build transit-node transit-admin example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py --bootstrap
 
 # Isolated Substrate caller and egress-confined effect pod in owned reference infra.
 http-reference:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-http/run.py --profile reference
 
 # Finite binary RPC caller, independent TLS peer and durable recovery/replay.
 grpc:
-    zig build transit-node rey-cli example-station-grpc transit-station-grpc-worker
+    zig build transit-node transit-admin example-station-grpc transit-station-grpc-worker
     python3 -B examples/station-grpc/run.py
 
 grpc-bootstrap:
-    zig build transit-node rey-cli example-station-grpc transit-station-grpc-worker
+    zig build transit-node transit-admin example-station-grpc transit-station-grpc-worker
     python3 -B examples/station-grpc/run.py --bootstrap
 
 # RPC effect isolation in separate Compose networks.
 grpc-compose:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-grpc/run.py --profile compose
 
 # Substrate caller and egress-confined RPC effect pod in owned reference infra.
 grpc-reference:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-grpc/run.py --profile reference
 
 # Two editors and a writer on a client network isolated from disk Ursula.
 document-compose:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-document/run.py --profile compose
 
 # Two Substrate editor identities and a trusted writer in an owned namespace.
 document-reference:
-    zig build rey-cli
+    zig build transit-admin
     python3 -B examples/station-document/run.py --profile reference
 
 # Finite SQL over synthetic Unicode data; exact caller and worker/disk recovery.

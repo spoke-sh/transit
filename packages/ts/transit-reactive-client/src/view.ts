@@ -1,4 +1,4 @@
-import { diagnosticLines } from "@rey/transit-diagnostics";
+import { diagnosticLines } from "@transit/diagnostics";
 import {
   ReactiveError,
   Session,

@@ -64,6 +64,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+The current definition uses Transit domains for immutable payload locations and
+Substrate resource/workload identities. It requires matching node, client, SDK,
+controller and launcher builds. Older installations and saved operations reject
+before their stored identities can be reinterpreted. Finish uncertain work with
+its matching build before choosing a fresh installation; no automatic data reset
+or migration is performed.
+
 The native service, authority, shared client and Station use the paged v1
 implementation. Native command and query routes are `/v1/command` and `/v1/query`.
 The [native reference](native.md) and [service contract](../../contracts/SERVICE_V1.md)

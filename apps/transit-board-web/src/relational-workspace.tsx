@@ -7,9 +7,9 @@ import {
   type RelationalOpened,
   type RelationalPage,
   type RelationalReference,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 import { QueryDiagnostic } from "./query-diagnostic";
-import type { Diagnostic } from "@rey/transit-query-client";
+import type { Diagnostic } from "@transit/query-client";
 
 type Statement = { sql: string; routes: number[] };
 // Recovery identities outlive route components. No result or credential is saved.

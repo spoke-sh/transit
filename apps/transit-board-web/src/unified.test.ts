@@ -5,7 +5,7 @@ import {
   type UnifiedQueryResponse,
   type UnifiedCell,
   request,
-} from "@rey/transit-board-client";
+} from "@transit/board-client";
 
 function page(cell: UnifiedCell): UnifiedQueryResponse {
   return {

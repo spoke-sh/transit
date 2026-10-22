@@ -30,7 +30,7 @@ check:
 
 # Install the locked Chromium used by the real documentation proof.
 browser-install:
-    vp exec --filter @rey/transit-docs playwright install chromium
+    vp exec --filter @transit/docs playwright install chromium
 
 # Exercise production routes, responsive navigation, search and spec downloads.
 browser: build

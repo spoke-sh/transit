@@ -67,8 +67,8 @@ class Artifacts:
         print("Building: " + ", ".join(roles), flush=True)
         candidates = self.read("candidates")
         helper_names = []
-        if "tools/rey-cli" not in candidates or any(r in roles for r in ("node", "counter", "controller")):
-            helper_names.append("rey-cli")
+        if "tools/transit-admin" not in candidates or any(r in roles for r in ("node", "counter", "controller")):
+            helper_names.append("transit-admin")
         if self.installation.profile != "local" and ("tools/transit-node" not in candidates or "node" in roles):
             helper_names.append("transit-node")
         helpers = self.native(helper_names) if helper_names else {}

@@ -3,4 +3,4 @@ export {
   unifiedCellText,
   logicalTypeText,
   type UnifiedCell,
-} from "@rey/transit-query-client";
+} from "@transit/query-client";

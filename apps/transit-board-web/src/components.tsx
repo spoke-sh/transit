@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { Event, Process, Response } from "@rey/transit-board-client";
+import type { Event, Process, Response } from "@transit/board-client";
 import type { useObservation } from "./state";
 export const present = <T,>(value: T | null): value is T => value !== null;
 export function text(hex: string): string {

@@ -20,7 +20,7 @@ from placement import Compose, Reference
 def run(profile):
     assert profile in ("compose", "reference")
     started = time.monotonic()
-    cli = ROOT / "zig-out/bin/rey-cli"
+    cli = ROOT / "zig-out/bin/transit-admin"
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(LOG_LEVEL="warn", RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))

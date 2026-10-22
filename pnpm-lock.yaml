@@ -17,21 +17,21 @@ importers:
 
   apps/transit-board-web:
     dependencies:
-      '@rey/transit-application':
-        specifier: workspace:*
-        version: link:../../packages/ts/transit-application
-      '@rey/transit-board-client':
-        specifier: workspace:*
-        version: link:../../packages/ts/transit-board-client
-      '@rey/transit-query-client':
-        specifier: workspace:*
-        version: link:../../packages/ts/transit-query-client
-      '@rey/transit-reactive-client':
-        specifier: workspace:*
-        version: link:../../packages/ts/transit-reactive-client
       '@tanstack/react-router':
         specifier: 1.170.39
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@transit/application':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-application
+      '@transit/board-client':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-board-client
+      '@transit/query-client':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-query-client
+      '@transit/reactive-client':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-reactive-client
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -118,7 +118,7 @@ importers:
 
   examples/serving/web:
     dependencies:
-      '@rey/transit-reactive-client':
+      '@transit/reactive-client':
         specifier: workspace:*
         version: link:../../../packages/ts/transit-reactive-client
     devDependencies:
@@ -144,10 +144,10 @@ importers:
 
   examples/work-items/web:
     dependencies:
-      '@rey/transit-application':
+      '@transit/application':
         specifier: workspace:*
         version: link:../../../packages/ts/transit-application
-      '@rey/transit-query-client':
+      '@transit/query-client':
         specifier: workspace:*
         version: link:../../../packages/ts/transit-query-client
     devDependencies:
@@ -163,10 +163,10 @@ importers:
 
   packages/ts/transit-application:
     dependencies:
-      '@rey/transit-diagnostics':
+      '@transit/diagnostics':
         specifier: workspace:*
         version: link:../transit-diagnostics
-      '@rey/transit-reactive-client':
+      '@transit/reactive-client':
         specifier: workspace:*
         version: link:../transit-reactive-client
       ajv:
@@ -179,7 +179,7 @@ importers:
 
   packages/ts/transit-board-client:
     dependencies:
-      '@rey/transit-query-client':
+      '@transit/query-client':
         specifier: workspace:*
         version: link:../transit-query-client
       ajv:
@@ -198,10 +198,10 @@ importers:
 
   packages/ts/transit-query-client:
     dependencies:
-      '@rey/transit-diagnostics':
+      '@transit/diagnostics':
         specifier: workspace:*
         version: link:../transit-diagnostics
-      '@rey/transit-reactive-client':
+      '@transit/reactive-client':
         specifier: workspace:*
         version: link:../transit-reactive-client
       ajv:
@@ -214,7 +214,7 @@ importers:
 
   packages/ts/transit-reactive-client:
     dependencies:
-      '@rey/transit-diagnostics':
+      '@transit/diagnostics':
         specifier: workspace:*
         version: link:../transit-diagnostics
       ajv:

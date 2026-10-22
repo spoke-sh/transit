@@ -1,4 +1,4 @@
-import { ownedDiagnostic, QueryError } from "@rey/transit-query-client";
+import { ownedDiagnostic, QueryError } from "@transit/query-client";
 import type { Response as WireResponse } from "./types";
 import { Response as validate } from "./validators.js";
 

@@ -38,7 +38,7 @@ buildNpmPackage {
 
   src = ./vite-plus;
   nodejs = nodejs_24;
-  npmDepsHash = "sha256-b/qJu6j4I1NCslHNKA7rhJ/Vo/vwhTno4ZTW5WLs+Ao=";
+  npmDepsHash = "sha256-RhBTHjdimsGh3ItwCvKgLmKknmVz2mJgQssGYfiHqYY=";
   npmFlags = [ "--ignore-scripts" ];
   npmInstallFlags = lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
   dontNpmBuild = true;

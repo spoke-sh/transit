@@ -67,7 +67,7 @@ check: contract
     cd packages/ts/transit-application && vp exec tsc --noEmit
     cd packages/ts/transit-application && vp test run
     cd apps/transit-board-web && vp check
-    vp exec --filter @rey/transit-board-web tsc --noEmit
+    vp exec --filter @transit/board-web tsc --noEmit
     cd apps/transit-board-web && vp test run
     cd examples/serving/web && vp check
     cd examples/serving/web && vp exec tsc --noEmit
@@ -93,7 +93,7 @@ test:
 
 # Install the pinned Playwright Chromium used by browser qualification.
 browser-install:
-    vp exec --filter @rey/transit-board-web playwright install chromium
+    vp exec --filter @transit/board-web playwright install chromium
 
 # Exercise the real embedded UI against an isolated disk-backed Transit node.
 browser:
@@ -133,10 +133,10 @@ grpc-browser:
 
 # Accepted Document metadata with source cuts, current grants and retained gaps.
 document-test:
-    zig build transit-node rey-cli transit-station-document-worker example-station-document transit-board
+    zig build transit-node transit-admin transit-station-document-worker example-station-document transit-board
     python3 -B examples/station-document/run.py --board
 
 # Real embedded metadata view and clearing after current read revocation.
 document-browser:
-    zig build transit-node rey-cli transit-station-document-worker example-station-document transit-board
+    zig build transit-node transit-admin transit-station-document-worker example-station-document transit-board
     python3 -B examples/station-document/run.py --browser

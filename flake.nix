@@ -1,5 +1,5 @@
 {
-  description = "Rey trading system development environment";
+  description = "Transit runtime development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -142,7 +142,7 @@
           };
           default =
             assert pkgs.lib.assertMsg (pkgs.lib.hasPrefix "0.17." zig.version)
-              "Rey targets Zig 0.17 master; review the compiler target before updating zig-overlay.";
+              "Transit targets Zig 0.17 master; review the compiler target before updating zig-overlay.";
             pkgs.mkShell {
               packages = [
                 pkgs.just

@@ -10,7 +10,7 @@ def run(cli):
     source = Path(__file__).resolve().parents[1] / "packages/zig/transit-protocol/src/fixtures/requests-v1.json"
     vectors = json.loads(source.read_text())
     assert vectors["version"] == 1
-    with tempfile.TemporaryDirectory(prefix="rey-vectors-") as directory:
+    with tempfile.TemporaryDirectory(prefix="transit-vectors-") as directory:
         root = Path(directory)
         seed = root / "test-seed"
         seed.write_text(vectors["seed_hex"])

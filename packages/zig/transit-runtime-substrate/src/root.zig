@@ -37,7 +37,7 @@ pub const Adapter = struct {
 
     pub fn resource(self: Adapter) [32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("rey.substrate.resource.v1\x00");
+        hash.update("transit.substrate.resource.v1\x00");
         hash.update(self.config.atespace);
         hash.update("/");
         hash.update(self.config.actor);
@@ -48,7 +48,7 @@ pub const Adapter = struct {
     }
     pub fn workloadIdentity(template_uid: [16]u8, image: []const u8) [32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("rey.substrate.workload.v1\x00");
+        hash.update("transit.substrate.workload.v1\x00");
         hash.update(&template_uid);
         hash.update(image);
         return hash.finalResult();

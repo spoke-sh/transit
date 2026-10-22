@@ -1,9 +1,4 @@
-import {
-  LiveView,
-  ReactiveError,
-  Session,
-  type ReactiveResponse,
-} from "@rey/transit-reactive-client";
+import { LiveView, ReactiveError, Session, type ReactiveResponse } from "@transit/reactive-client";
 import "./style.css";
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const status = element("status"),

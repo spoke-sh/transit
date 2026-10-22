@@ -6,11 +6,11 @@ const core = @import("transit_core");
 const c = if (builtin.os.tag == .linux) @import("clock_c") else struct {};
 pub fn read(_: *anyopaque) !core.Time.Sample {
     if (builtin.os.tag != .linux) return error.ClockUnavailable;
-    var buffer: [c.rey_timex_size]u8 align(c.rey_timex_align) = @splat(0);
+    var buffer: [c.transit_timex_size]u8 align(c.transit_timex_align) = @splat(0);
     const status = c.adjtimex(@ptrCast(&buffer)); // modes=0: read only
-    const flags = field(c_int, &buffer, c.rey_timex_status);
-    const time = field(c.struct_timeval, &buffer, c.rey_timex_time);
-    const maxerror = field(c_long, &buffer, c.rey_timex_maxerror);
+    const flags = field(c_int, &buffer, c.transit_timex_status);
+    const time = field(c.struct_timeval, &buffer, c.transit_timex_time);
+    const maxerror = field(c_long, &buffer, c.transit_timex_maxerror);
     if (status < 0 or status == c.TIME_ERROR or flags & (c.STA_UNSYNC | c.STA_CLOCKERR) != 0 or
         time.tv_sec < 0 or maxerror < 0) return error.ClockUnavailable;
     const nanos = flags & c.STA_NANO != 0;

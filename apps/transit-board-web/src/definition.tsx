@@ -2,7 +2,7 @@ import { useInterface } from "./interface";
 import { useScope } from "./state";
 import "./definition.css";
 import { QueryDiagnostic } from "./query-diagnostic";
-import type { Diagnostic } from "@rey/transit-query-client";
+import type { Diagnostic } from "@transit/query-client";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useReducer, useState } from "react";
 import {
@@ -22,7 +22,7 @@ import {
   type Definition,
   type Review,
   type Scope,
-} from "@rey/transit-application";
+} from "@transit/application";
 
 // One editor workspace per mounted installation. Route/definition replacement
 // never discards an uncertain native submission or reimports a private key.

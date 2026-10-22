@@ -96,7 +96,7 @@ describe("documentation ownership and navigation", () => {
     );
     expect(
       resolveLink(root, "docs/guides/launchers.md", "../../launchers/README.md", "/handbook/"),
-    ).toBe("https://github.com/rupurt/rey/blob/main/launchers/README.md");
+    ).toBe("https://github.com/spoke-sh/transit/blob/main/launchers/README.md");
     expect(
       resolveLink(
         root,
@@ -104,7 +104,7 @@ describe("documentation ownership and navigation", () => {
         "../../packages/zig/transit-client/README.md",
         "/",
       ),
-    ).toBe("https://github.com/rupurt/rey/blob/main/packages/zig/transit-client/README.md");
+    ).toBe("https://github.com/spoke-sh/transit/blob/main/packages/zig/transit-client/README.md");
     expect(resolveLink(root, "docs/README.md", "https://example.test/a#b", "/")).toBe(
       "https://example.test/a#b",
     );
@@ -119,9 +119,9 @@ describe("documentation ownership and navigation", () => {
     ).toBe("/handbook/internals/execution-model");
     expect(
       resolveLink(root, "docs/internals/README.md", "../roadmap/README.md", "/handbook/"),
-    ).toBe("https://github.com/rupurt/rey/blob/main/docs/roadmap/README.md");
+    ).toBe("https://github.com/spoke-sh/transit/blob/main/docs/roadmap/README.md");
     expect(resolveLink(root, "docs/internals/README.md", "../design/README.md", "/handbook/")).toBe(
-      "https://github.com/rupurt/rey/blob/main/docs/design/README.md",
+      "https://github.com/spoke-sh/transit/blob/main/docs/design/README.md",
     );
     expect(() => resolveLink(root, "docs/README.md", "missing-guide.md", "/")).toThrow(
       "missing link",

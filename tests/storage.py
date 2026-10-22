@@ -15,7 +15,7 @@ import urllib.request
 class Fixture:
     """An isolated owned disk store, reusable by service and storage proofs."""
     def __init__(self, storage_config=None):
-        self.directory = tempfile.TemporaryDirectory(prefix="rey-storage-")
+        self.directory = tempfile.TemporaryDirectory(prefix="transit-storage-")
         self.root = Path(self.directory.name)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
         self.env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")

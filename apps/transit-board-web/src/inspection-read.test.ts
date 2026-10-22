@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { BoardError } from "@rey/transit-board-client";
+import { BoardError } from "@transit/board-client";
 import { retryInspectionRead } from "./inspection-read";
 
 afterEach(() => vi.useRealTimers());
