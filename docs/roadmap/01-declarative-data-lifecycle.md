@@ -168,6 +168,49 @@ The original public-caller completion criteria are preserved under
 [installed lifecycle integration](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration).
 A contract fixture is not that end-to-end evidence.
 
+### Original executable acceptance tracking
+
+The matrix below preserves the original obligations transferred to
+[milestone 3](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration).
+It does not expand the foundation-only completion criteria above or close #108.
+
+The implementation review uses the following matrix. Descriptor validation and
+contract fixtures are a foundation, not closure of the public caller gates.
+
+| Gate | Work owner | Required executable evidence |
+| --- | --- | --- |
+| Stable identities and exact retry binding | #125, #111 | Lost-reply recovery, altered-content rejection and rename/drop/recreate without retargeting |
+| One durable Table acceptance authority | #111, #112 | Point and bulk operations, complete CRUD/DDL, atomic visibility, incompatible-artifact rejection |
+| Durable snapshots including unflushed data | #125, #127 | Retained object/WAL coverage, interrupted acquisition, restart and GC/compaction races |
+| Named usable resources | #119, #126 | Real KV/Document provisioning, initialization, reads/writes, partial failure and recovery |
+| Dependency and policy evidence | #111, #119, #120 | Current rights, redacted blockers, explicit RESTRICT and paged collections beyond cache |
+| Actual computation completion and freshness | #120 | Verified output/source binding, row-change detection and inspection without execution |
+| Admitted codec/collation semantics | #118, #128 | Independent SQL/storage equivalence and unsupported-profile rejection |
+| Installed qualification and current explanations | #122, #123, #124 | Real local artifacts, WAL-only recovery, controlled flushing, caller/fault proofs and accurate public documentation |
+
+The [neutral data contract](../../contracts/DATA_LIFECYCLE_V1.md) defines the
+initial single-owner acceptance and snapshot descriptors. Runtime implementation
+and qualification remain required for every row above. Shared issues retain
+their broader scope after a milestone-specific gate passes.
+
+- An application can create a Table, inspect its definition, write/query rows,
+  alter the schema and recover the original accepted change after losing a reply
+  without routing bulk row data through multi-turn actor mailbox loops.
+- Named KV and Document objects expose explicit interpretation, initialization
+  state, current rights and lifecycle outcomes through the qualified typed path.
+- Repeating an inspection or loading a definition starts no work. Applying a
+  competing change rejects the stale expectation; recreating a name never
+  retargets an earlier operation or dependent definition.
+- Independent caller fixtures agree on definitions, outcomes and permission
+  failures. Test revocation, interrupted provisioning/publication, missing
+  dependencies and object/dependency counts beyond resident caches.
+- Snapshot/transaction fixtures distinguish consistent from independent cuts,
+  include accepted unflushed data, and establish the selected isolation profile
+  under concurrent data/schema changes without promising unsupported atomicity.
+- The handbook states each object's executable lifecycle and demonstrates how
+  to distinguish defined, published, pending, complete and unavailable evidence.
+  These are review questions; the implementation must define exact status types.
+
 ## Boundaries and follow-on work
 
 This milestone does not itself deliver the installed lifecycle, transaction
