@@ -10,8 +10,8 @@ test("static publication exposes canonical routes, search and crawl metadata", a
   request,
   baseURL,
 }) => {
-  const origin = process.env.TRANSIT_DOCS_URL ?? "https://transit.spoke.sh";
-  const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/";
+  const origin = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
+  const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
   for (const route of [
     "reference/interfaces",
     "reference/sql-sessions",

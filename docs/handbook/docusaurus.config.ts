@@ -8,8 +8,8 @@ import { specifications } from "./lib/specs";
 import { downloads } from "./lib/downloads";
 
 const root = path.resolve(__dirname, "../..");
-const url = process.env.TRANSIT_DOCS_URL ?? "https://transit.spoke.sh";
-const baseUrl = process.env.TRANSIT_DOCS_BASE_URL ?? "/";
+const url = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
+const baseUrl = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
 if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(baseUrl))
   throw new Error("TRANSIT_DOCS_BASE_URL must start and end with / and contain path segments only");
 const generated = path.join(__dirname, ".generated/static");
