@@ -365,6 +365,11 @@ const Server = struct {
     fn serve(self: *Server, listener: *std.Io.net.Server, protocol: Protocol) !void {
         while (true) {
             const stream = try listener.accept(self.io);
+            if (@import("builtin").os.tag != .windows) {
+                const option: u32 = 1;
+                const option_bytes = std.mem.asBytes(&option);
+                _ = std.posix.system.setsockopt(stream.socket.handle, std.posix.IPPROTO.TCP, std.posix.TCP.NODELAY, option_bytes.ptr, @intCast(option_bytes.len));
+            }
             try self.mutex.lock(self.io);
             const first: usize = if (self.registry.authenticating.load(.acquire) >= self.config.limits.authentications) self.config.limits.connections else 0;
             const index = for (self.workers[first..], first..) |*worker, i| {
@@ -447,7 +452,7 @@ const Output = struct {
     }
 };
 fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
-    var interval_ms: u32 = 5;
+    var interval_ms: u32 = 2;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
             if (!g.station.client.Client.unavailable(err)) {
@@ -457,11 +462,15 @@ fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void 
             }
             break :blk false;
         };
+        if (progressed) {
+            interval_ms = 2;
+            continue;
+        }
         // Idle accounts share the same bounded native request admission with
-        // active work and caller validation. Back off idle polling; a completed
-        // step restores the short interval without retaining a work queue.
-        interval_ms = if (progressed) 5 else @min(interval_ms * 2, 1000);
-        runtime.io.sleep(.fromMilliseconds(interval_ms), .awake) catch return;
+        // active work and caller validation. Wait on runtime wakeup or bounded
+        // backoff; a signal or completed step restores immediate execution.
+        runtime.waitIdle(interval_ms) catch return;
+        interval_ms = @min(interval_ms * 2, 100);
     }
 }
 pub fn main(init: std.process.Init) !void {

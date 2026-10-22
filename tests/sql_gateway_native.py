@@ -3,6 +3,7 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import threading
@@ -45,6 +46,10 @@ def run(node, catalog, gateway):
                 return None
             return frame[49], int.from_bytes(frame[50:58], 'little')
         class Proxy(BaseHTTPRequestHandler):
+            def setup(self):
+                super().setup()
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
             def log_message(self, *_):
                 pass
 
