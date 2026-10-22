@@ -2,17 +2,21 @@
 
 [![CI](https://github.com/spoke-sh/transit/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/spoke-sh/transit/actions/workflows/ci.yml)
 
-Transit is programmable data infrastructure for applications. It stores and
-queries tables, key-value data and collaborative documents, and provides durable
-execution for transforming data and coordinating work around it.
-
-Its declarative interfaces describe data and computation; its execution system
-preserves accepted changes, progress and outcomes across failures.
+Transit is programmable, versioned data infrastructure for applications. You
+declare **data** (Tables, Key-Value maps, collaborative Documents, and external
+datasets), **computations** (point-in-time queries, live subscriptions,
+maintained derived views, and stateful dataflows), and **policies** (scoped
+authorization, retention, capacity, and placement). Transit's runtime **activates**
+that data: mutations commit to an ordered write-ahead log, storage tiers compact
+rows into hybrid OLTP/OLAP segments, incremental views update in response to
+change streams, and durable processes (`Station`) and connectors coordinate external
+side effects around the data.
 
 Start with the data your application needs, what you want to compute from it,
 and the policies governing its use. The [data model](docs/handbook/reference/data-model.md)
-connects those decisions to their interfaces and observable outcomes. Durable
-processes, messaging and storage supply the mechanisms underneath that model.
+connects those declarations to their public interfaces and observable outcomes,
+and [Internals](docs/handbook/internals/README.md) formalizes the underlying
+system, storage, query, state, and execution models.
 
 ## Work with data
 
@@ -24,14 +28,16 @@ processes, messaging and storage supply the mechanisms underneath that model.
 | Govern access and lifetime | [Authorization](docs/handbook/reference/security.md), [retention and capacity](docs/handbook/reference/retention.md) |
 | Inspect definitions, results and progress | [Lifecycle evidence](docs/handbook/reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled), [Board](docs/handbook/guides/inspect-board.md) |
 | Add application-specific transformations or effects | [Build an application](docs/handbook/guides/applications.md), [connectors](docs/handbook/reference/connectors.md) |
+| Understand the storage, query and execution models | [System internals](docs/handbook/internals/README.md), [storage runtime](docs/handbook/internals/storage-runtime.md), [query engine](docs/handbook/internals/query-engine.md) |
 
 The Table lifecycle is available through configured SQL and typed catalog callers.
 KV and Documents use client/service APIs; their SQL declarations compile offline.
 Named captured and maintained relational computations use typed Zig owners with
-explicit activation and host scheduling. SQL views/subscriptions and a common
-declaration lifecycle across all these objects remain future work. The
+explicit activation and host scheduling. SQL views/subscriptions, direct data-plane
+storage decoupling, hybrid `.tseg` segments, physical codecs/collations, and a
+common declaration lifecycle across all objects are tracked in the roadmap. The
 [capability map](docs/handbook/reference/data-model.md#declarations-and-current-interfaces)
-keeps these boundaries explicit.
+keeps current and target boundaries explicit.
 
 The organizing question for development is:
 

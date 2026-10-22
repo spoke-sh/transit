@@ -243,21 +243,73 @@ schema-only branch contains empty data by construction; its omitted rows do not
 mean that all parent rows were deleted during a later schema merge. Its data
 lineage and schema lineage therefore need separate inclusion metadata.
 
-### A cheap fork still needs a resource contract
+### A cheap fork still needs a resource contract (and how `.tseg` manifests realize it)
 
 Transit already uses immutable pages, but that is insufficient for cheap writable
-forks. The [retained-version contract](../../../contracts/READ_VERSIONS_V1.md) binds
-reads to current owners, grants and source lifetimes. Its captured root covers a
-shared catalog and can retain unrelated pages. It neither grants another writer
-access to that root nor exposes selective resource cloning and page reclamation.
+forks when pages live inside a shared global B-tree root. The
+[retained-version contract](../../../contracts/READ_VERSIONS_V1.md) binds reads to
+current owners, grants and source lifetimes. Its captured root covers a shared
+catalog and can retain unrelated pages. It neither grants another writer access
+to that root nor exposes selective resource cloning and page reclamation.
 
 Start by defining a generic data export/fork operation: frozen source snapshot,
 destination scope, current source-read and branch/export policy, new resource
 and writer identity, independent destination permissions, quotas and an exact
 receipt. A bounded materialized copy can establish its semantics first. A
 copy-on-write implementation must prove the same result while sharing only
-eligible immutable data pages. It must not copy the global authority catalog,
+eligible immutable data objects. It must not copy the global authority catalog,
 grants, principal sequences, retired identities or pending control records.
+
+In the target [four-tier storage architecture](storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ),
+committed table state is represented by an immutable **Manifest ($M_v$)**
+referencing immutable **`.tseg` Data Segments** and **`.tdel` Deletion Vectors**
+in `TransitObjectStore`. This representation turns branching and three-way
+merging into manifest-level operations without per-page B-tree reference counting:
+
+```mermaid
+flowchart LR
+  subgraph SharedSegments["Immutable Tier 3 Object Storage (.tseg / .tdel)"]
+    S1["seg_01.tseg (rows 1..65536)"]
+    S2["seg_02.tseg (rows 65537..131072)"]
+    S3Main["seg_03_main.tseg (new main rows)"]
+    S3Branch["seg_03_trial.tseg + del_02_trial.tdel"]
+  end
+
+  Base["Base Manifest v10\n(refs: seg_01, seg_02)"] --> S1
+  Base --> S2
+
+  Main["Main Head Manifest v11\n(refs: seg_01, seg_02, seg_03_main)"] --> S1
+  Main --> S2
+  Main --> S3Main
+
+  Trial["Branch 'trial' Manifest v1\n(O(1) fork from v10 + seg_03_trial, del_02_trial)"] --> S1
+  Trial --> S2
+  Trial --> S3Branch
+
+  Merge["Three-Way Segment Merge -> Main Manifest v12\n(Skips shared seg_01/seg_02; checks PK B-tree intersection on seg_03_main vs seg_03_trial + del_02_trial)"]
+  Main --> Merge
+  Trial --> Merge
+```
+
+1. **$O(1)$ Manifest Fork:** Creating a branch writes a new branch manifest
+   head (`refs/heads/trial -> manifest/v1`) referencing the exact same `.tseg`
+   and `.tdel` object keys as the base snapshot $M_{v}$, and allocates an
+   independent `TransitLog` partition for the branch's subsequent writes. Zero
+   `.tseg` data bytes are copied.
+2. **Isolated Branch Writes:** Mutations on the branch append to the branch's
+   `TransitLog` partition and flush branch-owned `.tseg` segments and `.tdel`
+   deletion bitmaps without altering any parent `.tseg` file.
+3. **Sublinear Segment-Aware Three-Way Merge:** When merging branch manifest
+   $M_{\text{src}}$ into target manifest $M_{\text{tgt}}$ from common ancestor
+   $M_{\text{base}}$:
+   - Any `.tseg` segment with identical `(segment_key, tdel_key)` across
+     $M_{\text{base}}$, $M_{\text{src}}$ and $M_{\text{tgt}}$ is skipped in
+     $O(1)$ metadata time—merge work is proportional to the **divergent delta
+     segments**, never total table cardinality.
+   - Primary-key conflicts between $\Delta M_{\text{src}}$ and
+     $\Delta M_{\text{tgt}}$ are detected by intersecting the embedded `.tseg`
+     footer primary-key B-tree indexes and `.tdel` bitmaps under the column's
+     declared collation $\kappa$.
 
 Export declarations must identify application data separately from framework
 records sharing its KV resource. An opaque byte copy cannot establish that an
@@ -270,19 +322,19 @@ Distinguish a borrowed historical reference from a published independent copy.
 Borrowed reads keep the source's current permission and lifetime constraints.
 An explicitly authorized independent export gives the destination its own data
 ownership: later source revocation does not erase that copy, and source retirement
-does not authorize deleting pages it still owns. Physical sharing must preserve
+does not authorize deleting segments it still owns. Physical sharing must preserve
 this same declared logical-copy contract. It cannot silently convert a borrowed
 reference into an independent copy or extend the original resource's hard expiry.
 The current API implements retained reads, not this independent fork operation.
 
 Copy-on-write needs deletion markers, correct source/child overlays or resource
-roots, bounded ancestry lookup, durable page ownership and race-safe reclamation.
-Branch deletion cannot remove pages reachable by another live owner. Logical
-expiry, reference release and physical reclamation stay separate; retention is
-unlimited unless explicitly opted into. Resident memory must remain independent
-of retained branch count and data size. A claim of fast branching requires
-measuring creation latency, bytes copied, ancestor read cost and reclamation under
-failure, not merely observing shared hashes.
+roots, bounded ancestry lookup, durable segment ownership and race-safe reclamation.
+Branch deletion cannot remove `.tseg` or page objects reachable by another live
+manifest or owner. Logical expiry, reference release and physical reclamation
+stay separate; retention is unlimited unless explicitly opted into. Resident
+memory must remain independent of retained branch count and data size. A claim
+of fast branching requires measuring creation latency, bytes copied, ancestor
+read cost and reclamation under failure, not merely observing shared hashes.
 
 ### Merge, restore and execution are different operations
 

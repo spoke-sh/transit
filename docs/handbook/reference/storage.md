@@ -106,3 +106,33 @@ The [backend package](../../../packages/zig/transit-backend-ursula/README.md) an
 [storage mapping](../../../packages/zig/transit-backend-ursula/docs/storage.md) own
 the journal/checkpoint layout, adapter operations, cold-store setup and recovery
 requirements. A replacement provider must satisfy those same requirements.
+
+## Target four-tier storage hierarchy and `.tseg` segment architecture
+
+While the current implementation persists copy-on-write B-tree pages (`TPG1`) and
+`64 KiB` resource blocks (`SBR1`) inside Ursula streams via `PackedPageStore`,
+the target storage architecture documented in
+[Storage, placement and observation](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
+splits persistence into two pluggable primitives across a four-tier memory
+hierarchy:
+
+1. **`TransitLog` (Tier 1 Sequenced WAL & Activation Bus):** Sequences binary
+   `TWAL1` commit frames and streams live `+row`/`-row` deltas to `Fuze`
+   maintained views, reactive watches and `Station` processes. Backed by a
+   pure-Zig segmented local WAL (`LocalWal` using `fdatasync`/`io_uring` + group
+   commit) by default in `transit server`, or by long-lived **Ursula**, **Kafka**
+   or **Pulsar** partition streams in distributed deployments.
+2. **`TransitObjectStore` (Tier 3 Immutable Segment & Manifest Store):** Stores
+   64-byte-aligned **`.tseg` hybrid OLTP/OLAP segments** (Arrow-compatible
+   column buffers, 5-state cell tags, composable Zig codecs including `FSST`,
+   `COMP-3`, `ZONED`, `COMP`, `IBM_HFP` and `EBCDIC`, collation-aware zone maps,
+   and an embedded primary-key prefix B-tree index), **`.tdel` deletion vectors**,
+   and versioned **Manifests (`manifest/v{N}`)** committed via conditional CAS
+   (`If-None-Match`). Backed by a local POSIX directory (`LocalSegmentStore`) in
+   `transit server` or cloud object storage (S3, GCS, R2, Azure Blob) paired with
+   a stateless **Tier 2 local NVMe** content-verified read-through cache and
+   **Tier 0 RAM** Memtables and buffer pools.
+3. **Partitioned Authority, Fenced Leases and Multi-Writer OCC:** Separates the
+   cache-resident **Control & Policy Log** (`policy_epoch`, catalog directory,
+   lease table) from per-table/per-process log partitions, epoch-fenced direct
+   data-plane writer leases, and lock-free multi-writer optimistic manifest CAS.

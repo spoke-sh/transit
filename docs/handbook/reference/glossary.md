@@ -122,6 +122,10 @@ alone do not create an association or lifetime dependency.
 | Cardinality limit | A limit on total entries or identities; distinguish an explicit deployment quota from a temporary compiled catalog ceiling |
 | Operation budget | A bound on one request, atomic proposal, scan or result batch; does not by itself cap the whole resource |
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
+| `TransitLog` (`TWAL1`) | Target sequenced write-ahead log and live delta-activation bus (`LocalWal`, `UrsulaWal`, or `Kafka`/`Pulsar`), distinct from compacted Tier 3 object segments |
+| `TransitObjectStore` | Target immutable segment and manifest store (`LocalSegmentStore` or S3/GCS/R2/Azure Blob) supporting conditional manifest CAS (`If-None-Match`) and byte-range reads |
+| `.tseg` / `.tdel` | Target 64-byte-aligned hybrid OLTP/OLAP data segment format (Arrow buffers, 5-state cell tags, composable Zig codecs, collation-aware zone maps, embedded PK prefix B-tree index) and companion roaring deletion vector |
+| Collation (`COLLATE`) | Explicit ordering and equivalence law (`UCS_BASIC`, `EBCDIC_037_PAD`, `ASCII_CI`, `UCA`) bound into column descriptors, `.tseg` zone maps, B-tree sort keys and `Fuze` vector kernels |
 
 See [Tables](tables.md) for Table operations, materialization and
 transaction limits, [Documents](documents.md) for Documents and

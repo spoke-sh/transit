@@ -58,18 +58,28 @@ tree updates, avoid reconstructing the same metadata for each tiny step, and
 measure cache budgets independently. This benefits queries, mutations, Documents
 and recovery. A larger cache alone leaves publication work unchanged.
 
-**Build on shared immutable storage.** Authorized blocks and snapshot reads
-already provide a common boundary for data publication and acquisition. Improve
-batching, layout and reclamation cost within its availability, quota and recovery
-rules. Query engines and applications continue to use authorized interfaces;
+**Build on the four-tier storage hierarchy and `.tseg` segments.** Authorized
+blocks and snapshot reads provide the current boundary for data publication and
+acquisition. Replacing nested B-tree page streaming (`PackedPageStore`) with the
+[four-tier storage hierarchy](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
+(`Tier 0` RAM Memtables and verified buffer pool, `Tier 1` `TransitLog` binary
+WAL and live delta bus over `LocalWal`/Ursula/Kafka/Pulsar, `Tier 2` local NVMe
+read-through segment cache, and `Tier 3` `TransitObjectStore` immutable `.tseg`
+segments, `.tdel` deletion vectors and versioned Manifests) eliminates per-turn
+write amplification while preserving single-authority recovery and `policy_epoch`
+fencing. Query engines and applications continue to use authorized interfaces;
 they do not receive raw provider credentials.
 
-**Choose read structures for each access pattern.** Prioritize KV point/range
-indexes and hot state; Table primary-key access plus columnar blocks and pruning
-for scans; Document path/sequence indexes and versioned projections for search
-and analysis. Arrow result encoding alone supplies none of those storage features.
-Materializations must name their source watermark, lag, freshness and rebuild
-policy. Required checkpoints after history trimming remain recovery evidence.
+**Choose read structures, codecs and collations for each access pattern.**
+Prioritize KV point/range indexes and hot state; `.tseg` hybrid segments
+(combining 64-byte-aligned Arrow physical column buffers, 5-state cell tags,
+composable Zig codecs such as `FSST`, `COMP-3`, `ZONED`, `COMP`, `IBM_HFP` and
+`EBCDIC`, collation-aware Zone Maps and an embedded primary-key prefix B-tree
+index) for both point lookups and analytical scans; and Document path/sequence
+indexes and versioned projections for search and analysis. Arrow result encoding
+alone supplies none of those storage features. Materializations must name their
+source watermark (`manifest/v{N}`, `lsn`), lag, freshness and rebuild policy.
+Required checkpoints after history trimming remain recovery evidence.
 
 The kernel stays generic and Zig native. Station, Fuze and application policy
 remain above the public client. Adding a database engine dependency or moving

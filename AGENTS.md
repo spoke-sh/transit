@@ -2,14 +2,17 @@
 
 ## Before changing code
 
-Transit is programmable data infrastructure for applications. Data, computation
-and policies are the primary user-facing model; durable execution explains how
-Transit preserves their accepted changes, progress and outcomes. Start with the
+Transit is programmable, versioned data infrastructure for applications. Data,
+computation and policies are the primary user-facing model; durable execution,
+write-ahead change logs (`TransitLog`), and tiered segment storage
+(`TransitObjectStore`) explain how Transit activates those declarations and
+preserves their accepted changes, progress and outcomes. Start with the
 [data model](docs/handbook/reference/data-model.md) and ask: can someone describe
 what they need, then inspect whether Transit is fulfilling that declaration?
 
 Read [README.md](README.md), the [public documentation index](docs/README.md),
-and [architecture and scope](docs/handbook/reference/architecture.md) first. Users,
+[architecture and scope](docs/handbook/reference/architecture.md), and the
+[system internals](docs/handbook/internals/README.md) first. Users,
 developers and agents share these same guides and references. Use the
 [glossary](docs/handbook/reference/glossary.md) for names and the
 [component directory](docs/handbook/reference/components.md) to find the affected
@@ -20,11 +23,11 @@ Follow the public explanations and exact contracts for the area you change:
 
 | Area | Required references |
 | --- | --- |
-| Protocol, processes, ownership | [Processes](docs/handbook/reference/processes.md), [native v1 contract](contracts/TRANSIT_V1.md) |
+| Protocol, processes, ownership | [Processes](docs/handbook/reference/processes.md), [execution model](docs/handbook/internals/execution-model.md), [native v1 contract](contracts/TRANSIT_V1.md) |
 | Authentication, grants, credentials, trust | [Security](docs/handbook/reference/security.md), [service contract](contracts/SERVICE_V1.md) |
-| Storage, delivery, producer/consumer behavior | [Streams](docs/handbook/reference/streams.md), [storage boundary](docs/handbook/reference/storage.md) |
-| State resources, associations, KV/Table/Document APIs | [State](docs/handbook/reference/state.md), [Tables](docs/handbook/reference/tables.md), [Documents](docs/handbook/reference/documents.md), [state contract](contracts/STATE_V1.md) |
-| Declarative interfaces and query execution | [SQL](docs/handbook/reference/sql.md), [queries](docs/handbook/reference/queries.md), [applications](docs/handbook/reference/applications.md), [grammar](contracts/sql/README.md) |
+| Storage, delivery, producer/consumer behavior | [Streams](docs/handbook/reference/streams.md), [storage boundary](docs/handbook/reference/storage.md), [storage runtime](docs/handbook/internals/storage-runtime.md) |
+| State resources, associations, KV/Table/Document APIs | [State](docs/handbook/reference/state.md), [Tables](docs/handbook/reference/tables.md), [Documents](docs/handbook/reference/documents.md), [state model](docs/handbook/internals/state-model.md), [state contract](contracts/STATE_V1.md) |
+| Declarative interfaces and query execution | [SQL](docs/handbook/reference/sql.md), [queries](docs/handbook/reference/queries.md), [query engine](docs/handbook/internals/query-engine.md), [applications](docs/handbook/reference/applications.md), [grammar](contracts/sql/README.md) |
 | Arrow IPC/C interfaces, Flight SQL, ADBC | [Arrow](docs/handbook/reference/arrow.md), [Flight](docs/handbook/reference/flight.md) |
 | Inbound HTTP APIs and service publication | [Serving](docs/handbook/reference/serving.md), [OpenAPI](docs/handbook/reference/openapi.md), [serving contract](contracts/SERVING_V1.md) |
 | SSE/WebSocket, sessions, watches and live views | [Reactive](docs/handbook/reference/reactive.md), [AsyncAPI](docs/handbook/reference/asyncapi.md), [reactive contract](contracts/REACTIVE_V1.md) |
@@ -51,11 +54,22 @@ established behavior, limits and reasoning into the public owner with the change
 
 - Design from the data lifecycle. Identify the data kind, stable object and
   definition identities, dependencies, computation lifetime, policies and
-  observable outcomes before choosing workers, messages or transports. Reuse
-  the owning public operations across SQL, SDKs and UI; do not create another
-  configuration or permission authority. Separate validation, publication,
-  activation, progress and completion. A common catalog and service-managed
-  reconciliation are planned extensions, not assumptions about current behavior.
+  observable outcomes before choosing workers, messages or transports. Separate
+  the **Control & Policy Plane** (catalog, schemas, grants, retention, branch
+  manifests), the **Direct Data Plane** (partitioned write-ahead logs, in-memory
+  memtables/buffer pools, local NVMe caches, and immutable `.tseg` segments),
+  and the **Process & Effect Plane** (`Station` actors and connectors). Direct
+  data-plane ingestion and analytical scans must not be bottlenecked by actor
+  mailbox frame limits when no custom actor logic is invoked. Reuse the owning
+  public operations across SQL, SDKs and UI; do not create another configuration
+  or permission authority. Separate validation, publication, activation, progress
+  and completion. A common catalog and service-managed reconciliation are planned
+  extensions, not assumptions about current behavior.
+- Keep logical types ($\tau$), physical codecs ($\epsilon$: bitpacking, RLE,
+  dictionary, FSST, mainframe `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`,
+  `EBCDIC`), and collations ($\kappa$: `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
+  `ICU:<locale>`) orthogonal in query and storage design. Zone maps and B-tree
+  sort keys must respect the declared column collation so range pruning is sound.
 - Follow the [versioning policy](docs/handbook/reference/versioning.md). Before Transit
   1.0, every Transit-owned protocol, wire format, schema and ABI has one current
   definition named v1. Breaking changes replace that definition through a hard

@@ -1,37 +1,73 @@
 # Data, computation and policies
 
-Transit organizes application data around explicit definitions, accepted versions
-and operations whose outcomes can be inspected. Start with what the application
-needs to store and compute, then choose the interfaces that implement that
-lifecycle. Durable execution supplies the ordering, publication and recovery
+Transit organizes application data around explicit definitions, versioned
+snapshots, derived computations and operations whose outcomes can be inspected.
+Start with what the application needs to store and compute, then choose the
+interfaces that implement that lifecycle. Durable execution, write-ahead change
+streams and connectors supply the ordering, activation, publication and recovery
 mechanisms underneath it.
 
 The [local quickstart](../guides/quickstart.md) demonstrates this model with a
 Table you create, query and evolve through the console.
 
+```mermaid
+flowchart LR
+  subgraph Declare["1. Declare Data, Computation & Policy"]
+    Schema["Data Objects & Catalog\n(Tables, KV, Documents, Types, Codecs, COLLATE)"]
+    Comp["Computations\n(Interactive SQL, Captured Jobs, Maintained Views)"]
+    Pol["Policies\n(Role Graph, policy_epoch, Retention, Budgets)"]
+  end
+
+  subgraph Store["2. Commit & Version State"]
+    Head["Atomic Publication & History\n(Catalog Root / Manifest vN + Delta Log)"]
+  end
+
+  subgraph Activate["3. Activate & Observe"]
+    Fuze["Fuze Vector & Relational Engine\n(5-State Cells, Snapshot & Delta Evaluation)"]
+    Station["Station Processes & Connectors\n(Workflows, Recorded Effect Intents & Outcomes)"]
+    Inspect["Inspectable Evidence\n(Definitions, Source Vectors, Receipts & Progress)"]
+  end
+
+  Schema --> Head
+  Pol --> Head
+  Comp --> Fuze
+  Head --> Fuze
+  Head -->|"Change capture & deltas"| Station
+  Fuze --> Inspect
+  Station --> Inspect
+```
+
 This page connects existing data owners and their contracts. The shared model
 below is a way to reason about them; Transit does not yet expose every data kind
-and computation through one declarative catalog or automatic scheduler.
+and computation through one declarative catalog or automatic scheduler. See the
+[system model](../internals/system-model.md) for the formal state-space and
+plane-separation analysis.
 
 ## Choose a data representation
 
 | Representation | Meaning | Definition and access |
 | --- | --- | --- |
-| [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured catalog owns names, immutable schemas, row publication and schema evolution; use SQL or typed catalog callers |
+| [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured catalog owns names (`CatalogId`), immutable schemas (`DefinitionId`), row publication and schema evolution; use SQL or typed catalog callers |
 | [Key-value resource](state.md) | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
 | [Document](documents.md) | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
 
 Choose the representation for the meaning of the data. A Document field can be
-missing or conflicted; an ordinary Table cell is a typed value or SQL NULL.
-The shared query model preserves value, null, missing, type error and conflict
-rather than choosing an arbitrary successful value. [Data types](sql/types.md)
-and the [Document model](documents.md) define these distinctions.
+missing or conflicted; an ordinary Table cell is a typed value or SQL NULL; a
+foreign or semi-structured field can fail conversion without aborting an entire
+scan. The shared query model preserves all five cell states—`value`, `null`,
+`missing`, `type_error` and `conflict`—rather than choosing an arbitrary
+successful value. [Data types](sql/types.md) and the [Document model](documents.md)
+define these distinctions, and the
+[query-engine account](../internals/query-engine.md#logical-types-and-physical-codecs-and-collation-semantics)
+explains how logical types, physical codecs (such as `FSST`, `COMP-3` and
+`EBCDIC`) and collations (`COLLATE`) remain orthogonal.
 
-A data object's identity, its name and the worker currently handling its writes
-are separate. Table and column identities survive renaming; dropping and
-recreating a name produces a different object. A saved operation or retained
-reader keeps its original binding. Define application data at the granularity
-it needs; a row does not require its own worker or durable process.
+A data object's identity (`CatalogId`), its human name, its immutable definition
+(`DefinitionId`) and the worker currently handling its writes are separate.
+Table and column identities survive renaming; dropping and recreating a name
+produces a different object. A saved operation or retained reader keeps its
+original binding. Define application data at the granularity it needs; a row
+does not require its own worker or durable process.
 
 See [Tables](tables.md), [KV resources](state.md) and [Documents](documents.md)
 for their exact mutation, ownership and lifetime rules.

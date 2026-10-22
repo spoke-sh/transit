@@ -2,23 +2,277 @@
 
 This account explains why durable authority, physical execution and telemetry
 remain separate, while accounting for the resource costs of that separation.
+It covers both the implemented copy-on-write B-tree page storage baseline and
+the target **Four-Tier Storage Architecture (`TransitLog` + `TransitObjectStore`)**,
+**`.tseg` hybrid OLTP/OLAP segment format**, and **Partitioned / Multi-Writer OCC
+concurrency model**.
 The [storage](../reference/storage.md), [deployment](../reference/deployment.md)
 and [observability](../reference/observability.md) references own configuration
 and operational behavior.
 
 ## Persistence model
 
-The backend supplies conditional durability through Ursula. Transit owns logical
-identities, accepted transitions, retained boundaries and retirement. Recovery
-uses validated history/checkpoints; indexes and resident caches accelerate access
-without becoming an independent source of permission or execution rights.
+In the current baseline, the backend supplies conditional durability through
+Ursula. Transit owns logical identities, accepted transitions, retained
+boundaries and retirement. Recovery uses validated history/checkpoints; indexes
+and resident caches accelerate access without becoming an independent source of
+permission or execution rights.
 
 Immutable catalog/resource roots permit bounded page reads at a stable basis.
 The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
 
-## Resource costs and failure
+## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
+
+This section is architectural design analysis anchored against the measured
+write-amplification and latency baseline at `5c1099f7`
+([performance reference](../reference/performance.md)). It asks how Transit can
+eliminate orders-of-magnitude storage indirection and single-sequencer contention
+while preserving verifiable authority, exact crash recovery, immediate permission
+revocation (`policy_epoch`), and deployment portability across single-binary
+local development (`transit server`) and disaggregated cloud/Kubernetes topologies.
+
+### Diagnosis: quadruple B-tree indirection over an HTTP stream store
+
+In the implemented baseline, inserting a single Table row incurs `806 ms` from
+the local console (`13,238 ms` over PostgreSQL wire), staging `29` immutable
+pages and issuing `1,072` HTTP requests to Ursula. Formalizing the storage stack
+explains why:
+
+$$\text{Row}(\text{FTR1}) \;\hookrightarrow\; \text{StationIndex}(\text{SBR1}) \;\hookrightarrow\; \text{Resource B-Tree}(\text{TPG1}) \;\hookrightarrow\; \text{Realm Catalog B-Tree}(\text{TPG1}) \;\hookrightarrow\; \text{PackedPageStore}(\text{Base64 JSON over Ursula HTTP})$$
+
+1. **Four nested copy-on-write trees:** A single logical row (`FTR1`) and its
+   primary-key index entry are packed into `StationIndex` (`SBR1`) blocks (`64 KiB`
+   envelopes), which are indexed by the resource's block B-tree (`TPG1`), whose
+   root is stored inside the global realm catalog B-tree (`TPG1`, 8-entry leaves,
+   32-child branches). Every path copy from leaf to root across all four layers
+   allocates new immutable pages.
+2. **Per-turn base64 HTTP stream framing:** `PackedPageStore` serializes each
+   modified `TPG1` page into a base64-encoded JSON string, creates a brand-new
+   Ursula stream `p/<realm>/c/<id>` for the candidate turn, appends frames over
+   HTTP, reads back the entire candidate stream in `192 KiB` windows to verify
+   hashes, seals the stream, and only then conditionally appends to the realm
+   journal `j`.
+3. **Actor-turn wire fragmentation:** Because data operations are funneled
+   through `send_input -> open_view -> read_blocks -> commit_turn` with a
+   `128 KiB` per-turn block ceiling, multi-row writes and schema changes must
+   checkpoint intermediate staging state machines (`STW1`, `STC1`, `STG1`, `STX1`)
+   across multiple sequential turns.
+
+### Two pluggable storage primitives: `TransitLog` and `TransitObjectStore`
+
+A database storage engine requires two fundamentally different physical access
+patterns that should not be conflated into a single base64 page-stream API:
+
+1. **Sequential, low-latency, ordered append and tailing** for commit durability
+   and live change-data activation (**`TransitLog`**).
+2. **High-bandwidth, immutable bulk object storage and byte-range reads** with
+   conditional manifest publication for compacted datasets, indexes and snapshots
+   (**`TransitObjectStore`**).
+
+```mermaid
+flowchart TB
+  subgraph Engine["Transit Storage & Execution Engine (Zig)"]
+    T0["Tier 0: RAM\nActive Memtables (MVCC) + Verified Buffer Pool + Catalog/Grant Head"]
+    LogAPI["Primitive 1: TransitLog (TWAL1)\nappend(partition, epoch, batch) · tail(from_lsn) · trim(up_to_lsn)"]
+    ObjAPI["Primitive 2: TransitObjectStore\nput_immutable(key, sha256) · put_conditional(manifest, If-None-Match) · get_range(key, off, len)"]
+    NVMe["Tier 2: Local NVMe Read-Through Cache & Fuze Spill\nContent-Verified (SHA-256) 64 KiB Page Frames (mmap / preadv)"]
+  end
+
+  subgraph LocalBackends["Local / Edge Mode (transit server default — zero child daemons)"]
+    LocalWal["LocalWal\nSegmented 64 MiB POSIX files (fdatasync / io_uring + group commit)"]
+    LocalSeg["LocalSegmentStore\nAtomic POSIX O_CREAT|O_EXCL + fsync + rename (.tseg / .tdel / manifests)"]
+  end
+
+  subgraph CloudBackends["Cloud / Clustered Mode (Compose & Kubernetes/Substrate launchers)"]
+    DistWal["UrsulaWal / KafkaWal / PulsarWal\nLong-Lived Partition Streams & Data-Activation Bus"]
+    CloudObj["S3 / GCS / R2 / Azure Blob\nGeo-Replicated Immutable .tseg Segments, .tdel Vectors & Manifests"]
+  end
+
+  T0 -->|"Commit & tail deltas"| LogAPI
+  T0 -->|"Flush .tseg & CAS Manifest"| ObjAPI
+  T0 <-->|"Zero-copy page pin"| NVMe
+  NVMe <-->|"Range fill on miss"| ObjAPI
+  LogAPI --> LocalWal
+  LogAPI --> DistWal
+  ObjAPI --> LocalSeg
+  ObjAPI --> CloudObj
+```
+
+#### Primitive 1: `TransitLog` (`TWAL1` WAL and Data-Activation Bus)
+
+`TransitLog` defines Transit's canonical binary frame format (`TWAL1`): a
+64-byte-aligned header carrying a `CRC32C`/`xxHash64` payload digest,
+`partition_id`, `writer_epoch`, `policy_epoch`, monotonic `lsn`, and typed delta
+records (`+row`/`-row` columnar batches, catalog DDL transitions, process mailbox
+admissions, and recorded effect intents).
+
+- **Native Zig `LocalWal` (`transit server` default):** Writes `TWAL1` frames
+  directly to pre-allocated `64 MiB` local segment files using `fdatasync` or
+  `io_uring` with group commit. This removes the external Ursula child daemon
+  from `transit server`, cutting single-write commit latency to sub-millisecond
+  local disk flush times.
+- **`UrsulaWal` (Distributed Stream Backbone):** Repositions Ursula from a
+  per-turn B-tree page store to its natural role: a durable, replicated stream
+  log that sequences `TWAL1` frames per partition and streams live deltas to
+  downstream `Fuze` maintained views, reactive watches and `Station` processes.
+- **`KafkaWal` / `PulsarWal` (External Log Adapters):** Maps each `TransitLog`
+  partition to a partitioned topic, enforcing `writer_epoch` fencing via
+  idempotent producer epochs or partition-leader CAS and tying log retention
+  watermarks to `TransitObjectStore` manifest checkpoints.
+
+#### Primitive 2: `TransitObjectStore` (Immutable Segments and Manifests)
+
+`TransitObjectStore` stores immutable **Data Segments (`.tseg`)**, **Deletion
+Vectors (`.tdel`)**, and versioned **Table / Partition / Branch Manifests
+(`manifest/v{N}`)** using three operations:
+
+- `put_immutable(key, bytes, sha256)`: Writes a content-verified `.tseg` or
+  `.tdel` object under a unique UUIDv7/hash key before it is referenced by any
+  manifest.
+- `put_conditional(key, expected_etag_or_if_none_match, bytes)`: Atomically
+  publishes `manifest/v{N+1}` using HTTP `If-None-Match: "*"` / `If-Match` in
+  cloud object stores (S3, GCS, R2, Azure Blob) or `linkat`/`renameat2(RENAME_NOREPLACE)`
+  on POSIX filesystems.
+- `get_range(key, offset, length)`: Fetches aligned footer indexes, zone maps or
+  column pages on demand.
+
+### The four-tier memory hierarchy and durability invariants
+
+| Tier | Physical medium | State held | Eviction & crash-recovery invariant |
+| --- | --- | --- | --- |
+| **Tier 0: RAM** | Bounded Zig arenas (`64 B` aligned) | Active **Memtables / Delta Buffers** (providing immediate MVCC read-your-writes visibility for committed `TWAL1` frames), **Catalog & Grant Head (`policy_epoch`)**, and the **Verified Buffer Pool** (pinned `.tseg` column pages, zone maps and B-tree index nodes). | Volatile; holds zero durability authority. Reconstructed on startup by loading the latest `manifest/v{N}` and replaying `TransitLog` from the manifest's `flushed_lsn` watermark. |
+| **Tier 1: WAL (`TransitLog`)** | `LocalWal`, `UrsulaWal`, or `Kafka`/`Pulsar` | Ordered `TWAL1` commit frames since `flushed_lsn`; live change-data activation stream (`+row`/`-row`) feeding `Fuze` maintained views, reactive watches, `TableChangeReader` and `Station` actors. | Durable before any write receipt is returned. Prefix $\le \text{flushed\_lsn}$ is eligible for `trim` only after the referencing `.tseg` segments and `manifest/v{N}` are durable in Tier 3. |
+| **Tier 2: Local Disk / NVMe** | Local POSIX filesystem | In cloud mode: stateless, content-verified (`SHA-256`) read-through cache of `.tseg`/`.tdel` `64 KiB` frames (`mmap`/`preadv`) plus bounded `Fuze` query spill. In local mode (`transit server`): primary `LocalWal` + `LocalSegmentStore`. | In cloud mode, losing a node or wiping NVMe loses zero committed data; cold nodes warm pages lazily via `get_range`. Eviction drops clean cached frames under W-TinyLFU/clock policy without touching Tier 3. |
+| **Tier 3: Object Storage (`TransitObjectStore`)** | S3 / GCS / R2 / Azure Blob or `LocalSegmentStore` | Immutable **`.tseg` Data Segments**, **`.tdel` Deletion Vectors**, and versioned **Snapshot / Branch Manifests (`manifest/v{N}`)**. | System of record for all compacted data, historical `AS OF` snapshots and branches. Orphaned unreferenced `.tseg` files from aborted staging are swept after lease/epoch expiration. |
+
+### The `.tseg` hybrid OLTP/OLAP segment format and `.tdel` deletion vectors
+
+Pure analytical file formats (such as standard Parquet) optimize for wide scans
+but penalize point lookups, primary-key uniqueness checks, low-latency row
+deletes, and 5-state cell semantics (`missing`, `type_error`, `conflict`). Pure
+row-oriented B-trees optimize for point updates but suffer high write/read
+amplification on analytical scans and object storage.
+
+Transit's native **`.tseg` (`Transit Segment v1`)** format—inspired by Vortex and
+Apache Arrow—combines zero-copy columnar vector execution with embedded
+primary-key indexing and external deletion vectors:
+
+```mermaid
+flowchart TB
+  subgraph Manifest["Committed Table / Branch Manifest (manifest/vN)"]
+    Meta["CatalogId · DefinitionId · Schema & Collation Bindings · flushed_lsn"]
+    SegList["Active Segment Descriptors (row_id range, PK min/max, .tseg key, .tdel key)"]
+  end
+
+  subgraph TSeg["Immutable .tseg Segment File (64-Byte Aligned)"]
+    subgraph RG["Row Groups (e.g., 65,536 rows per group, sorted by Primary Key)"]
+      TagStream["5-State Cell Tag Bitstreams\n(value · null · missing · type_error · conflict)"]
+      ColBufs["64B-Aligned Column Buffers & Composable Zig Codecs\n(Arrow Plain · Bitpack/FOR · RLE · Dictionary · FSST · COMP-3 · ZONED · COMP · IBM_HFP · EBCDIC)"]
+    end
+    subgraph Footer["Aligned Segment Footer (Fetched in 1 Range Read)"]
+      ZoneMaps["Per-Row-Group Zone Maps & Bloom Filters\n(Collation-Aware min_κ / max_κ, null_count, error_count)"]
+      PKBTree["Embedded Primary-Key Prefix B-Tree Index\n(Order-Preserving Sort Keys -> Row Group & Row Offset)"]
+      SchemaCommit["Column Codec & Collation Descriptors + SHA-256 Page Digests"]
+    end
+  end
+
+  subgraph TDel["Immutable .tdel Deletion Vector"]
+    Roaring["Compressed Roaring Bitmap of Deleted/Superseded Row Offsets"]
+  end
+
+  Manifest --> TSeg
+  Manifest --> TDel
+```
+
+1. **Zero-copy Arrow-compatible physical buffers:** Uncompressed or decoded
+   column pages use 64-byte alignment matching `Fuze`'s `Batch.zig` SIMD lanes,
+   allowing Tier 2 NVMe pages to be mapped (`mmap` or `preadv`) directly into
+   `Fuze` without row-by-row `FTR1` deserialization.
+2. **Native 5-state cell tag streams:** Every column stores compact bitmasks/tags
+   distinguishing `value`, `null`, `missing`, `type_error` and `conflict`.
+3. **Composable Zig physical codecs and collations:** Columns can be encoded with
+   analytical codecs (**Bitpacking/FOR**, **RLE**, **Dictionary**, **FSST**) or
+   enterprise/mainframe codecs (**`COMP-3`**, **`ZONED`**, **`COMP`/`COMP-4`**,
+   **`IBM_HFP`**, **`EBCDIC`**) with explicit **Collation (`COLLATE`)** sort-key
+   bindings (detailed in [Query planning, snapshots and results](query-engine.md#logical-types-and-physical-codecs-and-collation-semantics)).
+4. **$O(\log N)$ point lookups and $O(1)$ row-group pruning:** Rows within a
+   `.tseg` file are sorted by primary key (or clustering key). The footer embeds
+   both **Collation-Aware Zone Maps (`min` / `max`)** for analytical scan
+   pruning and a compact **Primary-Key Prefix B-Tree Index** over order-preserving
+   sort keys so point queries (`WHERE pk = $1`) require at most two range reads
+   (footer index $\to$ target row-group slice).
+5. **Fast point deletes and updates via `.tdel` Deletion Vectors:** `DELETE` and
+   `UPDATE` statements never rewrite an immutable `.tseg` file in the foreground.
+   Instead, the mutation appends to `TransitLog` + Tier 0 Memtable, and on flush
+   writes a compact `.tdel` bitmap marking superseded row offsets in the old
+   `.tseg` segment while writing updated rows into a new delta `.tseg` segment.
+   Background compaction later merges `.tseg` + `.tdel` files asynchronously.
+
+### De-monolithing authority: partitioned logs, fenced leases and multi-writer OCC
+
+To eliminate the single global realm B-tree sequencer without losing immediate
+permission revocation or conflict detection, concurrency progresses through three
+composable levels:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Policy as Control & Policy Log<br/>(transit-node)
+  participant W1 as Data Writer A<br/>(Partition Lease / OCC)
+  participant W2 as Data Writer B<br/>(Concurrent OCC Writer)
+  participant Log as TransitLog Partition<br/>(LocalWal / Ursula / Kafka)
+  participant Obj as TransitObjectStore<br/>(S3 / LocalSegmentStore)
+
+  Policy->>W1: Issue Lease (partition_id, writer_epoch=4, policy_epoch=12)
+  W1->>Log: Append TWAL1 batch (writer_epoch=4, policy_epoch=12)
+  W1->>Obj: put_immutable(seg_uuid_A.tseg, sha256)
+  W2->>Obj: put_immutable(seg_uuid_B.tseg, sha256)
+  W1->>Obj: put_conditional(manifest/v10, If-None-Match) -> 200 OK
+  W2->>Obj: put_conditional(manifest/v10, If-None-Match) -> 412 Precondition Failed
+  W2->>Obj: Read manifest/v10 & check PK overlap (seg_A vs seg_B)
+  Note over W2,Obj: Disjoint PK ranges / append-only: O(1) manifest rebase
+  W2->>Obj: put_conditional(manifest/v11 = v10 + seg_B, If-None-Match) -> 200 OK
+```
+
+1. **Level 1 — Partitioned Authority (Control Log vs. Data/Process Partitions):**
+   - The **Control & Policy Log** holds only principals, role memberships, grants,
+     the monotonic `policy_epoch` counter, the catalog directory (`CatalogId`,
+     `DefinitionId`), and partition lease assignments. Because control plane
+     mutations (`GRANT`, `REVOKE`, `CREATE TABLE`) are low-frequency and small,
+     the entire policy graph stays pinned in Tier 0 RAM on every node.
+   - Each Table partition and each `Station` process group owns an independent
+     **`TransitLog` partition** and **`Manifest` chain**. Writes to Table A and
+     Table B never contend on a shared B-tree root.
+2. **Level 2 — Epoch-Fenced Partition Leases for Direct Data-Plane Writes:**
+   - `transit-node` issues a scoped **Partition Lease**
+     `(partition_id, writer_epoch, policy_epoch)` to an authorized writer.
+   - While `policy_epoch` remains current, the writer appends `TWAL1` batches
+     directly to the partition's `TransitLog` and flushes `.tseg` segments and
+     `manifest/v{N}` directly to `TransitObjectStore` without proxying row bytes
+     through `transit-node`.
+   - If a privilege is revoked (`REVOKE`), the Control Log increments
+     `policy_epoch` and broadcasts the invalidation; any in-flight write or
+     manifest commit carrying a stale `policy_epoch` or superseded `writer_epoch`
+     is rejected before acceptance.
+3. **Level 3 — Lock-Free Multi-Writer Optimistic Concurrency Control (OCC):**
+   - Multiple writers on the same table stage immutable `.tseg` files in parallel
+     to `TransitObjectStore` under collision-free UUIDv7 keys (`put_immutable`).
+   - Each writer attempts to publish `manifest/v{N+1}` via conditional CAS
+     (`If-None-Match` on `manifest/v{N+1}`).
+   - If Writer B loses the CAS race to `manifest/v{N+1}` committed by Writer A:
+     - **Pure append or disjoint primary-key ranges:** Writer B verifies via the
+       manifest's segment PK `min`/`max` bounds and embedded B-tree footer
+       indexes that $\text{keys}(\text{seg}_A) \cap \text{keys}(\text{seg}_B) = \emptyset$,
+       and rebases its manifest commit to `manifest/v{N+2}` in $O(1)$ metadata
+       work without rewriting `.tseg` data bytes.
+     - **Overlapping primary-key mutation / serializable conflict:** Writer B
+       detects the intersecting key in $\text{seg}_A$'s PK B-tree index and
+       either regenerates its `.tdel` bitmap against `v{N+1}` or returns a
+       deterministic serialization conflict.
+
+## Resource costs and failure (implemented baseline)
 
 | Mechanism | Benefit | Cost or obligation |
 | --- | --- | --- |

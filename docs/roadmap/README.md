@@ -5,35 +5,62 @@ than delivery date. Current behavior belongs in the [public reference](../README
 mechanisms in [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../../tests/README.md). A plan does not establish support.
 
-The product goal is programmable data infrastructure: describe data, computation
-and policies, then inspect whether Transit is fulfilling that declaration. The
-[current data model](../handbook/reference/data-model.md) describes the supported
-pieces and the gaps between them. Durable execution and storage improvements
-serve that lifecycle.
+The product goal is programmable, versioned data infrastructure: declare schemas,
+datasets, computations and policies, then inspect whether Transit is fulfilling
+that declaration. Data and derived computation are the primary model; durable
+processes (`Station`), write-ahead streams (`TransitLog`) and connectors are the
+mechanisms that **activate** data, materialize changes and coordinate external
+effects. The [current data model](../handbook/reference/data-model.md) describes
+the supported pieces and the gaps between them.
 
 | Order | Milestone | Outcome |
 | --- | --- | --- |
-| 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | Shared definitions, named data objects, dependencies and inspectable operation state |
-| 2 | [Storage and query performance](02-storage-and-query-performance.md) | Lower end-to-end read/write cost with bounded memory |
-| 3 | [Standards and historical catalogs](03-standards-and-catalogs.md) | Capability evidence and historical interpretation extending the shared catalog model |
-| 4 | [Managed computations and SQL dataflows](04-sql-and-dataflows.md) | Declarative activation, service-managed maintenance and observable freshness/failure |
-| 5 | [Multi-model and foreign relations](05-multi-model-and-foreign-relations.md) | Document projections, finite graphs and recoverable external captures |
-| 6 | [Branches, merges and restore](06-branches-merges-and-restore.md) | Isolated application-state branches and reviewed merges |
+| 1 | [Declarative data lifecycle](01-declarative-data-lifecycle.md) | Shared definitions, named data objects, dependencies, inspectable operation state and direct data-plane operations |
+| 2 | [Storage hierarchy, `.tseg` segments and query performance](02-storage-and-query-performance.md) | Four-tier storage (`TransitLog` + `TransitObjectStore`), `.tseg` hybrid segments, Zig codecs/collations and partitioned/OCC concurrency |
+| 3 | [Standards, collations and historical catalogs](03-standards-and-catalogs.md) | Capability evidence, collation-preserving snapshots and historical interpretation over shared catalog manifests |
+| 4 | [Managed computations and WAL-activated dataflows](04-sql-and-dataflows.md) | `TransitLog`-driven activation, service-managed incremental maintenance and observable freshness/failure |
+| 5 | [Multi-model and multi-format foreign relations](05-multi-model-and-foreign-relations.md) | Document projections, finite graphs and zero-copy/mainframe foreign tables (Parquet, Arrow, CSV/JSONL, COBOL/EBCDIC) |
+| 6 | [Branches, merges and restore](06-branches-merges-and-restore.md) | $O(1)$ manifest-based application-state branches, segment-index three-way merges and restore |
 | 7 | [Service and SDK coverage](07-service-and-sdk-coverage.md) | Broader types, sources and streaming interactions through shared contracts |
-| 8 | [Clustered execution](08-clustered-execution.md) | Automatic placement, fenced transfer and distributed execution |
+| 8 | [Clustered execution and storage-disaggregated placement](08-clustered-execution.md) | Fenced lease transfer, zero-copy S3/NVMe cache warming and locality-aware distributed query execution |
 | 9 | [Qualification and complete benchmarks](09-qualification-and-benchmarks.md) | Reproducible full workloads, fault coverage and measured CI costs |
 | 10 | [Release distribution](10-releases.md) | Versioned, verified artifacts with runnable installed onboarding |
 
-Performance work is tracked in [issue #76](https://github.com/spoke-sh/transit/issues/76).
+Performance and storage architecture work is tracked in
+[issue #76](https://github.com/spoke-sh/transit/issues/76).
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
 
-The first milestone defines a common lifecycle over existing owners. Performance
-work measures those data operations; historical catalogs preserve their meaning
-over time. Managed computation adds service-owned scheduling and recovery before
-broader models and placement extend the same contracts. Table lifecycle, typed
-captured/maintained owners, native authorization and immutable storage are existing
-foundations, not new milestones to implement again.
+## Architectural direction across the sequence
+
+1. **Unify declarations and decouple the data plane from actor turn bounds ([Milestone 1](01-declarative-data-lifecycle.md)).**
+   Establish shared catalog identities, dependencies and operation outcomes across
+   Tables, KV, Documents and computations while decoupling bulk and relational
+   data operations from tiny actor mailbox/turn wire budgets (`4 × 256B` metadata
+   keys and `16 × 64KiB` blocks) and multi-turn staging state machines.
+2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md)).**
+   Split storage into two swappable primitives: **`TransitLog`** (the sequenced
+   `TWAL1` write-ahead log and live data-activation delta bus, backed by a native
+   Zig local WAL by default in `transit server`, or by Ursula, Kafka or Pulsar in
+   distributed deployments) and **`TransitObjectStore`** (the immutable segment
+   and manifest store, backed by a local POSIX directory in `transit server` or
+   S3/GCS/R2 with a local NVMe read-through cache in cloud deployments). Store
+   relational data in 64-byte-aligned **`.tseg` hybrid OLTP/OLAP segments** with
+   Arrow-compatible physical column buffers, 5-state cell validity tags, embedded
+   primary-key prefix B-tree indexes, zone maps, `.tdel` deletion vectors,
+   composable Zig codecs (bitpacking, RLE, dictionary, FSST, plus mainframe
+   `COMP-3`, `ZONED`, `COMP`, `IBM_HFP` and `EBCDIC`) and first-class Collation
+   (`COLLATE`) support. Progress concurrency from a single global realm sequencer
+   to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
+   **Lock-Free Multi-Writer OCC** over conditional manifest CAS.
+3. **Activate derived views, multi-format foreign sources, $O(1)$ branches and clustered compute ([Milestones 3](03-standards-and-catalogs.md)–[8](08-clustered-execution.md)).**
+   Bind historical catalog snapshots to immutable manifest versions and collations;
+   drive maintained SQL views, reactive watches and Station processes directly
+   from `TransitLog` (`+row`/`-row`) delta streams; read Parquet, Arrow IPC,
+   CSV/JSONL and mainframe fixed/variable (`FB`/`VB`) copybook datasets through
+   the shared `Fuze` segment boundary; implement $O(1)$ copy-on-write branches
+   and three-way merges over immutable `.tseg` manifests; and schedule distributed
+   Station and `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
 qualification belongs to [qualification](09-qualification-and-benchmarks.md#documentation-publication),

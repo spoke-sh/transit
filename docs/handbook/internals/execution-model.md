@@ -143,6 +143,32 @@ work under the new credential has the same role grants. The input and staging
 remain inspectable. This is a cost of treating credential replacement as a
 current authority change rather than an implicit renewal of accepted work.
 
+### Fenced partition leases and `policy_epoch` across disaggregated storage
+
+In the current single-sequencer baseline, every mutation re-evaluates the role
+graph inside the serialized realm commit. As Transit separates the **Control &
+Policy Log** from partitioned **Data & Process Logs** and **Multi-Writer OCC**
+([storage account](storage-runtime.md#de-monolithing-authority-partitioned-logs-fenced-leases-and-multi-writer-occ)),
+the question is how direct data-plane writes preserve immediate revocation and
+single-authority safety without routing every batch through `transit-node`:
+
+1. **Monotonic `policy_epoch` in the Control Log:** Every administrative change
+   to principals, role memberships or object grants (`GRANT`, `REVOKE`, role
+   disablement) commits to the Control Log and advances `policy_epoch` from $e$
+   to $e+1$.
+2. **Epoch-bound Partition Leases:** A data-plane writer acquires a lease
+   $\Lambda = (\text{partition\_id}, \text{writer\_epoch}, \text{policy\_epoch}=e, \text{subject}, \text{privileges})$
+   only after the Control Log verifies the subject's current role-graph path at
+   `policy_epoch` $e$.
+3. **Boundary enforcement on `TransitLog` and `TransitObjectStore`:** Every
+   `TWAL1` frame append and every `manifest/v{N+1}` conditional CAS carries
+   $(\text{writer\_epoch}, \text{policy\_epoch})$. If a partition lease is
+   reassigned ($\text{writer\_epoch} \to w+1$) or a relevant grant is revoked
+   ($\text{policy\_epoch} \to e+1$), the storage boundary rejects commits bearing
+   the superseded epoch before any new root becomes visible. Reads and snapshot
+   disclosures similarly verify that the caller's role path holds at the current
+   `policy_epoch`.
+
 ## Progress and tradeoffs
 
 Safety does not promise eventual handling. Progress depends on available storage,

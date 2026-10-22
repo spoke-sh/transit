@@ -729,7 +729,7 @@ and cyclic graphs can yield huge or infinite answers. Bound active traversal,
 spill, steps and output; reject or report incomplete execution when a budget
 ends. A hidden depth cap cannot turn a prefix into a complete result.
 
-### External is an access qualifier
+### External is an access qualifier and multi-format `SegmentReader` boundary
 
 `CREATE EXTERNAL TABLE` is a useful user-facing idea, but its spelling does not
 establish SQL-standard conformance. Prefer the SQL/MED foreign-table vocabulary
@@ -743,14 +743,122 @@ Use a source binding for captured ingestion and a sink binding for recorded
 output. An S3 table source is unrelated to Ursula's use of S3 as cold storage;
 query adapters never receive backend authority.
 
-For a replayable computation, freeze a paged manifest and its exact object
-versions/content commitments, schema, format and capture identity. Retain captured
-bytes, or establish an explicit retrievability contract; version names alone do
-not guarantee future availability. Directory listings and changing object
-prefixes do not define a snapshot. Filesystem sources likewise need a declared
-root and captured content basis. An ETag alone is not a universal content digest.
-Missing or changed bytes fail explicitly. Credentials remain references and
-every disclosure rechecks current policy.
+In the target storage and query architecture, native tables and foreign tables
+share a single vectorized **`SegmentReader`** boundary into `Fuze`'s
+`Batch.zig`:
+
+```mermaid
+flowchart LR
+  subgraph Sources["Native & Foreign Segment Sources"]
+    TSeg["Native .tseg + .tdel\n(64B-aligned Arrow buffers, Zone Maps, PK B-Tree)"]
+    Parquet["Parquet & Arrow IPC\n(Column chunks, Dictionary pages, Row-Group Stats)"]
+    Text["CSV & JSONL\n(Bounded streaming framer)"]
+    Mainframe["Mainframe FB / VB (RDW)\n(COBOL Copybook, EBCDIC, COMP-3, ZONED, IBM_HFP)"]
+  end
+
+  subgraph Decode["Zero-Copy & SIMD Physical Codec Layer"]
+    Prune["Collation-Aware Zone Map & PK Index Pruning"]
+    Codecs["Physical Codecs -> Canonical Vectors\n(FSST, Bitpack/FOR, RLE, COMP-3 -> decimal128, EBCDIC -> utf8/bytes)"]
+    Tags["5-State Cell Tag Extraction\n(value · null · missing · type_error · conflict)"]
+  end
+
+  subgraph FuzeExec["Fuze Vectorized & Incremental Engine"]
+    Batch["Batch.zig (64B-aligned SIMD lanes)"]
+    Kernels["Collation-Bound Vector Kernels\n(Filter · OrderBy · HashJoin · Aggregate)"]
+  end
+
+  TSeg --> Prune
+  Parquet --> Prune
+  Text --> Codecs
+  Mainframe --> Codecs
+  Prune --> Codecs --> Tags --> Batch --> Kernels
+```
+
+For a replayable computation over foreign files (`PARQUET`, `ARROW_IPC`, `CSV`,
+`JSONL`, or mainframe `FIXED_RECORD`/`VARIABLE_RECORD`), capture freezes a paged
+manifest and its exact object versions/content commitments (`SHA-256`), schema,
+physical encodings, collations and capture identity. Missing or changed bytes
+fail explicitly. Credentials remain references and every disclosure rechecks
+current policy (`policy_epoch`).
+
+### Logical types and physical codecs and collation semantics
+
+A foundational design requirement for querying both cloud-native columnar tables
+and legacy enterprise/mainframe datasets without silent data corruption is the
+strict separation of three orthogonal column properties:
+
+1. **Logical Type ($\tau$):** The mathematical domain of the value in `Fuze`
+   (`int64`, `decimal128(p, s)`, `float64`, `utf8`, `bytes`, `timestamp`, `bool`),
+   wrapped in Transit's five-state cell algebra:
+   $$\text{Cell}(\tau) \;=\; \text{Value}(\tau) \;\mid\; \text{Null} \;\mid\; \text{Missing} \;\mid\; \text{TypeError}(\text{code}) \;\mid\; \text{Conflict}$$
+2. **Physical Encoding ($\epsilon$):** The byte-level representation in `.tseg`
+   segments or foreign dataset records, decoded into canonical `Batch.zig`
+   lanes by composable Zig codecs:
+
+   | Physical Codec | Representation | Target Logical Vector & SIMD Decode Strategy |
+   | --- | --- | --- |
+   | `PLAIN_ARROW` | 64-byte-aligned fixed/variable buffers | Zero-copy `mmap` / `preadv` slice |
+   | `BITPACK_FOR` / `RLE` | Frame-of-reference bit-packed integers and run-length runs | Vectorized SIMD unpack / run expansion |
+   | `DICTIONARY` / `FSST` | Dictionary codes or Fast Static Symbol Table (`<= 255` 1–8B symbols) | Late materialization on codes; branchless 256-entry symbol table expansion for strings |
+   | `COMP3` (`PACKED_DECIMAL`) | 2 decimal digits per byte (`0x0`–`0x9` nibbles) + trailing sign nibble (`0xC`/`0xF` `+`, `0xD` `-`) | SIMD nibble unpack (`vpshufb`/`tbl` + multiply-add) into `decimal128(p, s)` or `int64`; invalid nibbles (`> 9`) or invalid sign (`< 0xA`) emit `TypeError` |
+   | `ZONED` (`DISPLAY`) | 1 digit per byte (`0xF0`–`0xF9` in EBCDIC) with overpunched sign in final/leading byte (`0xC0`–`0xC9` `+`, `0xD0`–`0xD9` `-`) | Sign-zone extraction + ASCII/decimal fold into `decimal128(p, s)` |
+   | `COMP` / `COMP-4` | Big-endian 2, 4 or 8-byte two's-complement binary integer with implied scale | `@byteSwap` into `int64` / `decimal128(p, s)` |
+   | `IBM_HFP` (`COMP-1`/`2`) | IBM System/360 base-16 floating point ($m \times 16^{e - 64}$) | Exact base-16 to IEEE-754 base-2 exponent normalization (`float64`) |
+   | `EBCDIC_CP037` / `CP1047` / `CP500` | Fixed or variable-length EBCDIC codepage bytes | Preserved in physical bytes for EBCDIC predicates or transcoded via 256-byte lookup table to UTF-8 |
+
+3. **Collation ($\kappa$):** The total preorder $\preceq_\kappa$ and equivalence
+   relation $\equiv_\kappa$ governing `<, \le, =, \ge, >`, `BETWEEN`, `MIN`/`MAX`,
+   `ORDER BY`, `GROUP BY` and join key hashing/equality:
+
+   | Collation | Ordering & Padding Law | Primary Use Case |
+   | --- | --- | --- |
+   | `UCS_BASIC` / `UTF8_BINARY` | Lexicographical unsigned byte order (`'0' [0x30] < 'A' [0x41] < 'a' [0x61]`), `NO PAD` | Default cloud-native UTF-8 ordering |
+   | `EBCDIC_037_PAD` / `EBCDIC_1047_NOPAD` | Native EBCDIC codepage weight (`'a' [0x81] < 'A' [0xC1] < '0' [0xF0]`); `PAD SPACE` (`0x40`) for fixed `PIC X(n)` | Exact compatibility with z/OS DB2, VSAM KSDS and COBOL `SORT` |
+   | `ASCII_CI` | Case-folded ASCII order (`'a' == 'A'`), `NO PAD` | Case-insensitive identifiers and keys |
+   | `UCA_<version>_<locale>` | Unicode Collation Algorithm (UTS #10) with pinned DUCET version | Locale-sensitive human sorting |
+
+#### Why collation must bind to Zone Maps and B-Tree indexes
+
+In `EBCDIC`, lowercase letters precede uppercase letters and digits sort last
+(`'a' < 'A' < '0'`), which is the exact inverse of ASCII/UTF-8 (`'0' < 'A' < 'a'`).
+If a `.tseg` segment computed its row-group Zone Map `(min, max)` or its embedded
+primary-key B-tree index using `UCS_BASIC` byte order while a query evaluated
+`WHERE acct_code BETWEEN 'A000' AND '9999' COLLATE EBCDIC_037_PAD`, zone-map
+pruning would falsely discard matching row groups (an unsound optimization).
+
+Therefore, for any column with declared collation $\kappa$:
+- Every `.tseg` Zone Map stores $\min_\kappa$ and $\max_\kappa$ ordered under
+  $\preceq_\kappa$. Row-group pruning is enabled for predicate $\text{col} \;\text{op}_\sigma\; c$
+  **if and only if** the predicate collation $\sigma$ equals the column's indexed
+  collation $\kappa$.
+- The `.tseg` embedded primary-key B-tree index stores **order-preserving sort
+  keys** $\text{sort\_key}(v, \kappa)$ such that:
+  $$u \preceq_\kappa v \;\Longleftrightarrow\; \text{memcmp}(\text{sort\_key}(u, \kappa), \text{sort\_key}(v, \kappa)) \le 0$$
+  This allows `Fuze` B-tree lookups and radix/merge sorts to execute at raw byte
+  comparison speed while strictly honoring `EBCDIC`, `PAD SPACE` or `UCA` rules.
+- Hash joins and hash aggregations hash the canonical collation key
+  $\text{hash}(\text{sort\_key}(v, \kappa))$ rather than raw UTF-8 bytes so that
+  values equivalent under $\equiv_\kappa$ (such as trailing-space-padded
+  `PIC X(10)` keys) always map to the same hash bucket.
+
+#### Lossless mainframe `REDEFINES` and dirty-record handling via 5-state cells
+
+Mainframe COBOL datasets frequently contain two phenomena that crash standard
+two-state (`value`/`null`) vectorized engines:
+1. **Uninitialised or sentinel bytes in numeric fields:** Spaces (`0x40` in
+   EBCDIC) or `HIGH-VALUES` (`0xFF`) stored inside a `COMP-3` or `ZONED` field.
+2. **Untagged or tag-switched `REDEFINES` unions:** The same byte range in a
+   fixed record is interpreted as schema variant $A$ when `REC-TYPE = '1'` and
+   variant $B$ when `REC-TYPE = '2'`.
+
+Because `.tseg` and `Fuze`'s `Batch.zig` carry a native 5-state tag per cell
+(`value`, `null`, `missing`, `type_error`, `conflict`):
+- When a `REDEFINES` branch has a declared `WHEN` discriminator that does not
+  match the current row, its columns emit `missing` (`IS MISSING`).
+- When an active numeric field contains invalid BCD nibbles (`0x404040` or
+  `0xFFFFFF`), the SIMD `COMP-3` decoder sets the cell tag to `type_error`
+  without aborting the batch scan, allowing SQL queries to filter, audit or
+  route dirty records declaratively (`WHERE balance IS TYPE_ERROR`).
 
 ### Function coloring is an effect and trait system
 
@@ -777,24 +885,45 @@ must not resolve secrets, acquire query snapshots or dispatch work. Optimizers
 must preserve error behavior as well as successful values; determinism alone
 does not permit reordering checked arithmetic or fallible projections.
 
-### Continuous computation needs more than grammar
+### Continuous computation and WAL-driven delta maintenance
 
-The useful logical model is a relation changing over recorded progress:
-`R[B] = Q(S1[b1], ..., Sn[bn])`. Maintenance consumes source changes and publishes
-changes to `R`, preserving equality with finite evaluation at each declared
-completed basis. This is an intended invariant, not a current guarantee.
+The logical model of a maintained view or continuous dataflow is a relation
+changing over recorded progress:
+$$R[B] \;=\; Q(S_1[b_1], \dots, S_n[b_n])$$
+Maintenance consumes source changes and publishes changes to $R$, preserving
+equality with finite evaluation at each declared completed basis:
+$$R[B'] \;=\; R[B] \oplus \Delta Q\big(L_1(b_1..b_1'), \dots, L_n(b_n..b_n')\big) \;=\; Q(S_1[b_1'], \dots, S_n[b_n'])$$
+
+In the four-tier storage architecture, **`TransitLog` (`TWAL1`)** and
+**`TransitObjectStore` Manifests (`manifest/v{N}`)** work together to make
+maintained computation both low-latency and bounded in memory:
+
+1. **Live WAL tailing (`Tier 1`):** When source tables accept writes, their
+   `TransitLog` partition emits ordered `TWAL1` frames containing columnar
+   `+row`/`-row` delta vectors and `lsn` coordinates. Active `Fuze` maintained
+   views, reactive session watches and `Station` processes subscribe directly to
+   the `TransitLog` tail from their last checkpointed `(manifest_version, lsn)`
+   watermark.
+2. **Seamless `.tseg` manifest catch-up (`Tier 3`) after WAL trim:** If a
+   maintained computation is paused or newly created after old `TransitLog`
+   segments have been trimmed, the service compares the computation's prior
+   `manifest/v{K}` against the current `manifest/v{N}`, reads only the added
+   `.tseg` segments and `.tdel` deletion bitmaps in `v{K+1}..v{N}`, and then
+   hands off seamlessly to live `TransitLog` tailing from `v{N}.flushed_lsn`.
+
 [Flink's dynamic-table explanation](https://flink.apache.org/2017/03/30/continuous-queries-on-dynamic-tables/)
-provides the related relational model; [Beam's model](https://beam.apache.org/documentation/basics/)
+provides a related relational model; [Beam's model](https://beam.apache.org/documentation/basics/)
 separates event time, watermarks and triggers. Neither supplies Transit authority.
 
-For multiple inputs, progress is generally a vector/frontier, not a wall-clock
-timestamp or a single resource revision. A complete contract must specify keys,
+For multiple inputs, progress is a vector/frontier, not a wall-clock
+timestamp or a single resource revision. A complete contract specifies keys,
 insert/update/delete multiplicity, snapshot-to-change coverage, resumable backfill,
 checkpoints, retained history, late events, corrections and terminal conditions.
 Finite input, bounded resident state and bounded total work are distinct facts.
-Stateful joins and recursion need paged durable state or explicit refusal when
-their profile cannot execute within its budget. Unlimited retention remains the
-default; a watermark is not permission to delete accepted history.
+Stateful joins and aggregations spill intermediate partitions to Tier 2 local
+NVMe and checkpoint committed operator state into Tier 3 segments. Unlimited
+retention remains the default; a watermark is not permission to delete accepted
+history.
 
 External effects must consume a deliberate trigger contract, not arbitrary
 intermediate rows. A changed aggregate can retract yesterday's answer; it cannot
