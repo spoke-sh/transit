@@ -21919,3 +21919,31 @@ has a single deployment branch rule for `main`. The first public deployment
 requires merging the workflow; live CDN routing, cache behavior and rollback
 have not been exercised. Runtime suites and `ci-clean` are not run for this
 scoped documentation/publication change, as requested.
+
+## Published handbook observations (2026-10-21)
+
+The [Pages publication run](https://github.com/spoke-sh/transit/actions/runs/39715399883)
+at source `5c1099f7a734bf4a3fce630cce9ae922737308df` completed both build and
+deployment successfully after the data-first handbook change. The GitHub API
+reports workflow publication, enforced HTTPS and no custom domain for
+`https://spoke-sh.github.io/transit/`.
+
+Direct HTTPS checks of the public homepage, introduction, data-model reference
+and quickstart returned HTTP 200 and their new content. The public search index
+included `reference/data-model`. These observations were repeated before moving
+the completed publication work out of the future roadmap. They establish a
+published revision and content availability at those checks, not general CDN
+cache behavior or continuous availability.
+
+The preceding handbook pass also passed the production build, nine documentation
+unit checks and five local Chromium checks, including desktop/mobile navigation,
+search, accessibility and exact generated downloads. Its task-dataset walkthrough
+ran against an isolated installation with two consoles, schema defaults, schema
+evolution and restart persistence. That fixture was stopped and removed; no
+operator installation was changed.
+
+Live browser/keyboard coverage, controlled revert/republication and a superseded
+workflow rerun have not been exercised. These remain explicit
+[publication qualification work](../docs/roadmap/09-qualification-and-benchmarks.md#documentation-publication).
+No runtime behavior or new runtime guarantee is established by this documentation
+framing change.

@@ -7,6 +7,11 @@ branching features. The [performance reference](../handbook/reference/performanc
 describes measurements; the [storage reference](../handbook/reference/storage.md) owns
 existing block publication, concurrent requests and reclamation.
 
+Measure the [declared data lifecycle](01-declarative-data-lifecycle.md): define a
+dataset, ingest changes, query it, evolve it and inspect progress. Keep interactive
+latency, captured-job cost and maintained catch-up cost separate. Storage and
+messaging are mechanisms within those paths, not the only benchmark boundaries.
+
 ## Remaining work
 
 1. Reproduce matched current-source controls. Attribute statement ingestion,
@@ -23,6 +28,9 @@ existing block publication, concurrent requests and reclamation.
 5. Separate row count, retained history, cache size, readers, skew and value width.
    Measure offered-load capacity and control latency under slow storage, quotas
    and maintenance.
+6. Attribute the cost of catalog/dependency inspection and work scheduling as
+   those interfaces land. A cheap status endpoint must remain bounded when data,
+   definitions and accepted operation history exceed resident caches.
 
 ## Completion evidence
 

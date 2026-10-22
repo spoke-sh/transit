@@ -207,7 +207,7 @@ superseded revision or an old workflow rerun is skipped after checking current
 
 The repository's **Settings → Pages → Build and deployment → Source** must be
 **GitHub Actions**. Keep the `github-pages` environment restricted to the `main`
-branch. After merging this workflow, its first `main` run publishes
+branch. Accepted `main` revisions publish
 [the handbook](https://spoke-sh.github.io/transit/). The deployment records the
 commit and site URL; the final step checks the public homepage, an interface
 reference, search index and SQL session schema over HTTPS.
@@ -218,8 +218,10 @@ content or site regression, revert the offending change through a PR and merge
 it into `main`; that new revision goes through the same checks and deployment.
 Rerunning a superseded commit does not roll the site back.
 
-The [publication acceptance work](../roadmap/01-handbook-publication.md) covers
-the first live deployment and recovery verification. Local Docusaurus preview
-does not verify GitHub's CDN routing or cache behavior.
+The [publication evidence](../../tests/README.md#published-handbook-observations-2026-10-21)
+records successful deployments and direct public-content checks. Live browser
+coverage, controlled revert/republication and superseded-run recovery checks
+remain unqualified. Local Docusaurus preview does not verify GitHub's CDN routing
+or cache behavior.
 The site describes the checked-out source capabilities; release-versioned
 documentation and immutable release links are not provided by this package.

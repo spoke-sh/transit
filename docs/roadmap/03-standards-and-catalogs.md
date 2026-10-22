@@ -6,6 +6,11 @@ Establish historical query, multi-model and branch semantics using the
 [grammar inventory](../handbook/reference/sql/grammar-surface.md),
 [query model](../handbook/internals/query-engine.md) and [state model](../handbook/internals/state-model.md).
 
+Extend the [shared data lifecycle](01-declarative-data-lifecycle.md). Historical
+inspection must answer which definition interpreted the data, what a derived
+result depended on and which current policy permits disclosure. Do not introduce
+a second catalog identity or confuse a historical definition with current rights.
+
 ## Delivery sequence
 
 1. Publish a machine-readable standards ledger: edition/correction, feature,

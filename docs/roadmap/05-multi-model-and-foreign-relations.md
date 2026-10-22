@@ -6,6 +6,11 @@ Compose KV, Table and Document data using the
 [standards/semantic contracts](03-standards-and-catalogs.md) and relevant
 [declaration/dataflow lifecycle](04-sql-and-dataflows.md).
 
+Use the shared object/definition identities, policy references and inspection
+model from the [data lifecycle](01-declarative-data-lifecycle.md). A new projection
+or foreign source must expose its interpretation, captured basis, dependencies
+and completeness; another storage adapter alone is not the user-facing outcome.
+
 ## Delivery sequence
 
 1. Define explicit Document-to-SQL and richer projections with stable identities.

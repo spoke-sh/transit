@@ -19,7 +19,10 @@ Existing [Nix packages](../../nix/README.md) and
 4. Package SDKs/libraries with generated resources and native dependency closure.
    Test consumers outside the checkout.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
-   application installation and compatible worker replacement.
+   the first-dataset walkthrough, declared computation and policy inspection,
+   application installation and compatible worker replacement. State the released
+   object kinds and lifecycle capabilities explicitly; an installed server alone
+   does not complete onboarding.
 
 ## Release gate
 
