@@ -81,6 +81,7 @@
 # board:
 #   port: 19107
 #   # null derives http://127.0.0.1:<board.port>; an explicit origin must match it.
+#   # http://localhost:<board.port> is also accepted without extra configuration.
 #   public_origin: null
 
 # New sessions capture these settings after reload. Zero adds no statement

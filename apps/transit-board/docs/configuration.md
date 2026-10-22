@@ -83,6 +83,16 @@ Keep the listener private and permit egress only to its configured Transit servi
 and required DNS. No service-account token, storage credential or provider
 credential belongs in the pod. Host validation is also required on health probes.
 
+The local `transit server` enables `localhost_alias: true` in Board's generated
+configuration. This admits `http://localhost:<port>` alongside the canonical
+`http://127.0.0.1:<port>` for UI and API requests. Each supplied `Origin` must
+match the request's own Host and scheme, including the port; the two local
+origins cannot make cross-origin requests to each other. No DNS lookup admits
+additional aliases. Standalone Board defaults this option to false. Enabling it
+requires `listen: "127.0.0.1"`, `public_origin: "http://127.0.0.1:<port>"` with
+the listener's port, and no `reactive` gateway; other combinations reject at
+startup. Reactive deployments retain their gateway's single configured origin.
+
 For a trusted development LAN, explicitly set `development_allow_insecure_http`
 to `true` to allow an origin such as `http://devbox.local:18102`, with `listen`
 set to `0.0.0.0` and `port` set to `18102`. This opt-in sends inspection data over
@@ -172,7 +182,7 @@ restores inspection-only configuration; captured work can continue independently
 of the browser and Board configuration.
 
 `POST /api/v1/query` exposes the shared `transit-query.Workspace` operations.
-Its body limit is 65536 bytes. `Origin` must equal `public_origin` and
+Its body limit is 65536 bytes. `Origin` must match the admitted request origin and
 `Content-Type` must be `application/json`. Deadlines and rate limits apply.
 Retain an uncertain submission's frozen token for exact retry. A read conflict
 permits a read retry; it does not authorize a new query.

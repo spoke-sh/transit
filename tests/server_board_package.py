@@ -93,7 +93,7 @@ def run(package):
         fixture.start()
         report = fixture.ready()
         assert report['board_url'] == fixture.board_url
-        assert b'<script' in fixture.get('/')
+        assert b'<script' in fixture.request('/')
         assert len([entry for entry in fixture.atlas()['resources']['entries'] if entry]) == 2
         record = fixture.record()
         fixture.stop()

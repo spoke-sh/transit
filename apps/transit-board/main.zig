@@ -22,6 +22,7 @@ const Config = struct {
     interface: ?application.Native.Scope = null,
     seed_file: []const u8,
     public_origin: []const u8,
+    localhost_alias: bool = false,
     development_allow_insecure_http: bool = false,
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8090,
@@ -36,6 +37,7 @@ const Server = struct {
     allocator: std.mem.Allocator,
     config: Config,
     host: []const u8,
+    localhost_origin: ?[]const u8 = null,
     observation: telemetry.Http = .{},
     next_read_ms: *std.atomic.Value(i64),
     query_lock: *std.Io.Mutex,
@@ -275,8 +277,9 @@ const Server = struct {
         var req = request.*;
         self.observation.received(&req, logRoute(req.head.target), false);
         const host = (try header(&req, "host")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
-        if (!std.mem.eql(u8, host, self.host)) return self.failure(&req, .forbidden, .InvalidOrigin);
-        if (try header(&req, "origin")) |origin| if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
+        const expected_origin = requestOrigin(self.config.public_origin, self.host, self.localhost_origin, host) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
+        const origin = try header(&req, "origin");
+        if (origin) |value| if (!std.mem.eql(u8, value, expected_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for" }) |name| if (try header(&req, name) != null) return self.failure(&req, .forbidden, .InvalidOrigin);
         const target = try self.allocator.dupe(u8, req.head.target);
         defer self.allocator.free(target);
@@ -285,8 +288,7 @@ const Server = struct {
         const query_route = std.mem.eql(u8, target, "/api/v1/query");
         const relational_route = std.mem.eql(u8, target, "/api/v1/relational");
         if (query_route or application_route or relational_route) {
-            const origin = (try header(&req, "origin")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
-            if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
+            if (origin == null) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
         const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (relational_route) query_api.RelationalCaller.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
@@ -604,6 +606,7 @@ fn browserRoute(path: []const u8) bool {
 const Shared = struct {
     config: Config,
     host: []const u8,
+    localhost_origin: ?[]const u8,
     diagnostics: *telemetry.Runtime,
     next_read_ms: std.atomic.Value(i64) = .init(0),
     query_lock: std.Io.Mutex = .init,
@@ -621,6 +624,7 @@ const Shared = struct {
             .allocator = allocator,
             .config = self.config,
             .host = self.host,
+            .localhost_origin = self.localhost_origin,
             .next_read_ms = &self.next_read_ms,
             .query_lock = &self.query_lock,
             .relational = self.relational,
@@ -669,6 +673,20 @@ fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]cons
     if (host.len == 0 or host.len > 200 or std.mem.indexOfAny(u8, host, "/@?#\\\r\n\t ") != null) return error.InvalidOrigin;
     return host;
 }
+// The local supervisor enables exactly one alias. Keep standalone and reactive
+// ingress on their configured origin, and never infer aliases through DNS.
+fn localhostOrigin(config: Config, buffer: *[32]u8) !?[]const u8 {
+    if (!config.localhost_alias) return null;
+    if (!std.mem.eql(u8, config.listen, "127.0.0.1") or config.reactive != null) return error.InvalidLocalhostAlias;
+    const canonical = try std.fmt.bufPrint(buffer, "http://127.0.0.1:{d}", .{config.port});
+    if (!std.mem.eql(u8, config.public_origin, canonical)) return error.InvalidLocalhostAlias;
+    return try std.fmt.bufPrint(buffer, "http://localhost:{d}", .{config.port});
+}
+fn requestOrigin(canonical_origin: []const u8, canonical_host: []const u8, localhost_origin: ?[]const u8, host: []const u8) ?[]const u8 {
+    if (std.mem.eql(u8, host, canonical_host)) return canonical_origin;
+    if (localhost_origin) |alias| if (std.mem.eql(u8, host, alias["http://".len..])) return alias;
+    return null;
+}
 pub fn main(init: std.process.Init) !void {
     const status = telemetry.runService(init, "transit-board", .info, run);
     if (status != 0) std.process.exit(status);
@@ -703,6 +721,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (config.profile != .native_v1 or scope.realm != config.realm) return error.InvalidApplicationConfiguration;
     }
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
+    var localhost_buffer: [32]u8 = undefined;
+    const localhost_origin = try localhostOrigin(config, &localhost_buffer);
     const limits: http_server.Options = .{
         .connections = config.http_connections,
         .requests = config.http_requests,
@@ -734,12 +754,40 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     }
     const relational = if (config.relational != null) try RelationalRuntime.create(init.gpa, init.io, config) else null;
     defer if (relational) |runtime| runtime.destroy();
-    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null, .relational = relational };
+    var shared: Shared = .{ .config = config, .host = host, .localhost_origin = localhost_origin, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null, .relational = relational };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
     diagnostics.event(.{ .name = "service.ready" });
     try http_server.serve(init.io, init.gpa, &listener, limits, &shared);
+}
+test "localhost alias is explicit and restricted to the local listener" {
+    const canonical = "http://127.0.0.1:19107";
+    var config: Config = .{ .upstream = "", .realm = 1, .principal = 1, .seed_file = "", .public_origin = canonical, .port = 19107 };
+    var buffer: [32]u8 = undefined;
+    try std.testing.expectEqual(null, try localhostOrigin(config, &buffer));
+    try std.testing.expectEqual(null, requestOrigin(canonical, "127.0.0.1:19107", null, "localhost:19107"));
+    config.localhost_alias = true;
+    const alias = (try localhostOrigin(config, &buffer)).?;
+    try std.testing.expectEqualStrings("http://localhost:19107", alias);
+    try std.testing.expectEqualStrings(canonical, requestOrigin(canonical, "127.0.0.1:19107", alias, "127.0.0.1:19107").?);
+    try std.testing.expectEqualStrings(alias, requestOrigin(canonical, "127.0.0.1:19107", alias, "localhost:19107").?);
+    for ([_][]const u8{ "localhost", "localhost:19108", "localhost:019107", "localhost.:19107", "localhost.evil:19107", "127.0.0.2:19107", "127.0.0.1:19108", "[::1]:19107", "evil:19107", "localhost:19107,evil" }) |host| {
+        try std.testing.expectEqual(null, requestOrigin(canonical, "127.0.0.1:19107", alias, host));
+    }
+    config.port = 19108;
+    try std.testing.expectError(error.InvalidLocalhostAlias, localhostOrigin(config, &buffer));
+    config.port = 19107;
+    config.listen = "0.0.0.0";
+    try std.testing.expectError(error.InvalidLocalhostAlias, localhostOrigin(config, &buffer));
+    config.listen = "127.0.0.1";
+    for ([_][]const u8{ "https://board.example", "http://localhost:19107", "http://devbox.local:19107" }) |origin| {
+        config.public_origin = origin;
+        try std.testing.expectError(error.InvalidLocalhostAlias, localhostOrigin(config, &buffer));
+    }
+    config.public_origin = canonical;
+    config.reactive = .{ .principal = 2, .seed_file = "", .gateway = .{ .service = 1, .ingress = 1, .resource = 1, .port = 19107, .host = "127.0.0.1:19107", .public_origin = canonical, .callers = &.{} } };
+    try std.testing.expectError(error.InvalidLocalhostAlias, localhostOrigin(config, &buffer));
 }
 test "development HTTP requires explicit opt-in and preserves origin validation" {
     const remote = "http://devbox.local:18102";
