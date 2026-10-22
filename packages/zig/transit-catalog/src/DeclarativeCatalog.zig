@@ -45,9 +45,9 @@ pub const Spec = union(StateKind) {
         try self.validate();
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.catalog.declarative.spec.v1\x00");
-        hash.update(&.{@intFromEnum(std.meta.activeTag(self))});
+        hash.update(&.{@backingInt(std.meta.activeTag(self))});
         switch (self) {
-            .kv => |vt| hash.update(&.{@intFromEnum(vt)}),
+            .kv => |vt| hash.update(&.{@backingInt(vt)}),
             .document => {},
             .computation => |comp| {
                 var buf: [24]u8 = undefined;

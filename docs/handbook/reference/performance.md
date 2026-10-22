@@ -746,6 +746,7 @@ staging pipeline:
   across all 10 request lanes using epoch-tracked incremental synchronization, and
   `AccountRuntime` wakes immediately on condition variables while draining ready
   `GenServer` sub-steps within a single tick. On the 33-operation, 217-turn
-  `native_gateway_ledger` end-to-end proof (`just test::sql-gateway`), wall-clock
-  execution drops from **122.759 seconds** to **55.770 seconds** (a **2.20x**
-  speedup) with identical durable turn and send counts.
+  `native_gateway_ledger` end-to-end proof
+  ([executed evidence](../../../tests/README.md#live-storage-engine-and-sql-execution-cutover)),
+  wall-clock execution drops from **122.759 seconds** to **55.770 seconds** (a
+  **2.20x** speedup) with identical durable turn and send counts.

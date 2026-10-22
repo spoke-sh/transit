@@ -139,7 +139,7 @@ pub const Schema = struct {
         if (self.hasPhysicalAttributes()) {
             hash.update("FTP1");
             for (self.columns) |column| {
-                hash.update(&.{ @intFromEnum(column.encoding), @intFromEnum(column.collation) });
+                hash.update(&.{ @backingInt(column.encoding), @backingInt(column.collation) });
             }
         }
         return hash.finalResult();
@@ -287,8 +287,8 @@ pub const Schema = struct {
         if (self.hasPhysicalAttributes()) {
             try writer.writeAll("FTP1");
             for (self.columns) |column| {
-                try writer.writeByte(@intFromEnum(column.encoding));
-                try writer.writeByte(@intFromEnum(column.collation));
+                try writer.writeByte(@backingInt(column.encoding));
+                try writer.writeByte(@backingInt(column.collation));
             }
         }
     }

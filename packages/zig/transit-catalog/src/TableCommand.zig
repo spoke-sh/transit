@@ -210,8 +210,8 @@ fn changeWrite(writer: *std.Io.Writer, schema: c.fuze.TableSchema.Schema, change
         .physical => |column| {
             try writer.writeByte(7);
             try writer.writeInt(u64, column.column, .little);
-            try writer.writeByte(@intFromEnum(column.encoding));
-            try writer.writeByte(@intFromEnum(column.collation));
+            try writer.writeByte(@backingInt(column.encoding));
+            try writer.writeByte(@backingInt(column.collation));
         },
     }
 }

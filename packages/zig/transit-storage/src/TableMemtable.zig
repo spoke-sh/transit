@@ -55,7 +55,7 @@ pub fn encodeRowDeltaPayload(
     try writer.writeByte(1); // v1
     try writer.writeInt(u64, object_id, .little);
     try writer.writeInt(u64, schema_revision, .little);
-    try writer.writeByte(@intFromEnum(op));
+    try writer.writeByte(@backingInt(op));
     try writer.writeInt(u16, @intCast(pk_sort_key.len), .little);
     try writer.writeAll(pk_sort_key);
     try writer.writeInt(u32, @intCast(encoded_row.len), .little);
