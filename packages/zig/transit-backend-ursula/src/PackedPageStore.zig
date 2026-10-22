@@ -11,7 +11,8 @@ const Segment = adapter.Segment;
 const Queue = adapter.AllocationQueue;
 const max_record_bytes = 2 + std.base64.standard.Encoder.calcSize(pages.max_encoded_bytes);
 const max_block_record_bytes = 2 + std.base64.standard.Encoder.calcSize(4 + bulk.max_block_bytes);
-const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
+pub const max_resident_pages = 4096;
+pub const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 
 allocator: std.mem.Allocator,
 authority: adapter.Journal,
@@ -30,7 +31,7 @@ segments_created: u64 = 0,
 block_payload_bytes_attempted: u64 = 0,
 
 pub fn init(allocator: std.mem.Allocator, authority: adapter.Journal, resident_pages: usize) !Self {
-    if (resident_pages > 1024) return error.InvalidPageCacheBudget;
+    if (resident_pages > max_resident_pages) return error.InvalidPageCacheBudget;
     const cache = try allocator.alloc(?Cached, resident_pages);
     @memset(cache, null);
     return .{ .allocator = allocator, .authority = authority, .cache = cache };
@@ -140,6 +141,24 @@ pub fn finish(self: *Self) !void {
     const final = try closed.head.metadata();
     if (final.closed != true or final.record_start != candidate.count or final.record_next != @as(u64, candidate.count) + 1) return error.InvalidSegmentReceipt;
     self.segments_created +|= 1;
+    self.rememberCandidate(candidate);
+}
+
+fn rememberCandidate(self: *Self, candidate: *const Segment) void {
+    if (self.cache.len == 0 or candidate.count == 0) return;
+    const start_ordinal: u16 = if (candidate.count > self.cache.len) @intCast(candidate.count - self.cache.len) else 0;
+    for (start_ordinal..candidate.count) |ordinal| {
+        const frame = candidate.frame(ordinal) catch continue;
+        if (frame.len <= max_record_bytes and std.mem.startsWith(u8, frame, "\"VFBH")) {
+            if (decodeRecord(self.allocator, frame)) |page| {
+                if (page.reference()) |base_ref| {
+                    var ref = base_ref;
+                    ref.location = candidate.identity.locate(ordinal) catch continue;
+                    self.remember(ref, page);
+                } else |_| {}
+            } else |_| {}
+        }
+    }
 }
 fn private(self: *Self, location: Segment.Location) !?[]const u8 {
     const address = try Segment.Address.decode(location);
@@ -422,4 +441,10 @@ test "verified page cache retains recently read roots within its resident bound"
     try t.expect(store.cached(located(ref, 0)) != null);
     store.clearCache();
     try t.expect(store.cached(located(ref, 0)) == null);
+
+    try store.beginIdentity(.{ .epoch = 1, .nonce = @splat(9) }, false);
+    const staged_ref = try store.stage(ref, &page);
+    store.rememberCandidate(&store.candidate.?);
+    store.discard();
+    try t.expect(store.cached(staged_ref) != null);
 }

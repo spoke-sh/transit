@@ -190,6 +190,11 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
     var admission: Admission = .{};
     while (true) {
         const stream = try listener.accept(io);
+        if (@import("builtin").os.tag != .windows) {
+            const option: u32 = 1;
+            const option_bytes = std.mem.asBytes(&option);
+            _ = std.posix.system.setsockopt(stream.socket.handle, std.posix.IPPROTO.TCP, std.posix.TCP.NODELAY, option_bytes.ptr, @intCast(option_bytes.len));
+        }
         const slot = for (slots) |*candidate| {
             if (candidate.done.load(.acquire)) break candidate;
         } else {

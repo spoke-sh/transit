@@ -19,7 +19,9 @@ pub fn append(self: *Self, expected: u64, entry: growing.Entry) !bool {
     var bytes: [adapter.max_record_bytes]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
     std.json.Stringify.value(entry, .{}, &writer) catch return error.RecordTooLarge;
-    return self.journal.append(expected, writer.buffered());
+    const accepted = try self.journal.append(expected, writer.buffered());
+    if (accepted) self.cached = .{ .at = expected, .entry = entry };
+    return accepted;
 }
 
 pub fn read(self: *Self, at: u64) !?growing.Entry {
