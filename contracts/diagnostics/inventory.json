@@ -23252,6 +23252,54 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-storage/src/DiskObjects.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "CorruptObjectDescriptor": 5,
+        "FileNotFound": 3,
+        "ImmutableObjectConflict": 2,
+        "IncompatibleDefinition": 3,
+        "ObjectDigestMismatch": 6,
+        "ObjectKeyConflict": 1,
+        "ObjectNotFound": 1,
+        "ObjectTooLarge": 3,
+        "PathAlreadyExists": 1,
+        "RangeOutOfBounds": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "immutable",
+          "conditional"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "content()": "<inferred>",
+        "delete()": "<inferred>",
+        "head()": "<inferred>",
+        "lockKey()": "<inferred>",
+        "open()": "<inferred>",
+        "publish()": "<inferred>",
+        "putConditional()": "<inferred>",
+        "putImmutable()": "<inferred>",
+        "read()": "<inferred>",
+        "readRecord()": "<inferred>",
+        "saveRecord()": "<inferred>",
+        "stage()": "<inferred>",
+        "sync()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 63,
+        "catch": 8
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DiskWal.zig": {
       "errors": {
         "CorruptWalFrame": 3,
@@ -23311,8 +23359,7 @@
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
-        "FileNotFound": 2,
-        "ImmutableObjectConflict": 1,
+        "ImmutableObjectConflict": 2,
         "ObjectDigestMismatch": 1,
         "ObjectNotFound": 1,
         "ObjectTooLarge": 2,
@@ -23327,9 +23374,8 @@
         "LocalSegmentStore.getRangeErased()": "anyerror",
         "LocalSegmentStore.headErased()": "anyerror",
         "LocalSegmentStore.headObject()": "<inferred>",
-        "LocalSegmentStore.loadFromDiskIfPresent()": "<inferred>",
         "LocalSegmentStore.openDisk()": "<inferred>",
-        "LocalSegmentStore.persistToDisk()": "<inferred>",
+        "LocalSegmentStore.openDiskAt()": "<inferred>",
         "LocalSegmentStore.putConditionalErased()": "anyerror",
         "LocalSegmentStore.putConditionalObject()": "<inferred>",
         "LocalSegmentStore.putImmutableErased()": "anyerror",
@@ -23337,10 +23383,11 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 31,
-        "catch": 2
+        "try": 17,
+        "catch": 0
       },
       "imports": [
+        "DiskObjects.zig",
         "TransitObjectStore.zig",
         "std"
       ]
@@ -23584,8 +23631,9 @@
     "packages/zig/transit-storage/src/TransitObjectStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
-        "InvalidObjectKey": 4,
-        "ObjectDigestMismatch": 1
+        "InvalidObjectKey": 5,
+        "ObjectDigestMismatch": 1,
+        "ObjectTooLarge": 2
       },
       "outcomes": {
         "Condition": [

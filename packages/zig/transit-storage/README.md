@@ -20,8 +20,10 @@ durable snapshot pins, policy-authorized trimming or multi-process Table commits
 - `TransitObjectStore.zig`: Pluggable immutable segment and conditional manifest
   object store interface (`putImmutable`, `putConditional` with `if_none_match` / `if_match`,
   `getRange`, `head`, `delete`).
-- `LocalSegmentStore.zig`: Native POSIX/memory `TransitObjectStore` backend with atomic
-  file replacement and SHA-256 verification.
+- `LocalSegmentStore.zig`: POSIX object owner with per-key process locks, atomic
+  descriptor publication, immutable content, chunk-verified range reads and no
+  whole-object disk cache. A separate memory fixture implements the same typed
+  operations. See [object persistence](../../../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence).
 - `S3ObjectStore.zig`: S3-compatible `TransitObjectStore` adapter with AWS Signature
   Version 4 (`AWS4-HMAC-SHA256`), conditional CAS headers, and partial byte-range requests.
 - `NvmeCache.zig`: Tier 2 `64 KiB` chunked range cache with SHA-256 integrity checks
@@ -40,3 +42,10 @@ incomplete tails, missing/corrupt acknowledged history, incompatible definitions
 exclusive ownership and an injected sync failure. Power interruption and
 filesystem rollback are separate qualification boundaries. Run through the
 pinned development shell described in [contributing](../../../docs/handbook/guides/contributing.md).
+
+The disk object cases exercise two independent handles, concurrent publication,
+stale conditions, immutable identity, corrupted chunks/checksums, 513 objects
+through a 16 KiB owner allocator, incompatible definitions and six sync failures.
+The root unit task also launches three races of twelve independent processes and
+checks their results against a Python oracle. Descriptor deletion unpublishes the
+key; physical content collection still requires retained-reader/pin ownership.

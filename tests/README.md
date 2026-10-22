@@ -440,6 +440,22 @@ filesystem rollback, distributed fencing, authorization races, durable pin
 acquisition or installed SQL execution. Physical trim still requires an owning
 retention decision. The installed service backend is unchanged by these tests.
 
+The subsequent object-store component suite passes seven additional disk cases.
+They exercise stale observations across independent handles, concurrent CAS,
+immutable/conditional kind binding, cross-chunk reads, data/checksum corruption,
+513 objects with a 16 KiB owner allocator, missing/foreign definitions and six
+sync failures around staging and descriptor replacement. That allocator bound
+excludes the fixed chunk/checksum stack buffers and caller output.
+
+`zig build test-local-objects` passes three twelve-process races (create,
+conditional replace and competing immutable writes), exact immutable retries,
+stale CAS and reads from fresh processes. The Python oracle checks exactly one
+winner in each race and the actual stored bytes. It is included in `just test::unit`.
+These cases qualify local POSIX locks and publication under the exercised
+schedules; they do not establish distributed object-store behavior or safe
+physical collection. The [object contract](../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence)
+states the deletion and retention boundary.
+
 ## SQL idle lifetimes and readiness observations
 
 The [configuration reference](../docs/handbook/reference/configuration.md),

@@ -315,6 +315,19 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
+    const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/local_objects.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+    }) });
+    const local_objects_test = b.addSystemCommand(&.{ "python3", "-B" });
+    local_objects_test.addFileArg(b.path("tests/local_objects.py"));
+    local_objects_test.addArtifactArg(local_objects);
+    local_objects_test.has_side_effects = true;
+    local_objects_test.stdio = .inherit;
+    test_step.dependOn(&local_objects_test.step);
+    b.step("test-local-objects", "Qualify local object CAS and immutable publication across processes").dependOn(&local_objects_test.step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;

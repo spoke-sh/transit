@@ -96,6 +96,59 @@ scan the directory repeatedly. No throughput claim follows from these bounds.
 `initMemory` supplies a separate volatile fixture limited to 64 partitions and
 64 MiB of retained encoded frames. It does not qualify disk durability.
 
+## Local object persistence
+
+The local disk object owner requires the shared `.definition` marker and rejects
+an unmarked nonempty directory. It publishes a fixed 512-byte descriptor under
+`keys/<SHA-256(key)>`. This descriptor binds the original key, immutable or
+conditional kind, payload length, payload SHA-256, chunk-checksum SHA-256 and the
+current definition. Its last 32 bytes verify all preceding descriptor bytes.
+The key is checked after lookup, independently of its filename hash.
+
+Descriptors have `TOBJ`, byte `1` and three zero bytes at `0..8`; definition bytes
+at `8..40`; kind (`1` immutable, `2` conditional) at byte `40`; little-endian key
+length at `41..43`; zero reserved bytes at `43..48`; little-endian payload length
+at `48..56`; payload and chunk-checksum digests at `56..88` and `88..120`; key bytes
+at `120..120+length`; zeros through byte `479`; and descriptor SHA-256 at
+`480..512`. Keys have no empty or `.` path components.
+
+Payloads are raw immutable files in `objects/`, named by key and payload hashes.
+They retain `.tseg`, `.tdel` or `.tman` suffixes when present in the logical key;
+other payloads use `.data`. Each has a `.checks` file containing one SHA-256 per
+64 KiB payload chunk. The descriptor commits the checksum file itself. Staging
+links content without replacing an existing file and verifies an existing exact
+copy on retry. All content is synced before its descriptor can become visible.
+
+Every mutation holds the key's POSIX lock through reading the current descriptor,
+testing the condition, staging content and atomically replacing/syncing the new
+descriptor. Different keys use different locks. Immutable keys reject different
+bytes and conditional replacement. `If-Match` compares the current content digest;
+`If-None-Match` requires an absent descriptor. The linearization point for object
+publication is descriptor replacement, with its directory synced before success.
+This physical publication is not an application operation's acceptance record.
+An error after replacement is uncertain; reread the owning application operation
+and original intent, rather than treating a failed retry precondition as rejection.
+
+Reads capture one descriptor and open its immutable content. They validate the
+checksum file and each touched payload chunk, using a bounded scratch buffer;
+they do not load or cache whole objects. Head returns committed descriptor
+metadata. A missing descriptor is absence; missing/corrupt referenced content is
+an error. The 32 MiB object limit gives at most 16 KiB of chunk hashes and a 64 KiB
+chunk buffer, separately from the caller's output buffer and fixed metadata.
+
+Delete unpublishes and syncs the descriptor under the same key lock. Content,
+chunk hashes and lock files remain; superseded and staged content likewise remain.
+Their physical collection requires an owner that accounts for retained roots,
+uncertain publication and captured readers. This component does not infer safe
+collection from absence of a live key or implement that retention authority.
+
+The [process fixture](../tests/local_objects.py), run by the root unit task,
+checks competing conditional/immutable publication through separate processes.
+The [disk component cases](../packages/zig/transit-storage/src/disk_objects_test.zig)
+cover bounded allocation, verified ranges, stale observations, definition rejection
+and six sync failure points. They do not qualify filesystem rollback, distributed
+locks, durable snapshot pins or installed catalog transactions.
+
 ## `.tseg` (`TSEG` v1) hybrid segment layout
 
 A `.tseg` segment stores immutable rows sorted by their composite primary-key
