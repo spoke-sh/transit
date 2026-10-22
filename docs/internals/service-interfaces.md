@@ -303,11 +303,31 @@ latency, wire bytes and bounded resident memory before claiming an improvement.
 | Object | Owner and lifetime | Connection loss |
 | --- | --- | --- |
 | Authentication | Bounded challenge or adapter task | Transient secret expires |
-| SQL session | Registry; idle lease, independent settings and handles | Native HTTP can reconnect to a live handle; wire disconnect closes its session |
+| SQL session | Registry; finite native lease or wire connection, independent settings and handles | Native HTTP can reconnect to a live handle; wire disconnect closes its session |
 | Interactive read | Session; one iterator, leased cuts and bounded buffers/spill | Same live cursor can retry its last batch; session loss makes the prefix incomplete |
 | Captured query | Query owner plus account recovery index | Original bundle, signed steps and retained result remain discoverable |
 | Table mutation | Account ledger and Catalog owner | Exact identity and outcome survive |
 | Configuration reload | Account index and configuration journal | Original expected generation and operation ID survive |
+
+Idle duration and incomplete-request duration have different costs. An idle
+wire connection consumes its bounded session and connection slot; it does not
+hold an executing command. The default therefore leaves it open, following
+[PostgreSQL's idle-session policy](https://www.postgresql.org/docs/18/runtime-config-client.html#GUC-IDLE-SESSION-TIMEOUT).
+The [wire contract](../../contracts/SQL_GATEWAY_V1.md) defines optional idle
+expiry and its protocol errors. Native HTTP handles instead outlive sockets and
+need a finite renewable lease to reclaim abandoned state. Separating these
+settings prevents extending a wire client's think time from extending native
+handle retention.
+
+The [TLS transport](../../packages/zig/transit-tls-server/src/root.zig) arms a
+frame deadline on the first network bytes, before TLS decoding can complete;
+the [connection adapter](../../apps/transit-sql-gateway/src/Connection.zig)
+handles already buffered TLS bytes too. Thus disabling idle expiry does not
+permit an indefinitely incomplete frame or TLS record. Connection and memory
+quotas still bound resident state. The [lifetime proof](../../tests/server_sql_lifetimes.py)
+checks idle sockets, independent native expiry and partial records over real
+plaintext and TLS sockets; the [proof ledger](../../tests/README.md) records
+execution results and limits.
 
 Native result cells carry canonical descriptors and schema-bound bytes. This
 preserves wide/nested types and distinguishes missing, null, type error and

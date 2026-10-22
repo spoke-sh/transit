@@ -865,6 +865,12 @@ pub fn build(b: *std.Build) void {
     logging_test.has_side_effects = true;
     logging_test.stdio = .inherit;
     b.step("test-server-logging", "Qualify terminal and machine logs across local services").dependOn(&logging_test.step);
+    const lifetime_test = b.addSystemCommand(&.{ "python3", "-B" });
+    lifetime_test.addFileArg(b.path("tests/server_sql_lifetimes.py"));
+    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board, sql_gateway_app }) |artifact| lifetime_test.addArtifactArg(artifact);
+    lifetime_test.has_side_effects = true;
+    lifetime_test.stdio = .inherit;
+    b.step("test-server-sql-lifetimes", "Qualify idle SQL connections, native leases and partial frame deadlines").dependOn(&lifetime_test.step);
     inline for (.{ .{ "test-server-sql", "tests/server_sql.py" }, .{ "test-server-sql-faults", "tests/server_sql_faults.py" }, .{ "test-server-sql-local", "tests/server_sql_local.py" } }) |proof| {
         const run = b.addSystemCommand(&.{ "python3", "-B" });
         run.addFileArg(b.path(proof[1]));

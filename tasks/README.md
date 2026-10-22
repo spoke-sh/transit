@@ -85,6 +85,7 @@ raise that capacity or discard history to complete.
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
 | `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
+| `just test::server-sql-lifetimes` | Verify idle psql and PostgreSQL/MySQL sockets, native session expiry, explicit timeout errors and bounded partial frames over plaintext/TLS |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
 | `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |

@@ -1,5 +1,38 @@
 # Validation and milestone evidence
 
+## SQL idle lifetimes and readiness observations
+
+The [configuration reference](../docs/reference/configuration.md),
+[wire contract](../contracts/SQL_GATEWAY_V1.md) and
+[Internals lifetime model](../docs/internals/service-interfaces.md#distinct-lifetimes-and-result-disclosure)
+distinguish idle wire connections, renewable HTTP session leases and finite
+request deadlines.
+
+Executed on Linux in the pinned development shell against isolated disk-backed
+installations:
+
+- `just test::server-sql-lifetimes`: real psql and independent PostgreSQL/MySQL
+  sockets remain connected beyond 30 idle seconds, over plaintext and TLS.
+  A concurrent console insert remains visible. Native HTTP handles independently
+  expire under a one-second lease. A configured one-second wire timeout returns
+  PostgreSQL `57P05` or MySQL `4031` without expiring a separate native handle.
+  With idle expiry disabled, incomplete wire frames, partial TLS records and
+  application bytes already buffered by TLS close under a one-second frame bound.
+  The fixture verifies unchanged child PIDs during each scenario and joins them
+  during teardown.
+- `just test::server-logging`: four held native request bodies exhaust data
+  admission. SQL status reports `busy` and `HttpCapacity` at warning level,
+  withholds confirmed readiness, preserves child PIDs and emits no repeated
+  connection instructions on recovery. Killing the SQL process still produces
+  the existing failed error event and replacement behavior.
+
+The initial reproduction on the preceding implementation completed a console
+INSERT while psql was open, logged generic `AuthorityUnavailable`, and closed
+psql after 30 idle seconds without replacing any server role. Preserving the
+native rejection exposed `HttpCapacity` during the write. These finite schedules
+qualify lifecycle and reporting behavior, not sustained-load throughput or a
+promise that an admitted write cannot outlive its connection.
+
 ## Unified service logging
 
 The [observability reference](../docs/reference/observability.md) owns text/JSON

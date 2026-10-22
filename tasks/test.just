@@ -540,6 +540,9 @@ server:
 server-logging:
     zig build test-server-logging -Doptimize=ReleaseSafe
 
+server-sql-lifetimes:
+    zig build test-server-sql-lifetimes -Doptimize=ReleaseSafe
+
 server-faults:
     zig build test-server -Doptimize=ReleaseSafe -Dserver-faults=true
 

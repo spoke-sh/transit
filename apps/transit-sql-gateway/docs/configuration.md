@@ -89,7 +89,11 @@ Removing exposure does not cancel accepted operations or authorize replay.
 
 Each session has a bounded allocator. A slow socket retains at most its bounded
 frame/row and stops further acquisition. Handshake, idle, command and write
-deadlines are distinct. Account recovery runs outside connection tasks, and two
+deadlines are distinct. `limits.idle_ms` defaults to zero, keeping idle wire
+connections open. A positive value enables expiry with a PostgreSQL `57P05` or
+MySQL `4031` error. The first bytes of a frame or TLS record start the finite
+command-sized frame deadline. Native HTTP handles use the separate finite
+`limits.session_lease_ms`, which defaults to 30000. Account recovery runs outside connection tasks, and two
 reserved transport slots admit PostgreSQL cancellation when ordinary connections
 are full. A cancelled command task is joined before freeing its host or buffers.
 Native terminal evidence, rather than a successful transport send, determines a

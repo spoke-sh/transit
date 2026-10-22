@@ -351,6 +351,18 @@ control identity; neither closing a socket nor an empty result justifies blindly
 resubmitting SQL. Current authorization still governs operator inspection.
 
 Local configuration admits at most 32 simultaneous active/recovering accounts.
+Idle PostgreSQL/MySQL connections remain open by default (`sql.idle_ms: 0`).
+A positive value enables idle expiry; PostgreSQL reports `57P05`, and MySQL
+reports `4031`. An existing `idle_ms: 30s` entry still enables that timeout.
+Native HTTP sessions use the independent renewable `sql.native.session_lease_ms`
+lease. See [configuration](../../../docs/reference/configuration.md) for bounds.
+
+A `busy` SQL status with `HttpCapacity` means the supervisor could not complete
+its account observation because native request capacity was full. It does not
+restart the SQL process or establish current readiness. The next scheduled
+check retries the observation; sessions continue to enforce current authorization.
+Connection hints appear once for each listener process, including replacements.
+
 Connection, authentication, statement/idle/drain deadlines and initial per-account
 operation/byte/pending quotas have explicit bounded settings. Initial ledger
 quotas are frozen at enrollment; changing their YAML defaults does not resize an

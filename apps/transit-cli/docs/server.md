@@ -48,6 +48,11 @@ files and are never adopted as recovery evidence.
 
 ## Logging and readiness
 
+SQL `busy` with `HttpCapacity` is a deferred authority observation, reported at
+warning level. It preserves the running listener and exact pending work while
+withholding confirmed readiness until the next successful check. It is distinct
+from a SQL process exit. Connection instructions appear once per listener process.
+
 Stderr reports `creating`, `resuming` or `opening` with the installation path
 as a `server.startup` event. It describes the selected startup action, not
 readiness. Operational logs default to readable text:
