@@ -1,12 +1,74 @@
 # 1. Declarative data lifecycle
 
-[Roadmap](README.md) · [Current data model](../handbook/reference/data-model.md) · **Status:** Completed ([PR #105](https://github.com/spoke-sh/transit/pull/105), [proof ledger](../../tests/README.md#declarative-data-lifecycle-codecs-and-collations))
+[Roadmap](README.md) · [Current data model](../handbook/reference/data-model.md) · [Tracker #108](https://github.com/spoke-sh/transit/issues/108) · **Status:** In Progress
 
 Let an application describe its data, schemas, computations and policies, apply
 a supported change, then inspect the accepted definition and operation outcome
 through consistent public operations. This unifies the catalog and operation
 surface across data kinds while separating direct data-plane lifecycle operations
 from the actor mailbox and native turn ceremony.
+
+## Reopened assessment — 2026-10-22
+
+Source review of local snapshot `a0a8a3ed`
+found that [PR #105](https://github.com/spoke-sh/transit/pull/105) delivered
+column encoding/collation descriptors, Table preview/lifecycle observations,
+dependency/policy inspection, a `TableClient.apply` convenience API and named
+KV/Document/computation metadata transitions. Retain that work and its scoped
+[component evidence](../../tests/README.md#declarative-data-lifecycle-codecs-and-collations).
+Existing Table CRUD and native authorization/recovery predate this milestone.
+
+The executable acceptance path is incomplete. `TableClient.apply` still drives
+actor sends, uploads and continuations. Named KV/Document publication records a
+supplied resource ID without establishing provisioning or initialization.
+Computation completion is not bound to verified result evidence, and schema
+revision comparisons do not establish freshness after row changes. Metadata
+transitions alone do not fulfill a data declaration.
+
+| Remaining work | Tracking issue |
+| --- | --- |
+| Direct Table operations and one acceptance/visibility/recovery protocol | [#111](https://github.com/spoke-sh/transit/issues/111) |
+| Catalog/branch identities, transaction domains and durable snapshot roots | [#125](https://github.com/spoke-sh/transit/issues/125) |
+| Real named KV/Document provisioning, initialization and lifecycle recovery | [#119](https://github.com/spoke-sh/transit/issues/119) |
+| Computation results, dependencies and data-source freshness evidence | [#120](https://github.com/spoke-sh/transit/issues/120) |
+| Executable codec/collation semantics behind declared descriptors | [#118](https://github.com/spoke-sh/transit/issues/118) |
+| Coordinated current-v1 definition and artifact cutover | [#112](https://github.com/spoke-sh/transit/issues/112) |
+| Accurate current documentation and scoped proof claims | [#123](https://github.com/spoke-sh/transit/issues/123) |
+| Public caller, failure, growth and recovery qualification | [#124](https://github.com/spoke-sh/transit/issues/124) |
+
+These issues preserve the delivery sequence and completion criteria below.
+Resolve the operation/commit contract first, then complete the executable Table
+slice with [storage](02-storage-and-query-performance.md) and the
+[live cutover](03-live-storage-and-sql-cutover.md). Named resource and computation
+work must reuse their existing owners. Automatic scheduling remains later scope.
+The transcript review is complete and this planning revision is authorized.
+The [shared contract gates](README.md#firm-scope-and-contract-gates) identify
+engineering decisions that must precede dependent implementation.
+
+## Catalog, transaction and snapshot scope
+
+[#125](https://github.com/spoke-sh/transit/issues/125) defines the
+database/catalog/branch, schema, object and definition hierarchy, its relationship
+to partition heads, and supported atomic domains/isolation. A catalog-wide root
+must not recreate a global realm CAS for every independent data/process write.
+Deliver the complete single-owner Table statement/batch slice first. Specify
+the catalog-scoped transaction extension now; its interactive sessions belong
+to [managed computations and SQL](05-sql-and-dataflows.md). Arbitrary distributed
+cross-owner transactions are not implied, and native turns retain their current
+one-KV-resource atomicity limit.
+
+Snapshots must distinguish a consistent catalog cut from independently captured
+source versions and bind exact interpretation, manifests and committed WAL
+frontiers. Include accepted unflushed rows and durable pin/recovery ownership
+from [#127](https://github.com/spoke-sh/transit/issues/127). Define permitted
+isolation anomalies, read/predicate conflicts, rollback and uncertain outcomes
+before changing persistent formats or admitting transaction syntax.
+
+Named KV/Document provisioning consumes the actual native persistence cutover in
+[#126](https://github.com/spoke-sh/transit/issues/126); a resource metadata record
+does not establish storage migration or usability. Computation evidence consumes
+the snapshot and logical-change contracts, while automatic activation remains
+milestone 5.
 
 ## Baseline, bottleneck diagnosis and scope
 
@@ -105,6 +167,9 @@ Table path. No parsing or metadata milestone counts as complete publication.
 - Independent caller fixtures agree on definitions, outcomes and permission
   failures. Test revocation, interrupted provisioning/publication, missing
   dependencies and object/dependency counts beyond resident caches.
+- Snapshot/transaction fixtures distinguish consistent from independent cuts,
+  include accepted unflushed data, and establish the selected isolation profile
+  under concurrent data/schema changes without promising unsupported atomicity.
 - The handbook states each object's executable lifecycle and demonstrates how
   to distinguish defined, published, pending, complete and unavailable evidence.
   These are review questions; the implementation must define exact status types.

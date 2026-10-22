@@ -17,6 +17,14 @@ second catalog identity or confuse a historical definition with current rights.
 
 ## Delivery sequence
 
+The catalog/snapshot contract in
+[#125](https://github.com/spoke-sh/transit/issues/125), retention/pins in
+[#127](https://github.com/spoke-sh/transit/issues/127), and exact codec/collation
+and layout identities in [#118](https://github.com/spoke-sh/transit/issues/118)
+and [#128](https://github.com/spoke-sh/transit/issues/128) are foundations from
+milestones 1–2. This milestone implements historical binding and conformance
+over those contracts, rather than introducing a second snapshot representation.
+
 1. **Publish a machine-readable standards and collation ledger:** edition/correction,
    feature, owner, dependencies, deviations and separate
    `parse`/`lower`/`execute`/`recover`/`transport` states. Include explicit
@@ -31,7 +39,8 @@ second catalog identity or confuse a historical definition with current rights.
 3. **Define manifest-backed historical catalogs:** bind stable catalog/column
    identities (`CatalogId`, `DefinitionId`, `ColumnId`), ancestry, column
    encodings and collations, immutable `.tseg`/`.tdel` inclusion lists,
-   consistency basis (`manifest/v{N}` and `TransitLog` watermark), typed
+   consistency basis (durable manifests and retained `TransitLog` frontiers,
+   including accepted unflushed data), typed
    selectors, current access (`policy_epoch`) and conditional head publication.
 4. **Bind historical schemas, collations, views, graph mappings and decoders before resolving names or compiling:**
    ensure `FOR SYSTEM_TIME AS OF` queries evaluate comparisons, zone-map pruning,

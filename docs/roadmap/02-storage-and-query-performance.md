@@ -1,6 +1,6 @@
 # 2. Storage hierarchy, `.tseg` segments and query performance
 
-[Roadmap](README.md) · [Issue #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Completed
+[Roadmap](README.md) · [Tracker #109](https://github.com/spoke-sh/transit/issues/109) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
 Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
@@ -11,11 +11,91 @@ measurements; the [storage reference](../handbook/reference/storage.md) and
 [storage internals](../handbook/internals/storage-runtime.md) document the current
 boundary and target architecture.
 
-## Root-cause diagnosis of current costs
+## Reopened assessment — 2026-10-22
 
-Current end-to-end latency (`806 ms` for a local console 1-row `INSERT`,
+Source review of local snapshot `a0a8a3ed`
+found useful standalone work from
+[PR #106](https://github.com/spoke-sh/transit/pull/106): storage interfaces,
+TSEG/TDEL/TMAN encoding, physical codec/collation helpers, a memtable, local
+persistence implementations, an Ursula adapter and an OCC helper. Their component
+tests do not establish the durable, bounded replacement described below.
+
+The local WAL rewrites retained partition contents and cannot reload a partition
+file beyond its 64 MiB read limit. Local manifest publication uses a
+check-then-replace sequence rather than atomic cross-writer CAS. Recovery reads
+only one 4,096-frame batch; keyless row identity and snapshots spanning flush
+are incorrect. Readers, object caches and manifests grow resident state with
+retained data. `S3ObjectStore` uses an in-memory signing loopback, `NvmeCache`
+holds heap buffers, and partition authority/OCC are not integrated into the node.
+The live runtime still uses the existing Table page path.
+
+| Remaining work | Tracking issue |
+| --- | --- |
+| WAL/manifest/catalog acceptance, visibility and contiguous checkpoint contract | [#111](https://github.com/spoke-sh/transit/issues/111) |
+| Catalog/partition roots, transaction domains and durable snapshots | [#125](https://github.com/spoke-sh/transit/issues/125) |
+| Native control/process/KV/Document persistence and recovery | [#126](https://github.com/spoke-sh/transit/issues/126) |
+| Logical changefeeds, snapshot-to-tail handoff, pins and safe retention | [#127](https://github.com/spoke-sh/transit/issues/127) |
+| Encoded column execution and shared reader/buffer ownership | [#128](https://github.com/spoke-sh/transit/issues/128) |
+| Segmented local WAL, durable epochs/trim state and exact restart recovery | [#113](https://github.com/spoke-sh/transit/issues/113) |
+| Atomic immutable writes and conditional manifest publication across processes | [#114](https://github.com/spoke-sh/transit/issues/114) |
+| Keyless identities, MVCC snapshots, idempotence and complete replay | [#115](https://github.com/spoke-sh/transit/issues/115) |
+| Bounded manifests/indexes/scans, range reads, spill and safe compaction | [#116](https://github.com/spoke-sh/transit/issues/116) |
+| Partition authority, durable scoped fencing and integrated multi-writer OCC | [#117](https://github.com/spoke-sh/transit/issues/117) |
+| Independent codec/collation conformance and consistent query/storage semantics | [#118](https://github.com/spoke-sh/transit/issues/118) |
+| Real Ursula/S3, disk caching and reference deployment qualification | [#121](https://github.com/spoke-sh/transit/issues/121) |
+| Coordinated current-v1 definition and artifact cutover | [#112](https://github.com/spoke-sh/transit/issues/112) |
+| Accurate current documentation and scoped proof claims | [#123](https://github.com/spoke-sh/transit/issues/123) |
+| Real disk/failure/growth evidence and matched performance controls | [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) |
+
+Resolve commit authority before wiring storage, establish the correct bounded
+local slice, then qualify concurrent/distributed paths and complete the
+[live cutover](03-live-storage-and-sql-cutover.md). The target architecture and
+completion criteria below incorporate the authorized transcript review.
+The [shared contract gates](README.md#firm-scope-and-contract-gates) must resolve
+exact transaction, layout, codec/collation, trust and provider semantics before
+dependent implementation. Zero-copy access, bounded lookup I/O and efficient
+rebasing remain design objectives with scoped evidence; unsupported universal
+conversion, latency or complexity guarantees are not acceptance assumptions.
+
+## Shared durable system and commit profiles
+
+The storage foundation covers control/policy and catalog state, native process
+mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
+effect evidence and supported captured/stream payloads as well as Tables.
+[#126](https://github.com/spoke-sh/transit/issues/126) assigns each owner its log
+transitions, checkpoint evidence and immutable object representation. Shared
+primitives do not require every resource kind to use columnar Table pages.
+
+[#125](https://github.com/spoke-sh/transit/issues/125) defines catalog roots and
+snapshots; [#111](https://github.com/spoke-sh/transit/issues/111) defines one
+acceptance protocol for two ingestion paths. Small writes use WAL/memtable
+admission and later flushing. Bulk writers may stage immutable segments directly;
+their durable publication record must join the same query visibility, conflict,
+receipt and changefeed semantics. An uploaded object is not an accepted write,
+and a manifest checkpoint must not become a second independent authority.
+
+[#127](https://github.com/spoke-sh/transit/issues/127) distinguishes recovery
+state, net snapshot deltas and complete ordered logical changes. A row changing
+`A -> B -> A` has an empty endpoint diff but two transitions. Define transaction
+boundaries, subscriptions, before/after information, archival and consumer
+positions accordingly. Compaction creates no user mutation. Physical WAL removal
+requires all retained recovery/history/pin obligations to remain satisfied;
+logical expiry remains opt-in. Snapshots and future branches include accepted
+unflushed WAL state through durable pins, not just the latest flushed manifest.
+
+[#128](https://github.com/spoke-sh/transit/issues/128) owns reader/array contracts,
+encoded operators and buffer lifetime. [#116](https://github.com/spoke-sh/transit/issues/116)
+owns bounded physical access and maintenance; [#118](https://github.com/spoke-sh/transit/issues/118)
+owns independent type/codec/collation correctness. Their contracts are developed
+together, without waiting for all maintenance or foreign-format implementations.
+
+## Recorded bottleneck diagnosis
+
+The earlier end-to-end baseline (`806 ms` for a local console 1-row `INSERT`,
 `13,238 ms` over PostgreSQL wire, `1,072` Ursula HTTP attempts and `29` staged
-pages per single-row write) comes from three compounding architectural bottlenecks:
+pages per single-row write) identified three compounding architectural bottlenecks.
+These figures are historical observations, not a new measurement from the
+reopening review:
 
 1. **Quadruple indirection over an HTTP JSON stream store:** Table rows are
    serialized as `FTR1` row blobs inside `StationIndex` (`SBR1`) blocks, which
@@ -40,18 +120,21 @@ pages per single-row write) comes from three compounding architectural bottlenec
 Split the storage engine into two explicit Zig interfaces with swappable backends:
 
 1. **`TransitLog` (The Sequenced Write-Ahead Log & Data-Activation Bus):**
-   - Canonical binary frame format (`TWAL1`: CRC32C/xxHash64 checksum,
+   - Canonical binary frame format (`TWAL1`, with integrity and compatibility
+     defined by the owning storage contract), carrying
      `partition_id`, `writer_epoch`, `policy_epoch`, `lsn`, and typed delta
      payloads for row mutations `+row`/`-row`, catalog DDL, process mailbox
-     admissions and effect intents).
+     admissions and effect intents.
    - Operations: `append(partition, expected_offset_or_epoch, batch)`,
      `tail/subscribe(partition, from_offset)` and `trim(partition, up_to_offset)`
-     once changes are checkpointed into immutable object-store manifests.
+     once changes and all required recovery/history evidence are checkpointed
+     or archived and the retention floors in #127 permit physical removal.
    - Backends:
      - **Native Zig Local Segmented WAL (`LocalWal`):** Pre-allocated `64 MiB`
        append-only segment files using `fdatasync`/`io_uring` and group commit.
        Default for `transit server` so local development runs as a single Zig
-       binary with zero external child daemons and sub-millisecond commits.
+       binary with no external storage daemons. Resolve runtime composition in
+       #122/#126; measure commit latency instead of promising a universal bound.
      - **Ursula (`UrsulaWal`):** Repositioned from a base64 B-tree page store to
        its natural role as a distributed log and data-activation stream backbone
        (one long-lived Ursula stream per `TransitLog` partition).
@@ -62,13 +145,17 @@ Split the storage engine into two explicit Zig interfaces with swappable backend
      `put_conditional(key, expected_etag_or_if_none_match, bytes)` and
      `get_range(key, offset, len)`.
    - Backends:
-     - **Cloud Object Storage (`S3ObjectStore` for S3 / GCS / R2 / Azure Blob):**
-       Durable, geo-replicated system of record for immutable data segments
+     - **Cloud Object Storage (S3, then separately qualified GCS/R2/Azure profiles):**
+       Provider-backed system of record for immutable data segments
        (`.tseg`), deletion vectors (`.tdel`) and versioned manifests, paired with
-       a stateless local NVMe content-verified read-through cache.
+       a disposable local NVMe content-verified read-through cache. Provider
+       conditions, credentials, integrity and durability require their own
+       conformance profile; an S3 adapter does not prove all providers.
      - **Native POSIX Segment Store (`LocalSegmentStore`):** Atomic
        `open(O_CREAT|O_EXCL) + fsync + rename` and direct `mmap`/`preadv` over a
-       local directory. Default for `transit server` without requiring MinIO.
+       local directory. #114 must prove immutable creation and cross-process CAS;
+       a check-then-rename recipe alone is insufficient. Default for
+       `transit server` without requiring MinIO.
      - **Compose and Kubernetes/Substrate launchers (`launchers/`):** Exercise
        the distributed **Ursula + S3 + Substrate** deployment profile where
        Station placement and distributed compute over data partitions are tested.
@@ -78,9 +165,9 @@ Split the storage engine into two explicit Zig interfaces with swappable backend
 | Tier | Medium | State held | Durability & recovery invariant |
 | --- | --- | --- | --- |
 | **Tier 0: RAM** | Bounded Zig arenas | Active **Memtables / Delta Buffers** (immediate MVCC visibility for committed WAL frames), **Catalog & Grant Head** (`policy_epoch`), and verified **Buffer Pool** (pinned `.tseg` column pages, zone maps, B-tree index nodes). | Zero durability authority; rebuilt by replaying the uncompacted `TransitLog` tail from the latest Manifest watermark. |
-| **Tier 1: WAL (`TransitLog`)** | `LocalWal`, `UrsulaWal`, or `Kafka`/`Pulsar` | Sequential `TWAL1` frames for uncompacted row deltas (`+row`/`-row`), catalog transitions and process turns; live activation stream for maintained views, reactive watches, CDC (`TableChangeReader`) and Station actors. | Immediate commit durability and ordering per partition; trimmed once flushed into Tier 3 `.tseg` segments and referenced by a committed Manifest. |
-| **Tier 2: Local Disk / NVMe** | Local filesystem | In cloud mode: disposable, content-verified (`SHA-256`) read-through cache of `.tseg`/`.tdel` byte ranges plus bounded query spill (`Fuze` sort/hash partitions). In local mode (`transit server`): primary `LocalWal` + `LocalSegmentStore`. | In cloud mode, node loss loses zero committed data and cold nodes warm NVMe pages on demand via `get_range`. In local mode, `fsync` before commit acknowledgement. |
-| **Tier 3: Object Storage (`TransitObjectStore`)** | S3 / GCS / R2 / Azure Blob or `LocalSegmentStore` | Immutable **`.tseg` Data Segments**, **`.tdel` Deletion Vectors**, and versioned **Table / Partition / Branch Manifests (`manifest/v{N}`)** committed via conditional CAS (`If-None-Match`). | System of record for all compacted state, historical `AS OF` snapshots and branches. |
+| **Tier 1: WAL (`TransitLog`)** | `LocalWal`, `UrsulaWal`, or qualified `Kafka`/`Pulsar` | Accepted row changes, segment-publication references, catalog/control transitions, native turns and required logical history. | The selected commit protocol and provider profile define acknowledgement. Checkpoint/archive coverage and retained pins/consumer obligations govern physical trim. |
+| **Tier 2: Local Disk / NVMe** | Local filesystem | In cloud mode: disposable, verified `.tseg`/`.tdel` range cache and bounded query spill. In local mode: primary `LocalWal` + `LocalSegmentStore`. | Cache-node loss is safe only when authoritative WAL/object state survives elsewhere. Local sync establishes the specified local-disk guarantee, not recovery after losing that disk. |
+| **Tier 3: Object Storage (`TransitObjectStore`)** | Qualified cloud provider or `LocalSegmentStore` | Immutable Table segments/deletion vectors, other resource objects, recovery/history checkpoints and versioned catalog/partition/snapshot manifests. | Durable published objects plus required WAL/history retain the accepted state. Head publication remains authorized; object CAS alone does not establish a transaction or current access. |
 
 ### `.tseg` hybrid OLTP/OLAP segment format, Zig codecs and collations
 
@@ -88,19 +175,23 @@ Instead of choosing between a write-heavy B-tree and a scan-only analytical file
 format, Transit's primary native table storage format is **`.tseg`** (inspired by
 Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
 
-- **64-byte-aligned Arrow-compatible column buffers:** Zero-copy `mmap`/`preadv`
-  directly into `Fuze`'s columnar `Batch.zig` vectors without row-by-row `FTR1`
-  deserialization.
+- **64-byte-aligned Arrow-compatible plain column buffers:** Borrow qualified
+  layouts into Fuze/Arrow without row deserialization. Define actual offsets,
+  nested layouts, five-state sidecars, pin/release and export semantics in #128;
+  compressed/foreign profiles use bounded decoding where borrowing is impossible.
 - **Native 5-state cell validity/tag streams:** Every column carries compact
   bitmasks/tags for `value`, `null`, `missing`, `type_error` and `conflict` so
   malformed foreign/mainframe fields or `REDEFINES` union variants surface
-  losslessly (`IS TYPE_ERROR`, `IS MISSING`) without aborting scans.
+  explicitly (`IS TYPE_ERROR`, `IS MISSING`) without aborting scans. Preserve
+  error/conflict payloads and original-byte provenance according to the selected
+  contract; a state tag by itself is not lossless source preservation.
 - **Hybrid OLTP + OLAP indexing in the segment footer:**
   - **Per-row-group Zone Maps** (`min`, `max`, null/error counts, optional Bloom
     filters) for vectorized predicate pushdown.
   - **Embedded Primary-Key Prefix B-Tree Index** over sorted rows so point
-    lookups (`WHERE pk = $1`) and narrow range scans execute in $O(\log N)$ via
-    two range reads (`footer index -> target row-group slice`).
+    lookups (`WHERE pk = $1`) and narrow range scans use bounded paged index and
+    row-group access. Measure I/O under explicit cache/index-depth assumptions;
+    the two-range-read target is a qualified profile, not a universal guarantee.
   - **Deletion Vectors (`.tdel` roaring/bitmap files):** Point `DELETE` and
     `UPDATE` operations write a compact `.tdel` bitmap (and append the new row to
     the active Memtable/WAL) instead of rewriting `.tseg` files until background
@@ -110,18 +201,21 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
     Encoding (RLE)**, **Dictionary encoding** (with late materialization in
     `Fuze` filters and group-bys), and **FSST (Fast Static Symbol Table)** string
     compression.
-  - Enterprise and mainframe encodings (decoded directly into canonical `Fuze`
-    vectors in-register without intermediate heap allocations):
+  - Enterprise and mainframe encodings (selected physical-codec kernels and
+    bounded canonical-vector decoding, with allocation/copy costs measured):
     - **`COMP-3` (Packed Decimal / BCD):** Variable nibble-packed digits with
       trailing sign nibble (`0xC`/`0xF` positive, `0xD` negative) decoded directly
       to `decimal128(p, s)` or `int64` with invalid-nibble capture as `type_error`.
     - **`ZONED` (Zoned Decimal / `DISPLAY` numeric):** EBCDIC (`0xF0`–`0xF9`) or
       ASCII zoned digits with overpunched trailing/leading signs (`0xC0`–`0xC9`,
       `0xD0`–`0xD9`).
-    - **`COMP` / `COMP-4` / `COMP-5`:** Big-endian 2/4/8-byte two's-complement
-      binary integers with implied decimal scale.
+    - **`COMP` / `COMP-4` / `COMP-5`:** Binary integers with explicit dialect,
+      width, byte order, range and implied decimal scale; do not assign all
+      source dialects one physical interpretation.
     - **`IBM_HFP` (`COMP-1` / `COMP-2`):** IBM System/360 base-16 hexadecimal
-      floating point converted losslessly to IEEE-754 `float64`.
+      floating point with explicit precision, range and rounding rules when
+      converting to IEEE-754 `float64`; retain exact source representation where
+      lossless interpretation is required.
     - **`EBCDIC` fixed/variable strings (`CP037`, `CP1047`, `CP500`):** Preserved
       in physical byte form or transcodable via 256-byte SIMD lookup tables (`vpshufb`/`tbl`).
 - **First-class Collation (`COLLATE`) architecture:**
@@ -136,8 +230,8 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
 
 ### Eliminating the single global sequencer (3-level progression)
 
-1. **Level 1 — Partitioned Authority:** Split the global realm root into a small,
-   cache-resident **Control/Policy Log** (Principals, Grants, `policy_epoch`,
+1. **Level 1 — Partitioned Authority:** Split the global realm root into a
+   **Control/Policy Log** with bounded resident caching (Principals, Grants, `policy_epoch`,
    Catalog Directory, Partition Lease table) and independent **Data & Process Log
    Partitions** (each Table partition and Station process group owns its own
    `TransitLog` stream and `Manifest` chain).
@@ -146,34 +240,65 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
    `(partition_id, writer_epoch, policy_epoch)` to authorized writers. Holding a
    valid lease allows a writer to append directly to the partition's `TransitLog`
    and flush `.tseg` segments and Manifests directly to `TransitObjectStore`
-   without proxying row payloads through `transit-node`. Any permission `REVOKE`
-   increments `policy_epoch` and fences stale leases at storage boundaries.
-3. **Level 3 — Lock-Free Multi-Writer OCC:** Multiple writers stage immutable
+   without proxying row payloads through `transit-node`. #117 defines the trust
+   boundary, scoped credentials and enforceable ordering between revocation and
+   append/publication/disclosure for each provider. Neither a signed lease nor
+   a cached epoch automatically fences a disconnected writer.
+3. **Level 3 — Multi-Writer OCC:** Multiple writers stage immutable
    `.tseg` files in parallel to `TransitObjectStore` (`put_immutable` with UUIDv7
    content keys) and commit via conditional Manifest CAS (`If-None-Match` on
-   `manifest/v{N+1}` or conditional `TransitLog` append). Non-conflicting appends
-   and disjoint primary-key ranges rebase automatically in $O(1)$ metadata time;
-   overlapping primary-key mutations are detected using `.tseg` footer key
-   indexes and rejected or retried deterministically.
+   `manifest/v{N+1}` coordinated with the accepted `TransitLog` protocol).
+   Non-conflicting appends and disjoint primary-key ranges reuse staged segments
+   during metadata retries; measure rebase work against actual manifest/index
+   structure. Detect write conflicts and any read/predicate conflicts required
+   by the isolation profile. Do not infer formal lock-freedom from the use of CAS.
+
+## Maintenance, inspection and deployment gates
+
+Assign service owners for flush thresholds/timers, checkpoint publication,
+compaction, logical-history archival, orphan collection and shutdown. Bound
+their memory and concurrency, apply backpressure before accepting unsupported
+work, and reserve control/recovery capacity. Storage pressure never authorizes
+expiry. Inspection reports the selected backend/root, committed and flushed
+positions, pending bytes, maintenance failures and retention floors through
+authorized public reads; Board receives no raw provider access.
+
+[#121](https://github.com/spoke-sh/transit/issues/121) records acknowledgement
+points, durable-copy locations and failure behavior for process crash, host/disk
+loss, network partition and WAL/object-store outages. A remote object store
+cannot recover acknowledged data left only in a lost local WAL before flush.
+Deliver the native local profile first, then the Ursula/S3 reference, retaining
+the other explicitly planned provider profiles until qualified or explicitly
+rescoped. Distinguish provider implementation from distributed placement in
+milestone 9.
 
 ## Delivery sequence
+
+Resolve #125/#111, #126/#127 and #128/#118 contracts before their dependent
+formats and code. Land the native local implementation and installed checkpoint
+in milestone 3 before extending distributed/provider coverage. The steps below
+remain the full delivery scope, not prerequisites that all must close before
+the first local integration proof.
 
 1. **Define and implement `TransitLog` and `TransitObjectStore` with native local backends.**
    Specify `TWAL1` frames and the `TransitObjectStore` conditional-put/range-read
    contract. Build `LocalWal` (`fdatasync`/`io_uring` + group commit) and
    `LocalSegmentStore` (`O_CREAT|O_EXCL` + `fsync` + `rename`, `mmap`/`preadv`)
-   and wire `transit server` to run standalone without child Ursula daemons.
+   and compose them with native durable owners from #126 in the live server.
 2. **Implement Tier 0 Memtables, `.tseg` v1 segments, `.tdel` deletion vectors and Manifest CAS.**
    Route table DML and batch writes into `TransitLog` + Tier 0 Memtables for
    immediate MVCC read-your-writes visibility, flush immutable `.tseg` segments
-   and `.tdel` bitmaps to `TransitObjectStore`, and commit `manifest/v{N}` heads.
+   and `.tdel` bitmaps to `TransitObjectStore`, and publish authorized heads.
+   Also support direct immutable-segment bulk staging under the same acceptance
+   and logical-change protocol, preserving native-owner checkpoint evidence.
    Retire `PackedPageStore` base64 B-tree page streaming and multi-turn table
    staging state machines (`STW1`, `STC1`, `STG1`, `STX1`).
 3. **Add composable Zig codecs, 5-state tags and Collation (`COLLATE`) execution.**
    Implement bitpacking, RLE, dictionary, FSST, `COMP-3`, `ZONED`, `COMP`/`COMP-4`,
    `IBM_HFP` and `EBCDIC` codecs in `.tseg` and `Fuze`. Thread explicit collation
    descriptors through zone maps, order-preserving B-tree sort keys and `Fuze`
-   comparison/sort/join/group-by kernels.
+   comparison/sort/join/group-by kernels. Implement #128's encoded column access,
+   selected pushdown/late materialization and correct bounded fallback paths.
 4. **Implement `UrsulaWal`, `S3ObjectStore` and the local NVMe read-through cache.**
    Reposition Ursula as a `TransitLog` stream backend and add `S3ObjectStore`
    with content-verified (`SHA-256`) local NVMe range caching and `Fuze` disk
@@ -190,6 +315,12 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
    vector execution and manifest publication separately.
 
 ## Completion evidence
+
+The acceptance matrix in [#124](https://github.com/spoke-sh/transit/issues/124)
+includes complete native KV/Document/process recovery, both ingestion paths,
+snapshot pins over accepted unflushed data, complete-change versus net-result
+consumers, compaction without logical mutations, and encoded/decoded reader
+equivalence. A Table-only library proof cannot close this milestone.
 
 Require independently verified values/counts, matched ReleaseSafe controls, raw
 samples, sufficient observations for percentiles and explicit remaining limits.

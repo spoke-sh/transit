@@ -1,6 +1,6 @@
 # 5. Managed computations and WAL-activated dataflows
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Let an application declare a derived result, apply it, and inspect the definition,
 source basis, completed revision and pending or blocked work while Transit owns
@@ -21,6 +21,14 @@ recomputation oracle.
 
 ## Managed computation sequence
 
+Consume the durable catalog/snapshot contract in
+[#125](https://github.com/spoke-sh/transit/issues/125) and logical feed/retention
+contract in [#127](https://github.com/spoke-sh/transit/issues/127). Storage-level
+subscriptions and history preservation belong to milestone 2; this milestone
+owns service scheduling, consumer-specific activation and observable freshness.
+Connections/sources/sinks remain separate declarations whose publication does
+not authorize external work.
+
 1. **Bind computation declarations to catalog and storage watermarks:** define a
    computation declaration's bound inputs (`CatalogId`, `DefinitionId`), lifetime,
    output sink/table, policy references (`policy_epoch`), budget and desired
@@ -30,11 +38,15 @@ recomputation oracle.
 2. **Drive activation from `TransitLog` delta streams and manifest watermarks:**
    implement a service owner that subscribes to source partition `TransitLog`
    tails (`+row`/`-row` change vectors and manifest commits) from the
-   computation's last checkpointed `(manifest_version, lsn)` watermark. If a slow
-   or paused consumer falls behind a trimmed `TransitLog` segment, seamlessly
-   backfill from the committed Tier 3 `.tseg`/`.tdel` manifest diffs before
-   resuming live WAL tailing. Record recoverable intent and progress, fence
-   competing owners via epoch leases, and preserve pending work across service
+   computation's last checkpointed source position. Select each consumer's
+   contract explicitly: complete ordered changes, net relation changes, or
+   finite recomputation at a new basis. A slow consumer requiring every change
+   must recover from retained/archived logical history; snapshot diffs cannot
+   recover intermediate `A -> B -> A` events. Use manifest reconciliation or
+   recomputation only where the consumer's semantics permit it. Define the
+   snapshot-to-live handoff and explicit unavailable-history outcomes; never
+   silently downgrade complete capture. Record recoverable intent and progress,
+   fence competing owners via epoch leases, and preserve pending work across service
    replacement. Admission pressure must not discard accepted work; reserve
    control capacity.
 3. **Expose completed source vectors, result revisions, pending successor and attributable failure/blocked reasons:**
@@ -43,9 +55,9 @@ recomputation oracle.
    complete for its own basis while later changes are pending.
 4. **Define refresh, pause/resume, cancellation, alteration, retirement and cleanup:**
    preserve the last complete result while a successor is incomplete. Define
-   dependency/schema changes, revocation, unavailable history, `.tseg` backfill
-   to live `TransitLog` handoff and policy expiry without inventing cross-owner
-   atomicity.
+   dependency/schema changes, revocation, unavailable history, the selected
+   retained-history/snapshot-to-live handoff and policy expiry without inventing
+   cross-owner atomicity.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    inspection and `EXPLAIN` do no work. Board consumes the same definitions and
    evidence through its explicit capabilities; it adds no hidden scheduler or
@@ -61,8 +73,11 @@ recomputation oracle.
   source disclosure, mutation or external work.
 - Implement typed `COPY`/import/export (writing `.tseg`, Parquet, Arrow IPC and
   CSV/JSONL), `MERGE`/upsert (using `.tseg` primary-key B-tree indexes and `.tdel`
-  deletion vectors), prepared-plan lifetime and explicit transaction sessions
-  over multi-writer Manifest OCC.
+  deletion vectors) and prepared-plan lifetime. Implement explicit transaction
+  sessions against #125's selected atomic domain, isolation and snapshot contract;
+  manifest CAS alone does not provide transaction semantics. This milestone owns
+  typed import/export operations; milestone 6 supplies the actual foreign-format
+  adapters, with capability reporting per qualified combination.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
   same administrative operations.
@@ -81,8 +96,10 @@ vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.
 
 Require independent finite/maintained equivalence at completed source bases,
-current grants, lost responses, interrupted publication, WAL trim -> `.tseg`
-catch-up handoff, bounded NVMe spill and larger-than-RAM workloads. Qualify
+current grants, lost responses, interrupted publication, retained-history and
+snapshot-to-tail handoff, bounded NVMe spill and larger-than-RAM workloads. Test
+`A -> B -> A`, insert/delete within one flush, schema changes and compaction
+without a logical mutation for every admitted consumer profile. Qualify
 actual callers for each exposed slice.
 
 The acceptance journey declares a derived relation, observes its first complete

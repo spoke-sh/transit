@@ -7,6 +7,15 @@ Extend source, type and lifecycle limits documented by
 [Flight/ADBC](../handbook/reference/flight.md) and the [SDKs](../handbook/reference/sdks.md).
 Transport support alone does not establish a new execution profile.
 
+Consume the neutral catalog/snapshot operations in
+[#125](https://github.com/spoke-sh/transit/issues/125), changefeed/consumer
+positions in [#127](https://github.com/spoke-sh/transit/issues/127), and array/state
+export contract in [#128](https://github.com/spoke-sh/transit/issues/128).
+Each adapter must preserve the selected transaction/feed profile, current
+authorization and loss/error representation; transport convenience cannot
+silently downgrade complete changes to refresh notifications or five-state
+values to ordinary NULLs.
+
 ## Remaining work
 
 - Expose the qualified data/computation lifecycle through each selected SDK and
