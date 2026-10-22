@@ -49,6 +49,10 @@ pub const TableSchemaJson = @import("TableSchemaJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
+pub const Collation = @import("Collation.zig");
+pub const PhysicalCodecs = @import("PhysicalCodecs.zig");
+pub const TDel = @import("TDel.zig");
+pub const TSeg = @import("TSeg.zig");
 test {
     _ = Batch;
     _ = BatchExecution;
@@ -69,6 +73,11 @@ test {
     _ = TableDmlPrepared;
     _ = TableSchemaJson;
     _ = TableSelect;
+    _ = Collation;
+    _ = PhysicalCodecs;
+    _ = TDel;
+    _ = TSeg;
+    _ = @import("tseg_test.zig");
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("logical_stream_test.zig");
